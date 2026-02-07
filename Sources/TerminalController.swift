@@ -1,15 +1,18 @@
 import AppKit
 import Carbon.HIToolbox
 import Foundation
+import Bonsplit
+import WebKit
 
 /// Unix socket-based controller for programmatic terminal control
 /// Allows automated testing and external control of terminal tabs
+@MainActor
 class TerminalController {
     static let shared = TerminalController()
 
-    private var socketPath = "/tmp/cmuxterm.sock"
-    private var serverSocket: Int32 = -1
-    private var isRunning = false
+    private nonisolated(unsafe) var socketPath = "/tmp/cmuxterm.sock"
+    private nonisolated(unsafe) var serverSocket: Int32 = -1
+    private nonisolated(unsafe) var isRunning = false
     private var clientHandlers: [Int32: Thread] = [:]
     private weak var tabManager: TabManager?
     private var accessMode: SocketControlMode = .full
@@ -78,7 +81,7 @@ class TerminalController {
         }
     }
 
-    func stop() {
+    nonisolated func stop() {
         isRunning = false
         if serverSocket >= 0 {
             close(serverSocket)
@@ -154,11 +157,11 @@ class TerminalController {
         case "ping":
             return "PONG"
 
-        case "list_tabs":
-            return listTabs()
+        case "list_workspaces":
+            return listWorkspaces()
 
-        case "new_tab":
-            return newTab()
+        case "new_workspace":
+            return newWorkspace()
 
         case "new_split":
             return newSplit(args)
@@ -169,14 +172,14 @@ class TerminalController {
         case "focus_surface":
             return focusSurface(args)
 
-        case "close_tab":
-            return closeTab(args)
+        case "close_workspace":
+            return closeWorkspace(args)
 
-        case "select_tab":
-            return selectTab(args)
+        case "select_workspace":
+            return selectWorkspace(args)
 
-        case "current_tab":
-            return currentTab()
+        case "current_workspace":
+            return currentWorkspace()
 
         case "send":
             return sendInput(args)
@@ -220,10 +223,65 @@ class TerminalController {
 
         case "reset_flash_counts":
             return resetFlashCounts()
+
+        case "screenshot":
+            return captureScreenshot(args)
 #endif
 
         case "help":
             return helpText()
+
+        // Browser panel commands
+        case "open_browser":
+            return openBrowser(args)
+
+        case "navigate":
+            return navigateBrowser(args)
+
+        case "browser_back":
+            return browserBack(args)
+
+        case "browser_forward":
+            return browserForward(args)
+
+        case "browser_reload":
+            return browserReload(args)
+
+        case "get_url":
+            return getUrl(args)
+
+        case "focus_webview":
+            return focusWebView(args)
+
+        case "is_webview_focused":
+            return isWebViewFocused(args)
+
+        case "list_panes":
+            return listPanes()
+
+        case "list_pane_surfaces":
+            return listPaneSurfaces(args)
+
+        case "focus_pane":
+            return focusPane(args)
+
+        case "focus_surface_by_panel":
+            return focusSurfaceByPanel(args)
+
+        case "new_pane":
+            return newPane(args)
+
+        case "new_surface":
+            return newSurface(args)
+
+        case "close_surface":
+            return closeSurface(args)
+
+        case "refresh_surfaces":
+            return refreshSurfaces()
+
+        case "surface_health":
+            return surfaceHealth(args)
 
         default:
             return "ERROR: Unknown command '\(cmd)'. Use 'help' for available commands."
@@ -232,35 +290,64 @@ class TerminalController {
 
     private func helpText() -> String {
         var text = """
+        Hierarchy: Workspace (sidebar tab) > Pane (split region) > Surface (nested tab) > Panel (terminal/browser)
+
         Available commands:
-          ping                    - Check if server is running
-          list_tabs               - List all tabs with IDs
-          new_tab                 - Create a new tab
-          new_split <direction> [panel] - Split surface (left/right/up/down), optionally specify panel
-          list_surfaces [tab]     - List surfaces for tab (current tab if omitted)
-          focus_surface <id|idx>  - Focus surface by ID or index (current tab)
-          close_tab <id>          - Close tab by ID
-          select_tab <id|index>   - Select tab by ID or index (0-based)
-          current_tab             - Get current tab ID
-          send <text>             - Send text to current tab
-          send_key <key>          - Send special key (ctrl-c, ctrl-d, enter, tab, escape)
-          send_surface <id|idx> <text> - Send text to a surface in current tab
-          send_key_surface <id|idx> <key> - Send special key to a surface in current tab
-          notify <title>|<subtitle>|<body>   - Create a notification for the focused surface
-          notify_surface <id|idx> <title>|<subtitle>|<body> - Create a notification for a surface
-          notify_target <tabId> <panelId> <title>|<subtitle>|<body> - Notify a specific panel
-          list_notifications      - List all notifications
-          clear_notifications     - Clear all notifications
+          ping                        - Check if server is running
+          list_workspaces             - List all workspaces with IDs
+          new_workspace               - Create a new workspace
+          select_workspace <id|index> - Select workspace by ID or index (0-based)
+          current_workspace           - Get current workspace ID
+          close_workspace <id>        - Close workspace by ID
+
+        Split & surface commands:
+          new_split <direction> [panel]   - Split panel (left/right/up/down)
+          new_pane [--type=terminal|browser] [--direction=left|right|up|down] [--url=...]
+          new_surface [--type=terminal|browser] [--pane=<pane_id>] [--url=...]
+          list_surfaces [workspace]       - List surfaces for workspace (current if omitted)
+          list_panes                      - List all panes with IDs
+          list_pane_surfaces [--pane=<pane_id>] - List surfaces in pane
+          focus_surface <id|idx>          - Focus surface by ID or index
+          focus_pane <pane_id>            - Focus a pane
+          focus_surface_by_panel <panel_id> - Focus surface by panel ID
+          close_surface [id|idx]          - Close surface (collapse split)
+          refresh_surfaces                - Force refresh all terminals
+          surface_health [workspace]      - Check view health of all surfaces
+
+        Input commands:
+          send <text>                     - Send text to current terminal
+          send_key <key>                  - Send special key (ctrl-c, ctrl-d, enter, tab, escape)
+          send_surface <id|idx> <text>    - Send text to a specific terminal
+          send_key_surface <id|idx> <key> - Send special key to a specific terminal
+
+        Notification commands:
+          notify <title>|<subtitle>|<body>   - Notify focused panel
+          notify_surface <id|idx> <payload>  - Notify a specific surface
+          notify_target <workspace_id> <surface_id> <payload> - Notify by workspace+surface
+          list_notifications              - List all notifications
+          clear_notifications             - Clear all notifications
           set_app_focus <active|inactive|clear> - Override app focus state
-          simulate_app_active     - Trigger app active handler
-          help                    - Show this help
+          simulate_app_active             - Trigger app active handler
+
+        Browser commands:
+          open_browser [url]              - Create browser panel with optional URL
+          navigate <panel_id> <url>       - Navigate browser to URL
+          browser_back <panel_id>         - Go back in browser history
+          browser_forward <panel_id>      - Go forward in browser history
+          browser_reload <panel_id>       - Reload browser page
+          get_url <panel_id>              - Get current URL of browser panel
+          focus_webview <panel_id>        - Move keyboard focus into the WKWebView (for tests)
+          is_webview_focused <panel_id>   - Return true/false if WKWebView is first responder
+
+          help                            - Show this help
         """
 #if DEBUG
         text += """
 
-          focus_notification <tab|idx> [surface|idx] - Focus via notification flow
-          flash_count <id|idx>    - Read flash count for a surface
-          reset_flash_counts      - Reset flash counters
+          focus_notification <workspace|idx> [surface|idx] - Focus via notification flow
+          flash_count <id|idx>            - Read flash count for a panel
+          reset_flash_counts              - Reset flash counters
+          screenshot [label]              - Capture window screenshot
         """
 #endif
         return text
@@ -286,7 +373,7 @@ class TerminalController {
         }
     }
 
-    private func listTabs() -> String {
+    private func listWorkspaces() -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
 
         var result: String = ""
@@ -300,7 +387,7 @@ class TerminalController {
         return result.isEmpty ? "No tabs" : result
     }
 
-    private func newTab() -> String {
+    private func newWorkspace() -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
 
         var newTabId: UUID?
@@ -334,7 +421,7 @@ class TerminalController {
                 return
             }
 
-            // If panel arg provided, resolve it; otherwise use focused surface
+            // If panel arg provided, resolve it; otherwise use focused panel
             let surfaceId: UUID?
             if !panelArg.isEmpty {
                 surfaceId = resolveSurfaceId(from: panelArg, tab: tab)
@@ -343,7 +430,7 @@ class TerminalController {
                     return
                 }
             } else {
-                surfaceId = tab.focusedSurfaceId
+                surfaceId = tab.focusedPanelId
             }
 
             guard let targetSurface = surfaceId else {
@@ -366,11 +453,11 @@ class TerminalController {
                 result = "ERROR: Tab not found"
                 return
             }
-            let surfaces = tab.splitTree.root?.leaves() ?? []
-            let focusedId = tab.focusedSurfaceId
-            let lines = surfaces.enumerated().map { index, surface in
-                let selected = surface.id == focusedId ? "*" : " "
-                return "\(selected) \(index): \(surface.id.uuidString)"
+            let panels = orderedPanels(in: tab)
+            let focusedId = tab.focusedPanelId
+            let lines = panels.enumerated().map { index, panel in
+                let selected = panel.id == focusedId ? "*" : " "
+                return "\(selected) \(index): \(panel.id.uuidString)"
             }
             result = lines.isEmpty ? "No surfaces" : lines.joined(separator: "\n")
         }
@@ -380,7 +467,7 @@ class TerminalController {
     private func focusSurface(_ arg: String) -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
         let trimmed = arg.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "ERROR: Missing surface id or index" }
+        guard !trimmed.isEmpty else { return "ERROR: Missing panel id or index" }
 
         var success = false
         DispatchQueue.main.sync {
@@ -390,21 +477,23 @@ class TerminalController {
             }
 
             if let uuid = UUID(uuidString: trimmed),
-               tab.surface(for: uuid) != nil {
+               tab.panels[uuid] != nil {
+                guard tab.surfaceIdFromPanelId(uuid) != nil else { return }
                 tabManager.focusSurface(tabId: tab.id, surfaceId: uuid)
                 success = true
                 return
             }
 
             if let index = Int(trimmed), index >= 0 {
-                let surfaces = tab.splitTree.root?.leaves() ?? []
-                guard index < surfaces.count else { return }
-                tabManager.focusSurface(tabId: tab.id, surfaceId: surfaces[index].id)
+                let panels = orderedPanels(in: tab)
+                guard index < panels.count else { return }
+                guard tab.surfaceIdFromPanelId(panels[index].id) != nil else { return }
+                tabManager.focusSurface(tabId: tab.id, surfaceId: panels[index].id)
                 success = true
             }
         }
 
-        return success ? "OK" : "ERROR: Surface not found"
+        return success ? "OK" : "ERROR: Panel not found"
     }
 
     private func notifyCurrent(_ args: String) -> String {
@@ -464,10 +553,10 @@ class TerminalController {
     private func notifyTarget(_ args: String) -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
         let trimmed = args.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "ERROR: Usage: notify_target <tabId> <panelId> <title>|<subtitle>|<body>" }
+        guard !trimmed.isEmpty else { return "ERROR: Usage: notify_target <workspace_id> <surface_id> <title>|<subtitle>|<body>" }
 
         let parts = trimmed.split(separator: " ", maxSplits: 2).map(String.init)
-        guard parts.count >= 2 else { return "ERROR: Usage: notify_target <tabId> <panelId> <title>|<subtitle>|<body>" }
+        guard parts.count >= 2 else { return "ERROR: Usage: notify_target <workspace_id> <surface_id> <title>|<subtitle>|<body>" }
 
         let tabArg = parts[0]
         let panelArg = parts[1]
@@ -480,7 +569,7 @@ class TerminalController {
                 return
             }
             guard let panelId = UUID(uuidString: panelArg),
-                  tab.surface(for: panelId) != nil else {
+                  tab.panels[panelId] != nil else {
                 result = "ERROR: Panel not found"
                 return
             }
@@ -594,9 +683,72 @@ class TerminalController {
         }
         return "OK"
     }
+
+    private func captureScreenshot(_ args: String) -> String {
+        // Parse optional label from args
+        let label = args.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Generate unique ID for this screenshot
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "+", with: "_")
+        let shortId = UUID().uuidString.prefix(8)
+        let screenshotId = "\(timestamp)_\(shortId)"
+
+        // Determine output path
+        let outputDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-screenshots")
+        try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+
+        let filename = label.isEmpty ? "\(screenshotId).png" : "\(label)_\(screenshotId).png"
+        let outputPath = outputDir.appendingPathComponent(filename)
+
+        // Capture the main window on main thread
+        var captureError: String?
+        DispatchQueue.main.sync {
+            guard let window = NSApp.mainWindow ?? NSApp.windows.first else {
+                captureError = "No window available"
+                return
+            }
+
+            // Get window's CGWindowID
+            let windowNumber = CGWindowID(window.windowNumber)
+
+            // Capture the window using CGWindowListCreateImage
+            guard let cgImage = CGWindowListCreateImage(
+                .null,  // Capture just the window bounds
+                .optionIncludingWindow,
+                windowNumber,
+                [.boundsIgnoreFraming, .nominalResolution]
+            ) else {
+                captureError = "Failed to capture window image"
+                return
+            }
+
+            // Convert to NSBitmapImageRep and save as PNG
+            let bitmap = NSBitmapImageRep(cgImage: cgImage)
+            guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                captureError = "Failed to create PNG data"
+                return
+            }
+
+            do {
+                try pngData.write(to: outputPath)
+            } catch {
+                captureError = "Failed to write file: \(error.localizedDescription)"
+            }
+        }
+
+        if let error = captureError {
+            return "ERROR: \(error)"
+        }
+
+        // Return OK with screenshot ID and path for easy reference
+        return "OK \(screenshotId) \(outputPath.path)"
+    }
 #endif
 
-    private func parseSplitDirection(_ value: String) -> SplitTree<TerminalSurface>.NewDirection? {
+    private func parseSplitDirection(_ value: String) -> SplitDirection? {
         switch value.lowercased() {
         case "left", "l":
             return .left
@@ -629,35 +781,80 @@ class TerminalController {
         return nil
     }
 
-    private func resolveSurface(from arg: String, tabManager: TabManager) -> ghostty_surface_t? {
+    private func orderedPanels(in tab: Workspace) -> [any Panel] {
+        // Use bonsplit's tab ordering as the source of truth. This avoids relying on
+        // Dictionary iteration order, and prevents indexing into panels that aren't
+        // actually present in bonsplit anymore.
+        let orderedTabIds = tab.bonsplitController.allTabIds
+        var result: [any Panel] = []
+        var seen = Set<UUID>()
+
+        for tabId in orderedTabIds {
+            guard let panelId = tab.panelIdFromSurfaceId(tabId),
+                  let panel = tab.panels[panelId] else { continue }
+            result.append(panel)
+            seen.insert(panelId)
+        }
+
+        // Defensive: include any orphaned panels in a stable order at the end.
+        let orphans = tab.panels.values
+            .filter { !seen.contains($0.id) }
+            .sorted { $0.id.uuidString < $1.id.uuidString }
+        result.append(contentsOf: orphans)
+
+        return result
+    }
+
+    private func resolveTerminalPanel(from arg: String, tabManager: TabManager) -> TerminalPanel? {
         guard let tabId = tabManager.selectedTabId,
               let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
             return nil
         }
 
-        if let uuid = UUID(uuidString: arg),
-           let surface = tab.surface(for: uuid)?.surface {
-            return surface
+        if let uuid = UUID(uuidString: arg) {
+            return tab.terminalPanel(for: uuid)
         }
 
         if let index = Int(arg), index >= 0 {
-            let surfaces = tab.splitTree.root?.leaves() ?? []
-            guard index < surfaces.count else { return nil }
-            return surfaces[index].surface
+            let panels = orderedPanels(in: tab)
+            guard index < panels.count else { return nil }
+            return panels[index] as? TerminalPanel
         }
 
         return nil
     }
 
-    private func resolveSurfaceId(from arg: String, tab: Tab) -> UUID? {
-        if let uuid = UUID(uuidString: arg), tab.surface(for: uuid) != nil {
+    private func resolveTerminalSurface(from arg: String, tabManager: TabManager, waitUpTo timeout: TimeInterval = 0.6) -> ghostty_surface_t? {
+        guard let terminalPanel = resolveTerminalPanel(from: arg, tabManager: tabManager) else { return nil }
+        if let surface = terminalPanel.surface.surface { return surface }
+
+        // This can be transient during bonsplit tree restructuring when the SwiftUI
+        // view is temporarily detached and then reattached (surface creation is
+        // gated on view/window/bounds). Pump the runloop briefly to allow pending
+        // attach retries to execute.
+        let deadline = Date().addingTimeInterval(timeout)
+        while terminalPanel.surface.surface == nil && Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+
+        return terminalPanel.surface.surface
+    }
+
+    private func resolveSurface(from arg: String, tabManager: TabManager) -> ghostty_surface_t? {
+        // Backwards compatibility: resolve a terminal surface by panel UUID or a stable index.
+        // Use a short wait to reduce flakiness during bonsplit/layout restructures.
+        return resolveTerminalSurface(from: arg, tabManager: tabManager, waitUpTo: 0.6)
+    }
+
+    private func resolveSurfaceId(from arg: String, tab: Workspace) -> UUID? {
+        if let uuid = UUID(uuidString: arg), tab.panels[uuid] != nil {
             return uuid
         }
 
         if let index = Int(arg), index >= 0 {
-            let surfaces = tab.splitTree.root?.leaves() ?? []
-            guard index < surfaces.count else { return nil }
-            return surfaces[index].id
+            let panels = orderedPanels(in: tab)
+            guard index < panels.count else { return nil }
+            return panels[index].id
         }
 
         return nil
@@ -675,7 +872,7 @@ class TerminalController {
         return (title.isEmpty ? "Notification" : title, subtitle, body)
     }
 
-    private func closeTab(_ tabId: String) -> String {
+    private func closeWorkspace(_ tabId: String) -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
         guard let uuid = UUID(uuidString: tabId) else { return "ERROR: Invalid tab ID" }
 
@@ -689,7 +886,7 @@ class TerminalController {
         return success ? "OK" : "ERROR: Tab not found"
     }
 
-    private func selectTab(_ arg: String) -> String {
+    private func selectWorkspace(_ arg: String) -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
 
         var success = false
@@ -710,7 +907,7 @@ class TerminalController {
         return success ? "OK" : "ERROR: Tab not found"
     }
 
-    private func currentTab() -> String {
+    private func currentWorkspace() -> String {
         guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
 
         var result: String = ""
@@ -846,7 +1043,8 @@ class TerminalController {
         DispatchQueue.main.sync {
             guard let selectedId = tabManager.selectedTabId,
                   let tab = tabManager.tabs.first(where: { $0.id == selectedId }),
-                  let surface = tab.focusedSurface?.surface else {
+                  let terminalPanel = tab.focusedTerminalPanel,
+                  let surface = terminalPanel.surface.surface else {
                 return
             }
 
@@ -908,7 +1106,8 @@ class TerminalController {
         DispatchQueue.main.sync {
             guard let selectedId = tabManager.selectedTabId,
                   let tab = tabManager.tabs.first(where: { $0.id == selectedId }),
-                  let surface = tab.focusedSurface?.surface else {
+                  let terminalPanel = tab.focusedTerminalPanel,
+                  let surface = terminalPanel.surface.surface else {
                 return
             }
 
@@ -926,12 +1125,521 @@ class TerminalController {
         let keyName = parts[1]
 
         var success = false
+        var error: String?
         DispatchQueue.main.sync {
-            guard let surface = resolveSurface(from: target, tabManager: tabManager) else { return }
+            guard resolveTerminalPanel(from: target, tabManager: tabManager) != nil else {
+                error = "ERROR: Surface not found"
+                return
+            }
+            guard let surface = resolveTerminalSurface(from: target, tabManager: tabManager, waitUpTo: 0.6) else {
+                error = "ERROR: Surface not ready"
+                return
+            }
             success = sendNamedKey(surface, keyName: keyName)
         }
 
+        if let error { return error }
         return success ? "OK" : "ERROR: Unknown key '\(keyName)'"
+    }
+
+    // MARK: - Browser Panel Commands
+
+    private func openBrowser(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let trimmed = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url: URL? = trimmed.isEmpty ? nil : URL(string: trimmed)
+
+        var result = "ERROR: Failed to create browser panel"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let focusedPanelId = tab.focusedPanelId else {
+                return
+            }
+
+            if let browserPanelId = tab.newBrowserSplit(from: focusedPanelId, orientation: .horizontal, url: url)?.id {
+                result = "OK \(browserPanelId.uuidString)"
+            }
+        }
+        return result
+    }
+
+    private func navigateBrowser(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let parts = args.split(separator: " ", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return "ERROR: Usage: navigate <panel_id> <url>" }
+
+        let panelArg = parts[0]
+        let urlStr = parts[1]
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            browserPanel.navigateSmart(urlStr)
+            result = "OK"
+        }
+        return result
+    }
+
+    private func browserBack(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: browser_back <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            browserPanel.goBack()
+            result = "OK"
+        }
+        return result
+    }
+
+    private func browserForward(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: browser_forward <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            browserPanel.goForward()
+            result = "OK"
+        }
+        return result
+    }
+
+    private func browserReload(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: browser_reload <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            browserPanel.reload()
+            result = "OK"
+        }
+        return result
+    }
+
+    private func getUrl(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: get_url <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            result = browserPanel.currentURL?.absoluteString ?? ""
+        }
+        return result
+    }
+
+    private func focusWebView(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: focus_webview <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            let webView = browserPanel.webView
+            guard let window = webView.window else {
+                result = "ERROR: WebView is not in a window"
+                return
+            }
+            guard !webView.isHiddenOrHasHiddenAncestor else {
+                result = "ERROR: WebView is hidden"
+                return
+            }
+
+            window.makeFirstResponder(webView)
+            if let fr = window.firstResponder as? NSView, fr.isDescendant(of: webView) {
+                result = "OK"
+            } else {
+                result = "ERROR: Focus did not move into web view"
+            }
+        }
+        return result
+    }
+
+    private func isWebViewFocused(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let panelArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !panelArg.isEmpty else { return "ERROR: Usage: is_webview_focused <panel_id>" }
+
+        var result = "ERROR: Panel not found or not a browser"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let panelId = UUID(uuidString: panelArg),
+                  let browserPanel = tab.browserPanel(for: panelId) else {
+                return
+            }
+
+            let webView = browserPanel.webView
+            guard let window = webView.window else {
+                result = "false"
+                return
+            }
+            guard let fr = window.firstResponder as? NSView else {
+                result = "false"
+                return
+            }
+            result = fr.isDescendant(of: webView) ? "true" : "false"
+        }
+        return result
+    }
+
+    // MARK: - Bonsplit Pane Commands
+
+    private func listPanes() -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        var result = ""
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                result = "ERROR: No tab selected"
+                return
+            }
+
+            let paneIds = tab.bonsplitController.allPaneIds
+            let focusedPaneId = tab.bonsplitController.focusedPaneId
+
+            let lines = paneIds.enumerated().map { index, paneId in
+                let selected = paneId == focusedPaneId ? "*" : " "
+                let tabCount = tab.bonsplitController.tabs(inPane: paneId).count
+                return "\(selected) \(index): \(paneId) [\(tabCount) tabs]"
+            }
+            result = lines.isEmpty ? "No panes" : lines.joined(separator: "\n")
+        }
+        return result
+    }
+
+    private func listPaneSurfaces(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        var result = ""
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                result = "ERROR: No tab selected"
+                return
+            }
+
+            // Parse --pane=<id> argument
+            var targetPaneId: PaneID? = tab.bonsplitController.focusedPaneId
+            if args.contains("--pane=") {
+                let parts = args.split(separator: "=")
+                if parts.count == 2, let paneUUID = UUID(uuidString: String(parts[1])) {
+                    // Find the pane by UUID
+                    targetPaneId = tab.bonsplitController.allPaneIds.first { $0.id == paneUUID }
+                }
+            }
+
+            guard let paneId = targetPaneId else {
+                result = "ERROR: No pane to list tabs from"
+                return
+            }
+
+            let tabs = tab.bonsplitController.tabs(inPane: paneId)
+            let selectedTab = tab.bonsplitController.selectedTab(inPane: paneId)
+
+            let lines = tabs.enumerated().map { index, bonsplitTab in
+                let selected = bonsplitTab.id == selectedTab?.id ? "*" : " "
+                let panelId = tab.panelIdFromSurfaceId(bonsplitTab.id)
+                let panelIdStr = panelId?.uuidString ?? "unknown"
+                return "\(selected) \(index): \(bonsplitTab.title) [panel:\(panelIdStr)]"
+            }
+            result = lines.isEmpty ? "No tabs in pane" : lines.joined(separator: "\n")
+        }
+        return result
+    }
+
+    private func focusPane(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let paneArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !paneArg.isEmpty else { return "ERROR: Usage: focus_pane <pane_id>" }
+
+        var result = "ERROR: Pane not found"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                return
+            }
+
+            let paneIds = tab.bonsplitController.allPaneIds
+
+            // Try UUID first, then fall back to index
+            if let uuid = UUID(uuidString: paneArg),
+               let paneId = paneIds.first(where: { $0.id == uuid }) {
+                tab.bonsplitController.focusPane(paneId)
+                result = "OK"
+            } else if let index = Int(paneArg), index >= 0, index < paneIds.count {
+                tab.bonsplitController.focusPane(paneIds[index])
+                result = "OK"
+            }
+        }
+        return result
+    }
+
+    private func focusSurfaceByPanel(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let tabArg = args.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tabArg.isEmpty else { return "ERROR: Usage: focus_bonsplit_tab <tab_id|panel_id>" }
+
+        var result = "ERROR: Tab not found"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                return
+            }
+
+            // Try to find by panel ID (which maps to our internal panel)
+            if let panelUUID = UUID(uuidString: tabArg),
+               let bonsplitTabId = tab.surfaceIdFromPanelId(panelUUID) {
+                tab.bonsplitController.selectTab(bonsplitTabId)
+                result = "OK"
+            }
+        }
+        return result
+    }
+
+    private func newPane(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        // Parse arguments: --type=terminal|browser --direction=left|right|up|down --url=...
+        var panelType: PanelType = .terminal
+        var direction: SplitOrientation = .horizontal
+        var url: URL? = nil
+
+        let parts = args.split(separator: " ")
+        for part in parts {
+            let partStr = String(part)
+            if partStr.hasPrefix("--type=") {
+                let typeStr = String(partStr.dropFirst(7))
+                panelType = typeStr == "browser" ? .browser : .terminal
+            } else if partStr.hasPrefix("--direction=") {
+                let dirStr = String(partStr.dropFirst(12))
+                direction = (dirStr == "up" || dirStr == "down") ? .vertical : .horizontal
+            } else if partStr.hasPrefix("--url=") {
+                let urlStr = String(partStr.dropFirst(6))
+                url = URL(string: urlStr)
+            }
+        }
+
+        var result = "ERROR: Failed to create pane"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }),
+                  let focusedPanelId = tab.focusedPanelId else {
+                return
+            }
+
+            let newPanelId: UUID?
+            if panelType == .browser {
+                newPanelId = tab.newBrowserSplit(from: focusedPanelId, orientation: direction, url: url)?.id
+            } else {
+                newPanelId = tab.newTerminalSplit(from: focusedPanelId, orientation: direction)?.id
+            }
+
+            if let id = newPanelId {
+                result = "OK \(id.uuidString)"
+            }
+        }
+        return result
+    }
+
+    private func refreshSurfaces() -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        var refreshedCount = 0
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                return
+            }
+
+            // Force-refresh all terminal panels in current tab
+            // (resets cached metrics so the Metal layer drawable resizes correctly)
+            for panel in tab.panels.values {
+                if let terminalPanel = panel as? TerminalPanel {
+                    terminalPanel.surface.forceRefresh()
+                    refreshedCount += 1
+                }
+            }
+        }
+        return "OK Refreshed \(refreshedCount) surfaces"
+    }
+
+    private func surfaceHealth(_ tabArg: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+        var result = ""
+        DispatchQueue.main.sync {
+            guard let tab = resolveTab(from: tabArg, tabManager: tabManager) else {
+                result = "ERROR: Tab not found"
+                return
+            }
+            let panels = orderedPanels(in: tab)
+            let lines = panels.enumerated().map { index, panel -> String in
+                let panelId = panel.id.uuidString
+                let type = panel.panelType.rawValue
+                if let tp = panel as? TerminalPanel {
+                    let inWindow = tp.surface.isViewInWindow
+                    return "\(index): \(panelId) type=\(type) in_window=\(inWindow)"
+                } else if let bp = panel as? BrowserPanel {
+                    let inWindow = bp.webView.window != nil
+                    return "\(index): \(panelId) type=\(type) in_window=\(inWindow)"
+                } else {
+                    return "\(index): \(panelId) type=\(type) in_window=unknown"
+                }
+            }
+            result = lines.isEmpty ? "No surfaces" : lines.joined(separator: "\n")
+        }
+        return result
+    }
+
+    private func closeSurface(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        let trimmed = args.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var result = "ERROR: Failed to close surface"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                return
+            }
+
+            // Resolve surface ID from argument or use focused
+            let surfaceId: UUID?
+            if trimmed.isEmpty {
+                surfaceId = tab.focusedPanelId
+            } else {
+                surfaceId = resolveSurfaceId(from: trimmed, tab: tab)
+            }
+
+            guard let targetSurfaceId = surfaceId else {
+                result = "ERROR: Surface not found"
+                return
+            }
+
+            // Don't close if it's the only surface
+            if tab.panels.count <= 1 {
+                result = "ERROR: Cannot close the last surface"
+                return
+            }
+
+            tab.closePanel(targetSurfaceId)
+            result = "OK"
+        }
+        return result
+    }
+
+    private func newSurface(_ args: String) -> String {
+        guard let tabManager = tabManager else { return "ERROR: TabManager not available" }
+
+        // Parse arguments: --type=terminal|browser --pane=<pane_id> --url=...
+        var panelType: PanelType = .terminal
+        var paneIndex: Int? = nil
+        var url: URL? = nil
+
+        let parts = args.split(separator: " ")
+        for part in parts {
+            let partStr = String(part)
+            if partStr.hasPrefix("--type=") {
+                let typeStr = String(partStr.dropFirst(7))
+                panelType = typeStr == "browser" ? .browser : .terminal
+            } else if partStr.hasPrefix("--pane=") {
+                let paneStr = String(partStr.dropFirst(7))
+                paneIndex = Int(paneStr)
+            } else if partStr.hasPrefix("--url=") {
+                let urlStr = String(partStr.dropFirst(6))
+                url = URL(string: urlStr)
+            }
+        }
+
+        var result = "ERROR: Failed to create tab"
+        DispatchQueue.main.sync {
+            guard let tabId = tabManager.selectedTabId,
+                  let tab = tabManager.tabs.first(where: { $0.id == tabId }) else {
+                return
+            }
+
+            // Get target pane
+            let paneId: PaneID?
+            if let idx = paneIndex {
+                let paneIds = tab.bonsplitController.allPaneIds
+                paneId = idx < paneIds.count ? paneIds[idx] : nil
+            } else {
+                paneId = tab.bonsplitController.focusedPaneId
+            }
+
+            guard let targetPaneId = paneId else {
+                result = "ERROR: Pane not found"
+                return
+            }
+
+            let newPanelId: UUID?
+            if panelType == .browser {
+                newPanelId = tab.newBrowserSurface(inPane: targetPaneId, url: url)?.id
+            } else {
+                newPanelId = tab.newTerminalSurface(inPane: targetPaneId)?.id
+            }
+
+            if let id = newPanelId {
+                result = "OK \(id.uuidString)"
+            }
+        }
+        return result
     }
 
     deinit {

@@ -21,8 +21,31 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cmux import cmux, cmuxError
 
 
+class SkipTest(Exception):
+    """Raised to skip this test when the environment can't support it."""
+
+
 def run_osascript(script: str) -> None:
-    subprocess.run(["osascript", "-e", script], check=True)
+    # Use capture_output so we can detect the common "keystrokes not allowed" error
+    # in SSH / non-interactive environments without Accessibility permissions.
+    proc = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0:
+        return
+
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    if "not allowed to send keystrokes" in combined:
+        raise SkipTest("osascript is not allowed to send keystrokes (Accessibility permissions missing).")
+
+    raise subprocess.CalledProcessError(
+        proc.returncode,
+        proc.args,
+        output=proc.stdout,
+        stderr=proc.stderr,
+    )
 
 
 def has_ctrl_enter_keybind(config_text: str) -> bool:
@@ -60,8 +83,8 @@ def test_ctrl_enter_keybind(client: cmux) -> tuple[bool, str]:
     marker.unlink(missing_ok=True)
 
     # Create a fresh tab to avoid interfering with existing sessions
-    new_tab_id = client.new_tab()
-    client.select_tab(new_tab_id)
+    new_workspace_id = client.new_workspace()
+    client.select_workspace(new_workspace_id)
     time.sleep(0.3)
 
     # Make sure the app is focused for keystrokes
@@ -87,7 +110,7 @@ def test_ctrl_enter_keybind(client: cmux) -> tuple[bool, str]:
     if ok:
         marker.unlink(missing_ok=True)
     try:
-        client.close_tab(new_tab_id)
+        client.close_workspace(new_workspace_id)
     except Exception:
         pass
     return ok, ("Ctrl+Enter keybind executed command" if ok else "Marker not created by Ctrl+Enter")
@@ -107,11 +130,9 @@ def run_tests() -> int:
 
     config_path = find_config_with_keybind()
     if not config_path:
-        print("Error: Required keybind not found in Ghostty config.")
-        print("Add a line like:")
-        print("  keybind = ctrl+enter=text:\\r")
-        print("Then restart cmuxterm and re-run this test.")
-        return 1
+        print("SKIP: Required keybind not found in Ghostty config.")
+        print("Add a line like `keybind = ctrl+enter=text:\\r` to enable this test.")
+        return 0
 
     print(f"Using keybind from: {config_path}")
     print()
@@ -125,6 +146,9 @@ def run_tests() -> int:
     except cmuxError as e:
         print(f"Error: {e}")
         return 1
+    except SkipTest as e:
+        print(f"SKIP: {e}")
+        return 0
     except subprocess.CalledProcessError as e:
         print(f"Error: osascript failed: {e}")
         return 1

@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Stores customizable keyboard shortcuts
 enum KeyboardShortcutSettings {
+    // MARK: - Notification Shortcuts
     static let showNotificationsKey = "shortcut.showNotifications"
     static let jumpToUnreadKey = "shortcut.jumpToUnread"
 
@@ -10,6 +11,54 @@ enum KeyboardShortcutSettings {
     static let showNotificationsDefault = StoredShortcut(key: "i", command: true, shift: true, option: false, control: false)
     /// Default shortcut: Cmd+Shift+U
     static let jumpToUnreadDefault = StoredShortcut(key: "u", command: true, shift: true, option: false, control: false)
+
+    // MARK: - Sidebar Tab Navigation Keys
+    static let nextSidebarTabKey = "shortcut.nextSidebarTab"
+    static let prevSidebarTabKey = "shortcut.prevSidebarTab"
+
+    /// Default shortcut: Cmd+Ctrl+] (next sidebar tab / workspace)
+    static let nextSidebarTabDefault = StoredShortcut(key: "]", command: true, shift: false, option: false, control: true)
+    /// Default shortcut: Cmd+Ctrl+[ (previous sidebar tab / workspace)
+    static let prevSidebarTabDefault = StoredShortcut(key: "[", command: true, shift: false, option: false, control: true)
+
+    // MARK: - Pane Navigation Keys
+    static let focusLeftKey = "shortcut.focusLeft"
+    static let focusRightKey = "shortcut.focusRight"
+    static let focusUpKey = "shortcut.focusUp"
+    static let focusDownKey = "shortcut.focusDown"
+
+    /// Default shortcuts for pane navigation: Cmd+Option+Arrow
+    static let focusLeftDefault = StoredShortcut(key: "←", command: true, shift: false, option: true, control: false)
+    static let focusRightDefault = StoredShortcut(key: "→", command: true, shift: false, option: true, control: false)
+    static let focusUpDefault = StoredShortcut(key: "↑", command: true, shift: false, option: true, control: false)
+    static let focusDownDefault = StoredShortcut(key: "↓", command: true, shift: false, option: true, control: false)
+
+    // MARK: - Split Actions Keys
+    static let splitRightKey = "shortcut.splitRight"
+    static let splitDownKey = "shortcut.splitDown"
+
+    /// Default shortcut: Cmd+D (split right)
+    static let splitRightDefault = StoredShortcut(key: "d", command: true, shift: false, option: false, control: false)
+    /// Default shortcut: Cmd+Shift+D (split down)
+    static let splitDownDefault = StoredShortcut(key: "d", command: true, shift: true, option: false, control: false)
+
+    // MARK: - Surface Navigation Keys
+    static let nextSurfaceKey = "shortcut.nextSurface"
+    static let prevSurfaceKey = "shortcut.prevSurface"
+    static let newSurfaceKey = "shortcut.newSurface"
+
+    /// Default shortcut: Cmd+Shift+] (next surface / tab within pane)
+    static let nextSurfaceDefault = StoredShortcut(key: "]", command: true, shift: true, option: false, control: false)
+    /// Default shortcut: Cmd+Shift+[ (previous surface / tab within pane)
+    static let prevSurfaceDefault = StoredShortcut(key: "[", command: true, shift: true, option: false, control: false)
+    /// Default shortcut: Cmd+T (new surface in focused pane)
+    static let newSurfaceDefault = StoredShortcut(key: "t", command: true, shift: false, option: false, control: false)
+
+    // MARK: - Browser Keys
+    static let openBrowserKey = "shortcut.openBrowser"
+
+    /// Default shortcut: Cmd+Shift+B (open browser)
+    static let openBrowserDefault = StoredShortcut(key: "b", command: true, shift: true, option: false, control: false)
 
     static func showNotificationsShortcut() -> StoredShortcut {
         guard let data = UserDefaults.standard.data(forKey: showNotificationsKey),
@@ -39,9 +88,127 @@ enum KeyboardShortcutSettings {
         }
     }
 
+    // MARK: - Sidebar Tab Navigation Accessors
+
+    static func nextSidebarTabShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: nextSidebarTabKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return nextSidebarTabDefault
+        }
+        return shortcut
+    }
+
+    static func prevSidebarTabShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: prevSidebarTabKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return prevSidebarTabDefault
+        }
+        return shortcut
+    }
+
+    // MARK: - Pane Navigation Accessors
+
+    static func focusLeftShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: focusLeftKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return focusLeftDefault
+        }
+        return shortcut
+    }
+
+    static func focusRightShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: focusRightKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return focusRightDefault
+        }
+        return shortcut
+    }
+
+    static func focusUpShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: focusUpKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return focusUpDefault
+        }
+        return shortcut
+    }
+
+    static func focusDownShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: focusDownKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return focusDownDefault
+        }
+        return shortcut
+    }
+
+    // MARK: - Split Action Accessors
+
+    static func splitRightShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: splitRightKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return splitRightDefault
+        }
+        return shortcut
+    }
+
+    static func splitDownShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: splitDownKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return splitDownDefault
+        }
+        return shortcut
+    }
+
+    // MARK: - Surface Navigation Accessors
+
+    static func nextSurfaceShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: nextSurfaceKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return nextSurfaceDefault
+        }
+        return shortcut
+    }
+
+    static func prevSurfaceShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: prevSurfaceKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return prevSurfaceDefault
+        }
+        return shortcut
+    }
+
+    static func newSurfaceShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: newSurfaceKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return newSurfaceDefault
+        }
+        return shortcut
+    }
+
+    // MARK: - Browser Accessors
+
+    static func openBrowserShortcut() -> StoredShortcut {
+        guard let data = UserDefaults.standard.data(forKey: openBrowserKey),
+              let shortcut = try? JSONDecoder().decode(StoredShortcut.self, from: data) else {
+            return openBrowserDefault
+        }
+        return shortcut
+    }
+
     static func resetAll() {
         UserDefaults.standard.removeObject(forKey: showNotificationsKey)
         UserDefaults.standard.removeObject(forKey: jumpToUnreadKey)
+        UserDefaults.standard.removeObject(forKey: nextSidebarTabKey)
+        UserDefaults.standard.removeObject(forKey: prevSidebarTabKey)
+        UserDefaults.standard.removeObject(forKey: focusLeftKey)
+        UserDefaults.standard.removeObject(forKey: focusRightKey)
+        UserDefaults.standard.removeObject(forKey: focusUpKey)
+        UserDefaults.standard.removeObject(forKey: focusDownKey)
+        UserDefaults.standard.removeObject(forKey: splitRightKey)
+        UserDefaults.standard.removeObject(forKey: splitDownKey)
+        UserDefaults.standard.removeObject(forKey: nextSurfaceKey)
+        UserDefaults.standard.removeObject(forKey: prevSurfaceKey)
+        UserDefaults.standard.removeObject(forKey: newSurfaceKey)
+        UserDefaults.standard.removeObject(forKey: openBrowserKey)
     }
 }
 
