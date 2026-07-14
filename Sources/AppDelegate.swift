@@ -836,6 +836,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// observes inside the sidebar.
     var settingsRuntime: SettingsRuntime?
     private var computerUseRuntimeService: ComputerUseRuntimeService?
+    private(set) lazy var voiceDictationCoordinator: VoiceDictationCoordinator = makeVoiceDictationCoordinator()
     weak var fileExplorerState: FileExplorerState?
     weak var fullscreenControlsViewModel: TitlebarControlsViewModel?
     weak var sidebarSelectionState: SidebarSelectionState?
@@ -15321,6 +15322,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 #endif
             // Only consume when a focused terminal actually performed the clear.
             return handled
+        }
+
+        if matchConfiguredShortcut(event: event, action: .toggleVoiceDictation) {
+            // Only consume when dictation is enabled in Settings.
+            return voiceDictationCoordinator.handleShortcutToggle()
         }
 
         // Workspace navigation: Cmd+Ctrl+] / Cmd+Ctrl+[
