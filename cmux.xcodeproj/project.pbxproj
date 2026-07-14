@@ -1059,6 +1059,8 @@
 		858200000000000000000006 /* CmuxVaultAgentRegistration+RegisteredResumeKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858200000000000000000005 /* CmuxVaultAgentRegistration+RegisteredResumeKind.swift */; };
 		9520A0059520A0059520A005 /* CmuxVaultAgentRegistry+ProcessMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9520B0059520B0059520B005 /* CmuxVaultAgentRegistry+ProcessMatching.swift */; };
 		9758D0139758D0139758D013 /* CmuxVaultHookSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9758D0039758D0039758D003 /* CmuxVaultHookSessionStore.swift */; };
+		C7010CE000000000000000A3 /* CmuxVoice in Frameworks */ = {isa = PBXBuildFile; productRef = C7010CE000000000000000A2 /* CmuxVoice */; };
+		C7010CE000000000000000A4 /* CmuxVoice in Frameworks */ = {isa = PBXBuildFile; productRef = C7010CE000000000000000A2 /* CmuxVoice */; };
 		D7C0DE00000000000000A101 /* CmuxWebView+ContextMenuLinkCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C0DE00000000000000A102 /* CmuxWebView+ContextMenuLinkCapture.swift */; };
 		D7AB00000000000000000009 /* CmuxWebView+MoveTabToNewWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7AB0000000000000000000A /* CmuxWebView+MoveTabToNewWorkspace.swift */; };
 		C6255D010000000000000001 /* CmuxWebView+ScriptedDownloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6255D010000000000000002 /* CmuxWebView+ScriptedDownloads.swift */; };
@@ -6587,6 +6589,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				CFF12E0000000000000000A3 /* CmuxTestSupport in Frameworks */,
 				CDFEED0300000000CDFEED03 /* CmuxUpdater in Frameworks */,
 				CDFEED0600000000CDFEED06 /* CmuxUpdaterUI in Frameworks */,
+				C7010CE000000000000000A3 /* CmuxVoice in Frameworks */,
 				5E55200000000000000000B3 /* CmuxWindowing in Frameworks */,
 				E3B7A3000000000000000103 /* CmuxWorkspaces in Frameworks */,
 				A5001006 /* GhosttyKit.xcframework in Frameworks */,
@@ -6657,6 +6660,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				F0C0A1000000000000000004 /* CmuxPhonePush in Frameworks */,
 				C0DE4A000000000000000005 /* CmuxSidebarProviderKit in Frameworks */,
 				C01E00AA00000000000000A4 /* CmuxSyntaxHighlighting in Frameworks */,
+				C7010CE000000000000000A4 /* CmuxVoice in Frameworks */,
 				730600040000000000000001 /* CmuxWindowing in Frameworks */,
 				5E2701040000000000000003 /* Sentry in Frameworks */,
 			);
@@ -10045,6 +10049,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				CE57E10000000000000000B2 /* CmuxSentryReporting */,
 				CE57E10000000000000000A2 /* CmuxSentryScrubbing */,
 				CC0DE00000000000000000A2 /* CmuxCore */,
+				C7010CE000000000000000A2 /* CmuxVoice */,
 				CC0DE10000000000000000A2 /* CmuxRemoteDaemon */,
 				CC0DE20000000000000000A2 /* CmuxRemoteWorkspace */,
 				CC0DE30000000000000000A2 /* CmuxRemoteSession */,
@@ -10161,6 +10166,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				CC0DE00000000000000000A2 /* CmuxCore */,
 				C01E00AA00000000000000A2 /* CmuxSyntaxHighlighting */,
 				D0F1A0000000000000000002 /* CmuxFilePreviewCore */,
+				C7010CE000000000000000A2 /* CmuxVoice */,
 				A5001262 /* Bonsplit */,
 				A500D013A1B2C3D4E5F60718 /* CMUXDebugLog */,
 				CC0033E15A1B2C3D4E5F0011 /* CmuxDiffComments */,
@@ -10277,6 +10283,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D0F1A0000000000000000001 /* XCLocalSwiftPackageReference "CmuxFilePreviewCore" */,
 				CE57E10000000000000000A1 /* XCLocalSwiftPackageReference "CmuxSentryTelemetry" */,
 				CC0DE00000000000000000A1 /* XCLocalSwiftPackageReference "CmuxCore" */,
+				C7010CE000000000000000A1 /* XCLocalSwiftPackageReference "CmuxVoice" */,
 				CC0DE10000000000000000A1 /* XCLocalSwiftPackageReference "CmuxRemoteDaemon" */,
 				CC0DE20000000000000000A1 /* XCLocalSwiftPackageReference "CmuxRemoteWorkspace" */,
 				CC0DE30000000000000000A1 /* XCLocalSwiftPackageReference "CmuxRemoteSession" */,
@@ -14380,6 +14387,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/macOS/CmuxCore;
 		};
+		C7010CE000000000000000A1 /* XCLocalSwiftPackageReference "CmuxVoice" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/macOS/CmuxVoice;
+		};
 		CC0DE10000000000000000A1 /* XCLocalSwiftPackageReference "CmuxRemoteDaemon" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/macOS/CmuxRemoteDaemon;
@@ -14673,6 +14684,11 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			isa = XCSwiftPackageProductDependency;
 			package = CC0DE00000000000000000A1 /* XCLocalSwiftPackageReference "CmuxCore" */;
 			productName = CmuxCore;
+		};
+		C7010CE000000000000000A2 /* CmuxVoice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C7010CE000000000000000A1 /* XCLocalSwiftPackageReference "CmuxVoice" */;
+			productName = CmuxVoice;
 		};
 		CC0DE10000000000000000A2 /* CmuxRemoteDaemon */ = {
 			isa = XCSwiftPackageProductDependency;
