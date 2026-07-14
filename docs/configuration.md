@@ -334,3 +334,21 @@ Three keyboard shortcuts drive the todo state, all editable in **Settings > Keyb
 - `toggleChecklistItemComplete` (default `cmd+return`) toggles the highlighted checklist item in the focused todo pane or checklist popover.
 
 cmux also posts a notification when a workspace's status first reaches done, and when its checklist first becomes fully complete, so you can watch agent progress without keeping the pane open.
+
+## Voice dictation
+
+Voice dictation transcribes your speech fully on-device and types it into the focused pane. Enable or disable it and pick the dictation language from **Settings > Voice**. No audio or transcripts leave your Mac.
+
+The toggle shortcut (default `ctrl+cmd+v`) is customizable like any other cmux shortcut, from **Settings > Keyboard Shortcuts** or in `cmux.json`:
+
+```json
+{
+  "shortcuts": {
+    "bindings": {
+      "toggleVoiceDictation": "ctrl+cmd+v"
+    }
+  }
+}
+```
+
+Set the binding to `null` (or `"none"`) to unbind it.
