@@ -224,7 +224,8 @@ struct cmuxApp: App {
             accountFlow: authComposition.accountFlow,
             hostActions: HostSettingsActions(
                 configFileURL: configFileURL,
-                computerUseRuntimeService: computerUseRuntimeService
+                computerUseRuntimeService: computerUseRuntimeService,
+                pluginRuntime: appDelegate.pluginRuntime
             ),
             shortcutDefaultResolver: Self.makeShortcutDefaultResolver()
         )

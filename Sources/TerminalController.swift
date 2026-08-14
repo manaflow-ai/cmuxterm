@@ -185,6 +185,12 @@ class TerminalController {
     nonisolated let socketServer: SocketControlServer
     /// App-owned discovery marker store injected into the listener event seam.
     nonisolated let socketPathMarkerStore: SocketPathMarkerStore
+    /// Startup-only dependency projection for synchronous socket workers. The
+    /// unfair lock is a narrow carve-out because client threads cannot suspend;
+    /// the plugin runtime owns and synchronizes its mutable authorization state.
+    private nonisolated let pluginRuntimeSlot = OSAllocatedUnfairLock<CmuxPluginRuntime?>(
+        initialState: nil
+    )
     // Accepted-connection consumer; runs until process exit (singleton).
     private nonisolated let socketConnectionsTask: Task<Void, Never>
     /// Bounded async connection admission. The pool owns task lifetimes; an
@@ -630,6 +636,21 @@ class TerminalController {
             }
         }
     }
+
+    /// Injects the app-owned plugin runtime before plugin discovery can launch
+    /// a supervised process.
+    func configurePluginRuntime(_ runtime: CmuxPluginRuntime) {
+        pluginRuntimeSlot.withLock { configuredRuntime in
+            configuredRuntime = runtime
+        }
+    }
+
+    /// Returns the startup-injected authorization runtime without a main-actor
+    /// hop from the blocking socket worker.
+    nonisolated func pluginRuntimeSnapshot() -> CmuxPluginRuntime? {
+        pluginRuntimeSlot.withLock { $0 }
+    }
+
     nonisolated static func shouldSuppressSocketCommandActivation() -> Bool {
         !currentSocketCommandFocusAllowanceStack().isEmpty
     }
@@ -1923,7 +1944,8 @@ class TerminalController {
             let trimmed = (parsedCommandEnvelope?.command ?? authorizedCommand)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let commandOrigin = commandEnvelope?.origin
-            let pluginProcessAuthorization = CmuxPluginRuntime.shared
+            let pluginRuntime = pluginRuntimeSnapshot()
+            let pluginProcessAuthorization = pluginRuntime?
                 .processAuthorization(forProcess: pid)
             // A supervised plugin gets a descendant socket connection so it
             // can use the existing transport, but its manifest grant is
@@ -1935,7 +1957,9 @@ class TerminalController {
                 isEventStreamRequest: isEventsStreamRequest(trimmed)
             )
             if pluginPeerPolicy == .denied {
-                _ = await writer.writeAll(Data((Self.socketClientAccessDeniedResponse + "\n").utf8))
+                _ = await writer.writeAll(
+                    Data((Self.socketClientAccessDeniedResponse + "\n").utf8)
+                )
                 return
             }
             let isLaunchedPlugin = pluginPeerPolicy == .pluginEventStream
@@ -1961,6 +1985,7 @@ class TerminalController {
                     socket: socket,
                     peerProcessID: pid,
                     pluginAuthorizationRequired: isLaunchedPlugin,
+                    pluginRuntime: pluginRuntime,
                     authorizationGeneration: authorizationGeneration,
                     authorizationRevocationSignal: authorizationRevocationSignal,
                     passwordAuthorization: passwordAuthorization
