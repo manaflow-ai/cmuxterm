@@ -70,8 +70,13 @@ public struct KeyboardShortcutsSection: View {
                 .accessibilityIdentifier("ShortcutRecordingHint")
         }
         .task { model.startObserving() }
-        .onReceive(NotificationCenter.default.publisher(for: PluginShortcutSettings.didChangeNotification)) { _ in
-            pluginDescriptors = hostActions.pluginShortcutDescriptors()
+        .task {
+            for await _ in NotificationCenter.default.notifications(
+                named: .cmuxPluginShortcutsDidChange
+            ) {
+                guard !Task.isCancelled else { return }
+                pluginDescriptors = hostActions.pluginShortcutDescriptors()
+            }
         }
     }
 
