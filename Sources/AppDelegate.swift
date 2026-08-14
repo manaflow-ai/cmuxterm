@@ -875,6 +875,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     var pendingConfiguredShortcutChord: PendingConfiguredShortcutChord?
     var activeConfiguredShortcutChordPrefixForCurrentEvent: ShortcutStroke?
+    lazy var shortcutPrefixChordCoordinator = ShortcutPrefixChordCoordinator(owner: self)
+    // Eager initialization is intentional: SwiftUI checklist views read this
+    // registry while evaluating `body`. A lazy property would mutate the
+    // AppDelegate on that read, violating the list-boundary rule against state
+    // writes from view construction.
+    let prefixChordChecklistActionRegistry = PrefixChordChecklistActionRegistry()
     var shortcutEventFocusContextCache: ShortcutEventFocusContextCache?
     private var ghosttyConfigObserver: NSObjectProtocol?
     private var globalFontMagnificationObserver: NSObjectProtocol?
@@ -2041,6 +2047,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationWillBecomeActive(_ notification: Notification) { if !hasVisibleMainTerminalWindow() { _ = mainWindowVisibilityController.orderFrontApplicationWindowsBeforeActivation(windows: mainWindowsForVisibilityController(), reason: .applicationWillBecomeActive) } }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        shortcutPrefixChordCoordinator.reset()
+        shortcutPrefixChordCoordinator.refreshConfiguration()
+        CmuxPrefixChordPassThroughGuard.reset()
         PortScanner.shared.setTrackedAgentScanningPaused(false)
         let activationWindows = mainWindowsForVisibilityController()
         if mainWindowVisibilityController.finishPendingApplicationActivationRestore(windows: activationWindows, reason: .applicationDidBecomeActive) == nil, !hasVisibleMainTerminalWindow() {
@@ -7343,7 +7352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return nil
     }
 
-    private func resolvedShortcutEventWindow(_ event: NSEvent) -> NSWindow? {
+    func resolvedShortcutEventWindow(_ event: NSEvent) -> NSWindow? {
         if let window = event.window {
             return window
         }
@@ -14046,6 +14055,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 return nil
             }
             if event.type == .systemDefined {
+                // An armed prefix must release ownership when a media/system
+                // event arrives, even though that event has no representable
+                // ShortcutStroke.  The coordinator returns the original event
+                // so AppKit still delivers the media event unchanged.
+                if let prefixResult = self.routePrefixChordEvent(event), prefixResult {
+                    return nil
+                }
                 return event
             }
             if event.type == .keyDown {
@@ -14137,6 +14153,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func handleShortcutDefaultsDidChange() {
         clearConfiguredShortcutChordState()
+        // ``reset`` deliberately only clears transient state. Refresh the
+        // cached prefix at the settings-change boundary so the default-off
+        // keystroke path never performs a file read.
+        shortcutPrefixChordCoordinator.refreshConfiguration()
         scheduleReloadConfigurationMenuItemRefresh()
         scheduleSplitButtonTooltipRefreshAcrossWorkspaces()
     }
@@ -14158,6 +14178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func clearConfiguredShortcutChordState() {
         pendingConfiguredShortcutChord = nil
         activeConfiguredShortcutChordPrefixForCurrentEvent = nil
+        shortcutPrefixChordCoordinator.reset()
+        CmuxPrefixChordPassThroughGuard.reset()
     }
 
     /// Coalesce shortcut-default changes and refresh on the next runloop turn to
@@ -14392,8 +14414,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    private func handleCustomShortcut(event: NSEvent) -> Bool {
-        guard event.type == .keyDown else {
+    func handleCustomShortcut(
+        event: NSEvent,
+        skipPrefixChordRouting: Bool = false,
+        resolvedPrefixStroke: ShortcutStroke? = nil
+    ) -> Bool {
+        // Media keys arrive as `.systemDefined`. They cannot arm the prefix
+        // layer, but a media key can be a valid *suffix* of a resolved chord;
+        // in that one path reuse the same action dispatcher instead of
+        // dropping back to AppKit before the binding executes.
+        let isResolvedSystemDefinedChord = resolvedPrefixStroke != nil
+            && event.type == .systemDefined
+        guard event.type == .keyDown || isResolvedSystemDefinedChord else {
             clearConfiguredShortcutChordState()
             return false
         }
@@ -14412,7 +14444,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         if shortcutRoutingShouldBypassForPrintableOptionText(event: event) {
             let shortcutWindow = resolvedShortcutEventWindow(event) ?? shortcutRoutingActiveWindow
-            if shortcutResponderHasMarkedText(shortcutWindow?.firstResponder) {
+            // Give an already-armed prefix a chance to observe the event first.
+            // The coordinator's ownership boundary will cancel the layer and
+            // return the byte to the IME; returning here would leave the router
+            // armed indefinitely until an unrelated key arrived.
+            if shortcutResponderHasMarkedText(shortcutWindow?.firstResponder),
+               !shortcutPrefixChordCoordinator.isArmed {
                 clearConfiguredShortcutChordState()
                 return false
             }
@@ -14425,14 +14462,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Latin shortcut keys. Normalize via KeyboardLayout so downstream comparisons
         // (Cmd+1-9, Ctrl+1-9, omnibar N/P, command palette, etc.) work correctly.
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if let pendingConfiguredShortcutChord,
-           pendingConfiguredShortcutChord.windowNumber == configuredShortcutChordWindowNumber(for: event) {
+        if let resolvedPrefixStroke {
+            activeConfiguredShortcutChordPrefixForCurrentEvent = resolvedPrefixStroke
+        } else if let pendingConfiguredShortcutChord,
+                  pendingConfiguredShortcutChord.windowNumber == configuredShortcutChordWindowNumber(for: event) {
             activeConfiguredShortcutChordPrefixForCurrentEvent = pendingConfiguredShortcutChord.firstStroke
         } else {
             activeConfiguredShortcutChordPrefixForCurrentEvent = nil
         }
         pendingConfiguredShortcutChord = nil
         defer { activeConfiguredShortcutChordPrefixForCurrentEvent = nil; clearShortcutEventFocusContextCache(for: event) }
+
+        // The optional global prefix layer gets first refusal. A matching
+        // suffix re-enters the existing dispatcher through the active-prefix
+        // marker; an unmatched suffix returns immediately so no later cmux
+        // handler can steal bytes that belong in the terminal.
+        if !skipPrefixChordRouting,
+           let prefixResult = routePrefixChordEvent(event) {
+            return prefixResult
+        }
 
         if let textBoxShortcutTabManager = terminalTextShortcutBypassTabManagerBeforeContextResolution(
             event: event,
@@ -14933,7 +14981,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // Fast path for normal typing and terminal navigation keys (for example Up-arrow
         // history): after command-palette/notification handling and browser omnibar
         // arrow navigation above, most plain key events have no app-level shortcut behavior.
-        if shouldBypassPlainKeyShortcutRouting(event: event, normalizedFlags: normalizedFlags) {
+        if !isResolvedSystemDefinedChord,
+           shouldBypassPlainKeyShortcutRouting(event: event, normalizedFlags: normalizedFlags) {
             return false
         }
 
@@ -16753,10 +16802,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 #if DEBUG
     private func developerToolsShortcutProbeKind(event: NSEvent) -> String? {
         guard event.type == .keyDown else { return nil }
-        if matchShortcut(event: event, shortcut: KeyboardShortcutSettings.shortcut(for: .toggleBrowserDeveloperTools)) {
+        if matchConfiguredShortcut(event: event, action: .toggleBrowserDeveloperTools) {
             return "toggle.configured"
         }
-        if matchShortcut(event: event, shortcut: KeyboardShortcutSettings.shortcut(for: .showBrowserJavaScriptConsole)) {
+        if matchConfiguredShortcut(event: event, action: .showBrowserJavaScriptConsole) {
             return "console.configured"
         }
 
@@ -17183,10 +17232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func matchConfiguredShortcut(event: NSEvent, shortcut: StoredShortcut) -> Bool {
+        guard !shouldBypassPrefixChordPassThrough(event) else {
+            return false
+        }
         guard !shortcut.isUnbound else { return false }
         if let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent {
             guard let secondStroke = shortcut.secondStroke,
-                  shortcut.firstStroke == prefix else {
+                  shortcut.firstStroke.isRoutingEquivalent(to: prefix) else {
                 return false
             }
             return matchShortcutStroke(event: event, stroke: secondStroke)
@@ -17224,9 +17276,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
            shortcutResponderHasMarkedText(shortcutWindow?.firstResponder) {
             return nil
         }
-        return KeyboardShortcutSettingsObserver.shared.rightSidebarModeShortcutMatcher.modeShortcut(for: event) { [self] action in
-            shortcutWhenClauseAllows(action: action, event: event)
-        }
+        return KeyboardShortcutSettingsObserver.shared.rightSidebarModeShortcutMatcher.modeShortcut(
+            for: event,
+            allowingAction: { [self] action in
+                shortcutWhenClauseAllows(action: action, event: event)
+            },
+            matching: { [self] action, _, event in
+                matchConfiguredShortcut(event: event, action: action)
+            }
+        )
     }
 
     fileprivate func shouldForwardBrowserSurfaceShortcutToTerminal(_ event: NSEvent) -> Bool {
@@ -17241,11 +17299,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         event: NSEvent,
         action: KeyboardShortcutSettings.Action
     ) -> Int? {
+        guard !shouldBypassPrefixChordPassThrough(event) else {
+            return nil
+        }
         let shortcut = KeyboardShortcutSettings.shortcut(for: action)
         guard !shortcut.isUnbound else { return nil }
         if let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent {
             guard let secondStroke = shortcut.secondStroke,
-                  shortcut.firstStroke == prefix else {
+                  shortcut.firstStroke.isRoutingEquivalent(to: prefix) else {
                 return nil
             }
             return numberedShortcutDigit(event: event, stroke: secondStroke)
@@ -17272,6 +17333,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         arrowGlyph: String,
         arrowKeyCode: UInt16
     ) -> Bool {
+        guard !shouldBypassPrefixChordPassThrough(event) else {
+            return false
+        }
         guard shortcutWhenClauseAllows(action: action, event: event) else {
             return false
         }
@@ -17279,7 +17343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard !shortcut.isUnbound else { return false }
         if let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent {
             guard let secondStroke = shortcut.secondStroke,
-                  shortcut.firstStroke == prefix else {
+                  shortcut.firstStroke.isRoutingEquivalent(to: prefix) else {
                 return false
             }
             return matchDirectionalShortcut(
@@ -19191,6 +19255,11 @@ private extension NSWindow {
     }
 
     @objc func cmux_sendEvent(_ event: NSEvent) {
+        let prefixChordScope = CmuxPrefixChordEventDispatchScope.begin(
+            event: event,
+            window: self
+        )
+        defer { prefixChordScope.finish() }
 #if DEBUG
         let typingTimingStart = event.type == .keyDown ? CmuxTypingTiming.start() : nil
         let phaseTotalStart = event.type == .keyDown ? ProcessInfo.processInfo.systemUptime : 0
@@ -19212,7 +19281,12 @@ private extension NSWindow {
 #endif
         // recordTypingActivity must run in all builds so runSessionAutosaveTick
         // can honor the typing quiet period in release.
-        if event.type == .keyDown, let app = AppDelegate.shared, cmuxCloseFocusedTerminalFindForEscape(event: event, appDelegate: app) { return }
+        if event.type == .keyDown, let app = AppDelegate.shared {
+            if cmuxRoutePrefixChordBeforeKeyDownDelivery(event, appDelegate: app) {
+                return
+            }
+            if cmuxCloseFocusedTerminalFindForEscape(event: event, appDelegate: app) { return }
+        }
         if event.type == .keyDown { AppDelegate.shared?.recordTypingActivity() }
         if event.type == .leftMouseDown,
            AppDelegate.shared?.handleMinimalModeSidebarChromeMouseDown(window: self, event: event) == true {
@@ -19336,6 +19410,24 @@ private extension NSWindow {
     }
 
     @objc func cmux_performKeyEquivalent(with event: NSEvent) -> Bool {
+        let prefixChordScope = CmuxPrefixChordKeyEquivalentScope.begin(
+            event: event,
+            window: self
+        )
+        defer { prefixChordScope.finish() }
+        if prefixChordScope.shouldBypass {
+#if DEBUG
+            cmuxDebugLog("  → prefix suffix pass-through bypassed performKeyEquivalent")
+#endif
+            return false
+        }
+        if let app = AppDelegate.shared,
+           let prefixResult = cmuxRoutePrefixChordKeyEquivalent(
+               event,
+               appDelegate: app
+           ) {
+            return prefixResult
+        }
 #if DEBUG
         let typingTimingStart = CmuxTypingTiming.start()
         defer {
