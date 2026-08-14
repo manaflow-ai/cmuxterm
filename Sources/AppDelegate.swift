@@ -838,7 +838,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var computerUseRuntimeService: ComputerUseRuntimeService?
     /// Process-wide plugin graph owned by the app composition root and injected
     /// into Settings, SwiftUI, shortcut routing, and the control socket.
-    let pluginRuntime = CmuxPluginRuntime()
+    private(set) var pluginRuntime = CmuxPluginRuntime()
     weak var fileExplorerState: FileExplorerState?
     weak var fullscreenControlsViewModel: TitlebarControlsViewModel?
     weak var sidebarSelectionState: SidebarSelectionState?
@@ -2441,6 +2441,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         notificationStore: TerminalNotificationStore,
         sidebarState: SidebarState,
         settingsRuntime: SettingsRuntime,
+        pluginRuntime: CmuxPluginRuntime,
         auth: MacAuthComposition,
         automationEngine: AutomationEngine,
         computerUseRuntimeService: ComputerUseRuntimeService
@@ -2458,6 +2459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // available; adopt its coordinators so every later window shares them.
         pullRequestProbeService = tabManager.pullRequestProbeService
         self.settingsRuntime = settingsRuntime
+        self.pluginRuntime = pluginRuntime
         pluginRuntime.configure(jsonStore: settingsRuntime.jsonStore)
         self.notificationStore = notificationStore
         self.sidebarState = sidebarState
