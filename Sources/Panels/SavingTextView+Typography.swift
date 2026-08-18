@@ -35,6 +35,7 @@ extension SavingTextView {
         }
     }
 
+    /// Rebuilds the current font from the configured family and live zoom size.
     func applyCurrentPreviewFont() {
         let scaledSize = GlobalFontMagnification.scaledSize(previewFontSize)
         let nextFont = FilePreviewFontFamilySettings.font(
@@ -50,6 +51,7 @@ extension SavingTextView {
         onPreviewFontDidChange?()
     }
 
+    /// Applies the configured paragraph multiplier to existing and typed text.
     func applyCurrentPreviewLineHeight() {
         let multiplier = FilePreviewLineHeightSettings.clamp(Double(previewLineHeight))
         let typingStyleKey = NSAttributedString.Key.paragraphStyle
@@ -83,6 +85,7 @@ extension SavingTextView {
         textStorage.endEditing()
     }
 
+    /// Restores natural leading when the configured multiplier returns to 1.0.
     private func removePreviewLineHeightFromTextStorage() {
         guard let textStorage, textStorage.length > 0 else { return }
         textStorage.removeAttribute(
