@@ -544,6 +544,10 @@ final class CmuxMainThreadTurnProfiler {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuItemValidation, NSMenuDelegate, CmuxConfigStoreReloadEnvironment {
     nonisolated(unsafe) static var shared: AppDelegate?
+    /// Application-owned guard for nested direct keyDown dispatches.
+    let forceDispatchKeyDownGuard = CmuxForceDispatchKeyDownGuard()
+    /// Owns prefix pass-through markers for this application lifecycle.
+    let prefixChordPassThroughCoordinator = CmuxPrefixChordPassThroughCoordinator()
     /// Stateless control-socket syscall layer (CmuxControlSocket); composition-root owned.
     nonisolated let socketTransport = SocketTransport()
     /// Owns the About Titlebar Debug subsystem (CmuxAppKitSupportUI); composition-root
@@ -2049,7 +2053,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidBecomeActive(_ notification: Notification) {
         shortcutPrefixChordCoordinator.reset()
         shortcutPrefixChordCoordinator.refreshConfiguration()
-        CmuxPrefixChordPassThroughGuard.reset()
+        prefixChordPassThroughCoordinator.reset()
         PortScanner.shared.setTrackedAgentScanningPaused(false)
         let activationWindows = mainWindowsForVisibilityController()
         if mainWindowVisibilityController.finishPendingApplicationActivationRestore(windows: activationWindows, reason: .applicationDidBecomeActive) == nil, !hasVisibleMainTerminalWindow() {
@@ -14164,7 +14168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         pendingConfiguredShortcutChord = nil
         activeConfiguredShortcutChordPrefixForCurrentEvent = nil
         shortcutPrefixChordCoordinator.reset()
-        CmuxPrefixChordPassThroughGuard.reset()
+        prefixChordPassThroughCoordinator.reset()
     }
 
     /// Coalesce shortcut-default changes and refresh on the next runloop turn to
@@ -19115,7 +19119,8 @@ private extension NSWindow {
     @objc func cmux_sendEvent(_ event: NSEvent) {
         let prefixChordScope = CmuxPrefixChordEventDispatchScope.begin(
             event: event,
-            window: self
+            window: self,
+            coordinator: AppDelegate.shared?.prefixChordPassThroughCoordinator
         )
         defer { prefixChordScope.finish() }
 #if DEBUG
@@ -19270,7 +19275,8 @@ private extension NSWindow {
     @objc func cmux_performKeyEquivalent(with event: NSEvent) -> Bool {
         let prefixChordScope = CmuxPrefixChordKeyEquivalentScope.begin(
             event: event,
-            window: self
+            window: self,
+            coordinator: AppDelegate.shared?.prefixChordPassThroughCoordinator
         )
         defer { prefixChordScope.finish() }
         if prefixChordScope.shouldBypass {
