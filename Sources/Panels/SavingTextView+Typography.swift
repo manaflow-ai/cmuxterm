@@ -56,7 +56,11 @@ extension SavingTextView {
         let multiplier = FilePreviewLineHeightSettings.clamp(Double(previewLineHeight))
         let typingStyleKey = NSAttributedString.Key.paragraphStyle
         if abs(multiplier - FilePreviewLineHeightSettings.defaultMultiplier) < 0.0001 {
-            typingAttributes.removeValue(forKey: typingStyleKey)
+            if let naturalStyle = naturalPreviewParagraphStyle(from: typingAttributes[typingStyleKey]) {
+                typingAttributes[typingStyleKey] = naturalStyle
+            } else {
+                typingAttributes.removeValue(forKey: typingStyleKey)
+            }
             removePreviewLineHeightFromTextStorage()
             return
         }
@@ -88,9 +92,30 @@ extension SavingTextView {
     /// Restores natural leading when the configured multiplier returns to 1.0.
     private func removePreviewLineHeightFromTextStorage() {
         guard let textStorage, textStorage.length > 0 else { return }
-        textStorage.removeAttribute(
-            .paragraphStyle,
-            range: NSRange(location: 0, length: textStorage.length)
-        )
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        var updates: [(NSRange, NSParagraphStyle)] = []
+        textStorage.enumerateAttribute(.paragraphStyle, in: fullRange) { value, range, _ in
+            guard let naturalStyle = naturalPreviewParagraphStyle(from: value) else { return }
+            updates.append((range, naturalStyle))
+        }
+        guard !updates.isEmpty else { return }
+        textStorage.beginEditing()
+        for (range, naturalStyle) in updates {
+            textStorage.addAttribute(.paragraphStyle, value: naturalStyle, range: range)
+        }
+        textStorage.endEditing()
+    }
+
+    /// Copies a paragraph style while clearing only the line-height overrides
+    /// owned by this editor.
+    private func naturalPreviewParagraphStyle(from value: Any?) -> NSParagraphStyle? {
+        guard let style = value as? NSParagraphStyle,
+              let mutableStyle = style.mutableCopy() as? NSMutableParagraphStyle else {
+            return nil
+        }
+        mutableStyle.lineHeightMultiple = 0
+        mutableStyle.minimumLineHeight = 0
+        mutableStyle.maximumLineHeight = 0
+        return mutableStyle
     }
 }
