@@ -137,11 +137,6 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         textView.panel = panel
         textView.applyFilePreviewTextEditorInsets()
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
-        textView.configurePreviewTypography(
-            fontFamily: fontFamily,
-            defaultFontSize: CGFloat(fontSize),
-            lineHeight: CGFloat(lineHeight)
-        )
         panel.attachTextView(textView)
         Self.applyChromeSettings(
             to: scrollView,
@@ -154,13 +149,29 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         let contentChanged = panelChanged || (panel.textContentRevision == 0
             ? textView.string != panel.textContent
             : context.coordinator.lastAppliedContentRevision != panel.textContentRevision)
+        let selectedRanges = contentChanged ? textView.selectedRanges : []
+        let visibleOrigin = scrollView.contentView.bounds.origin
+        context.coordinator.withPanelUpdate {
+            // Reconcile external content before formatting the text storage. Both
+            // operations can emit NSText.didChangeNotification, so they must share
+            // the same delegate guard or a reload can publish stale editor text.
+            if contentChanged {
+                textView.string = panel.textContent
+                context.coordinator.lastAppliedContentRevision = panel.textContentRevision
+            }
+            textView.configurePreviewTypography(
+                fontFamily: fontFamily,
+                defaultFontSize: CGFloat(fontSize),
+                lineHeight: CGFloat(lineHeight)
+            )
+            if contentChanged {
+                // Reapply attributes after replacing the string; NSTextView can
+                // reset typing/storage attributes when its content is replaced.
+                textView.applyCurrentPreviewFont()
+                textView.applyCurrentPreviewLineHeight()
+            }
+        }
         if contentChanged {
-            let selectedRanges = textView.selectedRanges
-            let visibleOrigin = scrollView.contentView.bounds.origin
-            context.coordinator.isApplyingPanelUpdate = true
-            textView.string = panel.textContent
-            context.coordinator.isApplyingPanelUpdate = false
-            context.coordinator.lastAppliedContentRevision = panel.textContentRevision
             let contentLength = (textView.string as NSString).length
             let clampedRanges = selectedRanges.map { value -> NSValue in
                 let range = value.rangeValue
@@ -306,6 +317,17 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
             self.editorSettings = editorSettings
         }
 
+        /// Runs a representable-driven text update while suppressing delegate
+        /// callbacks caused by content or attribute synchronization.
+        @discardableResult
+        func withPanelUpdate<Result>(_ body: () -> Result) -> Result {
+            let previousValue = isApplyingPanelUpdate
+            isApplyingPanelUpdate = true
+            defer { isApplyingPanelUpdate = previousValue }
+            return body()
+        }
+
+        deinit {}
         func textDidChange(_ notification: Notification) {
             guard !isApplyingPanelUpdate,
                   let textView = notification.object as? NSTextView else { return }
