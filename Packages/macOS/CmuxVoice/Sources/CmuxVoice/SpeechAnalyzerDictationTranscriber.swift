@@ -115,13 +115,20 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
     private var outputContinuation: AsyncThrowingStream<DictationTranscriptionEvent, any Error>.Continuation?
     private var isFinishing = false
 
+    /// Caps queued audio to roughly a third of a second at the 4096-frame
+    /// tap size. Dropping the oldest buffer lets the analyzer catch up after
+    /// a temporary model stall without retaining an unbounded recording.
+    private static let inputBufferCapacity = 8
+
     /// Creates an engine for one session.
     public init() {}
 
     public func transcribe(
         locale: Locale
     ) async throws -> AsyncThrowingStream<DictationTranscriptionEvent, any Error> {
+        try Task.checkCancellation()
         let supported = await SpeechTranscriber.supportedLocales
+        try Task.checkCancellation()
         guard supported.contains(where: {
             $0.identifier(.bcp47) == locale.identifier(.bcp47)
         }) else {
@@ -142,6 +149,8 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
             ) {
                 try await installationRequest.downloadAndInstall()
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw DictationFailure.modelDownloadFailed(error.localizedDescription)
         }
@@ -151,8 +160,11 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
         ) else {
             throw DictationFailure.onDeviceRecognitionUnavailable(localeIdentifier: locale.identifier)
         }
+        try Task.checkCancellation()
 
-        let (inputSequence, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream()
+        let (inputSequence, inputContinuation) = AsyncStream<AnalyzerInput>.makeStream(
+            bufferingPolicy: .bufferingNewest(Self.inputBufferCapacity)
+        )
         inputBox.configure(analyzerFormat: analyzerFormat, continuation: inputContinuation)
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
@@ -160,6 +172,9 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
 
         do {
             try startAudioEngine()
+        } catch is CancellationError {
+            inputBox.finish()
+            throw CancellationError()
         } catch {
             inputBox.finish()
             throw DictationFailure.audioCaptureFailed(error.localizedDescription)
@@ -167,6 +182,11 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
 
         do {
             try await analyzer.start(inputSequence: inputSequence)
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            stopAudioEngine()
+            inputBox.finish()
+            throw CancellationError()
         } catch {
             stopAudioEngine()
             inputBox.finish()
@@ -205,12 +225,18 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
             // sequence then ends, which ends the caller's event stream.
             try await analyzer?.finalizeAndFinishThroughEndOfInput()
         } catch {
-            // The results sequence may never end after a failed finalize;
-            // end the caller's stream directly so the session can settle.
-            outputContinuation?.finish()
+            // The results sequence may never end after a failed finalize.
+            // End it directly, but preserve the failure so the controller
+            // cannot settle the session as a successful stop after losing the
+            // trailing hypothesis.
+            let failure = (error as? DictationFailure)
+                ?? .transcriptionFailed(error.localizedDescription)
+            outputContinuation?.finish(throwing: failure)
+            cancelResultsTask()
         }
         analyzer = nil
         transcriber = nil
+        outputContinuation = nil
     }
 
     private func startAudioEngine() throws {
@@ -236,6 +262,12 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         audioEngine = nil
+    }
+
+    /// Cancels the result consumer when the analyzer cannot finish normally.
+    private func cancelResultsTask() {
+        resultsTask?.cancel()
+        resultsTask = nil
     }
 
     /// Reinstalls the tap when the input device or its format changes
@@ -269,6 +301,10 @@ public actor SpeechAnalyzerDictationTranscriber: SpeechTranscribing {
             outputContinuation?.finish(
                 throwing: DictationFailure.audioCaptureFailed(error.localizedDescription)
             )
+            cancelResultsTask()
+            outputContinuation = nil
+            analyzer = nil
+            transcriber = nil
         }
     }
 }
