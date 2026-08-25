@@ -161,11 +161,11 @@ public final class DictationController {
             phase = .listening
             for try await event in events {
                 guard sessionGeneration == generation, isActive else { break }
-                handle(event, generation: generation)
+                await handle(event, generation: generation)
             }
             guard sessionGeneration == generation, isActive else { return }
             if let delta = transcript.commitTrailingVolatileText(),
-               !inserter.insertFinalizedText(delta) {
+               !(await inserter.insertFinalizedText(delta)) {
                 fail(.insertionTargetUnavailable, generation: generation)
                 return
             }
@@ -206,11 +206,9 @@ public final class DictationController {
         }
     }
 
-    private func handle(_ event: DictationTranscriptionEvent, generation: Int) {
+    private func handle(_ event: DictationTranscriptionEvent, generation: Int) async {
         guard let delta = transcript.apply(event) else { return }
-        guard inserter.insertFinalizedText(delta) else {
-            let transcriber = activeTranscriber
-            Task { await transcriber?.finishTranscribing() }
+        guard await inserter.insertFinalizedText(delta) else {
             fail(.insertionTargetUnavailable, generation: generation)
             return
         }
@@ -230,12 +228,17 @@ public final class DictationController {
         // late stream end can neither clobber .failed back to .idle nor
         // re-fire the failure handler.
         guard sessionGeneration == generation, isActive else { return }
+        let transcriber = activeTranscriber
+        sessionTask?.cancel()
         cancelStopWatchdog()
         endInsertionSessionIfActive()
         activeTranscriber = nil
         sessionTask = nil
         phase = .failed(failure)
         failureHandler?(failure)
+        Task {
+            await transcriber?.finishTranscribing()
+        }
     }
 
     private func armStopWatchdog(for generation: Int) {

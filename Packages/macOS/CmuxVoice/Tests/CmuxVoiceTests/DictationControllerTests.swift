@@ -30,7 +30,7 @@ private final class RecordingInserter: DictationTextInserting {
         return beginSucceeds
     }
 
-    func insertFinalizedText(_ text: String) -> Bool {
+    func insertFinalizedText(_ text: String) async -> Bool {
         guard insertions.count < insertionSucceedsAfter else { return false }
         insertions.append(text)
         return true
