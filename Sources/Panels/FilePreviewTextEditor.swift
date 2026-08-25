@@ -27,6 +27,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     let themeBackgroundColor: NSColor
     let themeForegroundColor: NSColor
     let drawsBackground: Bool
+<<<<<<< HEAD
     /// Opaque Ghostty panel color. The ruler is not a hole onto that
     /// surface, so it always paints this even when the text view is clear.
     let gutterBackgroundColor: NSColor
@@ -48,6 +49,15 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     @LiveSetting(\.fileEditor.indentGuides) private var indentGuides
     @LiveSetting(\.fileEditor.currentLineHighlight) private var currentLineHighlight
     @LiveSetting(\.fileEditor.tabWidth) private var tabWidth
+=======
+    /// Persisted editor settings are observed only while this text editor is mounted.
+    /// Keeping them here prevents Settings changes from invalidating unrelated preview
+    /// surfaces, especially the Markdown WebView while a font-family field is edited.
+    @AppStorage(FilePreviewWordWrapSettings.key) private var fileEditorWordWrap = FilePreviewWordWrapSettings.defaultEnabled
+    @AppStorage(FilePreviewFontSizeSettings.key) private var fileEditorFontSize = FilePreviewFontSizeSettings.defaultPointSize
+    @AppStorage(FilePreviewFontFamilySettings.key) private var fileEditorFontFamily = FilePreviewFontFamilySettings.defaultFamily
+    @AppStorage(FilePreviewLineHeightSettings.key) private var fileEditorLineHeight = FilePreviewLineHeightSettings.defaultMultiplier
+>>>>>>> 92b2359a55 (perf(file-editor): scope settings observation to editor)
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -67,9 +77,9 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         scrollView.drawsBackground = drawsBackground
 
         let textView = SavingTextView.makeFilePreviewTextView(
-            fontFamily: fontFamily,
-            fontSize: CGFloat(fontSize),
-            lineHeight: CGFloat(lineHeight)
+            fontFamily: fileEditorFontFamily,
+            fontSize: CGFloat(fileEditorFontSize),
+            lineHeight: CGFloat(fileEditorLineHeight)
         )
         textView.panel = panel
         textView.delegate = context.coordinator
@@ -82,15 +92,19 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.lastAppliedContentRevision = panel.textContentRevision
         context.coordinator.isHighlightingVisible = isVisibleInUI
         textView.configurePreviewTypography(
-            fontFamily: fontFamily,
-            defaultFontSize: CGFloat(fontSize),
-            lineHeight: CGFloat(lineHeight)
+            fontFamily: fileEditorFontFamily,
+            defaultFontSize: CGFloat(fileEditorFontSize),
+            lineHeight: CGFloat(fileEditorLineHeight)
         )
         panel.attachTextView(textView)
 
         scrollView.documentView = textView
+<<<<<<< HEAD
         textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
         Self.installChrome(on: scrollView, textView: textView)
+=======
+        textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
+>>>>>>> 92b2359a55 (perf(file-editor): scope settings observation to editor)
         Self.applyTheme(
             to: scrollView,
             backgroundColor: themeBackgroundColor,
@@ -136,7 +150,7 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         context.coordinator.panelIdentity = panelIdentity
         textView.panel = panel
         textView.applyFilePreviewTextEditorInsets()
-        textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
+        textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
         panel.attachTextView(textView)
         Self.applyChromeSettings(
             to: scrollView,
@@ -160,9 +174,9 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
                 context.coordinator.lastAppliedContentRevision = panel.textContentRevision
             }
             textView.configurePreviewTypography(
-                fontFamily: fontFamily,
-                defaultFontSize: CGFloat(fontSize),
-                lineHeight: CGFloat(lineHeight)
+                fontFamily: fileEditorFontFamily,
+                defaultFontSize: CGFloat(fileEditorFontSize),
+                lineHeight: CGFloat(fileEditorLineHeight)
             )
             if contentChanged {
                 // Reapply attributes after replacing the string; NSTextView can
