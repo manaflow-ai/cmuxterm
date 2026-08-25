@@ -269,7 +269,7 @@ extension AppDelegate {
         guard let window = note.object as? NSWindow else { return }
         MainActor.assumeIsolated {
             shortcutPrefixChordCoordinator.reset()
-            AppDelegate.shared?.prefixChordPassThroughCoordinator.reset()
+            prefixChordPassThroughCoordinator.reset()
             let context = senderRelativeMainWindowContext(for: window)
             setActiveMainWindow(window)
             if let windowId = mainWindowId(from: window) {
@@ -291,7 +291,7 @@ extension AppDelegate {
         guard let window = note.object as? NSWindow else { return }
         MainActor.assumeIsolated {
             shortcutPrefixChordCoordinator.reset()
-            AppDelegate.shared?.prefixChordPassThroughCoordinator.reset()
+            prefixChordPassThroughCoordinator.reset()
             if let windowId = mainWindowId(from: window) {
                 publishCmuxWindowLifecycle(
                     name: "window.unkeyed",
