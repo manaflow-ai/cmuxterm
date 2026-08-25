@@ -201,6 +201,12 @@ public struct AppSection: View {
         globalFontMagnification.set(clamped) { NotificationCenter.default.post(name: GlobalFontMagnification.didChangeNotification, object: nil) }
     }
 
+    /// Persists the loaded font-family draft when editing ends or submits.
+    private func commitFileEditorFontFamilyDraft() {
+        guard fileEditorFontFamilyDraftLoaded else { return }
+        fileEditorFontFamily.set(fileEditorFontFamilyDraft)
+    }
+
     @ViewBuilder
     private var mainCard: some View {
         SettingsCard {
@@ -570,11 +576,17 @@ public struct AppSection: View {
                 TextField(
                     String(localized: "settings.app.fileEditorFontFamily.placeholder", defaultValue: "System Mono"),
                     text: $fileEditorFontFamilyDraft,
-                    onCommit: { fileEditorFontFamily.set(fileEditorFontFamilyDraft) }
+                    onEditingChanged: { isEditing in
+                        if !isEditing {
+                            commitFileEditorFontFamilyDraft()
+                        }
+                    },
+                    onCommit: { commitFileEditorFontFamilyDraft() }
                 )
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
                 .accessibilityIdentifier("SettingsFileEditorFontFamilyTextField")
+                .onDisappear { commitFileEditorFontFamilyDraft() }
             }
             SettingsCardDivider()
 
