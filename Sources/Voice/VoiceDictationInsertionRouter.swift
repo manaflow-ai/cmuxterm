@@ -22,6 +22,7 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
     private let resolver = DictationInsertionRouteResolver()
 
     private weak var pinnedTextView: NSTextView?
+    private weak var pinnedTextField: NSTextField?
     private weak var pinnedWebView: WKWebView?
     private weak var pinnedTerminalPanel: TerminalPanel?
     private var activeRoute: DictationInsertionRoute?
@@ -54,9 +55,13 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
     func beginSession() async -> Bool {
         let responder = NSApp.keyWindow?.firstResponder
         let textView = responder as? NSTextView
+        let fieldEditorOwner = textView?.isFieldEditor == true
+            ? textView?.delegate as? NSTextField
+            : nil
         let webView = (responder as? NSView).flatMap(Self.enclosingWebView(of:))
         let terminalPanel = focusedTerminalPanel()
         let nativeTextInputIsEditable = textView?.isEditable == true
+            && (textView?.isFieldEditor != true || fieldEditorOwner != nil)
         let webViewIsEditable = if let webView {
             await Self.pinWebViewEditableTarget(webView)
         } else {
@@ -73,6 +78,7 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
         switch route {
         case .nativeTextResponder:
             pinnedTextView = textView
+            pinnedTextField = fieldEditorOwner
         case .webViewEditable:
             pinnedWebView = webView
         case .terminalSurface:
@@ -86,6 +92,10 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
         switch activeRoute {
         case .nativeTextResponder:
             guard let textView = pinnedTextView, textView.window != nil else { return false }
+            if textView.isFieldEditor {
+                guard let textField = pinnedTextField,
+                      textField.currentEditor() === textView else { return false }
+            }
             textView.insertText(text, replacementRange: textView.selectedRange())
             return true
         case .webViewEditable:
@@ -123,6 +133,7 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
             )
         }
         pinnedTextView = nil
+        pinnedTextField = nil
         pinnedWebView = nil
         pinnedTerminalPanel = nil
         activeRoute = nil
