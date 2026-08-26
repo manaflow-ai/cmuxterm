@@ -91,6 +91,7 @@ struct SettingsRowAnchorResolutionTests {
         "fileEditor.tabWidth",
         "fileEditor.wordWrap",
         "mobile.artifactFolderAccess",
+        "cloud.beta.machines.enabled",
         "notifications.agentIdleReminder",
         "notifications.agentPermissionPrompt",
         "notifications.agentTurnComplete",
