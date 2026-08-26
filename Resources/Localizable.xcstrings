@@ -241611,6 +241611,23 @@
         }
       }
     },
+    "shortcut.toggleVoiceDictation.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Voice Dictation"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声入力の切り替え"
+          }
+        }
+      }
+    },
     "shortcut.unbound.displayValue": {
       "extractionState": "manual",
       "localizations": {
