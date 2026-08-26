@@ -17717,7 +17717,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return matchesKeyboardShortcutEvent(event, action: action, shortcut: currentShortcut)
     }
 
-    private func preferredMatchingShortcutAction(
+    /// Returns the first explicitly configured action matching the event, or the first default match.
+    func preferredMatchingShortcutAction(
         event: NSEvent,
         actions: [KeyboardShortcutSettings.Action]
     ) -> KeyboardShortcutSettings.Action? {
@@ -17729,7 +17730,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         } ?? matchingActions.first
     }
 
-    private func explicitShortcutOverrideShouldPreemptImplicitDefault(
+    /// Preserves an explicit shortcut assignment when it collides with a newly introduced default.
+    func explicitShortcutOverrideShouldPreemptImplicitDefault(
         event: NSEvent,
         matchedAction: KeyboardShortcutSettings.Action,
         actionFamily: [KeyboardShortcutSettings.Action]
