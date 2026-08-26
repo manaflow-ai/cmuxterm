@@ -1946,17 +1946,15 @@ class TerminalController {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let commandOrigin = commandEnvelope?.origin
             let pluginRuntime = pluginRuntimeSnapshot()
-            let pluginProcessAuthorization = pluginRuntime?
-                .processAuthorization(forProcess: pid)
             // A supervised plugin gets a descendant socket connection so it
             // can use the existing transport, but its manifest grant is
             // intentionally limited to the event stream in this core slice.
             // Do not let the generic descendant allow-list turn a plugin into
             // an unrestricted control-socket client.
-            let pluginPeerPolicy = CmuxPluginRuntime.socketPeerPolicy(
-                processAuthorization: pluginProcessAuthorization,
+            let pluginPeerPolicy = pluginRuntime?.socketPeerPolicy(
+                forProcess: pid,
                 isEventStreamRequest: isEventsStreamRequest(trimmed)
-            )
+            ) ?? .standard
             if pluginPeerPolicy == .denied {
                 _ = await writer.writeAll(
                     Data((Self.socketClientAccessDeniedResponse + "\n").utf8)
