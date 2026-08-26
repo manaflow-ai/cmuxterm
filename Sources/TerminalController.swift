@@ -1952,8 +1952,7 @@ class TerminalController {
             // an unrestricted control-socket client.
             let pluginPeerPolicy = pluginRuntime?.socketPeerPolicy(
                 forProcess: pid,
-                isEventStreamRequest: isEventsStreamRequest(trimmed),
-                peerHasSameUID: peerHasSameUID
+                isEventStreamRequest: isEventsStreamRequest(trimmed)
             ) ?? .standard
             if pluginPeerPolicy == .denied {
                 _ = await writer.writeAll(
