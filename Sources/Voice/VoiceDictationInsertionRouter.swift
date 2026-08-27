@@ -65,7 +65,8 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
             || fieldEditorOwner is NSSecureTextField
         let webView = (responder as? NSView).flatMap(Self.enclosingWebView(of:))
         let terminalPanel = focusedTerminalPanel()
-        let nativeTextInputIsEditable = textView?.isEditable == true
+        let nativeTextInputIsEditable = webView == nil
+            && textView?.isEditable == true
             && !isSecureNativeInput
             && (textView?.isFieldEditor != true || fieldEditorOwner != nil)
         let webViewIsEditable = if let webView {
@@ -77,7 +78,10 @@ final class VoiceDictationInsertionRouter: DictationTextInserting {
         guard let route = resolver.route(
             firstResponderIsTextInput: nativeTextInputIsEditable,
             firstResponderIsWebView: webViewIsEditable,
-            hasFocusedTerminalSurface: terminalPanel != nil
+            // A browser responder is an exclusive focus domain. If its active
+            // element is read-only, secure, or otherwise rejected by the
+            // probe, fail closed instead of typing into a stale workspace PTY.
+            hasFocusedTerminalSurface: webView == nil && terminalPanel != nil
         ) else { return false }
 
         activeRoute = route
