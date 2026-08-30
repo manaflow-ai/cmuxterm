@@ -14465,6 +14465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         pendingConfiguredShortcutChord = nil
         defer { activeConfiguredShortcutChordPrefixForCurrentEvent = nil; clearShortcutEventFocusContextCache(for: event) }
+        let isResolvedPrefixChord = activeResolvedPrefixChordActionID != nil
 
         // The optional global prefix layer gets first refusal. A matching
         // suffix re-enters the existing dispatcher through the active-prefix
@@ -14553,7 +14554,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         let normalizedFlags = flags.subtracting([.numericPad, .function, .capsLock])
-        let isResolvedPrefixChord = activeResolvedPrefixChordActionID != nil
         let commandPaletteTargetWindow = commandPaletteWindowForShortcutEvent(event)
         let isPlainEscape = normalizedFlags.isEmpty && event.keyCode == 53
         if !isPlainEscape {
