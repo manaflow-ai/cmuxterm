@@ -548,6 +548,10 @@ extension ControlSurfaceContext {
         inputs: ControlSurfaceResumeSetInputs
     ) -> ControlSurfaceResumeResolution { .surfaceNotFound }
 
+    nonisolated func controlSurfaceInvalidAgentEventTimeError() -> String {
+        "Missing or invalid agent_event_time"
+    }
+
     func controlSurfaceResumeGet(
         routing: ControlRoutingSelectors,
         explicitTargetID: UUID?,
@@ -564,6 +568,7 @@ extension ControlSurfaceContext {
         expectedCheckpointID: String?,
         expectedSource: String?,
         expectedUpdatedAt: Double?,
+        agentEventTime: TimeInterval?,
         agentSessionEnded: Bool
     ) -> ControlSurfaceResumeResolution { .surfaceNotFound }
 
