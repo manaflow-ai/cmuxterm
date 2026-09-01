@@ -835,6 +835,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// `ContentView` environment so `@LiveSetting` can resolve the stores it
     /// observes inside the sidebar.
     var settingsRuntime: SettingsRuntime?
+    /// Injected voice-dictation action. The runtime itself is owned by the
+    /// SwiftUI composition root; AppDelegate only forwards the shortcut.
+    private var voiceDictationToggleAction: (@MainActor () -> Bool)?
     private var computerUseRuntimeService: ComputerUseRuntimeService?
     private(set) lazy var voiceDictationCoordinator: VoiceDictationCoordinator = makeVoiceDictationCoordinator()
     weak var fileExplorerState: FileExplorerState?
@@ -2436,7 +2439,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         settingsRuntime: SettingsRuntime,
         auth: MacAuthComposition,
         automationEngine: AutomationEngine,
-        computerUseRuntimeService: ComputerUseRuntimeService
+        computerUseRuntimeService: ComputerUseRuntimeService,
+        voiceDictationToggleAction: @escaping @MainActor () -> Bool
     ) {
         captureSessionLaunchStateIfNeeded()
         self.tabManager = tabManager
@@ -2455,6 +2459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         self.sidebarState = sidebarState
         self.auth = auth
         self.computerUseRuntimeService = computerUseRuntimeService
+        self.voiceDictationToggleAction = voiceDictationToggleAction
         (settingsRuntime.hostActions as? HostSettingsActions)?.setRunComputerUseOnboardingAction { [weak self] startingPoint in
             self?.computerUseUXCoordinator.presentOnboardingFromSettings(startingAt: startingPoint)
         }
@@ -15326,7 +15331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         if matchConfiguredShortcut(event: event, action: .toggleVoiceDictation) {
             // Only consume when dictation is enabled in Settings.
-            return voiceDictationCoordinator.handleShortcutToggle()
+            return voiceDictationToggleAction?() ?? false
         }
 
         // Workspace navigation: Cmd+Ctrl+] / Cmd+Ctrl+[

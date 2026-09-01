@@ -54,6 +54,10 @@ struct cmuxApp: App {
     /// Single owner of the independently launched Computer Use helper daemon.
     private let computerUseRuntimeService: ComputerUseRuntimeService
 
+    /// App-scoped owner for voice dictation. AppDelegate receives only the
+    /// shortcut action, so the runtime does not become singleton state.
+    private let voiceDictationRuntime: VoiceDictationRuntime
+
     /// The de-singletonized auth graph (shared AuthCoordinator + the macOS
     /// hosted-browser sign-in flow). Constructed once at app launch and
     /// injected into AppDelegate and the auth-consuming services.
@@ -230,6 +234,13 @@ struct cmuxApp: App {
         )
         StartupBreadcrumbLog.append("app.init.settingsRuntime.created")
 
+        self.voiceDictationRuntime = VoiceDictationRuntime(
+            catalog: settingsCatalog,
+            focusedTerminalPanel: {
+                AppDelegate.shared?.voiceDictationFocusedTerminalPanel()
+            }
+        )
+
         let startupAppearance = AppearanceSettings.resolvedMode()
         Self.applyAppearance(startupAppearance, duringLaunch: true)
         StartupBreadcrumbLog.append("app.init.appearance.applied", fields: ["mode": startupAppearance.rawValue])
@@ -326,7 +337,10 @@ struct cmuxApp: App {
             settingsRuntime: settingsRuntime,
             auth: authComposition,
             automationEngine: automationEngine,
-            computerUseRuntimeService: computerUseRuntimeService
+            computerUseRuntimeService: computerUseRuntimeService,
+            voiceDictationToggleAction: { [voiceDictationRuntime] in
+                voiceDictationRuntime.handleShortcutToggle()
+            }
         )
         historyMenuCoordinator.refreshIfNeeded()
         StartupBreadcrumbLog.append("app.init.delegate.configured")

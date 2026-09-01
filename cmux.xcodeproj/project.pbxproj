@@ -1562,6 +1562,7 @@
 		C34670030000000000000001 /* KeyboardShortcutContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34670030000000000000002 /* KeyboardShortcutContext.swift */; };
 		C34670050000000000000001 /* KeyboardShortcutContextSwiftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34670050000000000000002 /* KeyboardShortcutContextSwiftTests.swift */; };
 		C34670020000000000000001 /* KeyboardShortcutContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C34670020000000000000002 /* KeyboardShortcutContextTests.swift */; };
+		C701CE0900000000000000B1 /* KeyboardShortcutLegacyResolutionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0900000000000000F1 /* KeyboardShortcutLegacyResolutionCache.swift */; };
 		6042A0026042A0026042A002 /* KeyboardShortcutModifierHoldHintsSettingsFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6042B0026042B0026042B002 /* KeyboardShortcutModifierHoldHintsSettingsFileTests.swift */; };
 		A50012F7 /* KeyboardShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50012F6 /* KeyboardShortcutRecorder.swift */; };
 		C0DE5A100000000000000001 /* KeyboardShortcutSavedLayoutTemplateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE5A100000000000000002 /* KeyboardShortcutSavedLayoutTemplateTests.swift */; };
@@ -3042,8 +3043,10 @@
 		F6AAAA235B7F431E8D1D2E94 /* VMTunnelStalenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87BDCAB46A44D7596A4784D /* VMTunnelStalenessTests.swift */; };
 		C701CE0000000000000000B1 /* VoiceDictationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0000000000000000F1 /* VoiceDictationCoordinator.swift */; };
 		C701CE0100000000000000B1 /* VoiceDictationHUDController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0100000000000000F1 /* VoiceDictationHUDController.swift */; };
+		C701CE0800000000000000B1 /* VoiceDictationHUDSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0800000000000000F1 /* VoiceDictationHUDSnapshot.swift */; };
 		C701CE0200000000000000B1 /* VoiceDictationHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0200000000000000F1 /* VoiceDictationHUDView.swift */; };
 		C701CE0300000000000000B1 /* VoiceDictationInsertionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0300000000000000F1 /* VoiceDictationInsertionRouter.swift */; };
+		C701CE0700000000000000B1 /* VoiceDictationRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701CE0700000000000000F1 /* VoiceDictationRuntime.swift */; };
 		A10020000000000000000019 /* WebSurfaceSelectionEvaluationOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1002000000000000000001A /* WebSurfaceSelectionEvaluationOwner.swift */; };
 		A10020000000000000000011 /* WebSurfaceSelectionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10020000000000000000012 /* WebSurfaceSelectionReader.swift */; };
 		A500120C /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001222 /* WindowAccessor.swift */; };
@@ -4834,6 +4837,7 @@
 		C34670030000000000000002 /* KeyboardShortcutContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutContext.swift; sourceTree = "<group>"; };
 		C34670050000000000000002 /* KeyboardShortcutContextSwiftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutContextSwiftTests.swift; sourceTree = "<group>"; };
 		C34670020000000000000002 /* KeyboardShortcutContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutContextTests.swift; sourceTree = "<group>"; };
+		C701CE0900000000000000F1 /* KeyboardShortcutLegacyResolutionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutLegacyResolutionCache.swift; sourceTree = "<group>"; };
 		6042B0026042B0026042B002 /* KeyboardShortcutModifierHoldHintsSettingsFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutModifierHoldHintsSettingsFileTests.swift; sourceTree = "<group>"; };
 		A50012F6 /* KeyboardShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutRecorder.swift; sourceTree = "<group>"; };
 		C0DE5A100000000000000002 /* KeyboardShortcutSavedLayoutTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcutSavedLayoutTemplateTests.swift; sourceTree = "<group>"; };
@@ -6299,8 +6303,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		E87BDCAB46A44D7596A4784D /* VMTunnelStalenessTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VMTunnelStalenessTests.swift; sourceTree = "<group>"; };
 		C701CE0000000000000000F1 /* VoiceDictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationCoordinator.swift; sourceTree = "<group>"; };
 		C701CE0100000000000000F1 /* VoiceDictationHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationHUDController.swift; sourceTree = "<group>"; };
+		C701CE0800000000000000F1 /* VoiceDictationHUDSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationHUDSnapshot.swift; sourceTree = "<group>"; };
 		C701CE0200000000000000F1 /* VoiceDictationHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationHUDView.swift; sourceTree = "<group>"; };
 		C701CE0300000000000000F1 /* VoiceDictationInsertionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationInsertionRouter.swift; sourceTree = "<group>"; };
+		C701CE0700000000000000F1 /* VoiceDictationRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Voice/VoiceDictationRuntime.swift; sourceTree = "<group>"; };
 		A1002000000000000000001A /* WebSurfaceSelectionEvaluationOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebSurfaceSelectionEvaluationOwner.swift; sourceTree = "<group>"; };
 		A10020000000000000000012 /* WebSurfaceSelectionReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebSurfaceSelectionReader.swift; sourceTree = "<group>"; };
 		A5001222 /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAccessor.swift; sourceTree = "<group>"; };
@@ -7417,9 +7423,12 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C701CE0100000000000000F1 /* VoiceDictationHUDController.swift */,
 				C701CE0200000000000000F1 /* VoiceDictationHUDView.swift */,
 				C701CE0300000000000000F1 /* VoiceDictationInsertionRouter.swift */,
+				C701CE0700000000000000F1 /* VoiceDictationRuntime.swift */,
+				C701CE0800000000000000F1 /* VoiceDictationHUDSnapshot.swift */,
 				C701CE0400000000000000F1 /* KeyboardShortcutSettingsVisibleActions.swift */,
 				C701CE0500000000000000F1 /* AppDelegateShortcutActionPolicy.swift */,
 				C701CE0600000000000000F1 /* AppDelegateVoiceDictation.swift */,
+				C701CE0900000000000000F1 /* KeyboardShortcutLegacyResolutionCache.swift */,
 				C0DEF4110000000000000002 /* CommandPaletteSettingsToggle.swift */,
 				9DAB808A8EC74C40B95F7672 /* GhosttySurfaceConfigurationRefresh.swift */,
 				6B8E2E03F4A64C61B729CF19 /* TerminalDirectoryOpenSupport.swift */,
@@ -11435,6 +11444,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A50012F5 /* KeyboardLayout.swift in Sources */,
 				C4A570020000000000000001 /* KeyboardShortcutActionContext.swift in Sources */,
 				C34670030000000000000001 /* KeyboardShortcutContext.swift in Sources */,
+				C701CE0900000000000000B1 /* KeyboardShortcutLegacyResolutionCache.swift in Sources */,
+				C701CE0900000000000000B1 /* KeyboardShortcutLegacyResolutionCache.swift in Sources */,
 				A50012F7 /* KeyboardShortcutRecorder.swift in Sources */,
 				875200000000000000000013 /* KeyboardShortcutSettings+ActionMetadata.swift in Sources */,
 				80410000000000000000000B /* KeyboardShortcutSettings+ActionVisibility.swift in Sources */,
@@ -12475,8 +12486,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B43AFCE7099305905825EA0A /* VMTunnelManager.swift in Sources */,
 				C701CE0000000000000000B1 /* VoiceDictationCoordinator.swift in Sources */,
 				C701CE0100000000000000B1 /* VoiceDictationHUDController.swift in Sources */,
+				C701CE0800000000000000B1 /* VoiceDictationHUDSnapshot.swift in Sources */,
 				C701CE0200000000000000B1 /* VoiceDictationHUDView.swift in Sources */,
 				C701CE0300000000000000B1 /* VoiceDictationInsertionRouter.swift in Sources */,
+				C701CE0700000000000000B1 /* VoiceDictationRuntime.swift in Sources */,
 				A10020000000000000000019 /* WebSurfaceSelectionEvaluationOwner.swift in Sources */,
 				A10020000000000000000011 /* WebSurfaceSelectionReader.swift in Sources */,
 				A500120C /* WindowAccessor.swift in Sources */,

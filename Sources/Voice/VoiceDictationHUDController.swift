@@ -12,11 +12,18 @@ import SwiftUI
 @MainActor
 final class VoiceDictationHUDController {
     private let controller: DictationController
+    private let stopAction: @MainActor () -> Void
     private var panel: NSPanel?
+    private var hostingView: NSHostingView<VoiceDictationHUDView>?
+    private var snapshot = VoiceDictationHUDSnapshot(phase: .idle, transcriptTail: "")
     private var observationActive = false
 
-    init(controller: DictationController) {
+    init(
+        controller: DictationController,
+        stopAction: @escaping @MainActor () -> Void
+    ) {
         self.controller = controller
+        self.stopAction = stopAction
     }
 
     /// Starts tracking the controller's phase; shows/hides the panel as
@@ -30,6 +37,7 @@ final class VoiceDictationHUDController {
     private func observePhase() {
         withObservationTracking {
             _ = controller.phase
+            _ = controller.transcript.displayText
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -41,6 +49,14 @@ final class VoiceDictationHUDController {
     }
 
     private func syncVisibility() {
+        snapshot = VoiceDictationHUDSnapshot(
+            phase: controller.phase,
+            transcriptTail: String(controller.transcript.displayText.suffix(60))
+        )
+        hostingView?.rootView = VoiceDictationHUDView(
+            snapshot: snapshot,
+            stopAction: stopAction
+        )
         switch controller.phase {
         case .requestingAuthorization, .preparing, .listening, .stopping:
             show()
@@ -85,8 +101,14 @@ final class VoiceDictationHUDController {
         effectView.layer?.cornerRadius = 12
         effectView.layer?.masksToBounds = true
 
-        let hostingView = NSHostingView(rootView: VoiceDictationHUDView(controller: controller))
+        let hostingView = NSHostingView(
+            rootView: VoiceDictationHUDView(
+                snapshot: snapshot,
+                stopAction: stopAction
+            )
+        )
         hostingView.translatesAutoresizingMaskIntoConstraints = false
+        self.hostingView = hostingView
         effectView.addSubview(hostingView)
         NSLayoutConstraint.activate([
             hostingView.leadingAnchor.constraint(equalTo: effectView.leadingAnchor),
