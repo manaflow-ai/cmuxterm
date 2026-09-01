@@ -30,6 +30,7 @@ struct SidebarTabItemSettingsSnapshot: Equatable {
     let visibleAuxiliaryDetails: SidebarWorkspaceAuxiliaryDetailVisibility
     let iMessageModeEnabled: Bool
     let workspaceTodoChecklistStyle: WorkspaceTodoChecklistStyle
+    let rowDensity: SidebarRowDensity
 
     var usesLastSegmentPath: Bool { branchDirectory.usesLastSegmentPath }
     var showsSSH: Bool { details.showSSH }
@@ -91,6 +92,7 @@ struct SidebarTabItemSettingsSnapshot: Equatable {
         notificationBadgeColorHex = settings.value(for: workspaceColors.notificationBadgeColorHex).nilIfEmpty
         iMessageModeEnabled = IMessageModeSettings.isEnabled(defaults: defaults)
         workspaceTodoChecklistStyle = settings.value(for: betaFeatures.workspaceTodosChecklistStyle)
+        rowDensity = settings.value(for: sidebar.rowDensity)
     }
 
     private static func bool(

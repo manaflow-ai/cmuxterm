@@ -1764,7 +1764,11 @@ struct ContentView: View {
     // Only one instance may claim the focus boundary: it is last-write-wins
     // and window-scoped, so the panel instance (in its own child window)
     // must not shadow the in-layout instance's claim.
-    func sidebarView(isPresented: Bool, attachesFocusBoundary: Bool = true) -> some View {
+    func sidebarView(
+        isPresented: Bool,
+        attachesFocusBoundary: Bool = true,
+        usesCompactTopInset: Bool = false
+    ) -> some View {
         let sidebar = VerticalTabsSidebar(
             updateViewModel: updateViewModel,
             fileExplorerState: fileExplorerState,
@@ -1776,12 +1780,14 @@ struct ContentView: View {
             onSendFeedback: presentFeedbackComposer,
             onToggleSidebar: { sidebarState.toggle() },
             onNewTab: {
+                SidebarNavigationTimings.begin("create")
                 AppDelegate.shared?.performNewWorkspaceAction(
                     tabManager: tabManager,
                     debugSource: "titlebar.hiddenNewWorkspace"
                 )
             },
             presentationMode: sidebarState.presentationMode,
+            usesCompactTopInset: usesCompactTopInset,
             onTogglePresentationMode: {
                 withAnimation(SidebarPeekMotion.modeChange) {
                     sidebarState.togglePresentationMode()
@@ -2120,7 +2126,11 @@ struct ContentView: View {
     // Background glass settings
     @AppStorage("bgGlassTintHex") private var bgGlassTintHex = "#000000"
     @AppStorage("bgGlassTintOpacity") private var bgGlassTintOpacity = 0.03
-    @AppStorage("bgGlassEnabled") private var bgGlassEnabled = false
+    // Fork default: window glass on. With behindWindow blending this keeps
+    // the window transparent so the sidebar's vibrancy samples the actual
+    // desktop (an opaque window kills behind-window sampling and leaves only
+    // the material's flat frost).
+    @AppStorage("bgGlassEnabled") private var bgGlassEnabled = true
     @State private var titlebarLeadingInset: CGFloat = 12
     private var windowIdentifier: String { "cmux.main.\(windowId.uuidString)" }
     // Not `private`: the peek panel card in `ContentView+SidebarPeek` derives
@@ -2719,6 +2729,20 @@ struct ContentView: View {
                         layout: sidebarLayout,
                         isPeekPresenting: { sidebarPeek.presentsPanel }
                     )
+                    sidebarPeek.setPolicy(SidebarCustomizationSettings.peekPolicy())
+                }
+                .onReceive(
+                    NotificationCenter.default
+                        .publisher(for: UserDefaults.didChangeNotification)
+                        .receive(on: RunLoop.main)
+                ) { _ in
+                    // Settings-window edits land here. The equality guard
+                    // keeps the frequent defaults churn from rebuilding the
+                    // peek machine when nothing it cares about changed.
+                    let policy = SidebarCustomizationSettings.peekPolicy()
+                    if policy != sidebarPeek.policy {
+                        sidebarPeek.setPolicy(policy)
+                    }
                 }
                 .onChange(of: sidebarState.occupiesLayout) { occupies in
                     if occupies {
@@ -3648,6 +3672,13 @@ struct ContentView: View {
             isCycleHot: isCycleHot,
             maxMounted: maxMounted
         ).mountedWorkspaceIds
+        if let selectedId = effectiveSelectedId,
+           !previousMountedIds.contains(selectedId),
+           mountedWorkspaceIds.contains(selectedId) {
+            // The switch target was not mounted: the pending interval, if
+            // any, is a cold switch.
+            SidebarNavigationTimings.reclassify("switch.warm", as: "switch.cold")
+        }
         let removedIds = previousMountedIds.filter { !mountedWorkspaceIds.contains($0) }
         let portalRenderingChanges = WorkspacePortalRenderingPlan(
             previousStatesByWorkspaceId: lastReconciledPortalRenderingStatesByWorkspaceId,
@@ -11034,6 +11065,10 @@ struct VerticalTabsSidebar: View, Equatable {
     /// Docked or floating. Part of `==`: the toggle's own glyph flips on it,
     /// so a change here has to defeat the equality gate.
     var presentationMode: SidebarPresentationMode = .docked
+    /// The floating panel's instance takes compact top metrics: its window
+    /// already sits below the titlebar, so the docked pane's reserved band
+    /// is dead space there.
+    var usesCompactTopInset: Bool = false
     let onTogglePresentationMode: () -> Void
     let observedWindowReference: WeakWindowReference
     let chromeBackgroundColor: NSColor
@@ -11337,7 +11372,9 @@ struct VerticalTabsSidebar: View, Equatable {
     }
 
     private var sidebarTopScrimHeight: CGFloat {
-        SidebarWorkspaceListMetrics.topScrimHeight
+        usesCompactTopInset
+            ? SidebarWorkspaceListMetrics.compactTopScrimHeight
+            : SidebarWorkspaceListMetrics.topScrimHeight
     }
 
     private var sidebarBottomScrimHeight: CGFloat {
@@ -11605,19 +11642,6 @@ struct VerticalTabsSidebar: View, Equatable {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .overlay(alignment: .top) {
-            // Aside-style create action at the head of the list, where the
-            // eye starts: a full-width row, so the gesture that picks a
-            // workspace is the same gesture that makes one. The list's top
-            // inset reserves this row's height.
-            if isPresented {
-                SidebarNewWorkspaceButton(
-                    accent: cmuxAccentColor(),
-                    onCreate: onNewTab
-                )
-                .padding(.top, SidebarWorkspaceListMetrics.firstRowTopOffset)
-            }
-        }
         .accessibilityIdentifier("Sidebar")
         .ignoresSafeArea()
         .background(
@@ -11767,7 +11791,8 @@ struct VerticalTabsSidebar: View, Equatable {
         renderContext: WorkspaceListRenderContext,
         unreadSnapshot: SidebarUnreadSnapshot
     ) -> some View {
-        let scrollInsets = SidebarWorkspaceScrollInsets.workspaceList
+        let scrollInsets: SidebarWorkspaceScrollInsets =
+            usesCompactTopInset ? .floatingPanel : .workspaceList
         return GeometryReader { viewport in
             // Keep viewport geometry as a downward-only layout input. Writing
             // this value into @State from onGeometryChange feeds an
@@ -11996,6 +12021,7 @@ struct VerticalTabsSidebar: View, Equatable {
             selectedWorkspaceId: selectedWorkspaceId,
             selectedScrollTargetWorkspaceId: selectedScrollTargetWorkspaceId,
             isPresented: isPresented,
+            usesCompactTopInset: usesCompactTopInset,
             unreadSource: sidebarUnread,
             onDeferredClickAwaitingApply: { appKitTableApplyRequestToken &+= 1 }
         )
@@ -12161,6 +12187,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 dragAutoScrollController.attach(scrollView: scrollView)
             },
             closeWorkspace: { workspaceId in
+                SidebarNavigationTimings.begin("close")
                 guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else { return }
 #if DEBUG
                 cmuxDebugLog("sidebar.close workspace=\(workspaceId.uuidString.prefix(5)) method=middleClick")
