@@ -576,6 +576,7 @@ class TerminalController {
                     continue
                 }
                 await controller.spawnClientHandler(
+                    connectionID: connection.id,
                     socket: connection.socket,
                     peerPid: connection.peerProcessID,
                     authorizationGeneration: connection.authorizationGeneration,
@@ -1812,6 +1813,7 @@ class TerminalController {
     }
 
     private nonisolated func spawnClientHandler(
+        connectionID: UUID,
         socket clientSocket: Int32,
         peerPid: pid_t?,
         authorizationGeneration: UInt64,
@@ -1838,6 +1840,7 @@ class TerminalController {
             }
             await self.handleClientAsync(
                 clientSocket,
+                connectionID: connectionID,
                 peerPid: peerPid,
                 authorizationGeneration: authorizationGeneration,
                 authorizationRevocationSignal: authorizationRevocationSignal,
@@ -1855,6 +1858,7 @@ class TerminalController {
 
     private nonisolated func handleClientAsync(
         _ socket: Int32,
+        connectionID: UUID,
         peerPid: pid_t? = nil,
         authorizationGeneration: UInt64,
         authorizationRevocationSignal: SocketAuthorizationRevocationSignal,
@@ -1868,6 +1872,9 @@ class TerminalController {
             close(socket)
         }
         let pid = peerPid ?? transport.peerProcessID(of: socket)
+        let localViewportSession = await LocalTerminalViewportSession(
+            connectionID: connectionID
+        )
         let peerHasSameUID = transport.peerHasSameUID(socket)
         let preauthorizationLimiter = socketClientPreauthorizationLimiter
         var holdsPreauthorizationSlot = initialSlotHeld
@@ -1954,7 +1961,8 @@ class TerminalController {
                 await processSocketLineAsync(
                     trimmed,
                     passwordAuthorization: passwordAuthorization,
-                    rateLimiter: rateLimiter
+                    rateLimiter: rateLimiter,
+                    localViewportSession: localViewportSession
                 )
             }
             passwordAuthorization = result.passwordAuthorization
@@ -3005,12 +3013,14 @@ class TerminalController {
             "mobile.browser.back",
             "mobile.browser.forward",
             "mobile.browser.reload",
-            "mobile.terminal.viewport", "mobile.events.subscribe", "mobile.events.unsubscribe",
+            "mobile.terminal.viewport", "mobile.terminal.viewport.set", "mobile.terminal.viewport.reset",
+            "mobile.events.subscribe", "mobile.events.unsubscribe",
             "terminal.create",
             "terminal.input",
             "terminal.paste",
             "terminal.replay",
             "terminal.viewport",
+            "terminal.viewport.set", "terminal.viewport.reset",
             "auth.login",
             "auth.status",
             "auth.sign_in_url",
@@ -6005,7 +6015,7 @@ class TerminalController {
     /// availability before the `lines` validation), and routing precedence —
     /// including the global-dock branch the witness grew after the original
     /// prototype — are byte-faithful to the coordinator witness this replaces.
-    private nonisolated func v2SurfaceReadText(params: [String: Any]) -> V2CallResult {
+    nonisolated func v2SurfaceReadText(params: [String: Any]) -> V2CallResult {
         var includeScrollback = v2Bool(params, "scrollback") ?? false
         let lineLimit = v2Int(params, "lines")
         if lineLimit != nil {
@@ -15678,7 +15688,11 @@ class TerminalController {
         )
     }
 
-    func v2MobileTerminalReplay(params: [String: Any]) -> V2CallResult {
+    func v2MobileTerminalReplay(
+        params: [String: Any],
+        adoptReplayBaseline: Bool = true,
+        recordProducerIdentity: Bool = true
+    ) -> V2CallResult {
         if let error = mobileWorkspaceIDValidationError(params: params) {
             return error
         }
@@ -15736,7 +15750,9 @@ class TerminalController {
             surfaceID: surfaceId,
             seq: seq,
             scrollbackLines: scrollbackLines,
-            anchor: anchor
+            anchor: anchor,
+            adoptReplayBaseline: adoptReplayBaseline,
+            recordProducerIdentity: recordProducerIdentity
         )
         if let expectedViewport,
            let renderGrid,
@@ -15895,10 +15911,14 @@ class TerminalController {
             payload["rows"] = max(Int(size.rows), 1)
         }
         let renderFloor = MobileTerminalByteTee.shared.currentRenderCaptureIdentity(
-            surfaceID: surfaceId
+            surfaceID: surfaceId,
+            anchor: v2String(params, "anchor") == MobileTerminalRenderGridFrame.Anchor.screen.rawValue
+                ? .screen
+                : .viewport
         )
         payload["render_epoch"] = renderFloor.epoch
         payload["render_revision_floor"] = renderFloor.revision
+        payload["render_emission_revision_floor"] = renderFloor.emissionRevision
         return .ok(payload)
     }
 
@@ -15907,7 +15927,11 @@ class TerminalController {
     /// in the alt screen). The producer already exports the live `vp_top`, so
     /// the resulting viewport mirrors back to the phone; nudge an emit since a
     /// pure scroll with no PTY output may not fire a render/tick on its own.
-    func v2MobileTerminalScroll(params: [String: Any]) -> V2CallResult {
+    func v2MobileTerminalScroll(
+        params: [String: Any],
+        adoptReplayBaseline: Bool = true,
+        recordProducerIdentity: Bool = true
+    ) -> V2CallResult {
         if let error = mobileWorkspaceIDValidationError(params: params) {
             return error
         }
@@ -15930,7 +15954,9 @@ class TerminalController {
             workspaceID: resolved.workspace.id,
             terminalTarget: terminalTarget,
             surfaceID: surfaceId,
-            params: params
+            params: params,
+            adoptReplayBaseline: adoptReplayBaseline,
+            recordProducerIdentity: recordProducerIdentity
         ))
     }
 
