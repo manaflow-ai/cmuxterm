@@ -68,7 +68,9 @@ final class AgentStallSupervisor {
 
     deinit {
         if let settingsObserver { settings.removeDidChangeObserver(settingsObserver) }
-        for state in statesByPanelID.values { state.retryScheduler?.cancel() }
+        // `MainActorDeferredActionScheduler.deinit` cancels its pending task
+        // when each panel state releases it. Calling its @MainActor `cancel()`
+        // here is not legal from a nonisolated deinitializer under Swift 6.
         outputDemand.clearAllCaptures()
     }
 
