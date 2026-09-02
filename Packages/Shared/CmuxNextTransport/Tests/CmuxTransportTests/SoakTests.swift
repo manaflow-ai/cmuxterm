@@ -126,7 +126,7 @@ struct SoakTests {
         let exits = exitsFromReady(await owner.transitionLog)
         #expect(exits.count == 3)
         for exit in exits {
-            guard case .remoteClosed(let reason) = exit.event else {
+            guard case .remoteClosed(_, let reason) = exit.event else {
                 Issue.record("unattributed exit from ready: \(exit)")
                 continue
             }

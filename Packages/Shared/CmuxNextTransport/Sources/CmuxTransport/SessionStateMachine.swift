@@ -58,6 +58,15 @@ public struct AttemptID: Sendable, Equatable, Hashable {
     public init(raw: UInt64) { self.raw = raw }
 }
 
+/// Identifies the connection generation that owns a remote-close event.
+/// Generations change as soon as a new dial replaces an existing connection,
+/// so a late close from the previous connection cannot tear down its successor.
+public struct ConnectionGeneration: Sendable, Equatable, Hashable {
+    public let raw: UInt64
+
+    public init(raw: UInt64) { self.raw = raw }
+}
+
 public enum SessionEvent: Sendable, Equatable {
     case endpointReadyChanged(Bool)
     case dialRequested(DialIntent)
@@ -66,7 +75,7 @@ public enum SessionEvent: Sendable, Equatable {
     case connectionDegraded(DegradeCause)
     case connectionRecovered
     case closeRequested(CloseReason)
-    case remoteClosed(CloseReason)
+    case remoteClosed(ConnectionGeneration, CloseReason)
 }
 
 public enum SessionEffect: Sendable, Equatable {
@@ -104,6 +113,9 @@ public struct SessionStateMachine: Sendable {
     public private(set) var endpointReady = false
     public private(set) var transitions: [SessionTransition] = []
     public private(set) var currentAttempt: AttemptID?
+    /// The generation currently allowed to report a remote close. It is
+    /// advanced when a replacement dial starts, before that dial succeeds.
+    public private(set) var activeConnectionGeneration: ConnectionGeneration?
     /// A dial was requested before the endpoint was ready (2.4).
     public private(set) var dialDeferred = false
     /// The close was locally REQUESTED (stop, mode switch, denial parking):
@@ -144,6 +156,7 @@ public struct SessionStateMachine: Sendable {
                 return [.invalidEventRecorded("dialSucceeded for stale attempt \(attempt.raw)")]
             }
             currentAttempt = nil
+            activeConnectionGeneration = ConnectionGeneration(raw: attempt.raw)
             switch state {
             case .connecting, .degraded:
                 state = .ready
@@ -157,6 +170,9 @@ public struct SessionStateMachine: Sendable {
                 return [.invalidEventRecorded("dialFailed for stale attempt \(attempt.raw)")]
             }
             currentAttempt = nil
+            if activeConnectionGeneration?.raw == attempt.raw {
+                activeConnectionGeneration = nil
+            }
             switch state {
             case .connecting:
                 // The reconnect owner schedules the next dial with backoff
@@ -193,15 +209,21 @@ public struct SessionStateMachine: Sendable {
                 currentAttempt = nil
             }
             dialDeferred = false
+            activeConnectionGeneration = nil
             state = .closed(reason)
             closedTerminally = true
             effects.append(.closeConnection(reason))
             return effects
 
-        case .remoteClosed(let reason):
+        case .remoteClosed(let generation, let reason):
+            guard activeConnectionGeneration == generation else {
+                return [.invalidEventRecorded(
+                    "remoteClosed for stale generation \(generation.raw)")]
+            }
             guard !state.isClosed, state != .idle else {
                 return [.invalidEventRecorded("remoteClosed while \(state)")]
             }
+            activeConnectionGeneration = nil
             if let attempt = currentAttempt {
                 currentAttempt = nil
                 state = .closed(reason)
@@ -275,6 +297,9 @@ public struct SessionStateMachine: Sendable {
         attemptCounter += 1
         let attempt = AttemptID(raw: attemptCounter)
         currentAttempt = attempt
+        // Fence the previous connection immediately. A late termination event
+        // from that connection must not close the replacement while it dials.
+        activeConnectionGeneration = ConnectionGeneration(raw: attempt.raw)
         if !preservingState { state = .connecting }
         return [.startDial(attempt)]
     }

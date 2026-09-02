@@ -60,7 +60,8 @@ struct NextTransportDialSurfaceTests {
         #expect(closed.displayDescription == "closed (expired)")
         #expect(NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: .expired))
         let lost = NextTransportDialState.closed(code: "connection-lost", denial: nil)
-        #expect(!NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: nil))
+        #expect(lost.displayDescription == "closed (connection-lost)")
+        #expect(!NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: lost.denial))
     }
 
     // MARK: probe error classifier

@@ -11518,7 +11518,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         if let probe = nextTransportBootstrapProbe,
             let client = remoteClient,
             let macDeviceID = activeTicket?.macDeviceID,
-            !macDeviceID.isEmpty
+            !macDeviceID.isEmpty,
+            !Self.isSyntheticManualDeviceID(macDeviceID)
         {
             let generation = connectionGeneration
             if nextTransportBootstrapProbeGeneration != generation {

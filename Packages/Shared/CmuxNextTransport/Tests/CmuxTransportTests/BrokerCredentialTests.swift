@@ -38,9 +38,11 @@ struct BrokerCredentialTests {
         for credential in credentials {
             #expect(
                 IrohSubstrate.tokenEndpointId(credential.token) == identity.publicKeyData)
-            if let exp = IrohSubstrate.tokenExpiry(credential.token) {
-                #expect(exp > mintReference)
+            guard let exp = IrohSubstrate.tokenExpiry(credential.token) else {
+                Issue.record("minted credential has no expiry")
+                return
             }
+            #expect(exp > mintReference)
         }
         print("[broker-test] minted \(credentials.count) credentials, first for "
             + "\(credentials.first?.relayUrl ?? "?")")

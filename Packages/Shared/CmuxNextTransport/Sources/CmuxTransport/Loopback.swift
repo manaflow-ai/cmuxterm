@@ -24,9 +24,9 @@ public actor FramePipe {
     private var waiterCounter = 0
     public private(set) var backpressureStalls = 0
 
-    /// Number of receive continuations currently parked on this pipe. Exposed
-    /// for deterministic conformance tests; it is an observation only.
-    public var waitingReceiverCount: Int { recvWaiters.count }
+    /// Number of receive continuations currently parked on this pipe.
+    /// Internal so the test target reads it through `@testable import`.
+    var waitingReceiverCount: Int { recvWaiters.count }
 
     public init(capacity: Int = 64) {
         precondition(capacity > 0, "FramePipe capacity must be positive")

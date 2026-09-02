@@ -130,6 +130,7 @@ struct LaneTests {
             stalls = await lane.backpressureStalls
             spins += 1
         }
+        #expect(stalls >= 1, "sender never parked on backpressure")
         sender.cancel()
         await #expect(throws: CancellationError.self) { try await sender.value }
         // The lane itself is unharmed (5.3): cancellation is per-task.

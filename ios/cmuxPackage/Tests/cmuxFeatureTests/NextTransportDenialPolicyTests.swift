@@ -13,7 +13,7 @@ import Testing
 /// throwing NextTransportUnavailableError forever.
 @Suite("Next-transport denial policy")
 struct NextTransportDenialPolicyTests {
-    /// Every state string the dial client actually publishes for the six
+    /// Every state string the dial client actually publishes for the seven
     /// credential denials (DenialCode raw values inside `closed (...)`).
     private static let credentialDenials: [DenialCode] = [
         .invalidSignature, .expired, .revoked,
@@ -22,8 +22,9 @@ struct NextTransportDenialPolicyTests {
 
     /// States that mean the transport failed or the session is simply not
     /// up: never grounds to burn the persisted ticket + grant.
-    private static let transportOrBenignStates: [DenialCode?] =
-        Array(repeating: nil, count: 9)
+    private static let transportOrBenignStates: [DenialCode?] = [
+        nil, .malformedHello, .protocolMismatch,
+    ]
 
     @Test(
         "a denial-coded close invalidates the bootstrap",

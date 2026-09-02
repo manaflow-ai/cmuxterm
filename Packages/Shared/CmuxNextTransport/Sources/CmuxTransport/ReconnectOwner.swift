@@ -317,7 +317,7 @@ public actor ReconnectOwner {
                         reason: ConnectionTermination(code: CloseReason.explicitRedial.code))
                     return
                 }
-                watch(conn)
+                watch(conn, generation: ConnectionGeneration(raw: attempt.raw))
             case .denied(let code):
                 if TransportDebugLog.enabled {
                     TransportDebugLog.core.error(
@@ -392,7 +392,7 @@ public actor ReconnectOwner {
     /// connection's end into machine input + the auto-recovery decision.
     /// Frames are surfaced to `onControlFrame` on the way through, never
     /// silently dropped (8.1).
-    private func watch(_ conn: any PeerConnection) {
+    private func watch(_ conn: any PeerConnection, generation: ConnectionGeneration) {
         let key = ObjectIdentifier(conn)
         watchTasks[key]?.cancel()
         watchTasks[key] = Task {
@@ -443,18 +443,22 @@ public actor ReconnectOwner {
                     conn=\(TransportDebugLog.id(conn), privacy: .public)
                     """)
             }
-            await self.watchEnded(conn)
+            await self.watchEnded(conn, generation: generation)
         }
     }
 
     /// The watch loop's single exit: drop the stored task, then run the
     /// connection-ended bookkeeping (which ignores stale connections itself).
-    private func watchEnded(_ conn: any PeerConnection) async {
+    private func watchEnded(
+        _ conn: any PeerConnection, generation: ConnectionGeneration
+    ) async {
         watchTasks.removeValue(forKey: ObjectIdentifier(conn))
-        await connectionEnded(conn)
+        await connectionEnded(conn, generation: generation)
     }
 
-    private func connectionEnded(_ conn: any PeerConnection) async {
+    private func connectionEnded(
+        _ conn: any PeerConnection, generation: ConnectionGeneration
+    ) async {
         guard connection === conn else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
@@ -499,7 +503,8 @@ public actor ReconnectOwner {
                 autoRedial=\(willAutoRedial, privacy: .public)
                 """)
         }
-        await apply(machine.handle(.remoteClosed(CloseReason(origin: .remote, code: code))))
+        await apply(machine.handle(
+            .remoteClosed(generation, CloseReason(origin: .remote, code: code))))
         if willAutoRedial {
             // A peer can admit and then immediately close (for example when
             // the bridge loses its current application owner). Route that

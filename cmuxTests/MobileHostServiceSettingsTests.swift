@@ -42,6 +42,10 @@ struct MobileHostServiceSettingsTests {
         #expect(
             NextTransportRelayPlan.make(hasBrokerClient: false, hasUsableCache: true)
                 == .cachedCredential)
+        // A usable cache wins over minting: the bind must not await a mint.
+        #expect(
+            NextTransportRelayPlan.make(hasBrokerClient: true, hasUsableCache: true)
+                == .cachedCredential)
     }
 
     @Test func mobileHostListenerHonorsDevelopmentDefaultUntilIOSPairingIsOverridden() throws {

@@ -88,7 +88,7 @@ struct SessionStateMachineTests {
     @Test("Remote close carries its attributed reason (4.4, 4.5)")
     func remoteCloseKeepsReason() {
         var machine = readyMachine()
-        _ = machine.handle(.remoteClosed(.superseded))
+        _ = machine.handle(.remoteClosed(.init(raw: 1), .superseded))
         #expect(machine.state == .closed(.superseded))
     }
 
@@ -126,7 +126,7 @@ struct SessionStateMachineTests {
             .connectionDegraded(.networkUnavailable),
             .connectionRecovered,
             .closeRequested(.userRequested),
-            .remoteClosed(.superseded),
+            .remoteClosed(.init(raw: 1), .superseded),
         ]
         // Drive every event from every reachable seed state, twice over.
         for seedEvents in eventSequences() {
@@ -157,7 +157,8 @@ struct SessionStateMachineTests {
             ],
             [
                 .endpointReadyChanged(true), .dialRequested(.automatic(trigger: "launch")),
-                .dialSucceeded(AttemptID(raw: 1)), .remoteClosed(.superseded),
+                .dialSucceeded(AttemptID(raw: 1)),
+                .remoteClosed(.init(raw: 1), .superseded),
             ],
         ]
     }
@@ -172,6 +173,32 @@ struct SessionStateMachineTests {
 }
 
 extension SessionStateMachineTests {
+    @Test("A late close from an explicit-redial predecessor is ignored")
+    func lateCloseFromReplacedConnectionIsIgnored() {
+        var machine = readyMachine()
+
+        let replacement = machine.handle(
+            .dialRequested(.explicit(trigger: "manual-retry")))
+        #expect(replacement == [
+            .closeConnection(.explicitRedial),
+            .startDial(AttemptID(raw: 2)),
+        ])
+        #expect(machine.activeConnectionGeneration == .init(raw: 2))
+
+        let stale = machine.handle(
+            .remoteClosed(.init(raw: 1), .superseded))
+        #expect(stale == [.invalidEventRecorded("remoteClosed for stale generation 1")])
+        #expect(machine.state == .connecting)
+        #expect(machine.currentAttempt == .init(raw: 2))
+
+        _ = machine.handle(.dialSucceeded(.init(raw: 2)))
+        #expect(machine.state == .ready)
+        let late = machine.handle(
+            .remoteClosed(.init(raw: 1), .superseded))
+        #expect(late == [.invalidEventRecorded("remoteClosed for stale generation 1")])
+        #expect(machine.state == .ready)
+    }
+
     @Test("A requested close is terminal: no trigger dials the machine back up")
     func requestedCloseIsTerminal() {
         var machine = readyMachine()
@@ -192,7 +219,8 @@ extension SessionStateMachineTests {
     @Test("A remote close stays redialable: auto-recovery dials from closed")
     func remoteCloseStaysRedialable() {
         var machine = readyMachine()
-        _ = machine.handle(.remoteClosed(CloseReason(origin: .remote, code: "connection-lost")))
+        _ = machine.handle(.remoteClosed(
+            .init(raw: 1), CloseReason(origin: .remote, code: "connection-lost")))
         #expect(machine.closedTerminally == false)
         let effects = machine.handle(.dialRequested(.automatic(trigger: "connection-ended")))
         #expect(effects == [.startDial(AttemptID(raw: 2))])
@@ -203,7 +231,8 @@ extension SessionStateMachineTests {
     func stopAfterRemoteCloseIsTerminal() {
         var machine = readyMachine()
         _ = machine.handle(
-            .remoteClosed(CloseReason(origin: .remote, code: "connection-lost")))
+            .remoteClosed(
+                .init(raw: 1), CloseReason(origin: .remote, code: "connection-lost")))
 
         let effects = machine.handle(.closeRequested(.userRequested))
 
