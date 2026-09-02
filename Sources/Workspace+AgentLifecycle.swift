@@ -1,5 +1,6 @@
 import CMUXAgentLaunch
 import CmuxWorkspaces
+import CmuxSidebar
 import Foundation
 
 extension Workspace {
@@ -249,6 +250,7 @@ extension Workspace {
         }
         return environment
     }
+    private static let agentRunningStatusReconciliationDelay: TimeInterval = 5
 
     func allowsAgentContinuation(forPanelId panelId: UUID) -> Bool {
         restoredAgentResumeStatesByPanelId[panelId] != .completedAgentExit ||
@@ -279,6 +281,43 @@ extension Workspace {
         )
     }
 
+    func reconcileLiveIdleAgentStatus(
+        panelId: UUID,
+        observation: RestorableAgentSessionIndex.Entry
+    ) {
+        let statusKey = agentLifecycleStatusKey(for: observation.snapshot.kind)
+        let lifecycleWatermark = statusKey.flatMap { agentLifecycleEventTimesByPanelId[panelId]?[$0] }
+        let eventTime = observation.runtimeStatusEventTime ?? (lifecycleWatermark == nil ? observation.updatedAt : nil)
+        guard let eventTime, eventTime.isFinite, eventTime > 0,
+              observation.lifecycle == .idle,
+              Date.now.timeIntervalSince1970 - eventTime >= Self.agentRunningStatusReconciliationDelay,
+              let statusKey,
+              agentLifecycleStatesByPanelId[panelId]?[statusKey] == .running else { return }
+        guard setAgentLifecycle(key: statusKey, panelId: panelId, lifecycle: .idle, agentEventTime: eventTime) else { return }
+        guard let current = statusEntries[statusKey], current.agentOwnerPanelID == nil || current.agentOwnerPanelID == panelId else { return }
+        _ = upsertSidebarStatusEntry(key: statusKey, value: String(localized: "agent.generic.notification.status.idle", defaultValue: "Idle"), icon: "pause.circle.fill", color: "#8E8E93", url: current.url, priority: current.priority, format: current.format, panelId: panelId, pid: nil, agentEventTime: eventTime)
+    }
+
+    @discardableResult
+    func upsertSidebarStatusEntry(
+        key: String, value: String, icon: String?, color: String?, url: URL?, priority: Int, format: SidebarMetadataFormat, panelId: UUID?, pid: pid_t?, agentEventTime: TimeInterval?, enforceAgentEventOrdering: Bool = true
+    ) -> SidebarStatusEntryReplacementDecision {
+        let ownerPanelId = panelId
+        let hasLifecycleWatermark = ownerPanelId.flatMap { agentLifecycleEventTimesByPanelId[$0]?[key] } != nil
+        let preservedAgentEventTime = statusEntries[key].flatMap { entry in entry.agentOwnerPanelID == nil || entry.agentOwnerPanelID == ownerPanelId ? entry.agentEventTime : nil }
+        let effectiveAgentEventTime = agentEventTime ?? (enforceAgentEventOrdering ? nil : preservedAgentEventTime)
+        if let ownerPanelId, !acceptAgentRuntimeMutation(statusKey: key, panelId: ownerPanelId, agentEventTime: agentEventTime, enforceOrdering: enforceAgentEventOrdering && (agentEventTime != nil || hasLifecycleWatermark)) { return .stale }
+        let replacementDecision = SidebarStatusEntry.replacementDecision(current: statusEntries[key], key: key, value: value, icon: icon, color: color, url: url, priority: priority, format: format, agentEventTime: effectiveAgentEventTime, agentOwnerPanelID: ownerPanelId)
+        switch replacementDecision {
+        case .replace:
+            statusEntries[key] = SidebarStatusEntry(key: key, value: value, icon: icon, color: color, url: url, priority: priority, format: format, timestamp: .now, agentEventTime: effectiveAgentEventTime, agentOwnerPanelID: ownerPanelId)
+            if let pid { recordAgentPID(key: key, pid: pid, panelId: ownerPanelId, agentEventTime: agentEventTime, enforceAgentEventOrdering: enforceAgentEventOrdering && agentEventTime != nil) }
+        case .unchanged:
+            if let pid { recordAgentPID(key: key, pid: pid, panelId: ownerPanelId, agentEventTime: agentEventTime, enforceAgentEventOrdering: enforceAgentEventOrdering && agentEventTime != nil) }
+        case .stale: break
+        }
+        return replacementDecision
+    }
     func markRestoredAgentCompleted(
         panelId: UUID,
         snapshot: SessionRestorableAgentSnapshot
@@ -385,6 +424,13 @@ extension Workspace {
             return
         }
         binding.autoResume = false
+        // Retiring a hook-owned binding is an authoritative teardown boundary;
+        // retain that boundary even though the binding's payload timestamp is
+        // older, so a delayed hook cannot restore the retired generation.
+        recordSurfaceResumeBindingMutation(
+            panelId: panelId,
+            eventTime: Date.now.timeIntervalSince1970
+        )
         if surfaceResumeBindingMutationAllowed(binding, panelId: panelId) {
             surfaceResumeBindingsByPanelId[panelId] = binding
         }
@@ -537,73 +583,9 @@ extension Workspace {
         invalidatedRestoredAgentFingerprintsByPanelId.removeValue(forKey: detached.panelId)
     }
 
-    func setAgentLifecycle(
-        key: String,
-        panelId: UUID?,
-        lifecycle: AgentHibernationLifecycleState
-    ) {
-        let targetPanelId = panelId ?? focusedPanelId
-        guard let targetPanelId, panels[targetPanelId] != nil else { return }
-        agentLifecycleStatesByPanelId[targetPanelId, default: [:]][key] = lifecycle
-        if !AgentHibernationLifecycleStatusKeys.isManualKey(key) {
-            recordAgentLifecycleChange(panelId: targetPanelId)
-        }
-    }
 
-    @discardableResult
-    func clearAgentLifecycle(key: String, panelId: UUID? = nil) -> Bool {
-        var didClear = false
-        let recordsHibernationActivity = !AgentHibernationLifecycleStatusKeys.isManualKey(key)
-        let panelIds = panelId.map { [$0] } ?? Array(agentLifecycleStatesByPanelId.keys)
-        for panelId in panelIds {
-            guard agentLifecycleStatesByPanelId[panelId]?[key] != nil else { continue }
-            agentLifecycleStatesByPanelId[panelId]?.removeValue(forKey: key)
-            if agentLifecycleStatesByPanelId[panelId]?.isEmpty == true {
-                agentLifecycleStatesByPanelId.removeValue(forKey: panelId)
-            }
-            didClear = true
-            if recordsHibernationActivity {
-                recordAgentLifecycleChange(panelId: panelId)
-            }
-        }
-        return didClear
-    }
 
-    func hasRunningAgentLifecycle(key: String, panelId: UUID? = nil) -> Bool {
-        if let panelId {
-            return agentLifecycleStatesByPanelId[panelId]?[key] == .running
-        }
-        return agentLifecycleStatesByPanelId.values.contains { $0[key] == .running }
-    }
 
-    func clearAgentLifecycleStates(panelId: UUID) {
-        guard let removed = agentLifecycleStatesByPanelId.removeValue(forKey: panelId) else { return }
-        let manualStates = removed.filter { AgentHibernationLifecycleStatusKeys.isManualKey($0.key) }
-        if !manualStates.isEmpty {
-            let host: UUID? = if panels[panelId] != nil {
-                panelId
-            } else if let focused = focusedPanelId, focused != panelId, panels[focused] != nil {
-                focused
-            } else {
-                panels.keys.first(where: { $0 != panelId })
-            }
-            if let host {
-                for (key, lifecycle) in manualStates {
-                    agentLifecycleStatesByPanelId[host, default: [:]][key] = lifecycle
-                }
-            }
-        }
-        recordAgentLifecycleChange(panelId: panelId)
-    }
-
-    func clearAllAgentLifecycleStates() {
-        let panelIds = Array(agentLifecycleStatesByPanelId.keys)
-        guard !panelIds.isEmpty else { return }
-        agentLifecycleStatesByPanelId.removeAll()
-        for panelId in panelIds {
-            recordAgentLifecycleChange(panelId: panelId)
-        }
-    }
 
     /// Defers one restore launch until the off-main shared agent index is ready.
     ///
@@ -1014,10 +996,4 @@ extension Workspace {
         )
     }
 
-    private func recordAgentLifecycleChange(panelId: UUID) {
-        AgentHibernationController.shared.recordAgentLifecycleChange(
-            workspaceId: id,
-            panelId: panelId
-        )
-    }
 }

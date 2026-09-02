@@ -44,6 +44,8 @@ extension CMUXCLI {
         let resolvedReason: String?
         if let unattributedReason {
             resolvedReason = unattributedReason
+        } else if Self.agentHookCaptureTimeIsInvalid {
+            resolvedReason = "invalid-hook-event-time"
         } else if !hasCompleteTarget {
             resolvedReason = "malformed-target"
         } else {
@@ -51,7 +53,8 @@ extension CMUXCLI {
         }
         let draft = AgentJournalEventDraft(
             kind: kind,
-            occurredAtMs: occurredAtMs ?? Int64(Date().timeIntervalSince1970 * 1000),
+            occurredAtMs: occurredAtMs ?? Self.semanticOccurredAtMs(nil)
+                ?? Int64(Date().timeIntervalSince1970 * 1000),
             source: source,
             agentKey: agentKey,
             sessionId: sessionId,

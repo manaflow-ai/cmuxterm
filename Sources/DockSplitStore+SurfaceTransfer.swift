@@ -77,52 +77,9 @@ extension DockSplitStore {
         )
     }
 
-    static func dockAgentPIDProbeIndicatesExited(result: Int32, errnoCode: Int32) -> Bool {
-        result != 0 && errnoCode == ESRCH
-    }
 
-    /// Computes the resume-cwd rescue value to carry out of the Dock. A nil
-    /// preserved value means cwd tracking was intentionally suppressed.
-    static func dockRestoredResumeSessionWorkingDirectory(
-        preservedSessionDirectory: String?,
-        detachedDirectory: String?,
-        detachedDirectoryWasReadFromLiveForegroundProcess: Bool,
-        agentProvenExited: Bool
-    ) -> String? {
-        guard !agentProvenExited else { return nil }
-        guard preservedSessionDirectory != nil else { return nil }
-        return detachedDirectoryWasReadFromLiveForegroundProcess
-            ? detachedDirectory
-            : preservedSessionDirectory
-    }
 
-    static func dockResumeBinding(
-        preservedBinding: SurfaceResumeBindingSnapshot?,
-        preservedSessionDirectory: String?,
-        restoredResumeSessionWorkingDirectory: String?,
-        detachedDirectoryWasReadFromLiveForegroundProcess: Bool,
-        agentProvenExited: Bool
-    ) -> SurfaceResumeBindingSnapshot? {
-        guard !agentProvenExited, let preservedBinding else { return nil }
-        guard detachedDirectoryWasReadFromLiveForegroundProcess,
-              let preservedSessionDirectory,
-              let restoredResumeSessionWorkingDirectory else {
-            return preservedBinding
-        }
-        let resolvedWorkingDirectory = AgentResumeWorkingDirectory().resolve(
-            kind: preservedBinding.kind ?? "",
-            runtimeCwd: restoredResumeSessionWorkingDirectory,
-            launchWorkingDirectory: preservedSessionDirectory
-        )
-        guard resolvedWorkingDirectory != preservedBinding.cwd else { return preservedBinding }
-        return preservedBinding.retargetingWorkingDirectory(resolvedWorkingDirectory)
-    }
 
-    private static func dockAgentPIDHasExited(_ pid: pid_t) -> Bool {
-        errno = 0
-        let result = Darwin.kill(pid, 0)
-        return dockAgentPIDProbeIndicatesExited(result: result, errnoCode: errno)
-    }
 
     /// Detaches a live panel from this Dock *without closing it*, packaging it
     /// into a `Workspace.DetachedSurfaceTransfer` for re-attachment elsewhere.
@@ -172,6 +129,11 @@ extension DockSplitStore {
             ?? (preservesCompletedAgentExit ? nil : preservedTransfer?.restorableAgent)
         let managedResumeBinding = managedAgentResumeBinding(panelId: panelId)
         let preservedResumeBinding = surfaceResumeBindingsByPanelId[panelId]
+        let preservedResumeBindingEventTime = [
+            surfaceResumeBindingEventTimesByPanelId[panelId],
+            preservedTransfer?.resumeBindingEventTime,
+            preservedResumeBinding?.updatedAt,
+        ].compactMap { $0 }.max()
         let preservedResumeSessionDirectory = restoredResumeSessionWorkingDirectoriesByPanelId[panelId]
             ?? preservedTransfer?.restoredResumeSessionWorkingDirectory
         let kind = bonsplitController.tab(tabId)?.kind
@@ -375,6 +337,7 @@ extension DockSplitStore {
             restoredPanelTitleBoundary: transferredRestoredPanelTitleBoundary,
             restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectory,
             resumeBinding: resumeBinding,
+            resumeBindingEventTime: preservedResumeBindingEventTime,
             deferredAgentResumeRestore: deferredAgentResumeRestore,
             managedAgentResumeBinding: managedResumeBinding,
             agentRuntime: agentProvenExited ? nil : cachedRuntime,

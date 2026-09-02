@@ -51,7 +51,8 @@ extension CMUXCLI {
                 turnId: nil,
                 cwd: nil,
                 transcriptPath: nil,
-                title: nil
+                title: nil,
+                eventTime: Self.parseAgentHookEventTime(rawObject: nil)
             )
         }
 
@@ -60,6 +61,7 @@ extension CMUXCLI {
         let cwd = extractClaudeHookCWD(from: object)
         let transcriptPath = extractHookTranscriptPath(from: object)
         let title = firstString(in: object, keys: ["title"])
+        let eventTime = Self.parseAgentHookEventTime(rawObject: object)
         let compactObject = compactClaudeHookObject(object)
         return ClaudeHookParsedInput(
             rawObject: object,
@@ -69,7 +71,8 @@ extension CMUXCLI {
             turnId: turnId,
             cwd: cwd,
             transcriptPath: transcriptPath,
-            title: title
+            title: title,
+            eventTime: eventTime
         )
     }
 

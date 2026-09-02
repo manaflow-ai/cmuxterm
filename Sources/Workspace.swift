@@ -255,6 +255,7 @@ extension Workspace {
         clearDeferredAgentResumeRestores(startRuntime: false)
         surfaceResumeBindingsByPanelId.removeAll(keepingCapacity: false)
         surfaceResumeRestoreClaimsByPanelId.removeAll(keepingCapacity: false)
+        surfaceResumeBindingEventTimesByPanelId.removeAll(keepingCapacity: false)
         pendingPlainSSHRestorePanelIds.removeAll(keepingCapacity: false)
         observedPlainSSHPanelIds.removeAll(keepingCapacity: false)
         plainSSHDetectionMissesByPanelId.removeAll(keepingCapacity: false)
@@ -687,6 +688,10 @@ extension Workspace {
                         .sessionFontSizeOverrideBasePoints()
                 sessionFontSizeChangeTokens = nil
             }
+            let resumeBindingEventTime: TimeInterval? = [
+                surfaceResumeBindingEventTimesByPanelId[panelId],
+                resumeBinding?.updatedAt,
+            ].compactMap { $0 }.max()
             terminalSnapshot = SessionTerminalPanelSnapshot(
                 workingDirectory: directory,
                 fontSize: sessionFontSize,
@@ -701,6 +706,7 @@ extension Workspace {
                     )
                 } : nil,
                 resumeBinding: localTmuxStartCommand == nil ? resumeBinding : nil,
+                resumeBindingEventTime: localTmuxStartCommand == nil ? resumeBindingEventTime : nil,
                 textBoxDraft: terminalPanel.sessionTextBoxDraftSnapshot(),
                 isRemoteTerminal: activeRemoteTerminalSurfaceIds.contains(panelId),
                 remotePTYSessionID: remotePTYSessionIDForSnapshot(panelId: panelId),
@@ -1174,7 +1180,7 @@ extension Workspace {
         return restorableAgent
     }
 
-    nonisolated private static func normalizedResumeBindingValue(_ value: String?) -> String? {
+    nonisolated static func normalizedResumeBindingValue(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else {
             return nil
@@ -1420,6 +1426,10 @@ extension Workspace {
                         continue
                     }
                     surfaceResumeBindingsByPanelId[panelId] = detectedBinding
+                    recordSurfaceResumeBindingMutation(
+                        panelId: panelId,
+                        eventTime: detectedBinding.updatedAt
+                    )
                 }
                 continue
             }
@@ -1483,6 +1493,10 @@ extension Workspace {
                     panelId: panelId
                 )
                 surfaceResumeBindingsByPanelId[panelId] = detectedBinding
+                recordSurfaceResumeBindingMutation(
+                    panelId: panelId,
+                    eventTime: detectedBinding.updatedAt
+                )
             } else if storedBinding.isProcessDetected {
                 guard surfaceResumeBindingRemovalAllowed(panelId: panelId) else {
                     continue
@@ -2080,6 +2094,15 @@ extension Workspace {
                     panelId: terminalPanel.id
                 ) {
                     surfaceResumeBindingsByPanelId[terminalPanel.id] = restoredBinding
+                }
+                if let eventTime = [
+                    snapshot.terminal?.resumeBindingEventTime,
+                    restoredBinding.updatedAt,
+                ].compactMap({ $0 }).max() {
+                    recordSurfaceResumeBindingMutation(
+                        panelId: terminalPanel.id,
+                        eventTime: eventTime
+                    )
                 }
                 if restoredBinding.isPlainSSHProcessDetectedBinding,
                    restoredBindingLaunch != nil {
@@ -3210,6 +3233,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     var observedPlainSSHPanelIds: Set<UUID> = []
     var plainSSHDetectionMissesByPanelId: [UUID: Int] = [:]
     private static let plainSSHRestoreObservationMissLimit = 3
+    /// Retains the latest ordered resume mutation after a binding is cleared,
+    /// preventing a delayed hook from recreating a superseded binding.
+    var surfaceResumeBindingEventTimesByPanelId: [UUID: TimeInterval] = [:]
     var restoredGuardedWorkingDirectoriesByPanelId: [UUID: RestoredWorkingDirectoryGuard] = [:]
     /// The session directory each restored auto-resume launcher targets, kept
     /// for the resumed run so split/new-tab cwd inheritance can rescue a
@@ -4225,31 +4251,30 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             Task { @MainActor [weak self] in
                 guard let self, !self.isRetiredFromOwningTabManager else { return }
                 if let index = SharedLiveAgentIndex.shared.index {
-                    let completedPanelIds: [UUID]
+                    let changedPanelIds: [UUID]
                     if let panelIdsByWorkspaceId = notification.userInfo?["panelIdsByWorkspaceId"] as? [UUID: Set<UUID>] {
-                        guard let changedPanelIds = panelIdsByWorkspaceId[self.id] else {
+                        guard let panelIDs = panelIdsByWorkspaceId[self.id] else {
                             return
                         }
-                        completedPanelIds = changedPanelIds.filter { panelId in
-                            self.restoredAgentResumeStatesByPanelId[panelId] == .completedAgentExit
-                        }
+                        changedPanelIds = Array(panelIDs)
                     } else if let changedWorkspaceId = notification.userInfo?["workspaceId"] as? UUID,
                               changedWorkspaceId != self.id {
                         return
                     } else if let changedPanelId = notification.userInfo?["panelId"] as? UUID {
-                        completedPanelIds = self.restoredAgentResumeStatesByPanelId[changedPanelId] == .completedAgentExit
-                            ? [changedPanelId]
-                            : []
+                        changedPanelIds = [changedPanelId]
                     } else {
-                        completedPanelIds = self.restoredAgentResumeStatesByPanelId.compactMap { panelId, state in
-                            state == .completedAgentExit ? panelId : nil
-                        }
+                        changedPanelIds = Array(
+                            Set(self.panels.keys).union(self.restoredAgentResumeStatesByPanelId.keys)
+                        )
                     }
-                    for panelId in completedPanelIds {
+                    for panelId in changedPanelIds {
                         guard let observation = index.entry(workspaceId: self.id, panelId: panelId) else {
                             continue
                         }
-                        self.reconcileCompletedRestoredAgent(panelId: panelId, observation: observation)
+                        if self.restoredAgentResumeStatesByPanelId[panelId] == .completedAgentExit {
+                            self.reconcileCompletedRestoredAgent(panelId: panelId, observation: observation)
+                        }
+                        self.reconcileLiveIdleAgentStatus(panelId: panelId, observation: observation)
                     }
                 }
                 self.objectWillChange.send()
@@ -5954,15 +5979,14 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 plainSSHDetectionMissesByPanelId[panelId] = 0
             case .promptIdle where observedPlainSSHPanelIds.contains(panelId)
                 && !pendingPlainSSHRestorePanelIds.contains(panelId):
-                // The SSH child has exited and the pane is back at its local
-                // shell.  Retaining this binding would relaunch a connection
-                // the user has intentionally left.
+                // The SSH child has exited and the pane is back at its local shell.
                 guard surfaceResumeBindingRemovalAllowed(panelId: panelId) else {
                     break
                 }
-                surfaceResumeBindingsByPanelId.removeValue(forKey: panelId)
-                observedPlainSSHPanelIds.remove(panelId)
-                plainSSHDetectionMissesByPanelId.removeValue(forKey: panelId)
+                _ = clearSurfaceResumeBinding(
+                    panelId: panelId,
+                    eventTime: Date.now.timeIntervalSince1970
+                )
             default:
                 break
             }
@@ -6011,6 +6035,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let observation = index.entry(workspaceId: id, panelId: panelId)
         if let observation {
             reconcileCompletedRestoredAgent(panelId: panelId, observation: observation)
+            reconcileLiveIdleAgentStatus(panelId: panelId, observation: observation)
         }
         guard restoredAgentResumeStatesByPanelId[panelId] != .completedAgentExit,
               let snapshot = restoredAgentSnapshotsByPanelId[panelId] ?? observation?.snapshot,
@@ -6101,8 +6126,18 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     }
 
     @discardableResult
-    func setSurfaceResumeBinding(_ binding: SurfaceResumeBindingSnapshot, panelId: UUID) -> Bool {
-        guard terminalPanel(for: panelId) != nil,
+    func setSurfaceResumeBinding(
+        _ binding: SurfaceResumeBindingSnapshot,
+        panelId: UUID,
+        agentEventTime: TimeInterval? = nil,
+        requiresAgentEventTime: Bool = false
+    ) -> Bool {
+        guard acceptsSurfaceResumeBindingMutation(
+            panelId: panelId,
+            agentEventTime: agentEventTime,
+            requiresAgentEventTime: requiresAgentEventTime
+        ),
+              terminalPanel(for: panelId) != nil,
               let startupInput = binding.inlineStartupInput(repairPortableAgentExecutable: false),
               !startupInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
@@ -6157,6 +6192,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             pendingPlainSSHRestorePanelIds.remove(panelId)
             plainSSHDetectionMissesByPanelId.removeValue(forKey: panelId)
         }
+        if let eventTime = [binding.updatedAt, agentEventTime].compactMap({ $0 }).max() {
+            recordSurfaceResumeBindingMutation(panelId: panelId, eventTime: eventTime)
+        }
         return true
     }
 
@@ -6189,93 +6227,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         return true
     }
 
-    /// Checks a non-socket binding writer against an in-flight restore claim.
-    ///
-    /// Hook publications use ``setSurfaceResumeBinding`` directly, while
-    /// reconciliation and transfer paths historically wrote the dictionary
-    /// inline. Those paths must share the same claim gate so no writer can
-    /// replace the generation after the CLI has been authorized to exec it.
-    @discardableResult
-    func surfaceResumeBindingMutationAllowed(
-        _ incoming: SurfaceResumeBindingSnapshot,
-        panelId: UUID
-    ) -> Bool {
-        guard let claim = surfaceResumeRestoreClaim(for: panelId) else {
-            return true
-        }
-        guard claim.binding.acceptsRestoreBindingClaim(from: incoming) else {
-            return false
-        }
-        // Preserve the lease when a same-session writer refreshes metadata,
-        // otherwise the current-generation check would discard the claim.
-        surfaceResumeRestoreClaimsByPanelId[panelId] = (
-            binding: incoming,
-            claimedAt: claim.claimedAt
-        )
-        return true
-    }
 
-    /// Returns false while a claimed generation is still active.
-    @discardableResult
-    func surfaceResumeBindingRemovalAllowed(panelId: UUID) -> Bool {
-        surfaceResumeRestoreClaim(for: panelId) == nil
-    }
 
-    private func surfaceResumeRestoreClaim(
-        for panelId: UUID
-    ) -> (binding: SurfaceResumeBindingSnapshot, claimedAt: Date)? {
-        guard let claim = surfaceResumeRestoreClaimsByPanelId[panelId] else {
-            return nil
-        }
-        guard let currentBinding = surfaceResumeBindingsByPanelId[panelId],
-              currentBinding.checkpointId == claim.binding.checkpointId,
-              currentBinding.source == claim.binding.source,
-              currentBinding.updatedAt == claim.binding.updatedAt else {
-            // A direct lifecycle mutation replaced the claimed generation
-            // without going through the hook setter. Do not let that old claim
-            // block a later, legitimate binding.
-            surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: panelId)
-            return nil
-        }
-        guard Date.now.timeIntervalSince(claim.claimedAt) < SurfaceResumeBindingSnapshot.restoreClaimTTL else {
-            surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: panelId)
-            return nil
-        }
-        return claim
-    }
 
-    @discardableResult
-    func clearSurfaceResumeBinding(
-        panelId: UUID,
-        agentSessionEnded: Bool = false
-    ) -> Bool {
-        let removedBinding = surfaceResumeBindingsByPanelId.removeValue(forKey: panelId)
-        surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: panelId)
-        if let removedBinding,
-           agentSessionEnded,
-           removedBinding.isAgentHookBinding,
-           let checkpointID = Self.normalizedResumeBindingValue(removedBinding.checkpointId),
-           let restoredAgent = restoredAgentSnapshotsByPanelId[panelId],
-           ManagedAgentSessionIdentity.sessionIDsMatch(
-               kind: restoredAgent.kind.rawValue,
-               lhs: checkpointID,
-               rhs: restoredAgent.sessionId
-           ),
-           Self.restorableAgentForSessionRestore(
-               restoredAgent,
-               resumeBinding: removedBinding
-           ) != nil {
-            // A restore-time rejection is an authoritative end of the stale
-            // checkpoint. Keep a completed tombstone so the old snapshot cannot
-            // be auto-resumed on the next save, while the terminal's tracked cwd
-            // remains available for the shell fallback.
-            markRestoredAgentCompleted(panelId: panelId, snapshot: restoredAgent)
-        }
-        pendingPlainSSHRestorePanelIds.remove(panelId)
-        observedPlainSSHPanelIds.remove(panelId)
-        plainSSHDetectionMissesByPanelId.removeValue(forKey: panelId)
-        return removedBinding != nil
-    }
+
 
     func surfaceResumeBinding(panelId: UUID) -> SurfaceResumeBindingSnapshot? {
         surfaceResumeBindingsByPanelId[panelId]
@@ -6537,12 +6492,21 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         surfaceResumeBindingsByPanelId = surfaceResumeBindingsByPanelId.filter {
             validSurfaceIds.contains($0.key)
         }
+        surfaceResumeBindingEventTimesByPanelId = surfaceResumeBindingEventTimesByPanelId.filter {
+            validSurfaceIds.contains($0.key)
+        }
+        agentLifecycleEventTimesByPanelId = agentLifecycleEventTimesByPanelId.filter {
+            validSurfaceIds.contains($0.key)
+        }
         surfaceResumeRestoreClaimsByPanelId = surfaceResumeRestoreClaimsByPanelId.filter {
             validSurfaceIds.contains($0.key)
         }
         pendingPlainSSHRestorePanelIds = pendingPlainSSHRestorePanelIds.intersection(validSurfaceIds)
         observedPlainSSHPanelIds = observedPlainSSHPanelIds.intersection(validSurfaceIds)
         plainSSHDetectionMissesByPanelId = plainSSHDetectionMissesByPanelId.filter {
+            validSurfaceIds.contains($0.key)
+        }
+        restoredAgentResumeStatesByPanelId = restoredAgentResumeStatesByPanelId.filter {
             validSurfaceIds.contains($0.key)
         }
         for panelId in Array(deferredAgentResumeRestoresByPanelId.keys)
@@ -10654,8 +10618,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         // Mapping can transiently drift during split-tree mutations. If the target panel is
         // currently focused (or is the active terminal first responder), close whichever tab
         // bonsplit marks selected in that focused pane.
-        let firstResponderPanelId = (NSApp.keyWindow?.firstResponder ?? NSApp.mainWindow?.firstResponder)
-            .cmuxStrictOwningGhosttyView()?.terminalSurface?.id
+        let firstResponderPanelId =
+            NSApp.keyWindow?.firstResponder?.cmuxStrictOwningGhosttyView()?.terminalSurface?.id
+            ?? NSApp.mainWindow?.firstResponder?.cmuxStrictOwningGhosttyView()?.terminalSurface?.id
         let targetIsActive = focusedPanelId == panelId || firstResponderPanelId == panelId
         guard targetIsActive,
               let focusedPane = bonsplitController.focusedPaneId,
@@ -11097,6 +11062,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             if surfaceResumeBindingRemovalAllowed(panelId: detached.panelId) {
                 surfaceResumeBindingsByPanelId.removeValue(forKey: detached.panelId)
                 surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: detached.panelId)
+                surfaceResumeBindingEventTimesByPanelId.removeValue(forKey: detached.panelId)
             }
             pendingPlainSSHRestorePanelIds.remove(detached.panelId)
             observedPlainSSHPanelIds.remove(detached.panelId)
@@ -11188,11 +11154,26 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 panelId: detached.panelId
             ) {
                 surfaceResumeBindingsByPanelId[detached.panelId] = transferredResumeBinding
+                if let transferredEventTime = [
+                    detached.resumeBindingEventTime,
+                    transferredResumeBinding.updatedAt,
+                ].compactMap({ $0 }).max() {
+                    recordSurfaceResumeBindingMutation(
+                        panelId: detached.panelId,
+                        eventTime: transferredEventTime
+                    )
+                }
             }
         } else {
             if surfaceResumeBindingRemovalAllowed(panelId: detached.panelId) {
                 surfaceResumeBindingsByPanelId.removeValue(forKey: detached.panelId)
                 surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: detached.panelId)
+                if let transferredEventTime = detached.resumeBindingEventTime {
+                    recordSurfaceResumeBindingMutation(
+                        panelId: detached.panelId,
+                        eventTime: transferredEventTime
+                    )
+                }
             }
         }
         adoptDetachedAgentRuntimeState(detached.agentRuntime)
@@ -14114,6 +14095,8 @@ extension Workspace: BonsplitDelegate {
                 restoredPanelTitleBoundary: restoredPanelTitleBoundariesByPanelId[panelId],
                 restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectoriesByPanelId[panelId],
                 resumeBinding: resumeBinding,
+                resumeBindingEventTime: surfaceResumeBindingEventTimesByPanelId[panelId]
+                    ?? resumeBinding?.updatedAt,
                 deferredAgentResumeRestore: deferredAgentResumeRestoresByPanelId.removeValue(
                     forKey: panelId
                 ),

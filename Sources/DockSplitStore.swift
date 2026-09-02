@@ -88,10 +88,10 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
     @ObservationIgnored var agentRuntimeByPanelId: [UUID: Workspace.DetachedAgentRuntimeState] = [:]
     @ObservationIgnored var restoredTerminalScrollbackByPanelId: [UUID: String] = [:]
     @ObservationIgnored let terminalStartupRestoreCoordinator: TerminalStartupRestoreCoordinator
-    var restoredAgentLifecycle: RestoredAgentLifecycleCoordinator {
-        terminalStartupRestoreCoordinator.lifecycle
-    }
     @ObservationIgnored var surfaceResumeBindingsByPanelId: [UUID: SurfaceResumeBindingSnapshot] = [:]
+    /// Latest accepted ordered resume mutation per stable panel, retained after
+    /// a binding is cleared so delayed hooks cannot recreate stale state.
+    @ObservationIgnored var surfaceResumeBindingEventTimesByPanelId: [UUID: TimeInterval] = [:]
     /// In-memory compare-and-claim state held while a CLI restore hands the
     /// validated binding to its child process.
     @ObservationIgnored var surfaceResumeRestoreClaimsByPanelId: [
@@ -106,10 +106,6 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
     @ObservationIgnored var managedAgentResumeBindingsByPanelId: [UUID: SurfaceResumeBindingSnapshot] = [:]
     @ObservationIgnored var invalidatedCachedTransferAgentSessionPanelIds: Set<UUID> = []
     @ObservationIgnored var replacedCachedTransferAgentSessionPanelIds: Set<UUID> = []
-    var restoredResumeSessionWorkingDirectoriesByPanelId: [UUID: String] {
-        get { restoredAgentLifecycle.resumeWorkingDirectoriesByPanelId }
-        set { restoredAgentLifecycle.resumeWorkingDirectoriesByPanelId = newValue }
-    }
     var hasLoadedConfiguration = false
     var configurationLoadTask: Task<Void, Never>?
     var configurationIdentityTask: Task<Void, Never>?

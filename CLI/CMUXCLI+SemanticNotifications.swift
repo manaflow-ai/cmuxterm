@@ -14,8 +14,13 @@ extension CMUXCLI {
         let meta = fields.count > 3 ? fields[3].split(separator: ";").map(String.init) : []
         let category = meta.first { $0.hasPrefix("c=") }.map { String($0.dropFirst(2)) }
             ?? (kind == .turnCompleted ? "turn-complete" : "other")
+        // Legacy payloads end in k=<status-key>;t=<event-time>. That k is
+        // ordering metadata, not a notification identity shared by every turn.
+        let correlationKey = meta.enumerated().first { index, field in
+            field.hasPrefix("k=") && (index + 1 == meta.count || !meta[index + 1].hasPrefix("t="))
+        }.map { String($0.element.dropFirst(2)) }
         let notification = AgentJournalNotification(title: fields[0], subtitle: fields[1], body: fields[2],
-            category: category, correlationKey: meta.first { $0.hasPrefix("k=") }.map { String($0.dropFirst(2)) })
+            category: category, correlationKey: correlationKey)
         return try semanticNotificationCommand(source: source, agentKey: agentKey, sessionId: sessionId,
             workspaceId: workspaceId, surfaceId: surfaceId, kind: kind, rawObject: rawObject,
             notification: notification, pendingWork: pendingWork || meta.contains("p=1"), isSubagent: meta.contains("n=1"))
@@ -37,10 +42,12 @@ extension CMUXCLI {
         }
         context.notification = notification
         if context.requestIdentity == nil { context.requestIdentity = notification.correlationKey }
+        let rejectedCapture = Self.agentHookCaptureTimeIsInvalid
         let draft = AgentJournalEventDraft(kind: kind,
             occurredAtMs: Self.semanticOccurredAtMs(rawObject) ?? Int64(Date().timeIntervalSince1970 * 1000),
             source: source, agentKey: agentKey, sessionId: sessionId,
-            workspaceId: workspaceId, surfaceId: surfaceId,
+            workspaceId: rejectedCapture ? nil : workspaceId, surfaceId: rejectedCapture ? nil : surfaceId,
+            unattributedReason: rejectedCapture ? "invalid-hook-event-time" : nil,
             isSubagent: isSubagent, pendingWork: pendingWork,
             nativeEvent: rawObject?["hook_event_name"] as? String, attention: context)
         let data = try JSONEncoder().encode(draft)
@@ -63,9 +70,23 @@ extension CMUXCLI {
     }
 
     static func semanticOccurredAtMs(_ object: [String: Any]?) -> Int64? {
+        // The wrapper captures time before detaching. Processing time would
+        // make an older, delayed Running hook look newer than Stop again.
+        if let captured = ProcessInfo.processInfo.environment["CMUX_AGENT_HOOK_CAPTURED_AT"] {
+            return parseAgentHookTimeValue(captured).map { Int64(($0 * 1000).rounded()) }
+        }
         for key in ["occurred_at_ms", "timestamp_ms"] {
             if let value = object?[key] as? NSNumber, value.int64Value >= 0 { return value.int64Value }
         }
-        return nil
+        return parseAgentHookEventTime(rawObject: object).map { Int64(($0 * 1000).rounded()) }
+    }
+
+    /// A failed clock may not project state, but permission hooks must still
+    /// run and return their decision. Keep their journal entry diagnostic-only.
+    static var agentHookCaptureTimeIsInvalid: Bool {
+        guard let captured = ProcessInfo.processInfo.environment["CMUX_AGENT_HOOK_CAPTURED_AT"] else {
+            return false
+        }
+        return parseAgentHookTimeValue(captured) == nil
     }
 }
