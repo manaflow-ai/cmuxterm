@@ -365,6 +365,9 @@ extension DockSplitStore {
         mutation: (inout Workspace.DetachedAgentRuntimeState) -> Void
     ) {
         guard panels[panelId] != nil else { return }
+        let previousCodexLifecycle = agentRuntimeByPanelId[panelId]?
+            .agentLifecycleStates["codex"]
+        let stableTitle = stableDockTerminalTabTitle(panelId: panelId)?.title
         var runtime = agentRuntimeByPanelId[panelId] ?? Workspace.DetachedAgentRuntimeState(
             panelId: panelId,
             statusEntries: [:],
@@ -390,6 +393,12 @@ extension DockSplitStore {
             syncAgentNeedsInputAttention(
                 panelId: panelId,
                 runtime: shouldKeep ? runtime : nil
+            )
+        }
+        if previousCodexLifecycle != runtime.agentLifecycleStates["codex"] {
+            _ = reconcileCodexTabTitlePresentation(
+                panelId: panelId,
+                fallback: stableTitle
             )
         }
     }
