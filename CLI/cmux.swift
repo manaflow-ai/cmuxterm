@@ -41298,7 +41298,7 @@ export default CMUXSessionRestore;
           login | logout                                      (aliases for auth login/logout)
           \(localizedCoderouterAliases())
           \(localizedCoderouterCommands())
-          terminal viewport <columns> <rows> [--surface <id>] | reset
+          \(Self.terminalViewportCommandLine)
           vm <base|new|ls|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|ssh|workspace|terminal|tab> [args...]    (alias: cloud)
           remotes <list|add|remove> [--route <host:port>] [--tag <tag>] [--json]    (alias: remote)
           ai-accounts <list|upload|remove> [--team <id>] [--json]
@@ -41367,7 +41367,7 @@ export default CMUXSessionRestore;
           current-workspace [--window <id|ref|index>]
           \(Self.readSelectionUsageLine)
           \(Self.readScreenUsageLine)
-          terminal viewport <columns> <rows> [--surface <id|ref|index>] | reset
+          \(Self.terminalViewportCommandLine)
           send [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] <text>
           send-key [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] <key>
           send-panel --panel <id|ref|index> [--workspace <id|ref|index>] [--window <id|ref|index>] <text>
