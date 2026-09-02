@@ -3,141 +3,171 @@ import Dispatch
 import Foundation
 import Testing
 
-#if canImport(cmux_DEV)
-@testable import cmux_DEV
-#elseif canImport(cmux)
-@testable import cmux
-#endif
-
 @Suite(.serialized)
 struct ClaudeTaskSyncHookTests {
-    @Test("A delayed consumed SessionEnd cannot clear a replacement generation")
-    func rejectsConsumedSessionEndForReplacementGeneration() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-session-end-generation-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let storeURL = root.appendingPathComponent("sessions.json")
+    @Test("An older SessionEnd cannot clear a replacement generation")
+    func rejectsSessionEndFromOlderProcessGeneration() throws {
+        let context = try ClaudeHookLiveDeliveryHarness.makeContext(
+            name: "task-sync-session-end-generation"
+        )
+        defer { context.cleanup() }
         let workspaceId = "01010101-0101-0101-0101-010101010101"
         let surfaceId = "02020202-0202-0202-0202-020202020202"
         let sessionId = "consumed-generation-session"
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": storeURL.path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-        ])
-        _ = try store.upsert(
-            sessionId: sessionId,
-            workspaceId: workspaceId,
-            surfaceId: surfaceId,
-            cwd: root.path,
-            markActive: true,
-            allowsNewSessionReplacement: true
+        _ = ClaudeHookLiveDeliveryHarness.startDeliveryTargetServer(
+            context: context,
+            surfacesByWorkspace: [workspaceId: [surfaceId]],
+            pidTarget: nil,
+            surfaceTargets: [surfaceId: workspaceId]
         )
-        let firstRecord = try #require(try store.lookup(sessionId: sessionId))
-        let consumed = try #require(try store.consumeAfterClaudeTaskSync(
-            sessionId: sessionId,
-            workspaceId: workspaceId,
-            surfaceId: surfaceId,
-            expectedStartedAt: firstRecord.startedAt,
-            scope: "generation-test",
-            deadlineUptime: ProcessInfo.processInfo.systemUptime + 5
-        ))
-        #expect(try store.upsertAuthoritativeClaudeSessionStart(
-            sessionId: sessionId,
-            source: "clear",
-            workspaceId: workspaceId,
-            surfaceId: surfaceId,
-            cwd: root.path
-        ))
 
-        let telemetry = CLISocketSentryTelemetry(
-            command: "hooks",
-            commandArgs: ["claude", "session-end"],
-            socketPath: root.appendingPathComponent("unused.sock").path,
-            processEnv: ["CMUX_CLI_SENTRY_DISABLED": "1"]
+        var oldEnvironment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
+        oldEnvironment["CMUX_WORKSPACE_ID"] = workspaceId
+        oldEnvironment["CMUX_SURFACE_ID"] = surfaceId
+        oldEnvironment["CMUX_CLAUDE_PID"] = "41001"
+        let oldStart = ClaudeHookLiveDeliveryHarness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            environment: oldEnvironment,
+            standardInput: #"{"session_id":"consumed-generation-session","source":"clear","hook_event_name":"SessionStart"}"#
         )
-        let shouldApply = CMUXCLI(args: []).shouldApplyClaudeHookVisibleMutation(
-            sessionStore: store,
-            sessionId: sessionId,
-            turnId: nil,
-            workspaceId: workspaceId,
-            surfaceId: surfaceId,
-            telemetry: telemetry,
-            allowEndedSession: true,
-            expectedSessionStartedAt: consumed.startedAt
+        assertSuccessfulHook(oldStart)
+
+        var replacementEnvironment = oldEnvironment
+        replacementEnvironment["CMUX_CLAUDE_PID"] = "41002"
+        let replacementStart = ClaudeHookLiveDeliveryHarness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            environment: replacementEnvironment,
+            standardInput: #"{"session_id":"consumed-generation-session","source":"clear","hook_event_name":"SessionStart"}"#
         )
-        #expect(!shouldApply)
+        assertSuccessfulHook(replacementStart)
+
+        let commandCountBeforeOldEnd = context.state.snapshot().count
+        let oldEnd = ClaudeHookLiveDeliveryHarness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "session-end"],
+            environment: oldEnvironment,
+            standardInput: #"{"session_id":"consumed-generation-session","hook_event_name":"SessionEnd"}"#
+        )
+        assertSuccessfulHook(oldEnd)
+        let oldEndCommands = Array(context.state.snapshot().dropFirst(commandCountBeforeOldEnd))
+        // The old hook carries the prior process identity. The bundled CLI
+        // must reject it before consuming or mutating the replacement record.
+        #expect(
+            !oldEndCommands.contains { $0.hasPrefix("clear_agent_pid ") },
+            "An older SessionEnd must not clear the replacement generation; saw \(oldEndCommands)"
+        )
+        #expect(
+            !oldEndCommands.contains { $0.hasPrefix("clear_notifications ") },
+            "An older SessionEnd must not clear replacement notifications; saw \(oldEndCommands)"
+        )
+        let record = try #require(
+            try ClaudeHookLiveDeliveryHarness.sessionRecord(
+                in: context.storeURL,
+                sessionId: sessionId
+            )
+        )
+        #expect((record["pid"] as? NSNumber)?.intValue == 41002)
     }
 
-    @Test("An unresolved SessionEnd boundary leaves a current generation intact")
+    @Test("An unresolved SessionEnd leaves the current generation intact")
     func preservesCurrentGenerationForUnresolvedSessionEndBoundary() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-session-end-unresolved-generation-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let storeURL = root.appendingPathComponent("sessions.json")
+        let context = try ClaudeHookLiveDeliveryHarness.makeContext(
+            name: "task-sync-session-end-unresolved"
+        )
+        defer { context.cleanup() }
+        let workspaceId = "0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a"
+        let surfaceId = "0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b"
         let sessionId = "unresolved-generation-session"
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": storeURL.path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-        ])
-        _ = try store.upsert(
+        try ClaudeHookLiveDeliveryHarness.writeSessionStore(
+            to: context.storeURL,
             sessionId: sessionId,
-            workspaceId: "0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a",
-            surfaceId: "0b0b0b0b-0b0b-0b0b-0b0b-0b0b0b0b0b0b",
-            cwd: root.path,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId,
+            cwd: context.root.path,
             markActive: true
         )
-        let currentRecord = try #require(try store.lookup(sessionId: sessionId))
-        let boundary = try store.recordClaudeSessionEndBoundary(
-            sessionId: sessionId,
-            workspaceId: nil,
-            surfaceId: nil,
-            turnId: nil,
-            requireNoExistingSessionRecord: true,
-            deadlineUptime: ProcessInfo.processInfo.systemUptime + 5
+        _ = ClaudeHookLiveDeliveryHarness.startDeliveryTargetServer(
+            context: context,
+            surfacesByWorkspace: [:],
+            pidTarget: nil,
+            surfaceTargets: [:]
         )
-        #expect(boundary == nil)
-        let preservedRecord = try #require(try store.lookup(sessionId: sessionId))
-        #expect(preservedRecord.startedAt == currentRecord.startedAt)
-        #expect(try !store.isClaudeSessionEnded(sessionId))
+        var environment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = workspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+        let result = ClaudeHookLiveDeliveryHarness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "session-end"],
+            environment: environment,
+            standardInput: #"{"session_id":"unresolved-generation-session","hook_event_name":"SessionEnd"}"#
+        )
+        assertSuccessfulHook(result)
+        #expect(
+            try ClaudeHookLiveDeliveryHarness.sessionRecord(
+                in: context.storeURL,
+                sessionId: sessionId
+            ) != nil
+        )
+        let state = try #require(
+            JSONSerialization.jsonObject(
+                with: Data(contentsOf: context.storeURL)
+            ) as? [String: Any]
+        )
+        #expect((state["endedSessionIDs"] as? [String: Any])?[sessionId] == nil)
+        #expect((state["endedSessionGenerationStarts"] as? [String: Any])?[sessionId] == nil)
     }
 
     @Test("Task ownership survives an older writer rewriting the main hook store")
     func preservesTaskOwnershipAcrossLegacyStoreRewrite() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-task-sidecar-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let storeURL = root.appendingPathComponent("sessions.json")
-        let tasksRoot = root.appendingPathComponent("tasks", isDirectory: true)
-        let identity = ClaudeTaskStoreIdentity(tasksRootURL: tasksRoot)
-        let sessionId = "sidecar-session"
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": storeURL.path,
-        ])
-        _ = try store.upsert(
-            sessionId: sessionId,
-            workspaceId: "03030303-0303-0303-0303-030303030303",
-            surfaceId: "04040404-0404-0404-0404-040404040404",
-            cwd: root.path,
-            markActive: true
+        let context = try ClaudeHookLiveDeliveryHarness.makeContext(
+            name: "task-sync-sidecar-recovery"
         )
-        let record = try #require(try store.lookup(sessionId: sessionId))
-        #expect(try store.bindClaudeTaskDirectory(
-            sessionId: sessionId,
-            directoryName: "sidecar-list",
-            taskStoreIdentity: identity,
-            workspaceId: record.workspaceId,
-            surfaceId: record.surfaceId,
-            expectedStartedAt: record.startedAt,
-            source: .directSession
-        ) != nil)
-        try store.retireClaudeTaskList(taskListID: "retired-list", taskStoreIdentity: identity)
+        defer { context.cleanup() }
+        let workspaceId = "03030303-0303-0303-0303-030303030303"
+        let surfaceId = "04040404-0404-0404-0404-040404040404"
+        let sessionId = "sidecar-session"
+        let taskListID = "sidecar-list"
+        let tasksRoot = context.root.appendingPathComponent(
+            ".claude/tasks",
+            isDirectory: true
+        )
+        let taskDirectory = tasksRoot.appendingPathComponent(taskListID, isDirectory: true)
+        try FileManager.default.createDirectory(at: taskDirectory, withIntermediateDirectories: true)
+        try writeTask(
+            #"{"id":"1","subject":"Sidecar task","status":"pending"}"#,
+            named: "1.json",
+            in: taskDirectory
+        )
+        let deliveries = ClaudeHookLiveDeliveryHarness.startTaskSyncServer(
+            context: context,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId
+        )
+        var environment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = workspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+        environment["CLAUDE_CODE_TASK_LIST_ID"] = taskListID
 
+        let firstResult = runHook(
+            context: context,
+            environment: environment,
+            sessionId: sessionId,
+            toolName: "TaskCreate"
+        )
+        assertSuccessfulHook(firstResult)
+        #expect(deliveries.feed.wait(timeout: .now() + 5) == .success)
+        #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
+
+        let sidecarURL = URL(fileURLWithPath: context.storeURL.path + ".task-sync.json")
+        let sidecarBefore = try Data(contentsOf: sidecarURL)
+        #expect(!sidecarBefore.isEmpty)
+
+        let identity = ClaudeTaskStoreIdentity(tasksRootURL: tasksRoot)
         var mainState = try #require(
             JSONSerialization.jsonObject(
-                with: Data(contentsOf: storeURL)
+                with: Data(contentsOf: context.storeURL)
             ) as? [String: Any]
         )
         for key in [
@@ -171,65 +201,90 @@ struct ClaudeTaskSyncHookTests {
         try JSONSerialization.data(
             withJSONObject: mainState,
             options: [.prettyPrinted, .sortedKeys]
-        ).write(to: storeURL)
+        ).write(to: context.storeURL)
 
-        let reloaded = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": storeURL.path,
-        ])
-        let restoredRecord = try #require(try reloaded.lookup(sessionId: sessionId))
-        #expect(restoredRecord.claudeTaskDirectoryName == "sidecar-list")
-        #expect(restoredRecord.claudeTaskStoreID == identity.rawValue)
-        #expect(try reloaded.isClaudeTaskListRetired(
-            taskListID: "retired-list",
-            taskStoreIdentity: identity
-        ))
+        let secondResult = runHook(
+            context: context,
+            environment: environment,
+            sessionId: sessionId,
+            toolName: "TaskUpdate"
+        )
+        assertSuccessfulHook(secondResult)
+        #expect(deliveries.feed.wait(timeout: .now() + 5) == .success)
+        #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
+
+        let latestReconciliation = try #require(reconcileRequests(in: context).last)
+        #expect(
+            latestReconciliation["owner_id"] as? String == taskOwnerID(
+                directoryName: taskListID,
+                tasksRootURL: tasksRoot
+            )
+        )
+        #expect(
+            (latestReconciliation["items"] as? [[String: Any]])?.compactMap {
+                $0["text"] as? String
+            } == ["Sidecar task"]
+        )
+        let restoredRecord = try #require(
+            try ClaudeHookLiveDeliveryHarness.sessionRecord(
+                in: context.storeURL,
+                sessionId: sessionId
+            )
+        )
+        #expect(restoredRecord["claudeTaskDirectoryName"] as? String == taskListID)
+        #expect(restoredRecord["claudeTaskStoreID"] as? String == identity.rawValue)
+        #expect(try taskListDestinationRecords(in: context.storeURL).count == 1)
     }
 
     @Test("Unrelated hook state writes do not rewrite the task-sync sidecar")
     func doesNotRewriteTaskSyncSidecarForUnrelatedMutation() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-task-sidecar-write-scope-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let storeURL = root.appendingPathComponent("sessions.json")
-        let tasksRoot = root.appendingPathComponent("tasks", isDirectory: true)
-        let fileManager = ClaudeHookLiveDeliveryHarness.TaskSyncCountingFileManager()
-        let store = ClaudeHookSessionStore(
-            processEnv: [
-                "CMUX_CLAUDE_HOOK_STATE_PATH": storeURL.path,
-                "CMUX_CLI_SENTRY_DISABLED": "1",
-            ],
-            fileManager: fileManager
+        let context = try ClaudeHookLiveDeliveryHarness.makeContext(
+            name: "task-sync-sidecar-write-scope"
         )
+        defer { context.cleanup() }
+        let workspaceId = "05050505-0505-0505-0505-050505050505"
+        let surfaceId = "06060606-0606-0606-0606-060606060606"
         let sessionId = "sidecar-write-scope-session"
-        _ = try store.upsert(
-            sessionId: sessionId,
-            workspaceId: "05050505-0505-0505-0505-050505050505",
-            surfaceId: "06060606-0606-0606-0606-060606060606",
-            cwd: root.path,
-            markActive: true
+        let taskDirectory = context.root
+            .appendingPathComponent(".claude/tasks/\(sessionId)", isDirectory: true)
+        try FileManager.default.createDirectory(at: taskDirectory, withIntermediateDirectories: true)
+        try writeTask(
+            #"{"id":"1","subject":"Sidecar scope task","status":"pending"}"#,
+            named: "1.json",
+            in: taskDirectory
         )
-        #expect(fileManager.taskSyncSidecarCreateCount == 0)
-
-        let record = try #require(try store.lookup(sessionId: sessionId))
-        let identity = ClaudeTaskStoreIdentity(tasksRootURL: tasksRoot)
-        #expect(try store.bindClaudeTaskDirectory(
-            sessionId: sessionId,
-            directoryName: "sidecar-write-scope-list",
-            taskStoreIdentity: identity,
-            workspaceId: record.workspaceId,
-            surfaceId: record.surfaceId,
-            expectedStartedAt: record.startedAt,
-            source: .directSession
-        ) != nil)
-        #expect(fileManager.taskSyncSidecarCreateCount > 0)
-
-        fileManager.resetTaskSyncSidecarCreateCount()
-        try store.updateLastPermissionMode(
-            sessionId: sessionId,
-            permissionMode: "default"
+        let deliveries = ClaudeHookLiveDeliveryHarness.startTaskSyncServer(
+            context: context,
+            workspaceId: workspaceId,
+            surfaceId: surfaceId
         )
-        #expect(fileManager.taskSyncSidecarCreateCount == 0)
+        var environment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = workspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+        let taskResult = runHook(
+            context: context,
+            environment: environment,
+            sessionId: sessionId,
+            toolName: "TaskCreate"
+        )
+        assertSuccessfulHook(taskResult)
+        #expect(deliveries.feed.wait(timeout: .now() + 5) == .success)
+        #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
+
+        let sidecarURL = URL(fileURLWithPath: context.storeURL.path + ".task-sync.json")
+        let beforeData = try Data(contentsOf: sidecarURL)
+        let beforeIdentity = try fileSystemNumber(at: sidecarURL)
+        let unrelatedResult = ClaudeHookLiveDeliveryHarness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "pre-tool-use"],
+            environment: environment,
+            standardInput: #"{"session_id":"sidecar-write-scope-session","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default"}"#
+        )
+        assertSuccessfulHook(unrelatedResult)
+        let afterData = try Data(contentsOf: sidecarURL)
+        let afterIdentity = try fileSystemNumber(at: sidecarURL)
+        #expect(afterData == beforeData)
+        #expect(afterIdentity == beforeIdentity)
     }
 
     @Test("SessionStart clears the replaced personal task owner before rebinding")
@@ -240,68 +295,66 @@ struct ClaudeTaskSyncHookTests {
         defer { context.cleanup() }
         let previousWorkspaceId = "07070707-0707-0707-0707-070707070707"
         let currentWorkspaceId = "08080808-0808-0808-0808-080808080808"
-        let surfaceId = "09090909-0909-0909-0909-090909090909"
+        let previousSurfaceId = "09090909-0909-0909-0909-090909090909"
+        let currentSurfaceId = "0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a"
         let sessionId = "session-start-owner-cleanup"
         let tasksRoot = context.root.appendingPathComponent(".claude/tasks", isDirectory: true)
-        let oldTaskListID = "old-session-start-list"
-        let identity = ClaudeTaskStoreIdentity(tasksRootURL: tasksRoot)
-        let store = ClaudeHookSessionStore(processEnv: [
-            "CMUX_CLAUDE_HOOK_STATE_PATH": context.storeURL.path,
-            "CMUX_CLI_SENTRY_DISABLED": "1",
-        ])
-        _ = try store.upsert(
-            sessionId: sessionId,
-            workspaceId: previousWorkspaceId,
-            surfaceId: surfaceId,
-            cwd: context.root.path,
-            markActive: true
-        )
-        let oldRecord = try #require(try store.lookup(sessionId: sessionId))
-        #expect(try store.bindClaudeTaskDirectory(
-            sessionId: sessionId,
-            directoryName: oldTaskListID,
-            taskStoreIdentity: identity,
-            workspaceId: previousWorkspaceId,
-            surfaceId: surfaceId,
-            expectedStartedAt: oldRecord.startedAt,
-            source: .directSession
-        ) != nil)
-        try store.commitClaudeTaskListDestinations(
-            taskListID: oldTaskListID,
-            taskStoreIdentity: identity,
-            workspaceIDs: [previousWorkspaceId]
+        // A personal list is named after the session. Creating it through the
+        // real task hook gives the replacement SessionStart the same durable
+        // owner proof as production, without importing CLI-only types.
+        let oldTaskDirectory = tasksRoot.appendingPathComponent(sessionId, isDirectory: true)
+        try FileManager.default.createDirectory(at: oldTaskDirectory, withIntermediateDirectories: true)
+        try writeTask(
+            #"{"id":"1","subject":"Old generation task","status":"pending"}"#,
+            named: "1.json",
+            in: oldTaskDirectory
         )
 
         let deliveries = ClaudeHookLiveDeliveryHarness.startTaskSyncServer(
             context: context,
             workspaceId: currentWorkspaceId,
-            surfaceId: surfaceId,
-            workspaceIDsBySurface: [surfaceId: currentWorkspaceId]
+            surfaceId: currentSurfaceId,
+            workspaceIDsBySurface: [
+                previousSurfaceId: previousWorkspaceId,
+                currentSurfaceId: currentWorkspaceId,
+            ]
         )
+        var previousEnvironment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
+        previousEnvironment["CMUX_WORKSPACE_ID"] = previousWorkspaceId
+        previousEnvironment["CMUX_SURFACE_ID"] = previousSurfaceId
+        let oldTaskResult = runHook(
+            context: context,
+            environment: previousEnvironment,
+            sessionId: sessionId,
+            toolName: "TaskCreate"
+        )
+        assertSuccessfulHook(oldTaskResult)
+        #expect(deliveries.feed.wait(timeout: .now() + 5) == .success)
+        #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
+
         var environment = ClaudeHookLiveDeliveryHarness.hookEnvironment(context: context)
         environment["CMUX_WORKSPACE_ID"] = currentWorkspaceId
-        environment["CMUX_SURFACE_ID"] = surfaceId
+        environment["CMUX_SURFACE_ID"] = currentSurfaceId
         let startResult = ClaudeHookLiveDeliveryHarness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "session-start"],
             environment: environment,
             standardInput: #"{"session_id":"session-start-owner-cleanup","source":"resume","hook_event_name":"SessionStart"}"#
         )
-        #expect(!startResult.timedOut, Comment(rawValue: startResult.stderr))
-        #expect(startResult.status == 0, Comment(rawValue: startResult.stderr))
+        assertSuccessfulHook(startResult)
         #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
 
-        let oldOwnerID = "claude:\(identity.rawValue):\(oldTaskListID)"
+        let oldOwnerID = taskOwnerID(directoryName: sessionId, tasksRootURL: tasksRoot)
         let startCleanup = try #require(
             reconcileRequests(in: context).first {
                 ($0["owner_id"] as? String) == oldOwnerID
                     && ($0["workspace_id"] as? String) == previousWorkspaceId
+                    && ($0["items"] as? [[String: Any]])?.isEmpty == true
             }
         )
         #expect((startCleanup["items"] as? [[String: Any]])?.isEmpty == true)
 
         let newTaskDirectory = tasksRoot.appendingPathComponent(sessionId, isDirectory: true)
-        try FileManager.default.createDirectory(at: newTaskDirectory, withIntermediateDirectories: true)
         try writeTask(
             #"{"id":"1","subject":"New generation task","status":"pending"}"#,
             named: "1.json",
@@ -1970,6 +2023,19 @@ struct ClaudeTaskSyncHookTests {
         #expect(deliveries.feed.wait(timeout: .now() + 5) == .success)
         #expect(deliveries.reconciliation.wait(timeout: .now() + 5) == .success)
         #expect(try taskListDestinationRecords(in: context.storeURL).isEmpty)
+    }
+
+    private func assertSuccessfulHook(
+        _ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult
+    ) {
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n", Comment(rawValue: result.stderr))
+    }
+
+    private func fileSystemNumber(at url: URL) throws -> UInt64 {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return try #require((attributes[.systemFileNumber] as? NSNumber)?.uint64Value)
     }
 
     private func runHook(
