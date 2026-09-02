@@ -767,8 +767,7 @@ final class MainWindowFocusController {
             return fileSearchHost?.focusSearchField() == true
         case .sessions, .customSidebar:
             return mode == .customSidebar ? focusFallbackRightSidebarHost() : false
-        case .agents:
-        case .machines:
+        case .agents, .machines:
             return focusFallbackRightSidebarHost()
         case .feed:
             if target == .firstItem {
