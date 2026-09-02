@@ -492,13 +492,10 @@ extension TerminalController {
         }
         if let localViewportSession,
            Self.localViewportCommandMethods.contains(request.method) {
-            let response = await v2MainAsync {
-                self.v2LocalViewportCommandResult(
-                    request: request,
-                    session: localViewportSession
-                )
-            }
-            return self.v2Result(id: request.id?.foundationObject, response)
+            return await self.v2LocalViewportCommandResultAsync(
+                request: request,
+                session: localViewportSession
+            )
         }
         }
         let bridgedParams = request.params.mapValues(\.foundationObject)

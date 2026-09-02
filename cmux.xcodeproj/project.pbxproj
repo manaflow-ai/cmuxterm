@@ -2762,6 +2762,7 @@
 		C79470020000000000000001 /* TerminalController+SocketListenerRearm.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79470020000000000000002 /* TerminalController+SocketListenerRearm.swift */; };
 		C0DE00000000000000000F01 /* TerminalController+SSHSessionAttachContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000F02 /* TerminalController+SSHSessionAttachContext.swift */; };
 		A10020000000000000000005 /* TerminalController+SurfaceSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10020000000000000000006 /* TerminalController+SurfaceSelection.swift */; };
+		C11304000000000000000004 /* TerminalController+SurfaceReadText.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11304000000000000000003 /* TerminalController+SurfaceReadText.swift */; };
 		DC6E1A6F7452404AA8DE3F5E /* TerminalController+VaultCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E042D748CB4949BE375319 /* TerminalController+VaultCommands.swift */; };
 		D6212D0C00000000000000D3 /* TerminalController+WindowDockBrowserRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6212D0C00000000000000D4 /* TerminalController+WindowDockBrowserRouting.swift */; };
 		9065A0010000000000000001 /* TerminalController+WindowScreenshotCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9065A0010000000000000002 /* TerminalController+WindowScreenshotCapture.swift */; };
@@ -6014,6 +6015,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		C79470020000000000000002 /* TerminalController+SocketListenerRearm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+SocketListenerRearm.swift"; sourceTree = "<group>"; };
 		C0DE00000000000000000F02 /* TerminalController+SSHSessionAttachContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+SSHSessionAttachContext.swift"; sourceTree = "<group>"; };
 		A10020000000000000000006 /* TerminalController+SurfaceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+SurfaceSelection.swift"; sourceTree = "<group>"; };
+		C11304000000000000000003 /* TerminalController+SurfaceReadText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+SurfaceReadText.swift"; sourceTree = "<group>"; };
 		78E042D748CB4949BE375319 /* TerminalController+VaultCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+VaultCommands.swift"; sourceTree = "<group>"; };
 		D6212D0C00000000000000D4 /* TerminalController+WindowDockBrowserRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+WindowDockBrowserRouting.swift"; sourceTree = "<group>"; };
 		9065A0010000000000000002 /* TerminalController+WindowScreenshotCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+WindowScreenshotCapture.swift"; sourceTree = "<group>"; };
@@ -7921,6 +7923,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D1F0A0040000000000000002 /* TerminalController+MobilePhonePushSettings.swift */,
 				D7AB00000000000000B010 /* TerminalController+MobileScrollPrefetch.swift */,
 				C11303000000000000000003 /* TerminalController+LocalTerminalViewport.swift */,
+				C11304000000000000000003 /* TerminalController+SurfaceReadText.swift */,
 				D1B800000000000000000016 /* TerminalController+MobileDirectoryList.swift */,
 				D1A700000000000000000005 /* TerminalController+MobileDirectorySearch.swift */,
 				C0DE00000000000000000C81 /* TerminalController+ControlBrowserPanelContext.swift */,
@@ -12245,6 +12248,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C79470020000000000000001 /* TerminalController+SocketListenerRearm.swift in Sources */,
 				C0DE00000000000000000F01 /* TerminalController+SSHSessionAttachContext.swift in Sources */,
 				A10020000000000000000005 /* TerminalController+SurfaceSelection.swift in Sources */,
+				C11304000000000000000004 /* TerminalController+SurfaceReadText.swift in Sources */,
 				DC6E1A6F7452404AA8DE3F5E /* TerminalController+VaultCommands.swift in Sources */,
 				D6212D0C00000000000000D3 /* TerminalController+WindowDockBrowserRouting.swift in Sources */,
 				9065A0010000000000000001 /* TerminalController+WindowScreenshotCapture.swift in Sources */,
