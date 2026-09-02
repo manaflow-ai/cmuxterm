@@ -38,10 +38,17 @@ public struct CompositorBlurController: Sendable {
     /// `cmuxResetCompositorBackgroundBlur(on:)`. The caller resolves
     /// `window.windowNumber` in its own (main-actor) isolation domain.
     public func resetBackgroundBlur(windowNumber: Int) {
+        setBackgroundBlur(windowNumber: windowNumber, radius: 0)
+    }
+
+    /// Sets the compositor background blur radius (in points) on the window
+    /// with the given `windowNumber`. Only transparent pixels of the window
+    /// blur what lies behind them, so an opaque terminal card is unaffected.
+    public func setBackgroundBlur(windowNumber: Int, radius: Int) {
         _ = cmuxCGSSetWindowBackgroundBlurRadius(
             cmuxCGSDefaultConnectionForThread(),
             UInt(windowNumber),
-            0
+            Int32(max(0, radius))
         )
     }
 }

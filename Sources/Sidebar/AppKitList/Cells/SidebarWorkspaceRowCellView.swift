@@ -205,6 +205,7 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
         contentContainer.addSubview(titleView)
         contentContainer.addSubview(trailingBadge)
         closeButton.onClick = { [weak self] in self?.actions?.commands.closeWorkspace() }
+        closeButton.highlightsOnHover = true
         contentContainer.addSubview(closeButton)
 
         contentContainer.addSubview(descriptionView)
@@ -382,10 +383,20 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
             isMultiSelected: model.isMultiSelected,
             customColorHex: snapshot.customColorHex,
             colorScheme: palette.colorScheme,
-            sidebarSelectionColorHex: settings.selectionColorHex
+            sidebarSelectionColorHex: settings.selectionColorHex,
+            selectionAccent: settings.selectionAccent
         )
         applyBackgroundStyle(style)
-        if settings.activeTabIndicatorStyle == .solidFill, model.isActive {
+        let isGlassPill = model.isActive
+            && settings.selectionAccent == .glass
+            && settings.selectionColorHex == nil
+        if isGlassPill {
+            // Flat tinted glass with a faint hairline rim (the Aside look):
+            // one colour, no gradient, in the pill's own grey.
+            let glass = sidebarGlassPillNSColor(for: palette.colorScheme)
+            backgroundView.layer?.borderWidth = 1
+            backgroundView.layer?.borderColor = glass.withAlphaComponent(model.colorSchemeIsDark ? 0.22 : 0.14).cgColor
+        } else if settings.activeTabIndicatorStyle == .solidFill, model.isActive {
             backgroundView.layer?.borderWidth = 1.5
             backgroundView.layer?.borderColor = palette.semantic(.labelColor, opacity: 0.5).cgColor
         } else {
