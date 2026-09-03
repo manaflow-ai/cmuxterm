@@ -418,11 +418,6 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     }
 }
 
-enum FilePreviewTextEditorLayout {
-    static let textContainerInset = NSSize(width: 12, height: 10)
-    static let lineFragmentPadding: CGFloat = 0
-}
-
 extension SavingTextView {
     /// Builds the File Preview text view configured for large plain-text files.
     ///
@@ -515,12 +510,13 @@ extension NSTextView {
     }
 
     func applyFilePreviewTextEditorInsets() {
-        let targetInset = FilePreviewTextEditorLayout.textContainerInset
+        let targetInset = NSSize(width: 12, height: 10)
         if textContainerInset.width != targetInset.width || textContainerInset.height != targetInset.height {
             textContainerInset = targetInset
         }
-        if textContainer?.lineFragmentPadding != FilePreviewTextEditorLayout.lineFragmentPadding {
-            textContainer?.lineFragmentPadding = FilePreviewTextEditorLayout.lineFragmentPadding
+        let lineFragmentPadding: CGFloat = 0
+        if textContainer?.lineFragmentPadding != lineFragmentPadding {
+            textContainer?.lineFragmentPadding = lineFragmentPadding
         }
     }
 }
