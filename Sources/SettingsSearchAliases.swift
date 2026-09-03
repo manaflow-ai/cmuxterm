@@ -18,7 +18,7 @@ enum SettingsSearchAliasIndex {
         case .computers:
             return localized("settings.search.alias.section.computers", defaultValue: "computers devices macs remote view control pair unpair presence online offline tailscale hive")
         case .cloudMachines:
-            return localized("settings.search.alias.section.cloudMachines", defaultValue: "cloud machines vm virtual machine persistent computer sandbox plan upgrade fleet blaxel")
+            return localized("settings.search.alias.section.cloudMachines", defaultValue: "cloud machines vm virtual machine persistent computer sandbox plan upgrade fleet freestyle")
         case .networking:
             return localized("settings.search.alias.section.networking", defaultValue: "iroh relay relays server fleet provider region custom self hosted private network tailscale vpn direct peer")
         case .sidebarAppearance:
