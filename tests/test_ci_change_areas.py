@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -281,7 +282,10 @@ iteration=$((iteration + 1))
 printf '%s\n' "$iteration" > "$counter"
 if [ "$iteration" -eq 1 ]; then
   echo "Executed 2 tests, with 2 failures (0 unexpected)"
-  exit 1
+  # XCTest uses 65 for an assertion-failure run.  A generic shell failure
+  # status must remain blocking so the classifier cannot be bypassed by a
+  # plausible-looking prior summary.
+  exit 65
 fi
 echo "simulated app-host crash before test summary" >&2
 exit 9
@@ -289,6 +293,10 @@ exit 9
             encoding="utf-8",
         )
         console_runner.chmod(0o755)
+
+        classifier = ci_scripts / "classify-app-host-test-result.sh"
+        shutil.copy2(ROOT / "scripts" / "ci" / classifier.name, classifier)
+        classifier.chmod(0o755)
 
         fake_sleep = fake_bin / "sleep"
         fake_sleep.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
