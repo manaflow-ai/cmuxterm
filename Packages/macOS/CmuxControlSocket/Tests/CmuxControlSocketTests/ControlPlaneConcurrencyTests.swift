@@ -225,6 +225,9 @@ struct ControlPlaneConcurrencyTests {
             #expect(ControlCommandExecutionPolicy.pollingMethods.contains(method))
         }
         #expect(
+            ControlCommandExecutionPolicy.pollingMethods.contains("surface.read_selection")
+        )
+        #expect(
             !ControlCommandExecutionPolicy.pollingMethods.contains("workspace.create")
         )
     }
