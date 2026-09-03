@@ -238,6 +238,13 @@ struct CodexTerminalErrorNotificationTests {
                 commands.allSatisfy { !$0.contains("c=turn-complete") },
                 "An abnormal stop must not use the completion category, saw \(commands)"
             )
+            let errorStatus = commands.first {
+                $0.hasPrefix("set_status codex ") && $0.contains("--color=#FF453A")
+            }
+            #expect(
+                errorStatus?.contains("Codex") == false,
+                "Abnormal-stop status must stay provider-neutral, saw \(errorStatus ?? "nil")"
+            )
         }
     }
 }

@@ -354,6 +354,13 @@ struct ClaudeBackgroundWorkNotifyTests {
                 notifyLine(snapshot, containing: "c=turn-complete") == nil,
                 "\(name) must not route a provider failure through the suppressible completion gate, saw \(snapshot)"
             )
+            let errorStatus = snapshot.first {
+                $0.hasPrefix("set_status claude_code ") && $0.contains("--color=#FF453A")
+            }
+            #expect(
+                errorStatus?.contains("Claude Code") == false,
+                "Abnormal-stop status must stay provider-neutral, saw \(errorStatus ?? "nil")"
+            )
         }
     }
 
