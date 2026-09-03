@@ -1,3 +1,4 @@
+import CmuxAgentHooks
 import CmuxSettings
 import Foundation
 

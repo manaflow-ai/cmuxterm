@@ -1,5 +1,6 @@
 import Foundation
 import CMUXAgentLaunch
+import CmuxAgentHooks
 import CmuxAgentJournal
 import CmuxFoundation
 import CmuxSettings
@@ -28056,10 +28057,8 @@ struct CMUXCLI {
                     telemetry: telemetry
                 )
                 if abnormalStop != nil {
-                    let statusValue = String.localizedStringWithFormat(
-                        String(localized: "agent.generic.notification.status.error", defaultValue: "%@ error"),
-                        String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code")
-                    )
+                    let statusValue = abnormalStop?.subtitle
+                        ?? AgentHookAbnormalStopClass.generic.localizedSubtitle
                     _ = try? sendV1Command(
                         "set_status \(Self.claudeCodeStatusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
                         client: client
@@ -36482,10 +36481,8 @@ export default CMUXSessionRestore;
                         )
                     }
                 } else if abnormalStop != nil {
-                    let statusValue = String.localizedStringWithFormat(
-                        String(localized: "agent.generic.notification.status.error", defaultValue: "%@ error"),
-                        def.displayName
-                    )
+                    let statusValue = abnormalStop?.subtitle
+                        ?? AgentHookAbnormalStopClass.generic.localizedSubtitle
                     if def.name == "cursor" {
                         sendCursorCriticalCommand(
                             "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"

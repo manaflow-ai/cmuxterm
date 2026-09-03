@@ -1,3 +1,4 @@
+import CmuxAgentHooks
 import Foundation
 
 /// Completion text plus the transcript message already read for the stop hook.
@@ -232,23 +233,8 @@ extension CMUXCLI {
         return nil
     }
 
-    /// Returns the sidebar status text for a known Codex abnormal-stop class.
+    /// Returns provider-neutral sidebar status text for a known Codex abnormal-stop class.
     func codexAbnormalStopStatusValue(_ failureClass: AgentHookAbnormalStopClass) -> String {
-        switch failureClass {
-        case .capacity:
-            return String(localized: "agent.codex.error.status.capacity", defaultValue: "Codex model at capacity")
-        case .quota:
-            return String(localized: "agent.codex.error.status.quota", defaultValue: "Codex quota exhausted")
-        case .rateLimit:
-            return String(localized: "agent.codex.error.status.rateLimit", defaultValue: "Codex rate limit")
-        case .timeout:
-            return String(localized: "agent.codex.error.status.timeout", defaultValue: "Codex request timed out")
-        case .authentication:
-            return String(localized: "agent.codex.error.status.auth", defaultValue: "Codex auth error")
-        case .network:
-            return String(localized: "agent.codex.error.status.network", defaultValue: "Codex network error")
-        case .generic:
-            return String(localized: "agent.codex.error.status.generic", defaultValue: "Codex error")
-        }
+        failureClass.localizedSubtitle
     }
 }
