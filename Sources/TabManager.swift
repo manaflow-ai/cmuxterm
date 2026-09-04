@@ -1,5 +1,6 @@
 import AppKit
 import CmuxAgentChat
+import CmuxArtifacts
 import CmuxFoundation
 import CmuxTerminalCore
 import SwiftUI
@@ -461,6 +462,8 @@ class TabManager: ObservableObject {
     private var lastFocusHistoryIncludesPanesAndTabs: Bool
     let nativeSSHConnectionBroker: NativeSSHConnectionBroker
     let agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording
+    /// Shared durable artifact catalog injected by the application composition root.
+    let artifactRepository: any ArtifactStoring
 
     @Published private(set) var focusHistoryRevision: UInt64 = 0 {
         didSet {
@@ -558,7 +561,8 @@ class TabManager: ObservableObject {
         workspaceCustomizationStore: WorkspaceCustomizationStore? = nil,
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
-        closeTabWarningDefaults: UserDefaults = .standard
+        closeTabWarningDefaults: UserDefaults = .standard,
+        artifactRepository: (any ArtifactStoring)? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -574,6 +578,7 @@ class TabManager: ObservableObject {
         )
         self.nativeSSHConnectionBroker = nativeSSHConnectionBroker
         self.agentChatResumeIntentRecorder = agentChatResumeIntentRecorder
+        self.artifactRepository = artifactRepository ?? InMemoryArtifactRepository()
         self.panelTitleUpdateCoalescer = panelTitleUpdateCoalescer ?? NotificationBurstCoalescer()
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
@@ -727,8 +732,8 @@ class TabManager: ObservableObject {
                 refreshTabCloseButtonVisibility()
                 refreshWindowTitle()
                 applyLinksSettings(
-                    retentionLimit: settings.value(for: settingsCatalog.links.retentionLimit),
-                    fetchTitlesEnabled: settings.value(for: settingsCatalog.links.fetchTitles)
+                    retentionLimit: settings.value(for: settingsCatalog.artifacts.retentionLimit),
+                    fetchTitlesEnabled: settings.value(for: settingsCatalog.artifacts.fetchTitles)
                 )
             }
         })
@@ -1136,7 +1141,8 @@ class TabManager: ObservableObject {
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            artifactRepository: artifactRepository
         )
     }
 
@@ -1157,7 +1163,8 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            artifactRepository: artifactRepository
         )
     }
 
@@ -6641,7 +6648,8 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                artifactRepository: artifactRepository
             )
             workspace.owningTabManager = self
             let restoredPanelIds = workspace.restoreSessionSnapshot(
@@ -6676,7 +6684,8 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                artifactRepository: artifactRepository
             )
             fallback.owningTabManager = self
             wireClosedBrowserTracking(for: fallback)

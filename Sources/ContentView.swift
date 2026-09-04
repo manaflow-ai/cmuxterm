@@ -2411,6 +2411,10 @@ struct ContentView: View {
 
         sidebarSelectionState.selection = .tabs
         workspace.clearSplitZoom()
+        if mode == .artifacts {
+            _ = workspace.openOrFocusWorkspaceArtifactsSurface(inPane: paneId, focus: true)
+            return
+        }
         _ = workspace.openOrFocusRightSidebarToolSurface(inPane: paneId, mode: mode, focus: true)
     }
 
@@ -7946,13 +7950,22 @@ struct ContentView: View {
         )
         contributions.append(
             CommandPaletteCommandContribution(
-                commandId: "palette.openLinksPanel",
-                title: constant(String(localized: "command.openLinksPanel.title", defaultValue: "Open Links Panel")),
+                commandId: "palette.openArtifacts",
+                title: constant(String(localized: "command.openArtifacts.title", defaultValue: "Open Artifacts")),
                 subtitle: workspaceSubtitle,
-                keywords: ["links", "urls", "history", "workspace", "terminal"],
+                keywords: ["artifacts", "links", "urls", "files", "history", "workspace", "terminal"],
                 when: {
                     $0.bool(CommandPaletteContextKeys.hasWorkspace)
                 }
+            )
+        )
+        contributions.append(
+            CommandPaletteCommandContribution(
+                commandId: "palette.openLinksPanel",
+                title: constant(String(localized: "command.openArtifacts.title", defaultValue: "Open Artifacts")),
+                subtitle: workspaceSubtitle,
+                keywords: ["links", "artifacts", "urls", "history"],
+                when: { $0.bool(CommandPaletteContextKeys.hasWorkspace) }
             )
         )
         contributions.append(
@@ -9058,8 +9071,14 @@ struct ContentView: View {
                 NSSound.beep()
             }
         }
+        registry.register(commandId: "palette.openArtifacts") {
+            if AppDelegate.shared?.openArtifactsPanelForFocusedWorkspace(for: tabManager) != true {
+                NSSound.beep()
+            }
+        }
+        // Legacy command id retained so existing custom palette bindings keep working.
         registry.register(commandId: "palette.openLinksPanel") {
-            if AppDelegate.shared?.openLinksPanelForFocusedWorkspace(for: tabManager) != true {
+            if AppDelegate.shared?.openArtifactsPanelForFocusedWorkspace(for: tabManager) != true {
                 NSSound.beep()
             }
         }
