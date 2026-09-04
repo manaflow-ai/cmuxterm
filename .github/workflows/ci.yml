@@ -1677,6 +1677,7 @@ jobs:
           # symbol instead of the GhosttyKit archive.
           PACKAGES=(
             CMUXAuthCore
+            CmuxArtifacts
             CmuxBrowser
             CmuxCanvasUI
             CmuxCore
