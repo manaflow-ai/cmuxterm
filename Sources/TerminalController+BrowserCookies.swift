@@ -1,6 +1,6 @@
-import CmuxBrowser
 import Foundation
 import WebKit
+import CmuxBrowser
 
 extension TerminalController {
     nonisolated func v2BrowserCookieDict(_ cookie: HTTPCookie) -> [String: Any] {
@@ -8,8 +8,7 @@ extension TerminalController {
             "name": cookie.name,
             "value": cookie.value,
             "domain": cookie.domain,
-            // Foundation represents host-only cookies without a leading dot;
-            // retain that distinction so state/load does not widen their scope.
+            // Preserve host-only scope so state save/load cannot widen a cookie.
             "hostOnly": !cookie.domain.hasPrefix("."),
             "path": cookie.path,
             "secure": cookie.isSecure,
@@ -44,7 +43,7 @@ extension TerminalController {
         } ?? false
     }
 
-    nonisolated func v2BrowserCookieStoreDelete(_ store: WKHTTPCookieStore, cookie: HTTPCookie, timeout: TimeInterval = 3.0) -> Bool {
+    private nonisolated func v2BrowserCookieStoreDelete(_ store: WKHTTPCookieStore, cookie: HTTPCookie, timeout: TimeInterval = 3.0) -> Bool {
         v2AwaitCallback(timeout: timeout) { finish in
             v2MainSync {
                 store.delete(cookie) {
@@ -96,49 +95,55 @@ extension TerminalController {
 
     nonisolated func v2BrowserCookiesGet(params: [String: Any]) -> V2CallResult {
         return v2BrowserWithPanelContext(params: params) { ctx in
+            if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
+                switch v2GetChromiumCookies(
+                    browserPanel: ctx.browserPanel,
+                    name: v2String(params, "name"),
+                    domain: v2String(params, "domain"),
+                    path: v2String(params, "path"),
+                    httpOnly: v2Bool(params, "httpOnly")
+                ) {
+                case .success(let cookies):
+                    return .ok(v2BrowserPanelFields(ctx, adding: ["cookies": cookies]))
+                case .failure(let error):
+                    return .err(
+                        code: "cdp_error",
+                        message: v2ChromiumFailureMessage(operation: "cookie_read", error: error),
+                        data: nil
+                    )
+                }
+            }
             let store = v2MainSync {
                 ctx.webView.configuration.websiteDataStore.httpCookieStore
             }
-            let cookies: [HTTPCookie]
-            if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
-                switch v2GetChromiumCookies(browserPanel: ctx.browserPanel) {
-                case .success(let rows):
-                    cookies = rows.compactMap { v2BrowserCookieFromObject($0, fallbackURL: nil) }
-                case .failure(let error):
-                    return .err(code: "cdp_error", message: error.localizedDescription, data: nil)
-                }
-            } else {
-                guard let storedCookies = v2BrowserCookieStoreAll(store) else {
-                    return .err(code: "timeout", message: "Timed out reading cookies", data: nil)
-                }
-                cookies = storedCookies
+            guard var cookies = v2BrowserCookieStoreAll(store) else {
+                return .err(code: "timeout", message: "Timed out reading cookies", data: nil)
             }
 
-            let name = v2String(params, "name")
-            let domain = v2String(params, "domain")
-            let path = v2String(params, "path")
-            let httpOnly = v2Bool(params, "httpOnly")
-            let filteredCookies = cookies.filter { cookie in
-                if let name, cookie.name != name { return false }
-                if let domain, !cookie.domain.contains(domain) { return false }
-                if let path, cookie.path != path { return false }
-                if let httpOnly, cookie.isHTTPOnly != httpOnly { return false }
-                return true
+            if let name = v2String(params, "name") {
+                cookies = cookies.filter { $0.name == name }
+            }
+            if let httpOnly = v2Bool(params, "httpOnly") {
+                cookies = cookies.filter { $0.isHTTPOnly == httpOnly }
+            }
+            if let domain = v2String(params, "domain") {
+                let filters = BrowserDataImporter.parseDomainFilters(domain)
+                cookies = filters.isEmpty
+                    ? []
+                    : cookies.filter {
+                        BrowserDataImporter.domainMatches(host: $0.domain, filters: filters)
+                    }
+            }
+            if let path = v2String(params, "path") {
+                cookies = cookies.filter { $0.path == path }
             }
 
-            return .ok(v2BrowserPanelFields(ctx, adding: ["cookies": filteredCookies.map(v2BrowserCookieDict)]))
+            return .ok(v2BrowserPanelFields(ctx, adding: ["cookies": cookies.map(v2BrowserCookieDict)]))
         }
     }
 
     nonisolated func v2BrowserCookiesSet(params: [String: Any]) -> V2CallResult {
         return v2BrowserWithPanelContext(params: params) { ctx in
-            let cookieContext = v2MainSync {
-                (
-                    store: ctx.webView.configuration.websiteDataStore.httpCookieStore,
-                    fallbackURL: ctx.browserPanel.currentURL
-                )
-            }
-
             var cookieObjects: [[String: Any]] = []
             if let rows = params["cookies"] as? [[String: Any]] {
                 cookieObjects = rows
@@ -152,26 +157,34 @@ extension TerminalController {
                 if let secure = v2Bool(params, "secure") { single["secure"] = secure }
                 if let httpOnly = v2Bool(params, "httpOnly") { single["httpOnly"] = httpOnly }
                 if let expires = v2Int(params, "expires") { single["expires"] = expires }
-                if !single.isEmpty {
-                    cookieObjects = [single]
-                }
+                if !single.isEmpty { cookieObjects = [single] }
             }
 
             guard !cookieObjects.isEmpty else {
                 return .err(code: "invalid_params", message: "Missing cookies payload", data: nil)
             }
-
             if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
+                let fallbackURL = v2MainSync { ctx.browserPanel.currentURL }
                 switch v2SetChromiumCookies(
                     browserPanel: ctx.browserPanel,
                     cookieObjects: cookieObjects,
-                    fallbackURL: cookieContext.fallbackURL
+                    fallbackURL: fallbackURL
                 ) {
                 case .success(let count):
                     return .ok(v2BrowserPanelFields(ctx, adding: ["set": count]))
                 case .failure(let error):
-                    return .err(code: "cdp_error", message: error.localizedDescription, data: nil)
+                    return .err(
+                        code: "cdp_error",
+                        message: v2ChromiumFailureMessage(operation: "cookie_write", error: error),
+                        data: nil
+                    )
                 }
+            }
+            let cookieContext = v2MainSync {
+                (
+                    store: ctx.webView.configuration.websiteDataStore.httpCookieStore,
+                    fallbackURL: ctx.browserPanel.currentURL
+                )
             }
 
             var setCount = 0
@@ -192,9 +205,10 @@ extension TerminalController {
 
     nonisolated func v2BrowserCookiesClear(params: [String: Any]) -> V2CallResult {
         return v2BrowserWithPanelContext(params: params) { ctx in
-            let store = v2MainSync {
-                ctx.webView.configuration.websiteDataStore.httpCookieStore
-            }
+            let isChromium = v2MainSync { ctx.browserPanel.isChromiumBacked }
+            let unsupportedSelectors = isChromium
+                ? ["value", "url", "expires", "secure"].filter { params[$0] != nil }
+                : []
             let clearRequiresScopeMessage = String(
                 localized: "cli.browser.cookies.clearRequiresScope",
                 defaultValue: "browser cookies clear requires exactly one of --all or a cookie scope"
@@ -211,38 +225,42 @@ extension TerminalController {
                 localized: "cli.browser.cookies.invalidExpires",
                 defaultValue: "browser cookies clear --expires must be an integer Unix timestamp"
             )
+            guard unsupportedSelectors.isEmpty else {
+                return .err(
+                    code: "invalid_params",
+                    message: invalidFilterMessage,
+                    data: ["unsupported": unsupportedSelectors]
+                )
+            }
             let name = v2String(params, "name")
-            let value = v2String(params, "value")
-            let urlString = v2String(params, "url")
             let domain = v2String(params, "domain")
             let path = v2String(params, "path")
-
+            let value = v2String(params, "value")
             for key in ["name", "value", "domain", "path"] where
                 v2HasNonNullParam(params, key) && v2String(params, key) == nil {
                 return .err(code: "invalid_params", message: invalidFilterMessage, data: ["param": key])
             }
-
-            if v2HasNonNullParam(params, "url"), urlString == nil {
+            let rawURL = v2String(params, "url")
+            if v2HasNonNullParam(params, "url"), rawURL == nil {
                 return .err(
                     code: "invalid_params",
                     message: invalidURLMessage,
                     data: ["param": "url"]
                 )
             }
-            let url: URL?
-            if let urlString {
-                guard let parsedURL = URL(string: urlString), parsedURL.host != nil else {
+            let urlFilter: URL?
+            if let rawURL {
+                guard let parsedURL = URL(string: rawURL), parsedURL.host != nil else {
                     return .err(
                         code: "invalid_params",
                         message: invalidURLMessage,
                         data: ["param": "url"]
                     )
                 }
-                url = parsedURL
+                urlFilter = parsedURL
             } else {
-                url = nil
+                urlFilter = nil
             }
-
             let expires: Int?
             if v2HasNonNullParam(params, "expires") {
                 guard let parsedExpires = v2Int(params, "expires") else {
@@ -256,7 +274,6 @@ extension TerminalController {
             } else {
                 expires = nil
             }
-
             let secure: Bool?
             if v2HasNonNullParam(params, "secure") {
                 guard let parsedSecure = v2Bool(params, "secure") else {
@@ -266,81 +283,83 @@ extension TerminalController {
             } else {
                 secure = nil
             }
-
-            let all: Bool
-            if v2HasNonNullParam(params, "all") {
-                guard let parsedAll = v2Bool(params, "all") else {
-                    return .err(code: "invalid_params", message: invalidFilterMessage, data: ["param": "all"])
-                }
-                all = parsedAll
-            } else {
-                all = false
+            let hasScope = name != nil || domain != nil || path != nil ||
+                value != nil || urlFilter != nil || expires != nil || secure != nil
+            let hasAllParameter = params["all"] != nil
+            guard !hasAllParameter || v2Bool(params, "all") != nil else {
+                return .err(
+                    code: "invalid_params",
+                    message: invalidFilterMessage,
+                    data: ["param": "all"]
+                )
             }
-
-            let hasFilter = name != nil || value != nil || url != nil || domain != nil || path != nil ||
-                expires != nil || secure != nil
-            guard all || hasFilter else {
+            let all = v2Bool(params, "all") == true
+            guard !(all && hasScope) else {
+                return .err(
+                    code: "invalid_params",
+                    message: clearRequiresScopeMessage,
+                    data: nil
+                )
+            }
+            guard !(hasAllParameter && !all && !hasScope) else {
                 return .err(
                     code: "invalid_params",
                     message: clearRequiresScopeMessage,
                     data: ["param": "scope"]
                 )
             }
-            guard !(all && hasFilter) else {
+            guard all || hasScope else {
                 return .err(
                     code: "invalid_params",
                     message: clearRequiresScopeMessage,
                     data: ["param": "scope"]
                 )
             }
-
-            let cookies: [HTTPCookie]
-            if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
-                switch v2GetChromiumCookies(browserPanel: ctx.browserPanel) {
-                case .success(let rows):
-                    cookies = rows.compactMap { v2BrowserCookieFromObject($0, fallbackURL: nil) }
+            let clearAll = all
+            if isChromium {
+                switch v2ClearChromiumCookies(
+                    browserPanel: ctx.browserPanel,
+                    all: clearAll,
+                    name: name,
+                    domain: domain,
+                    path: path,
+                    url: urlFilter
+                ) {
+                case .success(let count):
+                    return .ok(v2BrowserPanelFields(ctx, adding: ["cleared": count]))
                 case .failure(let error):
-                    return .err(code: "cdp_error", message: error.localizedDescription, data: nil)
+                    return .err(
+                        code: "cdp_error",
+                        message: v2ChromiumFailureMessage(operation: "cookie_clear", error: error),
+                        data: nil
+                    )
                 }
-            } else {
-                guard let storedCookies = v2BrowserCookieStoreAll(store) else {
-                    return .err(code: "timeout", message: "Timed out reading cookies", data: nil)
-                }
-                cookies = storedCookies
+            }
+            let store = v2MainSync {
+                ctx.webView.configuration.websiteDataStore.httpCookieStore
+            }
+            guard let cookies = v2BrowserCookieStoreAll(store) else {
+                return .err(code: "timeout", message: "Timed out reading cookies", data: nil)
             }
 
             let targets = cookies.filter { cookie in
-                if all { return true }
+                if clearAll { return true }
                 if let name, cookie.name != name { return false }
-                if let value, cookie.value != value { return false }
-                if let url, !CmuxWebView.cookieMatchesURL(cookie, url: url) { return false }
-                if let domain, !CmuxWebView.cookieDomainMatchesFilter(cookie.domain, filter: domain) { return false }
-                if let path, cookie.path != path { return false }
-                if let expires,
-                   cookie.expiresDate.map({ Int($0.timeIntervalSince1970) }) != expires {
-                    return false
+                if let domain {
+                    guard CmuxWebView.cookieDomainMatchesFilter(cookie.domain, filter: domain) else { return false }
                 }
+                if let path, cookie.path != path { return false }
+                if let value, cookie.value != value { return false }
+                if let expires,
+                   cookie.expiresDate.map({ Int($0.timeIntervalSince1970) }) != expires { return false }
                 if let secure, cookie.isSecure != secure { return false }
+                if let url = urlFilter, !CmuxWebView.cookieMatchesURL(cookie, url: url) { return false }
                 return true
             }
 
             var removed = 0
             for cookie in targets {
-                if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
-                    switch v2RunChromiumCommand(
-                        browserPanel: ctx.browserPanel,
-                        method: "Network.deleteCookies",
-                        parameters: .object([
-                            "name": .string(cookie.name),
-                            "domain": .string(cookie.domain),
-                            "path": .string(cookie.path),
-                        ])
-                    ) {
-                    case .success: removed += 1
-                    case .failure(let error):
-                        return .err(code: "cdp_error", message: error.localizedDescription, data: nil)
-                    }
-                } else if v2BrowserCookieStoreDelete(store, cookie: cookie) {
+                if v2BrowserCookieStoreDelete(store, cookie: cookie) {
                     removed += 1
                 }
             }

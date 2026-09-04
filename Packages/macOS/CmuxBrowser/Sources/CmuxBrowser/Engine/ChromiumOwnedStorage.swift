@@ -13,22 +13,6 @@ struct ChromiumOwnedStorage: Sendable {
     let applicationSupportURLProvider: @Sendable () -> URL?
     let bundleIdentifierProvider: @Sendable () -> String
 
-    /// Creates a resolver with injectable filesystem providers.
-    ///
-    /// - Parameters:
-    ///   - fileManager: Filesystem implementation used for directory creation.
-    ///   - applicationSupportURLProvider: cmux application-support root.
-    ///   - bundleIdentifierProvider: Bundle namespace component.
-    init(
-        fileManager: FileManager,
-        applicationSupportURLProvider: @escaping @Sendable () -> URL?,
-        bundleIdentifierProvider: @escaping @Sendable () -> String
-    ) {
-        self.fileManager = fileManager
-        self.applicationSupportURLProvider = applicationSupportURLProvider
-        self.bundleIdentifierProvider = bundleIdentifierProvider
-    }
-
     /// Returns cmux's namespaced application-support directory.
     func applicationDirectory() throws -> URL {
         guard let supportURL = applicationSupportURLProvider() else {
@@ -54,13 +38,27 @@ struct ChromiumOwnedStorage: Sendable {
 
     /// Returns one persistent profile directory for a cmux browser profile.
     ///
-    /// A storage identity can be supplied for panes that use the same logical
-    /// cmux profile concurrently. Chromium places an exclusive lock on its
-    /// user-data directory, so each live pane gets an isolated child directory
-    /// while the logical profile ID still scopes its persisted account data.
-    /// Omitting the identity preserves the original profile-root layout for
-    /// callers that need to inspect or migrate an older installation.
+    /// A storage identity is supplied by the out-of-process fallback, where
+    /// Chromium places an exclusive lock on each user-data directory. Those
+    /// pane sessions are intentionally isolated; the in-process CEF adapter
+    /// omits the identity and pools one request context per logical profile so
+    /// its panes share cookies and local storage.
+    /// Omitting the identity resolves the stable profile root used by CEF and
+    /// by cleanup/migration callers.
     func profileDirectory(
+        for profileID: UUID,
+        storageID: UUID? = nil
+    ) throws -> URL {
+        let directory = try profileDirectoryURL(for: profileID, storageID: storageID)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// Resolves a profile directory without creating its leaf directory.
+    ///
+    /// Cleanup callers use this form so clearing an unknown profile never
+    /// creates a new profile tree merely to remove it.
+    func profileDirectoryURL(
         for profileID: UUID,
         storageID: UUID? = nil
     ) throws -> URL {
@@ -72,7 +70,6 @@ struct ChromiumOwnedStorage: Sendable {
                 .appendingPathComponent("Panes", isDirectory: true)
                 .appendingPathComponent(storageID.uuidString.lowercased(), isDirectory: true)
         }
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
 
@@ -86,6 +83,9 @@ struct ChromiumOwnedStorage: Sendable {
             }
         }
         let result = String(filtered)
-        return result.isEmpty ? "com.cmuxterm.app" : result
+        if result.isEmpty || result == "." || result == ".." {
+            return "com.cmuxterm.app"
+        }
+        return result
     }
 }

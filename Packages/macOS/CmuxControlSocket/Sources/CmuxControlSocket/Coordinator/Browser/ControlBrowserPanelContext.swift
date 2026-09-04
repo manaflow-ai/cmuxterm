@@ -1,5 +1,5 @@
 public import Foundation
-public import CmuxFoundation
+public import CmuxBrowser
 
 /// The browser-panel slice of the control-command seam (a constituent of the
 /// ``ControlCommandContext`` umbrella): live app reach for the v1 line-protocol
@@ -13,6 +13,9 @@ public import CmuxFoundation
 /// coordinator runs there too.
 @MainActor
 public protocol ControlBrowserPanelContext: AnyObject {
+    /// Returns browser-engine validation text resolved by the app bundle.
+    func controlBrowserEngineStrings() -> ControlBrowserEngineStrings
+
     /// Whether the active `TabManager` is wired (the legacy
     /// `guard let tabManager` head of every browser v1 body).
     func controlBrowserPanelTabManagerAvailable() -> Bool

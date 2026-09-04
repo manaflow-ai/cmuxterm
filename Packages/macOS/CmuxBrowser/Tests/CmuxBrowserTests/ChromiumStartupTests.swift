@@ -4,41 +4,6 @@ import Testing
 
 @Suite("Chromium startup lifecycle")
 struct ChromiumStartupTests {
-    @Test("Readiness waits on a stopped session fail promptly", arguments: [false, true])
-    func stoppedSessionReadiness(navigation: Bool) async throws {
-        let network = URLSession(configuration: .ephemeral)
-        defer { network.invalidateAndCancel() }
-        let session = ChromiumBrowserSession(
-            profileID: UUID(),
-            environment: ChromiumBrowserRuntimeEnvironment(
-                fileManager: .default,
-                runtimeDownloadSession: network,
-                loopbackCDPSession: network,
-                applicationSupportURLProvider: { nil },
-                bundleIdentifierProvider: { "com.cmux.stopped-test" },
-                executableOverrideProvider: { nil },
-                startupDeadline: {}
-            )
-        )
-        await #expect(throws: CDPError.notConnected) {
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    if navigation {
-                        try await session.waitForNavigation(to: nil, after: 0)
-                    } else {
-                        try await session.waitForDocumentReady()
-                    }
-                }
-                group.addTask {
-                    try await ContinuousClock().sleep(for: .milliseconds(500))
-                    throw ChromiumBrowserDiagnostic.startupTimedOut
-                }
-                defer { group.cancelAll() }
-                try await group.next()
-            }
-        }
-    }
-
     @Test("Peer-ended CDP streams still close their transport")
     func peerEndedTransportCleanup() async throws {
         let transport = PeerEndingCDPTransport()
@@ -55,6 +20,21 @@ struct ChromiumStartupTests {
 
         let closeCount = await transport.closeCountValue()
         #expect(closeCount == 1)
+    }
+
+    @Test("A stalled CDP command fails at the connection deadline")
+    func stalledCommandDeadline() async throws {
+        let transport = RecordingCDPTransport()
+        let connection = ChromiumCDPConnection(
+            transport: transport,
+            commandTimeout: .milliseconds(10)
+        )
+        try await connection.connect()
+
+        await #expect(throws: ChromiumBrowserDiagnostic.commandTimedOut) {
+            _ = try await connection.send(method: "Runtime.evaluate")
+        }
+        await connection.shutdown()
     }
 
     @Test("A launched child has a deterministic CDP handshake deadline")
@@ -126,5 +106,113 @@ private actor PeerEndingCDPTransport: ChromiumCDPTransport {
 
     func closeCountValue() -> Int {
         closeCount
+    }
+}
+
+@Suite("Chromium screencast fast path")
+struct ChromiumScreencastFastPathTests {
+    @Test("Screencast frames bypass generic events, decode, and ack immediately")
+    func screencastFramesAreFastPathed() async throws {
+        let transport = RecordingCDPTransport()
+        let connection = ChromiumCDPConnection(transport: transport)
+        try await connection.connect()
+        let frames = await connection.screencastFrames()
+        let events = await connection.events()
+
+        let receivedFrame = Task { await frames.first(where: { _ in true }) }
+        let receivedEvents = Task { () -> [String] in
+            var methods: [String] = []
+            for await event in events { methods.append(event.method) }
+            return methods
+        }
+
+        let payload = Data("frame-bytes".utf8)
+        let envelope: [String: Any] = [
+            "method": "Page.screencastFrame",
+            "params": [
+                "data": payload.base64EncodedString(),
+                "sessionId": "7",
+                "metadata": ["timestamp": 1.0],
+            ],
+        ]
+        await transport.emit(try JSONSerialization.data(withJSONObject: envelope))
+        // A non-frame event must still travel the generic event path.
+        await transport.emit(Data(#"{"method":"Page.loadEventFired","params":{}}"#.utf8))
+
+        #expect(await receivedFrame.value == payload)
+        let ack = try #require(await transport.firstSentMessage())
+        let ackObject = try #require(
+            try JSONSerialization.jsonObject(with: ack) as? [String: Any]
+        )
+        #expect(ackObject["method"] as? String == "Page.screencastFrameAck")
+        #expect((ackObject["params"] as? [String: Any])?["sessionId"] as? String == "7")
+
+        await transport.finishFromPeer()
+        #expect(await receivedEvents.value == ["Page.loadEventFired"])
+        await connection.shutdown()
+    }
+}
+
+@Suite("Chromium screencast visibility")
+struct ChromiumScreencastVisibilityTests {
+    @Test("Visibility changes map to bounded start/stop transitions")
+    func transitionsAreOneShot() {
+        #expect(ChromiumScreencastTransition(
+            isPaneVisible: false,
+            isScreencastActive: false
+        ).method == nil)
+        #expect(ChromiumScreencastTransition(
+            isPaneVisible: true,
+            isScreencastActive: false
+        ).method == "Page.startScreencast")
+        #expect(ChromiumScreencastTransition(
+            isPaneVisible: false,
+            isScreencastActive: true
+        ).method == "Page.stopScreencast")
+    }
+}
+
+private actor RecordingCDPTransport: ChromiumCDPTransport {
+    private let stream: AsyncStream<Result<Data, CDPError>>
+    private let continuation: AsyncStream<Result<Data, CDPError>>.Continuation
+    private var sent: [Data] = []
+    private var sentWaiters: [CheckedContinuation<Data, Never>] = []
+
+    init() {
+        let pair = AsyncStream<Result<Data, CDPError>>.makeStream()
+        stream = pair.stream
+        continuation = pair.continuation
+    }
+
+    func connect() async throws {}
+
+    nonisolated func messages() -> AsyncStream<Result<Data, CDPError>> {
+        stream
+    }
+
+    func send(_ data: Data) async throws {
+        sent.append(data)
+        let waiters = sentWaiters
+        sentWaiters.removeAll()
+        for waiter in waiters { waiter.resume(returning: data) }
+    }
+
+    func close() {
+        continuation.finish()
+    }
+
+    func emit(_ data: Data) {
+        continuation.yield(.success(data))
+    }
+
+    func finishFromPeer() {
+        continuation.finish()
+    }
+
+    func firstSentMessage() async -> Data? {
+        if let first = sent.first { return first }
+        return await withCheckedContinuation { continuation in
+            sentWaiters.append(continuation)
+        }
     }
 }

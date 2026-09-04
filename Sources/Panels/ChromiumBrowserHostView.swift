@@ -5,26 +5,26 @@ import Foundation
 /// AppKit surface for an out-of-process Chromium page.
 ///
 /// `chrome-headless-shell` has no native NSView to embed. The managed session
-/// streams PNG frames over CDP; this view paints the latest frame and forwards
+/// streams compressed viewport frames over CDP; this view paints the latest frame and forwards
 /// the minimum native input set back through CDP. The child process remains
 /// fully isolated from cmux, including when its renderer crashes.
 @MainActor
 final class ChromiumBrowserHostView: NSView {
-    private let frameDecoder = ChromiumFrameDecoder()
     private let imageView = NSImageView(frame: .zero)
     private weak var session: ChromiumBrowserSession?
+    private let inputQueue: ChromiumInputEventQueue
+    private let keyMapping = ChromiumKeyMapping()
     private var frameTask: Task<Void, Never>?
     private var stateTask: Task<Void, Never>?
     private var viewportTask: Task<Void, Never>?
-    private var inputTask: Task<Void, Never>?
     private var pointerTrackingArea: NSTrackingArea?
     private var lastViewport: CGSize = .zero
-    private var automationViewport: BrowserViewport?
-    private var sessionIsReady = false
-    private var inputGeneration: UInt64 = 0
-    private var pendingInput: [(key: String?, operation: @Sendable (ChromiumBrowserSession) async throws -> Void)] = []
-    private var requestedViewport: (width: Int, height: Int, scale: Double)?
+    private var isSessionRunning = false
     private var hasStarted = false
+    /// Whether this host is currently mounted as the visible pane owner.
+    private var isPaneVisible = false
+    private var screencastVisibilityTask: Task<Void, Never>?
+    private var lastRequestedScreencastVisibility: Bool?
 
     private var deviceScaleFactor: CGFloat {
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
@@ -36,6 +36,7 @@ final class ChromiumBrowserHostView: NSView {
 
     init(session: ChromiumBrowserSession) {
         self.session = session
+        self.inputQueue = ChromiumInputEventQueue(session: session)
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -45,6 +46,9 @@ final class ChromiumBrowserHostView: NSView {
         imageView.layer?.backgroundColor = NSColor.clear.cgColor
         imageView.autoresizingMask = [.width, .height]
         addSubview(imageView)
+        inputQueue.onFailure = { [weak self] error in
+            self?.onInputFailure?(error)
+        }
     }
 
     @available(*, unavailable)
@@ -56,7 +60,28 @@ final class ChromiumBrowserHostView: NSView {
         frameTask?.cancel()
         stateTask?.cancel()
         viewportTask?.cancel()
-        inputTask?.cancel()
+        screencastVisibilityTask?.cancel()
+    }
+
+    /// Fully decompresses one screencast frame into a bitmap-backed image.
+    ///
+    /// Runs off the main actor; the returned image draws without further
+    /// decode work. Points-vs-pixels: the frame is retina-sized, so the
+    /// image's logical size is set from the view-independent pixel size and
+    /// the image view scales it to fit.
+    nonisolated private static func decodedFrameImage(_ data: Data) -> NSImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceShouldCache: true,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, options as CFDictionary),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
     }
 
     override var acceptsFirstResponder: Bool { true }
@@ -70,8 +95,7 @@ final class ChromiumBrowserHostView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard !isHidden, alphaValue > 0,
-              bounds.contains(convert(point, from: superview)) else { return nil }
+        guard !isHidden, alphaValue > 0, bounds.contains(point) else { return nil }
         // The image view is presentation-only. Keep all pointer events on the
         // host so they can be translated into CDP input for the child process.
         return self
@@ -82,27 +106,6 @@ final class ChromiumBrowserHostView: NSView {
         hasStarted = true
         guard let session else { return }
 
-        let decoder = frameDecoder
-        frameTask = Task { [weak self, weak session] in
-            guard let session else { return }
-            let frames = await session.frames()
-            for await frame in frames {
-                guard !Task.isCancelled else { return }
-                guard let decoded = await decoder.decode(frame), !Task.isCancelled else { continue }
-                await MainActor.run {
-                    guard let self else { return }
-                    let expected = self.automationViewport?.size ?? self.bounds.size
-                    guard expected.width > 0, expected.height > 0 else { return }
-                    // A resize can leave one old compositor frame in flight.
-                    // Never stretch that frame into a different aspect ratio.
-                    let expectedHeight = Double(decoded.image.width) * expected.height / expected.width
-                    guard abs(Double(decoded.image.height) - expectedHeight) <= 2 else { return }
-                    self.imageView.image = NSImage(cgImage: decoded.image, size: .zero)
-                    self.needsDisplay = true
-                }
-            }
-        }
-
         stateTask = Task { [weak self, weak session] in
             guard let session else { return }
             let snapshots = await session.snapshots()
@@ -111,61 +114,102 @@ final class ChromiumBrowserHostView: NSView {
                 await MainActor.run {
                     guard let self else { return }
                     self.onSnapshot?(snapshot)
-                    if case .running = snapshot.state, !self.sessionIsReady {
-                        self.sessionIsReady = true
+                    if case .running = snapshot.state {
                         // The first layout can happen before the child/CDP
-                        // connection is ready. Retry the same geometry when
-                        // the running signal arrives instead of leaving the
-                        // renderer at its 1280x800 default viewport.
-                        self.lastViewport = .zero
+                        // connection is ready. Retry once at the transition
+                        // into the running state; subsequent title/history
+                        // snapshots must not resend identical geometry.
+                        if !self.isSessionRunning {
+                            self.isSessionRunning = true
+                            self.lastViewport = .zero
+                        }
                         self.updateViewportIfNeeded()
+                    } else {
+                        self.isSessionRunning = false
                     }
                 }
             }
         }
+        startFrameTaskIfNeeded()
+        lastRequestedScreencastVisibility = nil
+        requestScreencastVisibilityIfNeeded()
         updateViewportIfNeeded()
     }
 
+    /// Updates frame delivery when this host moves between an active pane and
+    /// a hidden tab. The session stops producing CDP screencast messages while
+    /// hidden, and the decode task is cancelled so no JPEG work continues in
+    /// the background.
+    func setPaneVisible(_ visible: Bool) {
+        let visibilityChanged = isPaneVisible != visible
+        isPaneVisible = visible
+        if visible {
+            startFrameTaskIfNeeded()
+        } else {
+            frameTask?.cancel()
+            frameTask = nil
+            imageView.image = nil
+        }
+        if visibilityChanged {
+            requestScreencastVisibilityIfNeeded()
+        }
+    }
+
+    private func requestScreencastVisibilityIfNeeded() {
+        guard lastRequestedScreencastVisibility != isPaneVisible else { return }
+        lastRequestedScreencastVisibility = isPaneVisible
+        screencastVisibilityTask?.cancel()
+        guard let session else { return }
+        let visible = isPaneVisible
+        screencastVisibilityTask = Task { [weak session] in
+            await session?.setScreencastEnabled(visible)
+        }
+    }
+
+    private func startFrameTaskIfNeeded() {
+        guard hasStarted, isPaneVisible, frameTask == nil, let session else { return }
+        frameTask = Task { [weak self, weak session] in
+            guard let session else { return }
+            let frames = await session.frames()
+            for await frame in frames {
+                guard !Task.isCancelled else { return }
+                // Decode eagerly off the main actor: `NSImage(data:)` defers
+                // decompression to first draw, which would put the whole
+                // JPEG decode on the main thread for every frame.
+                // ImageIO decompression and bitmap allocation are CPU-bound;
+                // keep them off the main actor that owns this AppKit view.
+                let image = await Task.detached(priority: .userInitiated) {
+                    Self.decodedFrameImage(frame)
+                }.value
+                guard !Task.isCancelled, let image else { return }
+                await MainActor.run {
+                    guard let self, self.isPaneVisible else { return }
+                    self.imageView.image = image
+                }
+            }
+        }
+    }
+
     func stop() {
-        inputGeneration &+= 1
-        pendingInput.removeAll()
-        requestedViewport = nil
-        sessionIsReady = false
         frameTask?.cancel()
         stateTask?.cancel()
         viewportTask?.cancel()
-        inputTask?.cancel()
+        screencastVisibilityTask?.cancel()
+        lastRequestedScreencastVisibility = nil
+        inputQueue.cancel()
         frameTask = nil
         stateTask = nil
         viewportTask = nil
-        inputTask = nil
         hasStarted = false
+        isSessionRunning = false
+        lastViewport = .zero
         imageView.image = nil
     }
 
     override func layout() {
         super.layout()
-        imageView.frame = displayLayout?.frame ?? bounds
+        imageView.frame = bounds
         updateViewportIfNeeded()
-    }
-
-    func setAutomationViewport(_ viewport: BrowserViewport?) {
-        guard automationViewport != viewport else { return }
-        automationViewport = viewport
-        lastViewport = .zero
-        needsLayout = true
-        updateViewportIfNeeded()
-    }
-
-    private var displayLayout: BrowserViewportLayout? {
-        BrowserViewportLayout(containerBounds: bounds, viewport: automationViewport)
-    }
-
-    private func pagePoint(for event: NSEvent) -> CGPoint {
-        let point = convert(event.locationInWindow, from: nil)
-        guard let layout = displayLayout, layout.scale > 0 else { return point }
-        return CGPoint(x: (point.x - layout.frame.minX) / layout.scale,
-                       y: (layout.frame.maxY - point.y) / layout.scale)
     }
 
     override func updateTrackingAreas() {
@@ -183,7 +227,7 @@ final class ChromiumBrowserHostView: NSView {
     }
 
     private func updateViewportIfNeeded() {
-        let size = automationViewport?.size ?? bounds.size
+        let size = bounds.size
         guard size.width > 1, size.height > 1, size != lastViewport else { return }
         lastViewport = size
         guard let session else { return }
@@ -192,28 +236,19 @@ final class ChromiumBrowserHostView: NSView {
         // same coordinate space as selector automation.
         let width = Int(ceil(size.width))
         let height = Int(ceil(size.height))
-        requestedViewport = (width, height, max(1, Double(deviceScaleFactor)))
-        guard sessionIsReady, viewportTask == nil else { return }
-        let generation = inputGeneration
-        viewportTask = Task { [weak self, session] in
-            guard let self else { return }
-            defer { if inputGeneration == generation { viewportTask = nil } }
-            while !Task.isCancelled, let viewport = requestedViewport {
-                requestedViewport = nil
-                do {
-                    try await session.setViewport(width: viewport.width, height: viewport.height,
-                                                  deviceScaleFactor: viewport.scale)
-                } catch {
-                    if !Task.isCancelled { onInputFailure?(error) }
-                }
+        viewportTask?.cancel()
+        viewportTask = Task { [weak self, weak session] in
+            guard let session else { return }
+            do {
+                try await session.setViewport(
+                    width: max(1, width),
+                    height: max(1, height),
+                    deviceScaleFactor: max(1, Double(self?.deviceScaleFactor ?? 1))
+                )
+            } catch {
+                await MainActor.run { self?.onInputFailure?(error) }
             }
         }
-    }
-
-    override func viewDidChangeBackingProperties() {
-        super.viewDidChangeBackingProperties()
-        lastViewport = .zero
-        updateViewportIfNeeded()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -255,52 +290,21 @@ final class ChromiumBrowserHostView: NSView {
         sendMouse(event, type: "mouseMoved", button: "right", clickCount: 0)
     }
 
-    private func enqueueInput(
-        coalescingKey: String? = nil,
-        _ operation: @escaping @Sendable (ChromiumBrowserSession) async throws -> Void
-    ) {
-        if let coalescingKey, pendingInput.last?.key == coalescingKey {
-            pendingInput[pendingInput.count - 1] = (coalescingKey, operation)
-        } else {
-            guard pendingInput.count < 128 else {
-                onInputFailure?(ChromiumBrowserDiagnostic.commandQueueFull)
-                return
-            }
-            pendingInput.append((coalescingKey, operation))
-        }
-        guard inputTask == nil else { return }
-        let generation = inputGeneration
-        inputTask = Task { [weak self] in
-            guard let self else { return }
-            defer { if inputGeneration == generation { inputTask = nil } }
-            while !Task.isCancelled, hasStarted, inputGeneration == generation,
-                  !pendingInput.isEmpty, let session {
-                let next = pendingInput.removeFirst()
-                do { try await next.operation(session) }
-                catch { if !Task.isCancelled { onInputFailure?(error) } }
-            }
-        }
-    }
-
     override func scrollWheel(with event: NSEvent) {
-        let point = pagePoint(for: event)
+        let point = convert(event.locationInWindow, from: nil)
         let x = Double(point.x)
-        let y = Double(point.y)
+        let y = Double(bounds.height - point.y)
         let deltaX = Double(event.scrollingDeltaX)
         let deltaY = Double(-event.scrollingDeltaY)
-        let modifiers = ChromiumKeyMapping.modifiers(event.modifierFlags)
-        enqueueInput { session in
-            try await session.dispatchMouse(
-                    type: "mouseWheel",
-                    x: x,
-                    y: y,
-                    button: "none",
-                    clickCount: 1,
-                    deltaX: deltaX,
-                    deltaY: deltaY,
-                    modifiers: modifiers
-                )
-        }
+        inputQueue.enqueue(.mouse(
+            type: "mouseWheel",
+            x: x,
+            y: y,
+            button: "none",
+            clickCount: 1,
+            deltaX: deltaX,
+            deltaY: deltaY
+        ))
     }
 
     override func keyDown(with event: NSEvent) {
@@ -317,22 +321,20 @@ final class ChromiumBrowserHostView: NSView {
         button: String? = nil,
         clickCount: Int? = nil
     ) {
-        let point = pagePoint(for: event)
+        let point = convert(event.locationInWindow, from: nil)
         let x = Double(point.x)
-        let y = Double(point.y)
+        let y = Double(bounds.height - point.y)
         let resolvedButton = button ?? (event.buttonNumber == 2 ? "middle" : "left")
         let count = clickCount ?? max(1, event.clickCount)
-        let modifiers = ChromiumKeyMapping.modifiers(event.modifierFlags)
-        enqueueInput(coalescingKey: type == "mouseMoved" ? "pointer" : nil) { session in
-            try await session.dispatchMouse(
-                    type: type,
-                    x: x,
-                    y: y,
-                    button: resolvedButton,
-                    clickCount: count,
-                    modifiers: modifiers
-                )
-        }
+        inputQueue.enqueue(.mouse(
+            type: type,
+            x: x,
+            y: y,
+            button: resolvedButton,
+            clickCount: count,
+            deltaX: 0,
+            deltaY: 0
+        ))
     }
 
     private func focusForPointerInput() {
@@ -344,15 +346,14 @@ final class ChromiumBrowserHostView: NSView {
     }
 
     private func sendKey(_ event: NSEvent, type: String) {
-        let mapping = ChromiumKeyMapping.map(event)
-        enqueueInput { session in
-            try await session.dispatchKey(
-                    type: type,
-                    key: mapping.key,
-                    code: mapping.code,
-                    text: type == "keyDown" ? mapping.text : nil,
-                    modifiers: mapping.modifiers
-                )
-        }
+        let mapping = keyMapping.map(event)
+        inputQueue.enqueue(.key(
+            type: type,
+            key: mapping.key,
+            code: mapping.code,
+            text: type == "keyDown" ? mapping.text : nil,
+            modifiers: mapping.modifiers,
+            windowsVirtualKeyCode: mapping.windowsVirtualKeyCode
+        ))
     }
 }

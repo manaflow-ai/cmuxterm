@@ -1,5 +1,6 @@
 @preconcurrency import Foundation
 import CryptoKit
+import OSLog
 
 /// Finds a cmux-owned headless-shell executable and optionally installs one.
 /// The Foundation file manager is thread-safe; keeping it private prevents
@@ -7,6 +8,10 @@ import CryptoKit
 /// SAFETY: the immutable `FileManager`, `URLSession`, storage resolver, and
 /// `@Sendable` providers are only used through Foundation's thread-safe APIs.
 struct ChromiumRuntimeArtifactStore: Sendable {
+    // URLSession's resource timeout is caller-configurable; this outer
+    // deadline also bounds sessions supplied by tests or the app composition.
+    private let downloadTimeout: Duration
+
     // FileManager is documented thread-safe. Keep the escape hatch on the
     // single immutable property used by filesystem operations.
     private nonisolated(unsafe) let fileManager: FileManager
@@ -18,9 +23,11 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         fileManager: FileManager,
         urlSession: URLSession,
         executableOverrideProvider: @escaping @Sendable () -> URL?,
-        storage: ChromiumOwnedStorage
+        storage: ChromiumOwnedStorage,
+        downloadTimeout: Duration = .seconds(120)
     ) {
-        self.fileManager = storage.fileManager
+        self.downloadTimeout = downloadTimeout
+        self.fileManager = fileManager
         self.urlSession = urlSession
         self.storage = storage
         self.executableOverrideProvider = executableOverrideProvider
@@ -64,10 +71,29 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         } catch {
             throw ChromiumRuntimeArtifactError.executableNotFound
         }
-        let (archiveURL, response) = try await urlSession.download(from: artifact.downloadURL)
-        defer { try? fileManager.removeItem(at: archiveURL) }
-        if let response = response as? HTTPURLResponse, !(200...299).contains(response.statusCode) {
-            throw ChromiumRuntimeArtifactError.downloadFailed("HTTP \(response.statusCode)")
+        let download = try await withThrowingTaskGroup(of: ChromiumRuntimeDownloadResult.self) { group in
+            group.addTask {
+                let (archiveURL, response) = try await urlSession.download(from: artifact.downloadURL)
+                return ChromiumRuntimeDownloadResult(archiveURL: archiveURL, response: response)
+            }
+            group.addTask { [downloadTimeout] in
+                // A CDN stall is a genuine operation deadline, not a state
+                // polling delay; cancellation stops the URLSession task.
+                try await ContinuousClock().sleep(for: downloadTimeout)
+                throw ChromiumRuntimeArtifactError.downloadFailed("timeout")
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw CancellationError()
+            }
+            return result
+        }
+        let archiveURL = download.archiveURL
+        let response = download.response
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw ChromiumRuntimeArtifactError.downloadFailed("HTTP \(status)")
         }
         if let expected = artifact.sha256?.lowercased(), !expected.isEmpty {
             let actual = Self.sha256(for: archiveURL)
@@ -107,7 +133,12 @@ struct ChromiumRuntimeArtifactStore: Sendable {
             .deletingLastPathComponent()
             .appendingPathComponent(".install-\(UUID().uuidString)", isDirectory: true)
         defer { try? fileManager.removeItem(at: installStaging) }
-        try fileManager.copyItem(at: extractedRoot, to: installStaging)
+        if extractedRoot.standardizedFileURL.path == staging.standardizedFileURL.path {
+            try? fileManager.removeItem(at: staging.appendingPathComponent(".archive-entries"))
+        }
+        try fileManager.moveItem(at: extractedRoot, to: installStaging)
+        let relativeExecutablePath = executable.path
+            .replacingOccurrences(of: extractedRoot.path + "/", with: "")
         if fileManager.fileExists(atPath: installDirectory.path) {
             if let existing = try? Self.findExecutable(in: installDirectory, fileManager: fileManager) {
                 return existing
@@ -126,9 +157,7 @@ struct ChromiumRuntimeArtifactStore: Sendable {
                 if let existing = try? Self.findExecutable(in: installDirectory, fileManager: fileManager) {
                     return existing
                 }
-                throw ChromiumRuntimeArtifactError.extractionFailed(
-                    "Could not quarantine incomplete runtime: \(error.localizedDescription)"
-                )
+                throw ChromiumRuntimeArtifactError.extractionFailed("quarantine failed")
             }
         }
         do {
@@ -140,12 +169,16 @@ struct ChromiumRuntimeArtifactStore: Sendable {
             if let existing = installedExecutable(for: artifact) {
                 return existing
             }
-            throw ChromiumRuntimeArtifactError.extractionFailed(error.localizedDescription)
+            throw ChromiumRuntimeArtifactError.extractionFailed("install failed")
         }
-        // Directory enumeration and standardized URLs can use different
-        // spellings of /var and /private/var. Resolve inside the installed
-        // tree rather than subtracting a textual prefix from an enumerated URL.
-        return try Self.findExecutable(in: installDirectory, fileManager: fileManager)
+        let installedExecutable = installDirectory.appendingPathComponent(
+            relativeExecutablePath,
+            isDirectory: false
+        )
+        guard fileManager.isExecutableFile(atPath: installedExecutable.path) else {
+            throw ChromiumRuntimeArtifactError.executableNotFound
+        }
+        return installedExecutable
     }
 
     /// Finds only the runtime revision and architecture described by the
@@ -162,7 +195,8 @@ struct ChromiumRuntimeArtifactStore: Sendable {
     /// Runs the system archive tool without blocking an executor thread on
     /// `waitUntilExit()`. The termination callback is the process readiness
     /// signal; stderr is drained after termination because `unzip -q` emits
-    /// only bounded diagnostics.
+    /// only bounded diagnostics. Raw diagnostics are retained for private
+    /// logging and never become part of the user-facing error.
     private func extractArchive(_ archiveURL: URL, into staging: URL) async throws {
         let unzip = Process()
         unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
@@ -171,30 +205,22 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         unzip.standardError = errorPipe
         unzip.standardOutput = FileHandle.nullDevice
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            let completion = ChromiumExtractionCompletion()
-            let finish: @Sendable (Result<Void, any Error>) -> Void = { result in
-                guard completion.claim() else { return }
-                continuation.resume(with: result)
+        let status: Int32
+        do {
+            status = try await runProcess(unzip)
+        } catch {
+            throw ChromiumRuntimeArtifactError.extractionFailed("unzip could not start")
+        }
+        let diagnostics = String(
+            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if status != 0 {
+            if let diagnostics, !diagnostics.isEmpty {
+                Logger(subsystem: "com.cmux.browser", category: "runtime")
+                    .error("Chromium archive extraction failed: \(diagnostics, privacy: .private(mask: .hash))")
             }
-            unzip.terminationHandler = { process in
-                guard process.terminationStatus == 0 else {
-                    let message = String(
-                        data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-                        encoding: .utf8
-                    ) ?? "unzip failed"
-                    finish(.failure(ChromiumRuntimeArtifactError.extractionFailed(
-                        message.trimmingCharacters(in: .whitespacesAndNewlines)
-                    )))
-                    return
-                }
-                finish(.success(()))
-            }
-            do {
-                try unzip.run()
-            } catch {
-                finish(.failure(ChromiumRuntimeArtifactError.extractionFailed(error.localizedDescription)))
-            }
+            throw ChromiumRuntimeArtifactError.extractionFailed("unzip failed")
         }
     }
 
@@ -220,7 +246,12 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         listing.arguments = ["-Z1", archiveURL.path]
         listing.standardOutput = listingHandle
         listing.standardError = FileHandle.nullDevice
-        let status = try await runProcess(listing)
+        let status: Int32
+        do {
+            status = try await runProcess(listing)
+        } catch {
+            throw ChromiumRuntimeArtifactError.invalidArchive
+        }
         guard status == 0 else {
             throw ChromiumRuntimeArtifactError.invalidArchive
         }
@@ -252,14 +283,17 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         }
     }
 
-    /// `unzip` can represent symbolic links in an archive. Rejecting them
-    /// after extraction keeps the managed runtime self-contained and prevents
-    /// a later resource lookup from traversing outside the staging directory.
+    /// `unzip` can represent symbolic links in an archive. The Chrome for
+    /// Testing app bundle relies on the standard macOS framework layout
+    /// (`Versions/Current` and friends), so symlinks are allowed — but only
+    /// when they resolve inside the staging directory. A link escaping the
+    /// tree would let a later resource lookup traverse outside the managed
+    /// runtime, so it still rejects the archive.
     private static func validateExtractedTree(
         _ staging: URL,
         fileManager: FileManager
     ) throws {
-        let root = staging.standardizedFileURL.path
+        let root = staging.standardizedFileURL.resolvingSymlinksInPath().path
         let enumerator = fileManager.enumerator(
             at: staging,
             includingPropertiesForKeys: [.isSymbolicLinkKey]
@@ -268,6 +302,13 @@ struct ChromiumRuntimeArtifactStore: Sendable {
             let candidatePath = candidate.standardizedFileURL.path
             guard candidatePath == root || candidatePath.hasPrefix(root + "/") else {
                 throw ChromiumRuntimeArtifactError.invalidArchive
+            }
+            let values = try candidate.resourceValues(forKeys: [.isSymbolicLinkKey])
+            if values.isSymbolicLink == true {
+                let destination = try fileManager.destinationOfSymbolicLink(atPath: candidate.path)
+                guard !destination.hasPrefix("/") else {
+                    throw ChromiumRuntimeArtifactError.invalidArchive
+                }
             }
             let resolvedPath = candidate.resolvingSymlinksInPath().standardizedFileURL.path
             guard resolvedPath == root || resolvedPath.hasPrefix(root + "/") else {
@@ -292,16 +333,35 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         }
     }
 
+    /// Executable names accepted inside a pinned runtime tree: the full
+    /// Chrome for Testing app-bundle binary, plus the plain `chrome` binary
+    /// used by flat layouts. `chrome-headless-shell` is deliberately absent:
+    /// an install left behind by a pre-extension build shares the same
+    /// version/platform directory, and refusing to find it here routes the
+    /// next launch through `install(_:)`, which quarantines the stale tree
+    /// and downloads the pinned full browser.
+    private static let executableNames: Set<String> = [
+        "Google Chrome for Testing",
+        "chrome",
+    ]
+
     private static func findExecutable(in root: URL, fileManager: FileManager) throws -> URL {
-        if (root.lastPathComponent == "chrome-headless-shell" || root.lastPathComponent == "chrome"),
+        if Self.executableNames.contains(root.lastPathComponent),
            fileManager.isExecutableFile(atPath: root.path) {
             return root
         }
         let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey])
         while let candidate = enumerator?.nextObject() as? URL {
-            if ["chrome-headless-shell", "chrome", "Google Chrome for Testing"].contains(candidate.lastPathComponent) {
-                if fileManager.isExecutableFile(atPath: candidate.path) { return candidate }
+            guard Self.executableNames.contains(candidate.lastPathComponent),
+                  fileManager.isExecutableFile(atPath: candidate.path) else { continue }
+            // The app bundle contains identically-prefixed helper binaries;
+            // only the browser binary lives directly under `Contents/MacOS`
+            // of the outer bundle or stands alone at the tree root.
+            if candidate.lastPathComponent == "Google Chrome for Testing" {
+                let parents = candidate.pathComponents.dropLast()
+                guard parents.suffix(2).elementsEqual(["Contents", "MacOS"]) else { continue }
             }
+            return candidate
         }
         throw ChromiumRuntimeArtifactError.executableNotFound
     }
@@ -329,6 +389,15 @@ struct ChromiumRuntimeArtifactStore: Sendable {
 
     private static func sha256(for url: URL) -> String {
         guard let bytes = try? Data(contentsOf: url, options: [.mappedIfSafe]) else { return "" }
-        return SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        return SHA256.hash(data: bytes)
+            .map { String($0, radix: 16).leftPadded(toLength: 2, with: "0") }
+            .joined()
+    }
+}
+
+private extension String {
+    func leftPadded(toLength length: Int, with character: Character) -> String {
+        guard count < length else { return self }
+        return String(repeating: character, count: length - count) + self
     }
 }

@@ -4,6 +4,8 @@ import SwiftUI
 /// Mounts the current Chromium host view into SwiftUI pane content.
 struct ChromiumBrowserHostRepresentable: NSViewRepresentable {
     let panel: BrowserPanel
+    let isVisibleInUI: Bool
+    let isCurrentPaneOwner: Bool
 
     func makeNSView(context: Context) -> NSView {
         let container = NSView(frame: .zero)
@@ -17,11 +19,14 @@ struct ChromiumBrowserHostRepresentable: NSViewRepresentable {
     }
 
     private func mountCurrentHost(in container: NSView) {
-        guard let host = panel.chromiumContentView as? ChromiumBrowserHostView else {
+        // Both Chromium engines host through this seam: the streamed
+        // ChromiumBrowserHostView and the CEF child-window anchor view.
+        guard let host = panel.chromiumContentView else {
             container.subviews.forEach { $0.removeFromSuperview() }
             return
         }
-        host.setAutomationViewport(panel.viewportModel.viewport)
+        (panel.browserEngineController.adapter as? (any ChromiumEngineAdapting))?
+            .setPaneVisible(isVisibleInUI && isCurrentPaneOwner)
         guard host.superview !== container else {
             host.frame = container.bounds
             return

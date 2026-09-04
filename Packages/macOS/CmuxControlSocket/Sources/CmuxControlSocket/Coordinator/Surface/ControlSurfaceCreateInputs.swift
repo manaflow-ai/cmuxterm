@@ -1,5 +1,5 @@
 public import Foundation
-public import CmuxFoundation
+public import CmuxBrowser
 
 /// The pre-parsed inputs for `surface.create`, lifted from the legacy
 /// `v2SurfaceCreate` body's param parsing.

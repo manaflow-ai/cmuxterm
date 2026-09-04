@@ -22,6 +22,19 @@ struct ChromiumLaunchArguments: Equatable, Sendable {
             "--user-data-dir=\(configuration.profileDirectory.standardizedFileURL.path)",
         ]
 
+        // Unpacked extensions are validated by the settings store; the flag
+        // value is comma-separated, so paths containing commas were already
+        // filtered out. `--disable-extensions-except` keeps the allowlist
+        // exact: only the configured directories can ever load.
+        let extensionPaths = configuration.extensionDirectories
+            .map { $0.standardizedFileURL.path }
+            .filter { !$0.contains(",") }
+        if !extensionPaths.isEmpty {
+            let joined = extensionPaths.joined(separator: ",")
+            arguments.append("--disable-extensions-except=\(joined)")
+            arguments.append("--load-extension=\(joined)")
+        }
+
         switch configuration.debuggingTransport {
         case .pipe:
             arguments.append("--remote-debugging-pipe")
@@ -42,28 +55,38 @@ struct ChromiumLaunchArguments: Equatable, Sendable {
         // debugging listener. Chromium accepts both `--flag=value` and
         // `--flag value`; consume the value in the latter form as well.
         let forbiddenValueFlags = [
-            "--user-data-dir",
-            "--remote-debugging-address",
-            "--remote-debugging-port",
-            "--remote-allow-origins",
+            "user-data-dir",
+            "remote-debugging-address",
+            "remote-debugging-port",
+            "remote-allow-origins",
         ]
-        let forbiddenSwitches = ["--remote-debugging-pipe"]
+        let forbiddenSwitches = ["remote-debugging-pipe"]
         var skipNextArgument = false
+        var optionsEnded = false
         for argument in configuration.additionalArguments {
             if skipNextArgument {
                 skipNextArgument = false
                 continue
             }
-            let normalized = argument.lowercased()
-            if forbiddenSwitches.contains(normalized) {
+            if argument == "--" {
+                optionsEnded = true
+                arguments.append(argument)
                 continue
             }
-            if forbiddenValueFlags.contains(normalized) {
-                skipNextArgument = true
+            guard !optionsEnded else {
+                arguments.append(argument)
                 continue
             }
-            if forbiddenValueFlags.contains(where: { normalized.hasPrefix("\($0)=") }) ||
-                forbiddenSwitches.contains(where: { normalized.hasPrefix("\($0)=") }) {
+            let equalsIndex = argument.firstIndex(of: "=")
+            let rawName = equalsIndex.map { argument[..<$0] } ?? Substring(argument)
+            let normalized = rawName.drop(while: { $0 == "-" }).lowercased()
+            if forbiddenSwitches.contains(String(normalized)) {
+                continue
+            }
+            if forbiddenValueFlags.contains(String(normalized)) {
+                if equalsIndex == nil {
+                    skipNextArgument = true
+                }
                 continue
             }
             arguments.append(argument)

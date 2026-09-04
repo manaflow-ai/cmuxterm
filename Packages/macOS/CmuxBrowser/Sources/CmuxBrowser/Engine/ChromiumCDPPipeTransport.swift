@@ -1,89 +1,221 @@
 import Darwin
 import Foundation
 
-/// Null-delimited CDP over inherited descriptors, with bounded buffering and
-/// cancellable kernel I/O that never parks a cooperative executor thread.
+/// Null-delimited CDP transport over Chromium's private inherited descriptors.
 actor ChromiumCDPPipeTransport: ChromiumCDPTransport {
-    private static let maximumMessageBytes = 32 * 1024 * 1024
-    private let input: ChromiumPipeIO
-    private let output: ChromiumPipeIO
+    private static let messageBufferCapacity = 512
+    private static let maximumMessageBytes = 100 * 1024 * 1024
+    private static let writeDeadline: Duration = .seconds(15)
+
+    private struct PendingWrite {
+        let data: Data
+        let continuation: CheckedContinuation<Void, any Error>
+    }
+
     private let messageStream: AsyncStream<Result<Data, CDPError>>
-    private let continuation: AsyncStream<Result<Data, CDPError>>.Continuation
-    private var reader: Task<Void, Never>?
-    private var closed = false
-    private var writesInFlight = 0
+    private let messageContinuation: AsyncStream<Result<Data, CDPError>>.Continuation
+    private let responseReadSource: ChromiumPipeReadSource
+    private let commandWriteQueue: DispatchQueue
+    private let commandWriteChannel: DispatchIO
+    private var pendingWrites: [PendingWrite] = []
+    private var activeWrite: PendingWrite?
+    private var activeWriteTimeoutTask: Task<Void, Never>?
+    private var isClosed = false
+    private var commandWriteChannelIsClosed = false
 
     init(commandDescriptor: Int32, responseDescriptor: Int32) throws {
-        guard fcntl(commandDescriptor, F_SETNOSIGPIPE, 1) == 0 else {
-            let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        guard Darwin.fcntl(commandDescriptor, F_SETNOSIGPIPE, 1) == 0 else {
+            let error = Self.posixError(errno)
             Darwin.close(commandDescriptor)
             Darwin.close(responseDescriptor)
             throw error
         }
-        input = ChromiumPipeIO(descriptor: commandDescriptor)
-        output = ChromiumPipeIO(descriptor: responseDescriptor)
-        let pair = AsyncStream<Result<Data, CDPError>>.makeStream(bufferingPolicy: .bufferingOldest(64))
-        messageStream = pair.stream
-        continuation = pair.continuation
-    }
+        let commandFlags = Darwin.fcntl(commandDescriptor, F_GETFL)
+        guard commandFlags >= 0,
+              Darwin.fcntl(commandDescriptor, F_SETFL, commandFlags | O_NONBLOCK) == 0 else {
+            let error = Self.posixError(errno)
+            Darwin.close(commandDescriptor)
+            Darwin.close(responseDescriptor)
+            throw error
+        }
+        let pair = AsyncStream<Result<Data, CDPError>>.makeStream(
+            bufferingPolicy: .bufferingOldest(Self.messageBufferCapacity)
+        )
+        self.messageStream = pair.stream
+        self.messageContinuation = pair.continuation
+        let writeQueue = DispatchQueue(label: "com.cmux.chromium.cdp-pipe-writer", qos: .userInitiated)
+        self.commandWriteQueue = writeQueue
+        self.commandWriteChannel = DispatchIO(
+            type: .stream,
+            fileDescriptor: commandDescriptor,
+            queue: writeQueue
+        ) { _ in
+            Darwin.close(commandDescriptor)
+        }
 
-    deinit {
-        reader?.cancel()
-        input.close()
-        output.close()
-        continuation.finish()
-    }
-
-    func connect() {
-        guard reader == nil, !closed else { return }
-        let chunks = output.chunks()
-        let continuation = continuation
-        reader = Task { [weak self] in
-            var pending = Data()
-            do {
-                for try await chunk in chunks {
-                    try Task.checkCancellation()
-                    pending.append(chunk)
-                    while let delimiter = pending.firstIndex(of: 0) {
-                        guard pending.distance(from: pending.startIndex, to: delimiter) <= Self.maximumMessageBytes else {
-                            throw CDPError.malformedMessage
-                        }
-                        if case .dropped = continuation.yield(.success(Data(pending[..<delimiter]))) {
-                            throw CDPError.malformedMessage
-                        }
-                        pending.removeSubrange(...delimiter)
+        let readBuffer = ChromiumPipeReadBuffer(
+            delimiter: 0,
+            maximumPendingBytes: Self.maximumMessageBytes
+        )
+        do {
+            self.responseReadSource = try ChromiumPipeReadSource(
+                descriptor: responseDescriptor,
+                label: "com.cmux.chromium.cdp-pipe-reader"
+            ) {
+                readBuffer.read(
+                    from: responseDescriptor,
+                    onMessage: { message in
+                    guard case .enqueued = pair.continuation.yield(.success(message)) else {
+                        _ = pair.continuation.yield(
+                            .failure(.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message))
+                        )
+                        pair.continuation.finish()
+                        return
                     }
-                    guard pending.count <= Self.maximumMessageBytes else { throw CDPError.malformedMessage }
-                }
-                if !pending.isEmpty { throw CDPError.malformedMessage }
-            } catch {
-                continuation.yield(.failure(.disconnected(error.localizedDescription)))
+                    },
+                    onEnd: { hasPartialMessage, errorCode in
+                        if hasPartialMessage {
+                            pair.continuation.yield(.failure(.malformedMessage))
+                        } else if let errorCode {
+                            pair.continuation.yield(.failure(Self.posixError(errorCode)))
+                        }
+                        pair.continuation.finish()
+                    }
+                )
             }
-            continuation.finish()
-            await self?.close()
+        } catch {
+            commandWriteChannel.close(flags: .stop)
+            throw error
         }
     }
 
-    nonisolated func messages() -> AsyncStream<Result<Data, CDPError>> { messageStream }
+    deinit {
+        activeWriteTimeoutTask?.cancel()
+        responseReadSource.cancel()
+        commandWriteChannel.close(flags: .stop)
+        messageContinuation.finish()
+    }
+
+    func connect() {}
+
+    nonisolated func messages() -> AsyncStream<Result<Data, CDPError>> {
+        messageStream
+    }
 
     func send(_ data: Data) async throws {
-        guard !closed else { throw CDPError.notConnected }
-        guard data.count <= Self.maximumMessageBytes else { throw CDPError.malformedMessage }
-        guard writesInFlight < 128 else { throw CDPError.commandFailed(ChromiumBrowserDiagnostic.commandQueueFull.message) }
-        writesInFlight += 1
-        defer { writesInFlight -= 1 }
+        guard !isClosed else { throw CDPError.notConnected }
         var framed = data
         framed.append(0)
-        try await input.write(framed)
+        try await withCheckedThrowingContinuation { continuation in
+            pendingWrites.append(PendingWrite(data: framed, continuation: continuation))
+            beginNextWriteIfNeeded()
+        }
     }
 
     func close() {
-        guard !closed else { return }
-        closed = true
-        reader?.cancel()
-        reader = nil
-        input.close()
-        output.close()
-        continuation.finish()
+        guard !isClosed else { return }
+        isClosed = true
+        activeWriteTimeoutTask?.cancel()
+        activeWriteTimeoutTask = nil
+        if let activeWrite {
+            self.activeWrite = nil
+            activeWrite.continuation.resume(
+                throwing: CDPError.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message)
+            )
+        }
+        responseReadSource.cancel()
+        let queued = pendingWrites
+        pendingWrites.removeAll()
+        for write in queued {
+            write.continuation.resume(
+                throwing: CDPError.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message)
+            )
+        }
+        closeCommandDescriptorIfIdle()
+        messageContinuation.finish()
+    }
+
+    private func beginNextWriteIfNeeded() {
+        guard activeWrite == nil, !pendingWrites.isEmpty else {
+            closeCommandDescriptorIfIdle()
+            return
+        }
+        let write = pendingWrites.removeFirst()
+        activeWrite = write
+        activeWriteTimeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: Self.writeDeadline)
+            } catch {
+                return
+            }
+            await self?.activeWriteTimedOut()
+        }
+        let dispatchData = write.data.withUnsafeBytes { bytes in
+            DispatchData(bytes: bytes)
+        }
+        commandWriteChannel.write(
+            offset: 0,
+            data: dispatchData,
+            queue: commandWriteQueue
+        ) { [weak self] done, _, errorCode in
+            guard done || errorCode != 0 else { return }
+            let result: Result<Void, CDPError>
+            if errorCode == 0 {
+                result = .success(())
+            } else {
+                result = .failure(Self.posixError(errorCode))
+            }
+            Task { @Sendable [weak self, result] in
+                await self?.writeFinished(result)
+            }
+        }
+    }
+
+    private func writeFinished(_ result: Result<Void, CDPError>) {
+        guard let write = activeWrite else { return }
+        activeWrite = nil
+        activeWriteTimeoutTask?.cancel()
+        activeWriteTimeoutTask = nil
+        write.continuation.resume(with: result)
+        if case .failure = result, !isClosed {
+            isClosed = true
+            let queued = pendingWrites
+            pendingWrites.removeAll()
+            for pendingWrite in queued {
+                pendingWrite.continuation.resume(
+                    throwing: CDPError.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message)
+                )
+            }
+        }
+        closeCommandDescriptorIfIdle()
+        beginNextWriteIfNeeded()
+    }
+
+    private func activeWriteTimedOut() {
+        guard let write = activeWrite else { return }
+        activeWrite = nil
+        activeWriteTimeoutTask = nil
+        isClosed = true
+        write.continuation.resume(throwing: ChromiumBrowserDiagnostic.commandTimedOut)
+        let queued = pendingWrites
+        pendingWrites.removeAll()
+        for pendingWrite in queued {
+            pendingWrite.continuation.resume(
+                throwing: CDPError.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message)
+            )
+        }
+        commandWriteChannelIsClosed = true
+        commandWriteChannel.close(flags: .stop)
+        messageContinuation.finish()
+    }
+
+    private func closeCommandDescriptorIfIdle() {
+        guard isClosed, activeWrite == nil, !commandWriteChannelIsClosed else { return }
+        commandWriteChannelIsClosed = true
+        commandWriteChannel.close(flags: .stop)
+    }
+
+    private static func posixError(_ code: Int32) -> CDPError {
+        .disconnected(NSError(domain: NSPOSIXErrorDomain, code: Int(code)).localizedDescription)
     }
 }

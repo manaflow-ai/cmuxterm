@@ -1,5 +1,6 @@
 import Foundation
 import CMUXAgentLaunch
+import CmuxBrowser
 import CmuxAgentJournal
 import CmuxFoundation
 import CmuxSettings
@@ -4863,6 +4864,67 @@ struct CMUXCLI {
         normalizedEnvValue(environment["CMUX_BUNDLE_ID"])
         ?? containingAppBundleIdentifier()
         ?? defaultBrowserSettingsDomain
+    }
+
+    // Presentation flags are global, but command option values can also look like flags.
+    private static let commandOptionsWithValues: Set<String> = [
+        "--action", "--after-workspace", "--agent", "--amount", "--arch",
+        "--attr", "--before-workspace", "--body", "--color", "--command",
+        "--config", "--cwd", "--description", "--direction", "--domain",
+        "--dx", "--dy", "--email", "--event", "--expires", "--focus",
+        "--function", "--id", "--image", "--index", "--key", "--kind",
+        "--label", "--layout", "--lines", "--load-state", "--max-depth", "--name", "--os",
+        "--order", "--out", "--pane", "--panel", "--path", "--profile", "--property",
+        "--provider", "--relay-port", "--script", "--selector", "--session",
+        "--shell", "--source", "--subtitle", "--surface", "--tab", "--target-pane", "--team",
+        "--text", "--timeout", "--timeout-ms", "--title", "--transcript",
+        "--turn", "--type", "--url", "--url-contains", "--value", "--window",
+        "--workspace", "--engine", "--checkpoint", "--checkpoint-id",
+    ]
+
+    private func parsePresentationOptions(
+        _ commandArgs: [String]
+    ) throws -> (jsonOutput: Bool, idFormat: String?, remaining: [String]) {
+        var jsonOutput = false
+        var idFormat: String?
+        var remaining: [String] = []
+        var index = 0
+        var pastTerminator = false
+        while index < commandArgs.count {
+            let arg = commandArgs[index]
+            if pastTerminator {
+                remaining.append(arg)
+                index += 1
+                continue
+            }
+            if arg == "--" {
+                pastTerminator = true
+                remaining.append(arg)
+                index += 1
+                continue
+            }
+            if arg == "--json" {
+                jsonOutput = true
+                index += 1
+                continue
+            }
+            if arg == "--id-format" {
+                guard index + 1 < commandArgs.count else {
+                    throw CLIError(message: "--id-format requires a value (refs|uuids|both)")
+                }
+                idFormat = commandArgs[index + 1]
+                index += 2
+                continue
+            }
+            remaining.append(arg)
+            if Self.commandOptionsWithValues.contains(arg), index + 1 < commandArgs.count {
+                remaining.append(commandArgs[index + 1])
+                index += 2
+                continue
+            }
+            index += 1
+        }
+        return (jsonOutput, idFormat, remaining)
     }
 
     private func runBrowserAvailabilityCommand(
@@ -41243,7 +41305,7 @@ export default CMUXSessionRestore;
           \(restoreCommandUsageLine)
           restore-session
           \(String(localized: "cli.sessions.command", defaultValue: "sessions [list] [options]"))
-          open <path-or-url>... [--workspace <id|ref|index>] [--surface <id|ref|index>] [--pane <id|ref|index>] [--window <id|ref|index>] [--focus <true|false>] [--no-focus]
+          open <path-or-url>... \(String(localized: "cli.browser.engine.option", defaultValue: "[--engine <webkit|chromium>]")) [--workspace <id|ref|index>] [--surface <id|ref|index>] [--pane <id|ref|index>] [--window <id|ref|index>] [--focus <true|false>] [--no-focus]
           diff [patch-file|-] [--source <unstaged|staged|branch|last-turn>] [--unstaged|--staged|--branch|--last-turn] [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--cwd <path>] [--base <ref>] [--focus <true|false>] [--no-focus] [--title <text>] [--layout <split|unified>] [--font-size <points>]
           feedback [--email <email> --body <text> [--image <path> ...]]
           feed tui|clear

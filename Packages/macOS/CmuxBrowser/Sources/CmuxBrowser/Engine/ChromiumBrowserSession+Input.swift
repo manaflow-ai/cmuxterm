@@ -29,15 +29,6 @@ extension ChromiumBrowserSession {
                 "height": .number(Double(max(1, height))),
                 "deviceScaleFactor": .number(max(0.1, deviceScaleFactor)),
                 "mobile": .bool(false),
-                // CSS metrics alone leave Chrome's screencast at its native
-                // window size. Override the visible surface as well, so frame
-                // pixels and DOM/input coordinates describe the same viewport.
-                "viewport": .object([
-                    "x": .number(0), "y": .number(0),
-                    "width": .number(Double(max(1, width))),
-                    "height": .number(Double(max(1, height))),
-                    "scale": .number(1),
-                ]),
             ])
         )
     }
@@ -94,7 +85,6 @@ extension ChromiumBrowserSession {
     ///   - clickCount: Click count for press/release events.
     ///   - deltaX: Horizontal wheel delta.
     ///   - deltaY: Vertical wheel delta.
-    ///   - modifiers: CDP modifier bitmask (Alt, Control, Meta, Shift).
     /// - Throws: A CDP transport or command error.
     public func dispatchMouse(
         type: String,
@@ -103,19 +93,15 @@ extension ChromiumBrowserSession {
         button: String = "none",
         clickCount: Int = 1,
         deltaX: Double = 0,
-        deltaY: Double = 0,
-        modifiers: Int = 0
+        deltaY: Double = 0
     ) async throws {
         var values: [String: CDPValue] = [
             "type": .string(type),
             "x": .number(x),
             "y": .number(y),
             "button": .string(button),
-            "clickCount": .number(Double(max(0, clickCount))),
-            "modifiers": .number(Double(modifiers & 15)),
+            "clickCount": .number(Double(max(1, clickCount))),
         ]
-        let pressedButtons = ["left": 1, "right": 2, "middle": 4]
-        values["buttons"] = .number(Double(type == "mouseReleased" ? 0 : (pressedButtons[button] ?? 0)))
         if type == "mouseWheel" {
             values["deltaX"] = .number(deltaX)
             values["deltaY"] = .number(deltaY)
@@ -145,20 +131,23 @@ extension ChromiumBrowserSession {
     ///   - code: DOM physical-key code.
     ///   - text: Optional text produced by a key-down event.
     ///   - modifiers: CDP modifier bitmask.
+    ///   - windowsVirtualKeyCode: Chromium virtual key code used for legacy
+    ///     `KeyboardEvent.keyCode` and `which` values.
     /// - Throws: A CDP transport or command error.
     public func dispatchKey(
         type: String,
         key: String,
         code: String,
         text: String? = nil,
-        modifiers: Int = 0
+        modifiers: Int = 0,
+        windowsVirtualKeyCode: Int = 0
     ) async throws {
         var parameters: [String: CDPValue] = [
             "type": .string(type),
             "key": .string(key),
             "code": .string(code),
-            "modifiers": .number(Double(modifiers & 15)),
-            "windowsVirtualKeyCode": .number(Double(ChromiumVirtualKey(code: code).value)),
+            "modifiers": .number(Double(max(0, modifiers))),
+            "windowsVirtualKeyCode": .number(Double(max(0, windowsVirtualKeyCode))),
         ]
         if let text {
             parameters["text"] = .string(text)

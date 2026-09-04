@@ -1054,12 +1054,6 @@ struct BrowserPanelView: View {
         // container. Rendering it here can hide it behind the portal-hosted WKWebView.
         VStack(spacing: 0) {
             omnibarHeaderView
-            if let message = panel.chromiumFailureMessage {
-                Text(message).font(.caption).foregroundStyle(.secondary)
-                    .textSelection(.enabled).padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("ChromiumRuntimeError")
-            }
             webView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1850,7 +1844,11 @@ struct BrowserPanelView: View {
             if panel.shouldRenderWebView {
                 Group {
                     if panel.isChromiumBacked {
-                        ChromiumBrowserHostRepresentable(panel: panel)
+                        ChromiumBrowserHostRepresentable(
+                            panel: panel,
+                            isVisibleInUI: isVisibleInUI,
+                            isCurrentPaneOwner: isCurrentPaneOwner
+                        )
                             .accessibilityIdentifier("BrowserChromiumSurface")
                     } else {
                         WebViewRepresentable(
@@ -2021,7 +2019,7 @@ struct BrowserPanelView: View {
         if AppDelegate.shared?.focusedBrowserAddressBarPanelId() == panel.id {
             return true
         }
-        let fieldWindow = (panel.isChromiumBacked ? panel.chromiumContentView?.window : panel.webView.window)
+        let fieldWindow = panel.browserChromeWindow
             ?? NSApp.keyWindow ?? NSApp.mainWindow
         if let field = browserOmnibarField(panelId: panel.id, in: fieldWindow),
            field.currentEditor() != nil {
@@ -2094,14 +2092,14 @@ struct BrowserPanelView: View {
         // Navigation-triggered omnibar blur can still be unwinding when Cmd+F opens
         // the browser find bar. Once find is visible, any delayed omnibar-exit
         // handoff must not reclaim first responder for WebKit.
-        (panel.isChromiumBacked ? panel.chromiumContentView?.window === window : panel.webView.window === window) &&
+        panel.browserChromeWindow === window &&
             isPanelFocusedInModel() &&
             panel.searchState == nil
     }
 
 #if DEBUG
     private func browserFocusWindow() -> NSWindow? {
-        (panel.isChromiumBacked ? panel.chromiumContentView?.window : panel.webView.window)
+        panel.browserContentWindow
             ?? NSApp.keyWindow ?? NSApp.mainWindow
     }
 
@@ -2145,7 +2143,7 @@ struct BrowserPanelView: View {
     private func isCommandPaletteVisibleForPanelWindow() -> Bool {
         guard let app = AppDelegate.shared else { return false }
 
-        let contentWindow = (panel.isChromiumBacked ? panel.chromiumContentView?.window : panel.webView.window)
+        let contentWindow = panel.browserChromeWindow
         if let window = contentWindow, app.isCommandPaletteVisible(for: window) {
             return true
         }
@@ -2168,7 +2166,7 @@ struct BrowserPanelView: View {
 
     private func commandPaletteVisibilityNotificationMatchesPanelWindow(_ notification: Notification) -> Bool {
         if let notificationWindow = notification.object as? NSWindow,
-           (panel.isChromiumBacked ? panel.chromiumContentView?.window : panel.webView.window) === notificationWindow {
+           panel.browserChromeWindow === notificationWindow {
             return true
         }
 
@@ -2397,7 +2395,8 @@ struct BrowserPanelView: View {
         isBrowserImportHintPopoverPresented = false
         DispatchQueue.main.async {
             BrowserDataImportCoordinator.shared.presentImportDialog(
-                defaultDestinationProfileID: panel.profileID
+                defaultDestinationProfileID: panel.profileID,
+                defaultDestinationEngine: panel.engineKind
             )
         }
     }
@@ -2406,7 +2405,8 @@ struct BrowserPanelView: View {
         isBrowserProfileMenuPresented = false
         DispatchQueue.main.async {
             BrowserDataImportCoordinator.shared.presentImportDialog(
-                defaultDestinationProfileID: panel.profileID
+                defaultDestinationProfileID: panel.profileID,
+                defaultDestinationEngine: panel.engineKind
             )
         }
     }
@@ -2981,7 +2981,14 @@ struct BrowserPanelView: View {
             if panel.isChromiumBacked {
                 setAddressBarFocused(false, reason: "effects.blurToChromium")
                 Task { @MainActor [panel] in
-                    _ = panel.requestExplicitWebViewFocus()
+                    // This handoff is deferred until after the omnibar resigns
+                    // first responder. Re-check the panel and find-bar state
+                    // so a stale task cannot steal focus after a pane switch or
+                    // while browser find is presented.
+                    if let window = panel.browserChromeWindow,
+                       shouldApplyAddressBarExitFallback(in: window) {
+                        _ = panel.requestExplicitWebViewFocus()
+                    }
                     NotificationCenter.default.post(name: .browserDidExitAddressBar, object: panel.id)
                 }
                 return

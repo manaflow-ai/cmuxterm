@@ -71,6 +71,7 @@ struct SettingsRowAnchorResolutionTests {
         "computerUse.showInMenuBar",
         "browser.defaultSearchEngine",
         "browser.defaultEngine",
+        "browser.chromiumExtensionDirectories",
         "browser.remoteDebuggingPort",
         "browser.discardHiddenWebViews",
         "browser.hiddenWebViewDiscardDelaySeconds",

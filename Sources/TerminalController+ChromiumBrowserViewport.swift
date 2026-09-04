@@ -40,7 +40,8 @@ extension TerminalController {
         var workspaceID: UUID?
         var surfaceID: UUID?
         var isChromium = false
-        _ = v2MainSync {
+        var isChromiumIsolationPending = false
+        v2MainSync {
             guard let tabManager = v2ResolveTabManager(params: params),
                   let context = v2ResolveBrowserPanelContext(
                     params: params,
@@ -52,9 +53,19 @@ extension TerminalController {
             workspaceID = context.workspaceId
             surfaceID = context.surfaceId
             isChromium = context.browserPanel.isChromiumBacked
+            isChromiumIsolationPending = context.browserPanel.isChromiumIsolationPendingForAutomation
+        }
+        if isChromium,
+           isChromiumIsolationPending {
+            return .err(
+                code: "not_connected",
+                message: ChromiumBrowserDiagnostic.connectionClosed.message,
+                data: nil
+            )
         }
         guard isChromium,
               let resolvedPanel,
+              !isChromiumIsolationPending,
               let workspaceID,
               let surfaceID else {
             return v2MainSync {
@@ -75,21 +86,29 @@ extension TerminalController {
             width: targetWidth,
             height: targetHeight
         ) {
-            return .err(code: "timeout", message: error.localizedDescription, data: nil)
+            return .err(
+                code: "timeout",
+                message: v2ChromiumFailureMessage(operation: "viewport", error: error),
+                data: nil
+            )
         }
 
-        let layout = BrowserViewportLayout(
+        guard let layout = BrowserViewportLayout(
             containerBounds: CGRect(origin: .zero, size: nativeSize),
             viewport: requestedViewport,
             pageZoom: 1
-        ) ?? BrowserViewportLayout(
-            containerBounds: CGRect(origin: .zero, size: nativeSize),
-            viewport: nil,
-            pageZoom: 1
-        )!
-        v2MainSync {
+        ) else {
+            return .err(
+                code: "internal_error",
+                message: String(
+                    localized: "browser.viewport.error.layoutUnavailable",
+                    defaultValue: "Browser viewport layout is unavailable"
+                ),
+                data: nil
+            )
+        }
+        _ = v2MainSync {
             resolvedPanel.viewportModel.setViewport(requestedViewport)
-            (resolvedPanel.chromiumContentView as? ChromiumBrowserHostView)?.setAutomationViewport(requestedViewport)
         }
         return .ok([
             "workspace_id": workspaceID.uuidString,

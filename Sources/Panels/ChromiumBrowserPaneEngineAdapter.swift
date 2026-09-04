@@ -12,8 +12,9 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
     private var startupTask: Task<Void, Never>?
     /// The signal-driven shutdown of the previous child. A replacement waits
     /// on this task before opening a profile that may still be locked.
-    private var stopTask: Task<Void, Never>?
-    private let startPrerequisite: Task<Void, Never>?
+    private var stopTask: Task<Bool, Never>?
+    private let startPrerequisite: Task<Bool, Never>?
+    private let navigationPolicyHandler: BrowserEngineNavigationPolicyHandler?
     private var hasStarted = false
     private var initScriptSources: [String] = []
     private var styleScriptSources: [String] = []
@@ -25,6 +26,8 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
     private var styleScriptIdentifiers: [String: String] = [:]
     private var documentScriptGeneration: UInt64 = 0
     private var emulatedColorScheme: String?
+    private var documentScriptRemovalTask: Task<Void, Never>?
+    private var colorSchemeTask: Task<Void, Never>?
     private(set) var remoteDebuggingEndpoint: BrowserCDPEndpoint?
 
     var contentView: NSView? { hostView }
@@ -40,18 +43,20 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         remoteDebuggingPort: ChromiumRemoteDebuggingPort,
         environment: ChromiumBrowserRuntimeEnvironment,
         documentScripts: [(source: String, isStyle: Bool)] = [],
-        startPrerequisite: Task<Void, Never>? = nil
+        startPrerequisite: Task<Bool, Never>? = nil,
+        navigationPolicyHandler: BrowserEngineNavigationPolicyHandler? = nil
     ) {
         let session = ChromiumBrowserSession(
             profileID: profileID,
             storageID: storageID,
             remoteDebuggingPort: remoteDebuggingPort,
             environment: environment,
-            extensionDirectories: BrowserEngineSettingsStore(defaults: .standard).extensionDirectories()
+            navigationPolicyHandler: navigationPolicyHandler
         )
         self.session = session
         self.hostView = ChromiumBrowserHostView(session: session)
         self.startPrerequisite = startPrerequisite
+        self.navigationPolicyHandler = navigationPolicyHandler
         initScriptSources = documentScripts.filter { !$0.isStyle }.map(\.source)
         styleScriptSources = documentScripts.filter(\.isStyle).map(\.source)
         hostView.onSnapshot = { [weak self] snapshot in
@@ -70,8 +75,8 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
 
     deinit {
         startupTask?.cancel()
-        let session = self.session
-        Task { await session.stopAndWait() }
+        documentScriptRemovalTask?.cancel()
+        colorSchemeTask?.cancel()
     }
 
     func start(initialURL: URL?) {
@@ -81,14 +86,16 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         let pendingStop = stopTask
         stopTask = nil
         hostView.start()
-        startupTask = Task { [weak self] in
+        let startPrerequisite = self.startPrerequisite
+        startupTask = Task { [weak self, startPrerequisite] in
             guard let self else { return }
             do {
-                if let startPrerequisite {
-                    await startPrerequisite.value
+                if let startPrerequisite,
+                   !(await startPrerequisite.value) {
+                    throw CDPError.disconnected(ChromiumBrowserDiagnostic.connectionClosed.message)
                 }
                 if let pendingStop {
-                    await pendingStop.value
+                    _ = await pendingStop.value
                 }
                 try Task.checkCancellation()
                 try await session.start()
@@ -99,10 +106,17 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
                 }
             } catch {
                 guard !(error is CancellationError) else { return }
+                // `session.start()` can succeed before document-script,
+                // emulation, or the first navigation bootstrap fails.  Stop
+                // both sides of the adapter here: otherwise the host tasks
+                // keep consuming frames and the child retains its profile
+                // lock while the pane reports a startup failure.
+                hostView.stop()
+                _ = await session.stopAndWait()
                 hasStarted = false
                 remoteDebuggingEndpoint = nil
                 let snapshot = ChromiumSessionSnapshot(
-                    state: .failed(error.localizedDescription)
+                    state: .failed(ChromiumBrowserDiagnostic.startupFailed.message)
                 )
                 await MainActor.run { [weak self] in
                     self?.onSnapshot?(snapshot)
@@ -118,9 +132,13 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
     /// Begins signal-driven shutdown and returns a task that completes only
     /// after the child process has actually exited.
     @discardableResult
-    func beginStop() -> Task<Void, Never> {
+    func beginStop() -> Task<Bool, Never> {
         startupTask?.cancel()
         startupTask = nil
+        documentScriptRemovalTask?.cancel()
+        documentScriptRemovalTask = nil
+        colorSchemeTask?.cancel()
+        colorSchemeTask = nil
         hostView.stop()
         if let stopTask {
             remoteDebuggingEndpoint = nil
@@ -136,9 +154,10 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         return task
     }
 
-    func stopAndWait() async {
+    @discardableResult
+    func stopAndWait() async -> Bool {
         let task = beginStop()
-        await task.value
+        return await task.value
     }
 
     func navigate(to url: URL) async throws {
@@ -161,6 +180,11 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         try await session.reload()
     }
 
+    func hardReload() async throws {
+        await startupTask?.value
+        try await session.hardReload()
+    }
+
     func evaluateJavaScript(_ script: String, awaitPromise: Bool) async throws -> CDPValue {
         await startupTask?.value
         try await session.waitForDocumentReady()
@@ -177,8 +201,9 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
     /// page is navigated. The caller is responsible for evaluating style/code
     /// once in the current document when immediate application is required.
     func registerDocumentScript(_ source: String, isStyle: Bool) async throws -> Int {
+        guard hasStarted else { throw CDPError.notConnected }
         await startupTask?.value
-        try await session.start()
+        guard hasStarted else { throw CDPError.notConnected }
         if isStyle, let existing = styleScriptSources.firstIndex(of: source) {
             return existing + 1
         }
@@ -223,7 +248,8 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         // the protocol removals asynchronously. Errors are intentionally
         // ignored: a stopped/replaced target has already discarded its hooks.
         let session = self.session
-        Task {
+        documentScriptRemovalTask?.cancel()
+        documentScriptRemovalTask = Task {
             for identifier in identifiers {
                 _ = try? await session.sendCommand(
                     method: "Page.removeScriptToEvaluateOnNewDocument",
@@ -233,12 +259,34 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
         }
     }
 
+    func removeDocumentScript(_ source: String, isStyle: Bool) {
+        documentScriptGeneration &+= 1
+        let identifier: String?
+        if isStyle {
+            styleScriptSources.removeAll { $0 == source }
+            identifier = styleScriptIdentifiers.removeValue(forKey: source)
+        } else {
+            initScriptSources.removeAll { $0 == source }
+            identifier = initScriptIdentifiers.removeValue(forKey: source)
+        }
+        guard let identifier else { return }
+        documentScriptRemovalTask?.cancel()
+        let session = self.session
+        documentScriptRemovalTask = Task {
+            _ = try? await session.sendCommand(
+                method: "Page.removeScriptToEvaluateOnNewDocument",
+                parameters: .object(["identifier": .string(identifier)])
+            )
+        }
+    }
+
     /// Applies the browser theme through CDP instead of mutating the inert
     /// compatibility WKWebView. `nil` clears Chromium's emulation and lets the
     /// managed runtime use its normal system preference.
     func setEmulatedColorScheme(_ scheme: String?) {
         emulatedColorScheme = scheme
-        Task { [weak self] in
+        colorSchemeTask?.cancel()
+        colorSchemeTask = Task { [weak self] in
             guard let self else { return }
             do {
                 await startupTask?.value

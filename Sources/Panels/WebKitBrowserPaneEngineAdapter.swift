@@ -11,6 +11,7 @@ final class WebKitBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
 
     var contentView: NSView? { webView }
     var remoteDebuggingEndpoint: BrowserCDPEndpoint? { nil }
+    var startupReadinessTask: Task<Void, Never>? { nil }
 
     init(webView: WKWebView) {
         self.webView = webView
@@ -38,6 +39,10 @@ final class WebKitBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
 
     func reload() async throws {
         webView.reload()
+    }
+
+    func hardReload() async throws {
+        webView.reloadFromOrigin()
     }
 
     func evaluateJavaScript(_ script: String, awaitPromise: Bool) async throws -> CDPValue {

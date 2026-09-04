@@ -1,5 +1,5 @@
 public import Foundation
-public import CmuxFoundation
+public import CmuxBrowser
 
 /// The pre-parsed inputs for `surface.split`, lifted from the legacy
 /// `v2SurfaceSplit` body's param parsing.

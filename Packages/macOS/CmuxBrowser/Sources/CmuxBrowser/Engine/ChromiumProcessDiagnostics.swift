@@ -7,11 +7,16 @@ import Darwin
 /// CDP server is bound. Consuming that process signal avoids startup polling,
 /// while continuing to drain the descriptor prevents child-process backpressure.
 struct ChromiumProcessDiagnostics: Sendable {
+    // SAFETY: this flag is confined to the diagnostics read-source queue.
+    private final class ReadinessState: @unchecked Sendable {
+        var published = false
+    }
+
     private static let readinessPrefix = "DevTools listening on "
     private static let maximumLineBytes = 64 * 1024
 
     private let readiness: AsyncStream<Result<Int, CDPError>>
-    private let input: ChromiumPipeIO
+    private let readSource: ChromiumPipeReadSource
 
     init(pipe: Pipe) throws {
         let descriptor = Darwin.dup(pipe.fileHandleForReading.fileDescriptor)
@@ -22,11 +27,45 @@ struct ChromiumProcessDiagnostics: Sendable {
             bufferingPolicy: .bufferingNewest(1)
         )
         readiness = pair.stream
-        let input = ChromiumPipeIO(descriptor: descriptor)
-        self.input = input
-        let chunks = input.chunks()
-        Task {
-            await Self.drain(chunks: chunks, readiness: pair.continuation)
+        let readBuffer = ChromiumPipeReadBuffer(
+            delimiter: 0x0A,
+            maximumPendingBytes: Self.maximumLineBytes
+        )
+        let state = ReadinessState()
+        do {
+            readSource = try ChromiumPipeReadSource(
+                descriptor: descriptor,
+                label: "com.cmux.chromium.diagnostics-reader"
+            ) {
+                let shouldContinue = readBuffer.read(
+                    from: descriptor,
+                    onMessage: { lineData in
+                        guard !state.published,
+                              let line = String(data: lineData, encoding: .utf8),
+                              let port = Self.port(from: line) else { return }
+                        state.published = true
+                        pair.continuation.yield(.success(port))
+                        pair.continuation.finish()
+                    },
+                    onEnd: { _, errorCode in
+                        guard !state.published else { return }
+                        let error: CDPError
+                        if let errorCode {
+                            error = .disconnected(Self.posixErrorDescription(errorCode))
+                        } else {
+                            error = .disconnected(ChromiumBrowserDiagnostic.endpointUnavailable.message)
+                        }
+                        pair.continuation.yield(.failure(error))
+                        pair.continuation.finish()
+                    }
+                )
+                // Readiness is a one-shot publication, but the descriptor must
+                // remain drained until Chromium exits so later diagnostics
+                // cannot fill stderr and block the child process.
+                return shouldContinue
+            }
+        } catch {
+            throw error
         }
     }
 
@@ -51,45 +90,6 @@ struct ChromiumProcessDiagnostics: Sendable {
             return nil
         }
         return port
-    }
-
-    private static func drain(
-        chunks: AsyncThrowingStream<Data, any Error>,
-        readiness: AsyncStream<Result<Int, CDPError>>.Continuation
-    ) async {
-        defer { readiness.finish() }
-        var pending = Data()
-        var publishedReadiness = false
-        do {
-            for try await chunk in chunks {
-                pending.append(chunk)
-                consumeLines(from: &pending) { line in
-                    guard !publishedReadiness, let port = port(from: line) else { return }
-                    publishedReadiness = true
-                    readiness.yield(.success(port))
-                    readiness.finish()
-                }
-                if pending.count > maximumLineBytes {
-                    pending.removeFirst(pending.count - maximumLineBytes)
-                }
-            }
-        } catch {
-            if !publishedReadiness {
-                readiness.yield(.failure(.disconnected(error.localizedDescription)))
-            }
-        }
-    }
-
-    private static func consumeLines(
-        from data: inout Data,
-        consume: (String) -> Void
-    ) {
-        while let newline = data.firstIndex(of: 0x0A) {
-            let lineData = Data(data[..<newline])
-            data.removeSubrange(...newline)
-            guard let line = String(data: lineData, encoding: .utf8) else { continue }
-            consume(line)
-        }
     }
 
     private static func posixErrorDescription(_ code: Int32) -> String {

@@ -2777,6 +2777,32 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 
     /// Subscriptions for panel updates (e.g., browser title changes)
     var panelSubscriptions: [UUID: AnyCancellable] = [:]
+    /// Chromium shutdowns that must complete before a recently closed pane's
+    /// persisted storage identity is reused during an immediate reopen.
+    private var pendingChromiumShutdownsByStorageID: [UUID: Task<Bool, Never>] = [:]
+    private var pendingChromiumShutdownTokensByStorageID: [UUID: UUID] = [:]
+
+    /// Retains a Chromium shutdown barrier for a closed-panel restore path.
+    func retainChromiumShutdownTask(_ task: Task<Bool, Never>, for storageID: UUID) {
+        let token = UUID()
+        pendingChromiumShutdownsByStorageID[storageID] = task
+        pendingChromiumShutdownTokensByStorageID[storageID] = token
+        Task { @MainActor [weak self, task, token] in
+            _ = await task.value
+            guard let self,
+                  self.pendingChromiumShutdownTokensByStorageID[storageID] == token else {
+                return
+            }
+            self.pendingChromiumShutdownsByStorageID.removeValue(forKey: storageID)
+            self.pendingChromiumShutdownTokensByStorageID.removeValue(forKey: storageID)
+        }
+    }
+
+    /// Consumes the barrier for an immediate same-storage reopen.
+    private func takeChromiumShutdownTask(for storageID: UUID) -> Task<Bool, Never>? {
+        pendingChromiumShutdownTokensByStorageID.removeValue(forKey: storageID)
+        return pendingChromiumShutdownsByStorageID.removeValue(forKey: storageID)
+    }
     private var agentSessionPanelCallbackIds: Set<UUID> = []
 
     /// Aggregate media-device activity across every browser pane in this
@@ -9615,6 +9641,13 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 
         guard let paneId = sourcePaneId else { return nil }
 
+        // A just-closed Chromium panel may still be releasing its profile
+        // lock. Carry that task into the replacement so startup waits for the
+        // exact old child instead of racing the reused storage identity.
+        let chromiumStartPrerequisite = chromiumStorageID.flatMap {
+            takeChromiumShutdownTask(for: $0)
+        }
+
         // Create browser panel
         let browserPanel = BrowserPanel(
             workspaceId: id,
@@ -9634,7 +9667,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             engine: engine,
             isRemoteWorkspace: isRemoteWorkspace,
             remoteWebsiteDataStoreIdentifier: isRemoteWorkspace && !bypassRemoteProxy ? id : nil,
-            websiteDataStore: websiteDataStore
+            websiteDataStore: websiteDataStore,
+            chromiumStartPrerequisite: chromiumStartPrerequisite
         )
         configureBrowserPanel(browserPanel)
         panels[browserPanel.id] = browserPanel
@@ -9662,6 +9696,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             removeSurfaceMapping(forSurfaceId: newTab.id)
             panels.removeValue(forKey: browserPanel.id)
             panelTitles.removeValue(forKey: browserPanel.id)
+            if let chromiumStorageID, let chromiumStartPrerequisite {
+                retainChromiumShutdownTask(chromiumStartPrerequisite, for: chromiumStorageID)
+            }
             return nil
         }
         applyInitialSplitDividerPosition(initialDividerPosition, sourcePaneId: paneId, newPaneId: newPaneId)
@@ -9740,6 +9777,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let previousFocusedPanelId = focusedPanelId
         let previousHostedView = focusedTerminalInputTarget()?.panel.hostedView
 
+        let chromiumStartPrerequisite = chromiumStorageID.flatMap {
+            takeChromiumShutdownTask(for: $0)
+        }
         let browserPanel = BrowserPanel(
             workspaceId: id,
             profileID: resolvedNewBrowserProfileID(
@@ -9759,7 +9799,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             engine: engine,
             isRemoteWorkspace: isRemoteWorkspace,
             remoteWebsiteDataStoreIdentifier: isRemoteWorkspace && !bypassRemoteProxy ? id : nil,
-            websiteDataStore: websiteDataStore
+            websiteDataStore: websiteDataStore,
+            chromiumStartPrerequisite: chromiumStartPrerequisite
         )
         configureBrowserPanel(browserPanel)
         panels[browserPanel.id] = browserPanel
@@ -9778,6 +9819,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         ) else {
             panels.removeValue(forKey: browserPanel.id)
             panelTitles.removeValue(forKey: browserPanel.id)
+            if let chromiumStorageID, let chromiumStartPrerequisite {
+                retainChromiumShutdownTask(chromiumStartPrerequisite, for: chromiumStorageID)
+            }
             return nil
         }
 

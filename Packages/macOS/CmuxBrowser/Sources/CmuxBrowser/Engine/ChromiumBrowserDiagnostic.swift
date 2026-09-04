@@ -5,8 +5,6 @@ public import Foundation
 /// The value is shared with app-side automation so every entry point reports
 /// the same diagnosis without exposing a namespace of unrelated strings.
 public enum ChromiumBrowserDiagnostic: Error, Equatable, Sendable {
-    /// The bounded command queue is full; retry after pending commands finish.
-    case commandQueueFull
     /// JavaScript evaluation completed without a value envelope.
     case noJavaScriptValue
     /// JavaScript evaluation exceeded the socket deadline.
@@ -27,6 +25,8 @@ public enum ChromiumBrowserDiagnostic: Error, Equatable, Sendable {
     case navigationTimedOut
     /// An operation ended without success or an explicit failure.
     case operationEnded
+    /// Chromium could not finish creating a usable browser session.
+    case startupFailed
     /// Chromium returned an invalid cookie payload.
     case malformedCookies
     /// A caller supplied a cookie that CDP cannot represent.
@@ -57,8 +57,6 @@ public enum ChromiumBrowserDiagnostic: Error, Equatable, Sendable {
     /// User-facing localized diagnostic text.
     public var message: String {
         switch self {
-        case .commandQueueFull:
-            return Self.localized("browser.chromium.cdp.queueFull", "Chromium is busy. Retry after pending commands finish.")
         case .noJavaScriptValue:
             return Self.localized("browser.chromium.automation.noJavaScriptValue", "Chromium returned no JavaScript value")
         case .javascriptTimedOut:
@@ -82,6 +80,8 @@ public enum ChromiumBrowserDiagnostic: Error, Equatable, Sendable {
             return Self.localized("browser.chromium.automation.navigationTimedOut", "Timed out waiting for Chromium navigation")
         case .operationEnded:
             return Self.localized("browser.chromium.automation.operationEnded", "Chromium operation ended without a result")
+        case .startupFailed:
+            return Self.localized("browser.chromium.automation.startupFailed", "Chromium could not start")
         case .malformedCookies:
             return Self.localized("browser.chromium.automation.malformedCookies", "Chromium returned malformed cookies")
         case .invalidCookiePayload:

@@ -1,5 +1,5 @@
 import Foundation
-import CmuxFoundation
+import CmuxBrowser
 
 extension CMUXCLI {
     /// Removes the browser-pane engine option from CLI arguments and validates

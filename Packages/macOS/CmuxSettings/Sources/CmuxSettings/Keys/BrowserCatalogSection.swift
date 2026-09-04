@@ -2,16 +2,17 @@ import Foundation
 
 /// Settings under the dotted-id prefix `browser.*`.
 public struct BrowserCatalogSection: SettingCatalogSection {
-    public let extensionDirectories = DefaultsKey<[String]>(
-        id: "browser.extensionDirectories", defaultValue: [],
-        userDefaultsKey: "browser.extensionDirectories"
-    )
-
     public let defaultEngine = DefaultsKey<BrowserEngineOption>(
         id: "browser.defaultEngine",
-        defaultValue: .webkit,
+        defaultValue: .auto,
         userDefaultsKey: "browser.defaultEngine",
         legacyUserDefaultsKeys: ["browser.engine"]
+    )
+
+    public let chromiumExtensionDirectories = DefaultsKey<String>(
+        id: "browser.chromiumExtensionDirectories",
+        defaultValue: "",
+        userDefaultsKey: "browser.chromiumExtensionDirectories"
     )
 
     public let remoteDebuggingPort = DefaultsKey<Int>(

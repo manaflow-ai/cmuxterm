@@ -64,7 +64,7 @@ struct ChromiumBrowserStartupCoordinator: Sendable {
                 endpoint = nil
             case .loopback(let port):
                 try await diagnostics.waitForReadiness(expectedPort: port)
-                let websocketURL = try await endpointDiscovery.browserWebSocketURL(port: port)
+                let websocketURL = try await endpointDiscovery.pageWebSocketURL(port: port)
                 connection = try ChromiumCDPConnection(
                     endpoint: websocketURL,
                     session: loopbackSession
@@ -73,7 +73,9 @@ struct ChromiumBrowserStartupCoordinator: Sendable {
             }
             establishedConnection = connection
             try await connection.connect()
-            try await connection.attachToPageTarget()
+            if case .pipe = transport {
+                try await connection.attachToPageTarget()
+            }
             try Task.checkCancellation()
             return ChromiumBrowserStartupConnection(
                 connection: connection,

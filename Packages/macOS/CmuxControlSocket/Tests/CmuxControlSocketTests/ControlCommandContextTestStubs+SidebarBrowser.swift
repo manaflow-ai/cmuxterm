@@ -1,5 +1,5 @@
 import Foundation
-import CmuxFoundation
+import CmuxBrowser
 @testable import CmuxControlSocket
 
 // Benign default implementations of the browser-panel (v1) and sidebar seams, so a test fake that conforms to the full
@@ -8,6 +8,13 @@ import CmuxFoundation
 // `ControlCommandContextTestStubs.swift`).
 
 extension ControlBrowserPanelContext {
+    func controlBrowserEngineStrings() -> ControlBrowserEngineStrings {
+        ControlBrowserEngineStrings(
+            invalidOption: BrowserEngineKind.invalidOptionMessage,
+            browserOnly: BrowserEngineKind.browserOnlyOptionMessage
+        )
+    }
+
     func controlBrowserPanelTabManagerAvailable() -> Bool { false }
     func controlBrowserPanelAvailabilityEnabled() -> Bool { false }
     func controlBrowserPanelOpenURLExternally(_ url: URL) -> Bool { false }

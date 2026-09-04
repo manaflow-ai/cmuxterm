@@ -1,5 +1,5 @@
 public import Foundation
-public import CmuxFoundation
+public import CmuxBrowser
 
 /// The sidebar-domain slice of the control-command seam (a constituent of the
 /// ``ControlCommandContext`` umbrella): live app reach for the v1 sidebar

@@ -22,6 +22,17 @@ final class BrowserOmnibarPageFocusAdapter: BrowserOmnibarScriptEvaluating {
             completion(nil, nil)
             return
         }
+        if panel.isChromiumBacked {
+            Task { @MainActor in
+                do {
+                    let value = try await panel.evaluateChromiumJavaScript(script)
+                    completion(value.anyValue, nil)
+                } catch {
+                    completion(nil, error)
+                }
+            }
+            return
+        }
         let bridge = BrowserJavaScriptCompletionBridge()
         if panel.isChromiumBacked {
             Task { @MainActor in

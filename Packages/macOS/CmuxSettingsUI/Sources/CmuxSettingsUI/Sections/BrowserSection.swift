@@ -19,6 +19,7 @@ public struct BrowserSection: View {
 
     @State private var disabled: DefaultsValueModel<Bool>
     @State private var defaultBrowserEngine: DefaultsValueModel<BrowserEngineOption>
+    @State private var chromiumExtensions: DefaultsValueModel<String>
     @State private var remoteDebuggingPort: DefaultsValueModel<Int>
     @State private var engine: DefaultsValueModel<BrowserSearchEngine>
     @State private var customName: DefaultsValueModel<String>
@@ -70,6 +71,9 @@ public struct BrowserSection: View {
         _defaultBrowserEngine = State(
             initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.defaultEngine)
         )
+        _chromiumExtensions = State(
+            initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.chromiumExtensionDirectories)
+        )
         _remoteDebuggingPort = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.remoteDebuggingPort))
         _engine = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.defaultSearchEngine))
         _customName = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.browser.customSearchEngineName))
@@ -109,7 +113,32 @@ public struct BrowserSection: View {
             Button(String(localized: "settings.browser.history.clearDialog.cancel", defaultValue: "Cancel"), role: .cancel) {}
         } message: {
             Text(String(localized: "settings.browser.history.clearDialog.message", defaultValue: "This removes visited-page suggestions from the browser omnibar."))
-        }.task { startSettingsObservation([disabled, defaultBrowserEngine, remoteDebuggingPort, engine, customName, customURL, suggestions, theme, defaultZoom, discardEnabled, discardDelay, askWhereToSaveDownloads, openTermLinks, interceptOpen, hosts, external, httpAllowlist, urlAllowlist, importHint, reactGrab]) }
+        }
+        .task {
+            startSettingsObservation([
+                disabled,
+                defaultBrowserEngine,
+                chromiumExtensions,
+                remoteDebuggingPort,
+                engine,
+                customName,
+                customURL,
+                suggestions,
+                theme,
+                defaultZoom,
+                discardEnabled,
+                discardDelay,
+                askWhereToSaveDownloads,
+                openTermLinks,
+                interceptOpen,
+                hosts,
+                external,
+                httpAllowlist,
+                urlAllowlist,
+                importHint,
+                reactGrab,
+            ])
+        }
         .task {
             for await _ in ManagedDevicePolicy.changeSignals() {
                 browserManagedByPolicy = ManagedDevicePolicy().isBrowserDisableLocked(
@@ -182,6 +211,16 @@ public struct BrowserSection: View {
             }
             SettingsCardDivider()
 
+            // Unpacked Chromium extensions
+            hostnameEditor(
+                title: String(localized: "settings.browser.chromiumExtensions", defaultValue: "Chromium Extensions"),
+                subtitle: String(localized: "settings.browser.chromiumExtensions.subtitle", defaultValue: "Unpacked extension directories loaded into Chromium browser panes. One absolute path per line; each directory must contain a manifest.json. Applies when the next pane starts."),
+                json: "browser.chromiumExtensionDirectories",
+                model: chromiumExtensions
+            )
+            .settingsSearchAnchors(["setting:browser:chromium-extensions"])
+            SettingsCardDivider()
+
             // Loopback CDP endpoint
             SettingsCardRow(
                 configurationReview: .json("browser.remoteDebuggingPort"),
@@ -194,7 +233,12 @@ public struct BrowserSection: View {
                     "",
                     value: Binding(
                         get: { remoteDebuggingPort.current },
-                        set: { remoteDebuggingPort.set(min(max($0, 0), 65_535)) }
+                        set: {
+                            let normalized = $0 == 0
+                                ? 0
+                                : min(max($0, 1024), 65_535)
+                            remoteDebuggingPort.set(normalized)
+                        }
                     ),
                     format: .number
                 )
@@ -788,15 +832,19 @@ public struct BrowserSection: View {
 
     private func browserEngineLabel(_ engine: BrowserEngineOption) -> String {
         switch engine {
+        case .auto:
+            return String(localized: "settings.browser.engine.auto", defaultValue: "Auto (Match Default Browser)")
         case .webkit:
             return String(localized: "settings.browser.engine.webkit", defaultValue: "WebKit")
         case .chromium:
-            return String(localized: "settings.browser.engine.chromium", defaultValue: "Chromium (opt-in)")
+            return String(localized: "settings.browser.engine.chromium", defaultValue: "Chromium")
         }
     }
 
     private func browserEngineSubtitle(_ engine: BrowserEngineOption) -> String {
         switch engine {
+        case .auto:
+            return String(localized: "settings.browser.engine.subtitle.auto", defaultValue: "New browser panes use Chromium when your default browser is Chromium-based (Chrome, Edge, Brave, Arc…), otherwise WebKit.")
         case .webkit:
             return String(localized: "settings.browser.engine.subtitle.webkit", defaultValue: "Use the built-in WebKit engine for new browser panes.")
         case .chromium:

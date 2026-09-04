@@ -73,11 +73,22 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport or command error.
     public func reload() async throws {
+        try await reload(ignoreCache: false)
+    }
+
+    /// Reloads the active page while bypassing Chromium's HTTP cache.
+    ///
+    /// - Throws: A CDP transport or command error.
+    public func hardReload() async throws {
+        try await reload(ignoreCache: true)
+    }
+
+    private func reload(ignoreCache: Bool) async throws {
         beginNavigation()
         do {
             _ = try await send(
                 method: "Page.reload",
-                parameters: .object(["ignoreCache": .bool(false)])
+                parameters: .object(["ignoreCache": .bool(ignoreCache)])
             )
         } catch {
             failNavigation()
@@ -110,8 +121,6 @@ extension ChromiumBrowserSession {
                 throw CDPError.disconnected(ChromiumBrowserDiagnostic.rendererExited(status).message)
             case .failed(let message):
                 throw CDPError.commandFailed(message)
-            case .stopped:
-                throw CDPError.notConnected
             default:
                 break
             }
@@ -149,8 +158,6 @@ extension ChromiumBrowserSession {
                 throw CDPError.disconnected(ChromiumBrowserDiagnostic.rendererExited(status).message)
             case .failed(let message):
                 throw CDPError.commandFailed(message)
-            case .stopped:
-                throw CDPError.notConnected
             default:
                 break
             }
@@ -161,7 +168,6 @@ extension ChromiumBrowserSession {
     /// Clears the optimistic loading marker when a navigation command fails
     /// before Chromium emits a terminal frame/load event.
     func failNavigation() {
-        awaitingNavigationCommit = false
         isLoading = false
         publish()
     }
@@ -175,10 +181,11 @@ extension ChromiumBrowserSession {
     }
 
     private func completeNoOpNavigation(_ history: ChromiumNavigationHistory) {
-        awaitingNavigationCommit = false
         isLoading = false
         canGoBack = history.canGoBack
         canGoForward = history.canGoForward
+        backHistoryURLs = history.backURLs
+        forwardHistoryURLs = history.forwardURLs
         publish()
     }
 
@@ -188,18 +195,26 @@ extension ChromiumBrowserSession {
         generation: UInt64
     ) async {
         guard isCurrentConnection(connection, generation: generation) else { return }
-        switch event.method {
-        case "Page.screencastFrame":
-            guard case .object(let object) = event.params else { return }
-            if let sessionID = object["sessionId"]?.doubleValue {
-                _ = try? await connection.send(
-                    method: "Page.screencastFrameAck",
-                    parameters: .object(["sessionId": .number(sessionID)])
-                )
+        if let navigationInterceptor {
+            do {
+                if try await navigationInterceptor.handle(event, connection: connection) {
+                    return
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                // A paused request must never remain suspended when the policy
+                // bridge fails. Marking the connection crashed closes the
+                // transport and fails the navigation closed rather than
+                // allowing an unchecked request to continue.
+                markCrashed(connection: connection, generation: generation)
+                return
             }
-            guard let encoded = object["data"]?.stringValue,
-                  let data = Data(base64Encoded: encoded) else { return }
-            for continuation in frameContinuations.values { continuation.yield(data) }
+        }
+        switch event.method {
+        case "cmux.cdp.resyncRequired":
+            await refreshDocumentState(using: connection, generation: generation)
+            publish()
         case "Page.frameNavigated":
             guard let frame = Self.mainFrame(from: event.params),
                   let url = frame["url"]?.stringValue,
@@ -207,8 +222,6 @@ extension ChromiumBrowserSession {
             if let frameID = frame["id"]?.stringValue {
                 mainFrameID = frameID
             }
-            awaitingNavigationCommit = false
-            mainLoaderID = frame["loaderId"]?.stringValue
             navigationRevision &+= 1
             currentURL = parsedURL
             isLoading = true
@@ -224,7 +237,6 @@ extension ChromiumBrowserSession {
             // A page-scoped websocket only receives the target's main-frame
             // same-document events. Chromium may omit frameId for the first
             // about:blank target, so there is no stricter filter to apply.
-            awaitingNavigationCommit = false
             navigationRevision &+= 1
             currentURL = parsedURL
             isLoading = false
@@ -237,29 +249,28 @@ extension ChromiumBrowserSession {
                 publish()
             }
         case "Page.frameStoppedLoading", "Page.loadEventFired":
-            guard !awaitingNavigationCommit,
-                  Self.isMainFrame(event.params, knownMainFrameID: mainFrameID) else { return }
+            guard Self.isMainFrame(event.params, knownMainFrameID: mainFrameID) else { return }
             isLoading = false
             await refreshNavigationHistory(using: connection)
             await refreshTitle(using: connection)
             publish()
         case "Page.lifecycleEvent":
-            if !awaitingNavigationCommit,
-               case .object(let object) = event.params,
-               object["loaderId"]?.stringValue == mainLoaderID,
+            if case .object(let object) = event.params,
                Self.isMainFrame(object: object, knownMainFrameID: mainFrameID),
                let name = object["name"]?.stringValue,
-               ["DOMContentLoaded", "load", "networkAlmostIdle", "networkIdle"].contains(name) {
-                // Lifecycle milestones are terminal readiness signals. Only
-                // frameStartedLoading begins a loading transition; a late
-                // networkAlmostIdle event must never revert a completed page.
+               ["load", "networkIdle"].contains(name) {
+                // DOMContentLoaded and networkAlmostIdle are intermediate
+                // milestones. Only the terminal load/networkIdle signals may
+                // clear the loading state used by automation waits.
                 isLoading = false
-                if name == "load" || name == "networkIdle" {
-                    await refreshNavigationHistory(using: connection)
-                    await refreshTitle(using: connection)
-                }
+                await refreshNavigationHistory(using: connection)
+                await refreshTitle(using: connection)
                 publish()
             }
+        case "Runtime.bindingCalled":
+            guard let title = documentTitleObservation.title(from: event) else { return }
+            self.title = title
+            publish()
         case "Page.crashed", "Target.targetCrashed", "Target.detachedFromTarget", "Inspector.detached":
             markCrashed(connection: connection, generation: generation)
         default:
@@ -267,16 +278,70 @@ extension ChromiumBrowserSession {
         }
     }
 
+    /// Re-reads authoritative page state after the bounded CDP event stream
+    /// evicts an older notification. This keeps navigation waits truthful
+    /// without allowing an unbounded queue to retain every intermediate event.
+    private func refreshDocumentState(
+        using connection: ChromiumCDPConnection,
+        generation: UInt64
+    ) async {
+        guard isCurrentConnection(connection, generation: generation) else { return }
+        let wasLoading = isLoading
+        if let value = try? await connection.send(method: "Page.getFrameTree"),
+           isCurrentConnection(connection, generation: generation),
+           case .object(let root) = value,
+           case .object(let frameTree)? = root["frameTree"],
+           case .object(let frame)? = frameTree["frame"] {
+            if let frameID = frame["id"]?.stringValue {
+                mainFrameID = frameID
+            }
+            if let rawURL = frame["url"]?.stringValue,
+               let url = URL(string: rawURL) {
+                if currentURL != url {
+                    navigationRevision &+= 1
+                }
+                currentURL = url
+            }
+        }
+        guard isCurrentConnection(connection, generation: generation) else { return }
+        await refreshNavigationHistory(using: connection)
+        await refreshTitle(using: connection)
+        guard isCurrentConnection(connection, generation: generation) else { return }
+        let readinessValue = try? await connection.send(
+            method: "Runtime.evaluate",
+            parameters: .object([
+                "expression": .string("document.readyState"),
+                "returnByValue": .bool(true),
+            ])
+        )
+        guard isCurrentConnection(connection, generation: generation) else { return }
+        if case .object(let object)? = readinessValue,
+           case .object(let result)? = object["result"],
+           let readyState = result["value"]?.stringValue {
+            isLoading = readyState != "complete"
+        } else {
+            // A missing readiness response is not proof of completion; retain
+            // the state observed before the resync began.
+            isLoading = wasLoading
+        }
+    }
+
     func connectionEnded(connection endedConnection: ChromiumCDPConnection, generation: UInt64) {
         guard isCurrentConnection(endedConnection, generation: generation), !isStopping else { return }
         self.connection = nil
         connectionGeneration = nil
+        navigationInterceptor = nil
+        screencastUpdateTask?.cancel()
+        screencastUpdateTask = nil
+        isScreencastActive = false
         endedConnection.close()
         let processToTerminate = process
         state = .crashed(-1)
         isLoading = false
         mainFrameID = nil
-        if let processToTerminate { requestTermination(processToTerminate) }
+        backHistoryURLs.removeAll(keepingCapacity: false)
+        forwardHistoryURLs.removeAll(keepingCapacity: false)
+        processToTerminate?.terminate()
         publish()
     }
 
@@ -288,13 +353,21 @@ extension ChromiumBrowserSession {
         state = .crashed(-1)
         isLoading = false
         mainFrameID = nil
+        backHistoryURLs.removeAll(keepingCapacity: false)
+        forwardHistoryURLs.removeAll(keepingCapacity: false)
         connection = nil
         connectionGeneration = nil
+        navigationInterceptor = nil
+        screencastUpdateTask?.cancel()
+        screencastUpdateTask = nil
+        isScreencastActive = false
         crashedConnection.close()
         let processToTerminate = process
-        if let processToTerminate { requestTermination(processToTerminate) }
+        processToTerminate?.terminate()
         eventTask?.cancel()
         eventTask = nil
+        frameForwardTask?.cancel()
+        frameForwardTask = nil
         publish()
     }
 
@@ -314,7 +387,6 @@ extension ChromiumBrowserSession {
     }
 
     func beginNavigation() {
-        awaitingNavigationCommit = true
         navigationRevision &+= 1
         isLoading = true
         publish()
@@ -324,35 +396,24 @@ extension ChromiumBrowserSession {
         guard isCurrentConnection(connection),
               let value = try? await connection.send(method: "Page.getNavigationHistory"),
               isCurrentConnection(connection),
-              case .object(let object) = value,
-              let rawIndex = object["currentIndex"]?.doubleValue,
-              let index = Int(exactly: rawIndex),
-              case .array(let entries)? = object["entries"] else { return }
-        canGoBack = index > 0
-        canGoForward = index + 1 < entries.count
+              let history = try? ChromiumNavigationHistory(value) else { return }
+        canGoBack = history.canGoBack
+        canGoForward = history.canGoForward
+        backHistoryURLs = history.backURLs
+        forwardHistoryURLs = history.forwardURLs
     }
 
     func refreshTitle(using connection: ChromiumCDPConnection) async {
-        let loader = mainLoaderID
         guard isCurrentConnection(connection),
               let value = try? await connection.send(
-                method: "Runtime.evaluate",
-                parameters: .object([
-                    "expression": .string("({title: document.title, readyState: document.readyState})"),
-                    "returnByValue": .bool(true),
-                ])
-              ), isCurrentConnection(connection), mainLoaderID == loader,
-              case .object(let object) = value,
-              case .object(let result)? = object["result"],
-              case .object(let document)? = result["value"] else { return }
-        title = document["title"]?.stringValue ?? ""
-        // BFCache restores can commit an already-complete document without
-        // emitting fresh load milestones. Readiness is valid only after the
-        // new commit, and only for the loader sampled before this CDP call.
-        if !awaitingNavigationCommit,
-           ["interactive", "complete"].contains(document["readyState"]?.stringValue ?? "") {
-            isLoading = false
-        }
+            method: "Runtime.evaluate",
+            parameters: .object([
+                "expression": .string("document.title"),
+                "returnByValue": .bool(true),
+            ])
+        ), isCurrentConnection(connection), case .object(let object) = value,
+              case .object(let result)? = object["result"] else { return }
+        title = result["value"]?.stringValue ?? ""
     }
 
     func cleanupAfterStartFailure(
@@ -363,30 +424,40 @@ extension ChromiumBrowserSession {
     ) {
         guard lifecycleGeneration == generation else {
             establishedConnection?.close()
-            if let launchedProcess { requestTermination(launchedProcess) }
+            launchedProcess?.terminate()
             return
         }
         establishedConnection?.close()
         let currentProcess = process
         process = nil
-        if let currentProcess { requestTermination(currentProcess) }
+        currentProcess?.terminate()
         if let launchedProcess {
             if let currentProcess {
                 if currentProcess !== launchedProcess {
-                    requestTermination(launchedProcess)
+                    launchedProcess.terminate()
                 }
             } else {
-                requestTermination(launchedProcess)
+                launchedProcess.terminate()
             }
         }
         connection = nil
         connectionGeneration = nil
+        navigationInterceptor = nil
         eventTask?.cancel()
         eventTask = nil
+        frameForwardTask?.cancel()
+        frameForwardTask = nil
+        screencastUpdateTask?.cancel()
+        screencastUpdateTask = nil
+        isScreencastActive = false
         internalPort = nil
         mainFrameID = nil
         isLoading = false
-        state = error is CancellationError || isStopping ? .stopped : .failed(error.localizedDescription)
+        backHistoryURLs.removeAll(keepingCapacity: false)
+        forwardHistoryURLs.removeAll(keepingCapacity: false)
+        state = error is CancellationError || isStopping
+            ? .stopped
+            : .failed(ChromiumBrowserDiagnostic.startupFailed.message)
         publish()
     }
 
@@ -396,8 +467,35 @@ extension ChromiumBrowserSession {
 
     static func matches(url: URL?, target: URL) -> Bool {
         guard let url else { return false }
-        return url.absoluteString == target.absoluteString ||
-            (url.scheme == target.scheme && url.host == target.host && url.path == target.path && url.query == target.query)
+        if url.absoluteString == target.absoluteString { return true }
+        return url.scheme?.caseInsensitiveCompare(target.scheme ?? "") == .orderedSame &&
+            url.host?.caseInsensitiveCompare(target.host ?? "") == .orderedSame &&
+            Self.effectivePort(for: url) == Self.effectivePort(for: target) &&
+            url.user == target.user &&
+            url.password == target.password &&
+            Self.navigationPath(for: url) == Self.navigationPath(for: target) &&
+            url.query == target.query &&
+            url.fragment == target.fragment
+    }
+
+    /// Returns the URL path in the form Chromium reports for navigation.
+    /// Foundation leaves the path empty for an HTTP(S) origin without a
+    /// trailing slash, while Chromium reports `/` for that same origin.
+    private static func navigationPath(for url: URL) -> String {
+        guard url.path.isEmpty else { return url.path }
+        switch url.scheme?.lowercased() {
+        case "http", "https": return "/"
+        default: return url.path
+        }
+    }
+
+    private static func effectivePort(for url: URL) -> Int? {
+        if let port = url.port { return port }
+        switch url.scheme?.lowercased() {
+        case "http": return 80
+        case "https": return 443
+        default: return nil
+        }
     }
 
     private static func mainFrame(from params: CDPValue?) -> [String: CDPValue]? {

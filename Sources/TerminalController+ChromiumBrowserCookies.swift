@@ -10,6 +10,8 @@ extension TerminalController {
         name: String? = nil,
         domain: String? = nil,
         path: String? = nil,
+        url: URL? = nil,
+        httpOnly: Bool? = nil,
         timeout: TimeInterval = 5.0
     ) -> Result<[[String: Any]], any Error> {
         switch v2RunChromiumCommand(
@@ -24,13 +26,36 @@ extension TerminalController {
                   case .array(let rawCookies)? = payload["cookies"] else {
                 return .failure(CDPError.protocolError(ChromiumBrowserDiagnostic.malformedCookies.message))
             }
+            let domainFilters = domain.map { BrowserDataImporter.parseDomainFilters($0) } ?? []
             let cookies = rawCookies.compactMap(Self.v2ChromiumCookieDictionary)
                 .filter { cookie in
                     if let name, cookie["name"] as? String != name { return false }
-                    if let domain,
-                       let cookieDomain = cookie["domain"] as? String,
-                       !cookieDomain.localizedCaseInsensitiveContains(domain) { return false }
+                    if domain != nil {
+                        guard let cookieDomain = cookie["domain"] as? String else { return false }
+                        guard !domainFilters.isEmpty,
+                              BrowserDataImporter.domainMatches(
+                                host: cookieDomain,
+                                filters: domainFilters
+                              ) else { return false }
+                    }
                     if let path, cookie["path"] as? String != path { return false }
+                    if let httpOnly, cookie["http_only"] as? Bool != httpOnly { return false }
+                    if let url {
+                        guard let cookieDomain = cookie["domain"] as? String,
+                              let host = url.host,
+                              BrowserDataImporter.cookieDomainMatches(
+                                cookieDomain: cookieDomain,
+                                host: host
+                              ),
+                              BrowserDataImporter.cookiePathMatches(
+                                cookiePath: cookie["path"] as? String ?? "/",
+                                urlPath: url.path
+                              ) else { return false }
+                        if (cookie["secure"] as? Bool) == true,
+                           url.scheme?.caseInsensitiveCompare("https") != .orderedSame {
+                            return false
+                        }
+                    }
                     return true
                 }
             return .success(cookies)
@@ -62,6 +87,74 @@ extension TerminalController {
         }
     }
 
+    nonisolated func v2ClearChromiumCookies(
+        browserPanel: BrowserPanel,
+        all: Bool,
+        name: String?,
+        domain: String?,
+        path: String?,
+        url: URL?,
+        timeout: TimeInterval = 5.0
+    ) -> Result<Int, any Error> {
+        let clearAll = all || (name == nil && domain == nil && path == nil && url == nil)
+        if clearAll {
+            let cookieCount: Int
+            switch v2GetChromiumCookies(browserPanel: browserPanel, timeout: timeout) {
+            case .success(let cookies):
+                cookieCount = cookies.count
+            case .failure(let error):
+                return .failure(error)
+            }
+            switch v2RunChromiumCommand(
+                browserPanel: browserPanel,
+                method: "Network.clearBrowserCookies",
+                timeout: timeout
+            ) {
+            case .success:
+                return .success(cookieCount)
+            case .failure(let error):
+                return .failure(error)
+            }
+        }
+
+        switch v2GetChromiumCookies(
+            browserPanel: browserPanel,
+            name: name,
+            domain: domain,
+            path: path,
+            url: url,
+            timeout: timeout
+        ) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let cookies):
+            var removed = 0
+            for cookie in cookies {
+                guard let cookieName = cookie["name"] as? String,
+                      let cookieDomain = cookie["domain"] as? String else { continue }
+                var parameters: [String: CDPValue] = [
+                    "name": .string(cookieName),
+                    "domain": .string(cookieDomain),
+                ]
+                if let cookiePath = cookie["path"] as? String {
+                    parameters["path"] = .string(cookiePath)
+                }
+                switch v2RunChromiumCommand(
+                    browserPanel: browserPanel,
+                    method: "Network.deleteCookies",
+                    parameters: .object(parameters),
+                    timeout: timeout
+                ) {
+                case .success:
+                    removed += 1
+                case .failure(let error):
+                    return .failure(error)
+                }
+            }
+            return .success(removed)
+        }
+    }
+
     private nonisolated static func v2ChromiumCookieDictionary(
         _ value: CDPValue
     ) -> [String: Any]? {
@@ -74,10 +167,9 @@ extension TerminalController {
             "name": name,
             "value": value,
             "domain": domain,
-            "hostOnly": !domain.hasPrefix("."),
             "path": path,
             "secure": object["secure"]?.boolValue ?? false,
-            "httpOnly": object["httpOnly"]?.boolValue ?? false,
+            "http_only": object["httpOnly"]?.boolValue ?? false,
             "session_only": object["session"]?.boolValue ?? false,
         ]
         if let expires = object["expires"]?.doubleValue,

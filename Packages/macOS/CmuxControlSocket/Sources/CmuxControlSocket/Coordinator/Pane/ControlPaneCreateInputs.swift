@@ -1,5 +1,5 @@
 public import Foundation
-public import CmuxFoundation
+public import CmuxBrowser
 
 /// The pre-parsed primitive inputs `pane.create` carries, as
 /// ``ControlCommandCoordinator`` hands them to ``ControlPaneContext``.
