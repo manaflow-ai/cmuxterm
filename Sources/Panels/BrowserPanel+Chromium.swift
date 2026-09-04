@@ -87,8 +87,13 @@ extension BrowserPanel {
         }
         switch snapshot.state {
         case .starting:
+            // A prior viewport/input attempt may have raced the CDP handshake.
+            // Do not keep that transient error visible while this instance is
+            // starting or restarting.
+            chromiumFailureMessage = nil
             isLoading = true
         case .running:
+            chromiumFailureMessage = nil
             isLoading = snapshot.isLoading
             shouldRenderWebView = true
             hasRecoverableWebContentTermination = false
