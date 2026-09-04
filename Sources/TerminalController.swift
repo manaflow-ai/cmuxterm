@@ -1247,6 +1247,14 @@ class TerminalController {
                     return response
                 }
             }
+            if request.method == "artifacts.add" {
+                return v2AsyncResultCall(
+                    id: request.id,
+                    timeoutSeconds: 15
+                ) {
+                    await self.v2ArtifactsAdd(params: parsedRequest.params)
+                }
+            }
             if request.method == "surface.read_selection" {
                 return v2AsyncResultCall(
                     id: request.id,
@@ -1569,6 +1577,10 @@ class TerminalController {
         case "artifacts.list", "artifacts.search":
             return v2AsyncResultCall(id: request.id, timeoutSeconds: 10) {
                 await self.v2ArtifactsRead(method: request.method, params: request.params)
+            }
+        case "artifacts.add":
+            return v2AsyncResultCall(id: request.id, timeoutSeconds: 15) {
+                await self.v2ArtifactsAdd(params: request.params)
             }
         case "browser.navigate", "browser.back", "browser.forward", "browser.reload",
              "browser.design_mode.set", "browser.design_mode.status",
@@ -2979,6 +2991,10 @@ class TerminalController {
             "automation.disable",
             "automation.logs",
             "automation.reload",
+            "artifacts.list",
+            "artifacts.search",
+            "artifacts.open",
+            "artifacts.add",
             "vault.sessions",
             "vault.search",
             "vault.checkpoints",
