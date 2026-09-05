@@ -24,7 +24,16 @@ if [[ "${#CEF_ARCHES[@]}" -eq 0 ]]; then
 fi
 CEF_SOURCES=()
 for CEF_ARCH in "${CEF_ARCHES[@]}"; do
-  if ! FRAMEWORK_SOURCE="$(CMUX_CEF_ARCH="$CEF_ARCH" "$SRCROOT/scripts/ensure-cef.sh" "${CEF_SOURCE_ARGS[@]}" 2>"$CEF_ERROR_LOG")"; then
+  if [[ "${#CEF_SOURCE_ARGS[@]}" -eq 0 ]]; then
+    if ! FRAMEWORK_SOURCE="$(CMUX_CEF_ARCH="$CEF_ARCH" "$SRCROOT/scripts/ensure-cef.sh" 2>"$CEF_ERROR_LOG")"; then
+      if [[ "${CMUX_CEF_ALLOW_DOWNLOAD:-0}" != "1" ]]; then
+        echo "embed-cef: framework for $CEF_ARCH is not cached; skipping optional CEF embed (set CMUX_CEF_ALLOW_DOWNLOAD=1 to fetch it)"
+        exit 0
+      fi
+      cat "$CEF_ERROR_LOG" >&2
+      exit 1
+    fi
+  elif ! FRAMEWORK_SOURCE="$(CMUX_CEF_ARCH="$CEF_ARCH" "$SRCROOT/scripts/ensure-cef.sh" "${CEF_SOURCE_ARGS[@]}" 2>"$CEF_ERROR_LOG")"; then
     if [[ "${CMUX_CEF_ALLOW_DOWNLOAD:-0}" != "1" ]]; then
       echo "embed-cef: framework for $CEF_ARCH is not cached; skipping optional CEF embed (set CMUX_CEF_ALLOW_DOWNLOAD=1 to fetch it)"
       exit 0

@@ -66,6 +66,10 @@ final class CEFBrowserHostView: NSView {
             NotificationCenter.default.removeObserver(observer)
         }
         cefWindowObservers = []
+        // CEF creates a chrome-style NSWindow before cmux can adopt it. Strip
+        // every top-level affordance so the native browser surface is
+        // edge-to-edge inside the pane rather than a floating titled window.
+        normalizeWindowChrome(cefWindow)
         self.cefWindow = cefWindow
         // Page clicks are delivered to the adopted child window, not this
         // anchor view. Observe its key transition so cmux selection/focus
@@ -133,6 +137,7 @@ final class CEFBrowserHostView: NSView {
     /// Aligns the CEF window with the current pane geometry and visibility.
     func reconcile() {
         guard let cefWindow else { return }
+        normalizeWindowChrome(cefWindow)
         guard isPaneVisible,
               let hostWindow = window,
               !isHiddenOrHasHiddenAncestor,
@@ -158,6 +163,45 @@ final class CEFBrowserHostView: NSView {
         // over the pane, so it can never flash at its initial bounds.
         if !cefWindow.isVisible {
             cefWindow.orderFront(nil)
+        }
+    }
+
+    /// Reasserts the pane-owned window contract after CEF navigation/layout.
+    /// CEF may recreate its content layer during a renderer swap, which can
+    /// restore the platform's default corner mask unless this is applied on
+    /// every reconciliation pass.
+    private func normalizeWindowChrome(_ window: NSWindow) {
+        window.styleMask = [.borderless]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovable = false
+        window.isMovableByWindowBackground = false
+        window.hasShadow = false
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.cornerRadius = 0
+        window.contentView?.layer?.masksToBounds = false
+        if let contentView = window.contentView {
+            clearCornerMasks(in: contentView)
+        }
+        for button in [
+            NSWindow.ButtonType.closeButton,
+            .miniaturizeButton,
+            .zoomButton,
+            .toolbarButton
+        ] {
+            window.standardWindowButton(button)?.isHidden = true
+        }
+    }
+
+    /// CEF's chrome views can install their own rounded layer after a page
+    /// navigation. Clear those masks recursively so the pane owns clipping.
+    private func clearCornerMasks(in view: NSView) {
+        view.layer?.cornerRadius = 0
+        view.layer?.masksToBounds = false
+        for child in view.subviews {
+            clearCornerMasks(in: child)
         }
     }
 

@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 internal import CmuxCEFShim
 
 /// Process-wide CEF lifecycle: framework loading, initialization, and the
