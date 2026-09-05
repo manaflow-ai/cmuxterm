@@ -13,9 +13,9 @@ final class BrowserPaneEngineController {
     private let chromiumRuntimeEnvironment: ChromiumBrowserRuntimeEnvironment
     private let chromiumNavigationPolicy: BrowserEngineNavigationPolicyHandler?
     private let initialDocumentScripts: [(source: String, isStyle: Bool)]
-    private let profileID: UUID
-    private let storageID: UUID
-    private let remoteDebuggingPort: ChromiumRemoteDebuggingPort
+    private var profileID: UUID
+    private var storageID: UUID
+    private var remoteDebuggingPort: ChromiumRemoteDebuggingPort
     private let startPrerequisite: Task<Bool, Never>?
     private var initialURL: URL?
     private var didFallbackFromCEF = false
@@ -101,6 +101,9 @@ final class BrowserPaneEngineController {
             .documentScriptDefinitions() ?? []
         if let oldCEF = adapter as? CEFBrowserPaneEngineAdapter {
             didFallbackFromCEF = false
+            self.profileID = profileID
+            self.storageID = storageID
+            self.remoteDebuggingPort = remoteDebuggingPort
             oldCEF.onSnapshot = nil
             let stopTask = Task { @MainActor in
                 await oldCEF.stopAndWait()
@@ -119,6 +122,9 @@ final class BrowserPaneEngineController {
             return true
         }
         guard let oldChromium = adapter as? ChromiumBrowserPaneEngineAdapter else { return false }
+        self.profileID = profileID
+        self.storageID = storageID
+        self.remoteDebuggingPort = remoteDebuggingPort
         // Detach the callbacks before stopping so a queued stopped snapshot
         // from the old profile cannot overwrite the replacement.
         oldChromium.onSnapshot = nil

@@ -2113,6 +2113,8 @@ final class BrowserPanel: Panel, ObservableObject {
 
     /// Whether the browser panel should render its WKWebView in the content area.
     /// New browser tabs stay in an empty "new tab" state until first navigation.
+    @Published private(set) var browserExtensionError: String?
+
     @Published var shouldRenderWebView: Bool = false {
         didSet {
             if oldValue != shouldRenderWebView {
@@ -3014,7 +3016,7 @@ final class BrowserPanel: Panel, ObservableObject {
         let config = WKWebViewConfiguration()
         if #available(macOS 15.4, *) {
             let extensionDirectories = BrowserEngineSettingsStore(defaults: .standard).chromiumExtensionDirectories()
-            let extensionManager = WebKitBrowserExtensionManager(profileID: profileID, directories: extensionDirectories)
+            let extensionManager = WebKitBrowserExtensionManager(profileID: profileID, websiteDataStore: websiteDataStore ?? BrowserProfileStore.shared.websiteDataStore(for: profileID), directories: extensionDirectories)
             config.webExtensionController = extensionManager.controller
             WebKitBrowserExtensionManager.retain(extensionManager, on: config)
         }
@@ -3024,6 +3026,9 @@ final class BrowserPanel: Panel, ObservableObject {
         )
 
         let webView = CmuxWebView(frame: .zero, configuration: config)
+        if #available(macOS 15.4, *), let extensionManager = WebKitBrowserExtensionManager.manager(for: config) {
+            WebKitBrowserExtensionManager.retain(extensionManager, on: webView)
+        }
         webView.allowsBackForwardNavigationGestures = true
         if #available(macOS 13.3, *) {
             webView.isInspectable = true
@@ -3865,6 +3870,14 @@ final class BrowserPanel: Panel, ObservableObject {
         navDelegate.downloadDelegate = dlDelegate
         self.downloadDelegate = dlDelegate
         self.navigationDelegate = navDelegate
+        if #available(macOS 15.4, *), let extensionManager = WebKitBrowserExtensionManager.manager(for: webView) {
+            extensionManager.onError = { [weak self] message in
+                self?.browserExtensionError = message
+            }
+            if let loadError = extensionManager.loadError {
+                browserExtensionError = loadError.localizedDescription
+            }
+        }
 
         // Set up UI delegate (handles cmd+click, target=_blank, and context menu)
         let browserUIDelegate = BrowserUIDelegate(

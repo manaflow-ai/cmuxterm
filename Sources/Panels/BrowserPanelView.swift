@@ -1060,6 +1060,19 @@ struct BrowserPanelView: View {
         .overlay(browserFindOverlayView)
         .overlay(focusFlashOverlayView)
         .overlay(omnibarSuggestionsOverlayView, alignment: .topLeading)
+        .overlay(alignment: .top) {
+            if let message = panel.browserExtensionError {
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.regularMaterial)
+                    .overlay(Rectangle().stroke(Color.orange.opacity(0.65), lineWidth: 1))
+                    .accessibilityLabel(message)
+            }
+        }
         .overlay(alignment: .bottom) {
             // WebView-backed cases host the composer in the AppKit portal slot
             // (WindowBrowserSlotView.setDesignComposer) so it layers above the
