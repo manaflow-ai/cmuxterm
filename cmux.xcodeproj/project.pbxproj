@@ -2942,6 +2942,7 @@
 		B43AFCE7099305905825EA0A /* VMTunnelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EC85CE06E4F64991DAA433 /* VMTunnelManager.swift */; };
 		ABE558B281D671A6DDDDD066 /* VMTunnelManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A47FAD328D6669A5B40CE3 /* VMTunnelManagerTests.swift */; };
 		F6AAAA235B7F431E8D1D2E94 /* VMTunnelStalenessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87BDCAB46A44D7596A4784D /* VMTunnelStalenessTests.swift */; };
+		C10084230000000000000011 /* WebKitBrowserExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084230000000000000012 /* WebKitBrowserExtensionManager.swift */; };
 		C10084230000000000000001 /* WebKitBrowserPaneEngineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084230000000000000002 /* WebKitBrowserPaneEngineAdapter.swift */; };
 		A10020000000000000000019 /* WebSurfaceSelectionEvaluationOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1002000000000000000001A /* WebSurfaceSelectionEvaluationOwner.swift */; };
 		A10020000000000000000011 /* WebSurfaceSelectionReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10020000000000000000012 /* WebSurfaceSelectionReader.swift */; };
@@ -6067,6 +6068,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		03EC85CE06E4F64991DAA433 /* VMTunnelManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VMTunnelManager.swift; sourceTree = "<group>"; };
 		74A47FAD328D6669A5B40CE3 /* VMTunnelManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMTunnelManagerTests.swift; sourceTree = "<group>"; };
 		E87BDCAB46A44D7596A4784D /* VMTunnelStalenessTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VMTunnelStalenessTests.swift; sourceTree = "<group>"; };
+		C10084230000000000000012 /* WebKitBrowserExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebKitBrowserExtensionManager.swift; sourceTree = "<group>"; };
 		C10084230000000000000002 /* WebKitBrowserPaneEngineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebKitBrowserPaneEngineAdapter.swift; sourceTree = "<group>"; };
 		A1002000000000000000001A /* WebSurfaceSelectionEvaluationOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebSurfaceSelectionEvaluationOwner.swift; sourceTree = "<group>"; };
 		A10020000000000000000012 /* WebSurfaceSelectionReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/WebSurfaceSelectionReader.swift; sourceTree = "<group>"; };
@@ -6805,6 +6807,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			children = (
 				C10084030000000000000002 /* BrowserPaneEngineAdapter.swift */,
 				C10084130000000000000002 /* BrowserPaneEngineController.swift */,
+				C10084230000000000000012 /* WebKitBrowserExtensionManager.swift */,
 				C10084230000000000000002 /* WebKitBrowserPaneEngineAdapter.swift */,
 				C10084170000000000000002 /* ChromiumBrowserPaneEngineAdapter.swift */,
 				C10084050000000000000002 /* BrowserPanel+Chromium.swift */,
@@ -11991,6 +11994,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				93AF7E8EC956FE883E252322 /* VMClientTelemetry.swift in Sources */,
 				F1C699902D31503EE3D492DF /* VMMachineKind.swift in Sources */,
 				B43AFCE7099305905825EA0A /* VMTunnelManager.swift in Sources */,
+				C10084230000000000000011 /* WebKitBrowserExtensionManager.swift in Sources */,
 				C10084230000000000000001 /* WebKitBrowserPaneEngineAdapter.swift in Sources */,
 				A10020000000000000000019 /* WebSurfaceSelectionEvaluationOwner.swift in Sources */,
 				A10020000000000000000011 /* WebSurfaceSelectionReader.swift in Sources */,

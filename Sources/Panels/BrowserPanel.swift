@@ -3012,6 +3012,12 @@ final class BrowserPanel: Panel, ObservableObject {
         websiteDataStore: WKWebsiteDataStore? = nil
     ) -> CmuxWebView {
         let config = WKWebViewConfiguration()
+        if #available(macOS 15.4, *) {
+            let extensionDirectories = BrowserEngineSettingsStore(defaults: .standard).chromiumExtensionDirectories()
+            let extensionManager = WebKitBrowserExtensionManager(profileID: profileID, directories: extensionDirectories)
+            config.webExtensionController = extensionManager.controller
+            WebKitBrowserExtensionManager.retain(extensionManager, on: config)
+        }
         configureWebViewConfiguration(
             config,
             websiteDataStore: websiteDataStore ?? BrowserProfileStore.shared.websiteDataStore(for: profileID)
