@@ -14,12 +14,11 @@ default for future panes. Existing session snapshots retain their engine.
 }
 ```
 
-With no extensions, the runtime is Chrome for Testing's pinned
-`chrome-headless-shell` 152.0.7977.42. Extension-enabled panes use the matching
-full Chrome for Testing in headless mode because headless-shell omits the MV3
-extension system. Both architectures and both runtime archives have pinned
-SHA-256 hashes in `ChromiumRuntimeManifest`. First use downloads, verifies and
-atomically installs the complete runtime. No browser code runs inside cmux.
+Chromium panes use the pinned in-process CEF runtime, which renders through a native
+CEF child window adopted into the cmux pane. The CEF framework and helper bundles
+are downloaded once by `scripts/ensure-cef.sh`, verified by SHA-256, and embedded
+by `scripts/embed-cef.sh`; no screenshot transport is used. CDP remains an
+in-process DevTools control plane for automation and debugging.
 
 Unpacked MV3 directories are an explicit user trust decision. cmux validates
 paths, manifests and scripts, rejects symlinks, and limits each extension to
@@ -43,12 +42,11 @@ cmux selects another loopback port and reports the actual `cdp_endpoint` in
 browser JSON. Commands and events use the browser connection with an explicit
 page target session. Loopback connections bypass configured network proxies.
 
-The AppKit host presents decoded screencast frames and forwards input through
-CDP. Frame retention keeps only the newest frame, decoding uses a dedicated
-actor, pointer moves and viewport updates coalesce, and command/input queues
-are bounded. DispatchIO owns cancellable pipe readiness. Stop/replacement
-cancels outstanding work and waits for process exit before reusing storage;
-a two-second shutdown deadline terminates a wedged child.
+The AppKit host adopts the CEF browser window over the pane rect. Native Chromium
+handles painting, scrolling, focus, IME, and input; cmux owns visibility, geometry,
+profile lifecycle, and renderer recovery. Stop/replacement waits for CEF's close
+callback before reusing profile data, and the external message pump is bounded to
+the AppKit run loop.
 
 Remote-proxy sessions, explicitly ephemeral stores and active URL-allowlist
 policies retain WebKit. Streamed Chromium content does not expose WebKit's
@@ -65,14 +63,15 @@ URLSessions and startup deadlines:
 swift test --package-path Packages/macOS/CmuxBrowser --disable-xctest
 ```
 
-On a leased Mac, enable the real-runtime suite (it downloads pinned artifacts,
-starts a loopback HTTP fixture and launches isolated renderer processes):
+CEF package tests run without launching Chromium:
 
 ```sh
-CMUX_TEST_CHROMIUM_RUNTIME=1 swift test \
-  --package-path Packages/macOS/CmuxBrowser \
-  --filter ChromiumRuntimeIntegrationTests
+swift test --package-path Packages/macOS/CmuxCEF
 ```
+
+For native dogfood, build with CEF embedding enabled and open a pane with
+`--engine chromium`; the tagged app's CEF helper processes and DevTools automation
+are then exercised in the real UI.
 
 This covers private and loopback CDP, MV3 content scripts and service workers,
 extension storage across restart, frames, input including Backspace, navigation,

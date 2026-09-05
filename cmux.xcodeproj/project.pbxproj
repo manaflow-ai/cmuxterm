@@ -8,7 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		A11CE0040000000000000001 /* AboutLicenseContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0030000000000000001 /* AboutLicenseContent.swift */; };
-		A11CE0010000000000000001 /* AboutLicensesResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */; };
+/* AboutLicensesResourceTests.swift */; };
+/* AboutLicensesResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0020000000000000001 		F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumBrowserPanelTests.swift; sourceTree = "<group>"; };
 		A5C017000000000000000001 /* AccountSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000002 /* AccountSignInFlow.swift */; };
 		A5C017000000000000000003 /* AccountSignInModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000004 /* AccountSignInModel.swift */; };
 		A5C01700000000000000000F /* AccountSignInModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000010 /* AccountSignInModelTests.swift */; };
@@ -576,6 +577,7 @@
 		C10084270000000000000001 /* ChromiumBrowserHostRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084270000000000000002 /* ChromiumBrowserHostRepresentable.swift */; };
 		C10084070000000000000001 /* ChromiumBrowserHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084070000000000000002 /* ChromiumBrowserHostView.swift */; };
 		C10084170000000000000001 /* ChromiumBrowserPaneEngineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084170000000000000002 /* ChromiumBrowserPaneEngineAdapter.swift */; };
+		A11CE0010000000000000001 		F10000C0A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */; };
 		C10084190000000000000001 /* ChromiumBrowserRuntimeEnvironment+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084190000000000000002 /* ChromiumBrowserRuntimeEnvironment+Live.swift */; };
 		C10084CE0000000000000016 /* ChromiumEngineAdapting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084CE0000000000000017 /* ChromiumEngineAdapting.swift */; };
 		C10084CE0000000000000018 /* ChromiumInputEventQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084CE0000000000000019 /* ChromiumInputEventQueue.swift */; };
@@ -8798,6 +8800,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		F1000003A1B2C3D4E5F60718 /* cmuxTests */ = {
 			isa = PBXGroup;
 			children = (
+				F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */,
 				C11322A20000000000000001 /* CloudManualMirrorTransportTests.swift */,
 				9520B0019520B0019520B001 /* HermesFirstClassSupportTests.swift */,
 				A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */,
@@ -12531,6 +12534,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				0A0F00580000000000000003 /* CampfireSupportTestSupport.swift in Sources */,
 				852600010000000000000002 /* CanvasPaneContentMountTests.swift in Sources */,
 				C4A570030000000000000001 /* CanvasShortcutContextTests.swift in Sources */,
+				F10000C0A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift in Sources */,
 				F3000000A1B2C3D4E5F60718 /* CJKIMEInputTests.swift in Sources */,
 				D3571002A1B2C3D4E5F60718 /* CJKIMEMarkedSelectionTests.swift in Sources */,
 				A5D41232A1B2C3D4E5F60718 /* ClaudeBackgroundWorkNotifyTests.swift in Sources */,
