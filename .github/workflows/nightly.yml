@@ -537,6 +537,7 @@ jobs:
             "$APP/Contents/Resources/bin/ghostty" \
             "$APP/Contents/Resources/bin/cmux-tui" \
             "$APP/Contents/Resources/bin/cmux-cua" \
+            "$APP/Contents/Resources/bin/coderouter-bin" \
             "$APP/Contents/Resources/bin/cmux-diff-sidecar" \
             "$APP/Contents/Library/cmux Computer Use.app/Contents/MacOS/cmux-cua"
           do
@@ -548,6 +549,9 @@ jobs:
               [ "$archs" = "$NIGHTLY_VARIANT" ]
             fi
           done
+          CODEROUTER_CLI="$APP/Contents/Resources/bin/coderouter"
+          [ -x "$CODEROUTER_CLI" ]
+          [ "$($CODEROUTER_CLI --version)" = "coderouter 0.3.5" ]
           if [ "$NIGHTLY_VARIANT" != "universal" ]; then
             # No fat Mach-O may survive thinning anywhere in the bundle.
             fat="$(find "$APP" -type f -exec sh -c 'file -b "$1" | grep -q "Mach-O universal" && echo "$1"' _ {} \;)"

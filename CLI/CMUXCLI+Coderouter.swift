@@ -6,14 +6,16 @@ import Foundation
 // The CLI is presentation only; each verb maps to one `coderouter.*` socket
 // method handled by the app's `CoderouterClient`, which holds the Stack
 // session. Every other `cmux coderouter ...` verb, and all of `cmux cr ...`,
-// is exec'd into the installed CodeRouter CLI before any socket is opened.
+// is exec'd into the bundled CodeRouter CLI (or a compatible PATH install)
+// before any socket is opened.
 extension CMUXCLI {
     static let coderouterUsage = """
         Usage: cmux coderouter <status|machines|claude> [options]
 
         Team settings for the cmux coderouter model plane that Cloud machines
         route codex, claude, pi, and opencode through. Any other verb, and every
-        `cmux cr ...`, runs the installed CodeRouter CLI unchanged.
+        `cmux cr ...`, runs the bundled CodeRouter CLI with the cmux session
+        when available.
 
           cmux coderouter status [--team <id>] [--json]
               Sign-in state, selected team, and the team's Claude upstream accounts.
@@ -61,10 +63,11 @@ extension CMUXCLI {
         """
 
     /// The first-argument verbs cmux owns under `cmux coderouter`. Everything
-    /// else keeps the pre-existing passthrough into the installed CodeRouter CLI,
+    /// else keeps the pre-existing passthrough into the CodeRouter CLI,
     /// so `cmux coderouter accounts`, `cmux coderouter login`, and a bare
-    /// `cmux coderouter` behave exactly as before.
-    static let cmuxOwnedCoderouterVerbs: Set<String> = ["status", "machines", "claude", "help", "--help", "-h"]
+    /// `cmux coderouter` behave exactly as before. The private broker-config
+    /// verb is used only by the bundled wrapper to reuse the cmux session.
+    static let cmuxOwnedCoderouterVerbs: Set<String> = ["status", "machines", "claude", "broker-config", "help", "--help", "-h"]
 
     static func isCmuxOwnedCoderouterInvocation(_ args: [String]) -> Bool {
         guard let first = args.first?.lowercased() else { return false }
@@ -78,6 +81,15 @@ extension CMUXCLI {
         switch sub {
         case "help", "--help", "-h":
             print(Self.coderouterUsage)
+
+        case "broker-config":
+            try rejectUnexpectedCoderouterArguments(rest, command: "coderouter broker-config")
+            let response = try client.sendV2(method: "coderouter.broker_config")
+            guard let directory = response["data_dir"] as? String,
+                  !directory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw CLIError(message: "CodeRouter broker returned no temporary data directory.", exitCode: 127)
+            }
+            print(directory)
 
         case "status":
             let (teamOpt, remaining) = parseOption(rest, name: "--team")

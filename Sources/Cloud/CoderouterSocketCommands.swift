@@ -7,7 +7,7 @@ import Foundation
 // upstream accounts: `add` appends, `remove` and `update` address one by id,
 // `clear` drops them all. `set` stays as an alias of `add` for older CLIs.
 // Every other `cmux coderouter` or `cmux cr` invocation is exec'd into the
-// installed CodeRouter CLI before the socket is opened (see `runCoderouterAlias`).
+// bundled CodeRouter CLI before the socket is opened (see `runCoderouterAlias`).
 extension TerminalController {
     nonisolated func socketWorkerCoderouterResponse(
         method: String,
@@ -16,6 +16,11 @@ extension TerminalController {
     ) -> String {
         let teamID = Self.coderouterString(params["teamId"]) ?? Self.coderouterString(params["team_id"])
         switch method {
+        case "coderouter.broker_config":
+            return coderouterCall(id: id) {
+                let directory = try await CoderouterClient.shared.issueBundledCLIBrokerDirectory()
+                return ["data_dir": directory.path]
+            }
         case "coderouter.claude_upstream.get":
             return coderouterCall(id: id) {
                 let result = try await CoderouterClient.shared.claudeAccounts(teamID: teamID)

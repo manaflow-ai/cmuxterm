@@ -2358,6 +2358,8 @@ jobs:
           CLI_BINARY="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/cmux"
           HELPER_BINARY="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/ghostty"
           CMUX_CUA_BINARY="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/cmux-cua"
+          CODEROUTER_BINARY="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/coderouter-bin"
+          CODEROUTER_CLI="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/coderouter"
           DIFF_SIDECAR="build-universal/Build/Products/Release/cmux.app/Contents/Resources/bin/cmux-diff-sidecar"
           test -x "$APP_BINARY"
           test -x "$CLI_BINARY"
@@ -2366,14 +2368,18 @@ jobs:
           lipo "$TUI_CLIENT" -verify_arch arm64 x86_64
           test -x "$HELPER_BINARY"
           test -x "$CMUX_CUA_BINARY"
+          test -x "$CODEROUTER_BINARY"
+          test -x "$CODEROUTER_CLI"
           test -x "$DIFF_SIDECAR"
-          file "$APP_BINARY" "$CLI_BINARY" "$HELPER_BINARY" "$CMUX_CUA_BINARY" "$DIFF_SIDECAR"
+          file "$APP_BINARY" "$CLI_BINARY" "$HELPER_BINARY" "$CMUX_CUA_BINARY" "$CODEROUTER_BINARY" "$CODEROUTER_CLI" "$DIFF_SIDECAR"
           SDK_VERSION="$(otool -l "$APP_BINARY" | awk '/LC_BUILD_VERSION/ { in_version=1; next } in_version && /sdk / { print $2; exit }')"
           echo "App SDK version: $SDK_VERSION"
           lipo "$APP_BINARY" -verify_arch arm64 x86_64
           lipo "$CLI_BINARY" -verify_arch arm64 x86_64
           lipo "$HELPER_BINARY" -verify_arch arm64 x86_64
           lipo "$CMUX_CUA_BINARY" -verify_arch arm64 x86_64
+          lipo "$CODEROUTER_BINARY" -verify_arch arm64 x86_64
+          [[ "$($CODEROUTER_CLI --version)" == "coderouter 0.3.5" ]]
           codesign --verify --strict --verbose=4 "$CMUX_CUA_BINARY"
           ./scripts/verify-diff-sidecar-artifact.sh "$DIFF_SIDECAR"
           [[ "$SDK_VERSION" == 26.* ]]

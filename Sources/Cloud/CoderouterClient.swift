@@ -91,6 +91,90 @@ actor CoderouterClient {
         self.auth = auth
     }
 
+    /// Create a short-lived CodeRouter config for the bundled CLI.
+    ///
+    /// The config is written into a private temporary directory and contains
+    /// one coherent Stack token pair plus a fresh route token. The caller
+    /// must remove the directory after the child process exits. This avoids a
+    /// second persistent CodeRouter login while keeping Stack refresh tokens
+    /// out of argv, logs, and the process environment.
+    func issueBundledCLIBrokerDirectory() async throws -> URL {
+        let tokens: (accessToken: String, refreshToken: String)
+        do {
+            tokens = try await auth.coherentTokenPair()
+        } catch AuthError.networkError {
+            throw CoderouterClientError.sessionRefreshFailed
+        } catch {
+            throw CoderouterClientError.notSignedIn
+        }
+
+        guard let teamID = await auth.resolvedTeamID,
+              !teamID.isEmpty else {
+            throw CoderouterClientError.notSignedIn
+        }
+        let availableTeams = await auth.availableTeams
+        let teamName = availableTeams.first(where: { $0.id == teamID })?.displayName ?? teamID
+
+        let route = try await issueRouteSession(
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            teamID: teamID
+        )
+
+        cleanupStaleBundledCLIBrokerDirectories()
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-broker-\(UUID().uuidString)", isDirectory: true)
+        let configDirectory = root.appendingPathComponent("coderouter", isDirectory: true)
+        var keepBrokerDirectory = false
+        defer {
+            if !keepBrokerDirectory {
+                try? fileManager.removeItem(at: root)
+            }
+        }
+        try fileManager.createDirectory(
+            at: root,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: NSNumber(value: 0o700)]
+        )
+        try fileManager.createDirectory(
+            at: configDirectory,
+            withIntermediateDirectories: false,
+            attributes: [.posixPermissions: NSNumber(value: 0o700)]
+        )
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o700)],
+            ofItemAtPath: root.path
+        )
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o700)],
+            ofItemAtPath: configDirectory.path
+        )
+
+        let config: [String: Any] = [
+            "apiUrl": AuthEnvironment.vmAPIBaseURL.absoluteString,
+            "stackApiUrl": Self.stackAPIURL.absoluteString,
+            "stackProjectId": AuthEnvironment.stackProjectID,
+            "stackPublishableClientKey": AuthEnvironment.stackPublishableClientKey,
+            "stackAccessToken": tokens.accessToken,
+            "stackRefreshToken": tokens.refreshToken,
+            "teamId": teamID,
+            "teamName": teamName,
+            "routeToken": route.token,
+            "routeTokenExpiresAt": route.expiresAt,
+            "openaiBaseUrl": route.openaiBaseURL,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: config, options: [.sortedKeys])
+        let configURL = configDirectory.appendingPathComponent("config.json", isDirectory: false)
+        try data.write(to: configURL, options: [.atomic])
+        try fileManager.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)],
+            ofItemAtPath: configURL.path
+        )
+        keepBrokerDirectory = true
+        return root
+    }
+
     /// `{ teamId, accounts: [{ id, kind, label, identifier, region, modelIds,
     /// state, cooldownUntil, lastFailureCode, lastUsedAt, createdAt, updatedAt }],
     /// upstream }`. Identifiers are already masked by the server.
@@ -226,6 +310,111 @@ actor CoderouterClient {
             throw CoderouterClientError.malformedResponse("non-HTTP response")
         }
         return (data, http)
+    }
+
+    private struct RouteSessionResponse {
+        let token: String
+        let expiresAt: String
+        let openaiBaseURL: String
+    }
+
+    private func issueRouteSession(
+        accessToken: String,
+        refreshToken: String,
+        teamID: String
+    ) async throws -> RouteSessionResponse {
+        guard var components = URLComponents(
+            url: AuthEnvironment.vmAPIBaseURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw CoderouterClientError.malformedResponse("the cmux backend URL is misconfigured")
+        }
+        components.path = Self.normalizedAPIPath(
+            basePath: components.path,
+            appending: "/api/coderouter/session"
+        )
+        guard let url = components.url else {
+            throw CoderouterClientError.malformedResponse("could not build the coderouter session URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(refreshToken, forHTTPHeaderField: "X-Stack-Refresh-Token")
+        request.setValue(teamID, forHTTPHeaderField: "X-Cmux-Team-Id")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            switch error.code {
+            case .cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost, .notConnectedToInternet:
+                let scheme = AuthEnvironment.vmAPIBaseURL.scheme ?? "http"
+                let host = AuthEnvironment.vmAPIBaseURL.host ?? "?"
+                let port = AuthEnvironment.vmAPIBaseURL.port ?? -1
+                let base = "\(scheme)://\(host):\(port)"
+                throw CoderouterClientError.backendUnreachable(url: base, detail: error.localizedDescription)
+            default:
+                throw error
+            }
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw CoderouterClientError.malformedResponse("non-HTTP response")
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw CoderouterClientError.httpStatus(
+                http.statusCode,
+                String(data: data, encoding: .utf8) ?? ""
+            )
+        }
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = object["token"] as? String,
+              !token.isEmpty,
+              let expiresAt = object["expiresAt"] as? String,
+              !expiresAt.isEmpty else {
+            throw CoderouterClientError.malformedResponse("route session response is missing token data")
+        }
+        let openaiBaseURL = (object["openaiBaseUrl"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return RouteSessionResponse(
+            token: token,
+            expiresAt: expiresAt,
+            openaiBaseURL: openaiBaseURL?.isEmpty == false
+                ? openaiBaseURL!
+                : AuthEnvironment.vmAPIBaseURL.appendingPathComponent("v1").absoluteString
+        )
+    }
+
+    private static var stackAPIURL: URL {
+        let base = AuthEnvironment.stackBaseURL
+        guard base.path.isEmpty || base.path == "/" else { return base }
+        return base.appendingPathComponent("api/v1", isDirectory: true)
+    }
+
+    private static func normalizedAPIPath(basePath: String, appending path: String) -> String {
+        let base = basePath.hasSuffix("/") ? String(basePath.dropLast()) : basePath
+        return base + path
+    }
+
+    private func cleanupStaleBundledCLIBrokerDirectories() {
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: temporaryDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+        let cutoff = Date().addingTimeInterval(-60 * 60)
+        for entry in entries where entry.lastPathComponent.hasPrefix("cmux-coderouter-broker-") {
+            guard let values = try? entry.resourceValues(forKeys: [.contentModificationDateKey]),
+                  let modified = values.contentModificationDate,
+                  modified < cutoff else { continue }
+            try? fileManager.removeItem(at: entry)
+        }
     }
 
     private func ensureOK(_ http: HTTPURLResponse, data: Data) throws {

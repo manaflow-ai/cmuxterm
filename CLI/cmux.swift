@@ -4974,11 +4974,11 @@ struct CMUXCLI {
     }
 
     private func localizedCoderouterAliases() -> String {
-        let defaultValue = "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)"
+        let defaultValue = "coderouter|cr [coderouter-args...]                 (aliases for the bundled CodeRouter CLI)"
         let bundle = CLIExecutableLocator.enclosingAppBundle() ?? .main
         let catalogValue = String(
             localized: "cli.coderouter.aliases",
-            defaultValue: "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)",
+            defaultValue: "coderouter|cr [coderouter-args...]                 (aliases for the bundled CodeRouter CLI)",
             bundle: bundle
         )
         let explicitValue = CMUXDiffViewerLocalization.string(
@@ -5033,17 +5033,47 @@ struct CMUXCLI {
         return explicitValue == defaultValue ? catalogValue : explicitValue
     }
 
-    /// Run the separately installed CodeRouter CLI without routing through the
-    /// cmux socket. Replace this process after resolving the executable so
+    /// Run CodeRouter without routing through the cmux socket. The app ships a
+    /// pinned CLI in its resource bundle; a user-installed `coderouter` or `cr`
+    /// on PATH remains a compatibility fallback. Replace this process after
+    /// resolving the executable so
     /// stdin/stdout/stderr, signals, and the child exit status retain their
     /// normal terminal semantics. The argv is built directly; arguments such
     /// as prompts, paths, and shell metacharacters are never interpreted by a
     /// shell.
     private func runCoderouterAlias(commandArgs: [String]) throws {
-        let candidates = ["coderouter", "cr"]
-        guard let executablePath = candidates.lazy
-            .compactMap({ resolveExecutableInPath($0) })
-            .first else {
+        let executablePath: String? = {
+            if let override = ProcessInfo.processInfo.environment["CMUX_CODEROUTER_PATH"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !override.isEmpty,
+               FileManager.default.isExecutableFile(atPath: override) {
+                return override
+            }
+
+            let bundledDisabled = ProcessInfo.processInfo.environment["CMUX_CODEROUTER_DISABLE_BUNDLED"] == "1"
+            if !bundledDisabled,
+               let appBundle = CLIExecutableLocator.enclosingAppBundle() {
+                let bundledDirectory = appBundle.bundleURL
+                    .appendingPathComponent("Contents", isDirectory: true)
+                    .appendingPathComponent("Resources", isDirectory: true)
+                    .appendingPathComponent("bin", isDirectory: true)
+                for name in ["coderouter", "cr"] {
+                    let candidate = bundledDirectory.appendingPathComponent(name, isDirectory: false).path
+                    if FileManager.default.isExecutableFile(atPath: candidate) {
+                        return candidate
+                    }
+                }
+            }
+
+            // PATH remains a compatibility fallback for a standalone cmux CLI
+            // or for tests that explicitly disable the bundle.
+            return ["coderouter", "cr"]
+                .lazy
+                .compactMap({ resolveExecutableInPath($0) })
+                .first
+        }()
+
+        guard let executablePath else {
             throw CLIError(
                 message: localizedCoderouterNotFound(),
                 exitCode: 127
@@ -5052,9 +5082,9 @@ struct CMUXCLI {
 
         // CodeRouter is an independent executable. Do not hand it cmux's ambient
         // terminal/control-plane context: CMUX_* and CMUXD_* may carry socket
-        // paths, capabilities, passwords, auth state, or internal paths. There is
-        // intentionally no auth handoff here; a future handoff must be explicit
-        // and narrowly allowlisted.
+        // paths, capabilities, passwords, auth state, or internal paths. The
+        // bundled wrapper performs its broker request through the adjacent cmux
+        // executable and keeps the short-lived config outside this environment.
         let childEnvironment = ProcessInfo.processInfo.environment.filter { key, _ in
             !key.hasPrefix("CMUX_") && !key.hasPrefix("CMUXD_")
         }
@@ -5163,7 +5193,8 @@ struct CMUXCLI {
             let status = try CodexTeamsAppServerSupervisor(arguments: rawCommandArgs).run()
             exit(status)
         }
-        // `cmux cr ...` is always the installed CodeRouter CLI. `cmux coderouter`
+        // `cmux cr ...` runs the bundled CodeRouter CLI (with a PATH fallback).
+        // `cmux coderouter`
         // keeps that passthrough except for the verbs cmux owns (`status`,
         // `machines`, `claude`, help), which manage the team's model plane
         // through the app socket (CMUXCLI+Coderouter.swift).

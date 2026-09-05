@@ -10,7 +10,7 @@ import Testing
 #endif
 
 // `cmux coderouter <status|machines|claude>` drives the app's `coderouter.*`
-// socket methods; every other `cmux coderouter` verb still execs the installed
+// socket methods; every other `cmux coderouter` verb still execs the bundled
 // CodeRouter CLI. These run the bundled CLI against a mock socket server and
 // assert the wire method, the params, and the printed result.
 extension CLINotifyProcessIntegrationRegressionTests {
@@ -437,7 +437,25 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(state.commands.contains { $0.contains(#""method":"auth.status""#) })
     }
 
-    func testCoderouterUnknownVerbStillPassesThroughToTheInstalledCLI() throws {
+    func testCoderouterBrokerConfigPrintsTemporaryDataDirectory() throws {
+        let brokerDirectory = "/var/folders/test/cmux-coderouter-broker-test"
+        let (result, state) = try runCoderouterCLI(
+            ["coderouter", "broker-config"],
+            socketName: "coderouter-broker-config"
+        ) { method, _ in
+            guard method == "coderouter.broker_config" else { return nil }
+            return self.okResponse(["data_dir": brokerDirectory])
+        }
+
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(result.stdout, "\(brokerDirectory)\n")
+        XCTAssertTrue(
+            state.commands.contains { $0.contains(#""method":"coderouter.broker_config""#) },
+            "Expected the bundled wrapper handshake to use coderouter.broker_config"
+        )
+    }
+
+    func testCoderouterUnknownVerbStillPassesThroughToTheBundledCLI() throws {
         // With an empty PATH the passthrough cannot find `coderouter`/`cr`; the
         // point is that the socket is never consulted for a non-cmux verb.
         let emptyPath = FileManager.default.temporaryDirectory
@@ -448,7 +466,10 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let (result, state) = try runCoderouterCLI(
             ["coderouter", "accounts"],
             socketName: "coderouter-passthrough",
-            extraEnvironment: ["PATH": emptyPath.path],
+            extraEnvironment: [
+                "PATH": emptyPath.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
+            ],
             waitForSocket: false
         ) { _, _ in nil }
 

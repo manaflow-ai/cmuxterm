@@ -41935,7 +41935,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)"
+            "value": "coderouter|cr [coderouter-args...]                 (aliases for the bundled CodeRouter CLI)"
           }
         },
         "es": {

@@ -189,6 +189,7 @@ struct CLICoderouterAliasTests {
             ],
             environment: [
                 "PATH": root.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
                 "CODEROUTER_ARGS_FILE": argsURL.path,
                 "CODEROUTER_STDIN_FILE": stdinURL.path,
                 "CMUX_SOCKET_PATH": makeSocketPath("missing"),
@@ -249,6 +250,7 @@ struct CLICoderouterAliasTests {
             arguments: ["cr", "--version"],
             environment: [
                 "PATH": root.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
                 "CMUX_SOCKET_PATH": makeSocketPath("missing"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ]
@@ -286,6 +288,7 @@ struct CLICoderouterAliasTests {
             arguments: ["cr", "login", "--device-auth"],
             environment: [
                 "PATH": root.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
                 "CR_ARGS_FILE": argsURL.path,
                 "CMUX_SOCKET_PATH": makeSocketPath("missing"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
@@ -300,6 +303,41 @@ struct CLICoderouterAliasTests {
             try String(contentsOf: argsURL, encoding: .utf8)
                 == "<login>\n<--device-auth>\n"
         )
+    }
+
+    @Test("prefers the CodeRouter CLI shipped in the app over PATH")
+    func bundledCoderouterRunsWithoutPathInstall() throws {
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(
+            for: BundledCLILinkageTests.self
+        )
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-bundled-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeExecutable(
+            """
+            #!/bin/sh
+            printf 'wrong PATH CodeRouter\n'
+            exit 99
+            """,
+            at: root.appendingPathComponent("coderouter", isDirectory: false)
+        )
+
+        let result = runCLI(
+            cliPath: cliPath,
+            arguments: ["cr", "--version"],
+            environment: [
+                "PATH": root.path,
+                "CMUX_SOCKET_PATH": makeSocketPath("bundled"),
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+            ]
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "coderouter 0.3.5\n")
+        #expect(result.stderr.isEmpty)
     }
 
     @Test("localizes the alias help entry")
@@ -353,6 +391,7 @@ struct CLICoderouterAliasTests {
             arguments: ["coderouter", "env"],
             environment: [
                 "PATH": root.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
                 "CODEROUTER_ENV_FILE": environmentURL.path,
                 "CODEROUTER_TEST_MARKER": "preserved",
                 "CMUX_SOCKET": "/tmp/cmux-private.sock",
@@ -407,6 +446,7 @@ struct CLICoderouterAliasTests {
             arguments: ["coderouter", "launch"],
             environment: [
                 "PATH": root.path,
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
                 "CMUX_SOCKET_PATH": makeSocketPath("launch-failure"),
                 "CMUX_DEBUG_LOG": debugLogURL.path,
             ]
@@ -448,6 +488,7 @@ struct CLICoderouterAliasTests {
                 "CMUX_SOCKET_CAPABILITY": "missing-capability",
                 "CMUX_SOCKET_PASSWORD": "missing-password",
                 "CMUX_CLI_SENTRY_DISABLED": "1",
+                "CMUX_CODEROUTER_DISABLE_BUNDLED": "1",
             ]
         )
 

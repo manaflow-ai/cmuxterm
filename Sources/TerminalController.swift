@@ -3045,6 +3045,7 @@ class TerminalController {
             "aiAccounts.list",
             "aiAccounts.upload",
             "aiAccounts.remove",
+            "coderouter.broker_config",
             "coderouter.claude_upstream.get",
             "coderouter.claude_upstream.set",
             "coderouter.claude_upstream.add",

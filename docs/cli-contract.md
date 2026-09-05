@@ -89,7 +89,7 @@ Environment:
 | `automation` | Manage config-backed event rules: `list`, `show <id>`, dry-run `test <id> --event <json>`, `enable`, `disable`, `logs`, and `reload`. Rules live in `~/.cmuxterm/automations.json`; actions are dispatched by the running app. |
 | `sessions [list]` | List saved agent session records without requiring a running cmux socket. Filters: `--agent <name>`, `--session <id>`, `--workspace <id>`, `--surface <id>`, `--cwd <text>`. Overrides: `--state-dir <path>`, `--codex-home <path>`. Text output defaults to 100 results; `--limit <n>` takes a positive integer and `--all` removes the limit. Supports `--json`. |
 | `auth` | Manage auth status, login, and logout through the app. |
-| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the installed CodeRouter CLI (`coderouter` or `cr` on PATH) unchanged, exit 127 when it is missing. |
+| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the CodeRouter CLI shipped in the app; a `coderouter` or `cr` on PATH is used as a fallback. When the app is signed in, the bundled CLI receives a short-lived broker config from the same cmux session, so `cmux cr add codex` does not need a second CodeRouter login. If the bundled cmux helper cannot provide a session, it asks you to run `cmux auth login` instead of starting a second CodeRouter login. Provider authorization is still required. They exit 127 only when both copies are missing. |
 | `vm`, `cloud` | Manage cloud VMs. `cloud` is an alias for `vm`. |
 | `remotes`, `remote` | Manage remote Macs in the team device registry so they appear in the iOS app's device list. `remote` is an alias for `remotes`. |
 | `rpc` | Call a raw v2 socket method with optional JSON params. |
@@ -337,7 +337,7 @@ Remotes subcommands:
 | `remotes add <name>` | Register or update a remote with one or more `--route <host:port>`. Supports `--tag` and `--json`. Idempotent on `<name>` (re-adding updates routes). The host must be a Tailscale address the phone can authenticate to (CGNAT `100.64.x.x`-`100.127.x.x` or `*.ts.net`); loopback, plain LAN IPs, and bare hostnames are rejected. |
 | `remotes remove <name-or-deviceId>` | Remove a remote you registered. Aliases `rm`, `delete`. Supports `--json`. |
 
-CodeRouter subcommands (cmux-owned; anything else passes through to the installed CodeRouter CLI):
+CodeRouter subcommands (cmux-owned; anything else passes through to the bundled CodeRouter CLI, with a PATH fallback). The bundled wrapper reuses the signed-in cmux session for control-plane commands. `coderouter login` maps to `cmux auth login`, and `coderouter logout` tells the user to use `cmux auth logout`; provider authorization remains a separate step.
 
 | Command | Contract |
 | --- | --- |
@@ -351,7 +351,7 @@ CodeRouter subcommands (cmux-owned; anything else passes through to the installe
 | `coderouter claude disable <account>`, `coderouter claude enable <account>` | Take an account out of routing, or put it back, via `coderouter.claude_upstream.update`. Same selector rules as `remove`. |
 | `coderouter claude clear` | Remove every Claude upstream account of the team (`No Claude upstream accounts were set.` when none). Aliases `remove-all`, `unset`. Supports `--team <id>` and `--json`. |
 
-Socket methods: `coderouter.claude_upstream.get|add|update|remove|clear` (`set` is an alias of `add`), `coderouter.machines`. Sign-in failures surface as the `auth_required` code, like `vm`.
+Socket methods: `coderouter.broker_config`, `coderouter.claude_upstream.get|add|update|remove|clear` (`set` is an alias of `add`), `coderouter.machines`. `coderouter.broker_config` is an internal wrapper handshake and returns only a temporary data-directory path. Sign-in failures surface as the `auth_required` code, like `vm`.
 
 Theme subcommands:
 
