@@ -3874,6 +3874,10 @@ final class BrowserPanel: Panel, ObservableObject {
             extensionManager.onError = { [weak self] message in
                 self?.browserExtensionError = message
             }
+            extensionManager.onReady = { [weak self] in
+                guard let self, self.webView.url != nil, self.webView.url?.absoluteString != self.blankURLString else { return }
+                self.webView.reload()
+            }
             if let loadError = extensionManager.loadError {
                 browserExtensionError = loadError.localizedDescription
             }

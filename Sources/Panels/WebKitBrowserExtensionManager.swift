@@ -12,6 +12,7 @@ final class WebKitBrowserExtensionManager: NSObject {
     let controller: WKWebExtensionController?
     private(set) var loadError: Error?
     var onError: ((String) -> Void)?
+    var onReady: (() -> Void)?
     private var contexts: [WKWebExtensionContext] = []
     /// Loading tasks are retained until completion so a pane created during
     /// startup cannot drop its service worker before the first navigation.
@@ -36,6 +37,7 @@ final class WebKitBrowserExtensionManager: NSObject {
                     let context = WKWebExtensionContext(for: webExtension)
                     self?.contexts.append(context)
                     try controller?.load(context)
+                    self?.onReady?()
                 } catch {
                     let diagnostic = ChromiumExtensionError(path: directory.path, reason: error.localizedDescription)
                     self?.loadError = diagnostic
