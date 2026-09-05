@@ -8,8 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A11CE0040000000000000001 /* AboutLicenseContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0030000000000000001 /* AboutLicenseContent.swift */; };
-/* AboutLicensesResourceTests.swift */; };
-/* AboutLicensesResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0020000000000000001 		F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumBrowserPanelTests.swift; sourceTree = "<group>"; };
+		A11CE0010000000000000001 /* AboutLicensesResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */; };
 		A5C017000000000000000001 /* AccountSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000002 /* AccountSignInFlow.swift */; };
 		A5C017000000000000000003 /* AccountSignInModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000004 /* AccountSignInModel.swift */; };
 		A5C01700000000000000000F /* AccountSignInModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000010 /* AccountSignInModelTests.swift */; };
@@ -577,7 +576,7 @@
 		C10084270000000000000001 /* ChromiumBrowserHostRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084270000000000000002 /* ChromiumBrowserHostRepresentable.swift */; };
 		C10084070000000000000001 /* ChromiumBrowserHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084070000000000000002 /* ChromiumBrowserHostView.swift */; };
 		C10084170000000000000001 /* ChromiumBrowserPaneEngineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084170000000000000002 /* ChromiumBrowserPaneEngineAdapter.swift */; };
-		A11CE0010000000000000001 		F10000C0A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */; };
+		F10000C0A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */; };
 		C10084190000000000000001 /* ChromiumBrowserRuntimeEnvironment+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084190000000000000002 /* ChromiumBrowserRuntimeEnvironment+Live.swift */; };
 		C10084CE0000000000000016 /* ChromiumEngineAdapting.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084CE0000000000000017 /* ChromiumEngineAdapting.swift */; };
 		C10084CE0000000000000018 /* ChromiumInputEventQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10084CE0000000000000019 /* ChromiumInputEventQueue.swift */; };
@@ -3804,6 +3803,7 @@
 		C10084270000000000000002 /* ChromiumBrowserHostRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ChromiumBrowserHostRepresentable.swift; sourceTree = "<group>"; };
 		C10084070000000000000002 /* ChromiumBrowserHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ChromiumBrowserHostView.swift; sourceTree = "<group>"; };
 		C10084170000000000000002 /* ChromiumBrowserPaneEngineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ChromiumBrowserPaneEngineAdapter.swift; sourceTree = "<group>"; };
+		F10000C1A1B2C3D4E5F60718 /* ChromiumBrowserPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumBrowserPanelTests.swift; sourceTree = "<group>"; };
 		C10084190000000000000002 /* ChromiumBrowserRuntimeEnvironment+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Panels/ChromiumBrowserRuntimeEnvironment+Live.swift"; sourceTree = "<group>"; };
 		C10084CE0000000000000017 /* ChromiumEngineAdapting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ChromiumEngineAdapting.swift; sourceTree = "<group>"; };
 		C10084CE0000000000000019 /* ChromiumInputEventQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ChromiumInputEventQueue.swift; sourceTree = "<group>"; };
