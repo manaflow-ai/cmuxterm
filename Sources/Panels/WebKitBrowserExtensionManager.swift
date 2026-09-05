@@ -57,14 +57,6 @@ final class WebKitBrowserExtensionManager: NSObject {
         objc_setAssociatedObject(webView, &associationKey, manager, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
-    static func manager(for configuration: WKWebViewConfiguration) -> WebKitBrowserExtensionManager? {
-        objc_getAssociatedObject(configuration, &associationKey) as? WebKitBrowserExtensionManager
-    }
-
-    static func manager(for webView: WKWebView) -> WebKitBrowserExtensionManager? {
-        objc_getAssociatedObject(webView, &associationKey) as? WebKitBrowserExtensionManager
-    }
-
     deinit {
         loadTasks.forEach { $0.cancel() }
     }

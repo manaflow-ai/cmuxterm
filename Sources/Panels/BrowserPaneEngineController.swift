@@ -12,7 +12,6 @@ final class BrowserPaneEngineController {
     private var chromiumFocusHandler: (() -> Void)?
     private let chromiumRuntimeEnvironment: ChromiumBrowserRuntimeEnvironment
     private let chromiumNavigationPolicy: BrowserEngineNavigationPolicyHandler?
-    private let initialDocumentScripts: [(source: String, isStyle: Bool)]
     private var profileID: UUID
     private var storageID: UUID
     private var remoteDebuggingPort: ChromiumRemoteDebuggingPort
@@ -42,7 +41,6 @@ final class BrowserPaneEngineController {
         self.startPrerequisite = startPrerequisite
         self.chromiumRuntimeEnvironment = chromiumRuntimeEnvironment
         self.chromiumNavigationPolicy = chromiumNavigationPolicy
-        self.initialDocumentScripts = initialDocumentScripts
         switch kind {
         case .webkit:
             adapter = WebKitBrowserPaneEngineAdapter(webView: webView)
@@ -101,6 +99,7 @@ final class BrowserPaneEngineController {
             .documentScriptDefinitions() ?? []
         if let oldCEF = adapter as? CEFBrowserPaneEngineAdapter {
             didFallbackFromCEF = false
+            oldCEF.onStartupFailure = nil
             self.profileID = profileID
             self.storageID = storageID
             self.remoteDebuggingPort = remoteDebuggingPort
