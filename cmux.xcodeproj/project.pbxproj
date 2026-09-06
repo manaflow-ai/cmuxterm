@@ -10083,7 +10083,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "\"${SRCROOT}/scripts/install-cmux-cli-rust.sh\" \"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/..\" --archs \"${ARCHS:-}\"\n";
+			shellScript = "CMUX_CLI_VERSION=\"${MARKETING_VERSION:-0.64.22}\" CMUX_CLI_BUILD=\"${CURRENT_PROJECT_VERSION:-rust-migration}\" \"${SRCROOT}/scripts/install-cmux-cli-rust.sh\" \"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/..\" --archs \"${ARCHS:-}\"\n";
 		};
 		A9E030000000000000000009 /* Reject Bundled Provider Binaries */ = {
 			isa = PBXShellScriptBuildPhase;
