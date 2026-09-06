@@ -7035,6 +7035,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private func unregisterMainWindowContext(for window: NSWindow) -> MainWindowContext? {
         guard let removed = contextForMainTerminalWindow(window, reindex: false) else { return nil }
         guard transitionMainWindowContextToClosing(removed, window: window) else { return nil }
+        // A closing window cannot leave a switch transaction holding renderer
+        // protection or frame-notification demand after its context is retired.
+        removed.tabManager.workspaceSwitchCoordinator.cancel()
         removed.teardownWindowDock()
         removeMobileWorkspaceListObserverIfUnused(for: removed.tabManager)
         notifyMainWindowContextsDidChange()
@@ -7043,6 +7046,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     // Internal (not private): see notifyMainWindowContextsDidChange.
     func discardOrphanedMainWindowContext(_ context: MainWindowContext, allowWindowlessFallback: Bool = false) {
+        context.tabManager.workspaceSwitchCoordinator.cancel()
         guard transitionMainWindowContextToOrphaned(context) else { return }
         removeMobileWorkspaceListObserverIfUnused(for: context.tabManager)
         notifyMainWindowContextsDidChange()
@@ -19446,7 +19450,7 @@ private extension NSWindow {
         if ShortcutRecorderEventRouter.dispatchActiveRecordingEvent(event, preferredWindow: self) {
             return true
         }
-        let browserWebKitKeyDownReentry = firstResponderWebView != nil && cmuxBrowserWebKitKeyDownDispatchIsActive()
+        let browserWebKitKeyDownReentry = firstResponderWebView?.browserNativeInputDeliveryOwner.isDispatchActive ?? false
         let shouldBypassPrintableOptionText = shortcutRoutingShouldBypassForPrintableOptionText(event: event)
         // AppKit can send Option-only keys through a text/terminal fast path
         // before the normal menu route. Give the shared configured-shortcut
