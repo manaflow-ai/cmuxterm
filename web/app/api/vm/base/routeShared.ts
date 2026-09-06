@@ -9,7 +9,6 @@ import {
   isVmCreateInProgressError,
   isVmImageConfigError,
   isVmLimitExceededError,
-  isVmSharedResourceLimitExceededError,
 } from "../../../../services/vms/errors";
 import {
   inferVmProviderForImage,
@@ -26,7 +25,6 @@ import {
   requestedVmTeamIdFromRequest,
   vmActiveLimitExceededResponse,
   vmErrorResponse,
-  vmSharedResourceLimitExceededResponse,
   vmWorkflowErrorResponse,
   resolveVmProvisioningAccountScope,
 } from "../../../../services/vms/routeHelpers";
@@ -185,9 +183,6 @@ async function baseWorkflowErrorResponse(
         : "Delete another active Cloud VM, then retry opening Base.",
       phase: "create",
     });
-  }
-  if (isVmSharedResourceLimitExceededError(err)) {
-    return vmSharedResourceLimitExceededResponse(err, "create", locale);
   }
   if (isVmCreateCreditsInsufficientError(err)) {
     return vmErrorResponse({

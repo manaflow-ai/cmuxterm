@@ -45,11 +45,6 @@
       "title": "cmux Pro required",
       "message": "Cloud VMs require a cmux Pro plan.",
       "action": "Upgrade to cmux Pro at {upgradeUrl} to create Cloud VMs."
-    },
-    "sharedResource": {
-      "message": "The shared Cloud VM {resource} pool is full.",
-      "action": "Delete an unused Cloud VM, then retry.",
-      "oversizedAction": "Request a smaller Cloud VM {resource} size that fits within the shared pool."
     }
   },
   "ios": {
@@ -835,7 +830,7 @@
       "featuresLead": "Everything in Free, plus:",
       "features": [
         "Cloud agents on Cloud VMs in isolated remote sandboxes",
-        "Up to 50 Cloud VMs, all sharing a total pool of 5 vCPU, 20 GB RAM, and 200 GB disk; each VM starts at 8 GB RAM and 32 GB disk, with sizes from 4 to 64 GB RAM available as capacity allows",
+        "Up to 50 Cloud VMs, each with its own resources; default size 8 GB RAM and 32 GB disk, with 4 to 64 GB RAM available",
         "Unlimited workspaces",
         "The cmux iOS app and email support"
       ],
@@ -933,10 +928,10 @@
           "enterprise": "Custom"
         },
         {
-          "label": "Resources shared across Cloud VMs",
+          "label": "Resources per Cloud VM",
           "free": "false",
-          "pro": "5 vCPU, 20 GB RAM, 200 GB disk total; default VM size 8 GB RAM and 32 GB disk, with sizes from 4 to 64 GB RAM available as capacity allows",
-          "team": "Per user: 5 vCPU, 20 GB RAM, and 200 GB disk total; default VM size 8 GB RAM and 32 GB disk, with sizes from 4 to 64 GB RAM available as capacity allows",
+          "pro": "Default 8 GB RAM and 32 GB disk; 4 to 64 GB RAM, disk up to 256 GB",
+          "team": "Default 8 GB RAM and 32 GB disk; 4 to 64 GB RAM, disk up to 256 GB",
           "enterprise": "Custom"
         },
         {
@@ -1015,7 +1010,7 @@
         },
         {
           "q": "What are Cloud VMs?",
-          "a": "Persistent Linux machines in the cloud: pets, not cattle. Following the Zen of cmux, a machine is a primitive, not a managed solution: it keeps its files, installed tools, and state, and what you build on it is yours. Agents clone repositories, run commands, and open pull requests there without touching your Mac. Pro includes up to 50 machines sharing a total pool of 5 vCPU, 20 GB of RAM, and 200 GB of disk. Team includes up to 50 machines per user, with the same shared pool for each user. The default VM size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available as capacity allows. New VM disks start at 32 GB and can grow within the shared pool."
+          "a": "Persistent Linux machines in the cloud: pets, not cattle. Following the Zen of cmux, a machine is a primitive, not a managed solution: it keeps its files, installed tools, and state, and what you build on it is yours. Agents clone repositories, run commands, and open pull requests there without touching your Mac. Pro includes up to 50 machines. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
         },
         {
           "q": "What is cmux Vault?",
@@ -1028,7 +1023,7 @@
         },
         {
           "q": "How does billing work?",
-          "a": "Pro is $50/mo, or $40/mo when billed annually (a 20% savings). Team is $60/user/mo, or $48/user/mo when billed annually. Paid plans include up to 50 Cloud VMs per user. Each user's VMs share a total of 5 vCPU, 20 GB of RAM, and 200 GB of disk, with no metering or overages. The terminal and local agents stay free."
+          "a": "Pro is $50/mo, or $40/mo when billed annually (a 20% savings). Team is $60/user/mo, or $48/user/mo when billed annually. Paid plans include up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk, with no metering or overage billing. The terminal and local agents stay free."
         },
         {
           "q": "Can I self-host the cloud?",
