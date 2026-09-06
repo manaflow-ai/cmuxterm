@@ -434,19 +434,21 @@ extension TerminalController {
                     throw CloudMachineLinkManager.ManagerError.wireGuardHubUnsupported
                 }
                 var payload: [String: Any]
-                if deviceFingerprint != nil {
+                if let deviceFingerprint {
                     guard let knownRoute = await registry.privateRoute(machineID: vmId) else {
                         throw CloudMachineLinkManager.ManagerError.privateRouteRequired(vmId)
                     }
-                    // The daemon already knows this cmux-tui identity. Reuse
-                    // the private VPC route and local device key without a
-                    // Vercel request or a Freestyle exec.
+                    // This Mac has linked to the machine before: reuse the private
+                    // VPC route without a Vercel request or a Freestyle exec. The
+                    // carrier marker means dial the trusted listener again; a real
+                    // fingerprint means present the stored device key.
                     payload = [
                         "transport": "cmux-remote",
                         "route": knownRoute,
                         "token": "",
                         "expires_at_unix": 0,
                         "session": "cmux",
+                        "trusted_carrier": deviceFingerprint == CloudTuiClientPaths.carrierDeviceMarker,
                     ]
                 } else {
                     let endpoint = try await VMClient.shared.openCmuxRemote(
@@ -460,6 +462,7 @@ extension TerminalController {
                         "token": endpoint.token,
                         "expires_at_unix": endpoint.expiresAtUnix,
                         "session": endpoint.session,
+                        "trusted_carrier": endpoint.trustedCarrier,
                     ]
                     if let build = endpoint.daemonBuild {
                         var raw: [String: Any] = [:]
@@ -467,13 +470,6 @@ extension TerminalController {
                         if let remoteProtocol = build.remoteProtocol { raw["remote_protocol"] = remoteProtocol }
                         if let version = build.version { raw["version"] = version }
                         payload["daemon_build"] = raw
-                    }
-                    if let invitation = endpoint.invitation {
-                        payload["invitation"] = [
-                            "uri": invitation.uri,
-                            "invitation_id": invitation.invitationId,
-                            "expires_at_unix": invitation.expiresAtUnix,
-                        ]
                     }
                     if let addresses = endpoint.networkAddresses {
                         payload["network_addresses"] = [
@@ -503,20 +499,6 @@ extension TerminalController {
                     throw CloudMachineLinkManager.ManagerError.privateRouteRequired(route)
                 }
                 payload["wireguard_hub_socket"] = ready.socketPath
-                return payload
-            }
-        case "vm.cmux_remote_approve":
-            guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty,
-                  let invitationId = Self.socketWorkerString(params["invitation_id"]) ?? Self.socketWorkerString(params["invitationId"]),
-                  !invitationId.isEmpty else {
-                return v2Error(id: id, code: "invalid_params", message: "vm.cmux_remote_approve requires `id` and `invitation_id`.")
-            }
-            return v2VmCall(id: id) {
-                let approval = try await VMClient.shared.approveCmuxRemoteEnrollment(id: vmId, invitationId: invitationId)
-                var payload: [String: Any] = ["approved": approval.approved, "state": approval.state]
-                if let fingerprint = approval.deviceFingerprint {
-                    payload["device_fingerprint"] = fingerprint
-                }
                 return payload
             }
         case "vm.sessions":
