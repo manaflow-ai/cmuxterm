@@ -13,41 +13,32 @@ import Testing
 @Suite("Pointer ingress semantic preservation")
 struct TerminalPointerIngressRegressionTests {
     @Test("coalescing preserves the last supported shape before an unsupported shape")
-    func supportedIntermediateShapeSurvivesCoalescing() async {
+    func supportedIntermediateShapeSurvivesCoalescing() {
         let runtimeID = UUID()
-        let surfaceID = UUID()
         let view = GhosttyNSView(frame: .zero)
-        let ingress = GhosttyPointerStyleIngress(surfaceView: view)
-        let shapes = [GHOSTTY_MOUSE_SHAPE_CROSSHAIR, GHOSTTY_MOUSE_SHAPE_COPY, GHOSTTY_MOUSE_SHAPE_WAIT]
-        let requests = shapes.enumerated().map { index, shape in
-            GhosttyPointerStyleIngressRequest(
-                event: .shape(shape), surfaceId: surfaceID, runtimeLifetimeId: runtimeID,
-                sequence: UInt64(index + 1), runtimeGeneration: 1
-            )
+        let generation = view.prepareForRuntimeSurfaceCreation(runtimeLifetimeId: runtimeID)
+        view.applyTerminalPointerStyle(.focusChanged(true))
+        let ingress = view.pointerStyleIngress!
+        let surfaceID = ingress.mailbox.snapshot.surfaceId!
+        for shape in [GHOSTTY_MOUSE_SHAPE_CROSSHAIR, GHOSTTY_MOUSE_SHAPE_COPY, GHOSTTY_MOUSE_SHAPE_WAIT] {
+            ingress.submit(.init(event: .shape(shape), surfaceId: surfaceID,
+                runtimeLifetimeId: runtimeID, runtimeGeneration: generation))
         }
-        let delivered = await ingress.coalesceBatch(requests)
-        var presentation = TerminalPointerStyleState()
-        presentation.apply(.runtimeActivated(runtimeID))
-        presentation.apply(.focusChanged(true))
-        for request in delivered {
-            if let event = request.event.terminalEvent(runtimeLifetimeId: runtimeID) {
-                presentation.apply(event)
-            }
-        }
-        #expect(presentation.effectiveCursor == NSCursor.dragCopy)
+        // Deliver only the final snapshot; no intermediate UI delivery is necessary.
+        view.applyTerminalPointerStyleSnapshot(ingress.mailbox.snapshot)
+        #expect(view.effectiveTerminalPointerCursor == NSCursor.dragCopy)
     }
-}
 
-extension GhosttyPointerStyleIngress {
-    /// Runs the production reducer in one actor turn before a UI drain can interleave.
-    fileprivate func coalesceBatch(
-        _ requests: [GhosttyPointerStyleIngressRequest]
-    ) async -> [GhosttyPointerStyleIngressRequest] {
-        for request in requests { receive(request) }
-        let pending = await takePending(afterLifecycleSequence: 0)
-        return pending.values.flatMap { runtime in
-            [runtime.firstShape, runtime.latestShape, runtime.latestLinkHover,
-             runtime.latestRuntimeReset, runtime.latestRuntimeEnded].compactMap { $0 }
-        }.sorted { $0.sequence < $1.sequence }
+    @Test("a snapshot captured before focus loss cannot resurrect the old cursor")
+    func oldSnapshotCannotCrossFocusTransition() {
+        let view = GhosttyNSView(frame: .zero)
+        let runtimeID = UUID()
+        view.prepareForRuntimeSurfaceCreation(runtimeLifetimeId: runtimeID)
+        view.applyTerminalPointerStyle(.focusChanged(true))
+        view.applyTerminalPointerStyle(.ghosttyShape(GHOSTTY_MOUSE_SHAPE_COPY, runtimeLifetimeId: runtimeID))
+        let oldSnapshot = view.pointerStyleIngress!.mailbox.snapshot
+        view.applyTerminalPointerStyle(.focusChanged(false))
+        #expect(!view.applyTerminalPointerStyleSnapshot(oldSnapshot))
+        #expect(view.effectiveTerminalPointerCursor == NSCursor.iBeam)
     }
 }

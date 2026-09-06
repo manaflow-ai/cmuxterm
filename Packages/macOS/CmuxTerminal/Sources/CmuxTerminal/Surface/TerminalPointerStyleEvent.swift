@@ -2,7 +2,9 @@ public import Foundation
 public import GhosttyKit
 
 /// An input that can change the pointer presented by a terminal surface.
-public enum TerminalPointerStyleEvent {
+// SAFETY: The imported C shape enum is an immutable integer ABI value;
+// associated lifetime identities and Boolean flags are Sendable values.
+public enum TerminalPointerStyleEvent: @unchecked Sendable {
     /// A native surface lifetime is about to begin accepting output.
     case runtimeActivated(UUID)
 

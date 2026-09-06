@@ -1,208 +1,59 @@
 public import AppKit
-internal import Foundation
-public import GhosttyKit
+internal import GhosttyKit
 
-/// Resolves Ghostty and cmux pointer intent for one terminal surface.
-///
-/// The state keeps OSC 22 intent pane-local, temporarily presents the normal
-/// terminal pointer while the pane is unfocused, and gives cmux link hover a
-/// deterministic override without using the process-wide ``NSCursor`` stack.
+/// Main-actor AppKit projection of one complete terminal pointer intent.
 @MainActor
 public struct TerminalPointerStyleState {
-    private var ghosttyCursor: NSCursor = .iBeam
-    /// Semantic identity for deduplicating factory cursors without image reads.
-    private var ghosttyShape: ghostty_action_mouse_shape_e?
-    /// The last supported non-pointer shape, used to restore the base cursor
-    /// after Ghostty's temporary OSC 8 hyperlink pointer.
-    private var lastNonPointerCursor: NSCursor = .iBeam
-    private var lastNonPointerShape: ghostty_action_mouse_shape_e?
-    private var activeRuntimeLifetimeId: UUID?
-    private var isFocused = false
-    private var isCmuxLinkHoverActive = false
-    private var isGhosttyLinkHoverActive = false
-    /// A pointer callback may be the temporary cursor Ghostty emits while
-    /// entering a link. Keep the prior base until the transition settles.
-    private var hasPendingGhosttyLinkPointer = false
-    /// A repeated pointer callback confirms that pointer is the persistent OSC
-    /// 22 base rather than a temporary link cursor.
-    private var persistentPointerBaseConfirmed = false
-    /// An unsupported base shape observed after a temporary pointer is held
-    /// until Ghostty's empty-link action confirms that the hyperlink ended.
-    private var pendingUnsupportedBaseAfterPointer = false
+    private var intent = TerminalPointerIntentState()
+    private var resolvedShape = GHOSTTY_MOUSE_SHAPE_TEXT
+    private var resolvedCursor = NSCursor.iBeam
+    // Finite supported-shape vocabulary: factory cursors are allocated at most
+    // once per shape per view, never once per callback or cursor-rect rebuild.
+    private var cursorsByShape: [UInt32: NSCursor] = [:]
 
-    /// Creates pointer state with the normal terminal I-beam.
+    /// Creates a projection with the normal terminal I-beam.
     public init() {}
 
-    /// The cursor AppKit should present for the current surface state.
-    public var effectiveCursor: NSCursor {
-        if isCmuxLinkHoverActive { return .pointingHand }
-        guard isFocused else { return .iBeam }
-        if isGhosttyLinkHoverActive {
-            return .pointingHand
-        }
-        return ghosttyCursor
-    }
+    /// The already-resolved cursor for AppKit cursor rects.
+    public var effectiveCursor: NSCursor { resolvedCursor }
+    /// Whether cmux's link affordance is active.
+    public var cmuxLinkHoverActive: Bool { intent.cmuxLinkHoverActive }
+    /// Whether Ghostty's link affordance is active.
+    public var ghosttyLinkHoverActive: Bool { intent.ghosttyLinkHoverActive }
+    /// Whether the terminal owns keyboard focus.
+    public var focused: Bool { intent.focused }
 
-    /// Whether this surface is currently showing the cmux link override.
-    public var cmuxLinkHoverActive: Bool { isCmuxLinkHoverActive }
-
-    /// Whether Ghostty's transient hyperlink pointer is active.
-    public var ghosttyLinkHoverActive: Bool { isGhosttyLinkHoverActive }
-
-    /// Whether the terminal surface currently owns keyboard focus.
-    public var focused: Bool { isFocused }
-
-    /// Applies one state transition and reports whether the effective cursor changed.
-    ///
-    /// Unsupported Ghostty shapes are ignored so an unknown or unavailable
-    /// cursor never replaces the current pointer with an unrelated fallback.
-    ///
-    /// - Parameter event: The runtime, Ghostty, focus, or cmux-hover transition.
-    /// - Returns: `true` when AppKit cursor rects need invalidation.
+    /// Reduces a direct event and updates its AppKit projection.
+    /// - Parameter event: A runtime, shape, focus, or hover transition.
+    /// - Returns: Whether cursor rects need invalidation.
     @discardableResult
     public mutating func apply(_ event: TerminalPointerStyleEvent) -> Bool {
-        switch event {
-        case .runtimeActivated(let runtimeLifetimeId):
-            let shouldInvalidate = resetPointerPresentationState()
-            activeRuntimeLifetimeId = runtimeLifetimeId
-            return shouldInvalidate
-
-        case .runtimeReset(let runtimeLifetimeId):
-            guard activeRuntimeLifetimeId == runtimeLifetimeId else { return false }
-            return resetPointerPresentationState()
-
-        case .runtimeEnded(let runtimeLifetimeId):
-            if let runtimeLifetimeId,
-               activeRuntimeLifetimeId != runtimeLifetimeId {
-                return false
-            }
-            let shouldInvalidate = resetPointerPresentationState()
-            activeRuntimeLifetimeId = nil
-            return shouldInvalidate
-
-        case .ghosttyShape(let shape, let runtimeLifetimeId):
-            guard activeRuntimeLifetimeId == runtimeLifetimeId else { return false }
-            if shape == GHOSTTY_MOUSE_SHAPE_POINTER,
-               ghosttyShape == shape,
-               !isGhosttyLinkHoverActive {
-                // Ghostty repeats the terminal base shape when a link closes.
-                // Treating that duplicate as confirmation prevents a later
-                // empty-link event from erasing an explicit OSC 22 pointer.
-                persistentPointerBaseConfirmed = true
-                hasPendingGhosttyLinkPointer = false
-                pendingUnsupportedBaseAfterPointer = false
-                return false
-            }
-            if ghosttyShape == shape {
-                // A base-shape refresh can be semantically identical to the
-                // value already stored after a positive link callback. It
-                // still settles the provisional-pointer bookkeeping.
-                if isGhosttyLinkHoverActive {
-                    hasPendingGhosttyLinkPointer = false
-                    persistentPointerBaseConfirmed =
-                        shape == GHOSTTY_MOUSE_SHAPE_POINTER
-                    pendingUnsupportedBaseAfterPointer = false
-                }
-                return false
-            }
-            guard let cursor = cursor(for: shape) else {
-                // Ghostty sends the terminal's base shape when an OSC 8
-                // hyperlink ends. Unsupported base shapes have no AppKit
-                // cursor; defer restoring the last stable fallback until the
-                // matching empty-link action arrives. A confirmed duplicate
-                // pointer is persistent and should remain untouched.
-                if hasPendingGhosttyLinkPointer,
-                   !persistentPointerBaseConfirmed {
-                    pendingUnsupportedBaseAfterPointer = true
-                }
-                return false
-            }
-            if shape == GHOSTTY_MOUSE_SHAPE_POINTER {
-                if isGhosttyLinkHoverActive {
-                    // This is the base shape reported while leaving a link.
-                    persistentPointerBaseConfirmed = true
-                    hasPendingGhosttyLinkPointer = false
-                } else {
-                    hasPendingGhosttyLinkPointer = true
-                    persistentPointerBaseConfirmed = false
-                }
-            } else {
-                hasPendingGhosttyLinkPointer = false
-                persistentPointerBaseConfirmed = false
-            }
-            if shape != GHOSTTY_MOUSE_SHAPE_POINTER {
-                lastNonPointerCursor = cursor
-                lastNonPointerShape = shape
-                pendingUnsupportedBaseAfterPointer = false
-            }
-            ghosttyCursor = cursor
-            ghosttyShape = shape
-            return isFocused &&
-                !isCmuxLinkHoverActive &&
-                !isGhosttyLinkHoverActive
-
-        case .ghosttyLinkHoverChanged(let active, let runtimeLifetimeId):
-            guard activeRuntimeLifetimeId == runtimeLifetimeId else { return false }
-            let nextActive = isFocused && active
-            if nextActive,
-               hasPendingGhosttyLinkPointer,
-               !persistentPointerBaseConfirmed {
-                // Ghostty emits the temporary pointer before the positive
-                // link action. Preserve the prior base for link exit.
-                ghosttyCursor = lastNonPointerCursor
-                ghosttyShape = lastNonPointerShape
-            }
-            if !active, pendingUnsupportedBaseAfterPointer {
-                ghosttyCursor = lastNonPointerCursor
-                ghosttyShape = lastNonPointerShape
-                pendingUnsupportedBaseAfterPointer = false
-                hasPendingGhosttyLinkPointer = false
-                persistentPointerBaseConfirmed = false
-                if !isGhosttyLinkHoverActive { return isFocused && !isCmuxLinkHoverActive }
-            }
-            guard isGhosttyLinkHoverActive != nextActive else { return false }
-            isGhosttyLinkHoverActive = nextActive
-            return isFocused && !isCmuxLinkHoverActive
-
-        case .focusChanged(let focused):
-            guard isFocused != focused else { return false }
-            isFocused = focused
-            if !focused {
-                if isGhosttyLinkHoverActive,
-                   hasPendingGhosttyLinkPointer,
-                   !persistentPointerBaseConfirmed {
-                    ghosttyCursor = lastNonPointerCursor
-                    ghosttyShape = lastNonPointerShape
-                }
-                isGhosttyLinkHoverActive = false
-            }
-            return true
-
-        case .cmuxLinkHoverChanged(let active):
-            let nextActive = active
-            guard isCmuxLinkHoverActive != nextActive else { return false }
-            isCmuxLinkHoverActive = nextActive
-            return true
-        }
+        let invalidated = intent.apply(event)
+        resolveCursor()
+        return invalidated
     }
 
-    /// Clears all runtime-owned pointer intent and reports whether the old
-    /// presentation could have affected this surface's cursor rects.
+    /// Replaces the read-only UI projection with the mailbox's complete state.
+    /// - Parameter snapshot: Authoritative intent after all accepted callbacks.
+    /// - Returns: Whether the effective cursor changed.
     @discardableResult
-    private mutating func resetPointerPresentationState() -> Bool {
-        let shouldInvalidate = ghosttyShape != nil ||
-            isCmuxLinkHoverActive ||
-            isGhosttyLinkHoverActive
-        ghosttyCursor = .iBeam
-        ghosttyShape = nil
-        lastNonPointerCursor = .iBeam
-        lastNonPointerShape = nil
-        isCmuxLinkHoverActive = false
-        isGhosttyLinkHoverActive = false
-        hasPendingGhosttyLinkPointer = false
-        persistentPointerBaseConfirmed = false
-        pendingUnsupportedBaseAfterPointer = false
-        return shouldInvalidate
+    public mutating func replaceIntent(_ snapshot: TerminalPointerIntentState) -> Bool {
+        let changed = intent.effectiveShape != snapshot.effectiveShape
+        intent = snapshot
+        resolveCursor()
+        return changed
+    }
+
+    private mutating func resolveCursor() {
+        let shape = intent.effectiveShape
+        guard shape != resolvedShape else { return }
+        if let cached = cursorsByShape[shape.rawValue] {
+            resolvedCursor = cached
+        } else if let cursor = cursor(for: shape) {
+            cursorsByShape[shape.rawValue] = cursor
+            resolvedCursor = cursor
+        }
+        resolvedShape = shape
     }
 
     /// Maps a Ghostty CSS pointer shape to the closest public AppKit cursor.

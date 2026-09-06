@@ -3713,11 +3713,10 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private var commandClickReleaseRoutingActive = false
     private var commandClickReleaseRuntimeOutcome: TerminalCommandClickReleaseRouter.RuntimeOutcome?
     private var terminalPointerStyle = TerminalPointerStyleState()
-    fileprivate var pointerStyleIngress: GhosttyPointerStyleIngress?
+    var pointerStyleIngress: GhosttyPointerStyleIngress?
     weak var pointerStyleHostedView: GhosttySurfaceScrollView?
     private var pointerStyleRuntimeLifetimeId: UUID?
-    private var suppressGhosttyPointerUntilFreshShape = false
-    private var rejectStaleGhosttyPointerShapes = false
+    private var pointerStyleRevision: UInt64 = 0
     private var pointerStyleFocusGeneration: UInt64 = 0
     private var pointerStyleRefreshFocusGeneration: UInt64?
 
@@ -3726,7 +3725,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     /// another mouse-move event.
     private func reconcileGhosttyPointerStyleAfterFocus() -> Bool {
         guard terminalPointerStyle.focused,
-              rejectStaleGhosttyPointerShapes,
               pointerStyleRefreshFocusGeneration != pointerStyleFocusGeneration,
               let surface else {
             return false
@@ -3761,76 +3759,28 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         _ event: TerminalPointerStyleEvent,
         focusGeneration: UInt64? = nil
     ) -> Bool {
-        // Base Ghostty shapes include persistent OSC 22 state. While the view
-        // is waiting for a fresh post-focus shape, reject only old-epoch
-        // shapes; the forced replay restores persistent state authoritatively.
-        if case .ghosttyShape = event,
-           let focusGeneration,
-           focusGeneration != pointerStyleFocusGeneration,
-           rejectStaleGhosttyPointerShapes {
-            return false
-        }
-        if case .ghosttyLinkHoverChanged = event,
-           let focusGeneration,
-           focusGeneration != pointerStyleFocusGeneration {
-            return false
-        }
-        let wasSuppressingGhosttyPointer = suppressGhosttyPointerUntilFreshShape
-        var didGainFocus = false
-        if case .focusChanged(let focused) = event {
-            let didChangeFocus = terminalPointerStyle.focused != focused
-            didGainFocus = focused && didChangeFocus
-            if didChangeFocus {
-                pointerStyleFocusGeneration &+= 1
-                pointerStyleRefreshFocusGeneration = nil
-            }
-            if !focused {
-                suppressGhosttyPointerUntilFreshShape = true
-                rejectStaleGhosttyPointerShapes = true
-            }
-            if didChangeFocus {
-                pointerStyleIngress?.focusChanged(focused)
-            }
-        }
-        if case .ghosttyShape(_, let runtimeLifetimeId) = event,
-           runtimeLifetimeId == pointerStyleRuntimeLifetimeId,
-           terminalPointerStyle.focused,
-           (focusGeneration == nil || focusGeneration == pointerStyleFocusGeneration) {
-            suppressGhosttyPointerUntilFreshShape = false
-            rejectStaleGhosttyPointerShapes = false
-        }
-        if case .ghosttyLinkHoverChanged(_, let runtimeLifetimeId) = event,
-           runtimeLifetimeId == pointerStyleRuntimeLifetimeId,
-           terminalPointerStyle.focused,
-           (focusGeneration == nil || focusGeneration == pointerStyleFocusGeneration) {
-            suppressGhosttyPointerUntilFreshShape = false
-            rejectStaleGhosttyPointerShapes = false
-        }
-        let didClearGhosttyPointerSuppression =
-            wasSuppressingGhosttyPointer &&
-            !suppressGhosttyPointerUntilFreshShape
-        let didApplyPointerStyle = terminalPointerStyle.apply(event)
-        let didReconcilePointerStyle =
-            didGainFocus && reconcileGhosttyPointerStyleAfterFocus()
-        if didGainFocus {
-            // The cached OSC 22 base is authoritative when Ghostty emits no
-            // shape for a stationary non-link pointer; stale callbacks remain
-            // fenced by `rejectStaleGhosttyPointerShapes` until fresh input.
-            suppressGhosttyPointerUntilFreshShape = false
-        }
-        guard didApplyPointerStyle ||
-              didClearGhosttyPointerSuppression ||
-              didReconcilePointerStyle else { return false }
+        guard let snapshot = pointerStyleIngress?.mailbox.apply(
+            event, focusGeneration: focusGeneration
+        ) else { return false }
+        return applyTerminalPointerStyleSnapshot(snapshot)
+    }
+
+    @discardableResult
+    func applyTerminalPointerStyleSnapshot(_ snapshot: TerminalPointerStyleSnapshot) -> Bool {
+        guard snapshot.revision > pointerStyleRevision else { return false }
+        let didGainFocus = snapshot.intent.focused && !terminalPointerStyle.focused
+        let didChangeFocus = snapshot.intent.focused != terminalPointerStyle.focused
+        pointerStyleRevision = snapshot.revision
+        pointerStyleFocusGeneration = snapshot.focusGeneration
+        let changed = terminalPointerStyle.replaceIntent(snapshot.intent)
+        let reconciled = didGainFocus && reconcileGhosttyPointerStyleAfterFocus()
+        guard changed || didChangeFocus || reconciled else { return false }
         window?.invalidateCursorRects(for: self)
         return true
     }
 
     var effectiveTerminalPointerCursor: NSCursor {
-        if suppressGhosttyPointerUntilFreshShape,
-           !terminalPointerStyle.cmuxLinkHoverActive {
-            return .iBeam
-        }
-        return terminalPointerStyle.effectiveCursor
+        terminalPointerStyle.effectiveCursor
     }
 
     /// Coalesce high-frequency scrollbar updates into a single main-thread
@@ -5544,14 +5494,14 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     @discardableResult
     func prepareForRuntimeSurfaceCreation(runtimeLifetimeId: UUID) -> UInt64 {
         pointerStyleRuntimeLifetimeId = runtimeLifetimeId
-        suppressGhosttyPointerUntilFreshShape = false
-        rejectStaleGhosttyPointerShapes = false
         pointerStyleRefreshFocusGeneration = nil
         let runtimeGeneration = pointerStyleIngress?.activate(
             runtimeLifetimeId: runtimeLifetimeId,
             surfaceId: terminalSurface?.id ?? UUID()
         ) ?? 0
-        applyTerminalPointerStyle(.runtimeActivated(runtimeLifetimeId))
+        if let snapshot = pointerStyleIngress?.mailbox.snapshot {
+            applyTerminalPointerStyleSnapshot(snapshot)
+        }
         return runtimeGeneration
     }
 
@@ -5562,13 +5512,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         if pointerStyleRuntimeLifetimeId == retiredRuntimeLifetimeId {
             pointerStyleRuntimeLifetimeId = nil
         }
-        pointerStyleIngress?.retire(
-            runtimeLifetimeId: retiredRuntimeLifetimeId,
-            surfaceId: terminalSurface?.id ?? UUID()
-        )
         if endsCurrentRuntime {
-            suppressGhosttyPointerUntilFreshShape = false
-            rejectStaleGhosttyPointerShapes = false
             pointerStyleHostedView?.setLinkHoverURL(nil)
         }
         applyTerminalPointerStyle(.runtimeEnded(runtimeLifetimeId))

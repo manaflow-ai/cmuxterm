@@ -103,6 +103,10 @@ struct TerminalPointerStyleViewTests {
                 runtimeLifetimeId: replacementRuntimeLifetimeId
             )
         )
+        // Ghostty emits the hover pointer even when OSC 22 already requested pointer.
+        view.applyTerminalPointerStyle(.ghosttyShape(
+            GHOSTTY_MOUSE_SHAPE_POINTER, runtimeLifetimeId: replacementRuntimeLifetimeId
+        ))
         view.applyTerminalPointerStyle(
             .ghosttyLinkHoverChanged(
                 true,
@@ -122,7 +126,8 @@ struct TerminalPointerStyleViewTests {
                 runtimeLifetimeId: replacementRuntimeLifetimeId
             )
         )
-        #expect(didInvalidateCursorRects)
+        // The base is already current; a duplicate shape needs no repair invalidation.
+        #expect(!didInvalidateCursorRects)
         #expect(view.effectiveTerminalPointerCursor == NSCursor.pointingHand)
     }
 
@@ -140,6 +145,10 @@ struct TerminalPointerStyleViewTests {
                 runtimeLifetimeId: runtimeLifetimeId
             )
         )
+        // Ghostty emits the hover pointer even when OSC 22 already requested pointer.
+        view.applyTerminalPointerStyle(.ghosttyShape(
+            GHOSTTY_MOUSE_SHAPE_POINTER, runtimeLifetimeId: runtimeLifetimeId
+        ))
         view.applyTerminalPointerStyle(
             .ghosttyLinkHoverChanged(
                 true,
