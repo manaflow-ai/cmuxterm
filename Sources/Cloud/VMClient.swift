@@ -2101,7 +2101,7 @@ actor VMClient {
                let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
                 retriesLeft -= 1
                 onRetry()
-                try await Task.sleep(for: .seconds(delaySeconds))
+                try await Task.sleep(for: delaySeconds)
                 continue
             }
             if let sessionIdentity {
