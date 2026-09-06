@@ -10995,17 +10995,19 @@ class TerminalController {
                     return
                 }
 
+                dock.noteKeyboardFocusIntent(window: nil)
                 guard let panelId = dock.newSurface(
                     kind: .browser,
                     inPane: pane,
                     url: url,
-                    focus: true,
+                    focus: false,
                     preloadInitialNavigationInBackground: true
                 ),
                     let panel = dock.browserPanel(for: panelId) else {
                     result = .err(code: "internal_error", message: "Failed to create browser tab", data: nil)
                     return
                 }
+                dock.focusPanelFromDockInteraction(panelId, window: nil)
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
                     "workspace_ref": v2Ref(kind: .workspace, uuid: dock.workspaceId),
@@ -11100,7 +11102,7 @@ class TerminalController {
                         )
                     )
                 } else {
-                    dock.focusPanel(targetId)
+                    dock.focusPanelFromDockInteraction(targetId, window: nil)
                 }
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
