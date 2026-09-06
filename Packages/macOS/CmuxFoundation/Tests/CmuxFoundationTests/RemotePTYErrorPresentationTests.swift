@@ -58,16 +58,43 @@ struct RemotePTYErrorPresentationTests {
         )
     }
 
-    @Test("unknown and empty failures use the generic category")
-    func unknownAndEmptyFailuresAreGeneric() {
+    @Test("structured codes override conflicting legacy text")
+    func structuredCodesOverrideLegacyText() {
         #expect(
-            RemotePTYErrorPresentation(message: "", code: "remote_pty_timeout").kind == .generic
+            RemotePTYErrorPresentation(message: "request timeout", code: "remote_pty_attach_failed").kind ==
+                .generic
         )
+        #expect(
+            RemotePTYErrorPresentation(
+                message: "missing required capability: pty.session",
+                code: "remote_pty_timeout"
+            ).kind == .timeout
+        )
+        #expect(
+            RemotePTYErrorPresentation(message: "", code: "remote_pty_timeout").kind == .timeout
+        )
+    }
+
+    @Test("unknown structured failures use the generic category")
+    func unknownStructuredFailuresAreGeneric() {
         #expect(
             RemotePTYErrorPresentation(message: "transport failed", code: "REMOTE_PTY_TIMEOUT").kind == .generic
         )
         #expect(
-            RemotePTYErrorPresentation(message: "transport failed", code: "future_code").kind == .generic
+            RemotePTYErrorPresentation(message: "request timeout", code: "future_code").kind == .generic
+        )
+    }
+
+    @Test("legacy envelopes retain message classification")
+    func legacyEnvelopesRetainMessageClassification() {
+        #expect(
+            RemotePTYErrorPresentation(message: "request timeout", code: "remote_pty_error").kind == .timeout
+        )
+        #expect(
+            RemotePTYErrorPresentation(
+                message: "remote daemon tunnel is not ready",
+                code: "rpc_error"
+            ).kind == .daemonNotReady
         )
     }
 
@@ -83,5 +110,16 @@ struct RemotePTYErrorPresentationTests {
         )
 
         #expect(RemotePTYErrorPresentation(error: error).kind == .timeout)
+    }
+
+    @Test("error initializer falls back to legacy text without metadata")
+    func errorInitializerFallsBackToLegacyTextWithoutMetadata() {
+        let error = NSError(
+            domain: "cmux.remote.daemon.rpc",
+            code: 14,
+            userInfo: [NSLocalizedDescriptionKey: "missing session_id in SSH PTY session list response"]
+        )
+
+        #expect(RemotePTYErrorPresentation(error: error).kind == .missingSessionID)
     }
 }
