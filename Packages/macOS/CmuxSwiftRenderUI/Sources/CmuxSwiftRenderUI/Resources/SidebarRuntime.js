@@ -447,9 +447,13 @@
     try {
       for (const k of Object.keys(params || {})) {
         const value = params[k];
-        p[k] = value !== null && (typeof value === "object" || typeof value === "bigint")
-          ? JSON.stringify(value)
-          : String(value);
+        if (value !== null && (typeof value === "object" || typeof value === "bigint")) {
+          const encoded = JSON.stringify(value);
+          if (encoded === undefined) throw new TypeError("Unsupported parameter value");
+          p[k] = encoded;
+        } else {
+          p[k] = String(value);
+        }
       }
       __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
     } catch (_) {
