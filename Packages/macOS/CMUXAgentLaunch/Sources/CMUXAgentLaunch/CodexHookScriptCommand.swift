@@ -34,7 +34,8 @@ public extension CodexHookScriptName {
         guard !command.isEmpty else { return nil }
 
         let path: String
-        if command.hasPrefix("'") {
+        let isCanonicalQuotedPath = command.hasPrefix("'")
+        if isCanonicalQuotedPath {
             guard command.hasSuffix("'") else { return nil }
             let encoded = String(command.dropFirst().dropLast())
             let decoded = encoded.replacingOccurrences(of: "'\"'\"'", with: "'")
@@ -50,10 +51,21 @@ public extension CodexHookScriptName {
               !path.utf8.contains(0) else {
             return nil
         }
+        if !isCanonicalQuotedPath {
+            guard path.unicodeScalars.allSatisfy({
+                !CharacterSet.controlCharacters.contains($0)
+            }),
+            path.rangeOfCharacter(from: shellMetacharacters) == nil else {
+                return nil
+            }
+        }
         return path
     }
 }
 
 private extension CodexHookScriptName {
     static let shellSafePathPattern = "^[A-Za-z0-9_@%+=:,./-]+$"
+    static let shellMetacharacters = CharacterSet(
+        charactersIn: "'\"`$&;|<>()[\\]{}*?!~#"
+    )
 }
