@@ -21,9 +21,12 @@ an unspecified shape from an explicit request and resolves the mode default in
 one place. Modifier and link-exit paths preserve that base outside temporary
 rectangle-selection and Shift-selection overrides.
 
-The test-only commit is `e4aa4ba16`; the tested fix is
-`d60e7f1f6318ccc3f095f5d7d100b04ee7ba94df`. Native modifier/default tests and a
-universal ReleaseFast framework build pass. The internal Zig shape field is now
+Test-only `e4aa4ba16` reproduces modifier loss; `adb251c61` reproduces mode
+handlers overwriting the explicit request. The tested final fix is
+`f2c511a46f2a1ea7e6b34e6a0dff8a9d99941b26`. Real stream-handler/mailbox tests
+cover reporting modes, explicit pointer/text requests, emitted cursor messages,
+and full reset. Native modifier/default tests and a universal ReleaseFast
+framework build also pass. The internal Zig shape field is now
 optional; the C action ABI is unchanged. Preserve the explicit/default
 distinction when merging upstream mouse-shape changes.
 
