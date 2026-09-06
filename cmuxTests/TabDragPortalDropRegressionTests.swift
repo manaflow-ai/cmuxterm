@@ -131,7 +131,7 @@ extension WindowBrowserPortal {
 
 @MainActor
 extension WindowBrowserSlotView {
-    convenience init(frame frameRect: NSRect) {
+    override convenience init(frame frameRect: NSRect) {
         self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
     }
 }
