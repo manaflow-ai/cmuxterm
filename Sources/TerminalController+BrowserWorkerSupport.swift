@@ -106,11 +106,17 @@ extension TerminalController {
         )
         let encodedResponse = CmuxAutomationInvocationContext.$focusAllowed.withValue(allowsFocusMutation) {
             v2AsyncResultCall(id: request.id?.foundationObject, timeoutSeconds: 15) {
-                await self.v2BrowserKeyboardNativeResult(
+                let result = await self.v2BrowserKeyboardNativeResult(
                     request: request,
                     event: event,
                     action: action
                 )
+                switch result {
+                case .ok(let payload):
+                    return .ok(payload.foundationObject)
+                case .err(let code, let message, let data):
+                    return .err(code: code, message: message, data: data?.foundationObject)
+                }
             }
         }
         guard v2Bool(params, "snapshot_after") == true,
