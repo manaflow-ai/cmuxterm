@@ -42,15 +42,17 @@ struct RestoreHarness {
             let directory = args[3]
             let sessionID = args[4]
             let saved = ["CODEX_HOME": environment["SAVED_CODEX_HOME"] ?? environment["CODEX_HOME"]!]
-            if mode == "legacy" || mode == "ambiguous-legacy" || mode == "remote" {
+            if mode == "legacy" || mode == "legacy-noncanonical" || mode == "ambiguous-legacy" || mode == "remote" {
                 let remote = mode == "remote" ? " --remote ws://example.invalid" : ""
                 let command = mode != "ambiguous-legacy"
                     ? "env CODEX_HOME='\(saved["CODEX_HOME"]!)' '\(executable)'\(remote) resume \(sessionID)"
                     : "'\(executable)' resume \(sessionID)"
+                let recordMode = mode == "legacy-noncanonical" ? "resumeAgent " : "resumeAgent"
+                let recordKind = mode == "legacy-noncanonical" ? " codex " : "codex"
                 try cli.execLegacyRestoreRecord(
                     command,
                     record: CMUXCLI.RestoreRecord(
-                        mode: "resumeAgent", kind: "codex", checkpointID: sessionID,
+                        mode: recordMode, kind: recordKind, checkpointID: sessionID,
                         workingDirectory: directory, launchCommand: nil
                     ),
                     environment: environment, client: SocketClient()

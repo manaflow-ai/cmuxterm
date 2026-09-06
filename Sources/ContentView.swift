@@ -844,6 +844,7 @@ struct ContentView: View {
         case searchIndexBuild
         case search
         case forkableAgentAvailability(String)
+        case sessionRestore
     }
 
     var updateViewModel: UpdateStateModel
@@ -2406,11 +2407,17 @@ struct ContentView: View {
     }
 
     private func resumeSession(entry: SessionEntry) {
-        Task { await SessionEntryResumeCoordinator(tabManager: tabManager).resume(entry) }
+        let tabManager = tabManager
+        commandPaletteTaskStore.replaceOnMainActor(.sessionRestore) {
+            _ = await SessionEntryResumeCoordinator(tabManager: tabManager).resume(entry)
+        }
     }
 
     private func openSession(entry: SessionEntry) {
-        Task { await SessionEntryResumeCoordinator(tabManager: tabManager).open(entry) }
+        let tabManager = tabManager
+        commandPaletteTaskStore.replaceOnMainActor(.sessionRestore) {
+            await SessionEntryResumeCoordinator(tabManager: tabManager).open(entry)
+        }
     }
 
     func openRightSidebarToolPane(_ mode: RightSidebarMode) {
@@ -3386,6 +3393,7 @@ struct ContentView: View {
                 sidebarDragStartWidth = nil
             }
             cancelCommandPaletteForkableAgentProbeResultExpiryRefresh()
+            commandPaletteTaskStore.cancel(.sessionRestore)
             removeSidebarResizerPointerMonitor()
         })
 

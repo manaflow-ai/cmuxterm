@@ -46,7 +46,7 @@ extension SessionEntryResumeCoordinator {
                 }
             }
         }
-        let message = CodexWriterRestoreMessage(sessionID: sessionID, inspection: result)
+        let message = CodexWriterRestoreMessage(inspection: result)
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = message.title
@@ -75,7 +75,8 @@ extension SessionEntryResumeCoordinator {
         // remote/mirrored surfaces have no safe continuation route here.
         for dock in tabManager.liveWindowDockStores where dock.scope == .global && !dock.isRetired {
             for (panelID, panel) in dock.panels {
-                guard let terminal = panel as? TerminalPanel, terminal.surface.hasLiveSurface,
+                guard !dock.terminalLinkIsRemoteTerminal(panelID),
+                      let terminal = panel as? TerminalPanel, terminal.surface.hasLiveSurface,
                       let foregroundPID = terminal.surface.foregroundProcessID(),
                       let ttyDevice = terminal.surface.controllingTTYDeviceIdentifier else { continue }
                 candidates.append(CodexWriterSurfaceIdentity(

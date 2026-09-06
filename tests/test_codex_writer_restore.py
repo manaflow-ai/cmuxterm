@@ -94,7 +94,8 @@ print(json.dumps({"argv": sys.argv, "cwd": os.getcwd(), "home": os.environ.get("
         result = self.restore()
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("active writer", result.stderr)
-        self.assertIn("account/thread-writer-locks/" + self.lock.name, result.stderr)
+        self.assertNotIn(self.lock.name, result.stderr)
+        self.assertNotIn(str(self.root), result.stderr)
         self.assertEqual(result.stdout, "")
         self.assertTrue(self.lock.exists())
         # A second descriptor still cannot acquire our lock: no unlock/removal.
@@ -138,6 +139,16 @@ print(json.dumps({"argv": sys.argv, "cwd": os.getcwd(), "home": os.environ.get("
         self.assertIn("active writer", blocked.stderr)
         fcntl.flock(handle, fcntl.LOCK_UN)
         allowed = self.restore(mode="legacy")
+        self.assertEqual(allowed.returncode, 0, allowed.stderr)
+
+    def test_legacy_noncanonical_record_is_still_guarded(self):
+        handle = self.hold_lock()
+        blocked = self.restore(mode="legacy-noncanonical")
+        self.assertNotEqual(blocked.returncode, 0, blocked.stdout)
+        self.assertIn("active writer", blocked.stderr)
+        self.assertEqual(blocked.stdout, "")
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        allowed = self.restore(mode="legacy-noncanonical")
         self.assertEqual(allowed.returncode, 0, allowed.stderr)
 
     def test_ambiguous_legacy_does_not_guess_account(self):

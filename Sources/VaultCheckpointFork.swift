@@ -321,6 +321,7 @@ extension SessionEntry {
             pullRequest: nil,
             modified: now,
             fileURL: fileURL,
+            indexedCodexHome: indexedCodexHome,
             specifics: specifics,
             created: now,
             messageCount: nil

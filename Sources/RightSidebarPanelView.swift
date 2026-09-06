@@ -116,6 +116,10 @@ extension RightSidebarMode {
 
 /// Right sidebar root view. Hosts a segmented mode picker plus the active panel.
 struct RightSidebarPanelView: View {
+    private enum SessionFocusTaskKey: Hashable, Sendable {
+        case focus
+    }
+
     @ObservedObject var tabManager: TabManager
     @ObservedObject var fileExplorerStore: FileExplorerStore
     @ObservedObject var fileExplorerState: FileExplorerState
@@ -158,6 +162,7 @@ struct RightSidebarPanelView: View {
     /// the remote host swaps files in place on one client, so a shared client
     /// would make the two rails fight over one worker process.
     @State private var customSidebarWorkerClient: RenderWorkerClient?
+    @State private var sessionFocusTaskStore = MainActorTaskStore<SessionFocusTaskKey>()
 
     // Re-reading the observable store inside modeBar causes SwiftUI to
     // track the pending count so the badge updates live when hooks push
@@ -203,6 +208,13 @@ struct RightSidebarPanelView: View {
 
     private var focusShortcutHintAnimationValue: Bool {
         alwaysShowShortcutHints || (showModifierHoldHints && focusShortcutHintMonitor.isModifierPressed)
+    }
+
+    private func focusSession(_ entry: SessionEntry) {
+        let tabManager = tabManager
+        sessionFocusTaskStore.replaceOnMainActor(.focus) {
+            _ = await SessionEntryResumeCoordinator(tabManager: tabManager).focusIfActive(entry)
+        }
     }
 
     private func startShortcutHintMonitorsIfNeeded() {
@@ -256,6 +268,7 @@ struct RightSidebarPanelView: View {
         }
         .onDisappear {
             stopShortcutHintMonitors()
+            sessionFocusTaskStore.cancel(.focus)
         }
         .onChange(of: showModifierHoldHints) { _, _ in
             startShortcutHintMonitorsIfNeeded()
@@ -491,9 +504,7 @@ struct RightSidebarPanelView: View {
                     onResume: onResumeSession,
                     onOpen: onOpenSession,
                     activeSessionKeys: SessionEntryResumeCoordinator(tabManager: tabManager).inPaneSessionKeys(),
-                    onFocus: { entry in
-                        Task { _ = await SessionEntryResumeCoordinator(tabManager: tabManager).focusIfActive(entry) }
-                    }
+                    onFocus: focusSession
                 )
                     .onAppear {
                         sessionIndexStore.setCurrentDirectoryIfChanged(sessionIndexDirectory)

@@ -210,13 +210,7 @@ extension TerminalController {
             let forked = entry.forkedEntry(newSessionID: newSessionID, fileURL: forkedURL, now: Date())
             var opened = false
             if params["open"] as? Bool == true {
-                opened = v2MainSync(commandKey: "vault.fork") {
-                    MainActor.assumeIsolated {
-                        guard let tabManager = self.tabManager else { return false }
-                        Task { await SessionEntryResumeCoordinator(tabManager: tabManager).resume(forked) }
-                        return true
-                    }
-                }
+                opened = await resumeVaultFork(forked)
             }
             var payload: [String: Any] = [
                 "agent": forked.agent.rawValue,
@@ -233,6 +227,12 @@ extension TerminalController {
             }
             return .ok(payload)
         }
+    }
+
+    @MainActor
+    private func resumeVaultFork(_ entry: SessionEntry) async -> Bool {
+        guard let tabManager else { return false }
+        return await SessionEntryResumeCoordinator(tabManager: tabManager).resume(entry)
     }
 
     // MARK: Shared helpers

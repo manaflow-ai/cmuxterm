@@ -5430,7 +5430,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		46920100000000000000000B /* SessionDragSourceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDragSourceView.swift; sourceTree = "<group>"; };
 		D11973000000000000000005 /* SessionEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntry.swift; sourceTree = "<group>"; };
 		D11973000000000000000002 /* SessionEntryCodexHome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntryCodexHome.swift; sourceTree = "<group>"; };
-		D11973000000000000000003 /* SessionEntryResumeCoordinator+CodexWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntryResumeCoordinator+CodexWriter.swift; sourceTree = "<group>"; };
+		D11973000000000000000003 /* SessionEntryResumeCoordinator+CodexWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionEntryResumeCoordinator+CodexWriter.swift"; sourceTree = "<group>"; };
 		D11973000000000000000006 /* SessionEntryResumeCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntryResumeCoordinator.swift; sourceTree = "<group>"; };
 		D11973000000000000000007 /* SessionEntryResumeCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntryResumeCoordinatorTests.swift; sourceTree = "<group>"; };
 		992300019923000199230004 /* SessionEntryResumeLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEntryResumeLaunch.swift; sourceTree = "<group>"; };

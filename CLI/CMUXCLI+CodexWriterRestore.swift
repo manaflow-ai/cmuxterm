@@ -26,7 +26,7 @@ extension CMUXCLI {
         throw loggedRestoreError(
             stage: inspection.lock?.state == .active ? "session.active-writer" : "session.writer-check-unavailable",
             detail: "session=\(sessionID)",
-            message: CodexWriterRestoreMessage(sessionID: sessionID, inspection: inspection).text
+            message: CodexWriterRestoreMessage(inspection: inspection).text
         )
     }
 
@@ -39,8 +39,10 @@ extension CMUXCLI {
         environment: [String: String],
         includeOwnerDetails: Bool = true
     ) throws {
-        guard record.mode == AgentRestoreRequestMode.resumeAgent.rawValue,
-              record.kind.lowercased() == "codex" else { return }
+        let normalizedMode = record.mode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedKind = record.kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalizedMode == AgentRestoreRequestMode.resumeAgent.rawValue,
+              normalizedKind == "codex" else { return }
         guard let sessionID = record.checkpointID,
               let legacy = CodexLegacyRestoreCommand(command: command, sessionID: sessionID) else {
             throw loggedRestoreError(
@@ -48,7 +50,7 @@ extension CMUXCLI {
                 detail: "legacy Codex home is not explicit",
                 message: String(
                     localized: "codex.restore.legacyScopeUnavailable",
-                    defaultValue: "cmux cannot safely check ownership for this older shell-only Codex restore. No writer was started. Continue in the original terminal, or exit that session normally and resume it with Codex using the original CODEX_HOME and session ID."
+                    defaultValue: "cmux cannot safely check ownership for this older shell-only Codex restore. No writer was started. Continue in the original terminal, or exit that session normally before retrying."
                 )
             )
         }

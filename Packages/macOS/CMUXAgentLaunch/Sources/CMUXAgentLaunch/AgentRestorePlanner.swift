@@ -103,12 +103,13 @@ public struct AgentRestorePlanner: Sendable {
             ambientEnvironment: ambientEnvironment,
             profilePin: hermesProfilePin
         )
+        let normalizedCheckpointID = normalized(request.checkpointID)
         return AgentRestoreInvocation(
             arguments: routedArguments,
             workingDirectory: workingDirectory,
             environment: environment,
             preflightInvocations: preflights,
-            codexResumeSessionID: kind == "codex" && request.mode == .resumeAgent ? request.checkpointID : nil
+            codexResumeSessionID: kind == "codex" && request.mode == .resumeAgent ? normalizedCheckpointID : nil
         )
     }
 

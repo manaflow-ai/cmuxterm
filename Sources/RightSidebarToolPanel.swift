@@ -1,7 +1,13 @@
 import AppKit
 import Combine
 import CmuxAppKitSupportUI
+import CmuxFoundation
 import SwiftUI
+
+private enum RightSidebarToolPanelTaskKey: Hashable, Sendable {
+    case remoteFilePreview
+    case sessionAction
+}
 
 @MainActor
 final class RightSidebarToolPanel: Panel, ObservableObject {
@@ -19,6 +25,7 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     private var fileExplorerStateStorage: FileExplorerState?
     private var sessionIndexStoreStorage: SessionIndexStore?
     private var workspaceObservationCancellable: AnyCancellable?
+    private let actionTasks = MainActorTaskStore<RightSidebarToolPanelTaskKey>()
 
     init(workspace: Workspace, mode: RightSidebarMode) {
         self.id = UUID()
@@ -27,7 +34,7 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     }
 
     deinit {
-        // Explicit no-op so future teardown has a single home.
+        // MainActorTaskStore deinit cancels every remaining action task.
     }
 
     var fileExplorerStore: FileExplorerStore {
@@ -94,8 +101,7 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
             return
         }
         if workspace.isRemoteWorkspace {
-            let store = fileExplorerStore
-            Task { [weak workspace, weak store] in
+            actionTasks.replaceOnMainActor(.remoteFilePreview) { [weak workspace, weak store = fileExplorerStore] in
                 guard let workspace, let store else { return }
                 do {
                     let localURL = try await store.materializeRemoteFileForPreview(path: filePath)
@@ -124,11 +130,18 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     }
 
     func close() {
+        actionTasks.cancel(where: { _ in true })
         fileExplorerContainerView = nil
         sessionIndexFocusAnchorView = nil
         fileExplorerStoreStorage?.applyWorkspaceRoot(.none)
         sessionIndexStoreStorage?.setCurrentDirectoryIfChanged(nil)
         workspaceObservationCancellable = nil
+    }
+
+    func runSessionAction(
+        _ action: @escaping @MainActor @Sendable () async -> Void
+    ) {
+        actionTasks.replaceOnMainActor(.sessionAction, with: action)
     }
 
     func focus() {
@@ -288,14 +301,20 @@ struct RightSidebarToolPanelView: View {
             SessionIndexView(
                 store: panel.sessionIndexStore,
                 onResume: { entry in
-                    Task { await SessionEntryResumeCoordinator(tabManager: tabManager).resume(entry) }
+                    panel.runSessionAction { [tabManager] in
+                        _ = await SessionEntryResumeCoordinator(tabManager: tabManager).resume(entry)
+                    }
                 },
                 onOpen: { entry in
-                    Task { await SessionEntryResumeCoordinator(tabManager: tabManager).open(entry) }
+                    panel.runSessionAction { [tabManager] in
+                        await SessionEntryResumeCoordinator(tabManager: tabManager).open(entry)
+                    }
                 },
                 activeSessionKeys: SessionEntryResumeCoordinator(tabManager: tabManager).inPaneSessionKeys(),
                 onFocus: { entry in
-                    Task { _ = await SessionEntryResumeCoordinator(tabManager: tabManager).focusIfActive(entry) }
+                    panel.runSessionAction { [tabManager] in
+                        _ = await SessionEntryResumeCoordinator(tabManager: tabManager).focusIfActive(entry)
+                    }
                 }
             )
             .background(

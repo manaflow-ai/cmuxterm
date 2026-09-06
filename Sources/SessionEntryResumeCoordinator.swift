@@ -151,13 +151,14 @@ struct SessionEntryResumeCoordinator {
         return true
     }
 
-    func resume(_ entry: SessionEntry) async {
-        guard !(await handleCodexWriterConflict(for: entry)), !Task.isCancelled else { return }
-        guard let launch = entry.resumeLaunch else { return }
+    @discardableResult
+    func resume(_ entry: SessionEntry) async -> Bool {
+        guard !(await handleCodexWriterConflict(for: entry)), !Task.isCancelled else { return false }
+        guard let launch = entry.resumeLaunch else { return false }
         // Resume is deliberately workspace-scoped. It must remain predictable
         // even when the selected workspace happens to share the session's cwd;
         // Open Session is the separate action for a split in the current
         // workspace.
-        _ = launchInNewWorkspace(launch)
+        return launchInNewWorkspace(launch) != nil
     }
 }
