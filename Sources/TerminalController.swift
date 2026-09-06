@@ -8013,7 +8013,7 @@ class TerminalController {
                     if let dict = value as? [String: Any],
                        let ok = dict["ok"] as? Bool,
                        ok {
-                        let payload: [String: Any] = [
+                        var payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "surface_id": surfaceId.uuidString,
                             "action": actionName,
