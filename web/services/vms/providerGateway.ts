@@ -13,6 +13,7 @@ import {
   type ProviderId,
   type ProviderNetwork,
   type ProviderTunnel,
+  type ProviderTunnelCreateResult,
   type RestoreOptions,
   type SnapshotRef,
   type SSHEndpoint,
@@ -21,6 +22,7 @@ import {
   type VMVolumeListOptions,
   type VMStatus,
   type VMStats,
+  type VMResizeOptions,
   type CmuxRemoteApprovalResult,
   type CmuxRemoteApprovalOptions,
   type CmuxRemoteAttachOptions,
@@ -70,6 +72,11 @@ export type VmProviderGatewayShape = {
     provider: ProviderId,
     vmId: string,
   ) => Effect.Effect<VMStats, VmProviderOperationError>;
+  readonly resize?: (
+    provider: ProviderId,
+    vmId: string,
+    options: VMResizeOptions,
+  ) => Effect.Effect<void, VmProviderOperationError | VmOperationUnsupportedError>;
   /** Session transports the provider serves; undefined = legacy websocket/ssh. */
   readonly attachTransports?: (provider: ProviderId) => readonly AttachTransport[] | undefined;
   readonly openAttach: (
@@ -107,6 +114,11 @@ export type VmProviderGatewayShape = {
     provider: ProviderId,
     options: { slug: string; displayName?: string; heal?: boolean },
   ) => Effect.Effect<ProviderNetwork, VmProviderOperationError>;
+  /** Read a provider network without creating or repairing it. */
+  readonly getNetwork?: (
+    provider: ProviderId,
+    networkId: string,
+  ) => Effect.Effect<ProviderNetwork | null, VmProviderOperationError>;
   readonly deleteNetwork?: (
     provider: ProviderId,
     networkId: string,
@@ -114,7 +126,7 @@ export type VmProviderGatewayShape = {
   readonly createTunnel?: (
     provider: ProviderId,
     options: CreateProviderTunnelOptions,
-  ) => Effect.Effect<ProviderTunnel, VmProviderOperationError>;
+  ) => Effect.Effect<ProviderTunnelCreateResult, VmProviderOperationError>;
   readonly getTunnel?: (
     provider: ProviderId,
     tunnelId: string,
@@ -223,6 +235,11 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
       }
       return await impl.getStats(vmId);
     }),
+  resize: (provider, vmId, options) => {
+    const impl = getProvider(provider);
+    if (!impl.resize) return Effect.fail(new VmOperationUnsupportedError({ provider, operation: "resize" }));
+    return providerEffect(provider, "resize", () => impl.resize!(vmId, options));
+  },
   attachTransports: (provider) => getProvider(provider).attachTransports,
   openAttach: (provider, vmId, options) =>
     providerEffect(provider, "openAttach", async () => {
@@ -273,6 +290,10 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
   ensureNetwork: (provider, options) =>
     providerEffect(provider, "ensureNetwork", () =>
       privateNetworking(provider).ensureNetwork(options)
+    ),
+  getNetwork: (provider, networkId) =>
+    providerEffect(provider, "getNetwork", () =>
+      privateNetworking(provider).getNetwork(networkId)
     ),
   deleteNetwork: (provider, networkId) =>
     providerEffect(provider, "deleteNetwork", () =>

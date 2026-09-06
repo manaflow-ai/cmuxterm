@@ -68,6 +68,8 @@ export type VMHandle = {
 
 export type CreateOptions = {
   image: string; // provider-specific template/snapshot identifier
+  /** Human-facing machine label; providers may ignore this cosmetic field. */
+  displayName?: string;
   providerMetadata?: Record<string, unknown>;
   /**
    * Name of a persistent volume to mount as the machine's home directory. Providers that
@@ -289,6 +291,13 @@ export type SnapshotRef = {
   name?: string;
 };
 
+/** Grow-only resources accepted by a provider resize operation. */
+export type VMResizeOptions = {
+  readonly cpu?: number;
+  readonly memoryMb?: number;
+  readonly storageMb?: number;
+};
+
 /**
  * What a provider can actually do, so clients hide verbs that would only fail.
  * This is the client-visible provider contract: every VM API response carries
@@ -346,6 +355,13 @@ export type ProviderTunnel = {
   readonly addressV6: string | null;
 };
 
+/** Result of enrolling a tunnel, including whether provider state was recovered or rotated. */
+export type ProviderTunnelCreateResult = {
+  readonly tunnel: ProviderTunnel;
+  readonly created: boolean;
+  readonly rotated: boolean;
+};
+
 export type CreateProviderTunnelOptions = {
   readonly slug: string;
   readonly displayName?: string;
@@ -374,7 +390,7 @@ export interface VMPrivateNetworking {
   /** Delete a network. Must succeed when it is already gone. */
   deleteNetwork(networkId: string): Promise<void>;
   /** Create a tunnel with the network already attached. */
-  createTunnel(options: CreateProviderTunnelOptions): Promise<ProviderTunnel>;
+  createTunnel(options: CreateProviderTunnelOptions): Promise<ProviderTunnelCreateResult>;
   /**
    * Read a tunnel back with its address inside `networkId`, re-attaching the
    * network if the attachment is missing. Null when the tunnel is gone at the
@@ -425,6 +441,8 @@ export interface VMProvider {
   /// Live CPU/memory/disk for the Cloud panel's activity view. Must not wake a
   /// sleeping machine.
   getStats?(vmId: string): Promise<VMStats>;
+  /** Grow one or more VM resources. Freestyle currently uses storage only. */
+  resize?(vmId: string, options: VMResizeOptions): Promise<void>;
 
   pause(vmId: string): Promise<void>;
   resume(vmId: string): Promise<VMHandle>;

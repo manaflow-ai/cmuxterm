@@ -181,6 +181,7 @@ export async function POST(request: Request): Promise<Response> {
     "/api/vm",
     { "cmux.vm.operation": "create" },
     "/api/vm POST failed",
+    // oxlint-disable-next-line complexity -- VM creation keeps auth, billing, idempotency, provider, and rollback precedence in one transaction.
     async ({ user: initialUser, span, authDurationMs, routeStartedAtMs, setResponseFinalizer }) => {
       const timing = new VmTimingRecorder(span, "create", { startedAt: routeStartedAtMs });
       timing.record("auth", authDurationMs);

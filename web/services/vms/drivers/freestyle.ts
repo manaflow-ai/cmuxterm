@@ -22,6 +22,7 @@ import {
   type ExecResult,
   type ProviderNetwork,
   type ProviderTunnel,
+  type ProviderTunnelCreateResult,
   type RestoreOptions,
   type SnapshotRef,
   type VmEdgeRule,
@@ -625,7 +626,7 @@ class FreestylePrivateNetworking implements VMPrivateNetworking {
     return withVmSpan(
       "cmux.vm.provider.ensure_network",
       { "cmux.vm.provider": "freestyle", "cmux.vm.operation": "ensure_network", "cmux.vm.network.slug": slug, "cmux.vm.network.heal": options.heal === true },
-      async (span) => {
+        async (span) => {
         const fs = this.client();
         if (options.heal) {
           const existing = await this.readNetworkBySlug(fs, slug);
@@ -678,7 +679,7 @@ class FreestylePrivateNetworking implements VMPrivateNetworking {
     }
   }
 
-  async createTunnel(options: CreateProviderTunnelOptions): Promise<ProviderTunnel> {
+  async createTunnel(options: CreateProviderTunnelOptions): Promise<ProviderTunnelCreateResult> {
     const clientPublicKey = options.clientPublicKey.trim();
     if (!clientPublicKey) {
       throw new ProviderError("freestyle", "createTunnel requires the client's public key");
@@ -690,7 +691,7 @@ class FreestylePrivateNetworking implements VMPrivateNetworking {
         "cmux.vm.operation": "create_tunnel",
         "cmux.vm.network.id": options.networkId,
       },
-      async (span) => {
+        async (span) => {
         try {
           // clientPublicKey is always supplied, so the platform never mints or
           // holds a private key: the config comes back with a blank PrivateKey
@@ -703,7 +704,7 @@ class FreestylePrivateNetworking implements VMPrivateNetworking {
           });
           const tunnel = mapFreestyleTunnel(data, options.networkId);
           setSpanAttributes(span, { "cmux.vm.tunnel.id": tunnel.id });
-          return tunnel;
+          return { tunnel, created: true, rotated: false };
         } catch (err) {
           // The provider resource can outlive the local bookkeeping row (for
           // example after a fresh local-dev database). The device slug is
@@ -720,7 +721,7 @@ class FreestylePrivateNetworking implements VMPrivateNetworking {
               "cmux.vm.tunnel.id": recovered.id,
               "cmux.vm.tunnel.recovered": true,
             });
-            return recovered;
+            return { tunnel: recovered, created: false, rotated: false };
           }
           throw new ProviderError("freestyle", `createTunnel(${options.slug})`, err);
         }
@@ -1193,6 +1194,7 @@ export class FreestyleProvider implements VMProvider {
     return withVmSpan(
       "cmux.vm.provider.open_cmux_remote",
       spanAttributes(vmId, "open_cmux_remote"),
+      // oxlint-disable-next-line complexity -- Attach healing must preserve readiness, enrollment, and route-token ordering.
       async (span) => {
         try {
           const fs = this.deps.client(CMUX_TUI_INSTALL_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS);
