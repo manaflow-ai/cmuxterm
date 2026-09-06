@@ -253,12 +253,12 @@ CodeRouter artifact and required metadata, is below the Swift baseline. The
 arm64 and x86_64 sizes must be reported separately because static Rust
 dependencies can change the split.
 
-The current dependency-light Rust slice measures 1,358,592 bytes universal
-for `cmux` and 1,358,672 bytes for `coderouter`, before signing. Earlier
-slices measured 1,341,568/1,341,648 and 1,306,800/1,306,864 bytes. These are
-useful signals that a small Rust CLI can save bundle space, but they are not
-full parity measurements. The full command migration must be measured again
-after each family is added.
+The current dependency-light Rust slice measures 1,358,480 bytes universal
+for `cmux` and 1,374,944 bytes for `coderouter`, before signing. Earlier
+slices measured 1,358,592/1,358,672, 1,341,568/1,341,648, and
+1,306,800/1,306,864 bytes. These are useful signals that a small Rust CLI can
+save bundle space, but they are not full parity measurements. The full command
+migration must be measured again after each family is added.
 
 Release CI must record:
 
