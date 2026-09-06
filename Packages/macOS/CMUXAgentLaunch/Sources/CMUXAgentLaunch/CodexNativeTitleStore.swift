@@ -31,6 +31,7 @@ public struct CodexNativeTitleStore: Sendable {
             return nil
         }
         defer { sqlite3_close(database) }
+        sqlite3_busy_timeout(database, 250)
 
         var statement: OpaquePointer?
         let query = "SELECT title FROM threads WHERE id = ?1 AND archived = 0 LIMIT 1"
@@ -43,11 +44,7 @@ public struct CodexNativeTitleStore: Sendable {
 
         let transient = unsafeBitCast(OpaquePointer(bitPattern: -1), to: sqlite3_destructor_type.self)
         sqlite3_bind_text(statement, 1, normalizedSessionId, -1, transient)
-        var stepResult = sqlite3_step(statement)
-        for _ in 0..<3 where stepResult == SQLITE_BUSY {
-            stepResult = sqlite3_step(statement)
-        }
-        guard stepResult == SQLITE_ROW,
+        guard sqlite3_step(statement) == SQLITE_ROW,
               let titleBytes = sqlite3_column_text(statement, 0) else {
             return nil
         }
