@@ -1,4 +1,5 @@
 import Foundation
+import CmuxSwiftRender
 import Testing
 @testable import CmuxSwiftRenderUI
 
@@ -22,6 +23,19 @@ struct SidebarFontFamilyTests {
             size: 13,
             family: " MonoLisaText ")
 
+        #expect(spec?.family == "MonoLisaText")
+        #expect(spec?.baseSize == 13)
+    }
+
+    @Test("Swift custom font syntax reaches the render modifier")
+    func swiftCustomFontSyntaxReachesRenderModifier() throws {
+        let node = try #require(SwiftViewInterpreter().evaluate(
+            #"Text("row").font(.custom("MonoLisaText", size: 13))"#
+        ))
+
+        let modifier = try #require(node.modifiers.first)
+        #expect(modifier.name == "font")
+        let spec = dslFontSpec(from: modifier.firstValue)
         #expect(spec?.family == "MonoLisaText")
         #expect(spec?.baseSize == 13)
     }

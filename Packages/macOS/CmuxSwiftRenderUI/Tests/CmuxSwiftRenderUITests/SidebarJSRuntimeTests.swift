@@ -28,6 +28,17 @@ struct SidebarJSRuntimeTests {
         #expect(first?.string("font") == "headline")
     }
 
+    @Test func fontObjectRetainsFamilyAndSize() throws {
+        let runtime = SidebarJSRuntime()
+        #expect(runtime.start(source: """
+        sidebar(() => Text("Hello").font({ family: "MonoLisaText", size: 13 }))
+        """))
+        let rootId = try #require(runtime.store.rootId)
+        let node = try #require(runtime.store.node(rootId))
+        #expect(node.string("family") == "MonoLisaText")
+        #expect(node.double("font") == 13)
+    }
+
     @Test func reactivePropUpdatesOnlyOnDataChange() {
         let runtime = SidebarJSRuntime()
         runtime.start(source: """
