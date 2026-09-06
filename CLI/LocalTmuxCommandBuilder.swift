@@ -80,7 +80,7 @@ struct LocalTmuxCommandBuilder {
     }
 
     func listClientsArguments() -> [String] {
-        ["-S", socketPath, "list-clients", "-F", "#{client_id}\t#{session_name}\t#{client_pid}\t#{client_tty}"]
+        ["-S", socketPath, "list-clients", "-F", clientListingFormat]
     }
 
     func listClientsArguments(binding: LocalTmuxSessionBinding) -> [String] {
@@ -88,7 +88,7 @@ struct LocalTmuxCommandBuilder {
             binding: binding,
             action: tmuxCommand(
                 "list-clients", "-t", binding.sessionID.rawValue,
-                "-F", "#{client_id}\t#{session_name}\t#{client_pid}\t#{client_tty}"
+                "-F", clientListingFormat
             )
         )
     }
@@ -148,6 +148,13 @@ struct LocalTmuxCommandBuilder {
 
     private var sessionBindingFormat: String {
         "#{session_name}\t#{session_id}\t#{\(Self.serverIdentityOption)}\t#{session_created}"
+    }
+
+    private var clientListingFormat: String {
+        // tmux 3.6a leaves #{client_id} empty for normal terminal clients.
+        // The client TTY is both populated and accepted by detach-client -t,
+        // so use it as the stable target identifier exposed by local-tmux.
+        "#{client_tty}\t#{session_name}\t#{client_pid}\t#{client_tty}"
     }
 
     private func guardedArguments(
