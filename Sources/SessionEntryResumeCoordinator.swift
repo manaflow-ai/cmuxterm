@@ -26,6 +26,8 @@ struct SessionEntryResumeCoordinator {
     func activeTarget(
         for entry: SessionEntry
     ) -> (workspaceID: UUID, surfaceID: UUID)? {
+        let workspacesByID = Dictionary(uniqueKeysWithValues: tabManager.tabs.map { ($0.id, $0) })
+
         // Prefer the tab manager's authoritative surface snapshots. This
         // catches an open-but-idle session even while the process index is
         // between refreshes.
@@ -55,8 +57,7 @@ struct SessionEntryResumeCoordinator {
                           lhs: observation.snapshot.sessionId,
                           rhs: entry.sessionId
                       )
-                      && tabManager.tabs.contains(where: { $0.id == panelKey.workspaceId })
-                      && tabManager.tabs.first(where: { $0.id == panelKey.workspaceId })?.panels[panelKey.panelId] != nil
+                      && workspacesByID[panelKey.workspaceId]?.panels[panelKey.panelId] != nil
               }) else {
             return nil
         }
@@ -69,6 +70,7 @@ struct SessionEntryResumeCoordinator {
     /// selects a workspace and is safe to hand across the Vault row boundary.
     func inPaneSessionKeys() -> Set<String> {
         var keys: Set<String> = []
+        let workspacesByID = Dictionary(uniqueKeysWithValues: tabManager.tabs.map { ($0.id, $0) })
         for workspace in tabManager.tabs {
             for (panelID, snapshot) in workspace.restoredAgentSnapshotsByPanelId
                 where workspace.panels[panelID] != nil && snapshot.kind.rawValue != "codex"
@@ -87,10 +89,8 @@ struct SessionEntryResumeCoordinator {
             for (key, observation) in index.forkValidationEntries()
             where observation.snapshot.kind.rawValue == "codex" && observation.processLiveness == .running {
                 guard !observation.processIDs.isEmpty,
-                      tabManager.tabs.contains(where: {
-                          $0.id == key.workspaceId && $0.panels[key.panelId] != nil
-                              && $0.panelShellActivityStates[key.panelId] == .commandRunning
-                      })
+                      workspacesByID[key.workspaceId]?.panels[key.panelId] != nil,
+                      workspacesByID[key.workspaceId]?.panelShellActivityStates[key.panelId] == .commandRunning
                 else { continue }
                 keys.insert(VaultLiveSessionKeys.key(kind: "codex", sessionID: observation.snapshot.sessionId))
             }
