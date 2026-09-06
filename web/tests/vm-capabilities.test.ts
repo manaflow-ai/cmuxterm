@@ -16,7 +16,7 @@ describe("vm capability derivation", () => {
       restore: true,
       fork: false,
       exec: true,
-      stats: false,
+      stats: true,
       // Port previews ride the platform's TLS edge (style.dev capability URLs).
       ports: true,
       desktop: false,
