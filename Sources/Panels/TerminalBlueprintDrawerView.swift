@@ -139,6 +139,11 @@ struct TerminalBlueprintDrawerView: View {
                     state.perform(.clear)
                 }
                 Divider()
+                Button(String(localized: "blueprint.menu.sendToTerminal", defaultValue: "Send to Terminal")) {
+                    state.perform(.sendToTerminal)
+                }
+                .disabled(state.revision == 0 && state.elementCount == 0)
+                Divider()
                 Button(String(localized: "blueprint.menu.close", defaultValue: "Hide Blueprint")) {
                     state.perform(.close)
                 }

@@ -292998,7 +292998,14 @@
     "menu.view.toggleBlueprint": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Toggle Blueprint"}}}},
     "settings.betaFeatures.blueprint": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Blueprint"}}}},
     "settings.betaFeatures.blueprint.subtitleOn": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Adds a diagram canvas below every terminal. Agents draw the design they are working on and you can sketch back."}}}},
-    "settings.betaFeatures.blueprint.subtitleOff": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Hides the Blueprint drawer, its commands, and the tab-bar button until you enable it here."}}}}
+    "settings.betaFeatures.blueprint.subtitleOff": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Hides the Blueprint drawer, its commands, and the tab-bar button until you enable it here."}}}},
+    "blueprint.menu.sendToTerminal": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Send to Terminal"}},"ja":{"stringUnit":{"state":"translated","value":"ターミナルに送信"}}}},
+    "command.sendBlueprint.title": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Send Blueprint to Terminal"}},"ja":{"stringUnit":{"state":"translated","value":"Blueprint をターミナルに送信"}}}},
+    "command.sendBlueprint.subtitle": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Paste the canvas (PNG path and Mermaid) into the focused terminal's prompt"}},"ja":{"stringUnit":{"state":"translated","value":"キャンバス（PNG のパスと Mermaid）をフォーカス中のターミナルのプロンプトに貼り付けます"}}}},
+    "blueprint.error.canvasNotReady": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The blueprint canvas is not ready yet."}},"ja":{"stringUnit":{"state":"translated","value":"Blueprint のキャンバスはまだ準備できていません。"}}}},
+    "blueprint.error.exportTimedOut": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Exporting the blueprint timed out."}},"ja":{"stringUnit":{"state":"translated","value":"Blueprint の書き出しがタイムアウトしました。"}}}},
+    "blueprint.error.exportFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Exporting the blueprint failed: %@"}},"ja":{"stringUnit":{"state":"translated","value":"Blueprint の書き出しに失敗しました: %@"}}}},
+    "blueprint.error.conflict": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The canvas changed since revision %lld."}},"ja":{"stringUnit":{"state":"translated","value":"リビジョン %lld 以降にキャンバスが変更されました。"}}}}
   },
   "version": "1.0"
 }

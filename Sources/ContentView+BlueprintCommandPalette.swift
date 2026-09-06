@@ -21,6 +21,12 @@ extension ContentView {
                 keywords: ["blueprint", "canvas", "collapse", "expand", "minimize", "diagram"]
             ),
             CommandPaletteCommandContribution(
+                commandId: "palette.terminalSendBlueprint",
+                title: constant(String(localized: "command.sendBlueprint.title", defaultValue: "Send Blueprint to Terminal")),
+                subtitle: constant(String(localized: "command.sendBlueprint.subtitle", defaultValue: "Paste the canvas (PNG path and Mermaid) into the focused terminal's prompt")),
+                keywords: ["blueprint", "canvas", "send", "prompt", "paste", "mermaid", "diagram", "agent"]
+            ),
+            CommandPaletteCommandContribution(
                 commandId: "palette.terminalEnlargeBlueprint",
                 title: constant(String(localized: "command.enlargeBlueprint.title", defaultValue: "Enlarge or Restore Blueprint")),
                 subtitle: constant(String(localized: "command.enlargeBlueprint.subtitle", defaultValue: "Give the blueprint most of the pane, or restore the split")),
@@ -38,6 +44,11 @@ extension ContentView {
         registry.register(commandId: "palette.terminalCollapseBlueprint") {
             let isExpanded = tabManager.selectedTerminalPanel?.blueprint.isExpanded ?? false
             if !tabManager.performBlueprintAction(isExpanded ? .collapse : .expand) {
+                NSSound.beep()
+            }
+        }
+        registry.register(commandId: "palette.terminalSendBlueprint") {
+            if !tabManager.performBlueprintAction(.sendToTerminal) {
                 NSSound.beep()
             }
         }

@@ -19,9 +19,35 @@ protocol TerminalBlueprintWebControlling: AnyObject {
         scale: Double,
         dark: Bool
     ) async throws
+    /// Renders Mermaid source into the canvas (replace or append) and returns
+    /// the live element count plus any warnings the converter raised.
+    func renderMermaid(_ source: String, mode: TerminalBlueprintState.MermaidMode) async throws -> TerminalBlueprintRenderOutcome
+    /// Applies targeted `upsert`/`delete`/`clear` operations; returns how many applied.
+    func applyOps(_ ops: [[String: Any]]) async throws -> Int
     func setTheme(isDark: Bool) async
     func zoomToFit() async
     func clearScene() async
+}
+
+/// What the canvas reported after rendering Mermaid.
+struct TerminalBlueprintRenderOutcome: Equatable, Sendable {
+    var elementCount: Int
+    var warnings: [String]
+}
+
+/// One accepted mutation, for event publication and UI badges.
+struct TerminalBlueprintChange: Equatable, Sendable {
+    var surfaceID: UUID
+    var revision: Int
+    var updatedBy: TerminalBlueprintDocument.Author
+    var elementCount: Int
+}
+
+/// The drawer's visibility, for event publication.
+struct TerminalBlueprintVisibility: Equatable, Sendable {
+    var surfaceID: UUID
+    var isOpen: Bool
+    var isCollapsed: Bool
 }
 
 /// Persistence seam for blueprint documents; `TerminalBlueprintStore` is the
@@ -35,6 +61,35 @@ enum TerminalBlueprintError: Error, Equatable {
     case webViewUnavailable
     case exportTimedOut
     case exportFailed(String)
+    /// The canvas page did not become ready in time (the pane may be hidden or the page failed to load).
+    case canvasNotReady
+    /// The caller's `base_revision` is stale: someone else changed the canvas since.
+    case conflict(currentRevision: Int, updatedBy: TerminalBlueprintDocument.Author)
+    case invalidScene(String)
+    case invalidMermaid(String)
+    case invalidOps(String)
+    case renderFailed(String)
+}
+
+/// User-facing text for blueprint failures (drawer banner, CLI, MCP).
+enum TerminalBlueprintErrorText {
+    static func describe(_ error: any Error) -> String {
+        guard let blueprintError = error as? TerminalBlueprintError else {
+            return error.localizedDescription
+        }
+        switch blueprintError {
+        case .webViewUnavailable, .canvasNotReady:
+            return String(localized: "blueprint.error.canvasNotReady", defaultValue: "The blueprint canvas is not ready yet.")
+        case .exportTimedOut:
+            return String(localized: "blueprint.error.exportTimedOut", defaultValue: "Exporting the blueprint timed out.")
+        case .exportFailed(let message):
+            return String(localized: "blueprint.error.exportFailed", defaultValue: "Exporting the blueprint failed: \(message)")
+        case .conflict(let revision, _):
+            return String(localized: "blueprint.error.conflict", defaultValue: "The canvas changed since revision \(revision).")
+        case .invalidScene(let message), .invalidMermaid(let message), .invalidOps(let message), .renderFailed(let message):
+            return message
+        }
+    }
 }
 
 /// Single source of truth for one terminal's blueprint drawer.
@@ -57,6 +112,13 @@ final class TerminalBlueprintState {
         case restore
         case zoomToFit
         case clear
+        /// Pushes the canvas (PNG path, Mermaid or summary) into the terminal's prompt.
+        case sendToTerminal
+    }
+
+    enum MermaidMode: String, Sendable {
+        case replace
+        case append
     }
 
     private(set) var isOpen = false
@@ -77,11 +139,25 @@ final class TerminalBlueprintState {
     @ObservationIgnored var onRequestTerminalFocus: (@MainActor () -> Void)?
     /// Resolves the stable surface id used as the document key. Set by the owning panel.
     @ObservationIgnored var surfaceIDProvider: @MainActor () -> UUID
+    /// Asked to make the canvas page exist and load, even while the drawer is
+    /// closed or its pane is off screen. The owning panel creates the web view
+    /// offscreen; agents can then draw into any terminal. Set by the panel.
+    @ObservationIgnored var onCanvasRequested: (@MainActor () -> Void)?
+    /// Runs the `sendToTerminal` intent; the owning panel wires it because the
+    /// send needs both the canvas export and the terminal input path.
+    @ObservationIgnored var onSendToTerminal: (@MainActor () -> Void)?
+    /// Called after every accepted mutation, whoever authored it (socket events).
+    @ObservationIgnored var onChange: (@MainActor (TerminalBlueprintChange) -> Void)?
+    /// Called whenever the drawer opens, closes, collapses, or expands (socket events).
+    @ObservationIgnored var onVisibilityChange: (@MainActor (TerminalBlueprintVisibility) -> Void)?
+    /// Called after the canvas was pasted into the terminal, with the formats sent.
+    @ObservationIgnored var onSentToTerminal: (@MainActor ([String]) -> Void)?
 
     @ObservationIgnored private let store: (any TerminalBlueprintPersisting)?
     @ObservationIgnored private let clock: any Clock<Duration>
     @ObservationIgnored private let saveDebounce: Duration
     @ObservationIgnored private let exportTimeout: Duration
+    @ObservationIgnored private let canvasReadyTimeout: Duration
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var loadTask: Task<Void, Never>?
@@ -90,6 +166,8 @@ final class TerminalBlueprintState {
     @ObservationIgnored private var lastSplitFraction = TerminalBlueprintLayout.defaultSplitFraction
     @ObservationIgnored private var pendingExports: [String: CheckedContinuation<TerminalBlueprintExportResult, any Error>] = [:]
     @ObservationIgnored private var exportTimeoutTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var readyWaiters: [UUID: CheckedContinuation<Void, any Error>] = [:]
+    @ObservationIgnored private var readyTimeoutTasks: [UUID: Task<Void, Never>] = [:]
 
     init(
         surfaceIDProvider: @escaping @MainActor () -> UUID = { UUID() },
@@ -97,6 +175,7 @@ final class TerminalBlueprintState {
         clock: any Clock<Duration> = ContinuousClock(),
         saveDebounce: Duration = .milliseconds(750),
         exportTimeout: Duration = .seconds(15),
+        canvasReadyTimeout: Duration = .seconds(10),
         defaults: UserDefaults = .standard
     ) {
         self.surfaceIDProvider = surfaceIDProvider
@@ -104,6 +183,7 @@ final class TerminalBlueprintState {
         self.clock = clock
         self.saveDebounce = saveDebounce
         self.exportTimeout = exportTimeout
+        self.canvasReadyTimeout = canvasReadyTimeout
         self.defaults = defaults
     }
 
@@ -161,6 +241,10 @@ final class TerminalBlueprintState {
             guard isOpen else { return false }
             clearScene()
             return true
+        case .sendToTerminal:
+            guard let onSendToTerminal else { return false }
+            onSendToTerminal()
+            return true
         }
     }
 
@@ -171,20 +255,41 @@ final class TerminalBlueprintState {
         }
         hasUnseenAgentUpdate = false
         loadDocumentIfNeeded()
+        notifyVisibility()
     }
 
     func close() {
         isOpen = false
+        notifyVisibility()
     }
 
     func collapse() {
         rememberSplitFraction()
         layout = .collapsed
+        notifyVisibility()
     }
 
     func expand() {
         layout = .split(fraction: lastSplitFraction)
         hasUnseenAgentUpdate = false
+        notifyVisibility()
+    }
+
+    private func notifyVisibility() {
+        onVisibilityChange?(TerminalBlueprintVisibility(
+            surfaceID: surfaceID,
+            isOpen: isOpen,
+            isCollapsed: layout.isCollapsed
+        ))
+    }
+
+    private func notifyChange() {
+        onChange?(TerminalBlueprintChange(
+            surfaceID: surfaceID,
+            revision: revision,
+            updatedBy: updatedBy,
+            elementCount: elementCount
+        ))
     }
 
     func enlarge() {
@@ -217,6 +322,7 @@ final class TerminalBlueprintState {
             isWebViewReady = true
             errorMessage = nil
             pushSceneToWebViewIfNeeded()
+            resolveReadyWaiters(with: .success(()))
         case .sceneChanged(let sceneJSON, let elementCount, let digest):
             guard digest.isEmpty || digest != lastAppliedDigest else { return }
             self.sceneJSON = sceneJSON
@@ -225,6 +331,7 @@ final class TerminalBlueprintState {
             revision += 1
             updatedBy = .user
             scheduleSave(author: .user)
+            notifyChange()
         case .exportResult(let result):
             resolveExport(requestID: result.requestID, with: .success(result))
         case .exportFailed(let requestID, let message):
@@ -234,6 +341,15 @@ final class TerminalBlueprintState {
         case .error(let message):
             errorMessage = message
         }
+    }
+
+    /// Surfaces a failure in the drawer's banner (send, export, or agent errors).
+    func reportError(_ message: String) {
+        errorMessage = message
+    }
+
+    func didSendToTerminal(formats: [String]) {
+        onSentToTerminal?(formats)
     }
 
     /// The web renderer calls this when its page goes away (teardown or crash)
@@ -279,24 +395,22 @@ final class TerminalBlueprintState {
     func applyScene(
         _ sceneJSON: String,
         mermaidSource: String? = nil,
+        replacesMermaidSource: Bool = false,
         author: TerminalBlueprintDocument.Author,
         autoOpen: Bool? = nil
     ) async -> Int {
         self.sceneJSON = sceneJSON
         if let mermaidSource {
             self.mermaidSource = mermaidSource
+        } else if replacesMermaidSource {
+            self.mermaidSource = nil
         }
         revision += 1
         updatedBy = author
         didLoadDocument = true
+        elementCount = TerminalBlueprintScene.liveElementCount(inSceneJSON: sceneJSON)
         if author == .agent {
-            let shouldOpen = autoOpen ?? TerminalBlueprintFeature.autoOpensOnAgentUpdate(defaults: defaults)
-            if shouldOpen {
-                if !isOpen { open() }
-                if layout.isCollapsed { expand() }
-            } else if !isExpanded {
-                hasUnseenAgentUpdate = true
-            }
+            revealForAgentUpdate(autoOpen: autoOpen)
         }
         if isWebViewReady, let webController {
             do {
@@ -307,7 +421,214 @@ final class TerminalBlueprintState {
             }
         }
         scheduleSave(author: author)
+        notifyChange()
         return revision
+    }
+
+    /// Opens (or badges) the drawer after an agent-authored change, per the
+    /// `blueprint.autoOpenOnAgentUpdate` setting or the caller's override.
+    private func revealForAgentUpdate(autoOpen: Bool?) {
+        let shouldOpen = autoOpen ?? TerminalBlueprintFeature.autoOpensOnAgentUpdate(defaults: defaults)
+        if shouldOpen {
+            if !isOpen { open() }
+            if layout.isCollapsed { expand() }
+        } else if !isExpanded {
+            hasUnseenAgentUpdate = true
+        }
+    }
+
+    // MARK: - Agent mutations with revision checks
+
+    /// Throws `conflict` when the caller's `baseRevision` is stale.
+    func checkBaseRevision(_ baseRevision: Int?) throws {
+        guard let baseRevision, baseRevision != revision else { return }
+        throw TerminalBlueprintError.conflict(currentRevision: revision, updatedBy: updatedBy)
+    }
+
+    /// The compact text summary of the stored scene. Computed in Swift so it
+    /// works while the canvas page is not live.
+    var summaryText: String {
+        TerminalBlueprintScene.summary(ofSceneJSON: sceneJSON ?? Self.emptySceneJSON)
+    }
+
+    /// Replaces the scene for an agent or the CLI, after validating limits and
+    /// the caller's base revision. Clears the remembered Mermaid source, like
+    /// the canvas does for a non-restore `setScene`.
+    @discardableResult
+    func setScene(
+        _ sceneJSON: String,
+        baseRevision: Int?,
+        author: TerminalBlueprintDocument.Author,
+        autoOpen: Bool? = nil
+    ) async throws -> Int {
+        loadDocumentIfNeeded()
+        await loadTask?.value
+        try checkBaseRevision(baseRevision)
+        do {
+            try TerminalBlueprintScene.validateScene(sceneJSON)
+        } catch {
+            throw TerminalBlueprintError.invalidScene(Self.describe(error))
+        }
+        return await applyScene(sceneJSON, replacesMermaidSource: true, author: author, autoOpen: autoOpen)
+    }
+
+    /// Renders Mermaid into the canvas. Needs the canvas page, so the drawer is
+    /// opened (or the page created offscreen) and awaited first.
+    func renderMermaid(
+        _ source: String,
+        mode: MermaidMode,
+        baseRevision: Int?,
+        author: TerminalBlueprintDocument.Author = .agent,
+        autoOpen: Bool? = nil
+    ) async throws -> (revision: Int, outcome: TerminalBlueprintRenderOutcome) {
+        loadDocumentIfNeeded()
+        await loadTask?.value
+        try checkBaseRevision(baseRevision)
+        do {
+            try TerminalBlueprintScene.validateMermaid(source)
+        } catch {
+            throw TerminalBlueprintError.invalidMermaid(Self.describe(error))
+        }
+        try await ensureCanvasReady(reveal: author == .agent, autoOpen: autoOpen)
+        guard let webController else { throw TerminalBlueprintError.canvasNotReady }
+        let outcome: TerminalBlueprintRenderOutcome
+        let renderedScene: String
+        do {
+            outcome = try await webController.renderMermaid(source, mode: mode)
+            renderedScene = try await webController.currentSceneJSON()
+        } catch let error as TerminalBlueprintError {
+            throw error
+        } catch {
+            throw TerminalBlueprintError.renderFailed(error.localizedDescription)
+        }
+        sceneJSON = renderedScene
+        elementCount = outcome.elementCount
+        lastAppliedDigest = nil
+        switch mode {
+        case .replace:
+            mermaidSource = source
+        case .append:
+            mermaidSource = mermaidSource.map { "\($0)\n\n\(source)" } ?? source
+        }
+        didLoadDocument = true
+        revision += 1
+        updatedBy = author
+        scheduleSave(author: author)
+        notifyChange()
+        return (revision, outcome)
+    }
+
+    /// Applies targeted operations. Uses the canvas page when it is live (so
+    /// Excalidraw normalizes the elements) and the Swift fallback otherwise.
+    func applyOps(
+        _ ops: [[String: Any]],
+        baseRevision: Int?,
+        author: TerminalBlueprintDocument.Author = .agent,
+        autoOpen: Bool? = nil
+    ) async throws -> (revision: Int, applied: Int) {
+        loadDocumentIfNeeded()
+        await loadTask?.value
+        try checkBaseRevision(baseRevision)
+        do {
+            try TerminalBlueprintScene.validateOps(ops)
+        } catch {
+            throw TerminalBlueprintError.invalidOps(Self.describe(error))
+        }
+        await pushTask?.value
+        let applied: Int
+        if isWebViewReady, let webController {
+            do {
+                applied = try await webController.applyOps(ops)
+                sceneJSON = try await webController.currentSceneJSON()
+            } catch {
+                throw TerminalBlueprintError.renderFailed(error.localizedDescription)
+            }
+            elementCount = TerminalBlueprintScene.liveElementCount(inSceneJSON: sceneJSON ?? Self.emptySceneJSON)
+            lastAppliedDigest = nil
+        } else {
+            let result: (sceneJSON: String, applied: Int)
+            do {
+                result = try TerminalBlueprintScene.applyingOps(ops, toSceneJSON: sceneJSON ?? Self.emptySceneJSON)
+            } catch {
+                throw TerminalBlueprintError.invalidOps(Self.describe(error))
+            }
+            sceneJSON = result.sceneJSON
+            applied = result.applied
+            elementCount = TerminalBlueprintScene.liveElementCount(inSceneJSON: result.sceneJSON)
+        }
+        if ops.contains(where: { ($0["op"] as? String) == "clear" }) {
+            mermaidSource = nil
+        }
+        didLoadDocument = true
+        revision += 1
+        updatedBy = author
+        if author == .agent {
+            revealForAgentUpdate(autoOpen: autoOpen)
+        }
+        scheduleSave(author: author)
+        notifyChange()
+        return (revision, applied)
+    }
+
+    /// Makes sure the canvas page is live: with `reveal`, opens the drawer
+    /// when the agent update policy allows; otherwise asks the panel for an
+    /// offscreen page. Then waits (bounded) for the page's `ready`.
+    func ensureCanvasReady(
+        reveal: Bool = false,
+        autoOpen: Bool? = nil
+    ) async throws {
+        if reveal {
+            revealForAgentUpdate(autoOpen: autoOpen)
+        }
+        loadDocumentIfNeeded()
+        await loadTask?.value
+        if !isWebViewReady {
+            onCanvasRequested?()
+            try await waitForCanvasReady()
+        }
+        await pushTask?.value
+        guard isWebViewReady, webController != nil else { throw TerminalBlueprintError.canvasNotReady }
+    }
+
+    private func waitForCanvasReady() async throws {
+        guard !isWebViewReady else { return }
+        let waiterID = UUID()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            readyWaiters[waiterID] = continuation
+            readyTimeoutTasks[waiterID] = Task { [weak self, clock, canvasReadyTimeout] in
+                // Bounded wait for the page; cancelled when `ready` arrives.
+                try? await clock.sleep(for: canvasReadyTimeout)
+                guard !Task.isCancelled else { return }
+                self?.resolveReadyWaiter(waiterID, with: .failure(TerminalBlueprintError.canvasNotReady))
+            }
+        }
+    }
+
+    private func resolveReadyWaiters(with result: Result<Void, any Error>) {
+        for waiterID in Array(readyWaiters.keys) {
+            resolveReadyWaiter(waiterID, with: result)
+        }
+    }
+
+    private func resolveReadyWaiter(_ waiterID: UUID, with result: Result<Void, any Error>) {
+        readyTimeoutTasks.removeValue(forKey: waiterID)?.cancel()
+        guard let continuation = readyWaiters.removeValue(forKey: waiterID) else { return }
+        continuation.resume(with: result)
+    }
+
+    private static func describe(_ error: any Error) -> String {
+        if let validation = error as? TerminalBlueprintScene.ValidationError {
+            switch validation {
+            case .notAnObject: return "scene must be a JSON object"
+            case .missingElements: return "scene needs an `elements` or `skeleton` array"
+            case .sceneTooLarge(let bytes): return "scene is \(bytes) bytes; the limit is \(TerminalBlueprintScene.maxSceneBytes)"
+            case .tooManyElements(let count): return "scene has \(count) elements; the limit is \(TerminalBlueprintScene.maxElements)"
+            case .mermaidTooLarge(let bytes): return "Mermaid source is \(bytes) bytes; the limit is \(TerminalBlueprintScene.maxMermaidBytes)"
+            case .tooManyOps(let count): return "\(count) ops; the limit is \(TerminalBlueprintScene.maxOps)"
+            case .invalidOp(let index, let reason): return "op \(index): \(reason)"
+            }
+        }
+        return error.localizedDescription
     }
 
     func clearScene() {
@@ -320,6 +641,7 @@ final class TerminalBlueprintState {
             pushTask = Task { await webController.clearScene() }
         }
         scheduleSave(author: .user)
+        notifyChange()
     }
 
     /// Asks the live canvas for an export and waits for the page's reply.

@@ -5332,6 +5332,15 @@ struct CMUXCLI {
             cliWriteStderr(rerouteNotice + "\n")
         }
 
+        if command == "blueprint", commandArgs.first?.lowercased() == "mcp" {
+            // The MCP server outlives any one socket connection: it connects per
+            // tool call so it can start before cmux is reachable and survive a
+            // cmux restart. Help/flags for the namespace still go through the
+            // normal dispatch below.
+            try runBlueprintMCPServer(socketPath: resolvedSocketPath)
+            return
+        }
+
         if shouldOpenAsPathArgument(command) {
             try openPathViaExplicitSocket(command, socketPath: resolvedSocketPath, explicitPassword: socketPasswordArg)
             return
@@ -6986,6 +6995,15 @@ struct CMUXCLI {
                 idFormat: idFormat
             )
 
+        case "blueprint":
+            try runBlueprintNamespace(
+                commandArgs: commandArgs,
+                client: client,
+                jsonOutput: jsonOutput,
+                idFormat: idFormat,
+                windowOverride: windowId
+            )
+
         case "simulator":
             try runSimulatorNamespace(commandArgs: commandArgs, client: client, jsonOutput: jsonOutput, idFormat: idFormat, windowOverride: windowId)
         case "ios":
@@ -8446,6 +8464,11 @@ struct CMUXCLI {
             return commandArgs.first?.lowercased() != "tui"
         case "disable-browser", "enable-browser", "browser-status":
             return true
+        case "blueprint":
+            // The MCP server must start even while cmux is not yet reachable:
+            // agent hosts spawn it at launch and it reports socket failures
+            // per tool call instead of dying at startup.
+            return commandArgs.first?.lowercased() == "mcp"
         case "browser":
             let availabilityAction = commandArgs
                 .filter { $0 != "--json" }
@@ -20736,6 +20759,8 @@ struct CMUXCLI {
             return "Legacy alias for 'cmux browser is-webview-focused'. Run 'cmux browser --help' for details."
         case "open": return openSubcommandUsage()
         case "diff": return diffSubcommandUsage()
+        case "blueprint":
+            return Self.blueprintUsage
         case "markdown":
             return """
             Usage: cmux markdown open <path> [options]
@@ -41367,6 +41392,7 @@ export default CMUXSessionRestore;
           display-message [-p|--print] <text>
 
           markdown [open] <path> [--focus <true|false>] (open markdown file in formatted viewer panel with live reload)
+          blueprint <state|get|set|mermaid|ops|export|send|show|hide|collapse|expand> [--surface <id|ref|index>] (read and draw the Blueprint canvas below a terminal)
           diff [patch-file|-] [--source <unstaged|staged|branch|last-turn>] [--cwd <path>] [--base <ref>] [--focus <true|false>] [--no-focus] [--title <text>] [--layout <split|unified>] [--font-size <points>] (open patch input or git source in a browser split)
 
           browser [--surface <id|ref|index> | <surface>] <subcommand> ...

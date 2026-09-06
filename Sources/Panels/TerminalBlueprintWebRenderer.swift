@@ -15,6 +15,14 @@ final class TerminalBlueprintWebSession {
         coordinator.webView
     }
 
+    /// Creates and loads the canvas page without a host view, so agents can
+    /// draw into a terminal whose drawer is closed or whose pane is off
+    /// screen. The drawer adopts the same web view when it mounts.
+    func ensureLoaded(state: TerminalBlueprintState, isDark: Bool) {
+        coordinator.bind(state: state)
+        _ = coordinator.makeWebViewIfNeeded(isDark: isDark)
+    }
+
     /// Drops the web view so the next mount starts from a fresh page.
     func teardown() {
         coordinator.teardown()
@@ -37,43 +45,13 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let coordinator = context.coordinator
         coordinator.bind(state: state)
-        if let webView = coordinator.webView {
-            if webView.superview != nil {
-                webView.removeFromSuperview()
-            }
-            (webView as? TerminalBlueprintWebView)?.onPointerDown = onRequestPanelFocus
-            coordinator.applyTheme(isDark: isDark)
-            return webView
+        let existing = coordinator.webView
+        let webView = coordinator.makeWebViewIfNeeded(isDark: isDark)
+        if existing != nil, webView.superview != nil {
+            webView.removeFromSuperview()
         }
-
-        let config = WKWebViewConfiguration()
-        config.suppressesIncrementalRendering = false
-        if let rootDirectory = CmuxBlueprintAssetResolver.defaultRootDirectory() {
-            let resolver = CmuxBlueprintAssetResolver(rootDirectory: rootDirectory)
-            let schemeHandler = CmuxBlueprintURLSchemeHandler(resolver: resolver)
-            coordinator.schemeHandler = schemeHandler
-            config.setURLSchemeHandler(schemeHandler, forURLScheme: CmuxBlueprintAssetResolver.scheme)
-        }
-        config.userContentController.add(
-            WeakMarkdownScriptMessageHandler(coordinator),
-            name: Self.messageHandlerName
-        )
-        let webView = TerminalBlueprintWebView(frame: .zero, configuration: config)
-        webView.onPointerDown = onRequestPanelFocus
-        webView.setValue(false, forKey: "drawsBackground")
-        webView.allowsBackForwardNavigationGestures = false
-        webView.allowsLinkPreview = false
-        webView.navigationDelegate = coordinator
-        webView.uiDelegate = coordinator
-        if #available(macOS 13.3, *) {
-#if DEBUG
-            webView.isInspectable = true
-#else
-            webView.isInspectable = false
-#endif
-        }
-        coordinator.webView = webView
-        coordinator.loadPage(isDark: isDark)
+        (webView as? TerminalBlueprintWebView)?.onPointerDown = onRequestPanelFocus
+        coordinator.applyTheme(isDark: isDark)
         return webView
     }
 
@@ -108,6 +86,45 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
                 self.state = state
             }
             state.webController = self
+        }
+
+        /// Returns the live web view, creating and loading it on first use.
+        /// A view created here has no window yet; WebKit still runs the page,
+        /// which is what lets agents draw into hidden drawers.
+        func makeWebViewIfNeeded(isDark: Bool) -> WKWebView {
+            if let webView { return webView }
+            let config = WKWebViewConfiguration()
+            config.suppressesIncrementalRendering = false
+            if let rootDirectory = CmuxBlueprintAssetResolver.defaultRootDirectory() {
+                let resolver = CmuxBlueprintAssetResolver(rootDirectory: rootDirectory)
+                let schemeHandler = CmuxBlueprintURLSchemeHandler(resolver: resolver)
+                self.schemeHandler = schemeHandler
+                config.setURLSchemeHandler(schemeHandler, forURLScheme: CmuxBlueprintAssetResolver.scheme)
+            }
+            config.userContentController.add(
+                WeakMarkdownScriptMessageHandler(self),
+                name: TerminalBlueprintWebRenderer.messageHandlerName
+            )
+            // A non-zero frame keeps Excalidraw's layout sane while offscreen.
+            let webView = TerminalBlueprintWebView(
+                frame: NSRect(x: 0, y: 0, width: 800, height: 600),
+                configuration: config
+            )
+            webView.setValue(false, forKey: "drawsBackground")
+            webView.allowsBackForwardNavigationGestures = false
+            webView.allowsLinkPreview = false
+            webView.navigationDelegate = self
+            webView.uiDelegate = self
+            if #available(macOS 13.3, *) {
+#if DEBUG
+                webView.isInspectable = true
+#else
+                webView.isInspectable = false
+#endif
+            }
+            self.webView = webView
+            loadPage(isDark: isDark)
+            return webView
         }
 
         func loadPage(isDark: Bool) {
@@ -215,6 +232,26 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
                     "opts": ["png": png, "svg": svg, "mermaid": mermaid, "scale": scale, "dark": dark],
                 ]
             )
+        }
+
+        func renderMermaid(_ source: String, mode: TerminalBlueprintState.MermaidMode) async throws -> TerminalBlueprintRenderOutcome {
+            let result = try await call(
+                "return await window.cmuxBlueprint.renderMermaid(source, opts);",
+                arguments: ["source": source, "opts": ["mode": mode.rawValue]]
+            )
+            let object = result as? [String: Any]
+            return TerminalBlueprintRenderOutcome(
+                elementCount: Self.integer(object?["elementCount"]) ?? 0,
+                warnings: (object?["warnings"] as? [String]) ?? []
+            )
+        }
+
+        func applyOps(_ ops: [[String: Any]]) async throws -> Int {
+            let result = try await call(
+                "return await window.cmuxBlueprint.applyOps(ops);",
+                arguments: ["ops": ops]
+            )
+            return Self.integer((result as? [String: Any])?["applied"]) ?? 0
         }
 
         func setTheme(isDark: Bool) async {

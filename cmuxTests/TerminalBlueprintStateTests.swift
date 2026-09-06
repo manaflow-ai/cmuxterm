@@ -22,6 +22,11 @@ private final class FakeBlueprintWebController: TerminalBlueprintWebControlling 
     var clearCalls = 0
     var themes: [Bool] = []
     var sceneJSONToReturn = "{}"
+    var mermaidCalls: [(source: String, mode: TerminalBlueprintState.MermaidMode)] = []
+    var mermaidOutcome = TerminalBlueprintRenderOutcome(elementCount: 4, warnings: [])
+    var mermaidError: (any Error)?
+    var opsCalls: [[[String: Any]]] = []
+    var appliedToReturn = 1
 
     func setScene(_ sceneJSON: String, source: TerminalBlueprintDocument.Author) async throws -> Int {
         sceneCalls.append(SceneCall(sceneJSON: sceneJSON, source: source))
@@ -34,6 +39,17 @@ private final class FakeBlueprintWebController: TerminalBlueprintWebControlling 
     func requestExport(requestID: String, png: Bool, svg: Bool, mermaid: Bool, scale: Double, dark: Bool) async throws {
         exportRequestIDs.append(requestID)
         exportResponder?(requestID)
+    }
+
+    func renderMermaid(_ source: String, mode: TerminalBlueprintState.MermaidMode) async throws -> TerminalBlueprintRenderOutcome {
+        mermaidCalls.append((source, mode))
+        if let mermaidError { throw mermaidError }
+        return mermaidOutcome
+    }
+
+    func applyOps(_ ops: [[String: Any]]) async throws -> Int {
+        opsCalls.append(ops)
+        return appliedToReturn
     }
 
     func setTheme(isDark: Bool) async { themes.append(isDark) }
@@ -86,6 +102,7 @@ struct TerminalBlueprintStateTests {
     private func makeState(
         store: (any TerminalBlueprintPersisting)? = nil,
         exportTimeout: Duration = .seconds(5),
+        canvasReadyTimeout: Duration = .seconds(5),
         autoOpen: Bool? = nil
     ) -> TerminalBlueprintState {
         let defaults = UserDefaults(suiteName: "TerminalBlueprintStateTests-\(UUID().uuidString)")!
@@ -98,6 +115,7 @@ struct TerminalBlueprintStateTests {
             store: store,
             saveDebounce: .milliseconds(1),
             exportTimeout: exportTimeout,
+            canvasReadyTimeout: canvasReadyTimeout,
             defaults: defaults
         )
     }
@@ -367,5 +385,164 @@ struct TerminalBlueprintStateTests {
         let untouched = makeState()
         untouched.restore(from: nil)
         #expect(untouched.isOpen == false)
+    }
+
+    // MARK: - Agent mutations (phase 2)
+
+    private let sceneWithOneBox = #"{"type":"excalidraw","version":2,"elements":[{"id":"box00001","type":"rectangle","x":0,"y":0,"width":100,"height":40}],"appState":{},"files":{}}"#
+
+    @Test("set with a stale base revision fails with conflict and leaves the scene alone")
+    func setSceneConflict() async {
+        let state = makeState()
+        state.handleBridgeMessage(.sceneChanged(sceneJSON: "{}", elementCount: 0, digest: "u1"))
+        #expect(state.revision == 1)
+
+        await #expect(throws: TerminalBlueprintError.conflict(currentRevision: 1, updatedBy: .user)) {
+            try await state.setScene(sceneWithOneBox, baseRevision: 0, author: .agent)
+        }
+        #expect(state.revision == 1)
+        #expect(state.sceneJSON == "{}")
+
+        let revision = try? await state.setScene(sceneWithOneBox, baseRevision: 1, author: .agent)
+        #expect(revision == 2)
+        #expect(state.elementCount == 1)
+        #expect(state.updatedBy == .agent)
+    }
+
+    @Test("set validates the scene before touching state")
+    func setSceneValidation() async {
+        let state = makeState()
+        await #expect(throws: TerminalBlueprintError.invalidScene("scene needs an `elements` or `skeleton` array")) {
+            try await state.setScene(#"{"appState":{}}"#, baseRevision: nil, author: .agent)
+        }
+        #expect(state.revision == 0)
+    }
+
+    @Test("set clears the remembered Mermaid source like the canvas does")
+    func setSceneClearsMermaid() async {
+        let state = makeState()
+        _ = await state.applyScene("{}", mermaidSource: "graph TD", author: .agent)
+        #expect(state.mermaidSource == "graph TD")
+        _ = try? await state.setScene(sceneWithOneBox, baseRevision: nil, author: .agent)
+        #expect(state.mermaidSource == nil)
+    }
+
+    @Test("mutations report changes through the hook, and drawer verbs report visibility")
+    func hooks() async {
+        let state = makeState()
+        var changes: [TerminalBlueprintChange] = []
+        var visibility: [TerminalBlueprintVisibility] = []
+        state.onChange = { changes.append($0) }
+        state.onVisibilityChange = { visibility.append($0) }
+
+        state.handleBridgeMessage(.sceneChanged(sceneJSON: "{}", elementCount: 2, digest: "u1"))
+        _ = try? await state.setScene(sceneWithOneBox, baseRevision: 1, author: .agent, autoOpen: false)
+        state.perform(.open)
+        state.perform(.collapse)
+
+        #expect(changes.map(\.revision) == [1, 2])
+        #expect(changes.map(\.updatedBy) == [.user, .agent])
+        #expect(changes.last?.elementCount == 1)
+        #expect(changes.allSatisfy { $0.surfaceID == surfaceID })
+        #expect(visibility.map(\.isOpen) == [true, true])
+        #expect(visibility.map(\.isCollapsed) == [false, true])
+    }
+
+    @Test("render mermaid asks for the canvas, waits for ready, then renders and persists")
+    func renderMermaid() async throws {
+        let store = RecordingBlueprintStore()
+        let state = makeState(store: store, autoOpen: true)
+        let web = FakeBlueprintWebController()
+        web.sceneJSONToReturn = sceneWithOneBox
+        web.mermaidOutcome = TerminalBlueprintRenderOutcome(elementCount: 1, warnings: ["w"])
+        var canvasRequests = 0
+        state.onCanvasRequested = {
+            canvasRequests += 1
+            // The panel creates the page; it reports ready a moment later.
+            state.webController = web
+            Task { @MainActor in state.handleBridgeMessage(.ready) }
+        }
+
+        let result = try await state.renderMermaid("flowchart LR; A-->B", mode: .replace, baseRevision: 0)
+
+        #expect(canvasRequests == 1)
+        #expect(state.isOpen)
+        #expect(web.mermaidCalls.count == 1)
+        #expect(web.mermaidCalls.first?.mode == .replace)
+        #expect(result.revision == 1)
+        #expect(result.outcome.warnings == ["w"])
+        #expect(state.sceneJSON == sceneWithOneBox)
+        #expect(state.elementCount == 1)
+        #expect(state.mermaidSource == "flowchart LR; A-->B")
+        #expect(state.updatedBy == .agent)
+        let saved = await store.nextSave()
+        #expect(saved.mermaidSource == "flowchart LR; A-->B")
+        #expect(saved.revision == 1)
+
+        _ = try await state.renderMermaid("sequenceDiagram", mode: .append, baseRevision: 1)
+        #expect(state.mermaidSource == "flowchart LR; A-->B\n\nsequenceDiagram")
+        #expect(state.revision == 2)
+    }
+
+    @Test("render mermaid fails with canvasNotReady when no page ever reports ready")
+    func renderMermaidTimesOut() async {
+        let state = makeState(canvasReadyTimeout: .milliseconds(20), autoOpen: false)
+        state.onCanvasRequested = {}
+        await #expect(throws: TerminalBlueprintError.canvasNotReady) {
+            try await state.renderMermaid("flowchart LR; A-->B", mode: .replace, baseRevision: nil)
+        }
+        #expect(state.revision == 0)
+        #expect(state.isOpen == false)
+    }
+
+    @Test("apply ops uses the Swift fallback without a page and the page when it is live")
+    func applyOps() async throws {
+        let state = makeState(autoOpen: false)
+        _ = try await state.setScene(sceneWithOneBox, baseRevision: nil, author: .agent)
+
+        let fallback = try await state.applyOps(
+            [["op": "upsert", "element": ["id": "note0001", "type": "text", "x": 0, "y": 100, "width": 10, "height": 10, "text": "hi"]]],
+            baseRevision: 1
+        )
+        #expect(fallback.applied == 1)
+        #expect(fallback.revision == 2)
+        #expect(state.elementCount == 2)
+        #expect(state.hasUnseenAgentUpdate)
+
+        let web = FakeBlueprintWebController()
+        web.sceneJSONToReturn = TerminalBlueprintState.emptySceneJSON
+        web.appliedToReturn = 1
+        state.webController = web
+        state.handleBridgeMessage(.ready)
+        await state.waitForPendingWork()
+
+        let live = try await state.applyOps([["op": "clear"]], baseRevision: 2)
+        #expect(live.applied == 1)
+        #expect(live.revision == 3)
+        #expect(web.opsCalls.count == 1)
+        #expect(state.elementCount == 0)
+        #expect(state.mermaidSource == nil)
+
+        await #expect(throws: TerminalBlueprintError.invalidOps("op 0: unknown op move")) {
+            try await state.applyOps([["op": "move"]], baseRevision: 3)
+        }
+    }
+
+    @Test("the send-to-terminal intent runs the panel hook")
+    func sendToTerminalIntent() {
+        let state = makeState()
+        #expect(state.perform(.sendToTerminal) == false)
+        var sends = 0
+        state.onSendToTerminal = { sends += 1 }
+        #expect(state.perform(.sendToTerminal))
+        #expect(sends == 1)
+    }
+
+    @Test("summary is computed from the stored scene without a page")
+    func summaryWithoutPage() async throws {
+        let state = makeState()
+        #expect(state.summaryText == "(empty blueprint)")
+        _ = try await state.setScene(sceneWithOneBox, baseRevision: nil, author: .agent, autoOpen: false)
+        #expect(state.summaryText == "#box00001 rectangle \"\" (0,0 100x40)")
     }
 }
