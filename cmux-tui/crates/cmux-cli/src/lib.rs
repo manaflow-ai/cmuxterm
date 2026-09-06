@@ -596,8 +596,8 @@ fn socket_password_file_for_home(home: Option<std::ffi::OsString>) -> Option<Str
     let home = home?;
     let path = PathBuf::from(home).join(".local/state/cmux/socket-control-password");
     let value = std::fs::read_to_string(path).ok()?;
-    let value = value.trim().to_string();
-    (!value.is_empty()).then_some(value)
+    let value = normalize_socket_password(value)?;
+    Some(value)
 }
 
 fn socket_path(options: &GlobalOptions) -> Option<PathBuf> {
@@ -692,13 +692,14 @@ impl SocketClient {
 
 fn resolve_socket_password(explicit: Option<String>) -> Option<String> {
     explicit
-        .and_then(|value| (!value.trim().is_empty()).then_some(value))
-        .or_else(|| {
-            env::var("CMUX_SOCKET_PASSWORD")
-                .ok()
-                .and_then(|value| (!value.trim().is_empty()).then_some(value))
-        })
+        .and_then(normalize_socket_password)
+        .or_else(|| env::var("CMUX_SOCKET_PASSWORD").ok().and_then(normalize_socket_password))
         .or_else(socket_password_file)
+}
+
+fn normalize_socket_password(value: String) -> Option<String> {
+    let value = value.trim_matches(|character| character == '\r' || character == '\n').to_string();
+    (!value.is_empty()).then_some(value)
 }
 
 fn write_line(stream: &mut std::os::unix::net::UnixStream, line: &str) -> Result<(), CliError> {
@@ -839,7 +840,7 @@ mod tests {
         std::fs::write(&path, "  secret-value  \n").unwrap();
         assert_eq!(
             socket_password_file_for_home(Some(home.path().as_os_str().to_os_string())),
-            Some("secret-value".into())
+            Some("  secret-value  ".into())
         );
     }
 }
