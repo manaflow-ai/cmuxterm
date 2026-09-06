@@ -95,6 +95,8 @@ func configureCmuxMainWindowDragBehavior(_ window: NSWindow) {
 
 @MainActor
 final class CmuxMainWindow: NSWindow {
+    private let workspaceSwitchSignposts = WorkspaceSwitchSignposts()
+
     private enum WindowZoomIntent {
         case userSized
         case zoomed
@@ -106,6 +108,15 @@ final class CmuxMainWindow: NSWindow {
     /// smaller frame while the app is inactive or displays are reconnecting.
     var cmuxWantsZoomedFrame: Bool {
         zoomIntent == .zoomed || isZoomed
+    }
+
+    override func becomeKey() {
+        let switchInterval = workspaceSwitchSignposts.begin(
+            "ws.switch.window-become-key",
+            "window=\(identifier?.rawValue ?? "unknown")"
+        )
+        super.becomeKey()
+        workspaceSwitchSignposts.end(switchInterval)
     }
 
     /// No content may resize this window past the attached display union. The content view
