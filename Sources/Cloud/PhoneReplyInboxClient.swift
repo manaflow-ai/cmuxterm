@@ -12,23 +12,16 @@ struct PhoneReplyRecord: Decodable, Equatable, Sendable {
     let workspaceId: String
     let surfaceId: String
     let notificationId: String
-    let text: String
-    let createdAtMs: UInt64
-    let expiresAtMs: UInt64
     /// Whether the notification may follow its surface to a new workspace.
     /// Older parked records predate this field and remain retargetable.
     let retargetsToLiveSurfaceOwner: Bool
+    let text: String
+    let createdAtMs: UInt64
+    let expiresAtMs: UInt64
 
     private enum CodingKeys: String, CodingKey {
-        case replyId
-        case macDeviceId
-        case workspaceId
-        case surfaceId
-        case notificationId
-        case text
-        case createdAtMs
-        case expiresAtMs
-        case retargetsToLiveSurfaceOwner
+        case replyId, macDeviceId, workspaceId, surfaceId, notificationId
+        case retargetsToLiveSurfaceOwner, text, createdAtMs, expiresAtMs
     }
 
     init(from decoder: Decoder) throws {
@@ -38,21 +31,20 @@ struct PhoneReplyRecord: Decodable, Equatable, Sendable {
         workspaceId = try container.decode(String.self, forKey: .workspaceId)
         surfaceId = try container.decode(String.self, forKey: .surfaceId)
         notificationId = try container.decode(String.self, forKey: .notificationId)
-        text = try container.decode(String.self, forKey: .text)
-        createdAtMs = try container.decode(UInt64.self, forKey: .createdAtMs)
-        expiresAtMs = try container.decode(UInt64.self, forKey: .expiresAtMs)
         retargetsToLiveSurfaceOwner = try container.decodeIfPresent(
             Bool.self,
             forKey: .retargetsToLiveSurfaceOwner
         ) ?? true
+        text = try container.decode(String.self, forKey: .text)
+        createdAtMs = try container.decode(UInt64.self, forKey: .createdAtMs)
+        expiresAtMs = try container.decode(UInt64.self, forKey: .expiresAtMs)
     }
 }
 
 /// HTTPS half of the phone reply inbox: fetch this Mac's pending replies and
 /// acknowledge processed ones against the presence worker, authenticated the
 /// same way as ``PresenceHeartbeatClient`` (Stack bearer, resolved service
-/// URL). Delivery and retarget-policy enforcement are
-/// ``PhoneReplyInboxCoordinator``'s job.
+/// URL). Delivery into the terminal is ``PhoneReplyInboxCoordinator``'s job.
 final class PhoneReplyInboxClient {
     @MainActor static let shared = PhoneReplyInboxClient()
 

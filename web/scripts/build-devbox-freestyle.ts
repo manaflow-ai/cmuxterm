@@ -56,7 +56,8 @@
  * (web/services/vms/drivers/freestyle.ts) therefore runs no install, start, or
  * readiness exec at create; it writes the model-plane env file and returns.
  * The unit binds the listener dual-stack (CMUX_TUI_REMOTE_WS_BIND=[::]:1337)
- * because the driver routes attaches to the VM's stable public IPv6. The
+ * because the driver routes attaches to a private VPC address by default and
+ * to the stable public IPv6 for legacy public-network machines. The
  * daemon still runs as root until the driver adopts the ubuntu user for
  * sessions.
  *
@@ -90,6 +91,7 @@ import {
   devboxGhosttyDebSha256,
   devboxGhosttyDebUrl,
   devboxParkDaemonCommand,
+  cmuxTuiWebsocketSmokeCommand,
   emitBakeResult,
   hasFlag,
   manifestEntrySkeleton,
@@ -409,8 +411,9 @@ try {
     "[Service]",
     "Type=simple",
     "User=root",
-    // Freestyle machines are reached at their stable public IPv6, so the
-    // daemon listens dual-stack ([::] accepts IPv4 too). cmux-devbox-boot
+    // Freestyle machines are reached at a private VPC address by default, or
+    // their stable public IPv6 on the legacy public-network path, so the daemon
+    // listens dual-stack ([::] accepts IPv4 too). cmux-devbox-boot
     // defaults to 0.0.0.0 for the container providers, whose runtimes may have
     // IPv6 disabled entirely.
     "Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337",
@@ -436,6 +439,9 @@ try {
     "cmux-tui-daemon-up",
     `for i in $(seq 1 30); do env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} >/dev/null 2>&1 && grep -qi ':0539 ' /proc/net/tcp6 && break; sleep 1; done && env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} && grep -qi ':0539 ' /proc/net/tcp6 && test "$(cat /etc/cmux/daemon-instance-id)" = "$(${instanceIdCommand})" && echo daemon-up-bound-to-builder`,
   );
+  // Wait after the daemon first reports ready, then exercise the real
+  // WebSocket/Noise/RPC/PTY path before this machine can become a snapshot.
+  await step("cmux-tui-websocket-smoke", `sleep 30 && ${cmuxTuiWebsocketSmokeCommand()}`);
   // Park it (devboxParkDaemonCommand): the supervisor stops the daemon while
   // the machine's id equals the recorded bake id, its identity and session
   // state are wiped, and a clone (different id) starts fresh within one tick.

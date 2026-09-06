@@ -8,14 +8,17 @@ public struct RelayedReply: Equatable, Sendable {
     public let replyId: String
     /// The Mac claimed by the originating push; the inbox routes by it.
     public let macDeviceId: String
-    /// The workspace claim from the push, if it carried one; the Mac
-    /// re-resolves the live owner either way.
+    /// The workspace claim from the push, if it carried one. The Mac uses it
+    /// as the confined target, or as the preferred owner when retargeting is
+    /// permitted.
     public let workspaceId: String?
     /// The exact terminal claim from the push.
     public let surfaceId: String
     /// The user's reply text, without the submit return.
     public let text: String
     /// Whether the notification may follow its surface to a new workspace.
+    /// Workspace-confined notifications must keep their original claim when
+    /// the Mac drains the parked reply.
     public let retargetsToLiveSurfaceOwner: Bool
 
     /// Creates a relayed reply from the parked reply's claims.
@@ -31,8 +34,8 @@ public struct RelayedReply: Equatable, Sendable {
         self.macDeviceId = macDeviceId
         self.workspaceId = workspaceId
         self.surfaceId = surfaceId
-        self.retargetsToLiveSurfaceOwner = retargetsToLiveSurfaceOwner
         self.text = text
+        self.retargetsToLiveSurfaceOwner = retargetsToLiveSurfaceOwner
     }
 }
 
