@@ -102,7 +102,10 @@ while true; do
       fi
       if [ -z "$daemon_pid" ] || ! kill -0 "$daemon_pid" 2>/dev/null; then
         [ -n "$daemon_pid" ] && wait "$daemon_pid" 2>/dev/null
-        (cd /root && exec env HOME=/root TERM=xterm-256color /root/.cmux/bin/cmux-tui server start --session cloud --remote-ws "${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}" --remote-ws-insecure-bind) &
+        # --remote-ws-trusted-carrier: the listener is reachable only inside the
+        # owner's private network, whose members are all authorized, so every
+        # link gets carrier authentication with no device enrollment.
+        (cd /root && exec env HOME=/root TERM=xterm-256color /root/.cmux/bin/cmux-tui server start --session cloud --remote-ws "${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}" --remote-ws-insecure-bind --remote-ws-trusted-carrier) &
         daemon_pid=$!
       fi
     fi
