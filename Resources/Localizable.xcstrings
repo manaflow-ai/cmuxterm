@@ -39799,9 +39799,6 @@
         }
       }
     },
-<<<<<<< ours
-    "browser.toggleDevTools": {
-=======
     "cli.hooks.enqueue.error.unsupportedHook": {
       "extractionState": "manual",
       "localizations": {
@@ -39837,7 +39834,6 @@
       }
     },
     "cli.hooks.kimi.aborted": {
->>>>>>> theirs
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -261053,57 +261049,6 @@
         }
       }
     },
-<<<<<<< ours
-    "socket.tabAction.error.surfaceNotFound": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لم يتم العثور على السطح"
-          }
-        },
-        "bs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Površina nije pronađena"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Overflade blev ikke fundet"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oberfläche nicht gefunden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Surface not found"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se encontró la superficie"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Surface introuvable"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Superficie non trovata"
-=======
     "socket.agentHook.error.barrierTimeout": {
       "extractionState": "manual",
       "localizations": {
@@ -261111,138 +261056,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agent hook barrier timed out"
->>>>>>> theirs
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-<<<<<<< ours
-            "value": "サーフェスが見つかりません"
-          }
-        },
-        "km": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "រកមិនឃើញផ្ទៃ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서피스를 찾을 수 없습니다"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fant ikke overflate"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie znaleziono powierzchni"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Superfície não encontrada"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Поверхность не найдена"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่พบพื้นผิว"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yüzey bulunamadı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Поверхню не знайдено"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未找到表面"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "找不到表面"
-=======
             "value": "エージェントフックバリアがタイムアウトしました"
->>>>>>> theirs
           }
         }
       }
     },
-<<<<<<< ours
-    "socket.tabAction.error.tabNotFound": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لم يتم العثور على علامة التبويب"
-          }
-        },
-        "bs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kartica nije pronađena"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fane blev ikke fundet"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tab nicht gefunden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tab not found"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se encontró la pestaña"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Onglet introuvable"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scheda non trovata"
-=======
     "socket.agentHook.error.invalidBarrier": {
       "extractionState": "manual",
       "localizations": {
@@ -261250,81 +261073,11 @@
           "stringUnit": {
             "state": "translated",
             "value": "Invalid agent hook barrier"
->>>>>>> theirs
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-<<<<<<< ours
-            "value": "タブが見つかりません"
-          }
-        },
-        "km": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "រកមិនឃើញផ្ទាំង"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "탭을 찾을 수 없습니다"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fant ikke fane"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie znaleziono karty"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aba não encontrada"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вкладка не найдена"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่พบแท็บ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sekme bulunamadı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вкладку не знайдено"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未找到标签页"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "找不到分頁"
-=======
             "value": "エージェントフックバリアが無効です"
           }
         }
@@ -261411,7 +261164,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "リモート tmux ペインのサイズを変更する準備ができていません。利用可能になってからもう一度お試しください。"
->>>>>>> theirs
           }
         }
       }

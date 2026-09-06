@@ -28,17 +28,10 @@ struct KimiHookConfigLocationTests {
 
         #expect(!result.timedOut, Comment(rawValue: result.output))
         #expect(result.status == 0, Comment(rawValue: result.output))
-<<<<<<< ours
-        #expect(!FileManager.default.fileExists(atPath: kimiCliConfig.path), Comment(rawValue: result.output))
-        let installed = try String(contentsOf: kimiCodeConfig, encoding: .utf8)
-        #expect(installed.contains("hooks kimi stop"), Comment(rawValue: result.output))
-        #expect(installed.contains(#"command = "orca""#), Comment(rawValue: result.output))
-=======
         #expect(FileManager.default.fileExists(atPath: currentConfig.path), Comment(rawValue: result.output))
         #expect(!FileManager.default.fileExists(atPath: legacyConfig.path), Comment(rawValue: result.output))
         let installed = try String(contentsOf: currentConfig, encoding: .utf8)
         #expect(installed.contains("hooks enqueue kimi stop"))
->>>>>>> theirs
         #expect(installed.contains(#"event = "Notification""#))
         #expect(!installed.contains(#"event = "PermissionRequest""#))
         #expect(!installed.contains(#"event = "Interrupt""#))
@@ -83,20 +76,11 @@ struct KimiHookConfigLocationTests {
 
         #expect(!result.timedOut, Comment(rawValue: result.output))
         #expect(result.status == 0, Comment(rawValue: result.output))
-<<<<<<< ours
-        let installed = try String(contentsOf: kimiCodeConfig, encoding: .utf8)
-        let secondary = try String(contentsOf: kimiCliConfig, encoding: .utf8)
-        #expect(installed.contains("hooks kimi stop"), Comment(rawValue: result.output))
-        #expect(installed.contains(#"command = "orca""#), Comment(rawValue: result.output))
-        #expect(secondary.contains("hooks kimi stop"), Comment(rawValue: result.output))
-        #expect(secondary.contains(#"command = "vibe-island""#), Comment(rawValue: result.output))
-=======
         let installed = try String(contentsOf: currentConfig, encoding: .utf8)
         let migratedLegacy = try String(contentsOf: legacyConfig, encoding: .utf8)
         #expect(installed.contains(#"command = "vibe-island""#))
         #expect(installed.contains("hooks enqueue kimi stop"))
         #expect(migratedLegacy == legacyUserContent)
->>>>>>> theirs
     }
 
     @Test("Setup leaves a secondary config without a cmux block untouched")
@@ -147,19 +131,8 @@ struct KimiHookConfigLocationTests {
 
         #expect(!result.timedOut, Comment(rawValue: result.output))
         #expect(result.status == 0, Comment(rawValue: result.output))
-<<<<<<< ours
-        #expect(
-            try String(contentsOf: probedConfig, encoding: .utf8).contains("hooks kimi stop"),
-            Comment(rawValue: result.output)
-        )
-        #expect(
-            try String(contentsOf: kimiCodeConfig, encoding: .utf8) == kimiCodeContent,
-            Comment(rawValue: result.output)
-        )
-=======
         #expect(try String(contentsOf: currentConfig, encoding: .utf8).contains("hooks enqueue kimi stop"))
         #expect(result.output.contains(legacyConfig.path))
->>>>>>> theirs
     }
 
     @Test("Setup falls back to a well-known config when the reported path is unusable")
@@ -212,17 +185,8 @@ struct KimiHookConfigLocationTests {
 
         #expect(!result.timedOut, Comment(rawValue: result.output))
         #expect(result.status == 0, Comment(rawValue: result.output))
-<<<<<<< ours
-        let installed = try String(contentsOf: kimiCodeConfig, encoding: .utf8)
-        let secondary = try String(contentsOf: kimiCliConfig, encoding: .utf8)
-        #expect(installed.contains("hooks kimi stop"), Comment(rawValue: result.output))
-        #expect(installed.contains(#"command = "orca""#), Comment(rawValue: result.output))
-        #expect(secondary.contains("hooks kimi stop"), Comment(rawValue: result.output))
-        #expect(secondary.contains(#"command = "vibe-island""#), Comment(rawValue: result.output))
-=======
         let installed = try String(contentsOf: currentConfig, encoding: .utf8)
         #expect(installed.contains("hooks enqueue kimi stop"), Comment(rawValue: result.output))
->>>>>>> theirs
     }
 
     @Test("Setup succeeds when a secondary Kimi config cannot be read")

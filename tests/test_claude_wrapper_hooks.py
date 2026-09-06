@@ -125,12 +125,9 @@ def run_wrapper(
     node_options: str | None = None,
     tmpdir: str | None = None,
     hooks_disabled: bool = False,
-<<<<<<< ours
     setup_sandbox=None,
     process_timeout: float | None = None,
-=======
     generated_hook_settings: str | None = None,
->>>>>>> theirs
 ) -> tuple[int, list[str], list[str], str, str, str, str, str, str, str]:
     with tempfile.TemporaryDirectory(prefix="cmux-claude-wrapper-test-") as td:
         tmp = Path(td)
@@ -253,6 +250,10 @@ exit 0
             test_socket.bind(socket_path)
 
         env = os.environ.copy()
+        sandbox_home = tmp / "home"
+        if setup_sandbox is None:
+            sandbox_home.mkdir()
+            env["HOME"] = str(sandbox_home)
         env["PATH"] = f"{wrapper_dir}:{real_dir}:{env.get('PATH', '/usr/bin:/bin')}"
         env["CMUX_SURFACE_ID"] = "surface:test"
         env["CMUX_SOCKET_PATH"] = socket_path
@@ -744,36 +745,6 @@ def test_live_socket_injects_supported_hooks_without_unlocking_bypass(failures: 
     )
 
 
-<<<<<<< ours
-def test_live_socket_handoff_uses_a_settings_file(failures: list[str]) -> None:
-    code, real_argv, _cmux_log, stderr, *_ = run_wrapper(
-        socket_state="live",
-        argv=["hello"],
-    )
-    expect(code == 0, f"file handoff: wrapper exited {code}: {stderr}", failures)
-    if "--settings" not in real_argv:
-        failures.append(f"file handoff: missing --settings in args: {real_argv}")
-        return
-    settings_value = real_argv[real_argv.index("--settings") + 1]
-    expect(
-        not settings_value.lstrip().startswith(("{", "[")),
-        f"file handoff: expected a path rather than inline JSON, got {settings_value[:80]!r}",
-        failures,
-    )
-    try:
-        settings_path_exists = Path(settings_value).is_file()
-    except OSError:
-        settings_path_exists = False
-    expect(
-        settings_path_exists,
-        f"file handoff: settings path was not readable: {settings_value!r}",
-        failures,
-    )
-    if settings_path_exists:
-        expect(
-            Path(settings_value).stat().st_mode & 0o777 == 0o600,
-            f"file handoff: settings file permissions were not private: {oct(Path(settings_value).stat().st_mode & 0o777)}",
-=======
 def test_semantically_empty_generated_settings_keep_decision_hook_fallback(
     failures: list[str],
 ) -> None:
@@ -823,7 +794,6 @@ def test_semantically_empty_generated_settings_keep_decision_hook_fallback(
                 for hook in group.get("hooks", [])
             ),
             f"empty generated settings {generated_settings}: PermissionRequest decision hook was lost: {hooks}",
->>>>>>> theirs
             failures,
         )
 
@@ -2747,11 +2717,7 @@ def main() -> int:
         return 0
     failures: list[str] = []
     test_live_socket_injects_supported_hooks_without_unlocking_bypass(failures)
-<<<<<<< ours
-    test_live_socket_handoff_uses_a_settings_file(failures)
-=======
     test_semantically_empty_generated_settings_keep_decision_hook_fallback(failures)
->>>>>>> theirs
     test_live_socket_merges_user_settings_into_hooks(failures)
     test_live_socket_merges_inline_settings_form(failures)
     test_live_socket_repeated_settings_user_value_wins_conflict(failures)

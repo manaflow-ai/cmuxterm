@@ -615,22 +615,6 @@ export CMUX_AGENT_LAUNCH_CWD="$PWD"
     [[ -n "$cmux_codex_argv_b64" ]] && export CMUX_AGENT_LAUNCH_ARGV_B64="$cmux_codex_argv_b64"
 }
 
-<<<<<<< ours
-# Select the launch's cmux hook channel. The cmux CLI inventories installed
-# cmux-owned events read-only, then emits the exact NUL-separated arguments that
-# enable hooks for this run and inject only the missing cmux commands.
-# Turn/status hooks remain FIRE-AND-FORGET: codex runs hooks synchronously and
-# would block on a full socket round trip. Native child lifecycle hooks are the
-# exception; they synchronously commit the tiny cmux-owned ledger event before
-# returning, while all larger telemetry remains detached. The generated command
-# captures codex's stdin payload to a temp file, backgrounds the asynchronous
-# call with a 30s watchdog, and returns `{}` to codex immediately.
-#
-# Resolving the args via the CLI (instead of re-deriving fragile shell here)
-# avoids quoting bugs in the fire-and-forget command (it contains single quotes
-# like `echo '{}'` and `sh -c '...'`). If the emit fails or yields nothing, we
-# fall back to the original argv so installing the wrapper can never break codex.
-=======
 # On a FRESH launch, no wrapper-fired session-start: codex's own injected
 # SessionStart hook (below) fires within ~1s carrying codex's REAL session_id, so
 # it is the single authoritative signal. A pre-exec wrapper-fired session-start
@@ -671,7 +655,6 @@ fi
 # Resolving the args via the CLI (instead of re-deriving fragile shell here)
 # avoids quoting bugs in the generated commands. If the emit fails or yields nothing, we
 # fall back to plain passthrough so installing the wrapper can never break codex.
->>>>>>> theirs
 CMUX_INJECT_CLI="$CMUX_CODEX_HOOK_CMUX_BIN"
 cmux_codex_injected_args=()
 cmux_codex_read_inject_args() {

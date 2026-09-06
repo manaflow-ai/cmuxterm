@@ -6,7 +6,7 @@ extension CMUXCLI {
 // DO NOT EDIT MANUALLY. cmux upgrades this file in place.
 
 import { Buffer } from "node:buffer";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -543,22 +543,8 @@ function cmuxExecutable(): string {
   return process.env.CMUX_PI_CMUX_BIN || "cmux";
 }
 
-<<<<<<< ours
-interface PiFeedCommand {
-  readonly args: string[];
-  readonly cwd: string;
-  readonly payload: Record<string, unknown>;
-  readonly context: PiExtensionContextSnapshot;
-  readonly terminal: boolean;
-  readonly onFailure?: () => void;
-}
-
-interface PiCommandCancellation {
-  cancelled: boolean;
-  cancel?: () => void;
-}
-=======
 function runCmux(args: string[], cwd: string, input?: string): CommandResult {
+  const startedAt = Date.now();
   try {
     const env = hookEnvironment(cwd, true);
     if (args[0] === "hooks" && args[1] === "enqueue") {
@@ -578,10 +564,19 @@ function runCmux(args: string[], cwd: string, input?: string): CommandResult {
       stdout: typeof result.stdout === "string" ? result.stdout : "",
       stderr: typeof result.stderr === "string" ? result.stderr : "",
       error: result.error,
+      timeoutMs: 5000,
+      elapsedMs: Date.now() - startedAt,
     };
   } catch (error) {
-    return { ok: false, status: null, stdout: "", stderr: "", error };
+    return {
+      ok: false,
+      status: null,
+      stdout: "",
+      stderr: "",
+      error,
+      timeoutMs: 5000,
+      elapsedMs: Date.now() - startedAt,
+    };
   }
->>>>>>> theirs
 """#
 }

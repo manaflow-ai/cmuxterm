@@ -7,15 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-=======
-=======
-=======
->>>>>>> theirs
->>>>>>> theirs
->>>>>>> theirs
 		A11CE0040000000000000001 /* AboutLicenseContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0030000000000000001 /* AboutLicenseContent.swift */; };
 		A11CE0010000000000000001 /* AboutLicensesResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */; };
 		A5C017000000000000000001 /* AccountSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000002 /* AccountSignInFlow.swift */; };
@@ -3396,18 +3387,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-=======
-=======
-=======
-=======
->>>>>>> theirs
->>>>>>> theirs
->>>>>>> theirs
->>>>>>> theirs
 		A11CE0030000000000000001 /* AboutLicenseContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutLicenseContent.swift; sourceTree = "<group>"; };
 		A11CE0020000000000000001 /* AboutLicensesResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutLicensesResourceTests.swift; sourceTree = "<group>"; };
 		A5C017000000000000000002 /* AccountSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlow.swift; sourceTree = "<group>"; };
@@ -9072,13 +9051,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C72280000000000000000001 /* CMUXCLI+ClaudeHookWorkspaceRouting.swift */,
 				79390008AA11BB22CC33DD08 /* CMUXCLI+ClaudeHookDeliveryTarget.swift */,
 				B9000069A1B2C3D4E5F60719 /* CMUXCLI+AmpExtension.swift */,
-<<<<<<< ours
-				9758B0019758B0019758B001 /* CMUXCLI+AmpExtensionSourcePart1.swift */,
-				9758B0029758B0029758B002 /* CMUXCLI+AmpExtensionSourcePart2.swift */,
-				9758B0039758B0039758B003 /* CMUXCLI+AmpExtensionSourcePart3.swift */,
-=======
 				C85350000000000000000204 /* CMUXCLI+AgentHookAdmission.swift */,
->>>>>>> theirs
 				C0D3F1F00000000000000102 /* CMUXCLI+CodexFireAndForgetHooks.swift */,
 				C85350000000000000000202 /* CMUXCLI+ClaudeHookSettings.swift */,
 				B9000073A1B2C3D4E5F60719 /* CMUXCLI+OmpExtension.swift */,
@@ -9871,14 +9844,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0D3F1F00000000000000104 /* CLICodexHookTimeoutRegressionTests.swift */,
 				C0D3F1F20000000000000104 /* CLICodexYoloResumePersistenceTests.swift */,
 				C0D3F1F10000000000000104 /* CLICodexHookTimeoutRegressionTestSupport.swift */,
-<<<<<<< ours
-				918100000000000000000001 /* CLICodexResumeNotificationTests.swift */,
-=======
 				C85350000000000000000102 /* CLIClaudeHookTimeoutRegressionTests.swift */,
 				C85350000000000000000104 /* AgentHookDeliveryQueueTests.swift */,
 				C85350000000000000000106 /* CLICodexQueuedHookContractTests.swift */,
 				C85350000000000000000108 /* CLIRelayQueuedHookRegressionTests.swift */,
->>>>>>> theirs
 				C6711B010000000000000001 /* CLICodexWeakEnvironmentRestoreBindingTests.swift */,
 				D96290020000000000000001 /* CodexResumeBindingVerificationRegressionTests.swift */,
 				A5D41208A1B2C3D4E5F60718 /* CLIGenericHookPersistenceTests.swift */,
@@ -10578,9 +10547,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			buildActionMask = 2147483647;
 			files = (
 
-<<<<<<< ours
-=======
->>>>>>> theirs
 				A11CE0040000000000000001 /* AboutLicenseContent.swift in Sources */,
 				A5C017000000000000000001 /* AccountSignInFlow.swift in Sources */,
 				A5C017000000000000000003 /* AccountSignInModel.swift in Sources */,
@@ -12952,12 +12918,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			buildActionMask = 2147483647;
 			files = (
 
-<<<<<<< ours
-<<<<<<< ours
-=======
-=======
->>>>>>> theirs
->>>>>>> theirs
 				A11CE0010000000000000001 /* AboutLicensesResourceTests.swift in Sources */,
 				A5C01700000000000000000F /* AccountSignInModelTests.swift in Sources */,
 				5FAC71D5AC71D5AC71D50001 /* AgentChatChildRunTests.swift in Sources */,

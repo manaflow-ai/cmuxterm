@@ -48,23 +48,6 @@ struct CLICodexHookTimeoutRegressionTests {
         #expect(stopHooks.allSatisfy { $0.body.contains("hooks enqueue codex stop") })
         #expect(stopHooks.allSatisfy { $0.timeout == 5 })
         #expect(stopHooks.allSatisfy { $0.body.contains("agent_pid=") && $0.body.contains("CMUX_CODEX_PID=") })
-<<<<<<< ours
-        let wrapperEquivalentEvents = [
-            "PreToolUse": "pre-tool-use",
-            "PermissionRequest": "notification",
-            "PostToolUse": "post-tool-use",
-        ]
-        for (eventName, subcommand) in wrapperEquivalentEvents {
-            let eventHooks = hooks.filter { $0.eventName == eventName }
-            #expect(eventHooks.count == 1, "Installer should install one \(eventName) hook")
-            #expect(eventHooks.allSatisfy { $0.body.contains("hooks codex \(subcommand)") })
-            #expect(eventHooks.allSatisfy {
-                $0.body.contains("nohup sh -c") && $0.body.contains("cat >\"$payload\"")
-            })
-        }
-
-        let persistentOnlyFeedEvents: Set<String> = [
-=======
         #expect([sessionStartHooks, promptHooks, stopHooks].flatMap { $0 }.allSatisfy {
             !$0.body.contains("nohup")
                 && !$0.body.contains("sleep ")
@@ -74,7 +57,6 @@ struct CLICodexHookTimeoutRegressionTests {
             "PreToolUse",
             "PermissionRequest",
             "PostToolUse",
->>>>>>> theirs
             "PreCompact",
             "PostCompact",
             "SubagentStart",

@@ -158,7 +158,6 @@ class TerminalController {
     private nonisolated let socketPasswordFileWatcher: FileWatcher?
     nonisolated let socketClientCapabilityAuthority: SocketClientCapabilityAuthority
     private nonisolated let socketClientPreauthorizationLimiter: SocketClientPreauthorizationLimiter
-<<<<<<< ours
     /// Bounds worker threads and completion contexts parked for synchronous
     /// `reload_config` acknowledgements. Excess callers receive backpressure.
     private nonisolated let reloadConfigurationWaiterAdmission =
@@ -166,9 +165,7 @@ class TerminalController {
             maximumConcurrentWaiters:
                 maximumConcurrentReloadConfigurationWaiters
         )
-=======
     private nonisolated let agentHookDeliveryQueue: AgentHookDeliveryQueue
->>>>>>> theirs
     /// Process-wide proxy-tunnel broker (one shared tunnel per remote transport across all
     /// windows), constructed at this app-hub composition point and injected into each
     /// `WorkspaceRemoteSessionController`; ownership moves to the composition root with the
@@ -464,11 +461,8 @@ class TerminalController {
             shellPath: ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         ),
         terminalArtifactAuthorizationStore: TerminalArtifactAuthorizationStore = .init(),
-<<<<<<< ours
         panelArtifactAuthorizationStore: PanelArtifactAuthorizationStore? = nil,
-=======
         agentHookDeliveryQueue: AgentHookDeliveryQueue = AgentHookDeliveryQueue(),
->>>>>>> theirs
         remoteProxyBroker: any RemoteProxyBrokering = RemoteProxyBroker(
             tunnelProvider: RemoteDaemonProxyTunnelProvider(strings: .appLocalized, ptyBridgeStrings: AppRemotePTYBridgeStrings())
         ),

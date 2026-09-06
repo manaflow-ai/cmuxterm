@@ -78,7 +78,6 @@ extension CMUXCLI {
     }
 
     /// Emit, NUL-separated to stdout, the exact codex arg list the wrapper must
-<<<<<<< ours
     /// splice ahead of the user's args to enable cmux hooks for one Codex
     /// invocation without rewriting the user's Codex configuration. Returns
     /// activation flags followed by one `-c` pair for every event that is not
@@ -94,16 +93,6 @@ extension CMUXCLI {
     /// continue to run alongside these process-local entries. Only explicit
     /// `cmux hooks codex install` or `uninstall` commands mutate `CODEX_HOME`.
     /// No live socket is required.
-=======
-    /// splice ahead of the user's args to enable + inject cmux's hooks for one
-    /// codex invocation. Returns the arg list:
-    ///   --enable\0hooks\0--dangerously-bypass-hook-trust\0
-    ///   -c\0hooks.SessionStart=[{hooks=[{type="command",command='''<command>''',timeout=5000}]}]\0
-    ///   -c\0hooks.UserPromptSubmit=...\0 ... (one `-c` pair per event)
-    /// where non-decision hooks enqueue ordered app-owned delivery and decision
-    /// hooks call cmux directly so Codex receives their output and exit status.
-    /// Requires no live socket: pure string construction from the agent def.
->>>>>>> theirs
     func emitCodexWrapperInjectArgs() throws {
         guard let codexDef = Self.agentDef(named: "codex") else {
             throw CLIError(message: "Codex hook integration is unavailable.")
@@ -129,7 +118,6 @@ extension CMUXCLI {
         // inline snippet so the working path can never regress.
         let hooksDir = eventsToInject.isEmpty ? nil : Self.codexHookScriptsDirectory()
         var args: [String] = ["--enable", "hooks", "--dangerously-bypass-hook-trust"]
-<<<<<<< ours
         for event in eventsToInject {
             let hookBody = Self.codexWrapperHookBody(event: event, for: codexDef)
             let command: String
@@ -139,35 +127,12 @@ extension CMUXCLI {
                 command = scriptPath
             } else {
                 command = hookBody
-=======
-        for event in CodexHookInjectionSchema.current.events {
-            let body: String
-            if event.delivery == .queued,
-               Self.agentHookCanRunQueued(agent: codexDef.name, subcommand: event.cmuxSubcommand) {
-                body = Self.queuedAgentHookShellCommand(
-                    agent: codexDef.name,
-                    subcommand: event.cmuxSubcommand,
-                    disableEnvironmentVariable: codexDef.disableEnvVar
-                )
-            } else {
-                body = Self.agentHookShellCommand(
-                    "cmux hooks codex \(event.cmuxSubcommand)",
-                    for: codexDef
-                )
             }
-            let command: String
-            if let scriptPath = hooksDir.flatMap({
-                Self.writeCodexHookScript(subcommand: event.cmuxSubcommand, body: body, in: $0)
-            }), !scriptPath.contains("'''") {
-                command = scriptPath
-            } else {
-                // Launch sanitization uses this stable no-op marker to remove
-                // cmux's injected inline fallback before resume/fork capture.
-                command = ": cmux-codex-hook; \(body)"
->>>>>>> theirs
-            }
-            // TOML multi-line literal strings preserve bytes verbatim and may
-            // contain single quotes. Only a literal triple quote is forbidden.
+            // TOML multi-line literal string ('''...''') preserves bytes verbatim
+            // and may contain single quotes, so the embedded `echo '{}'` / `sh -c
+            // '...'` survive with no escaping. TOML forbids only a literal triple
+            // single quote inside; guard against it (neither a path nor the
+            // command ever has one).
             guard !command.contains("'''") else {
                 throw CLIError(message: "Codex hook command contains a triple single quote and cannot be TOML-encoded.")
             }
@@ -184,7 +149,7 @@ extension CMUXCLI {
             out.append(Data(arg.utf8))
             out.append(0)
         }
-        cliWriteStdout(out)
+        FileHandle.standardOutput.write(out)
     }
 
     /// The cmux-owned directory holding the generated codex hook scripts.
@@ -209,7 +174,7 @@ extension CMUXCLI {
 
     /// Writes (idempotently) a `#!/bin/sh` hook script for one event into `dir`
     /// and returns its absolute path, or nil on any failure. The body is the
-    /// same env-driven hook snippet used inline; as a real executable
+    /// same env-driven fire-and-forget snippet used inline; as a real executable
     /// file it runs under any runtime, including ones that exec the hook command
     /// directly rather than through a shell. Content is identical across
     /// invocations, so the file is only rewritten when missing or changed.
@@ -242,7 +207,6 @@ extension CMUXCLI {
         }
     }
 
-<<<<<<< ours
     /// Names that the current wrapper schema may reference from a live session.
     static func currentCodexWrapperHookScriptFilenames(for def: AgentHookDef) -> Set<String> {
         Set(CodexHookInjectionSchema.current.events.compactMap { event in
@@ -259,10 +223,14 @@ extension CMUXCLI {
         for def: AgentHookDef
     ) -> String {
         let command = "cmux hooks codex \(event.cmuxSubcommand)"
-        if event.isSynchronous {
-            return codexSynchronousAgentHookShellCommand(command, for: def)
+        if event.delivery == .queued {
+            return queuedAgentHookShellCommand(
+                agent: def.name,
+                subcommand: event.cmuxSubcommand,
+                disableEnvironmentVariable: def.disableEnvVar
+            )
         }
-        return codexFireAndForgetAgentHookShellCommand(command, for: def)
+        return codexSynchronousAgentHookShellCommand(command, for: def)
     }
 
     /// Cmux-generated script names referenced by the active persistent config.
@@ -356,6 +324,4 @@ extension CMUXCLI {
             "if [ -n \"$CMUX_SURFACE_ID\" ] && [ \"$\(def.disableEnvVar)\" != \"1\" ] && [ -n \"$cmux_cli\" ]; then payload=\"$(mktemp \"${TMPDIR:-/tmp}/cmux-codex-hook.XXXXXX\" 2>/dev/null || mktemp -t cmux-codex-hook 2>/dev/null)\" || { \(noOp); exit 0; }; cat >\"$payload\" || true; if [ -n \"${CMUX_SOCKET_PATH:-}\" ]; then CMUX_CODEX_PID=\"$agent_pid\" CMUX_CODEX_HOOK_PID=\"$hook_pid\" nohup sh -c '\(runner)' cmux-codex-hook \"$payload\" \"$cmux_cli\" --socket \"$CMUX_SOCKET_PATH\" \(routedArguments) >/dev/null 2>&1 & else CMUX_CODEX_PID=\"$agent_pid\" CMUX_CODEX_HOOK_PID=\"$hook_pid\" nohup sh -c '\(runner)' cmux-codex-hook \"$payload\" \"$cmux_cli\" \(routedArguments) >/dev/null 2>&1 & fi; echo '{}'; else \(noOp); fi",
         ].joined(separator: "; ")
     }
-=======
->>>>>>> theirs
 }

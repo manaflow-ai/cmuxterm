@@ -375,14 +375,10 @@ def main() -> int:
 set -euo pipefail
 printf '%s\n' "$*" >> "$CMUX_TEST_PI_ARGS_LOG"
 payload="$(cat)"
-<<<<<<< ours
-printf '%s\n' "$payload" >> "$CMUX_TEST_PI_STDIN_LOG"
-=======
 stdin_lock="$CMUX_TEST_PI_STDIN_LOG.lock"
 while ! mkdir "$stdin_lock" 2>/dev/null; do sleep 0.01; done
 printf '%s\n---\n' "$payload" >> "$CMUX_TEST_PI_STDIN_LOG"
 rmdir "$stdin_lock"
->>>>>>> theirs
 {
   printf 'kind=%s\n' "${CMUX_AGENT_LAUNCH_KIND-}"
   printf 'cwd=%s\n' "${CMUX_AGENT_LAUNCH_CWD-}"
@@ -848,26 +844,6 @@ await waitForCompletionHookCount(completionCount);
             print(f"stderr={check.stderr.strip()}")
             return 1
 
-<<<<<<< ours
-        args_log = wait_for_text(
-            fake_args_log,
-            50,
-            timeout=20.0,
-            expected_substrings=("hooks feed --source pi --event PostToolUse",),
-        )
-        stdin_log = wait_for_text(
-            fake_stdin_log,
-            50,
-            timeout=20.0,
-            expected_substrings=('"hook_event_name":"PostToolUse"',),
-        )
-        env_log = wait_for_text(fake_env_log, 50 * 3, timeout=20.0)
-        for expected in [
-            "hooks pi session-start",
-            "hooks pi prompt-submit",
-            "hooks pi stop",
-            "hooks pi notification",
-=======
         args_log = wait_for_text(fake_args_log, 46, timeout=20.0)
         stdin_log = wait_for_text(fake_stdin_log, 74, timeout=20.0)
         stdin_log = wait_for_occurrences(
@@ -889,7 +865,6 @@ await waitForCompletionHookCount(completionCount);
             "hooks pi session-finalize",
             "hooks enqueue pi notification",
             "hooks feed --source pi --event PreToolUse",
->>>>>>> theirs
             "hooks feed --source pi --event PostToolUse",
             "hooks feed --source pi --event PreCompact",
             "hooks feed --source pi --event PostCompact",
@@ -941,28 +916,6 @@ await waitForCompletionHookCount(completionCount);
             elif "surface resume clear" in line:
                 resume_ops.append("clear")
         expected_resume_ops = [
-<<<<<<< ours
-            "set",
-            "get",
-            "clear",
-            "set",
-            "get",
-            "clear",
-            "set",
-            "get",
-            "clear",
-            "set",
-            "get",
-            "clear",
-            "set",
-            "get",
-            "set",
-            "get",
-            "set",
-            "get",
-            "set",
-            "get",
-=======
             "set", "get",
             "set", "get",
             "set", "get",
@@ -970,7 +923,6 @@ await waitForCompletionHookCount(completionCount);
             "set", "get",
             "set", "get",
             "set", "get",
->>>>>>> theirs
         ]
         if resume_ops != expected_resume_ops:
             print(f"FAIL: extension did not verify resume binding after set, got {resume_ops!r}")

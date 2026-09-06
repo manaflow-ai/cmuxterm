@@ -1,43 +1,6 @@
 import Foundation
 
 extension CMUXCLI {
-<<<<<<< ours
-    static let ampExtensionMarker = "cmux-amp-session-extension-marker"
-    static let ampExtensionFilename = "cmux-session.ts"
-    static let ampExtensionSource =
-        ampExtensionPrelude
-        + ampExtensionReconciliation
-        + ampExtensionHandlers
-
-    /// Resolves the private semantic status values emitted by the Amp plugin
-    /// in the host locale before forwarding them to the sidebar socket.
-    static func localizedAmpStatusArguments(_ arguments: [String]) -> [String] {
-        guard arguments.count >= 2,
-              arguments[0] == "amp" else {
-            return arguments
-        }
-        let value = arguments[1]
-        let localized: String
-        switch value {
-        case "__cmux_amp_status_idle":
-            localized = String(localized: "agent.generic.notification.status.idle", defaultValue: "Idle")
-        case "__cmux_amp_status_thinking":
-            localized = String(localized: "agent.generic.status.running", defaultValue: "Running")
-        case "__cmux_amp_status_needs_input":
-            localized = String(localized: "feed.status.needsInput", defaultValue: "Needs input")
-        case "__cmux_amp_status_done":
-            localized = String(localized: "sidebar.status.done", defaultValue: "Done")
-        case "__cmux_amp_status_error":
-            localized = String(localized: "agent.generic.notification.subtitle.error", defaultValue: "Error")
-        case "__cmux_amp_status_interrupted":
-            localized = String(localized: "agent.generic.notification.status.interrupted", defaultValue: "Interrupted")
-        default:
-            return arguments
-        }
-        var result = arguments
-        result[1] = localized
-        return result
-=======
     private static let ampExtensionMarker = "cmux-amp-session-extension-marker"
     private static let ampExtensionFilename = "cmux-session.ts"
     private static let ampExtensionSource = #"""
@@ -492,7 +455,37 @@ export default function (amp: PluginAPI) {
         setStatus(String(event.status ?? "done"), "questionmark.circle", COLOR.interrupted);
         wsLog(`turn ended with unexpected status: ${event.status}`, "warning");
         break;
->>>>>>> theirs
+      }
+"""#
+
+    /// Resolves the private semantic status values emitted by the Amp plugin
+    /// in the host locale before forwarding them to the sidebar socket.
+    static func localizedAmpStatusArguments(_ arguments: [String]) -> [String] {
+        guard arguments.count >= 2,
+              arguments[0] == "amp" else {
+            return arguments
+        }
+        let value = arguments[1]
+        let localized: String
+        switch value {
+        case "__cmux_amp_status_idle":
+            localized = String(localized: "agent.generic.notification.status.idle", defaultValue: "Idle")
+        case "__cmux_amp_status_thinking":
+            localized = String(localized: "agent.generic.status.running", defaultValue: "Running")
+        case "__cmux_amp_status_needs_input":
+            localized = String(localized: "feed.status.needsInput", defaultValue: "Needs input")
+        case "__cmux_amp_status_done":
+            localized = String(localized: "sidebar.status.done", defaultValue: "Done")
+        case "__cmux_amp_status_error":
+            localized = String(localized: "agent.generic.notification.subtitle.error", defaultValue: "Error")
+        case "__cmux_amp_status_interrupted":
+            localized = String(localized: "agent.generic.notification.status.interrupted", defaultValue: "Interrupted")
+        default:
+            return arguments
+        }
+        var result = arguments
+        result[1] = localized
+        return result
     }
 
     private func ampExtensionURL(for def: AgentHookDef) -> URL {
