@@ -105,16 +105,21 @@ import Testing
         #expect(config.theme == "Included Theme")
     }
 
-    @Test func laterUnmarkedThemeKeepsPrecedenceOverRepairedManagedTheme() throws {
+    @Test(arguments: ["User Theme", "dark:User Theme", "light:Legacy Theme", "\"\""])
+    func laterUnmarkedThemeKeepsPrecedenceOverRepairedManagedTheme(_ userTheme: String) throws {
         let path = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-theme-repair-later-theme-\(UUID().uuidString)", isDirectory: false)
         defer { try? FileManager.default.removeItem(at: path) }
-        try """
+        let contents = """
         # cmux themes start
         theme = light:Legacy Theme
         # cmux themes end
-        theme = User Theme
-        """.write(to: path, atomically: true, encoding: .utf8)
+        theme = \(userTheme)
+        """
+        try contents.write(to: path, atomically: true, encoding: .utf8)
+
+        // The embedded Ghostty loader uses this shared result directly.
+        #expect(GhosttyConfig.normalizedCmuxManagedThemeValue(in: contents) == nil)
 
         var config = GhosttyConfig()
         config.loadResolvedUserConfig(
@@ -124,7 +129,7 @@ import Testing
             bundleResourceURL: nil
         )
 
-        #expect(config.theme == "User Theme")
+        #expect(config.theme == userTheme.trimmingCharacters(in: CharacterSet(charactersIn: "\"")))
     }
 
     @Test func repairsManagedThemeWhenFileStartsWithUTF8BOM() {
