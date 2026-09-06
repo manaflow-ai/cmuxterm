@@ -394,10 +394,15 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// order remains the compatibility fallback. An explicit index wins over
     /// an omitted one, and equal explicit indexes use the stable id before the
     /// transport offset as a deterministic tie-break.
+    // The tuple keeps `enumerated()`'s own label order on purpose: returning the
+    // sorted array under relabeled tuple labels compiles to a runtime array cast
+    // that the Swift 6.x runtime shipped with Xcode 26.6 refuses, which aborted
+    // the app on every snapshot publish. Callers read `.element` and `.offset`
+    // by name, so the order is invisible to them.
     private static func orderedSnapshotRows(
         _ rows: [[String: Any]],
         focusedFirst: Bool = false
-    ) -> [(element: [String: Any], offset: Int)] {
+    ) -> [(offset: Int, element: [String: Any])] {
         rows.enumerated().sorted { left, right in
             if focusedFirst {
                 let leftFocused = (left.element["focused"] as? Bool) == true

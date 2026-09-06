@@ -1385,7 +1385,10 @@ impl AuthDatabase {
         device_id: &str,
         connection_attempt: ConnectionAttemptId,
     ) -> Result<(), IdentityError> {
-        if device_id.starts_with("carrier:") {
+        // Carrier and trusted-network grants have no device record to stamp;
+        // their admission is the transport's, not the device list's.
+        if device_id.starts_with("carrier:") || device_id.starts_with(TRUSTED_NETWORK_DEVICE_PREFIX)
+        {
             return Ok(());
         }
         let now = unix_time()?;

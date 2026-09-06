@@ -3161,7 +3161,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             registry.supported_client_auth("ws").unwrap(),
-            cmux_remote::provider::SupportedClientAuthModes::DeviceOrCarrier
+            SupportedClientAuthModes::DeviceOrCarrier
         );
         let registry = client_provider_registry(
             SshProviderConfig::default(),
@@ -3173,7 +3173,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             registry.supported_client_auth("ws").unwrap(),
-            cmux_remote::provider::SupportedClientAuthModes::DeviceOnly
+            SupportedClientAuthModes::DeviceOnly
         );
     }
 
