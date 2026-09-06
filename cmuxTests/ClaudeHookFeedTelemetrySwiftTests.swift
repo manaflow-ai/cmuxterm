@@ -2,6 +2,7 @@ import Darwin
 import Dispatch
 import Foundation
 import Testing
+import CmuxFoundation
 
 @Suite(.serialized)
 struct ClaudeHookFeedTelemetrySwiftTests {
@@ -310,11 +311,14 @@ struct ClaudeHookFeedTelemetrySwiftTests {
                   let identity = FeedWorkstreamIdentifier(rawValue: rawValue) else {
                 return false
             }
-            return identity.agentID == "copilot" && identity.sessionID == "child-session"
+            return identity.agentID == "copilot"
+                && identity.sessionID == "child-session"
+                && ($0["_telemetry_only"] as? Bool) == true
         })
         #expect(events.contains {
             ($0["hook_event_name"] as? String) == "Notification"
                 && (($0["tool_input"] as? [String: Any])?["notification_type"] as? String) == "shell_completed"
+                && ($0["_telemetry_only"] as? Bool) == true
         })
     }
 

@@ -10,6 +10,55 @@ import CMUXAgentLaunch
 
 @Suite("Feed coordinator", .serialized)
 struct FeedCoordinatorTests {
+    @Test("Resolved source-event replay returns the original decision and item")
+    func resolvedSourceEventReplayReturnsOriginalOutcome() async {
+        let store = await MainActor.run {
+            let store = WorkstreamStore(ringCapacity: 10)
+            let original = WorkstreamEvent(
+                sessionId: "copilot-session",
+                hookEventName: .permissionRequest,
+                source: "copilot",
+                toolName: "shell",
+                requestId: "request-original",
+                sourceEventId: "native-event-1"
+            )
+            store.ingest(original)
+            let itemId = store.items[0].id
+            store.markResolved(itemId, decision: .permission(.once))
+            store.ingest(WorkstreamEvent(
+                sessionId: "unrelated",
+                hookEventName: .stop,
+                source: "copilot"
+            ))
+            FeedCoordinator.shared.install(store: store)
+            return store
+        }
+        let expectedItemId = await MainActor.run { store.items[0].id }
+        let replay = WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-replay",
+            sourceEventId: "native-event-1"
+        )
+
+        let result = await Task.detached {
+            FeedCoordinator.shared.ingestBlocking(event: replay, waitTimeout: 0.2)
+        }.value
+
+        guard case .resolved(let itemId, .permission(.once)) = result else {
+            Issue.record("resolved replay did not return the original decision")
+            return
+        }
+        #expect(itemId == expectedItemId)
+        await MainActor.run {
+            #expect(store.items.count == 2)
+            #expect(store.items[0].id == expectedItemId)
+            #expect(store.items[1].workstreamId == "unrelated")
+        }
+    }
+
     @Test("Workspace-only blocking events retain their session surface")
     func workspaceOnlyAttentionUsesSessionSurface() {
         let workspaceID = UUID()

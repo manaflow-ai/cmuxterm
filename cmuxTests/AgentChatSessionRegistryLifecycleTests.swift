@@ -417,6 +417,48 @@ struct AgentChatSessionRegistryLifecycleTests {
     }
 
     @MainActor
+    @Test func telemetryOnlyHookEventsDoNotChangeChatOwnershipOrLifecycle() throws {
+        let home = try temporaryHomeDirectory()
+        let registry = AgentChatSessionRegistry()
+        let service = AgentChatTranscriptService(
+            registry: registry,
+            resolver: AgentChatTranscriptResolver(homeDirectory: home, environment: [:])
+        )
+        let workspaceID = UUID().uuidString
+        let surfaceID = UUID().uuidString
+        service.noteHookEvent(WorkstreamEvent(
+            sessionId: "root-session",
+            hookEventName: .sessionStart,
+            source: "copilot",
+            workspaceId: workspaceID,
+            surfaceId: surfaceID,
+            receivedAt: Date(timeIntervalSince1970: 1)
+        ))
+        service.noteHookEvent(WorkstreamEvent(
+            sessionId: "child-session",
+            hookEventName: .userPromptSubmit,
+            source: "copilot",
+            workspaceId: workspaceID,
+            surfaceId: surfaceID,
+            telemetryOnly: true,
+            receivedAt: Date(timeIntervalSince1970: 2)
+        ))
+        service.noteHookEvent(WorkstreamEvent(
+            sessionId: "root-session",
+            hookEventName: .notification,
+            source: "copilot",
+            workspaceId: workspaceID,
+            surfaceId: surfaceID,
+            telemetryOnly: true,
+            receivedAt: Date(timeIntervalSince1970: 3)
+        ))
+
+        #expect(registry.record(sessionID: "child-session") == nil)
+        #expect(registry.liveSession(surfaceID: surfaceID)?.sessionID == "root-session")
+        #expect(registry.record(sessionID: "root-session")?.state == .idle)
+    }
+
+    @MainActor
     @Test func endedCodexSessionListabilityKeepsFallbackRowsWithoutScanningHistory() throws {
         let home = try temporaryHomeDirectory()
         let service = AgentChatTranscriptService(

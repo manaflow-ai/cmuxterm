@@ -21,6 +21,7 @@ struct WorkstreamEventTests {
           "_source_revision": "revision-7",
           "_causal_chain_id": "turn-3",
           "_action_request_id": "action-9",
+          "_telemetry_only": true,
           "_ppid": 1234
         }
         """.data(using: .utf8)!
@@ -37,6 +38,7 @@ struct WorkstreamEventTests {
         #expect(event.sourceRevision == "revision-7")
         #expect(event.causalChainId == "turn-3")
         #expect(event.actionRequestId == "action-9")
+        #expect(event.telemetryOnly)
         #expect(event.ppid == 1234)
         // `toolInputJSON` round-trips through JSONSerialization which may
         // escape forward slashes; parse it back rather than substring-match.
@@ -71,6 +73,7 @@ struct WorkstreamEventTests {
             sourceRevision: "revision-8",
             causalChainId: "turn-4",
             actionRequestId: "action-10",
+            telemetryOnly: true,
             ppid: 999
         )
         let data = try JSONEncoder().encode(event)
@@ -83,6 +86,7 @@ struct WorkstreamEventTests {
         #expect(back.sourceRevision == event.sourceRevision)
         #expect(back.causalChainId == event.causalChainId)
         #expect(back.actionRequestId == event.actionRequestId)
+        #expect(back.telemetryOnly)
         let rawPlan = try #require(back.toolInputJSON?.data(using: .utf8))
         let planDict = try #require(
             try JSONSerialization.jsonObject(with: rawPlan) as? [String: Any]
@@ -110,6 +114,7 @@ struct WorkstreamEventTests {
         #expect(event.sourceRevision == nil)
         #expect(event.causalChainId == nil)
         #expect(event.actionRequestId == nil)
+        #expect(!event.telemetryOnly)
         #expect(event.ppid == nil)
     }
 
