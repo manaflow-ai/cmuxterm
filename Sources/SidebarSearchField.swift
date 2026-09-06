@@ -1,4 +1,5 @@
 import AppKit
+import CmuxFoundation
 
 /// Native search control shared by Find and Vault.
 @MainActor
