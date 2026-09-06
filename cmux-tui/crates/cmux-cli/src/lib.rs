@@ -1429,6 +1429,12 @@ fn run_browser_command(
     {
         positional_surface = Some(rest.remove(0));
     }
+    let id_format = option_value(&rest, "--id-format")
+        .or_else(|| options.id_format.clone())
+        .unwrap_or_else(|| "refs".into());
+    if !matches!(id_format.as_str(), "refs" | "uuids" | "both") {
+        return Err(CliError::Usage("--id-format requires refs, uuids, or both".into()));
+    }
     let mut params = context_params(&rest, &options)?;
     if let Some(surface) = positional_surface.or_else(|| option_value(&rest, "--surface")) {
         params.insert("surface_id".into(), Value::String(surface));
@@ -1468,7 +1474,7 @@ fn run_browser_command(
     };
     let send = |method: &str, params: serde_json::Map<String, Value>| -> Result<Value, CliError> {
         let result = socket(&options)?.send_v2(method, Value::Object(params))?;
-        let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+        let result = format_ids(result, &id_format);
         print_result(&result, json_output);
         Ok(result)
     };
@@ -1587,7 +1593,7 @@ fn run_browser_command(
             let surface = surface_required()?;
             params.insert("surface_id".into(), Value::String(surface));
             let result = socket(&options)?.send_v2("browser.url.get", Value::Object(params))?;
-            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            let result = format_ids(result, &id_format);
             if json_output {
                 print_result(&result, true);
             } else {
@@ -1603,7 +1609,7 @@ fn run_browser_command(
                 "browser.is_webview_focused"
             };
             let result = socket(&options)?.send_v2(method, Value::Object(params))?;
-            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            let result = format_ids(result, &id_format);
             if json_output {
                 print_result(&result, true);
             } else if subcommand == "is-webview-focused" {
@@ -1632,7 +1638,7 @@ fn run_browser_command(
                 params.insert("max_depth".into(), Value::Number(depth.into()));
             }
             let result = socket(&options)?.send_v2("browser.snapshot", Value::Object(params))?;
-            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            let result = format_ids(result, &id_format);
             if json_output {
                 print_result(&result, true);
             } else {
