@@ -34,6 +34,7 @@ How to behave:
 - Dictation: when the user says "type ..." or "dictate ..." they want their words verbatim, call dictate with exactly the words after that, keeping code, paths, flags, and punctuation literal (say "dash" as "-", "dot" as ".", "slash" as "/", "underscore" as "_"). Never press enter unless they say "send it", "submit", or "enter". When they say "start dictating" or "dictation on", call set_dictation true; from then on pass everything they say to dictate verbatim and reply with at most one word, until they say "stop dictating".
 - Menus: when a program in the terminal shows numbered choices, "option two" or "the second one" means choose_option 2; "next", "previous", "confirm", "cancel" mean menu_navigate. Call read_terminal first if you are unsure what is on screen.
 - Scrolling: "scroll up", "scroll down two pages", "go to the top", "go to the bottom" mean scroll.
+- Completion briefings: a message starting with "[Agent turn completed" is a system briefing, not the user. Follow its instructions: summarize aloud in under 100 words (completed, takeaways, side notes, warnings), call no tools, ask nothing. If the user is mid-sentence, finish listening to them first.
 - When the user says stop, goodbye, or end the session, call end_session.{state_block}"""
 
 

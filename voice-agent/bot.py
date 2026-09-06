@@ -12,6 +12,7 @@ Environment:
     CMUX_VOICE_TRUST_TERMINAL   "1" to run commands without confirmation
     CMUX_VOICE_MAX_MINUTES      session cap (default 30)
     CMUX_VOICE_GREETING         fixed opening line, or "off" to let the user speak first
+    CMUX_VOICE_SUMMARIES        "0" to disable spoken recaps when a coding agent finishes a turn
 """
 
 from __future__ import annotations
@@ -26,6 +27,8 @@ from typing import Any, Dict, Optional
 from loguru import logger
 
 from cmux_voice.cmux_client import CmuxClient, CmuxError
+from cmux_voice.events import AgentCompletion, AgentEventSubscriber
+from cmux_voice.summary import CompletionSummarizer
 from cmux_voice.policy import ConfirmationPolicy
 from cmux_voice.prompt import build_greeting_prompt, build_system_prompt
 from cmux_voice.state import UIState
@@ -135,7 +138,7 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
 
 async def run_bot(transport) -> None:
     from pipecat.audio.vad.silero import SileroVADAnalyzer  # noqa: F401  (validated below)
-    from pipecat.frames.frames import EndFrame
+    from pipecat.frames.frames import EndFrame, InputTextRawFrame
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.pipeline.runner import PipelineRunner
     from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -171,6 +174,25 @@ async def run_bot(transport) -> None:
 
     llm = build_llm(tools, output_medium="voice", ui_summary=ui_summary)
 
+    # Completion summaries: cmux's event stream tells us when a coding agent
+    # finished a turn; we read that terminal and have the model brief the user.
+    summaries_enabled = os.environ.get("CMUX_VOICE_SUMMARIES", "1") != "0"
+    summarizer = CompletionSummarizer(CmuxClient(allowed_methods=ALLOWED_METHODS), enabled=summaries_enabled)
+
+    async def on_agent_completion(completion: AgentCompletion) -> None:
+        briefing = await summarizer.briefing_for(completion)
+        if briefing is None:
+            return
+        task = task_holder.get("task")
+        if task is None:
+            return
+        logger.info(f"completion summary: {completion.source} on {completion.surface_id}")
+        try:
+            await rtvi.send_server_message({"type": "agent_completed", "source": completion.source, "surface_id": completion.surface_id})
+        except Exception:  # noqa: BLE001
+            pass
+        await task.queue_frames([InputTextRawFrame(text=briefing)])
+
     pipeline = Pipeline([transport.input(), rtvi, llm, transport.output()])
     task = PipelineTask(
         pipeline,
@@ -194,10 +216,18 @@ async def run_bot(transport) -> None:
         logger.info("voice client disconnected")
         await task.cancel()
 
+    subscriber: Optional[AgentEventSubscriber] = None
+    if summaries_enabled:
+        subscriber = AgentEventSubscriber(on_agent_completion, asyncio.get_running_loop(), socket_path=tools.client.socket_path)
+        subscriber.start()
+
     runner = PipelineRunner(handle_sigint=False)
     try:
         await runner.run(task)
     finally:
+        if subscriber is not None:
+            subscriber.stop()
+        summarizer.client.close()
         tools.client.close()
 
 

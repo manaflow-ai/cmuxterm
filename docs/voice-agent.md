@@ -38,6 +38,21 @@ CLI or the command palette would.
 Closing tabs or workspaces always asks first. Running a command asks first
 unless **Run Commands Without Confirmation** is on.
 
+## Completion recaps
+
+When a coding agent (Claude Code, Codex, OpenCode, or any agent with cmux
+hooks installed) finishes a turn in any terminal, the voice agent reads that
+terminal and speaks a recap of under 100 words: what was completed, takeaways,
+side notes, and warnings. It works while you are in a voice session, in any
+workspace, and never interrupts you mid-sentence. Set `CMUX_VOICE_SUMMARIES=0`
+in the sidecar environment to turn it off.
+
+It listens on cmux's `events.stream` for `agent.hook.Stop` (the surface-bound,
+completed copy, once per turn), reads the screen with `surface.read_text`,
+strips spinners and repeats, and injects the text into the live call as a
+framed briefing the model summarizes aloud. Only the visible screen is read;
+no transcript files leave the machine.
+
 ## Setup
 
 1. **Python sidecar** (once per checkout; a bundled runtime is planned):
