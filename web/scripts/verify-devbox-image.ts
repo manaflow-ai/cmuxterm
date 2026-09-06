@@ -190,6 +190,7 @@ const desktopChecks = (): readonly string[] => [
 // every shell family: a clean login shell (no PATH help from this verifier)
 // and a daemon pane (non-login, the unit's PATH).
 const FREESTYLE_BASE_CHECKS: readonly string[] = [
+  `${loginAs("ubuntu", "/home/ubuntu", "cmux-tui --version")} && echo ubuntu-cmux-tui-client-ok`,
   "[ \"$(id -u ubuntu)\" = 1000 ] && sudo -n -u ubuntu sudo -n true && echo ubuntu-user-sudo-ok",
   "sudo -n -u ubuntu bash -ic 'head -1 ~/.bash_history' | grep -q claude && echo ubuntu-user-shell-ok",
   "test ! -e /opt/mise && test ! -e /usr/local/bin/mise && readlink /usr/local/bin/node | grep -q /usr/local/nvm/ && echo base-toolchain-in-use",

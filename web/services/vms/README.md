@@ -554,3 +554,8 @@ Plan limits are team-based. Stack Auth personal teams should stay enabled for bo
 ### Pricing is flat
 
 Paid plans include up to 50 active VMs (per paid seat on Team) for a flat subscription price, with independent CPU, memory, and disk for each VM. There is no usage metering, no overages, and no per-hour VM size pricing; an earlier GB-RAM-awake-seconds metering design was considered and dropped to keep pricing simple. Legacy VM resource claims are repaired by the status-reconcile cron in batches of 50, so create and resize requests do not fan out provider stats reads. Legacy resource metadata does not block new machines or consume another machine's capacity.
+
+
+### Public cmux-tui command
+
+The daemon keeps its binary and private state under `/root`, while the Freestyle work user is `ubuntu`. `/usr/local/bin/cmux-tui` must be a public executable, not a symlink through `/root` (0700). The installer publishes an atomic copy of the same pinned binary. Create, restore, and attach repair older snapshots without changing their image or daemon identity. The bake and image verifier check `cmux-tui --version` in an `ubuntu` login shell as well as checking the root daemon.

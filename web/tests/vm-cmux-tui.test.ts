@@ -76,7 +76,6 @@ describe("cmux-tui install and daemon commands", () => {
     expect(command).toContain(`curl -fsSL --retry 3 --retry-delay 2 -o '/root/.cmux/bin/cmux-tui.tmp' '${URL}'`);
     expect(command).toContain(`else wget -q -O '/root/.cmux/bin/cmux-tui.tmp' '${URL}'; fi`);
     expect(command).toContain(`'${SHA}' '/root/.cmux/bin/cmux-tui.tmp' | sha256sum -c >/dev/null 2>&1 && chmod 755`);
-    expect(command).toContain("ln -sfn '/root/.cmux/bin/cmux-tui' /usr/local/bin/cmux-tui");
     expect(command.endsWith("'/root/.cmux/bin/cmux-tui' --version")).toBe(true);
   });
 
@@ -100,7 +99,6 @@ describe("cmux-tui install and daemon commands", () => {
     expect(command).toContain("elif mountpoint -q '/cmux/home'");
     expect(command).toContain('CMUX_TUI_BIN="$CMUX_TUI_HOME/.cmux/bin/cmux-tui"');
     expect(command).toContain(`'${SHA}' \"$CMUX_TUI_BIN\" | sha256sum -c >/dev/null 2>&1; then :; else`);
-    expect(command).toContain('ln -sfn "$CMUX_TUI_BIN" /usr/local/bin/cmux-tui');
     expect(command).toContain('chown cmux:cmux "$CMUX_TUI_HOME/.cmux" "$CMUX_TUI_HOME/.cmux/bin" "$CMUX_TUI_BIN"');
     expect(command).not.toContain("chown -R");
     expect(command).toContain("if command -v curl >/dev/null 2>&1; then curl -fsSL");

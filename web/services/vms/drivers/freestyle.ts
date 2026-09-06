@@ -60,6 +60,7 @@ import {
   cmuxTuiDaemonBuild,
   cmuxTuiDaemonCommand,
   cmuxTuiInstallCommand,
+  cmuxTuiPublicClientCommand,
   cmuxTuiPinCheckCommand,
   mintCmuxTuiInvitation,
   parseCmuxTuiAttachBundle,
@@ -1029,8 +1030,10 @@ export class FreestyleProvider implements VMProvider {
               // up on the provider profile requested by the server.
               await this.growToRequestedSize(fs, vm, vmId, options.memoryMb, span);
             }
-            // The baked supervisor is already bringing the daemon up; the only
-            // per-machine input it needs is the model-plane env file.
+            // Older validated snapshots link the public command through /root
+            // (0700). Publish the same binary for the ubuntu work user without
+            // changing daemon state, permissions, or the selected snapshot.
+            await this.execOrThrow(vm, vmId, cmuxTuiPublicClientCommand(), 60_000);
           } catch (err) {
             // A VM that failed to size or configure must not survive as an
             // orphan, and an undersized machine must not ship as if it were
@@ -1312,6 +1315,14 @@ export class FreestyleProvider implements VMProvider {
             "cmux.vm.id": vmId,
             "cmux.vm.network.private": !!networkId,
           });
+          try {
+            await this.execOrThrow(vm, vmId, cmuxTuiPublicClientCommand(), 60_000);
+          } catch (err) {
+            await vm.delete().catch((cleanupErr) => {
+              console.error(`[freestyle] restore rollback failed; VM ${vmId} may be orphaned`, cleanupErr);
+            });
+            throw err;
+          }
           // The snapshot carries the installed binary and a persisted
           // model-plane file with placeholders only; heal best-effort so the
           // machine is attach-ready without failing restore on a transient
@@ -1383,7 +1394,10 @@ export class FreestyleProvider implements VMProvider {
   ) {
     let result = await this.execResult(
       vm,
-      cmuxTuiAttachBundleCommand({ readyGate: freestyleDaemonSettledCommand(), deviceFingerprint: fingerprint }),
+      cmuxTuiAttachBundleCommand({
+        readyGate: `${freestyleDaemonSettledCommand()} && ${cmuxTuiPublicClientCommand()}`,
+        deviceFingerprint: fingerprint,
+      }),
       DAEMON_SETTLE_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS + EXEC_DEFAULT_TIMEOUT_MS,
     );
     let healed = false;
@@ -1543,7 +1557,10 @@ export class FreestyleProvider implements VMProvider {
    */
   private async ensureCmuxTuiRunning(vm: Vm, vmId: string): Promise<void> {
     const healthy = await this.execResult(vm, freestyleDaemonSettledCommand(), DAEMON_SETTLE_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS);
-    if (healthy?.exitCode === 0) return;
+    if (healthy?.exitCode === 0) {
+      await this.execOrThrow(vm, vmId, cmuxTuiPublicClientCommand(), 60_000);
+      return;
+    }
     const source = await resolveCmuxTuiSource("freestyle");
     const pinned = await this.execResult(vm, freestylePinCheckCommand(source));
     if (pinned?.exitCode !== 0) {
@@ -1551,6 +1568,8 @@ export class FreestyleProvider implements VMProvider {
         .catch((err: unknown) => {
           throw new ProviderError("freestyle", `cmux-tui install in ${vmId} failed: ${errorMessage(err)}`);
         });
+    } else {
+      await this.execOrThrow(vm, vmId, cmuxTuiPublicClientCommand(), 60_000);
     }
     await this.execOrThrow(vm, vmId, freestyleStartDaemonCommand(), 60_000);
     await waitForCmuxTuiReady(this.cmuxTuiInvoke(vm), "freestyle", vmId);
