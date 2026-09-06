@@ -233,7 +233,6 @@ extension MobileHostAuthorizationTests {
         await waitForMobileHostConnectionCount(1)
         try await persistentTransport.enqueue(Self.mobileHostStatusFrame(id: "persistent"))
         _ = await persistentTransport.waitForSentBufferCount(1)
-        try await Task.sleep(nanoseconds: 25_000_000)
 
         #expect(await persistentTransport.observedCloseCount() == 0)
         #expect(registry.count == 1)
