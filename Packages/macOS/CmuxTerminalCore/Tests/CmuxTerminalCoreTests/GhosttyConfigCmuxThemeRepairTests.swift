@@ -126,4 +126,15 @@ import Testing
 
         #expect(config.theme == "User Theme")
     }
+
+    @Test func repairsManagedThemeWhenFileStartsWithUTF8BOM() {
+        let contents = "\u{FEFF}# cmux themes start\n"
+            + "theme = light:Solarized Light\n"
+            + "# cmux themes end\n"
+
+        #expect(
+            GhosttyConfig.normalizedCmuxManagedThemeValue(in: contents)
+                == "light:Solarized Light,dark:Solarized Light"
+        )
+    }
 }

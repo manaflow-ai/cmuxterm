@@ -7,7 +7,9 @@ extension GhosttyConfig {
         var rawThemeValue: String?
 
         for line in contents.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = line
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\u{FEFF}"))
             switch trimmed {
             case "# cmux themes start":
                 insideManagedBlock = true
