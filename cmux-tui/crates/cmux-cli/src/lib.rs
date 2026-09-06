@@ -351,7 +351,17 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 | "select-workspace"
                 | "rename-workspace"
                 | "new-pane"
-                | "new-surface"),
+                | "new-surface"
+                | "set-status"
+                | "clear-status"
+                | "list-status"
+                | "set-progress"
+                | "clear-progress"
+                | "log"
+                | "clear-log"
+                | "list-log"
+                | "sidebar-state"
+                | "right-sidebar"),
             ),
         ) => {
             CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
@@ -593,6 +603,83 @@ fn run_notification_clear(arguments: Vec<String>, options: GlobalOptions) -> Res
         command.push_str(&surface);
     }
     let response = socket(&options)?.send_v1(&command)?;
+    println!("{response}");
+    Ok(())
+}
+
+fn shell_quote(value: &str) -> String {
+    if !value.is_empty()
+        && value.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"._/:=@%+-".contains(&byte))
+    {
+        value.to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+fn run_sidebar_metadata_v1(
+    command: &str,
+    arguments: Vec<String>,
+    options: GlobalOptions,
+) -> Result<(), CliError> {
+    let socket_command = match command {
+        "set-status" => "set_status",
+        "clear-status" => "clear_status",
+        "list-status" => "list_status",
+        "set-progress" => "set_progress",
+        "clear-progress" => "clear_progress",
+        "log" => "log",
+        "clear-log" => "clear_log",
+        "list-log" => "list_log",
+        "sidebar-state" => "sidebar_state",
+        "right-sidebar" => "right_sidebar",
+        _ => unreachable!("parser only creates sidebar metadata commands"),
+    };
+    let workspace =
+        option_value(&arguments, "--workspace").or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
+    let window = option_value(&arguments, "--window").or_else(|| options.window.clone());
+    let mut forwarded = Vec::new();
+    let mut index = 0;
+    while index < arguments.len() {
+        let argument = &arguments[index];
+        if argument == "--workspace" {
+            index += 2;
+            continue;
+        }
+        if argument.starts_with("--workspace=") {
+            index += 1;
+            continue;
+        }
+        if argument == "--window" {
+            index += 2;
+            continue;
+        }
+        if argument.starts_with("--window=") {
+            index += 1;
+            continue;
+        }
+        forwarded.push(argument.clone());
+        index += 1;
+    }
+    if command == "right-sidebar" {
+        if let Some(workspace) = workspace {
+            forwarded.push(format!("--tab={workspace}"));
+        }
+        if let Some(window) = window {
+            forwarded.push(format!("--window={window}"));
+        }
+    } else if let Some(workspace) = workspace {
+        if let Some(separator) = forwarded.iter().position(|value| value == "--") {
+            forwarded.insert(separator, format!("--tab={workspace}"));
+        } else {
+            forwarded.push(format!("--tab={workspace}"));
+        }
+    }
+    let wire_command = std::iter::once(socket_command.to_string())
+        .chain(forwarded.iter().map(|value| shell_quote(value)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let response = socket(&options)?.send_v1(&wire_command)?;
     println!("{response}");
     Ok(())
 }
@@ -842,6 +929,10 @@ fn run_socket_v2_command(
             }
         }
         "clear-notifications" => return run_notification_clear(arguments, options),
+        "set-status" | "clear-status" | "list-status" | "set-progress" | "clear-progress"
+        | "log" | "clear-log" | "list-log" | "sidebar-state" | "right-sidebar" => {
+            return run_sidebar_metadata_v1(command, arguments, options);
+        }
         "dismiss-notification" => {
             let id = option_value(&arguments, "--id");
             let all_read = arguments.iter().any(|argument| argument == "--all-read");
@@ -2467,6 +2558,33 @@ mod tests {
             vec!["surface:1".into(), "snapshot".into(), "--interactive".into()],
             options,
             true,
+        )
+        .unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn sidebar_metadata_forwards_workspace_and_quotes_text() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            assert_eq!(line.trim_end(), "set_status build 'compiling now' --tab=workspace:2");
+            stream.write_all(b"OK\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), ..GlobalOptions::default() };
+        run_sidebar_metadata_v1(
+            "set-status",
+            vec![
+                "build".into(),
+                "compiling now".into(),
+                "--workspace".into(),
+                "workspace:2".into(),
+            ],
+            options,
         )
         .unwrap();
         worker.join().unwrap();
