@@ -241,6 +241,26 @@ struct GhosttyTerminalViewVisibilityPolicyTests {
         #expect(flushCount == 1)
     }
 
+    @Test func portalReconciliationSchedulerCancelDropsPendingWork() async {
+        var flushCount = 0
+        let scheduler = TerminalPortalReconciliationScheduler { _ in
+            flushCount += 1
+        }
+        scheduler.stage(reasons: [.bindingRequired])
+        scheduler.cancel()
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            RunLoop.main.perform(inModes: [.common]) {
+                continuation.resume()
+            }
+        }
+
+        #expect(flushCount == 0)
+        scheduler.stage()
+        scheduler.flushPendingReconciliation()
+        #expect(flushCount == 1)
+    }
+
     @Test func detachedCurrentHostPersistsHiddenVisibilityBeforeRebind() async {
         let size = NSSize(width: 480, height: 320)
         let window = NSWindow(

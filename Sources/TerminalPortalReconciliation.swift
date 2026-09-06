@@ -26,6 +26,7 @@ final class TerminalPortalReconciliationScheduler {
 
     private let flushHandler: FlushHandler
     private var pendingReasons: TerminalPortalReconciliationReasons = []
+    private var hasPendingReconciliation = false
     private var isFlushScheduled = false
 
     init(flushHandler: @escaping FlushHandler) {
@@ -34,11 +35,13 @@ final class TerminalPortalReconciliationScheduler {
 
     func stage(reasons: TerminalPortalReconciliationReasons = []) {
         pendingReasons.formUnion(reasons)
+        hasPendingReconciliation = true
         scheduleFlushIfNeeded()
     }
 
     func cancel() {
         pendingReasons = []
+        hasPendingReconciliation = false
     }
 
     private func scheduleFlushIfNeeded() {
@@ -56,8 +59,11 @@ final class TerminalPortalReconciliationScheduler {
     /// Flushes the staged reconciliation at a caller-owned safe boundary.
     func flushPendingReconciliation() {
         let reasons = pendingReasons
+        let shouldFlush = hasPendingReconciliation
         pendingReasons = []
+        hasPendingReconciliation = false
         isFlushScheduled = false
+        guard shouldFlush else { return }
         flushHandler(reasons)
     }
 }
@@ -246,9 +252,10 @@ extension GhosttyTerminalView {
         hostedView.attachSurface(terminalSurface)
         hostedView.setWorkspaceAttentionColor(snapshot.workspaceAttentionColor)
         hostedView.setSessionContentWidthPresentation(snapshot.sessionContentWidthPresentation)
+        let onFocus = snapshot.onFocus
         hostedView.setFocusHandler { [weak terminalSurface] in
             guard let terminalSurface else { return }
-            snapshot.onFocus?(terminalSurface.id)
+            onFocus?(terminalSurface.id)
         }
         hostedView.setTriggerFlashHandler(snapshot.onTriggerFlash)
         hostedView.setPaneDropContext(TerminalPaneDropContext(

@@ -13920,18 +13920,17 @@ struct GhosttyTerminalView: NSViewRepresentable {
     final class Coordinator {
         var attachGeneration: Int = 0
         lazy var portalReconciliationScheduler = TerminalPortalReconciliationScheduler { [weak self] reasons in
-            guard let self,
-                  let host = self.pendingPortalReconciliationHost,
-                  let hostedView = self.hostedView,
-                  let terminalSurface = self.pendingPortalReconciliationSurface,
-                  let snapshot = self.pendingPortalReconciliationSnapshot,
-                  let reason = self.pendingPortalReconciliationReason else {
-                return
-            }
+            guard let self else { return }
+            let host = self.pendingPortalReconciliationHost
+            let hostedView = self.hostedView
+            let terminalSurface = self.pendingPortalReconciliationSurface
+            let snapshot = self.pendingPortalReconciliationSnapshot
+            let reason = self.pendingPortalReconciliationReason
             self.pendingPortalReconciliationHost = nil
             self.pendingPortalReconciliationSurface = nil
             self.pendingPortalReconciliationSnapshot = nil
             self.pendingPortalReconciliationReason = nil
+            guard let host, let hostedView, let terminalSurface, let snapshot, let reason else { return }
             GhosttyTerminalView.performPortalReconciliation(
                 hostedView: hostedView,
                 host: host,
