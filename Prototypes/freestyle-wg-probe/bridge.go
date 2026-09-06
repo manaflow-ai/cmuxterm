@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,10 @@ import (
 // a command, listens on the VM's private NIC, accepts one authenticated
 // terminal session, and exits.
 const bridgePython = `import fcntl,json,os,pty,selectors,socket,struct,sys,termios,time
-token=sys.argv[1]; bind_ip=sys.argv[2]
+token_path=sys.argv[1]; bind_ip=sys.argv[2]
+with open(token_path,'r',encoding='ascii') as token_file: token=token_file.read().strip()
+try: os.unlink(token_path)
+except OSError: pass
 s=socket.socket(socket.AF_INET,socket.SOCK_STREAM); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
 s.bind((bind_ip,0)); s.listen(1); s.settimeout(90)
 print(json.dumps({'ready':True,'port':s.getsockname()[1]}),flush=True)
@@ -120,14 +124,27 @@ func randomToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
 func startBridge(ctx context.Context, cloud *cloudClient, vmID, bindIP string) (bridgeInfo, error) {
+	address, err := netip.ParseAddr(bindIP)
+	if err != nil || !address.Is4() {
+		return bridgeInfo{}, errors.New("bridge bind address must be a valid IPv4 address")
+	}
 	token, err := randomToken()
 	if err != nil {
 		return bridgeInfo{}, err
 	}
-	marker := "/tmp/cmux-wg-" + token + ".ready"
+	markerID, err := randomToken()
+	if err != nil {
+		return bridgeInfo{}, err
+	}
+	marker := "/tmp/cmux-wg-" + markerID + ".ready"
+	tokenPath := marker + ".token"
 	script := base64.StdEncoding.EncodeToString([]byte(bridgePython))
-	command := fmt.Sprintf("rm -f %s; nohup python3 -c 'import base64;exec(base64.b64decode(\"%s\"))' %s %s >%s 2>&1 </dev/null & echo $!", marker, script, token, bindIP, marker)
+	command := fmt.Sprintf("umask 077; printf '%%s' %s >%s; nohup python3 -c 'import base64;exec(base64.b64decode(\"%s\"))' %s %s >%s 2>&1 </dev/null & echo $!", shellQuote(token), shellQuote(tokenPath), script, shellQuote(tokenPath), shellQuote(address.String()), shellQuote(marker))
 	out, err := cloud.exec(ctx, vmID, command)
 	if err != nil {
 		return bridgeInfo{}, err
@@ -140,11 +157,17 @@ func startBridge(ctx context.Context, cloud *cloudClient, vmID, bindIP string) (
 	for time.Now().Before(deadline) {
 		select {
 		case <-ctx.Done():
-			_, _ = cloud.exec(context.Background(), vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s", pid, marker))
+			_, _ = cloud.exec(context.Background(), vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s %s", pid, shellQuote(marker), shellQuote(tokenPath)))
 			return bridgeInfo{}, ctx.Err()
 		case <-time.After(500 * time.Millisecond):
 		}
-		ready, e := cloud.exec(ctx, vmID, "cat "+marker)
+		probeTimeout := time.Until(deadline)
+		if probeTimeout > time.Second {
+			probeTimeout = time.Second
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+		ready, e := cloud.exec(probeCtx, vmID, "cat "+shellQuote(marker))
+		cancel()
 		if e != nil {
 			continue
 		}
@@ -156,11 +179,11 @@ func startBridge(ctx context.Context, cloud *cloudClient, vmID, bindIP string) (
 			return bridgeInfo{pid: pid, port: result.Port, token: token, marker: marker}, nil
 		}
 	}
-	_, _ = cloud.exec(context.Background(), vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s", pid, marker))
+	_, _ = cloud.exec(context.Background(), vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s %s", pid, shellQuote(marker), shellQuote(tokenPath)))
 	return bridgeInfo{}, errors.New("timed out waiting for the VM's temporary bridge")
 }
 
 func stopBridge(ctx context.Context, cloud *cloudClient, vmID string, bridge bridgeInfo) error {
-	_, err := cloud.exec(ctx, vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s", bridge.pid, bridge.marker))
+	_, err := cloud.exec(ctx, vmID, fmt.Sprintf("kill -TERM %d 2>/dev/null || true; rm -f %s %s", bridge.pid, shellQuote(bridge.marker), shellQuote(bridge.marker+".token")))
 	return err
 }

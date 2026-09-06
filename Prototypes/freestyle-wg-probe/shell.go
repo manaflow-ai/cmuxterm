@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -35,10 +34,6 @@ func terminalName() string {
 		return "xterm-256color"
 	}
 	return name
-}
-
-func flushTerminalInput(fd int) error {
-	return unix.IoctlSetInt(fd, unix.TIOCFLUSH, unix.TCIFLUSH)
 }
 
 func shellResizeFrame(rows, cols int) []byte {

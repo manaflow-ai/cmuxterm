@@ -56,8 +56,8 @@ func runVMTPicker(vms []cloudVM) (cloudVM, error) {
 
 	query := ""
 	selected := 0
+	matches := filteredVMs(vms, query)
 	for {
-		matches := filteredVMs(vms, query)
 		if selected >= len(matches) {
 			selected = len(matches) - 1
 		}
@@ -69,6 +69,7 @@ func runVMTPicker(vms []cloudVM) (cloudVM, error) {
 		event := screen.PollEvent()
 		switch event := event.(type) {
 		case *tcell.EventKey:
+			queryChanged := false
 			switch event.Key() {
 			case tcell.KeyCtrlC:
 				return cloudVM{}, errPickerCancelled
@@ -78,6 +79,7 @@ func runVMTPicker(vms []cloudVM) (cloudVM, error) {
 				}
 				query = ""
 				selected = 0
+				queryChanged = true
 			case tcell.KeyEnter:
 				if len(matches) == 0 {
 					continue
@@ -94,12 +96,17 @@ func runVMTPicker(vms []cloudVM) (cloudVM, error) {
 			case tcell.KeyBackspace, tcell.KeyBackspace2:
 				query = dropLastRune(query)
 				selected = 0
+				queryChanged = true
 			case tcell.KeyRune:
 				if event.Rune() == 'q' && query == "" {
 					return cloudVM{}, errPickerCancelled
 				}
 				query += string(event.Rune())
 				selected = 0
+				queryChanged = true
+			}
+			if queryChanged {
+				matches = filteredVMs(vms, query)
 			}
 		case *tcell.EventResize:
 			screen.Sync()

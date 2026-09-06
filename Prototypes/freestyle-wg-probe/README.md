@@ -28,10 +28,9 @@ without cursor support it uses a simple text picker.
 When connected, the program shows:
 
 - `System VPN started by this tool: none`
-- `OS TUN interface added: none`
-- `OS routes added: none`
-- `WireGuard: running inside this process only`
-- `Existing VPNs: left running`
+- `OS routes changed by this tool: none`
+- `WireGuard will run inside this process only.`
+- `Existing VPNs are left running.`
 
 These statements describe this program's actions. A different VPN application
 that was already running is outside this program's control. This prototype does
@@ -81,7 +80,7 @@ the account session is fully invalid until it has a valid login again.
 
 ## Development checks
 
-Requires Go 1.23 or newer.
+Requires Go 1.23.1 or newer.
 
 ```sh
 go test ./...

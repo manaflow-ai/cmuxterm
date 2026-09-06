@@ -114,7 +114,12 @@ func newCloudClient(ctx context.Context) (*cloudClient, error) {
 		return nil, errors.New("your Freestyle login has no selected team; run `freestyle team use <name-or-id>`")
 	}
 	client := &cloudClient{
-		http:         &http.Client{Timeout: 2 * time.Minute},
+		http: &http.Client{
+			Timeout: 2 * time.Minute,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		teamID:       team,
 		refreshToken: stored.RefreshToken,
 	}
@@ -144,7 +149,11 @@ func (c *cloudClient) refreshAccessToken(ctx context.Context) error {
 	request.Header.Set("x-stack-publishable-client-key", stackPublishableKey)
 	request.Header.Set("x-stack-access-type", "client")
 	request.Header.Set("x-stack-refresh-token", c.refreshToken)
-	response, err := http.DefaultClient.Do(request)
+	httpClient := c.http
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	response, err := httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("refresh Freestyle login: %w", err)
 	}
@@ -234,8 +243,8 @@ func (c *cloudClient) request(ctx context.Context, method, path string, body any
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("Freestyle API %s: %s", resp.Status, strings.TrimSpace(string(data)))
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("Freestyle API request failed (%d)", resp.StatusCode)
 	}
 	if out != nil {
 		return json.NewDecoder(resp.Body).Decode(out)
@@ -303,7 +312,7 @@ func (c *cloudClient) exec(ctx context.Context, id, command string) (string, err
 		return "", err
 	}
 	if result.StatusCode != nil && *result.StatusCode != 0 {
-		return result.Stdout, fmt.Errorf("remote setup failed (exit %d): %s", *result.StatusCode, strings.TrimSpace(result.Stderr))
+		return result.Stdout, fmt.Errorf("remote setup failed (exit %d)", *result.StatusCode)
 	}
 	return result.Stdout, nil
 }

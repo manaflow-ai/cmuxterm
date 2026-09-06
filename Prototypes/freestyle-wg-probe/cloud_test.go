@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -64,5 +65,18 @@ func TestCloudRequestRefreshesExpiredAccessToken(t *testing.T) {
 	}
 	if apiCalls != 2 || refreshCalls != 1 {
 		t.Fatalf("api calls = %d, refresh calls = %d; want 2 and 1", apiCalls, refreshCalls)
+	}
+}
+
+func TestCloudRequestDoesNotExposeProviderBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("private provider details"))
+	}))
+	defer server.Close()
+	client := &cloudClient{http: server.Client(), accessToken: "access", teamID: "team"}
+	err := client.request(context.Background(), http.MethodGet, "/v5/test", nil, nil)
+	if err == nil || strings.Contains(err.Error(), "private provider details") {
+		t.Fatalf("error = %v, provider body must stay private", err)
 	}
 }

@@ -57,6 +57,10 @@ func parseConfig(path string) (config, error) {
 }
 
 func parseConfigText(text string) (config, error) {
+	return parseConfigTextWithPrivateKey(text, true)
+}
+
+func parseConfigTextWithPrivateKey(text string, requirePrivateKey bool) (config, error) {
 	var c config
 	var err error
 	c.mtu = 1200
@@ -94,7 +98,11 @@ func parseConfigText(text string) (config, error) {
 		case "interface":
 			switch key {
 			case "privatekey":
-				c.privateKey, err = keyHex(value)
+				if value == "" || strings.EqualFold(value, "placeholder") || strings.EqualFold(value, "redacted") {
+					c.privateKey = ""
+				} else {
+					c.privateKey, err = keyHex(value)
+				}
 			case "address":
 				var p netip.Prefix
 				p, err = netip.ParsePrefix(value)
@@ -143,6 +151,9 @@ func parseConfigText(text string) (config, error) {
 		}
 	}
 	if c.privateKey == "" || c.publicKey == "" || c.endpoint == "" || len(c.address) == 0 || len(c.allowed) == 0 {
+		if !requirePrivateKey && c.privateKey == "" && c.publicKey != "" && c.endpoint != "" && len(c.address) > 0 && len(c.allowed) > 0 {
+			return c, nil
+		}
 		return c, errors.New("config needs PrivateKey, Address, Peer PublicKey, AllowedIPs, and Endpoint")
 	}
 	if c.mtu < 576 || c.mtu > 65535 {
@@ -192,6 +203,7 @@ func startTunnel(c config) (*tunnel, error) {
 		dev.Close()
 		return nil, errors.New("WireGuard endpoint did not resolve to an IP address")
 	}
+	endpointIP = endpointIP.Unmap()
 	var u strings.Builder
 	fmt.Fprintf(&u, "private_key=%s\npublic_key=%s\nendpoint=%s\n", c.privateKey, c.publicKey, netip.AddrPortFrom(endpointIP, uint16(endpoint.Port)))
 	for _, p := range c.allowed {
@@ -428,11 +440,11 @@ func runVMConnect(ctx context.Context, cloud *cloudClient, vm cloudVM) error {
 			fmt.Println("Temporary tunnel removed.")
 		}
 	}()
-	configText := strings.Replace(tunnelData.ClientConfig, "PrivateKey =", "PrivateKey = "+privateKeyBase64(privateKey), 1)
-	wireConfig, err := parseConfigText(configText)
+	wireConfig, err := parseConfigTextWithPrivateKey(tunnelData.ClientConfig, false)
 	if err != nil {
 		return fmt.Errorf("read tunnel settings: %w", err)
 	}
+	wireConfig.privateKey = privateKey
 	bridge, err := startBridge(ctx, cloud, vm.ID, network.IPv4)
 	if err != nil {
 		return err

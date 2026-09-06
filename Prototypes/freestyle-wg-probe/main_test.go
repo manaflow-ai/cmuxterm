@@ -74,3 +74,19 @@ Endpoint = 127.0.0.1:51820
 		t.Fatal("expected unknown key rejection")
 	}
 }
+
+func TestParseTunnelConfigAllowsMissingPrivateKey(t *testing.T) {
+	text := `[Interface]
+Address = 100.64.0.1/32
+
+[Peer]
+PublicKey = ` + testKeyB64 + `
+AllowedIPs = 10.100.0.0/24
+Endpoint = 127.0.0.1:51820
+`
+	if got, err := parseConfigTextWithPrivateKey(text, false); err != nil {
+		t.Fatal(err)
+	} else if got.privateKey != "" {
+		t.Fatalf("private key = %q, want empty until the local key is assigned", got.privateKey)
+	}
+}
