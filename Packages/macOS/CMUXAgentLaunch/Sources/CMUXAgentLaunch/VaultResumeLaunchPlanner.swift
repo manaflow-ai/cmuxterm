@@ -194,11 +194,22 @@ public struct VaultResumeLaunchPlanner: Sendable {
                 isSupported: true,
                 failureReason: .missingStructuredSnapshot
             )
-        case let .registered(registration):
+        case let .registered(registration, launchCommand):
             let parsed = registrationParser.parse(registration)
+            let capturedArguments = launchCommand?.arguments ?? []
+            let capturedEnvironment = launchCommand?.environment.map { environment in
+                environment.reduce(into: [String: String]()) { result, item in
+                    if let value = AgentLaunchEnvironmentPolicy()
+                        .registrationEnvironmentValue(key: item.key, value: item.value) {
+                        result[item.key] = value
+                    }
+                }
+            }
             return Components(
-                launchArguments: [parsed.registration.defaultExecutable],
-                environment: parsed.environment,
+                launchArguments: capturedArguments.isEmpty
+                    ? [parsed.registration.defaultExecutable]
+                    : capturedArguments,
+                environment: capturedEnvironment ?? parsed.environment,
                 registration: parsed.registration,
                 permissionMode: nil,
                 isSupported: parsed.isSupported,
@@ -285,7 +296,7 @@ public struct VaultResumeLaunchPlanner: Sendable {
     private func effectiveWorkingDirectory(
         for request: VaultResumeLaunchRequest
     ) -> String? {
-        guard case let .registered(registration) = request.profile,
+        guard case let .registered(registration, _) = request.profile,
               registration.workingDirectoryPolicy == .ignore else {
             return request.workingDirectory
         }

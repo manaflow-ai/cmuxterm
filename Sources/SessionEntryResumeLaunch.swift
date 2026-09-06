@@ -103,7 +103,7 @@ extension SessionEntry {
         from projection: VaultResumeLaunchRequest.Registration?
     ) -> CmuxVaultAgentRegistration? {
         guard let projection,
-              case .registered(var registration) = specifics,
+              case .registered(var registration, _) = specifics,
               projection.id == registration.id else {
             return nil
         }

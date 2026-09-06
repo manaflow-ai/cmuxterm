@@ -115,6 +115,41 @@ struct VaultResumeLaunchPlannerTests {
         #expect(snapshot.preparedResumeArguments.contains("registered-\(kind)-session"))
     }
 
+    @Test("Registered profiles preserve captured launch arguments and environment")
+    func registeredProfilePreservesCapturedLaunch() throws {
+        let registration = VaultResumeLaunchRequest.Registration(
+            id: "custom-agent",
+            defaultExecutable: "custom-agent",
+            resumeCommand: "{{executable}} --session {{sessionId}}",
+            workingDirectoryPolicy: .preserve,
+            sessionDirectory: nil,
+            registeredResumeKind: nil
+        )
+        let capturedLaunch = AgentLaunchCommand(
+            arguments: ["custom-agent", "--profile", "fast"],
+            workingDirectory: "/tmp/project",
+            environment: [
+                "CLAUDE_CONFIG_DIR": "/tmp/account",
+                "NODE_OPTIONS": "--require safe.js",
+                "SECRET_TOKEN": "must-not-persist",
+            ],
+            source: "vault"
+        )
+        let plan = try #require(planner.plan(for: VaultResumeLaunchRequest(
+            kind: "custom-agent",
+            sessionID: "captured-session",
+            workingDirectory: "/tmp/project",
+            profile: .registered(registration, launchCommand: capturedLaunch),
+            legacyCommand: nil
+        )))
+        let snapshot = try #require(plan.structuredSnapshot)
+
+        #expect(snapshot.launchArguments == ["custom-agent", "--profile", "fast"])
+        #expect(snapshot.environment["CLAUDE_CONFIG_DIR"] == "/tmp/account")
+        #expect(snapshot.environment["NODE_OPTIONS"] == "--require safe.js")
+        #expect(snapshot.environment["SECRET_TOKEN"] == nil)
+    }
+
     @Test("A cwd-prefixed env registration promotes environment into the record")
     func cwdPrefixedEnvironmentIsStructured() throws {
         let registration = VaultResumeLaunchRequest.Registration(

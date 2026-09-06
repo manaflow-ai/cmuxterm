@@ -17,7 +17,7 @@ public struct VaultResumeLaunchRequest: Equatable, Sendable {
         /// Hermes launch settings.
         case hermesAgent(source: String?, model: String?, hermesHome: String?)
         /// A registry-owned or user-defined Vault registration.
-        case registered(Registration)
+        case registered(Registration, launchCommand: AgentLaunchCommand? = nil)
     }
 
     /// The working-directory policy stored on a Vault registration.

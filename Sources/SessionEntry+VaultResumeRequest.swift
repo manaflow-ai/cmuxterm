@@ -53,8 +53,11 @@ extension SessionEntry {
             .rovodev
         case let .hermesAgent(source, model, hermesHome):
             .hermesAgent(source: source, model: model, hermesHome: hermesHome)
-        case let .registered(registration):
-            .registered(vaultResumeRegistration(registration))
+        case let .registered(registration, launchCommand):
+            .registered(
+                vaultResumeRegistration(registration),
+                launchCommand: launchCommand
+            )
         }
     }
 
