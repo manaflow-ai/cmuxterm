@@ -34,6 +34,16 @@ extension CMUXCLI {
             && path.rangeOfCharacter(from: unsafeNodeOptionsPathCharacters) == nil
     }
 
+    private static func unquoteNodeOptionsPath(_ path: String) -> String {
+        guard path.count >= 2,
+              let first = path.first,
+              let last = path.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'") else {
+            return path
+        }
+        return String(path.dropFirst().dropLast())
+    }
+
     private static func cachePathState(at url: URL) throws -> CachePathState? {
         var statValue = stat()
         guard lstat(url.path, &statValue) == 0 else {
@@ -87,14 +97,14 @@ extension CMUXCLI {
             let token = tokens[index]
             if token == "--require" || token == "-r" {
                 if index + 1 < tokens.count {
-                    paths.append(tokens[index + 1])
+                    paths.append(Self.unquoteNodeOptionsPath(tokens[index + 1]))
                     index += 2
                     continue
                 }
             } else if token.hasPrefix("--require=") {
-                paths.append(String(token.dropFirst("--require=".count)))
+                paths.append(Self.unquoteNodeOptionsPath(String(token.dropFirst("--require=".count))))
             } else if token.hasPrefix("-r=") {
-                paths.append(String(token.dropFirst("-r=".count)))
+                paths.append(Self.unquoteNodeOptionsPath(String(token.dropFirst("-r=".count))))
             }
             index += 1
         }

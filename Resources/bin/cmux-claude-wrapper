@@ -904,6 +904,15 @@ cmux_claude_wrapper_node_options_cache_dir() {
     printf '%s/cmux-claude-node-options' "$cache_root"
 }
 
+cmux_claude_wrapper_unquote_node_options_path() {
+    local path="$1"
+    case "$path" in
+        \"*\") path="${path:1:${#path}-2}" ;;
+        \'*\') path="${path:1:${#path}-2}" ;;
+    esac
+    printf '%s' "$path"
+}
+
 cmux_claude_wrapper_recreate_legacy_node_options_modules() {
     local existing="${NODE_OPTIONS:-}"
     local -a tokens=()
@@ -915,39 +924,47 @@ cmux_claude_wrapper_recreate_legacy_node_options_modules() {
 
     [[ -n "$existing" ]] || return 0
     read -r -a tokens <<<"$existing"
-    local skip_next=0
-    for token in "${tokens[@]}"; do
-        if (( skip_next )); then
-            path="$token"
-            skip_next=0
-        elif [[ "$token" == "--require" || "$token" == "-r" ]]; then
-            skip_next=1
-            continue
-        elif [[ "$token" == --require=* ]]; then
-            path="${token#--require=}"
-        elif [[ "$token" == -r=* ]]; then
-            path="${token#-r=}"
-        else
+    local index=0
+    while (( index < ${#tokens[@]} )); do
+        token="${tokens[$index]}"
+        path=""
+        case "$token" in
+            --require|-r)
+                index=$((index + 1))
+                (( index < ${#tokens[@]} )) || break
+                path="${tokens[$index]}"
+                ;;
+            --require=*) path="${token#--require=}" ;;
+            -r=*) path="${token#-r=}" ;;
+            *)
+                index=$((index + 1))
+                continue
+                ;;
+        esac
+        path="$(cmux_claude_wrapper_unquote_node_options_path "$path")"
+
+        if [[ "$path" != */cmux-claude-node-options/restore-node-options.cjs ]]; then
+            index=$((index + 1))
             continue
         fi
-
-        [[ "$path" == */cmux-claude-node-options/restore-node-options.cjs ]] || continue
         legacy_path="$path"
         legacy_dir="${legacy_path%/*}"
-        [[ "$legacy_path" != "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" ]] || continue
-        [[ ! -L "$legacy_dir" && ! -L "$legacy_path" ]] || continue
-        mkdir -p "$legacy_dir" 2>/dev/null || continue
-        [[ -f "$legacy_path" ]] && continue
-        temp_path="$(mktemp "$legacy_dir/.restore-node-options.cjs.XXXXXX" 2>/dev/null)" || continue
-        cmux_claude_wrapper_node_options_restore_source >"$temp_path" || {
-            rm -f "$temp_path"
-            continue
-        }
-        chmod 0600 "$temp_path" 2>/dev/null || {
-            rm -f "$temp_path"
-            continue
-        }
-        mv -f "$temp_path" "$legacy_path" 2>/dev/null || rm -f "$temp_path"
+        if [[ "$legacy_path" != "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" &&
+              ! -L "$legacy_dir" && ! -L "$legacy_path" ]]; then
+            mkdir -p "$legacy_dir" 2>/dev/null &&
+                if [[ ! -f "$legacy_path" ]]; then
+                    temp_path="$(mktemp "$legacy_dir/.restore-node-options.cjs.XXXXXX" 2>/dev/null)" || temp_path=""
+                    if [[ -n "$temp_path" ]]; then
+                        if cmux_claude_wrapper_node_options_restore_source >"$temp_path" &&
+                           chmod 0600 "$temp_path"; then
+                            mv -f "$temp_path" "$legacy_path" 2>/dev/null || rm -f "$temp_path"
+                        else
+                            rm -f "$temp_path"
+                        fi
+                    fi
+                fi
+        fi
+        index=$((index + 1))
     done
 }
 
