@@ -14,7 +14,7 @@ import sys
 
 from loguru import logger
 
-from bot import build_llm, build_tools, load_dotenv_if_present
+from bot import build_llm, build_tools, configure_tls_certificates, load_dotenv_if_present
 from cmux_voice.cmux_client import CmuxError
 
 
@@ -88,6 +88,7 @@ async def run(utterances: list[str]) -> None:
 
 if __name__ == "__main__":
     load_dotenv_if_present()
+    configure_tls_certificates()
     logger.remove()
     logger.add(sys.stderr, level="WARNING")
     asyncio.run(run(sys.argv[1:]))

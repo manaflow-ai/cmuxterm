@@ -8,6 +8,8 @@ dependencies = [
     "pipecat-ai[ultravox,webrtc,silero,runner]==1.8.1",
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    # python.org macOS builds ship without root CAs; bot.py points TLS at this bundle.
+    "certifi>=2024.7",
 ]
 
 [project.optional-dependencies]

@@ -37,6 +37,31 @@ const post = (m: Outbound) => {
 const base = location.pathname.replace(/\/[^/]*$/, "");
 const offerUrl = `${location.origin}${base}/api/offer`;
 
+
+/** RTVI errors arrive as { data: { error, fatal } }; pipecat sometimes nests further. */
+function describeError(msg: unknown): string {
+  const seen = new Set<unknown>();
+  const walk = (v: unknown): string | null => {
+    if (v == null) return null;
+    if (typeof v === "string") return v;
+    if (typeof v !== "object" || seen.has(v)) return null;
+    seen.add(v);
+    const o = v as Record<string, unknown>;
+    for (const key of ["error", "message", "detail", "reason", "data"]) {
+      const found = walk(o[key]);
+      if (found) return found;
+    }
+    return null;
+  };
+  const text = walk(msg);
+  if (text) return text;
+  try {
+    return JSON.stringify(msg);
+  } catch {
+    return "Connection error";
+  }
+}
+
 let client: PipecatClient | null = null;
 let botSpeaking = false;
 let muted = false;
@@ -94,8 +119,8 @@ async function start(): Promise<void> {
       onLLMFunctionCallStopped: (data) =>
         post({ type: "tool", name: data.function_name, phase: "finished", result: (data as any).result }),
       onServerMessage: (data) => post({ type: "server", data }),
-      onDeviceError: (err) => post({ type: "error", message: `Microphone error: ${(err as any)?.message ?? err?.type ?? "unknown"}` }),
-      onError: (msg) => post({ type: "error", message: String((msg as any)?.data?.message ?? (msg as any)?.data ?? "Connection error") }),
+      onDeviceError: (err) => post({ type: "error", message: `Microphone error: ${describeError(err)}` }),
+      onError: (msg) => post({ type: "error", message: describeError(msg) }),
       onDisconnected: () => {
         post({ type: "status", status: "disconnected" });
         client = null;

@@ -53,3 +53,21 @@ def test_state_file_is_written_atomically(tmp_path):
     data = json.loads(path.read_text())
     assert data == {"port": 4321, "pid": os.getpid(), "launchId": "launch-1", "protocolVersion": 1}
     assert not [p for p in path.parent.iterdir() if p.name.startswith(".state-")]
+
+
+def test_tls_configuration_points_at_certifi(monkeypatch):
+    import bot
+
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    bot.configure_tls_certificates()
+    assert os.path.isfile(os.environ["SSL_CERT_FILE"])
+    assert os.environ["REQUESTS_CA_BUNDLE"] == os.environ["SSL_CERT_FILE"]
+
+
+def test_tls_configuration_respects_existing_override(monkeypatch):
+    import bot
+
+    monkeypatch.setenv("SSL_CERT_FILE", "/custom/ca.pem")
+    bot.configure_tls_certificates()
+    assert os.environ["SSL_CERT_FILE"] == "/custom/ca.pem"

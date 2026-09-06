@@ -31,6 +31,22 @@ from cmux_voice.state import UIState
 from cmux_voice.tools import ALLOWED_METHODS, ToolSpec, VoiceTools
 
 
+def configure_tls_certificates() -> None:
+    """Point Python's TLS at certifi's CA bundle when the interpreter has none.
+
+    python.org macOS builds do not install root certificates, so aiohttp,
+    websockets, and nltk all fail with CERTIFICATE_VERIFY_FAILED. Setting
+    SSL_CERT_FILE / REQUESTS_CA_BUNDLE (only if unset) fixes every client.
+    """
+    try:
+        import certifi
+    except ImportError:
+        return
+    bundle = certifi.where()
+    for var in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE"):
+        os.environ.setdefault(var, bundle)
+
+
 def load_dotenv_if_present() -> None:
     """Tiny .env loader (no python-dotenv dependency): KEY=VALUE lines, no expansion."""
     env_path = Path(__file__).with_name(".env")
@@ -188,6 +204,7 @@ async def bot(runner_args) -> None:
 
 if __name__ == "__main__":
     load_dotenv_if_present()
+    configure_tls_certificates()
     from pipecat.runner.run import main
 
     main()

@@ -202,8 +202,11 @@ enum VoiceAgentSidecarLauncher {
         process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
         process.environment = environment.merging(environmentOverrides) { _, override in override }
         process.standardInput = FileHandle.nullDevice
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        // Keep the sidecar's log for diagnostics (Ultravox/Pipecat errors are
+        // only visible there); truncated on every launch.
+        let logHandle = sidecarLogFileHandle()
+        process.standardOutput = logHandle ?? FileHandle.nullDevice
+        process.standardError = logHandle ?? FileHandle.nullDevice
         do {
             try process.run()
             return true
@@ -211,6 +214,24 @@ enum VoiceAgentSidecarLauncher {
             NSLog("[VoiceAgent] failed to launch sidecar: %@", String(describing: error))
             return false
         }
+    }
+
+    /// `~/Library/Logs/cmux/voice-agent-<bundle-id>.log`
+    nonisolated static func sidecarLogURL() -> URL? {
+        guard let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return nil }
+        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.cmuxterm.app"
+        return library
+            .appendingPathComponent("Logs", isDirectory: true)
+            .appendingPathComponent("cmux", isDirectory: true)
+            .appendingPathComponent("voice-agent-\(bundleIdentifier).log")
+    }
+
+    nonisolated private static func sidecarLogFileHandle() -> FileHandle? {
+        guard let url = sidecarLogURL() else { return nil }
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        fileManager.createFile(atPath: url.path, contents: nil)
+        return try? FileHandle(forWritingTo: url)
     }
 
     nonisolated static func isHealthy(_ healthURL: URL, timeout: TimeInterval) async -> Bool {

@@ -39,7 +39,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from loguru import logger
 
-from bot import load_dotenv_if_present, run_bot
+from bot import configure_tls_certificates, load_dotenv_if_present, run_bot
 
 PROTOCOL_VERSION = 1
 HERE = Path(__file__).resolve().parent
@@ -174,6 +174,7 @@ async def _run_bot_logged(transport) -> None:
 
 def main() -> None:
     load_dotenv_if_present()
+    configure_tls_certificates()
     parser = argparse.ArgumentParser(description="cmux voice agent sidecar")
     parser.add_argument("--port", type=int, default=int(os.environ.get("CMUX_VOICE_AGENT_PORT", "0") or 0))
     parser.add_argument("--host", default="127.0.0.1")
