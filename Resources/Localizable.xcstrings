@@ -68401,6 +68401,57 @@
         }
       }
     },
+    "cloudTree.error.renameWorkspaceEmpty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A cloud workspace name cannot be empty."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドワークスペース名を空にすることはできません。"
+          }
+        }
+      }
+    },
+    "cloudTree.error.renameLocalUnsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only cloud workspaces can be renamed through this path."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この経路で名前を変更できるのはクラウドワークスペースのみです。"
+          }
+        }
+      }
+    },
+    "cloudTree.error.renameWorkspaceMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace %@ on %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（%@上のワークスペース）"
+          }
+        }
+      }
+    },
     "cloudTree.error.renameWorkspaceEmptyName": {
       "extractionState": "manual",
       "localizations": {
