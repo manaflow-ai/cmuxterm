@@ -3121,7 +3121,7 @@ final class WindowBrowserPortal: NSObject {
         visibleInUI: Bool,
         zPriority: Int = 0,
         paneDropContext: BrowserPaneDropContext? = nil,
-        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
+        paneDropTargetRegistry: PaneDropTargetRegistry
     ) {
         validatePaneDropTargetRegistry(paneDropTargetRegistry)
         guard ensureInstalled() else { return }
