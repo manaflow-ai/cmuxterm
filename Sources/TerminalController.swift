@@ -6488,6 +6488,7 @@ class TerminalController {
                 _ = tabManager.handlePromptSubmit(
                     workspaceId: workspaceId,
                     message: event.submittedPromptMessage,
+                    surfaceId: self.v2UUIDAny(event.surfaceId),
                     iMessageModeEnabled: iMessageModeEnabled
                 )
             }

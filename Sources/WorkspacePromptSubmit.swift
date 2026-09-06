@@ -146,11 +146,13 @@ extension TabManager {
     func handlePromptSubmit(
         workspaceId: UUID,
         message: String?,
+        surfaceId: UUID? = nil,
         iMessageModeEnabled: Bool = IMessageModeSettings.isEnabled()
     ) -> (messageRecorded: Bool, reordered: Bool, index: Int)? {
         handleConversationMessage(
             workspaceId: workspaceId,
             message: message,
+            surfaceId: surfaceId,
             iMessageModeEnabled: iMessageModeEnabled,
             kind: .promptSubmission,
             reorderWithoutMessage: true
@@ -175,6 +177,7 @@ extension TabManager {
     private func handleConversationMessage(
         workspaceId: UUID,
         message: String?,
+        surfaceId: UUID?,
         iMessageModeEnabled: Bool,
         kind: ConversationMessageKind,
         reorderWithoutMessage: Bool
@@ -190,11 +193,22 @@ extension TabManager {
         case .promptSubmission:
             messageRecorded = workspace.recordSubmittedMessage(message)
             if let preview = Workspace.conversationMessagePreview(from: message),
-               let target = workspace.focusedTerminalInputTarget() {
-                StickyPromptHeaderStore.shared.recordPrompt(
+               let target = surfaceId.flatMap({ workspace.terminalPanel(for: $0) })
+                    .map({ (surfaceID: $0.surface.id, panel: $0) })
+                    ?? workspace.focusedTerminalInputTarget() {
+                let promptAnchor = StickyPromptHeaderStore.shared.recordPrompt(
                     surface: target.panel.surface,
                     preview: preview
                 )
+                if messageRecorded {
+                    CmuxEventBus.shared.publishWorkspacePromptSubmitted(
+                        workspaceId: workspaceId,
+                        surfaceId: target.surfaceID,
+                        message: message,
+                        preview: preview,
+                        promptAnchor: promptAnchor
+                    )
+                }
             }
             if messageRecorded {
                 CmuxEventBus.shared.publishWorkspacePromptSubmitted(
@@ -219,6 +233,7 @@ extension TabManager {
         let newIndex = tabs.firstIndex(where: { $0.id == workspaceId }) ?? originalIndex
         return (messageRecorded, newIndex != originalIndex, newIndex)
     }
+
 }
 
 extension Workspace {

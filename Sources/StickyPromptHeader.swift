@@ -25,11 +25,12 @@ final class StickyPromptHeaderStore {
 
     private var entriesBySurfaceID: [UUID: [StickyPromptHeaderEntry]] = [:]
 
+    @discardableResult
     func recordPrompt(
         surface: TerminalSurface,
         preview: String
-    ) {
-        guard let anchor = surface.stickyPromptAnchor() else { return }
+    ) -> StickyPromptHeaderEntry? {
+        guard let anchor = surface.stickyPromptAnchor() else { return nil }
         let entry = StickyPromptHeaderEntry(
             id: "\(surface.id.uuidString):\(anchor.row):\(anchor.rowSpaceRevision)",
             row: anchor.row,
@@ -39,7 +40,7 @@ final class StickyPromptHeaderStore {
         if let last = entries.last,
            last.row == entry.row,
            last.preview == entry.preview {
-            return
+            return last
         }
         entries.append(entry)
         entries.sort { $0.row < $1.row }
@@ -48,6 +49,7 @@ final class StickyPromptHeaderStore {
             name: Self.didChangeNotification,
             object: surface.id
         )
+        return entry
     }
 
     func entries(for surfaceID: UUID) -> [StickyPromptHeaderEntry] {
