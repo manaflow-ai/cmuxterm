@@ -12,6 +12,9 @@ import { execVm, resizeVm, openVmCmuxRemote, openAttachEndpoint, openVmPort, ope
 
 const serialTest = (test as typeof test & { serial: typeof test }).serial;
 const dbTest = process.env.CMUX_DB_TEST === "1" ? serialTest : test.skip;
+const FIXTURE_TIME_MS = Date.UTC(2026, 8, 6);
+// Endpoint leases must remain valid independently of when the suite runs.
+const FIXTURE_LEASE_EXPIRY_SECONDS = Date.UTC(2100, 0, 1) / 1000;
 let sql: Sql;
 beforeAll(() => {
   if (process.env.CMUX_DB_TEST === "1") {
@@ -53,9 +56,11 @@ describe("VM review regressions", () => {
     expect(count?.count).toBe(1);
   }));
 
+  const fourSeatAllowance = maxActiveVmsForPlan("team", {}, { seats: 4 });
   for (const operation of ["resize", "exec", "cmux-remote", "attach", "port", "session", "fork"] as const) {
-    for (const allowance of [maxActiveVmsForPlan("team", {}, { seats: 4 }), null, 50]) {
+    for (const allowance of [fourSeatAllowance, null, 50]) {
       dbTest(`${operation} resumes a paused Team VM using allowance ${allowance}`, () => withTeam(async team => {
+        expect(fourSeatAllowance).toBe(200);
         await sql`
           insert into cloud_vms (user_id, billing_team_id, billing_plan_id, provider, provider_vm_id, image_id, status)
           select ${team}, ${team}, 'team', 'freestyle', ${team} || '-' || n, 'snapshot-test', 'running'
@@ -73,19 +78,19 @@ describe("VM review regressions", () => {
           getStatus: () => Effect.succeed("paused"),
           resume: () => Effect.sync(() => {
             resumes += 1;
-            return { provider: "freestyle", providerVmId, image: "snapshot-test", status: "running", createdAt: Date.now() };
+            return { provider: "freestyle", providerVmId, image: "snapshot-test", status: "running", createdAt: FIXTURE_TIME_MS };
           }),
           getStats: () => Effect.sync(() => ({
-            state: "awake", sampledAt: Date.now(), diskTotalMb: ++statsReads === 1 ? 32768 : 65536,
+            state: "awake", sampledAt: FIXTURE_TIME_MS, diskTotalMb: ++statsReads === 1 ? 32768 : 65536,
           })),
           resize: () => Effect.sync(() => { operations += 1; }),
           openCmuxRemote: () => Effect.sync(() => {
             operations += 1;
-            return { transport: "cmux-remote", route: "wss://vm.test/v1/link", token: "test", session: "cloud", expiresAtUnix: Date.now() / 1000 + 300 };
+            return { transport: "cmux-remote", route: "wss://vm.test/v1/link", token: "test", session: "cloud", expiresAtUnix: FIXTURE_LEASE_EXPIRY_SECONDS };
           }),
           openAttach: () => Effect.sync(() => {
             operations += 1;
-            return { transport: "websocket", url: "wss://vm.test/pty", headers: {}, token: "test", sessionId: "session", attachmentId: "attachment", expiresAtUnix: Date.now() / 1000 + 300 };
+            return { transport: "websocket", url: "wss://vm.test/pty", headers: {}, token: "test", sessionId: "session", attachmentId: "attachment", expiresAtUnix: FIXTURE_LEASE_EXPIRY_SECONDS };
           }),
           openPort: () => Effect.sync(() => {
             operations += 1;
@@ -93,7 +98,7 @@ describe("VM review regressions", () => {
           }),
           fork: () => Effect.sync(() => {
             operations += 1;
-            return { provider: "freestyle", providerVmId: providerVmId + "-fork", status: "running", image: "snapshot-test", createdAt: Date.now() };
+            return { provider: "freestyle", providerVmId: providerVmId + "-fork", status: "running", image: "snapshot-test", createdAt: FIXTURE_TIME_MS };
           }),
           exec: () => Effect.sync(() => {
             operations += 1;
