@@ -54,6 +54,8 @@ use crate::remote_runtime::{
 use crate::session::{RemoteSession, Session};
 
 const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_secs(90);
+const WIREGUARD_HUB_START_TIMEOUT: Duration = Duration::from_secs(10);
+const WIREGUARD_HUB_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const ENROLLMENT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const MAX_RPC_STDIN_LINE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CLIENT_RELAY_ROUTES: usize = 4;
@@ -1728,7 +1730,14 @@ fn run_wg(args: &[String]) -> anyhow::Result<()> {
     let flags = parse_wg_hub_flags(&args[1..])?;
     let owner = flags.exit_with_parent.then(current_parent_process_id);
     let async_runtime = tokio_runtime()?;
-    let net = start_wireguard(&async_runtime, &flags.config)?;
+    let net = start_wireguard_with_timeout(
+        &async_runtime,
+        &flags.config,
+        WIREGUARD_HUB_START_TIMEOUT,
+    )?;
+    async_runtime.block_on(net.wait_for_handshake(WIREGUARD_HUB_HANDSHAKE_TIMEOUT)).map_err(
+        |error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())),
+    )?;
     let hub = async_runtime
         .block_on(cmux_remote::wireguard_hub::serve_wireguard_hub(net, flags.socket))
         .map_err(|error| {
@@ -1799,6 +1808,25 @@ fn start_wireguard(
     runtime: &tokio::runtime::Runtime,
     path: &Path,
 ) -> anyhow::Result<Arc<cmux_wg::WgNet>> {
+    start_wireguard_with_timeout_inner(runtime, path, None)
+}
+
+/// Starts a hub tunnel with a deadline around endpoint resolution and UDP setup.
+/// A DNS/network stall must produce a child error so the app can retry, rather
+/// than leaving the Unix socket absent until the app-side readiness timeout.
+fn start_wireguard_with_timeout(
+    runtime: &tokio::runtime::Runtime,
+    path: &Path,
+    timeout: Duration,
+) -> anyhow::Result<Arc<cmux_wg::WgNet>> {
+    start_wireguard_with_timeout_inner(runtime, path, Some(timeout))
+}
+
+fn start_wireguard_with_timeout_inner(
+    runtime: &tokio::runtime::Runtime,
+    path: &Path,
+    timeout: Option<Duration>,
+) -> anyhow::Result<Arc<cmux_wg::WgNet>> {
     let text = cmux_remote::secret_file::read_owner_only_string(path, MAX_WIREGUARD_CONFIG_BYTES)
         .map_err(|error| {
         anyhow!(
@@ -1810,9 +1838,18 @@ fn start_wireguard(
     let config = cmux_wg::WgConfig::parse_wg_quick(&text).map_err(|error| {
         anyhow!(catalog().remote_client.wireguard_config_invalid(&error.to_string()))
     })?;
-    let net = runtime.block_on(cmux_wg::WgNet::start_with_new_socket(config)).map_err(|error| {
-        anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string()))
-    })?;
+    let net = match timeout {
+        Some(timeout) => runtime
+            .block_on(tokio::time::timeout(
+                timeout,
+                cmux_wg::WgNet::start_with_new_socket(config),
+            ))
+            .map_err(|_| anyhow!("WireGuard startup timed out after {timeout:?}"))?
+            .map_err(|error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())))?,
+        None => runtime
+            .block_on(cmux_wg::WgNet::start_with_new_socket(config))
+            .map_err(|error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())))?,
+    };
     Ok(Arc::new(net))
 }
 

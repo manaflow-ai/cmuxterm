@@ -5,6 +5,25 @@ import Testing
 
 @Suite("irx wire protocol")
 struct IrxProtocolTests {
+    @Test("deadline returns when the operation ignores cancellation")
+    func deadlineReturnsWhenOperationIgnoresCancellation() async throws {
+        let gate = IrxDeadlineGate()
+
+        let result = try await withIrxDeadline(.milliseconds(20), onTimeout: {
+            await gate.open()
+        }) {
+            await gate.wait()
+            await gate.markFinished()
+            return "late"
+        }
+
+        // The operation only gets past the gate once the deadline has fired, so a nil
+        // result proves the deadline returned without waiting for it; a wall-clock bound
+        // on top of that only measured runner load.
+        #expect(result == nil)
+        await gate.waitUntilFinished()
+    }
+
     @Test("control frames round-trip through the codec")
     func controlFrameRoundTrip() throws {
         let hello = IrxHello(grant: "grant.jws.value")

@@ -397,7 +397,11 @@ struct CmuxTuiSnapshotParser: Sendable {
     private static func orderedSnapshotRows(
         _ rows: [[String: Any]],
         focusedFirst: Bool = false
-    ) -> [(element: [String: Any], offset: Int)] {
+    ) -> [(offset: Int, element: [String: Any])] {
+        // `enumerated()` yields `(offset:, element:)`. Returning that array through a
+        // tuple type with the labels reordered compiles into a runtime element cast
+        // that fails for every non-empty array (a SIGTRAP the moment a machine reports
+        // a workspace), so the return type keeps the sequence's own label order.
         rows.enumerated().sorted { left, right in
             if focusedFirst {
                 let leftFocused = (left.element["focused"] as? Bool) == true
