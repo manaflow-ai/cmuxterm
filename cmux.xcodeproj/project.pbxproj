@@ -3151,6 +3151,8 @@
 		5732A0105732A0105732A010 /* WorkspacePresentationModeRuntimeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5732B0105732B0105732B010 /* WorkspacePresentationModeRuntimeCache.swift */; };
 		1A1B2C3D4E5F607180000001 /* WorkspacePromptSubmit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000002 /* WorkspacePromptSubmit.swift */; };
 		1A1B2C3D4E5F607180000003 /* WorkspacePromptSubmitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000004 /* WorkspacePromptSubmitTests.swift */; };
+		1A1B2C3D4E5F607180000007 /* StickyPromptHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000006 /* StickyPromptHeader.swift */; };
+		1A1B2C3D4E5F607180000009 /* StickyPromptHeaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1B2C3D4E5F607180000008 /* StickyPromptHeaderTests.swift */; };
 		DCC935C5F55C1DCB33E25521 /* WorkspacePullRequestSidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A7DC53B9CA33BE2A421711 /* WorkspacePullRequestSidebarTests.swift */; };
 		7BD653A20E3A45C693F8D441 /* WorkspaceRecoveryReviewRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 939AA681FBA244B994634EE0 /* WorkspaceRecoveryReviewRegressionTests.swift */; };
 		CB612C41C989F98979226B7C /* WorkspaceRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D9924AC89D7C3408DBC56A /* WorkspaceRecoveryTests.swift */; };
@@ -6360,6 +6362,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		5732B0105732B0105732B010 /* WorkspacePresentationModeRuntimeCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePresentationModeRuntimeCache.swift; sourceTree = "<group>"; };
 		1A1B2C3D4E5F607180000002 /* WorkspacePromptSubmit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePromptSubmit.swift; sourceTree = "<group>"; };
 		1A1B2C3D4E5F607180000004 /* WorkspacePromptSubmitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePromptSubmitTests.swift; sourceTree = "<group>"; };
+		1A1B2C3D4E5F607180000006 /* StickyPromptHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StickyPromptHeader.swift; sourceTree = "<group>"; };
+		1A1B2C3D4E5F607180000008 /* StickyPromptHeaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StickyPromptHeaderTests.swift; sourceTree = "<group>"; };
 		14A7DC53B9CA33BE2A421711 /* WorkspacePullRequestSidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspacePullRequestSidebarTests.swift; sourceTree = "<group>"; };
 		939AA681FBA244B994634EE0 /* WorkspaceRecoveryReviewRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRecoveryReviewRegressionTests.swift; sourceTree = "<group>"; };
 		C9D9924AC89D7C3408DBC56A /* WorkspaceRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceRecoveryTests.swift; sourceTree = "<group>"; };
@@ -7641,6 +7645,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				F87910050000000000000002 /* WorkspaceTerminalFontSizePanelDiscovery.swift */,
 				F87910130000000000000002 /* WorkspaceTerminalFontSizePanelTransfer.swift */,
 				1A1B2C3D4E5F607180000002 /* WorkspacePromptSubmit.swift */,
+				1A1B2C3D4E5F607180000006 /* StickyPromptHeader.swift */,
 				D0B10005A1B2C3D4E5F60001 /* WorkspacePortalPaneDrop.swift */,
 				B1809FE5A313368FC39E0B19 /* WorkspaceSurfaceResourceDrop.swift */,
 				C0DE32470000000000000004 /* WorkspaceSurfaceIdentifierClipboardText.swift */,
@@ -9356,6 +9361,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A17110000000000000000002 /* KeyboardShortcutSpaceKeyTests.swift */,
 				809100000000000000000002 /* HostSettingsShortcutNotificationTests.swift */,
 				1A1B2C3D4E5F607180000004 /* WorkspacePromptSubmitTests.swift */,
+				1A1B2C3D4E5F607180000008 /* StickyPromptHeaderTests.swift */,
 				C46790000000000000000002 /* CLIForwardingLaunchArgumentTests.swift */,
 				C46790000000000000000008 /* RosettaNativeRelaunchTests.swift */,
 				C0DE31390000000000000102 /* CMUXOpenCommandTests.swift */,

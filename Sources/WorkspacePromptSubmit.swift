@@ -189,6 +189,13 @@ extension TabManager {
         switch kind {
         case .promptSubmission:
             messageRecorded = workspace.recordSubmittedMessage(message)
+            if let preview = Workspace.conversationMessagePreview(from: message),
+               let target = workspace.focusedTerminalInputTarget() {
+                StickyPromptHeaderStore.shared.recordPrompt(
+                    surface: target.panel.surface,
+                    preview: preview
+                )
+            }
             if messageRecorded {
                 CmuxEventBus.shared.publishWorkspacePromptSubmitted(
                     workspaceId: workspaceId,

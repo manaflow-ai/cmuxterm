@@ -9666,6 +9666,7 @@ final class GhosttySurfaceScrollView: NSView {
     private let keyboardCopyModeBadgeView: GhosttyPassthroughVisualEffectView
     private let keyboardCopyModeBadgeIconView: NSImageView
     private let keyboardCopyModeBadgeLabel: NSTextField
+    private let stickyPromptHeaderOverlayView: StickyPromptHeaderOverlayView
     let linkHoverIndicatorView: TerminalLinkHoverIndicatorView
     private let imageTransferIndicatorContainerView: NSView
     private let imageTransferIndicatorView: NSVisualEffectView
@@ -9911,6 +9912,7 @@ final class GhosttySurfaceScrollView: NSView {
         keyboardCopyModeBadgeView = GhosttyPassthroughVisualEffectView(frame: .zero)
         keyboardCopyModeBadgeIconView = NSImageView(frame: .zero)
         keyboardCopyModeBadgeLabel = NSTextField(labelWithString: terminalKeyboardCopyModeIndicatorText)
+        stickyPromptHeaderOverlayView = StickyPromptHeaderOverlayView(frame: .zero)
         linkHoverIndicatorView = TerminalLinkHoverIndicatorView(frame: .zero)
         imageTransferIndicatorContainerView = NSView(frame: .zero)
         imageTransferIndicatorView = NSVisualEffectView(frame: .zero)
@@ -9942,6 +9944,23 @@ final class GhosttySurfaceScrollView: NSView {
         backgroundView.terminalScrollView = scrollView
         addSubview(backgroundView)
         addSubview(scrollView)
+        addSubview(stickyPromptHeaderOverlayView, positioned: .above, relativeTo: scrollView)
+        NSLayoutConstraint.activate([
+            stickyPromptHeaderOverlayView.topAnchor.constraint(equalTo: topAnchor),
+            stickyPromptHeaderOverlayView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stickyPromptHeaderOverlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stickyPromptHeaderOverlayView.heightAnchor.constraint(equalToConstant: 28),
+        ])
+        observers.append(NotificationCenter.default.addObserver(
+            forName: StickyPromptHeaderStore.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let surfaceID = notification.object as? UUID,
+                  surfaceID == self.surfaceView.terminalSurface?.id else { return }
+            self.updateStickyPromptHeader()
+        })
         mobileViewportBorderOverlayView.isHidden = true
         addSubview(mobileViewportBorderOverlayView, positioned: .above, relativeTo: scrollView)
         paneDropTargetView.hostedView = self
@@ -13078,6 +13097,24 @@ final class GhosttySurfaceScrollView: NSView {
 
     private func handleScrollChange() {
         synchronizeSurfaceView()
+        updateStickyPromptHeader()
+    }
+
+    private func updateStickyPromptHeader() {
+        guard let surface = surfaceView.terminalSurface,
+              let scrollbar = surfaceView.scrollbar else {
+            stickyPromptHeaderOverlayView.setEntry(nil)
+            return
+        }
+        let viewportTopRow = Int(min(scrollbar.offset, UInt64(Int.max)))
+        let isAtBottom = scrollbar.offset + scrollbar.len >= scrollbar.total
+        stickyPromptHeaderOverlayView.setEntry(
+            StickyPromptHeaderStore.shared.selectedEntry(
+                for: surface.id,
+                viewportTopRow: viewportTopRow,
+                isAtBottom: isAtBottom
+            )
+        )
     }
 
     private func beginExplicitScrollbarSync(

@@ -21,6 +21,7 @@ enum StickyPromptHeaderSelection {
 @MainActor
 final class StickyPromptHeaderStore {
     static let shared = StickyPromptHeaderStore()
+    static let didChangeNotification = Notification.Name("stickyPromptHeaderDidChange")
 
     private var entriesBySurfaceID: [UUID: [StickyPromptHeaderEntry]] = [:]
 
@@ -43,6 +44,10 @@ final class StickyPromptHeaderStore {
         entries.append(entry)
         entries.sort { $0.row < $1.row }
         entriesBySurfaceID[surface.id] = entries
+        NotificationCenter.default.post(
+            name: Self.didChangeNotification,
+            object: surface.id
+        )
     }
 
     func entries(for surfaceID: UUID) -> [StickyPromptHeaderEntry] {
