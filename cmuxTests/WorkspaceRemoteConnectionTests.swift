@@ -2527,6 +2527,59 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
     }
 
     @MainActor
+    func testRemoteTerminalSurfaceRespectsWorkingDirectoryFallbackFlag() throws {
+        let workspace = Workspace()
+        let config = WorkspaceRemoteConfiguration(
+            destination: "cmux-macmini",
+            port: nil,
+            identityFile: nil,
+            sshOptions: [],
+            localProxyPort: nil,
+            relayPort: 64018,
+            relayID: String(repeating: "a", count: 16),
+            relayToken: String(repeating: "b", count: 64),
+            localSocketPath: "/tmp/cmux-debug-test.sock",
+            terminalStartupCommand: "ssh-pty-attach",
+            preserveAfterTerminalExit: true
+        )
+        workspace.configureRemoteConnection(config, autoConnect: false)
+
+        let paneId = try XCTUnwrap(workspace.bonsplitController.allPaneIds.first)
+        let sourcePanelId = try XCTUnwrap(workspace.focusedTerminalPanel?.id)
+        XCTAssertTrue(
+            workspace.updateRemotePanelDirectory(
+                panelId: sourcePanelId,
+                directory: "/srv/cmux/selected-\(UUID().uuidString)"
+            )
+        )
+
+        let withoutFallback = try XCTUnwrap(
+            workspace.newTerminalSurface(
+                inPane: paneId,
+                focus: false,
+                inheritWorkingDirectoryFallback: false
+            )
+        )
+        XCTAssertNil(withoutFallback.requestedWorkingDirectory)
+        XCTAssertNil(withoutFallback.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"))
+
+        let explicitDirectory = "/srv/cmux/explicit-\(UUID().uuidString)"
+        let withExplicitDirectory = try XCTUnwrap(
+            workspace.newTerminalSurface(
+                inPane: paneId,
+                focus: false,
+                workingDirectory: explicitDirectory,
+                inheritWorkingDirectoryFallback: false
+            )
+        )
+        XCTAssertNil(withExplicitDirectory.requestedWorkingDirectory)
+        XCTAssertEqual(
+            withExplicitDirectory.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"),
+            explicitDirectory
+        )
+    }
+
+    @MainActor
     func testDetachAttachDoesNotAdoptPersistentPTYSessionIDAcrossNilRelayWorkspaces() throws {
         let source = Workspace()
         let destination = Workspace()

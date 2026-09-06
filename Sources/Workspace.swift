@@ -9101,11 +9101,14 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let localWorkingDirectory: String?
         if remoteStartupCommandForEnvironment != nil {
             localWorkingDirectory = nil
-            if let remoteInitialWorkingDirectory = resolvedTerminalStartupWorkingDirectory(
-                requestedWorkingDirectory: workingDirectory,
-                sourcePanelId: fallbackSourcePanelId,
-                preserveExact: true
-            ) {
+            let remoteInitialWorkingDirectory = inheritWorkingDirectoryFallback
+                ? resolvedTerminalStartupWorkingDirectory(
+                    requestedWorkingDirectory: workingDirectory,
+                    sourcePanelId: fallbackSourcePanelId,
+                    preserveExact: true
+                )
+                : normalizedTerminalStartupWorkingDirectory(workingDirectory, preserveExact: true)
+            if let remoteInitialWorkingDirectory {
                 effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = remoteInitialWorkingDirectory
             }
         } else {
