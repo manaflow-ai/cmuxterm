@@ -13200,6 +13200,7 @@ final class GhosttySurfaceScrollView: NSView {
             preservedReviewOriginY: preservedReviewOriginY
         )
         restorePendingNotificationScrollPositionAfterScrollbarUpdate()
+        updateStickyPromptHeader()
     }
 
     @discardableResult
