@@ -163,7 +163,7 @@ extension AppDelegate {
             }
             activateBrowserHostWindow(for: manager)
             manager.focusTab(workspace.id)
-            dock.focusPanel(panel.id)
+            dock.focusPanelFromDockInteraction(panel.id, window: NSApp.keyWindow ?? NSApp.mainWindow)
             return true
 
         case .windowDock(let windowID):
@@ -182,7 +182,7 @@ extension AppDelegate {
                 focusFirstItem: false,
                 preferredWindow: preferredWindow
             )
-            dock.focusPanel(panel.id)
+            dock.focusPanelFromDockInteraction(panel.id, window: preferredWindow)
             return true
         }
     }
