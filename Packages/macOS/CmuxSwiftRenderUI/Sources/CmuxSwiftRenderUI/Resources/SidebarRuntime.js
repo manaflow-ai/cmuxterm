@@ -447,7 +447,9 @@
     try {
       for (const k of Object.keys(params || {})) {
         const value = params[k];
-        p[k] = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
+        p[k] = value !== null && (typeof value === "object" || typeof value === "bigint")
+          ? JSON.stringify(value)
+          : String(value);
       }
       __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
     } catch (_) {

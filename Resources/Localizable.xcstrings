@@ -243072,6 +243072,23 @@
         }
       }
     },
+    "sidebar.action.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sidebar action could not be completed."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーアクションを完了できませんでした。"
+          }
+        }
+      }
+    },
     "sidebar.custom.missing": {
       "extractionState": "manual",
       "localizations": {

@@ -130,9 +130,7 @@ func makeCmuxSidebarActionDispatch() -> SidebarActionDispatch {
                         "method": method,
                         "code": error["code"] as? String ?? "command_failed",
                     ]
-                    if let message = error["message"] as? String {
-                        diagnostic["message"] = message
-                    }
+                    diagnostic["message"] = String(localized: "sidebar.action.failed", defaultValue: "The sidebar action could not be completed.")
                     if let errorData = error["data"] as? [String: Any],
                        let unsupported = errorData["unsupported_param"] as? String {
                         diagnostic["unsupported_param"] = unsupported
