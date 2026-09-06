@@ -232,8 +232,13 @@ extension MobileHostAuthorizationTests {
         }
         await waitForMobileHostConnectionCount(1)
         try await persistentTransport.enqueue(Self.mobileHostStatusFrame(id: "persistent"))
-        _ = await persistentTransport.waitForSentBufferCount(1)
-        try await Task.sleep(nanoseconds: 25_000_000)
+        let sentAfterFirstStatus = await persistentTransport.waitForSentBufferCount(1).count
+        // A disabled idle timeout is proven by the connection still serving a second
+        // request after the first one completed, not by sleeping and hoping nothing
+        // closed it in the meantime: an armed timeout would close the transport and this
+        // second reply would never arrive.
+        try await persistentTransport.enqueue(Self.mobileHostStatusFrame(id: "persistent-again"))
+        _ = await persistentTransport.waitForSentBufferCount(sentAfterFirstStatus + 1)
 
         #expect(await persistentTransport.observedCloseCount() == 0)
         #expect(registry.count == 1)
