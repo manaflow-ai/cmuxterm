@@ -34,7 +34,7 @@ public struct SettingsSectionHeader: View {
                     Color.clear
                         .settingsSectionScrollPosition(
                             section,
-                            coordinateSpace: SettingsSectionScrollTracking.coordinateSpace
+                            coordinateSpace: SettingsSectionScrollTracker.coordinateSpace
                         )
                 }
             }

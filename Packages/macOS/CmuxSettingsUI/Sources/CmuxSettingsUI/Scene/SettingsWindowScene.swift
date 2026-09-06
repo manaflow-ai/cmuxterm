@@ -355,7 +355,7 @@ public struct SettingsWindowRoot: View {
                     .padding(.bottom, 20)
                 }
                 .accessibilityIdentifier("SettingsDetailScrollView")
-                .coordinateSpace(name: SettingsSectionScrollTracking.coordinateSpace)
+                .coordinateSpace(name: SettingsSectionScrollTracker.coordinateSpace)
                 .toggleStyle(.switch)
                 .onAppear {
                     // Legacy SettingsView.onAppear scrolls to the restored

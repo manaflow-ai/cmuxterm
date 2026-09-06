@@ -6,11 +6,8 @@ struct SettingsSectionScrollPosition: Equatable, Sendable {
     let minY: CGFloat
 }
 
-enum SettingsSectionScrollTracking {
-    static let coordinateSpace = "settings-detail-scroll"
-}
-
 struct SettingsSectionScrollTracker: Sendable {
+    static let coordinateSpace = "settings-detail-scroll"
     let activationLine: CGFloat
 
     init(activationLine: CGFloat) {
