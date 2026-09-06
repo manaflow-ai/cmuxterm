@@ -22,6 +22,7 @@ struct MachineSizeOption: Equatable, Sendable {
         self.diskMb = diskMb
     }
 
+    /// The localized RAM value shown as the selected picker title.
     var title: String {
         String(
             format: String(localized: "machines.new.size.option", defaultValue: "%d GB RAM"),
@@ -29,9 +30,27 @@ struct MachineSizeOption: Equatable, Sendable {
         )
     }
 
+    /// The localized disk value shown below the selected picker title.
     var detail: String {
         String(
             format: String(localized: "machines.new.size.detail", defaultValue: "%d GB disk included"),
+            diskMb / 1024
+        )
+    }
+
+    /// The localized disk value shown in the resource summary.
+    var diskTitle: String {
+        String(
+            format: String(localized: "machines.new.size.gb", defaultValue: "%d GB"),
+            diskMb / 1024
+        )
+    }
+
+    /// The localized, compact row title shown in the size menu.
+    var menuTitle: String {
+        String(
+            format: String(localized: "machines.new.size.menu", defaultValue: "%1$d GB RAM · %2$d GB disk"),
+            memoryMb / 1024,
             diskMb / 1024
         )
     }
@@ -82,11 +101,12 @@ final class NewMachineModel {
     static let legacyPlanMachineMemoryMb = 20480
     /// Mirrors `maxMemoryMbForPlan`: development and paid plans may use the
     /// largest supported base image unless an operator sets a lower ceiling.
+    /// Each machine has its own resources within the paid machine allowance.
     static func maxMemoryMb(planId: String?) -> Int {
         _ = planId
         return memoryOptionsMb.max() ?? planMachineMemoryMb
     }
-    /// Mirrors `defaultMemoryMbForPlan`: the plan machine, never above the max.
+    /// Mirrors `defaultMemoryMbForPlan`: the provider sizing profile, never above the max.
     static func defaultMemoryMb(planId: String?) -> Int {
         min(planMachineMemoryMb, maxMemoryMb(planId: planId))
     }
@@ -114,7 +134,7 @@ final class NewMachineModel {
     ) {
         self.mode = mode
         self.plan = plan
-        let serverOptions = memoryOptionsMb.filter { MachineSizeOption(memoryMb: $0) != nil }
+        let serverOptions = Set(memoryOptionsMb.filter { MachineSizeOption(memoryMb: $0) != nil }).sorted()
         // An empty list means an older control plane did not advertise the
         // ladder. Preserve its 20 GiB default and omit --size entirely.
         self.availableMemoryOptionsMb = serverOptions

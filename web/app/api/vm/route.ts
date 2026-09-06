@@ -404,7 +404,7 @@ export async function POST(request: Request): Promise<Response> {
         const requestedMemoryMb = candidate.memoryMb as number | undefined;
         // The server owns the supported size ladder. A stale client request
         // that is not on the ladder resolves to the plan default instead of
-        // failing the create.
+        // failing the create. The repository enforces the machine-count allowance.
         // Clients ship their own size table and always trail the server: the
         // 2026-09-02 pricing change (#11610) left every installed nightly
         // sending its old 24 GB default and the server rejecting each create

@@ -17,8 +17,8 @@ public import Foundation
 /// Suppression rules encode what an operator can already attribute without a
 /// report: failures classified ``DiagnosticFailureKind/cancelled`` or
 /// ``DiagnosticFailureKind/superseded`` are lifecycle churn;
-/// ``DiagnosticFailureKind/offline`` failures are expected, as are transient
-/// route/policy failures while the device reports no network path;
+/// ``DiagnosticFailureKind/offline`` failures and pairing preflight
+/// unreachability while the device reports no network path are expected;
 /// ``DiagnosticFailureKind/transportIdleTimedOut`` while backgrounded is
 /// suspension, not a defect.
 public struct TransportIncidentPolicy: Sendable {
@@ -39,6 +39,9 @@ public struct TransportIncidentPolicy: Sendable {
         /// After an outage fires, another cannot fire until this much time
         /// passes or a success resets the streak.
         public var outageRearmInterval: TimeInterval
+        /// When false, retain breadcrumbs but suppress individual failure
+        /// captures. Outage escalation remains enabled.
+        public var captureIndividualFailures: Bool
         /// Fraction of ordinary reportable failures admitted to Sentry.
         /// Breadcrumbs and structured-log budgets are unaffected.
         public var failureSampleRate: Double
@@ -56,6 +59,7 @@ public struct TransportIncidentPolicy: Sendable {
             outageFailureThreshold: Int = 5,
             outageMinimumDuration: TimeInterval = 60,
             outageRearmInterval: TimeInterval = 3600,
+            captureIndividualFailures: Bool = true,
             failureSampleRate: Double = 1,
             outageSampleRate: Double = 1,
             suppressOfflineFailures: Bool = true
@@ -65,6 +69,7 @@ public struct TransportIncidentPolicy: Sendable {
             self.outageFailureThreshold = outageFailureThreshold
             self.outageMinimumDuration = outageMinimumDuration
             self.outageRearmInterval = outageRearmInterval
+            self.captureIndividualFailures = captureIndividualFailures
             self.failureSampleRate = min(1, max(0, failureSampleRate))
             self.outageSampleRate = min(1, max(0, outageSampleRate))
             self.suppressOfflineFailures = suppressOfflineFailures
@@ -174,11 +179,13 @@ public struct TransportIncidentPolicy: Sendable {
     private var captureWindow: [UInt64] = []
     private var droppedByBudget = 0
 
-    /// Event codes that mark the transport as healthy and reset the streak.
+    /// Event codes that prove a user-usable connection and reset the streak.
+    ///
+    /// Intermediate progress such as discovery, endpoint startup, or a socket
+    /// connect does not reset the streak: those phases can succeed on every
+    /// retry while authentication or RPC readiness keeps failing for the user.
     public static let successCodes: Set<DiagnosticEventCode> = [
-        .pairOk, .transportDialConnected, .hostAuthenticated, .rpcReady,
-        .recoverySucceeded, .endpointActive, .relayPolicyRefreshSucceeded,
-        .discoverySucceeded, .admissionSucceeded,
+        .pairOk, .rpcReady, .recoverySucceeded,
     ]
 
     /// Event codes that are failure candidates (subject to suppression rules).
@@ -235,6 +242,8 @@ public struct TransportIncidentPolicy: Sendable {
         if let outage = decideOutage(event: event, signature: signature, failure: failure, transport: transport) {
             return outage
         }
+
+        guard configuration.captureIndividualFailures else { return nil }
 
         return decideFailureCapture(
             event: event,

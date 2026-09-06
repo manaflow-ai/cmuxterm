@@ -459,7 +459,7 @@ final class MachinesPanelViewModel: ObservableObject {
     private static let statsInterval: Duration = .seconds(20)
 
     init(createCoordinator: MachineCreateCoordinator? = nil) {
-        let createCoordinator = createCoordinator ?? MachineCreateCoordinator.shared
+        let createCoordinator = createCoordinator ?? .shared
         self.createCoordinator = createCoordinator
         pendingCreates = createCoordinator.operations
         let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey

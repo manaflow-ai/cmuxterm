@@ -69,7 +69,7 @@ final class NewMachineSheetPresenter {
         preferredWindow: NSWindow?,
         coordinator: MachineCreateCoordinator? = nil
     ) {
-        let coordinator = coordinator ?? MachineCreateCoordinator.shared
+        let coordinator = coordinator ?? .shared
         if let plan, plan.isAtLimit, !plan.isPaidPlan {
             ProUpgradePresenter.present()
             return

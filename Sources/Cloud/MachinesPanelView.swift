@@ -841,12 +841,11 @@ struct MachineRowActions {
             presentOutputOnSuccess: presentOutputOnSuccess,
             onCancellationReady: onCancellationReady,
             onCompletion: { completion in
-                if completion.terminationStatus == 0 {
-                    onSuccess?()
-                }
-                onDidMutate()
+            if completion.terminationStatus == 0 {
+                onSuccess?()
             }
-        )
+            onDidMutate()
+        })
     }
 
     @MainActor
