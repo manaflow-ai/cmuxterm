@@ -32,7 +32,6 @@ struct CodexNativeTitleStoreTests {
     }
 
     /// Creates a temporary SQLite database that mirrors the Codex thread table.
-    /// Creates a temporary SQLite database that mirrors the Codex thread table.
     private func makeDatabase(sessionId: String, title: String) throws -> (directory: URL, database: URL, sessionId: String) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-codex-title-test-\(UUID().uuidString)", isDirectory: true)

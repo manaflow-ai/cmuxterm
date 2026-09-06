@@ -354,6 +354,27 @@ import Testing
         }
     }
 
+    /// Repairs the visible tab header when the raw title was already stored.
+    @Test func codexNativeTitleSyncReconcilesVisibleTabHeader() async throws {
+        try await withManagerAsync { _, workspace in
+            let pane = try #require(workspace.bonsplitController.allPaneIds.first)
+            let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: false)?.id)
+            let tabId = try #require(workspace.surfaceIdFromPanelId(panelId))
+            let title = "Codex conversation title"
+            workspace.panelTitles[panelId] = title
+
+            #expect(workspace.bonsplitController.tab(tabId)?.title != title)
+            let envelope = try await callAsync(method: "surface.sync_codex_native_title", params: [
+                "workspace_id": workspace.id.uuidString,
+                "panel_id": panelId.uuidString,
+                "title": title
+            ])
+            let result = try #require(envelope["result"] as? [String: Any])
+            #expect(result["applied"] as? Bool == true)
+            #expect(workspace.bonsplitController.tab(tabId)?.title == title)
+        }
+    }
+
     /// Leaves an explicitly renamed panel unchanged when Codex syncs a title.
     @Test func codexNativeTitleSyncPreservesExistingCustomPanelTitle() async throws {
         try await withManagerAsync { _, workspace in
