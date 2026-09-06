@@ -1425,7 +1425,8 @@ actor VMClient {
             "POST",
             path: "/api/vm/\(encodedID)/attach-endpoint",
             jsonBody: body,
-            timeoutSeconds: Self.attachTimeoutSeconds
+            timeoutSeconds: Self.attachTimeoutSeconds,
+            retryTransientServiceUnavailable: true
         )
         try ensureOK(http, data: data)
         let obj = try decodeJSONObject(data)
@@ -1470,7 +1471,8 @@ actor VMClient {
                 "POST",
                 path: "/api/vm/\(encodedID)/attach-endpoint",
                 jsonBody: body,
-                timeoutSeconds: Self.attachTimeoutSeconds
+                timeoutSeconds: Self.attachTimeoutSeconds,
+                retryTransientServiceUnavailable: true
             )
             try ensureOK(http, data: data)
             return try decodeJSONObject(data)
@@ -1913,7 +1915,8 @@ actor VMClient {
         path: String,
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
-        timeoutSeconds: TimeInterval? = nil
+        timeoutSeconds: TimeInterval? = nil,
+        retryTransientServiceUnavailable: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
@@ -1942,6 +1945,7 @@ actor VMClient {
                 jsonBody: jsonBody,
                 extraHeaders: headers,
                 timeoutSeconds: timeoutSeconds,
+                retryTransientServiceUnavailable: retryTransientServiceUnavailable,
                 onRetry: { retryCount += 1 }
             )
             record(.response(
@@ -2014,6 +2018,7 @@ actor VMClient {
         jsonBody: [String: Any]?,
         extraHeaders: [String: String],
         timeoutSeconds: TimeInterval?,
+        retryTransientServiceUnavailable: Bool,
         onRetry: () -> Void
     ) async throws -> (Data, HTTPURLResponse) {
         // Bind every control-plane request to the currently published auth
@@ -2091,6 +2096,14 @@ actor VMClient {
                 try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
                 continue
             }
+            if retryTransientServiceUnavailable,
+               retriesLeft > 0,
+               let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
+                retriesLeft -= 1
+                onRetry()
+                try await Task.sleep(for: .seconds(delaySeconds))
+                continue
+            }
             if let sessionIdentity {
                 guard await auth.isAuthenticatedSessionIdentityCurrent(sessionIdentity) else {
                     throw VMClientError.notSignedIn
@@ -2105,6 +2118,21 @@ actor VMClient {
             }
             return (data, http)
         }
+    }
+
+    /// Returns a bounded delay only for the VM API's explicitly retryable service failures.
+    /// Attach endpoint creation is idempotent for a machine/device pair, so repeating it
+    /// avoids surfacing a transient provider 502 as a dead Cloud sidebar row.
+    private static func transientVMRetryDelay(http: HTTPURLResponse, data: Data) -> Duration? {
+        guard (502...504).contains(http.statusCode),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let retryable = object["retryable"] as? Bool ?? false
+        let error = object["error"] as? String
+        guard retryable || error == "vm_cloud_service_unavailable" else { return nil }
+        let requested = cloudVMInt(object["retryAfterSeconds"]) ?? 2
+        return .seconds(min(max(requested, 1), 10))
     }
 
     private func decodeWebSocketDaemonEndpoint(_ value: Any?) throws -> VMWebSocketDaemonEndpoint? {
