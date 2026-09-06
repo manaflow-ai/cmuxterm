@@ -18,6 +18,15 @@ const BUILD: &str = env!("CMUX_CLI_BUILD");
 const COMMIT: &str = env!("CMUX_CLI_COMMIT");
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(15);
 
+fn default_timeout() -> Duration {
+    env::var("CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .map(|value| Duration::from_secs_f64(value.min(86_400.0)))
+        .unwrap_or(DEFAULT_TIMEOUT)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Program {
     Cmux,
@@ -2022,8 +2031,9 @@ impl SocketClient {
                     path.display()
                 ))
             })?;
-            stream.set_read_timeout(Some(DEFAULT_TIMEOUT)).ok();
-            stream.set_write_timeout(Some(DEFAULT_TIMEOUT)).ok();
+            let timeout = default_timeout();
+            stream.set_read_timeout(Some(timeout)).ok();
+            stream.set_write_timeout(Some(timeout)).ok();
             Ok(Self { stream, password: resolve_socket_password(password, &path) })
         }
         #[cfg(not(unix))]
@@ -2034,7 +2044,7 @@ impl SocketClient {
     }
 
     fn send_v2(&self, method: &str, params: Value) -> Result<Value, CliError> {
-        self.send_v2_with_timeout(method, params, DEFAULT_TIMEOUT)
+        self.send_v2_with_timeout(method, params, default_timeout())
     }
 
     fn send_v2_with_timeout(
@@ -2232,7 +2242,7 @@ fn read_response(stream: &mut std::os::unix::net::UnixStream) -> Result<String, 
             }
         }
     }
-    stream.set_read_timeout(Some(DEFAULT_TIMEOUT)).ok();
+    stream.set_read_timeout(Some(default_timeout())).ok();
     while bytes.last() == Some(&b'\n') || bytes.last() == Some(&b'\r') {
         bytes.pop();
     }

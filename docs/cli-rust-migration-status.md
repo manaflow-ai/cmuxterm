@@ -48,7 +48,7 @@ All 12 families remain incomplete:
 | Family | Status | Main missing evidence |
 | --- | --- | --- |
 | startup | partial | complete help, version, offline and no-socket behavior |
-| socket-transport | partial | keychain fallback, all marker variants, timeout/error parity |
+| socket-transport | partial | keychain fallback, all marker variants, and exact timeout/error framing parity |
 | coderouter-native | partial | all account verbs and Swift output/error parity |
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
@@ -77,9 +77,10 @@ risk breaking commands, so the size increase remains accepted until cutover.
 
 Known verification gap: Rust auth resolution now supports an explicit password,
 `CMUX_SOCKET_PASSWORD`, the shared password file, and the scoped legacy macOS
-Keychain entries. Login now uses the Swift-compatible 305 second request
-timeout. The macOS Security framework path still needs a macOS build and a
-live Keychain conformance test.
+Keychain entries. The `CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC` override and the
+Swift-compatible 305 second login timeout are now implemented. The macOS
+Security framework path still needs a macOS build and a live Keychain
+conformance test.
 
 Known verification gap: the full Xcode release build and installed end-user
 test have not run in this environment. The local build guard requires more
