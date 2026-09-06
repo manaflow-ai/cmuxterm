@@ -7,7 +7,7 @@ import { closeCloudDbForTests } from "../db/client";
 import { maxActiveVmsForPlan } from "../services/vms/entitlements";
 import { VmRepository, VmRepositoryLive } from "../services/vms/repository";
 import { VmProviderGateway, type VmProviderGatewayShape } from "../services/vms/providerGateway";
-import { execVm, resizeVm } from "../services/vms/workflows";
+import { execVm, openAttachEndpoint, openVmCmuxRemote, openVmSession, resizeVm } from "../services/vms/workflows";
 
 const serialTest = (test as typeof test & { serial: typeof test }).serial;
 const dbTest = process.env.CMUX_DB_TEST === "1" ? serialTest : test.skip;
@@ -52,8 +52,8 @@ describe("VM review regressions", () => {
     expect(count?.count).toBe(1);
   }));
 
-  for (const operation of ["resize", "exec"] as const) {
-    for (const allowance of [maxActiveVmsForPlan("team", {}, { seats: 4 }), null, 50]) {
+  for (const operation of ["resize", "exec", "attach", "session", "cmux-remote"] as const) {
+    for (const allowance of [maxActiveVmsForPlan("team", {}, { seats: 4 }), null, 50, undefined]) {
       dbTest(`${operation} resumes a paused Team VM using allowance ${allowance}`, () => withTeam(async team => {
         await sql`
           insert into cloud_vms (user_id, billing_team_id, billing_plan_id, provider, provider_vm_id, image_id, status)
@@ -82,26 +82,44 @@ describe("VM review regressions", () => {
             operations += 1;
             return { exitCode: 0, stdout: "ok", stderr: "" };
           }),
+          openAttach: () => Effect.sync(() => {
+            operations += 1;
+            return {
+              transport: "websocket", url: "wss://vm.test/attach", headers: {}, token: "test-token",
+              sessionId: "test-session", attachmentId: "test-attachment", expiresAtUnix: 2_000_000_000,
+            };
+          }),
+          openCmuxRemote: () => Effect.sync(() => {
+            operations += 1;
+            return {
+              transport: "cmux-remote", route: "ws://10.0.0.5:1337/v1/link", token: "test-token",
+              session: "test-session", expiresAtUnix: 2_000_000_000,
+            };
+          }),
         } as unknown as VmProviderGatewayShape;
         const input = {
           userId: team, billingTeamId: team, billingPlanId: "team", callerPlanId: "team",
           teamIds: [team], providerVmId, maxActiveVms: allowance,
           storageMb: 65536, command: "true", timeoutMs: 1000,
         };
-        const program = operation === "resize"
-          ? resizeVm(input).pipe(Effect.asVoid)
-          : execVm(input).pipe(Effect.asVoid);
+        const program = {
+          resize: () => resizeVm(input).pipe(Effect.asVoid),
+          exec: () => execVm(input).pipe(Effect.asVoid),
+          attach: () => openAttachEndpoint(input).pipe(Effect.asVoid),
+          session: () => openVmSession(input).pipe(Effect.asVoid),
+          "cmux-remote": () => openVmCmuxRemote(input).pipe(Effect.asVoid),
+        }[operation]();
         const result = await Effect.runPromise(program.pipe(
           Effect.either,
           Effect.provide(Layer.mergeAll(VmRepositoryLive, Layer.succeed(VmProviderGateway, provider))),
         ));
-        if (allowance === 50) {
+        if (allowance === 50 || allowance === undefined) {
           expect(result._tag).toBe("Left");
           if (result._tag === "Left") expect(result.left).toMatchObject({ _tag: "VmLimitExceededError", limit: 50 });
           expect(resumes).toBe(0);
           expect(operations).toBe(0);
         } else {
-          expect(result._tag).toBe("Right");
+          expect(result).toMatchObject({ _tag: "Right" });
           expect(resumes).toBe(1);
           expect(operations).toBe(1);
         }

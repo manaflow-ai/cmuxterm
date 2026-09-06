@@ -1632,6 +1632,7 @@ describe("VM REST auth", () => {
       deviceFingerprint: "fp-device-1",
       clientCapabilities: ["direct-ws-user-agent"],
       callerPlanId: "pro",
+      maxActiveVms: 50,
     });
     expect(openAttachEndpoint).not.toHaveBeenCalled();
     const payload = await response.json();
@@ -1814,6 +1815,7 @@ describe("VM REST auth", () => {
       providerVmId: "provider-vm-team-1",
       callerPlanId: "pro",
       command: "true",
+      maxActiveVms: 50,
       timeoutMs: 30_000,
     });
   });
