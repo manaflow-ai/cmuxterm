@@ -595,9 +595,9 @@ struct SessionEntryResumeLaunchTests {
         let key = VaultLiveSessionKeys.key(for: entry)
 
         workspace.updatePanelShellActivityState(panelId: panel.id, state: .commandRunning)
-        #expect(SessionEntryResumeCoordinator.inPaneSessionKeys(tabManager: manager).contains(key))
+        #expect(SessionEntryResumeCoordinator().inPaneSessionKeys(tabManager: manager).contains(key))
 
         workspace.updatePanelShellActivityState(panelId: panel.id, state: .promptIdle)
-        #expect(!SessionEntryResumeCoordinator.inPaneSessionKeys(tabManager: manager).contains(key))
+        #expect(!SessionEntryResumeCoordinator().inPaneSessionKeys(tabManager: manager).contains(key))
     }
 }
