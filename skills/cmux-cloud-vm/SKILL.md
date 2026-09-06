@@ -1,11 +1,11 @@
 ---
 name: cmux-cloud-vm
-description: "Teach and drive cmux Cloud from the plain `cmux vm` CLI (alias `cmux cloud`): route work, run commands and agents, transfer files, control detached terminals, inspect/open surfaces, and publish protected or public VM ports on generated or custom domains. Use when an agent should run builds, tests, servers, desktop/browser tasks, or another agent on a cloud machine, or when the user says \"cloud machine\", \"cloud VM\", \"run it in the cloud\", \"cmux vm\", or \"cmux cloud\"."
+description: "Route work to cmux Cloud machines from the plain `cmux vm` CLI (alias `cmux cloud`): route/run/agent pick a machine, `vm tree` and `surface ls` catalog This Mac and cloud surfaces, and open, exec, transfer, workspace, terminal, port, checkpoint, and domain operations share the same app paths. Use when an agent should run builds, tests, servers, desktop/browser tasks, or another agent on a cloud machine, or when the user says \"cloud machine\", \"cloud VM\", \"run it in the cloud\", \"cmux vm\", or \"cmux cloud\"."
 ---
 
 # cmux Cloud Machines
 
-Everything cmux Cloud exposes from the CLI, for any coding agent (Claude Code, Codex, OpenCode, Pi, or another harness): the agent-only primitives (`route`, `run`, `agent`, `exec`, `push`, `pull`, `wait`, `terminal send|read|wait`) plus every verb the Cloud sidebar has. The app must be running and signed in (`cmux auth status`, `cmux auth login`). Bring up WireGuard (`cmux vpn up`) before private VM attach, exec, desktop, or port operations; a published domain is reached through its HTTPS edge and does not require the viewer's tunnel. `cmux vm --help` is the overview and `cmux vm <verb> --help` prints a verb's own options, both offline; [references/commands.md](references/commands.md) is the complete reference and CI keeps it in lockstep with the CLI (`tests/test_cloud_vm_skill_coverage.py`). An agent with no skill loaded can bootstrap itself with `cmux vm prompt`, which installs the app-bundled copy of this skill at `~/.config/cmux/skills/cmux-cloud.md` and prints a kickoff prompt.
+Everything cmux Cloud exposes from the CLI, for any coding agent (Claude Code, Codex, OpenCode, Pi, or another harness): the agent-only primitives (`route`, `run`, `agent`, `exec`, `push`, `pull`, `wait`, `terminal send|read|wait`) plus every verb the Cloud sidebar has. Host-side operations require the cmux app and a signed-in account (`cmux auth status`, `cmux auth login`); a guest-safe auth/CodeRouter subset is available inside a machine. Bring up WireGuard (`cmux vpn up`) before private VM attach, exec, desktop, or port operations; a published domain is reached through its HTTPS edge and does not require the viewer's tunnel. `cmux vm --help` is the overview and `cmux vm <verb> --help` prints a verb's own options, both offline; [references/commands.md](references/commands.md) is the complete reference and CI keeps it in lockstep with the CLI (`tests/test_cloud_vm_skill_coverage.py`). An agent with no skill loaded can bootstrap itself with `cmux vm prompt`, which installs the app-bundled copy of this skill at `~/.config/cmux/skills/cmux-cloud.md` and prints a kickoff prompt.
 
 **The mission is delegation.** A local agent (you, on the user's Mac) sends work to machines that outlive the laptop: every terminal and agent session lives in the machine's own cmux-tui daemon, so work keeps running with every pane closed and the lid shut, and any signed-in Mac reattaches later through the same addresses. Compose machine workspaces headlessly (as many as the task needs), watch them with `vm tree --json` and `vm terminal read` without opening anything, and surface panes or a `cmux notify` only when the user should look.
 
@@ -105,7 +105,7 @@ Choose the narrowest access mode: `personal` (the default) for the owner, `team`
 | Files in and out | `cmux vm push <id> ./repo work/repo` / `cmux vm pull <id> work/repo/out.tgz` (SHA-256 verified, 256 MB cap, `.git`/`node_modules` skipped by default) |
 | A machine that is asleep or still booting | `cmux vm wait <id> --wake` |
 
-Opening a machine (`cmux vm shell <id>`, `vm new`, `vm base open`, the sidebar) gives a **plain terminal** on it — one terminal in the machine's cmux-tui session attached in a pane like an ssh session; it keeps running if the pane closes and shows up in `cmux vm tree` (reattach with the `cmux vm open <m>/<ws>/<term>` address the `OK` line prints). `cmux vm tui <id>` is the only command that opens the full cmux-tui client. Long shell work under `exec` must be backgrounded (see recipes) — never hold a long `exec` open.
+Opening a machine (`cmux vm shell <id>`, `vm new`, `vm base open`, the sidebar) gives a **plain terminal** on it — one terminal in the machine's cmux-tui session attached in a pane like an ssh session; it keeps running if the pane closes and shows up in `cmux vm tree` (reattach with the `cmux vm open <m>/<ws>/<term>` address the `OK` line prints). Use `cmux vm open` or `cmux surface open` for the machine's individual surfaces. Long shell work under `exec` must be backgrounded (see recipes) — never hold a long `exec` open.
 
 ## Watching and reporting back
 
@@ -134,6 +134,25 @@ The user cannot see inside the machine: print URLs, pull artifacts, or open a pa
 ## Credentials
 
 Agents started with `vm agent` authenticate inside the machine the way they would locally: their own login under `/root` (set up once with `vm exec`; it persists on the volume), or the team's subrouter through `cmux ai-accounts upload` (uploads local credentials so no token is copied onto a machine). Do not put the user's tokens on a machine unless they ask.
+
+## Guest auth and CodeRouter
+
+Inside a Cloud machine, the guest `cmux` adapter can report route health and run
+an agent through the shared CodeRouter without exposing the Mac's Stack session:
+
+```bash
+cmux auth status --json
+cmux coderouter status --json
+cmux coderouter usage
+cmux coderouter models
+cmux coderouter agent claude "summarize the current checkout"
+cmux agent codex "run the tests"
+```
+
+These commands describe the machine's daemon, TLS edge, and VM-bound route.
+Host account login and upstream credential management remain on the Mac; do not
+copy those tokens into a VM. `vm agent` still starts a detached terminal on the
+selected machine, while the guest `cmux agent` form runs through CodeRouter.
 
 ## Agent policy
 

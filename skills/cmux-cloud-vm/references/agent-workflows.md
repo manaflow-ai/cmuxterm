@@ -93,7 +93,7 @@ fork_b=$(cmux vm fork <id> --name try-approach-b --detach --json | jq -r '.id')
 cmux vm agent --agent codex --machine "$fork_a" --no-open -- exec "try approach A in work/app"
 cmux vm agent --agent codex --machine "$fork_b" --no-open -- exec "try approach B in work/app"
 cmux vm tree                                           # both agents, side by side
-cmux vm rm "$fork_a"; cmux vm rm "$fork_b"             # only the forks you created
+Delete only the forks you created through the Cloud sidebar after the experiment; this rollout has no top-level VM delete verb.
 ```
 
 ## 6. Desktop and browser tasks

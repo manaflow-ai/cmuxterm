@@ -129,23 +129,6 @@ storage, so confirm the target machine and desired size before running it; use
 `cmux vm stats <id>` afterward to verify the mounted capacity. Sidebar: machine
 row › Resize Disk… (the same action invokes this verb).
 
-### `cmux vm rename`
-
-```bash
-cmux vm rename <id> <label…>
-cmux vm rename <id> --clear
-```
-
-Socket `vm.rename {id, display_name?}`. Display label only; the id stays the address. `--json`: the rename payload (`{id, displayName}`). Sidebar: machine row › Rename…. The router labels its own machines `agent-pool`; a user machine renamed `agent-pool` is still never drafted (membership is the persisted id list, not the label).
-
-### `cmux vm rm`
-
-```bash
-cmux vm rm <id>                        # aliases: cmux vm destroy, cmux vm delete
-```
-
-Socket `vm.destroy`. **Permanent** — machine and its persistent volume. Text `OK <id>`; `--json` `{"ok":true,"id":"<id>"}`. Sidebar: machine row › Delete… (confirms; the CLI does not).
-
 ### `cmux vm wait`
 
 ```bash
@@ -168,7 +151,7 @@ A `vm.exec` probe: shell, and whether `zsh git gh htop btop node bun python3` ar
 cmux vm handoff <id> [--json]
 ```
 
-Socket `vm.status`, printed as a short block (id, provider, status, `attach: cmux vm ssh <id>`, `inspect: cmux vm tools <id>`) to paste to a person or another agent. `--json`: the status payload.
+Socket `vm.status`, printed as a short block (id, provider, status, `attach: cmux vm shell <id>`, `inspect: cmux vm tools <id>`) to paste to a person or another agent. `--json`: the status payload.
 
 ### Base: `cmux vm base open` / `cmux vm base reset`
 
@@ -293,6 +276,18 @@ Text: `Started <agent> on <machine> — terminal <term> in workspace <ws> …`, 
 ## Workspaces and terminals (the machine's cmux-tui session)
 
 Every machine runs the cmux-tui remote daemon: its own workspaces (`ws_…`) → terminals (`term_…`). Terminals keep running detached; panes on the Mac merely project them.
+
+### `cmux vm tab rename` and `cmux vm terminal rename`
+
+```bash
+cmux vm tab rename <machine> <tab-id> <name>
+cmux vm terminal rename <machine> <terminal-id> <name>
+```
+
+`vm.tab_rename` changes one exact tab placement; `vm.terminal_rename` fans a
+label change out to every placement of that terminal. Pass an empty quoted name
+(`""`) to clear the custom label. These are the shared rename paths used by
+the sidebar and preserve the distinction between a tab and a terminal identity.
 
 ### `cmux vm tree`
 
@@ -452,13 +447,16 @@ cmux vm desktop <id> [--workspace <id|ref|index>] [--json]    # alias: cmux vm v
 
 Socket `vm.desktop_open {id, workspace_id?, focus: false}`: the machine's noVNC desktop as a browser pane in the machine's open workspace, else the one you name, else where you are (focus defaults to false so the pane never steals typing from the shell). The pane opens the machine's **private address on 6901** over the owner's private network — `cmux vpn up` first, like every other access verb. Text `OK surface=… url=…`. Desktop-kind machines only; a `--base` machine has no screen (exit 1). Sidebar: machine row › Open Desktop; Displays › Open Desktop.
 
-### `cmux vm tui`
+### Provider attach diagnostics
 
 ```bash
-cmux vm tui <id> [--window <id|ref|index>]
+cmux vm ssh-info <id> [--json]
+cmux vm ssh-attach <id>
 ```
 
-The **full cmux-tui client** (its own workspaces, panes, tabs) in a pane — the only open that runs the client; everything else gives a plain terminal. Enrolls this Mac's device on first use (`vm.cmux_remote_info`, `vm.cmux_remote_approve`; the link socket comes from `vm.link_socket`), later attaches reconnect with the stored device key. Needs a local cmux-tui client (bundled beside the CLI, or `CMUX_TUI_CLIENT`, `~/.cmux/bin/cmux`, `cmux-tui` on PATH). Hidden helpers used only by this verb: `vm-tui-connect --config <file>` and `vm-tui-approve --id <vm> --invitation-id <id>`. Sidebar: machine row › Open Full cmux-tui Client.
+`ssh-info` reports provider SSH details when an image exposes them; the default
+cmux transport may have no SSH endpoint. `ssh-attach` is an internal helper
+used by the app's attach surface and is not normally invoked by an agent.
 
 ### `cmux surface ls`
 
@@ -536,26 +534,6 @@ A `vm.exec` of `ss -ltnp` (or `netstat -ltnp`): the TCP ports listening **inside
 
 See `vm open`: `cmux vm open <id> 3000` opens an HTTP port on the machine as a browser pane (`vm.port_open`); `--print` only mints and prints the URL (`vm.open_port`, `--json` → `{open_url, …}`). The URL points at the machine's **private VPC address** — reachable only through the owner's WireGuard tunnel (`cmux vpn up`), never a public ingress; the daemon's own port is refused, and the lease carries an expiry. Only share URLs minted this way; never guess provider URLs (they resolve for the machine's owner only).
 
-### `cmux vm ssh`
-
-```bash
-cmux vm ssh <id> [--window <id|ref|index>]
-```
-
-A cmux-managed SSH workspace for the machine (`vm.ssh_info`, then the same session path as `cmux ssh`). Provider-dependent: the default cmux Cloud provider attaches through the cmux-tui daemon and may mint no SSH endpoint — that is not an error; use `exec`, `agent`, or `open` instead.
-
-### `cmux vm ssh-info`
-
-```bash
-cmux vm ssh-info <id> [--json]
-```
-
-Socket `vm.ssh_info`. Text: the `ssh <user>@<host> -p <port>` line plus host/port/username (password redacted); `--json` the raw payload. Explains itself when the machine exposes no SSH.
-
-### `cmux vm ssh-attach`
-
-Internal helper the SSH workspace pane runs; not for direct use.
-
 ## Account and plan
 
 ### `cmux vpn`
@@ -564,8 +542,9 @@ Internal helper the SSH workspace pane runs; not for direct use.
 cmux vpn up          # enroll this Mac on first run, bring the WireGuard tunnel up (wg-quick, prompts for sudo; brew install wireguard-tools)
 cmux vpn down        # tunnel down; enrollment kept
 cmux vpn status      # tunnel state, config path, backend
-cmux vpn revoke      # tunnel down + unenroll (server deletes its side); also clears the hosts block
-cmux vpn hosts       # write every machine's `<name>.internal` → private IP into a cmux-managed /etc/hosts block (sudo; idempotent)
+cmux vpn on           # alias for up
+cmux vpn off          # alias for down
+cmux vpn revoke       # tunnel down + unenroll (server deletes its side)
 ```
 
 The tunnel between this Mac and the private Cloud VM network. Config lives under `~/.cmuxterm/wireguard/` — **one tunnel per deployment** (interface `cmux` for production, `cmux-staging`/`cmux-local`/`cmux-dev` for other API origins), so a dev build and the production app can both be up side by side. The private key is generated on this Mac and never leaves it. Run `up` once per boot before the attach/exec/port verbs; a stale tunnel (another enrollment's keys — `vpn status` reports it) is replaced by `up` instead of read as up.
@@ -613,15 +592,20 @@ cmux rpc <method> [json-params]        # call any v2 method directly, e.g. cmux 
 | `vm.status` | `vm status`, `vm handoff`, `vm wait` |
 | `vm.stats` | `vm stats`; the router's load scoring |
 | `vm.resize` | `vm resize <id> --disk <GiB>`; machine row › Resize Disk… |
-| `vm.rename` | `vm rename`, `vm new --name`, the router's `agent-pool` label |
+| `vm.rename` | `vm new --name` and the router's `agent-pool` label; direct machine-label editing is currently a sidebar action |
+| `vm.tab_rename` | `vm tab rename` |
+| `vm.terminal_rename` | `vm terminal rename` |
+| `vm.publication_grant`, `vm.publication_grants`, `vm.publication_ungrant` | publication viewer grant management exposed by the Cloud publication controller |
+| `vm.tunnel_config`, `vm.tunnel_up`, `vm.tunnel_down`, `vm.tunnel_status`, `vm.tunnel_wait`, `vm.tunnel_revoke` | WireGuard enrollment and lifecycle behind `cmux vpn up|down|status|on|off|revoke` |
+
 | `vm.snapshot` | `vm snapshot`, `vm promote-template` |
 | `vm.fork`, `vm.restore` | `vm fork`, `vm restore` |
-| `vm.destroy` | `vm rm` |
+| `vm.destroy` | Cloud sidebar machine deletion |
 | `vm.exec` | `vm exec`, `vm run`, `vm push`, `vm pull`, `vm wait --wake`, `vm tools`, `vm ports` |
 | `vm.open_port`, `vm.port_open` | `vm open <id> <port> --print`, `vm open <id> <port>` / `<id>:port/<n>` |
 | `vm.desktop_open` | `vm desktop`, `vm open <id>:desktop`, the split beside `vm shell` |
-| `vm.cmux_remote_info`, `vm.cmux_remote_approve`, `vm.link_socket` | the shared open path (`vm shell` and friends), `vm tui` enrollment |
-| `vm.ssh_info` | `vm ssh`, `vm ssh-info` |
+| `vm.cmux_remote_info`, `vm.cmux_remote_approve`, `vm.link_socket` | the shared machine shell and surface open path |
+| `vm.ssh_info` | provider-specific attach diagnostics surfaced by the app |
 | `vm.attach_info`, `vm.session_attach_info`, `vm.sessions` | legacy websocket/SSH attach transports the open path falls back to on deployments without a cmux-tui daemon (`cmux rpc` reaches them directly) |
 | `vm.tree` | the pre-catalog tree; `vm tree` uses `surface.catalog` |
 | `vm.terminal_open`, `vm.terminal_new` | older terminal verbs; `vm open <m>/<ws>/<term>` and `surface new-terminal` use `surface.project` / `surface.new_terminal` |

@@ -11,13 +11,13 @@ Control bar › **Copy Cloud Prompt** | `cmux vm prompt` | `vm.cloud_prompt` | �
 Machine row › **Open Shell** / click | `cmux surface new-terminal --machine <m>` (into the current workspace, like the row) · `cmux vm open <m> [--workspace <ref>]` (a shell, its own workspace by default) | `vm.terminal_new` / `workspace.cloud_vm_terminal_ready` | ✅
 Machine row › **New Workspace**, Workspaces ＋ | `cmux vm workspace new <m> [--name n]` | `vm.workspace_new` | ✅
 Machine row › **Open Desktop**, VNC Displays › Open Desktop, screen row click (one row per screen, `display:1`, …) | `cmux vm open <m>:desktop` / `cmux surface open <m>/display/display:1` | `vm.desktop_open` / `surface.project` | ✅
-Machine row › **Open Full cmux-tui Client** | `cmux vm tui <m>` | (pane command) | ✅
+Machine row › **Open Full cmux-tui Client** | use the local cmux topology/client controls; this rollout exposes the machine shell and surfaces through `cmux vm open` / `cmux surface open` | (pane command) | ✅
 Machine row › **Refresh**, any group › Refresh | `cmux vm tree --refresh` / `cmux surface ls --refresh` | `vm.tree {refresh}` | ✅
-Machine row › **Rename…** | `cmux vm rename <m> <label>` | `vm.rename` | ✅
+Machine row › **Rename…** | sidebar action (no top-level VM rename verb in this rollout) | `vm.rename` | ✅
 Machine row › **Status** | `cmux vm status <m>` (+ `vm stats`) | `vm.status` / `vm.stats` | ✅
 Machine row › **Checkpoint** (only when `capabilities.snapshot`) | `cmux vm snapshot <m> [--name n]` | `vm.snapshot` | ✅ hidden on providers that cannot; `vm ls --json` → `capabilities`
 Machine row › **Fork** (only when `capabilities.fork`) | `cmux vm fork <m> [--name n]` | `vm.fork` | ✅ hidden on providers that cannot
-Machine row › **Delete…** | `cmux vm rm <m>` | `vm.destroy` | ✅
+Machine row › **Delete…** | sidebar action (no top-level VM delete verb in this rollout) | `vm.destroy` | ✅
 Terminals / Workspaces group › **New Terminal** | `cmux surface new-terminal --machine <m> [-- <cmd>]` | `vm.terminal_new` | ✅
 Workspace row › **New Terminal Here** | `cmux surface new-terminal --machine <m> --remote-workspace <ws>` | `vm.terminal_new {workspace_id}` | ✅
 Workspace row › **Go to Workspace** (the open verb's label once the workspace is showing locally), click, Return | `cmux workspace select <local-id>` (the local workspace from `vm tree --json` projections) | `workspace.select` | ✅ one open verb; never opens a second copy
