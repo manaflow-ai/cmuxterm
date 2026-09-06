@@ -100,6 +100,7 @@ extension CmuxEventBus {
                 "message_preview": preview ?? NSNull(),
                 "message_length": message?.count ?? 0,
                 "scrollback_row": promptAnchor?.row ?? NSNull(),
+                "scrollback_row_space_revision": promptAnchor?.rowSpaceRevision ?? NSNull(),
                 "redacted_fields": ["message"]
             ]
         )

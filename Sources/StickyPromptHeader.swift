@@ -6,6 +6,14 @@ struct StickyPromptHeaderEntry: Equatable, Identifiable {
     let id: String
     let row: Int
     let preview: String
+    let rowSpaceRevision: UInt64
+
+    init(id: String, row: Int, preview: String, rowSpaceRevision: UInt64 = 0) {
+        self.id = id
+        self.row = row
+        self.preview = preview
+        self.rowSpaceRevision = rowSpaceRevision
+    }
 }
 
 enum StickyPromptHeaderSelection {
@@ -34,7 +42,8 @@ final class StickyPromptHeaderStore {
         let entry = StickyPromptHeaderEntry(
             id: "\(surface.id.uuidString):\(anchor.row):\(anchor.rowSpaceRevision)",
             row: anchor.row,
-            preview: preview
+            preview: preview,
+            rowSpaceRevision: anchor.rowSpaceRevision
         )
         var entries = entriesBySurfaceID[surface.id, default: []]
         if let last = entries.last,
