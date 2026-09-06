@@ -52,7 +52,6 @@ extension SidebarWorkspaceSnapshotBuilder.Snapshot {
             remoteConnectionStatusText: remoteConnectionStatusText,
             remoteStateHelpText: remoteStateHelpText,
             showsRemoteReconnectAffordance: showsRemoteReconnectAffordance,
-            remoteReconnectHelpText: remoteReconnectHelpText,
             copyableSidebarSSHError: copyableSidebarSSHError,
             latestConversationMessage: latestConversationMessage,
             metadataEntries: metadataEntries,
@@ -83,6 +82,7 @@ extension SidebarWorkspaceSnapshotBuilder.Snapshot {
             checklistCompletedCount: snapshot.checklistCompletedCount,
             checklistTotalCount: snapshot.checklistTotalCount,
             checklistFirstUncheckedText: snapshot.checklistFirstUncheckedText,
+            remoteReconnectHelpText: remoteReconnectHelpText,
             loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(
                 count: snapshot.activeCodingAgentCount
             )
