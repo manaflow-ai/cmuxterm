@@ -15,10 +15,11 @@
  */
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { vmImageSizeRank, type VmImageSizeName } from "../services/vms/images/sizes";
+import { VM_IMAGE_SIZES, VM_IMAGE_SIZE_NAMES, vmImageSizeRank, type VmImageSizeName } from "../services/vms/images/sizes";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const webRoot = path.resolve(__dirname, "..");
@@ -34,8 +35,130 @@ export const DEVBOX_TEMPLATE_FILES = [
   "cmux-bashrc",
   "cmux-devbox-boot",
   "cmux-motd",
+  "cmux-terminfo.sh",
+  "cmux-terminfo.src",
   "seed-history",
 ] as const;
+
+/**
+ * Proves the guest resolves every TERM name cmux may export to the overlay,
+ * including indexed bright colors instead of SGR 90. The explicit path check
+ * ensures a stock entry or a user's home directory cannot shadow it.
+ */
+export const devboxTerminfoCheckCommand = [
+  "for t in xterm-ghostty ghostty xterm-256color; do",
+  '[ "$(tput -T$t colors)" = 256 ]',
+  "&& infocmp -x $t | grep -qw Tc && infocmp -x $t | grep -qw Su",
+  "&& infocmp -x $t | head -1 | grep -q /etc/terminfo/",
+  "&& [ \"$(tput -T$t setaf 8 | od -An -tx1 | tr -d ' \\n')\" = 1b5b33383b353b386d ]",
+  "&& [ \"$(tput -T$t setab 8 | od -An -tx1 | tr -d ' \\n')\" = 1b5b34383b353b386d ]",
+  "&& [ \"$(tput -T$t setaf 7 | od -An -tx1 | tr -d ' \\n')\" = 1b5b33376d ]",
+  "&& [ \"$(tput -T$t setaf 16 | od -An -tx1 | tr -d ' \\n')\" = 1b5b33383b353b31366d ]",
+  '|| { echo "terminfo check failed for $t"; exit 1; }; done && echo terminfo-ok',
+].join(" ");
+
+/** Compile the checked-in overlay before any per-TERM cache is seeded. */
+export const devboxTerminfoInstallCommand =
+  `test -s /etc/cmux/terminfo.src && tic -x -o /etc/terminfo /etc/cmux/terminfo.src && chmod -R a+rX /etc/terminfo && ${devboxTerminfoCheckCommand}`;
+
+/**
+ * Proves the baked daemon's direct-WebSocket path, not only its TCP listener.
+ * The client runs inside the guest, so this also works when the operator's
+ * Mac has no IPv6 route or VPC tunnel. It enrolls a temporary device,
+ * performs authenticated RPC, creates a PTY, takes a terminal snapshot,
+ * reconnects, and confirms that the marker survives. Cleanup revokes the
+ * temporary device and removes the workspace before a snapshot can capture
+ * test state.
+ */
+export function cmuxTuiWebsocketSmokeCommand(
+  session = "cloud",
+  binary = "/root/.cmux/bin/cmux-tui",
+): string {
+  const shell = `#!/usr/bin/env bash
+set -euo pipefail
+export HOME=/root
+BIN=${binary}
+SESSION=${session}
+ROOT=/tmp/cmux-tui-websocket-smoke
+ROUTE='ws://[::1]:1337/v1/link'
+MARKER="CMUX_WS_SMOKE_${session}_$$"
+CONNECT_PID=""
+INVITATION_ID=""
+DEVICE_FINGERPRINT=""
+WORKSPACE_ID=""
+PROCESS_ID=""
+rm -rf "$ROOT"
+mkdir -m 700 -p "$ROOT/state"
+rpc() {
+  "$BIN" remote rpc "$ROUTE" --state-dir "$ROOT/state" --lanes single --connect-timeout-seconds 45 --reconnect-attempts 1 --request "$1"
+}
+cleanup() {
+  if [ -n "$CONNECT_PID" ]; then
+    kill "$CONNECT_PID" 2>/dev/null || true
+    wait "$CONNECT_PID" 2>/dev/null || true
+  fi
+  if [ -n "$PROCESS_ID" ]; then
+    KILL_REQUEST="$(jq -nc --arg process "$PROCESS_ID" '{type:"signal-process",process:$process,signal:"kill"}')"
+    rpc "$KILL_REQUEST" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$WORKSPACE_ID" ]; then
+    CLOSE_REQUEST="$(jq -nc --arg workspace "$WORKSPACE_ID" '{type:"close-workspace",workspace:$workspace}')"
+    rpc "$CLOSE_REQUEST" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$DEVICE_FINGERPRINT" ]; then
+    "$BIN" remote enroll revoke "$DEVICE_FINGERPRINT" --session "$SESSION" --json >/dev/null 2>&1 || true
+  fi
+  if [ -n "$INVITATION_ID" ]; then
+    "$BIN" remote enroll deny "$INVITATION_ID" --session "$SESSION" --json >/dev/null 2>&1 || true
+  fi
+  rm -rf "$ROOT"
+}
+trap cleanup EXIT
+
+"$BIN" remote enroll create --session "$SESSION" --ttl 300 --advertise "$ROUTE" --json >"$ROOT/create.json"
+jq -r '.. | strings | select(startswith("cmux://enroll/"))' "$ROOT/create.json" | head -1 >"$ROOT/invitation"
+test -s "$ROOT/invitation"
+chmod 600 "$ROOT/invitation"
+("$BIN" remote connect --invite-file "$ROOT/invitation" --device-name "snapshot-websocket-smoke" --state-dir "$ROOT/state" --session "$SESSION" --headless --json --lanes single --connect-timeout-seconds 60 --reconnect-attempts 2 >"$ROOT/connect.out" 2>"$ROOT/connect.err") &
+CONNECT_PID=$!
+for attempt in $(seq 1 90); do
+  PENDING="$("$BIN" remote enroll pending --session "$SESSION" --json 2>/dev/null || true)"
+  INVITATION_ID="$(printf '%s' "$PENDING" | jq -r 'if type == "array" then (.[0].invitation_id // empty) else (.pending[0].invitation_id // .invitations[0].invitation_id // empty) end' 2>/dev/null || true)"
+  DEVICE_FINGERPRINT="$(printf '%s' "$PENDING" | jq -r 'if type == "array" then (.[0].device_fingerprint // empty) else (.pending[0].device_fingerprint // .invitations[0].device_fingerprint // empty) end' 2>/dev/null || true)"
+  if [ -n "$INVITATION_ID" ]; then break; fi
+  sleep 1
+done
+test -n "$INVITATION_ID"
+"$BIN" remote enroll approve "$INVITATION_ID" --session "$SESSION" --json >/dev/null
+sleep 2
+kill "$CONNECT_PID" 2>/dev/null || true
+wait "$CONNECT_PID" 2>/dev/null || true
+CONNECT_PID=""
+
+CAPABILITIES="$(rpc '{"type":"capabilities"}')"
+echo "$CAPABILITIES" | jq -e '.type == "capabilities"' >/dev/null
+WORKSPACE="$(rpc '{"type":"open-workspace","root":"/tmp"}')"
+WORKSPACE_ID="$(echo "$WORKSPACE" | jq -r '.id // .result.Ok.id')"
+test -n "$WORKSPACE_ID" && test "$WORKSPACE_ID" != "null"
+SPAWN_REQUEST="$(jq -nc --arg workspace "$WORKSPACE_ID" --arg marker "$MARKER" '{type:"spawn-process",workspace:$workspace,argv:["bash","-lc",("printf "+$marker+"; sleep 60")],cwd:null,env:{},io:{type:"pty",cols:120,rows:40,term:"xterm-256color",eof:"control-d"},lifetime:"detached"}')"
+SPAWN="$(rpc "$SPAWN_REQUEST")"
+PROCESS_ID="$(echo "$SPAWN" | jq -r '.process // .result.Ok.process')"
+test -n "$PROCESS_ID" && test "$PROCESS_ID" != "null"
+sleep 2
+SNAPSHOT_REQUEST="$(jq -nc --arg process "$PROCESS_ID" '{type:"snapshot-process-terminal",process:$process}')"
+FIRST="$(rpc "$SNAPSHOT_REQUEST")"
+echo "$FIRST" | jq -e --arg marker "$MARKER" 'tostring | contains($marker)' >/dev/null
+FIRST_SEQUENCE="$(echo "$FIRST" | jq -r '.snapshot.through_sequence // .result.Ok.snapshot.through_sequence')"
+test "$FIRST_SEQUENCE" -ge 1
+SECOND="$(rpc "$SNAPSHOT_REQUEST")"
+echo "$SECOND" | jq -e --arg marker "$MARKER" 'tostring | contains($marker)' >/dev/null
+SECOND_SEQUENCE="$(echo "$SECOND" | jq -r '.snapshot.through_sequence // .result.Ok.snapshot.through_sequence')"
+test "$SECOND_SEQUENCE" -ge "$FIRST_SEQUENCE"
+echo "websocket-smoke-ok marker=$MARKER through_sequence=$FIRST_SEQUENCE->$SECOND_SEQUENCE"
+`;
+  const encoded = Buffer.from(shell, "utf8").toString("base64");
+  return `printf %s ${encoded} | base64 -d >/tmp/cmux-tui-websocket-smoke.sh && chmod 700 /tmp/cmux-tui-websocket-smoke.sh && bash /tmp/cmux-tui-websocket-smoke.sh`;
+}
 
 /**
  * The desktop layer (ported from the retired Blaxel cmux-devbox image): an
@@ -445,6 +568,7 @@ export function promoteImageManifestEntry(
     options.sizes && options.sizes.length > 0
       ? [...options.sizes].sort((a, b) => vmImageSizeRank(a.size.name) - vmImageSizeRank(b.size.name))
       : [{ imageId: entry.imageId }];
+  const promotesLocalDevBase = kinds.includes("base") && variants.some((variant) => variant.size?.name === "sm");
   for (const kind of kinds) {
     for (const variant of variants) {
       const clash = manifest.images.find((candidate) =>
@@ -464,6 +588,7 @@ export function promoteImageManifestEntry(
   const demoted = manifest.images.map((candidate) => {
     if (candidate.provider !== entry.provider) return candidate;
     const next: DevboxManifestEntry = { ...candidate };
+    if (promotesLocalDevBase && next.provider === entry.provider && next.defaultForLocalDev) next.defaultForLocalDev = false;
     // A sized promotion demotes the provider's size-less defaults too: the
     // ladder replaces the single-shape image, not just one row of it.
     const sameSize = promotedSizes.has(sizeKey(next)) || (sizeKey(next) === "" && promotedSizes.size > 0);
@@ -482,6 +607,9 @@ export function promoteImageManifestEntry(
         kind,
         defaultForKind: true,
         ...(variant.size ? { size: variant.size } : {}),
+        ...(promotesLocalDevBase && kind === "base" && variant.size?.name === "sm"
+          ? { defaultForLocalDev: true }
+          : {}),
         ...(notes ? { notes } : {}),
       });
     }
@@ -537,6 +665,75 @@ export function imageManifestProblems(manifest: DevboxImageManifest): string[] {
   for (const [key, entries] of defaults) {
     if (entries.length > 1) {
       problems.push(`${key}: ${entries.length} entries flagged defaultForKind (${entries.map((e) => e.version).join(", ")})`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * Checks the production Freestyle defaults as a complete machine-size
+ * ladder. Historical, size-less entries remain valid for rollback, but active
+ * defaults must cover every size with the exact shape that the resolver uses.
+ */
+export function devboxImageLadderProblems(
+  manifest: DevboxImageManifest,
+  provider: DevboxProvider = "freestyle",
+): string[] {
+  const problems: string[] = [];
+  for (const kind of ["base", "desktop"] as const) {
+    const defaults = manifest.images.filter(
+      (entry) => entry.provider === provider && (entry.kind ?? "base") === kind && entry.defaultForKind,
+    );
+    if (defaults.length === 0) {
+      problems.push(`${provider}/${kind}: no default image ladder`);
+      continue;
+    }
+    const byName = new Map<string, DevboxManifestEntry>();
+    for (const entry of defaults) {
+      const sizeName = entry.size?.name;
+      if (!sizeName) {
+        problems.push(`${entry.version}: ${provider}/${kind} default is size-less`);
+        continue;
+      }
+      if (byName.has(sizeName)) {
+        problems.push(`${provider}/${kind}/${sizeName}: duplicate default images`);
+        continue;
+      }
+      byName.set(sizeName, entry);
+      const expected = VM_IMAGE_SIZES.find((size) => size.name === sizeName);
+      if (!expected) continue;
+      if (
+        entry.size?.cpu !== expected.cpu ||
+        entry.size.memoryMb !== expected.memoryMb ||
+        entry.size.storageMb !== expected.storageMb
+      ) {
+        problems.push(
+          `${entry.version}: ${provider}/${kind}/${sizeName} shape is ` +
+            `${entry.size?.cpu} vCPU/${entry.size?.memoryMb} MiB/${entry.size?.storageMb} MiB; ` +
+            `expected ${expected.cpu} vCPU/${expected.memoryMb} MiB/${expected.storageMb} MiB`,
+        );
+      }
+    }
+    for (const name of VM_IMAGE_SIZE_NAMES) {
+      if (!byName.has(name)) problems.push(`${provider}/${kind}: missing default size ${name}`);
+    }
+    const ids = new Map<string, string>();
+    for (const [name, entry] of byName) {
+      const previous = ids.get(entry.imageId);
+      if (previous) {
+        problems.push(`${provider}/${kind}: image ${entry.imageId} is used for sizes ${previous} and ${name}`);
+      } else {
+        ids.set(entry.imageId, name);
+      }
+    }
+  }
+  const localDefaults = manifest.images.filter((entry) => entry.provider === provider && entry.defaultForLocalDev);
+  if (localDefaults.length !== 1) {
+    problems.push(`${provider}: expected exactly one defaultForLocalDev entry, found ${localDefaults.length}`);
+  } else {
+    const local = localDefaults[0];
+    if ((local.kind ?? "base") !== "base" || local.size?.name !== "sm" || !local.defaultForKind) {
+      problems.push(`${local.version}: defaultForLocalDev must be the base sm default`);
     }
   }
   return problems;

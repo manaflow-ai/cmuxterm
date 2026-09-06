@@ -1,5 +1,5 @@
 /* This file is generated. Do not edit by hand. */
-/* cmux-tui mux protocol 12, IR 3abe68cfbb73abb8aab5265d34cdafd7207a111cbe9e1923c8637f5376abb929. */
+/* cmux-tui mux protocol 12, IR 8ff10c20fef75f9aaa1498eaf5e1107f084bdcf3febdcf8806fb4e7fc1c90b86. */
 
 
 import type * as T from "./types.js";
@@ -403,6 +403,11 @@ export interface ListWorkspacesRequest extends CmuxRequestBase {
 export type ListWorkspacesResult = T.Tree;
 
 /** Protocol v12; authority: control. */
+export interface MachineListeningTcpRequest extends CmuxRequestBase {
+  cmd: "machine-listening-tcp";
+}
+
+/** Protocol v12; authority: control. */
 export interface MachineUsageRequest extends CmuxRequestBase {
   cmd: "machine-usage";
 }
@@ -776,6 +781,11 @@ export interface SendKeyRequest extends CmuxRequestBase {
 }
 export type SendKeyResult = T.EmptyResult;
 
+/** Protocol v12; authority: local-admin. */
+export interface ServerStatsRequest extends CmuxRequestBase {
+  cmd: "server-stats";
+}
+
 /** Protocol v6; authority: frontend. */
 export interface SetCellPixelsRequest extends CmuxRequestBase {
   cmd: "set-cell-pixels";
@@ -982,6 +992,7 @@ export type CmuxRequest =
   | ListClientsRequest
   | ListTerminalsRequest
   | ListWorkspacesRequest
+  | MachineListeningTcpRequest
   | MachineUsageRequest
   | MarkWorkspacesProviderManagedRequest
   | MintTerminalRendererRequest
@@ -1024,6 +1035,7 @@ export type CmuxRequest =
   | SelectWorkspaceRequest
   | SendRequest
   | SendKeyRequest
+  | ServerStatsRequest
   | SetCellPixelsRequest
   | SetClientInfoRequest
   | SetClientSizingRequest
@@ -1390,6 +1402,14 @@ export interface CmuxCommandDefinitionMap {
     capability: null;
     stream: null;
   };
+  "machine-listening-tcp": {
+    request: MachineListeningTcpRequest;
+    result: T.MachineListeningTcpResult;
+    authority: "control";
+    since: 12;
+    capability: "machine-listening-tcp-v1";
+    stream: null;
+  };
   "machine-usage": {
     request: MachineUsageRequest;
     result: T.MachineUsageResult;
@@ -1724,6 +1744,14 @@ export interface CmuxCommandDefinitionMap {
     authority: "control";
     since: 6;
     capability: null;
+    stream: null;
+  };
+  "server-stats": {
+    request: ServerStatsRequest;
+    result: T.ServerStatsResult;
+    authority: "local-admin";
+    since: 12;
+    capability: "server-stats-v1";
     stream: null;
   };
   "set-cell-pixels": {

@@ -45,31 +45,6 @@ enum ControlSurfaceResumeTarget {
         }
     }
 
-    /// The app-owned generation for this surface's current resume owner.
-    ///
-    /// The generation remains available after a clear while the surface is
-    /// alive, allowing a retry to fail closed against a newer empty owner.
-    var bindingGeneration: UUID? {
-        switch self {
-        case .workspace(_, let workspace, let surfaceID):
-            workspace.surfaceResumeBindingGeneration(panelId: surfaceID)
-        case .dock(_, let dock, let surfaceID):
-            dock.surfaceResumeBindingGeneration(panelId: surfaceID)
-        }
-    }
-
-    /// Ensures a live surface has an owner generation before a socket command
-    /// performs a conditional read/modify/write.
-    @discardableResult
-    func ensureBindingGeneration() -> UUID? {
-        switch self {
-        case .workspace(_, let workspace, let surfaceID):
-            workspace.ensureSurfaceResumeBindingGeneration(panelId: surfaceID)
-        case .dock(_, let dock, let surfaceID):
-            dock.ensureSurfaceResumeBindingGeneration(panelId: surfaceID)
-        }
-    }
-
     var restorableAgent: SessionRestorableAgentSnapshot? {
         switch self {
         case .workspace(_, let workspace, let surfaceID):
@@ -89,35 +64,13 @@ enum ControlSurfaceResumeTarget {
     }
 
     @discardableResult
-    func setBinding(
-        _ binding: SurfaceResumeBindingSnapshot,
-        expectedBindingUpdatedAt: TimeInterval? = nil,
-        expectsMissingBinding: Bool = false,
-        expectedBindingGeneration: UUID? = nil
-    ) -> BindingSetResult {
-        let currentBinding = self.binding
-        if let expectedBindingGeneration {
-            guard bindingGeneration == expectedBindingGeneration else {
-                return .generationMismatch
-            }
-        } else if expectsMissingBinding {
-            guard currentBinding == nil else {
-                return .generationMismatch
-            }
-        } else if let expectedBindingUpdatedAt {
-            guard currentBinding?.updatedAt == expectedBindingUpdatedAt else {
-                return .generationMismatch
-            }
-        }
-
-        let didSet: Bool
+    func setBinding(_ binding: SurfaceResumeBindingSnapshot) -> Bool {
         switch self {
         case .workspace(_, let workspace, let surfaceID):
-            didSet = workspace.setSurfaceResumeBinding(binding, panelId: surfaceID)
+            workspace.setSurfaceResumeBinding(binding, panelId: surfaceID)
         case .dock(_, let dock, let surfaceID):
-            didSet = dock.setSurfaceResumeBinding(binding, panelId: surfaceID)
+            dock.setSurfaceResumeBinding(binding, panelId: surfaceID)
         }
-        return didSet ? .applied : .rejected
     }
 
     /// Atomically claims the current binding generation for a CLI restore.
@@ -383,8 +336,7 @@ extension TerminalController {
             restoreRecord: cleared
                 ? nil
                 : controlSurfaceRestoreRecord(target: target, binding: binding),
-            resumeClaimed: claimSucceeded,
-            resumeBindingGeneration: target.bindingGeneration
+            resumeClaimed: claimSucceeded
         )
     }
 
@@ -402,7 +354,7 @@ extension TerminalController {
         // while the restore-time agent snapshot still names the previous
         // conversation. Reuse the session-restore identity gate so the record
         // returned to the CLI always agrees with the binding that generated its
-        // typed `cmux restore <kind> <checkpoint>` selector.
+        // typed `cmux restore`/`cmux fork` selector.
         let restoredAgent = target.restorableAgent
         let compatibleAgent: (
             snapshot: SessionRestorableAgentSnapshot,
@@ -426,118 +378,19 @@ extension TerminalController {
             compatibleAgent = nil
         }
         if let compatibleAgent {
-            let agent = compatibleAgent.snapshot.retargetedForResumeBinding(binding)
-            let launchCommand = binding?.launchCommand ?? agent.launchCommand
-            let workingDirectory = compatibleAgent.restoredWorkingDirectory
-                ?? binding?.cwd
-                ?? agent.workingDirectory
-                ?? launchCommand?.workingDirectory
-            let permissionMode = binding?.permissionMode ?? agent.permissionMode
-            let mode: AgentRestoreRequestMode = agent.kind.restoreMode == .relaunchCommand
-                ? .relaunchAgent
-                : .resumeAgent
-            let preparedArguments = agent.kind.restoreMode == .resumeSession
-                ? agent.preparedResumeArguments(
-                    launchCommand: launchCommand,
-                    workingDirectory: workingDirectory,
-                    observedPermissionMode: permissionMode
-                )
-                : nil
-            return ControlSurfaceRestoreRecord(
-                modeRawValue: mode.rawValue,
-                kind: agent.kind.rawValue,
-                checkpointID: agent.sessionId,
+            return controlSurfaceAgentContinuationRecord(
+                agent: compatibleAgent.snapshot,
                 source: compatibleAgent.source,
-                workingDirectory: workingDirectory,
-                environment: binding?.environment ?? [:],
-                launchCommand: launchCommand.map {
-                    controlAgentLaunchCommand(
-                        $0,
-                        replaySafeEnvironmentFor: agent.kind.rawValue
-                    )
-                },
-                preparedArguments: preparedArguments,
-                preparedArgumentsWorkingDirectory: preparedArguments == nil
-                    ? nil
-                    : workingDirectory,
-                permissionMode: permissionMode,
-                legacyCommand: compatibilityBinding?.inlineStartupInput
+                restoredWorkingDirectory: compatibleAgent.restoredWorkingDirectory,
+                binding: binding,
+                compatibilityBinding: compatibilityBinding
             )
         }
         guard let binding else { return nil }
-        let trimmedKind = binding.kind?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedKind = trimmedKind.flatMap { $0.isEmpty ? nil : $0 } ?? "command"
-        let mode: AgentRestoreRequestMode = binding.isAgentHookBinding
-            ? .resumeAgent
-            : .direct
-        // Once a newer hook binding supersedes a restored agent snapshot, none
-        // of the rejected snapshot's identity-scoped restore data may leak into
-        // the record. Rebuild the typed argv from the authoritative binding so
-        // `cmux restore` keeps its shell-free path even during that handoff.
-        let workingDirectory = binding.cwd ?? binding.launchCommand?.workingDirectory
-        let preparedArguments: [String]?
-        if restoredAgent != nil {
-            preparedArguments = preparedResumeArguments(
-                binding: binding,
-                normalizedKind: normalizedKind,
-                workingDirectory: workingDirectory
-            )
-        } else {
-            preparedArguments = nil
-        }
-        return ControlSurfaceRestoreRecord(
-            modeRawValue: mode.rawValue,
-            kind: normalizedKind,
-            checkpointID: binding.checkpointId,
-            source: binding.source,
-            workingDirectory: workingDirectory,
-            environment: binding.environment ?? [:],
-            launchCommand: binding.launchCommand.map {
-                controlAgentLaunchCommand(
-                    $0,
-                    replaySafeEnvironmentFor: normalizedKind
-                )
-            },
-            preparedArguments: mode == .direct
-                ? binding.launchCommand?.arguments
-                : preparedArguments,
-            preparedArgumentsWorkingDirectory: preparedArguments == nil
-                ? nil
-                : workingDirectory,
-            permissionMode: binding.permissionMode,
-            legacyCommand: compatibilityBinding?.inlineStartupInput
-        )
-    }
-
-    private func preparedResumeArguments(
-        binding: SurfaceResumeBindingSnapshot,
-        normalizedKind: String,
-        workingDirectory: String?
-    ) -> [String]? {
-        guard binding.isAgentHookBinding,
-              let checkpointID = binding.checkpointId?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !checkpointID.isEmpty else {
-            return nil
-        }
-        // A rejected session snapshot cannot authorize its persisted custom-agent
-        // template. Registry-owned kinds also fall back to the current binding's
-        // compatibility command; only native, non-overridable kinds have enough
-        // information here to rebuild shell-free argv safely.
-        guard let kind = RestorableAgentKind(rawValue: normalizedKind),
-              RestorableAgentKind.allCases.contains(kind),
-              kind.restoreMode == .resumeSession else {
-            return nil
-        }
-        return SessionRestorableAgentSnapshot(
-            kind: kind,
-            sessionId: checkpointID,
-            workingDirectory: workingDirectory,
-            launchCommand: binding.launchCommand,
-            permissionMode: binding.permissionMode
-        ).preparedResumeArguments(
-            launchCommand: binding.launchCommand,
-            workingDirectory: workingDirectory,
-            observedPermissionMode: binding.permissionMode
+        return controlSurfaceBindingContinuationRecord(
+            binding: binding,
+            compatibilityBinding: compatibilityBinding,
+            restoredAgentExists: restoredAgent != nil && binding.isAgentHookBinding
         )
     }
 
@@ -714,7 +567,6 @@ extension TerminalController {
         ) else {
             return .surfaceNotFound
         }
-        target.ensureBindingGeneration()
         guard let locatedBinding = target.registeredBinding(binding, inputs: inputs) else {
             return .setFailed
         }
@@ -725,26 +577,10 @@ extension TerminalController {
         case let .resolved(binding):
             effectiveBinding = binding
         }
-        switch target.setBinding(
-            effectiveBinding,
-            expectedBindingUpdatedAt: inputs.expectedBindingUpdatedAt,
-            expectsMissingBinding: inputs.expectsMissingBinding,
-            expectedBindingGeneration: inputs.expectedBindingGeneration
-        ) {
-        case .generationMismatch:
-            return .setFailed
-        case .rejected:
+        guard target.setBinding(effectiveBinding) else {
             return .emptyResumeCommand
-        case .applied:
-            break
         }
-        return .result(
-            surfaceResumeSnapshot(
-                target: target,
-                binding: target.binding ?? effectiveBinding,
-                cleared: false
-            )
-        )
+        return .result(surfaceResumeSnapshot(target: target, binding: effectiveBinding, cleared: false))
     }
 
     func controlSurfaceResumeGet(
@@ -766,7 +602,6 @@ extension TerminalController {
         ) else {
             return .surfaceNotFound
         }
-        target.ensureBindingGeneration()
         if let binding = target.binding,
            case .pendingSigningSecret = SurfaceResumeApprovalStore.applyingStoredApprovalLookup(to: binding) {
             return .approvalPending(message: surfaceResumeApprovalPendingMessage)
@@ -811,7 +646,6 @@ extension TerminalController {
         ) else {
             return .surfaceNotFound
         }
-        target.ensureBindingGeneration()
         let bindingForClear = target.bindingForClear(
             expectedSource: expectedSource,
             agentSessionEnded: agentSessionEnded
