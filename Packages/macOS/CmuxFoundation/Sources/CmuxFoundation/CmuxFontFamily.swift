@@ -55,7 +55,7 @@ public enum CmuxFontResolver {
     ) -> Font {
         var font: Font
         if let family = CmuxFontFamily(family),
-           familyFont(family, size: size, weight: weight) != nil {
+           familyFont(family, size: size, weight: .regular) != nil {
             font = Font.custom(family.name, size: size).weight(weight)
         } else {
             font = Font.system(size: size, weight: weight, design: design)
