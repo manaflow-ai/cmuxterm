@@ -10,6 +10,8 @@ final class PaneDropTargetRegistry {
 
     private var entries: [ObjectIdentifier: Entry] = [:]
 
+    nonisolated init() {}
+
     func register(_ target: AnyObject, reset: @escaping () -> Void) {
         entries[ObjectIdentifier(target)] = Entry(target: target, reset: reset)
     }
