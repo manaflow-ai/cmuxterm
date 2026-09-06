@@ -91,6 +91,7 @@ import {
   devboxGhosttyDebSha256,
   devboxGhosttyDebUrl,
   devboxParkDaemonCommand,
+  cmuxTuiWebsocketSmokeCommand,
   emitBakeResult,
   hasFlag,
   manifestEntrySkeleton,
@@ -438,6 +439,9 @@ try {
     "cmux-tui-daemon-up",
     `for i in $(seq 1 30); do env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} >/dev/null 2>&1 && grep -qi ':0539 ' /proc/net/tcp6 && break; sleep 1; done && env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} && grep -qi ':0539 ' /proc/net/tcp6 && test "$(cat /etc/cmux/daemon-instance-id)" = "$(${instanceIdCommand})" && echo daemon-up-bound-to-builder`,
   );
+  // Wait after the daemon first reports ready, then exercise the real
+  // WebSocket/Noise/RPC/PTY path before this machine can become a snapshot.
+  await step("cmux-tui-websocket-smoke", `sleep 30 && ${cmuxTuiWebsocketSmokeCommand()}`);
   // Park it (devboxParkDaemonCommand): the supervisor stops the daemon while
   // the machine's id equals the recorded bake id, its identity and session
   // state are wiped, and a clone (different id) starts fresh within one tick.
