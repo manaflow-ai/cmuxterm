@@ -165,6 +165,7 @@ struct RightSidebarPanelView: View {
     /// the remote host swaps files in place on one client, so a shared client
     /// would make the two rails fight over one worker process.
     @State private var customSidebarWorkerClient: RenderWorkerClient?
+    @State private var managedPolicyRevision = 0
 
     // Re-reading the observable store inside modeBar causes SwiftUI to
     // track the pending count so the badge updates live when hooks push
@@ -174,10 +175,11 @@ struct RightSidebarPanelView: View {
     }
 
     private var featureAvailableModes: [RightSidebarMode] {
-        RightSidebarMode.availableModes(
+        _ = managedPolicyRevision
+        return RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled,
+            machinesEnabled: CloudMachinesFeature.isEnabled,
             artifactsEnabled: artifactsEnabled && CmuxFeatureFlags.shared.isArtifactsUIEnabled
         )
     }
@@ -276,6 +278,10 @@ struct RightSidebarPanelView: View {
         .onChange(of: artifactsEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ManagedDevicePolicy.didChangeNotification)) { _ in
+            managedPolicyRevision &+= 1
             refreshModeAvailabilityAndFocusIfNeeded()
         }
     }

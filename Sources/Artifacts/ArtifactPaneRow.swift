@@ -6,52 +6,78 @@ struct ArtifactPaneRow: View {
     let snapshot: ArtifactPaneRowSnapshot
     let actions: ArtifactPaneRowActions
 
+    @State private var isHovered = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 7) {
-                Image(systemName: symbolName)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                Text(snapshot.displayValue)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(snapshot.displayValue)
-                Spacer(minLength: 0)
-                if snapshot.record.occurrenceCount > 1 {
-                    Text(String(
-                        localized: "artifactsPane.repeatCount",
-                        defaultValue: "×\(snapshot.record.occurrenceCount)"
-                    ))
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor)))
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbolName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(iconTint)
+                .frame(width: 28, height: 28)
+                .background(iconTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(snapshot.displayValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(snapshot.displayValue)
+                    Spacer(minLength: 0)
+                    if snapshot.record.occurrenceCount > 1 {
+                        Text(String(
+                            localized: "artifactsPane.repeatCount",
+                            defaultValue: "×\(snapshot.record.occurrenceCount)"
+                        ))
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                    }
                 }
-            }
-            if let title = snapshot.record.title,
-               !title.isEmpty,
-               title != snapshot.displayValue {
-                Text(title)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Text(snapshot.detail)
+
+                if let title = snapshot.record.title,
+                   !title.isEmpty,
+                   title != snapshot.displayValue {
+                    Text(title)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                HStack(spacing: 4) {
+                    Text(snapshot.detail)
+                    if let ownerTitle = snapshot.ownerTitle, !ownerTitle.isEmpty {
+                        Text("·")
+                        Text(ownerTitle)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            if let snippet = snapshot.snippet, !snippet.isEmpty {
-                Text(snippet)
-                    .font(.system(size: 11, design: .monospaced))
+
+                if let snippet = snapshot.snippet, !snippet.isEmpty {
+                    Text(snippet)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if isHovered {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .padding(.top, 3)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 5)
+        .padding(.vertical, 8)
+        .background(isHovered ? Color.primary.opacity(0.055) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
         .onTapGesture(count: 2) { actions.open(snapshot) }
         .contextMenu {
             Button(String(localized: "artifactsPane.action.open", defaultValue: "Open Artifact")) {
@@ -84,6 +110,22 @@ struct ArtifactPaneRow: View {
         }
         .onDrag { actions.dragProvider(snapshot) }
         .accessibilityIdentifier("ArtifactsPaneRow.\(snapshot.id.uuidString)")
+    }
+
+    private var iconTint: Color {
+        switch snapshot.record.kind {
+        case .url: .blue
+        case .html: .orange
+        case .image: .pink
+        case .pdf: .red
+        case .audio: .purple
+        case .video: .indigo
+        case .directory: .yellow
+        case .browserDownload: .green
+        case .code, .json: .mint
+        case .file, .text, .manual, .generated: .secondary
+        case .unknown: .secondary
+        }
     }
 
     private var symbolName: String {

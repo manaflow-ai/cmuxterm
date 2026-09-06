@@ -24,9 +24,16 @@ struct ArtifactsPaneContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+            header
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            searchField
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
+            filterBar
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
             Divider()
             if rows.isEmpty {
                 emptyState
@@ -53,63 +60,127 @@ struct ArtifactsPaneContent: View {
         "\(scope.rawValue)|\(kindFilter.rawValue)|\(selectedHost ?? "")|\(selectedSource?.rawValue ?? "")|\(query)|\(artifactsState.structuralRevision)"
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
+    private var header: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "artifactsPane.title", defaultValue: "Artifacts"))
+                    .font(.system(size: 15, weight: .semibold))
+                Text(countText(rows.count))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Button(action: presentAddPanel) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .clipShape(Circle())
+            .safeHelp(String(localized: "artifactsPane.action.add", defaultValue: "Add Artifact"))
+            .accessibilityLabel(String(localized: "artifactsPane.action.add", defaultValue: "Add Artifact"))
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
             TextField(
                 String(localized: "artifactsPane.search.placeholder", defaultValue: "Search artifacts"),
                 text: $query
             )
-            .textFieldStyle(.roundedBorder)
-            .frame(minWidth: 170)
-
-            Picker(
-                String(localized: "artifactsPane.scope.label", defaultValue: "Scope"),
-                selection: $scope
-            ) {
-                Text(String(localized: "artifactsPane.scope.workspace", defaultValue: "This Workspace"))
-                    .tag(ArtifactPaneScope.workspace)
-                Text(String(localized: "artifactsPane.scope.global", defaultValue: "All Workspaces"))
-                    .tag(ArtifactPaneScope.global)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-
-            Menu(kindFilter.label) {
-                ForEach(ArtifactPaneKindFilter.allCases, id: \.self) { filter in
-                    Button(filter.label) { kindFilter = filter }
+            .textFieldStyle(.plain)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "artifactsPane.search.clear", defaultValue: "Clear search"))
             }
-
-            Menu(selectedHost ?? String(localized: "artifactsPane.host.all", defaultValue: "All Hosts")) {
-                Button(String(localized: "artifactsPane.host.all", defaultValue: "All Hosts")) {
-                    selectedHost = nil
-                }
-                ForEach(hostOptions, id: \.self) { host in
-                    Button(host) { selectedHost = host }
-                }
-            }
-
-            Menu(selectedSource.map(sourceLabel) ?? String(localized: "artifactsPane.source.all", defaultValue: "All Sources")) {
-                Button(String(localized: "artifactsPane.source.all", defaultValue: "All Sources")) {
-                    selectedSource = nil
-                }
-                ForEach(sourceOptions, id: \.self) { source in
-                    Button(sourceLabel(source)) { selectedSource = source }
-                }
-            }
-
-            Button(action: presentAddPanel) {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.plain)
-            .safeHelp(String(localized: "artifactsPane.action.add", defaultValue: "Add Artifact"))
-            .accessibilityLabel(String(localized: "artifactsPane.action.add", defaultValue: "Add Artifact"))
-
-            Spacer(minLength: 8)
-            Text(countText(rows.count))
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(.quaternary, lineWidth: 0.5)
+        }
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                scopeMenu
+                kindMenu
+                hostMenu
+                sourceMenu
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    private var scopeMenu: some View {
+        Picker(
+            String(localized: "artifactsPane.scope.label", defaultValue: "Scope"),
+            selection: $scope
+        ) {
+            Text(String(localized: "artifactsPane.scope.workspace", defaultValue: "This Workspace"))
+                .tag(ArtifactPaneScope.workspace)
+            Text(String(localized: "artifactsPane.scope.global", defaultValue: "All Workspaces"))
+                .tag(ArtifactPaneScope.global)
+        }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .background(.quaternary.opacity(0.45), in: Capsule())
+    }
+
+    private var kindMenu: some View {
+        Menu {
+            ForEach(ArtifactPaneKindFilter.allCases, id: \.self) { filter in
+                Button(filter.label) { kindFilter = filter }
+            }
+        } label: {
+            filterChip(kindFilter.label, systemImage: "square.grid.2x2")
+        }
+    }
+
+    private var hostMenu: some View {
+        Menu {
+            Button(String(localized: "artifactsPane.host.all", defaultValue: "All Hosts")) {
+                selectedHost = nil
+            }
+            ForEach(hostOptions, id: \.self) { host in
+                Button(host) { selectedHost = host }
+            }
+        } label: {
+            filterChip(selectedHost ?? String(localized: "artifactsPane.host.all", defaultValue: "All Hosts"), systemImage: "server.rack")
+        }
+    }
+
+    private var sourceMenu: some View {
+        Menu {
+            Button(String(localized: "artifactsPane.source.all", defaultValue: "All Sources")) {
+                selectedSource = nil
+            }
+            ForEach(sourceOptions, id: \.self) { source in
+                Button(sourceLabel(source)) { selectedSource = source }
+            }
+        } label: {
+            filterChip(selectedSource.map(sourceLabel) ?? String(localized: "artifactsPane.source.all", defaultValue: "All Sources"), systemImage: "tray.full")
+        }
+    }
+
+    private func filterChip(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.quaternary.opacity(0.45), in: Capsule())
     }
 
     @ViewBuilder
