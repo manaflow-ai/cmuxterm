@@ -22,6 +22,7 @@ def test_healthz_is_public(client):
     res = client.get("/healthz")
     assert res.status_code == 200
     assert res.json()["protocolVersion"] == server.PROTOCOL_VERSION
+    assert res.json()["codeVersion"].isdigit() and res.json()["startedAt"] > 0
 
 
 def test_token_gates_every_other_route(client):

@@ -66,6 +66,17 @@ class CompletionSummarizer:
         del self.history[:-20]
         return briefing
 
+    async def briefing_for_surface(self, surface_id: Optional[str], *, source: str = "manual") -> Optional[str]:
+        """On-demand recap of one terminal (the app's Recap button). Never debounced, works even when disabled."""
+        screen = await self._read_screen(surface_id)
+        if screen is None:
+            return None
+        header = f"Requested by the user for the terminal they clicked. Agent: {source}.\n"
+        briefing = SUMMARY_INSTRUCTIONS + header + "--- terminal ---\n" + screen + "\n--- end ---"
+        self.history.append(SummaryRecord(seq=0, source=source, surface_id=surface_id, briefing=briefing))
+        del self.history[:-20]
+        return briefing
+
     async def _read_screen(self, surface_id: Optional[str]) -> Optional[str]:
         params: Dict[str, Any] = {"lines": 120}
         if surface_id:

@@ -669,6 +669,59 @@ class VoiceTools:
         the user already heard what was written."""
         return self._last_typed_surface == s.id
 
+    # -------------------------------------------------------- tools: agents (Claude Code)
+
+    _AGENT_PROMPT_MARKERS = ("❯", ">", "│ >", "Try \"", "auto mode", "shift+tab to cycle", "? for shortcuts", "Type your message")
+
+    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 12.0) -> bool:
+        """Poll the terminal until an agent CLI input box is visible (or time out)."""
+        deadline = asyncio.get_running_loop().time() + timeout_s
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 12}) or {}
+            except CmuxError:
+                return False
+            text = res.get("text") or ""
+            tail = text.rstrip().splitlines()[-6:]
+            if any(any(m in line for m in self._AGENT_PROMPT_MARKERS) for line in tail):
+                await asyncio.sleep(0.4)  # let the box finish rendering
+                return True
+            await asyncio.sleep(0.5)
+        return False
+
+
+    async def open_agent(self, agent: str = "claude", prompt: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Launch a coding agent CLI in the terminal, optionally with a first prompt typed (not sent).
+
+        Launching is harmless, so it never asks. A first prompt is typed only;
+        the user says enter to send it, so they can hear it first.
+        """
+        name = (agent or "claude").strip().lower()
+        binary = {"claude": "claude", "claude code": "claude", "codex": "codex", "opencode": "opencode", "gemini": "gemini", "pi": "pi"}.get(name)
+        if binary is None:
+            return self._fail(f"I don't know how to open {agent}. I can open Claude Code, Codex, OpenCode, Gemini, or Pi.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": binary})
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't open {agent}: {e}")
+        label = {"claude": "Claude Code", "codex": "Codex", "opencode": "OpenCode", "gemini": "Gemini", "pi": "Pi"}[binary]
+        if prompt and prompt.strip():
+            # Type only once the CLI has drawn its input box; typing earlier queues
+            # the text as a message behind the launch command. Claude Code can take
+            # several seconds to start, so poll the screen instead of sleeping.
+            await self._wait_for_agent_prompt(s.id)
+            try:
+                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+            except CmuxError as e:
+                return self._fail(f"Opened {label}, but couldn't type the prompt: {e}")
+            self._last_typed_surface = s.id
+            return await self._done(f"Opened {label} and typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip())
+        return await self._done(f"Opened {label}.", flash_surface=s.id, agent=binary)
+
     # ------------------------------------------------------------ tools: browser
 
     async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -750,6 +803,7 @@ class VoiceTools:
             ToolSpec("run_shell", "Run a shell or git command that YOU composed from the user's intent, e.g. 'switch to develop' -> git checkout develop. Compose exact, correct syntax; call shell_context first if it depends on the current branch or directory. Requires confirmation unless trusted input is on.", {"command": {"type": "string", "description": "The exact command line."}, "target": target_prop}, self.run_shell, required=["command"]),
             ToolSpec("compose_and_type", "Write a message YOU rewrote from the user's rough words into the focused input, such as a Claude Code prompt or a commit message, without sending it. The user then says enter to send.", {"text": {"type": "string", "description": "The polished text to type."}, "target": target_prop}, self.compose_and_type, required=["text"]),
             ToolSpec("press_enter", "Press enter to submit whatever is in the focused input, terminal or agent CLI. Use when the user says enter, send, submit, or go.", {"target": target_prop}, self.press_enter),
+            ToolSpec("open_agent", "Open a coding agent CLI (Claude Code by default; also Codex, OpenCode, Gemini, Pi) in the terminal. Optionally type a first prompt YOU composed from the user's request; it is typed but not sent until the user says enter. Never asks for confirmation.", {"agent": {"type": "string", "description": "claude (default), codex, opencode, gemini, or pi."}, "prompt": {"type": "string", "description": "Optional first prompt, already rewritten into a clear instruction."}, "target": target_prop}, self.open_agent),
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),

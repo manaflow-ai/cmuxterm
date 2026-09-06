@@ -201,6 +201,19 @@ async def run_bot(transport) -> None:
     )
     task_holder["task"] = task
 
+    @rtvi.event_handler("on_client_message")
+    async def on_client_message(rtvi_proc, message):
+        # The app's Recap button (per-terminal) asks for a spoken summary of one surface.
+        data = getattr(message, "data", None) or {}
+        if getattr(message, "type", "") == "recap":
+            surface_id = data.get("surface_id") if isinstance(data, dict) else None
+            briefing = await summarizer.briefing_for_surface(surface_id, source="manual")
+            if briefing is None:
+                await rtvi_proc.send_server_response(message, {"ok": False, "error": "Could not read that terminal."})
+                return
+            await rtvi_proc.send_server_response(message, {"ok": True})
+            await task.queue_frames([InputTextRawFrame(text=briefing)])
+
     @rtvi.event_handler("on_client_ready")
     async def on_client_ready(rtvi_proc):
         await rtvi_proc.set_bot_ready()

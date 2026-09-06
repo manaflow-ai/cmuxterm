@@ -20,7 +20,7 @@ type Outbound =
 declare global {
   interface Window {
     webkit?: { messageHandlers?: { cmuxVoice?: { postMessage: (m: Outbound) => void } } };
-    cmuxVoice?: { start: () => void; stop: () => void; setMuted: (muted: boolean) => void };
+    cmuxVoice?: { start: () => void; stop: () => void; setMuted: (muted: boolean) => void; recap: (surfaceId: string | null) => void };
   }
 }
 
@@ -165,7 +165,20 @@ function setMuted(next: boolean): void {
   post({ type: "mic", muted });
 }
 
-window.cmuxVoice = { start: () => void start(), stop: () => void stop(), setMuted };
+async function recap(surfaceId: string | null): Promise<void> {
+  if (!client) {
+    post({ type: "error", message: "Start a voice session first, then press Recap." });
+    return;
+  }
+  try {
+    const res = (await client.sendClientRequest("recap", { surface_id: surfaceId }, 15000)) as any;
+    if (res && res.ok === false) post({ type: "error", message: res.error ?? "Recap failed." });
+  } catch (e: any) {
+    post({ type: "error", message: `Recap failed: ${describeError(e)}` });
+  }
+}
+
+window.cmuxVoice = { start: () => void start(), stop: () => void stop(), setMuted, recap: (id: string | null) => void recap(id) };
 
 if (new URLSearchParams(location.search).get("autostart") === "1") {
   void start();

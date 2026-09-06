@@ -32,6 +32,7 @@ CLI or the command palette would.
 | "Check me out of this branch into develop" / "stage everything and commit saying fix login" | The agent composes the exact git or shell command, reads it back, and runs it after "yes" (destructive commands always confirm) |
 | "Where am I?" (in the shell) | Working directory and git branch |
 | "Write down: make the login async and add tests" / "tell it to …" | Rewrites your rough words into a clear message and types it into the focused input (Claude Code, Codex, or the shell) without sending |
+| "Open Claude Code" / "start Codex and tell it to add tests for login" | Launches the agent CLI in the terminal, no confirmation; a first prompt is typed for you to send with "enter" |
 | "Enter" / "send it" | Submits whatever is in the focused input. No confirmation when the agent just typed it for you |
 | "Goodbye" | Ends the session |
 
@@ -46,6 +47,11 @@ terminal and speaks a recap of under 100 words: what was completed, takeaways,
 side notes, and warnings. It works while you are in a voice session, in any
 workspace, and never interrupts you mid-sentence. Set `CMUX_VOICE_SUMMARIES=0`
 in the sidecar environment to turn it off.
+
+Each terminal's tab bar also has a **Recap** button (waveform icon, shown
+while the voice beta is on). Press it to hear a summary of that terminal on
+demand: after a recap you missed, or for any terminal at any time. If no
+voice session is live it starts one and speaks the recap once connected.
 
 It listens on cmux's `events.stream` for `agent.hook.Stop` (the surface-bound,
 completed copy, once per turn), reads the screen with `surface.read_text`,

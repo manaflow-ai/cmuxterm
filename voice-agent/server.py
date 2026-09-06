@@ -44,6 +44,22 @@ from bot import configure_tls_certificates, load_dotenv_if_present, run_bot
 PROTOCOL_VERSION = 1
 HERE = Path(__file__).resolve().parent
 STATIC_DIR = HERE / "static"
+STARTED_AT = __import__("time").time()
+
+
+def _code_version() -> str:
+    """Newest mtime across the sidecar's Python sources; the app compares it to
+    the running sidecar's value and restarts a stale one."""
+    newest = 0.0
+    for path in [HERE / "server.py", HERE / "bot.py", *(HERE / "cmux_voice").glob("*.py")]:
+        try:
+            newest = max(newest, path.stat().st_mtime)
+        except OSError:
+            pass
+    return str(int(newest))
+
+
+CODE_VERSION = _code_version()
 
 
 def _token() -> str:
@@ -94,7 +110,7 @@ def build_app(token: str) -> FastAPI:
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:
-        return {"ok": True, "protocolVersion": PROTOCOL_VERSION}
+        return {"ok": True, "protocolVersion": PROTOCOL_VERSION, "codeVersion": CODE_VERSION, "startedAt": STARTED_AT}
 
     @app.get("/{token_param}/api/state")
     async def state(token_param: str) -> dict[str, Any]:

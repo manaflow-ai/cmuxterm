@@ -124,3 +124,12 @@ async def test_subscriber_ignores_replayed_history_on_first_connect():
     # A reconnect resumes after 21 and must not re-apply the ignore window.
     sub.handle_line(json.dumps({"type": "ack", "boot_id": "B1", "resume": {"latest_seq": 40}}))
     assert sub.handle_line(_stop_frame(seq=22)) is not None
+
+
+async def test_manual_recap_ignores_debounce_and_disabled(fake: FakeCmux):
+    fake.responder = lambda m, p: {"text": "$ npm test\n12 passing\n$ "} if m == "surface.read_text" else FakeCmux.default_responder(fake, m, p)
+    s = CompletionSummarizer(CmuxClient(fake.path), enabled=False)
+    a = await s.briefing_for_surface("S-B2")
+    b = await s.briefing_for_surface("S-B2")
+    assert a and b and "12 passing" in a and "Requested by the user" in a
+    assert {"method": "surface.read_text", "params": {"lines": 120, "surface_id": "S-B2"}} in fake.requests

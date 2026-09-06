@@ -268,7 +268,7 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "equalize_splits", "type_text", "press_key", "run_command", "interrupt",
         "browser_navigate", "browser_history", "confirm", "end_session",
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
-        "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter",
+        "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
     assert confirming == {"close_workspace", "close_tab", "run_command", "run_shell"}
@@ -442,3 +442,45 @@ async def test_press_enter_alone_confirms(tools: VoiceTools, fake: FakeCmux):
     res = await tools.press_enter()
     assert res["status"] == "needs_confirmation"
     assert "surface.send_key" not in fake.methods()
+
+
+# ---------------------------------------------------------------- agents
+
+
+async def test_open_agent_launches_claude_without_confirmation(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.open_agent()
+    assert res["ok"] and res["say"] == "Opened Claude Code." and res["agent"] == "claude"
+    sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert sent[0]["params"]["text"] == "claude" and sent[1]["params"]["key"] == "enter"
+
+
+async def test_open_agent_with_prompt_types_but_does_not_send(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    import cmux_voice.tools as t
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
+    # The CLI's input box appears on the second screen read.
+    reads = {"n": 0}
+    base = fake.responder
+
+    def responder(m, p):
+        if m == "surface.read_text":
+            reads["n"] += 1
+            return {"text": "starting…\n" if reads["n"] < 2 else "Welcome\n❯ \n? for shortcuts\n"}
+        return base(m, p)
+
+    fake.responder = responder
+    res = await tools.open_agent("codex", prompt="Add tests for the login handler.")
+    assert reads["n"] >= 2
+    assert res["ok"] and "Say enter to send it" in res["say"]
+    sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert [x["params"].get("text") or x["params"].get("key") for x in sent] == ["codex", "enter", "Add tests for the login handler."]
+    res = await tools.press_enter()
+    assert res["ok"] and res["say"] == "Sent."
+
+
+async def test_open_agent_unknown(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.open_agent("emacs")
+    assert res["ok"] is False and "don't know" in res["say"]
