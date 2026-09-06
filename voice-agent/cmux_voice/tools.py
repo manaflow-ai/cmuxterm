@@ -671,22 +671,28 @@ class VoiceTools:
 
     # -------------------------------------------------------- tools: agents (Claude Code)
 
-    _AGENT_PROMPT_MARKERS = ("❯", ">", "│ >", "Try \"", "auto mode", "shift+tab to cycle", "? for shortcuts", "Type your message")
+    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 15.0) -> bool:
+        """Poll the terminal until an agent CLI input box is empty and ready.
 
-    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 12.0) -> bool:
-        """Poll the terminal until an agent CLI input box is visible (or time out)."""
+        Claude Code draws its box with placeholder text ("❯ Try ...") about a
+        second after launch and clears it ~0.4 s later; text typed into the
+        placeholder frame is lost. Wait for a bare prompt line, seen twice.
+        """
         deadline = asyncio.get_running_loop().time() + timeout_s
+        stable = 0
         while asyncio.get_running_loop().time() < deadline:
             try:
                 res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 12}) or {}
             except CmuxError:
                 return False
-            text = res.get("text") or ""
-            tail = text.rstrip().splitlines()[-6:]
-            if any(any(m in line for m in self._AGENT_PROMPT_MARKERS) for line in tail):
-                await asyncio.sleep(0.4)  # let the box finish rendering
-                return True
-            await asyncio.sleep(0.5)
+            tail = [line.strip() for line in (res.get("text") or "").rstrip().splitlines()[-8:]]
+            if any(_is_bare_agent_prompt(line) for line in tail):
+                stable += 1
+                if stable >= 2:
+                    return True
+            else:
+                stable = 0
+            await asyncio.sleep(0.4)
         return False
 
 
@@ -809,6 +815,12 @@ class VoiceTools:
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
             ToolSpec("end_session", "End the voice session when the user says stop, goodbye, or that they are done.", {}, self.end_session),
         ]
+
+
+def _is_bare_agent_prompt(line: str) -> bool:
+    """An agent CLI input line with nothing typed: "❯", ">", "│ >", or "> " variants."""
+    stripped = line.strip("│ ").strip()
+    return stripped in {"❯", ">", "›", "$ ❯"}
 
 
 def _normalize_url(raw: str) -> str:

@@ -86,6 +86,29 @@ extension AppDelegate {
         }
     }
 
+    /// The per-terminal Recap button. Speaks a summary of `surfaceID` (nil =
+    /// the focused terminal). If no session is live, one is started and the
+    /// recap is delivered as soon as the call is listening.
+    @discardableResult
+    func requestVoiceAgentRecap(surfaceID: UUID?, preferredWindow: NSWindow? = nil) -> Bool {
+        guard VoiceAgentFeature.isEnabled() else {
+            NSSound.beep()
+            return false
+        }
+        let state = VoiceAgentSessionState.shared
+        let id = surfaceID?.uuidString
+        if state.isLive, let controller = state.audioController {
+            controller.requestRecap(surfaceID: id)
+            return true
+        }
+        state.pendingRecapSurfaceID = .some(id)
+        if !state.isSessionRequested, state.phase != .starting {
+            _ = focusRightSidebarInActiveMainWindow(mode: .voice, focusFirstItem: false, preferredWindow: preferredWindow)
+            startVoiceAgentSession()
+        }
+        return true
+    }
+
     func stopVoiceAgentSession() {
         let state = VoiceAgentSessionState.shared
         state.audioController?.stop()
@@ -102,9 +125,14 @@ extension AppDelegate {
 
     private func ensureVoiceAgentSidecar() async -> Result<VoiceAgentSidecarSession, VoiceAgentSidecarError> {
         if let session = VoiceAgentSidecarRegistry.session() {
-            if await VoiceAgentSidecarLauncher.isHealthy(session.healthURL, timeout: 1.5) {
+            // Reuse only a healthy sidecar running the current Python sources;
+            // a stale one (edited code, or launched by an older app run) is
+            // replaced so the user never talks to old behavior.
+            if let health = await VoiceAgentSidecarLauncher.health(session.healthURL, timeout: 1.5),
+               health.codeVersion == VoiceAgentSidecarLauncher.currentCodeVersion() {
                 return .success(session)
             }
+            VoiceAgentSidecarLauncher.terminate(pid: session.pid)
             VoiceAgentSidecarRegistry.clear(matching: session)
         }
         // A sidecar from a previous app run (or a stale one after a rebuild)

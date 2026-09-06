@@ -17543,6 +17543,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 onExecuted?()
                 return true
             case .newAgentChat: return performConfiguredNewAgentChatAction(context: context, preferredWindow: preferredWindow, onExecuted: onExecuted)
+            case .voiceRecap:
+                // Palette / config-action route: recap the focused terminal.
+                let didRequest = requestVoiceAgentRecap(surfaceID: nil, preferredWindow: preferredWindow)
+                if didRequest { onExecuted?() }
+                return didRequest
             case .cloudVM:
                 let didStart = performCloudVMAction(
                     tabManager: context.tabManager,

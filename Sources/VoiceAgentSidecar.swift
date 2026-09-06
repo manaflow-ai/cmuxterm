@@ -234,6 +234,49 @@ enum VoiceAgentSidecarLauncher {
         return try? FileHandle(forWritingTo: url)
     }
 
+    struct Health: Decodable, Sendable {
+        var ok: Bool
+        var codeVersion: String?
+    }
+
+    /// Newest mtime across the sidecar's Python sources, as the sidecar itself
+    /// computes it (`server.py: _code_version`). Nil when the sources cannot be
+    /// found (configured start command); reuse is then allowed.
+    nonisolated static func currentCodeVersion() -> String? {
+        guard let dir = sidecarSourceDirectory() else { return nil }
+        let fileManager = FileManager.default
+        var newest: TimeInterval = 0
+        var files = [dir.appendingPathComponent("server.py"), dir.appendingPathComponent("bot.py")]
+        if let entries = try? fileManager.contentsOfDirectory(at: dir.appendingPathComponent("cmux_voice"), includingPropertiesForKeys: nil) {
+            files += entries.filter { $0.pathExtension == "py" }
+        }
+        for file in files {
+            if let date = (try? fileManager.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date {
+                newest = max(newest, date.timeIntervalSince1970)
+            }
+        }
+        return newest > 0 ? String(Int(newest)) : nil
+    }
+
+    nonisolated static func sidecarSourceDirectory() -> URL? {
+        #if DEBUG
+        if VoiceAgentFeature.configuredStartCommand() == nil {
+            let repoRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            return repoRoot.appendingPathComponent("voice-agent", isDirectory: true)
+        }
+        #endif
+        return nil
+    }
+
+    nonisolated static func health(_ healthURL: URL, timeout: TimeInterval) async -> Health? {
+        var request = URLRequest(url: healthURL, cachePolicy: .reloadIgnoringLocalAndRemoteCacheData, timeoutInterval: timeout)
+        request.httpMethod = "GET"
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else { return nil }
+        return (try? JSONDecoder().decode(Health.self, from: data)) ?? Health(ok: true, codeVersion: nil)
+    }
+
     nonisolated static func isHealthy(_ healthURL: URL, timeout: TimeInterval) async -> Bool {
         var request = URLRequest(
             url: healthURL,

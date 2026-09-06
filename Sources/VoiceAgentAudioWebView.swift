@@ -86,6 +86,17 @@ struct VoiceAgentAudioWebView: NSViewRepresentable {
             evaluate("window.cmuxVoice && window.cmuxVoice.stop()")
         }
 
+        func requestRecap(surfaceID: String?) {
+            let literal: String
+            if let surfaceID, let data = try? JSONSerialization.data(withJSONObject: [surfaceID]),
+               let json = String(data: data, encoding: .utf8) {
+                literal = String(json.dropFirst().dropLast())  // the quoted string
+            } else {
+                literal = "null"
+            }
+            evaluate("window.cmuxVoice && window.cmuxVoice.recap(\(literal))")
+        }
+
         private func evaluate(_ script: String) {
             webView?.evaluateJavaScript(script) { _, _ in }
         }

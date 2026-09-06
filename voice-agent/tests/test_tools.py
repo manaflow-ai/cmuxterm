@@ -465,15 +465,17 @@ async def test_open_agent_with_prompt_types_but_does_not_send(tools: VoiceTools,
     reads = {"n": 0}
     base = fake.responder
 
+    frames = ["starting…\n", "────\n❯ Try \"edit foo\"\n────\n", "────\n❯ \n────\n", "────\n❯ \n────\n"]
+
     def responder(m, p):
         if m == "surface.read_text":
             reads["n"] += 1
-            return {"text": "starting…\n" if reads["n"] < 2 else "Welcome\n❯ \n? for shortcuts\n"}
+            return {"text": frames[min(reads["n"] - 1, len(frames) - 1)]}
         return base(m, p)
 
     fake.responder = responder
     res = await tools.open_agent("codex", prompt="Add tests for the login handler.")
-    assert reads["n"] >= 2
+    assert reads["n"] >= 4  # placeholder frame skipped; bare prompt seen twice
     assert res["ok"] and "Say enter to send it" in res["say"]
     sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
     assert [x["params"].get("text") or x["params"].get("key") for x in sent] == ["codex", "enter", "Add tests for the login handler."]

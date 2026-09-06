@@ -6,6 +6,7 @@ import Observation
 protocol VoiceAgentAudioControlling: AnyObject {
     func setMuted(_ muted: Bool)
     func stop()
+    func requestRecap(surfaceID: String?)
 }
 
 /// Single source of truth for the voice session as shown by the right-sidebar
@@ -53,6 +54,8 @@ final class VoiceAgentSessionState {
     var recentActions: [ActionChip] = []
     var uiSummary = ""
     var sidecar: VoiceAgentSidecarSession?
+    /// A recap the user asked for before the session was live; sent once it is.
+    var pendingRecapSurfaceID: String??
     /// True while the audio page should be mounted (from start until stop).
     var isSessionRequested = false
     @ObservationIgnored weak var audioController: (any VoiceAgentAudioControlling)?
@@ -141,8 +144,14 @@ final class VoiceAgentSessionState {
             if isSessionRequested { phase = .connecting }
         case "ready", "listening":
             if isSessionRequested {
+                let wasLive = isLive
                 phase = .listening
                 finalizeOpenTranscriptLines(role: .agent)
+                // A Recap button press that arrived before the call was live.
+                if !wasLive, let pending = pendingRecapSurfaceID {
+                    pendingRecapSurfaceID = nil
+                    audioController?.requestRecap(surfaceID: pending)
+                }
             }
         case "thinking":
             if isSessionRequested { phase = .thinking }
