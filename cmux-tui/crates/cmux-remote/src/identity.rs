@@ -1569,6 +1569,21 @@ impl ServerAuthenticator for AuthDatabase {
                     revocation_generation: generation,
                 })
             }
+            // A trusted-network listener vouches for every peer that can reach it;
+            // the grant still names the client's own key so connections stay
+            // attributable and individually disconnectable.
+            AuthKind::Carrier
+                if matches!(&request.inbound, InboundAuthEvidence::TrustedNetwork(_)) =>
+            {
+                Ok(AuthGrant {
+                    device_id: format!(
+                        "carrier:{}",
+                        public_key_fingerprint(&request.device_public_key)
+                    ),
+                    daemon_name: self.daemon_name.clone(),
+                    revocation_generation: *self.revocation_tx.borrow(),
+                })
+            }
             AuthKind::Carrier
                 if self.allow_carrier
                     && matches!(

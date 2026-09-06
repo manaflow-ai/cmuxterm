@@ -47,7 +47,8 @@ use crate::remote_runtime::persist_daemon_lifecycle_fence;
 use crate::remote_runtime::{
     ClientRuntimeOptions, DaemonRuntimeOptions, DaemonShutdownStatus, RelayClientOptions,
     ResolvedRouteCandidate, SshBootstrapOptions, acknowledge_failed_shutdown_outcome,
-    acknowledge_legacy_shutdown_state, client_provider_registry, complete_verified_daemon_stop,
+    acknowledge_legacy_shutdown_state, client_provider_registry,
+    client_provider_registry_with_carrier, complete_verified_daemon_stop,
     daemon_paths, inactive_daemon_needs_legacy_acknowledgement, load_runtime_info,
     load_shutdown_outcome, start_client_runtime, start_daemon_runtime,
 };
@@ -214,6 +215,9 @@ struct ConnectFlags {
     iroh_path: IrohPathMode,
     wireguard_config: Option<PathBuf>,
     wireguard_hub: Option<PathBuf>,
+    /// Dial `ws`/`wss` routes with carrier authentication: no enrollment, no
+    /// invitation. Only a daemon serving a trusted-network listener accepts it.
+    carrier: bool,
     /// Internal app ownership fence. The helper exits when its direct parent exits,
     /// including an abort or forced app replacement that cannot run Swift cleanup.
     exit_with_parent: bool,
@@ -274,6 +278,7 @@ fn parse_connect_flags(args: &[String]) -> anyhow::Result<ConnectFlags> {
                 InvitationArg::File(value("--invite-file")?.into()),
             )?,
             "--daemon" => flags.daemon = Some(value("--daemon")?),
+            "--carrier" => flags.carrier = true,
             "--lanes" => {
                 flags.lanes = value("--lanes")?.parse().map_err(|_: String| {
                     anyhow!(
@@ -672,11 +677,12 @@ fn start_connected(mut flags: ConnectFlags) -> anyhow::Result<ConnectedRuntime> 
         maximum_frame_bytes: crate::remote_runtime::MAX_CARRIER_FRAME_BYTES,
     };
     let relay_route_names = relay_routes.keys().cloned().collect::<Vec<_>>();
-    let providers = Arc::new(client_provider_registry(
+    let providers = Arc::new(client_provider_registry_with_carrier(
         ssh.clone(),
         relay_routes,
         flags.iroh_path,
         direct_dialer,
+        flags.carrier,
     )?);
     let explicit_route = flags.route.take();
     let explicit_route_for_refresh = explicit_route.clone();
@@ -2291,6 +2297,7 @@ fn run_remote_sidecar(args: &[String]) -> anyhow::Result<()> {
             admin_socket: None,
             direct_websocket: None,
             allow_insecure_non_loopback: false,
+            trusted_carrier_websocket: false,
             workspace_http: None,
             relays: Vec::new(),
             iroh: false,
@@ -3133,6 +3140,40 @@ mod tests {
         let error = read_invitation_uri(&fifo).unwrap_err().to_string();
         assert!(started.elapsed() < Duration::from_secs(1));
         assert!(error.contains("regular file"));
+    }
+
+    #[test]
+    fn carrier_flag_is_off_by_default_and_needs_no_value() {
+        let default = parse_connect_flags(&["ws://10.0.0.5:1337/v1/link".into()]).unwrap();
+        assert!(!default.carrier);
+        let carrier =
+            parse_connect_flags(&["ws://10.0.0.5:1337/v1/link".into(), "--carrier".into()])
+                .unwrap();
+        assert!(carrier.carrier);
+        assert_eq!(carrier.route.as_deref(), Some("ws://10.0.0.5:1337/v1/link"));
+        let registry = client_provider_registry_with_carrier(
+            SshProviderConfig::default(),
+            BTreeMap::new(),
+            IrohPathMode::Auto,
+            None,
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            registry.supported_client_auth("ws").unwrap(),
+            cmux_remote::provider::SupportedClientAuthModes::DeviceOrCarrier
+        );
+        let registry = client_provider_registry(
+            SshProviderConfig::default(),
+            BTreeMap::new(),
+            IrohPathMode::Auto,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            registry.supported_client_auth("ws").unwrap(),
+            cmux_remote::provider::SupportedClientAuthModes::DeviceOnly
+        );
     }
 
     #[test]
@@ -4459,6 +4500,7 @@ mod tests {
                 admin_socket: None,
                 direct_websocket: None,
                 allow_insecure_non_loopback: false,
+                trusted_carrier_websocket: false,
                 workspace_http: None,
                 relays: Vec::new(),
                 iroh: false,
