@@ -174,6 +174,7 @@ struct SettingsRowAnchorResolutionTests {
         "setting:betaFeatures:feed",
         "setting:betaFeatures:dock",
         "setting:betaFeatures:source-control",
+        "setting:betaFeatures:cloudMachines",
         "setting:betaFeatures:customSidebars",
         "setting:betaFeatures:remoteTmux",
         "setting:customSidebars:enabled",

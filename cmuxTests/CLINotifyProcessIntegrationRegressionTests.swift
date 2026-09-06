@@ -9215,7 +9215,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(request["surface_id"] as? String, surfaceId)
     }
 
-    private struct ClaudeHookContext {
+    struct ClaudeHookContext {
         let cliPath: String
         let socketPath: String
         let listenerFD: Int32
@@ -9283,7 +9283,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         )
     }
 
-    private func runAgentHook(
+    func runAgentHook(
         context: ClaudeHookContext,
         agent: String,
         subcommand: String,
@@ -9314,7 +9314,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
     /// Serves this context's agent-hook mock socket for the rest of the test. One
     /// accept loop answers every connection, including the CLI's extra `system.top`
     /// lookup connection, and the registry reaps the loop at teardown.
-    private func startAgentHookMockServerAccepting(context: ClaudeHookContext) {
+    func startAgentHookMockServerAccepting(context: ClaudeHookContext) {
         let state = context.state
         let mockResponse: @Sendable (String) -> String = { line in
             self.agentHookMockResponse(line: line, context: context)
@@ -9349,7 +9349,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         }
     }
 
-    private func makeClaudeHookContext(name: String) throws -> ClaudeHookContext {
+    func makeClaudeHookContext(name: String) throws -> ClaudeHookContext {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-\(name)-\(UUID().uuidString)", isDirectory: true)
         let socketPath = makeSocketPath(String(name.prefix(6)))
@@ -9415,7 +9415,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         return result
     }
 
-    private func readClaudeHookSession(_ sessionId: String, context: ClaudeHookContext) throws -> [String: Any] {
+    func readClaudeHookSession(_ sessionId: String, context: ClaudeHookContext) throws -> [String: Any] {
         let stateURL = context.root.appendingPathComponent("claude-hook-sessions.json")
         let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any])
         let sessions = try XCTUnwrap(state["sessions"] as? [String: Any])

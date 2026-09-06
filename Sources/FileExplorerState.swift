@@ -64,14 +64,16 @@ final class FileExplorerState: ObservableObject {
         let customSidebarName = defaults.string(forKey: Self.customSidebarNameKey)?.nilIfEmpty
         self.storedCustomSidebarName = customSidebarName
         let storedMode = RightSidebarMode(rawValue: defaults.string(forKey: Self.modeKey) ?? "") ?? .files
-        self.storedMode = panelRegistry.descriptor(for: storedMode)?.isAvailable(defaults) == true
-            ? storedMode
-            : .files
+        self.storedMode = Self.visibleMode(storedMode, defaults: defaults, panelRegistry: panelRegistry)
         defaults.set(self.storedMode.rawValue, forKey: Self.modeKey)
     }
 
+    /// Re-lands the sidebar on a tab the mode bar shows. Unlike an explicit
+    /// `mode` set (which may reveal a user-hidden tab: CLI, palette,
+    /// notification routing), restore and preference changes never resurrect a
+    /// hidden tab.
     func refreshModeAvailability(defaults: UserDefaults = .standard) {
-        setMode(storedMode, defaults: defaults)
+        setMode(Self.visibleMode(storedMode, defaults: defaults, panelRegistry: panelRegistry), defaults: defaults)
     }
 
     func selectCustomSidebar(name rawName: String, defaults: UserDefaults = .standard) {
@@ -137,5 +139,18 @@ final class FileExplorerState: ObservableObject {
             return .files
         }
         return mode
+    }
+
+    private static func visibleMode(
+        _ mode: RightSidebarMode,
+        defaults: UserDefaults,
+        panelRegistry: RightSidebarPanelRegistry
+    ) -> RightSidebarMode {
+        let candidate = panelRegistry.descriptor(for: mode)?.isAvailable(defaults) == true
+            ? mode
+            : .files
+        let visible = RightSidebarMode.visibleModes(defaults: defaults)
+        if visible.contains(candidate) { return candidate }
+        return visible.first ?? candidate
     }
 }

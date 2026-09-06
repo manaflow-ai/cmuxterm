@@ -4,7 +4,8 @@ extension ShortcutAction {
     ///
     /// Right-sidebar mode shortcuts win while the sidebar is focused. Conflict
     /// detection uses this to accept priority-resolved pairs such as the factory
-    /// `⌃1…9` surface selection alongside the sidebar's `⌃1…6` shortcuts.
+    /// `⌃1…9` surface selection alongside the sidebar's positional `⌃1…9`
+    /// shortcuts.
     public var hasPriorityShortcutRouting: Bool {
         switch self {
         case .switchRightSidebarToFiles, .switchRightSidebarToFind,
