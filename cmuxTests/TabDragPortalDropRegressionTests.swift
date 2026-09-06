@@ -66,7 +66,7 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
         let liveRegistry = TabDragTransferRegistry()
         let coordinator = NativeDragCoordinator(tabDragTransferRegistry: liveRegistry)
 
-        coordinator.adopt(tabDragTransferRegistry: TabDragTransferRegistry())
+        XCTAssertFalse(coordinator.adopt(tabDragTransferRegistry: TabDragTransferRegistry()))
 
         XCTAssertTrue(coordinator.tabDragTransferRegistry === liveRegistry)
     }

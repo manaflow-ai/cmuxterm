@@ -2436,8 +2436,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         computerUseRuntimeService: ComputerUseRuntimeService
     ) {
         captureSessionLaunchStateIfNeeded()
+        guard nativeDragCoordinator.adopt(tabDragTransferRegistry: tabManager.tabDragTransferRegistry) else {
+            return
+        }
         self.tabManager = tabManager
-        nativeDragCoordinator.adopt(tabDragTransferRegistry: tabManager.tabDragTransferRegistry)
         // SwiftUI constructs the initial TabManager before this delegate is
         // available; adopt its coordinators so every later window shares them.
         pullRequestProbeService = tabManager.pullRequestProbeService

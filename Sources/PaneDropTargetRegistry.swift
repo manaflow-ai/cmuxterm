@@ -49,13 +49,14 @@ final class NativeDragCoordinator {
         observeNativeDragEnds(on: tabDragTransferRegistry)
     }
 
-    func adopt(tabDragTransferRegistry: TabDragTransferRegistry) {
-        guard self.tabDragTransferRegistry !== tabDragTransferRegistry else { return }
+    @discardableResult
+    func adopt(tabDragTransferRegistry: TabDragTransferRegistry) -> Bool {
+        guard self.tabDragTransferRegistry !== tabDragTransferRegistry else { return true }
         guard !hasAdoptedTabDragTransferRegistry else {
             nativeDragCoordinatorLogger.error(
                 "Ignoring a second TabDragTransferRegistry adoption; retaining the registry used by live windows."
             )
-            return
+            return false
         }
         if let nativeDragEndObserverID {
             self.tabDragTransferRegistry.removeNativeDragEndObserver(nativeDragEndObserverID)
@@ -63,6 +64,7 @@ final class NativeDragCoordinator {
         self.tabDragTransferRegistry = tabDragTransferRegistry
         hasAdoptedTabDragTransferRegistry = true
         observeNativeDragEnds(on: tabDragTransferRegistry)
+        return true
     }
 
     private func observeNativeDragEnds(on registry: TabDragTransferRegistry) {
