@@ -9,6 +9,8 @@ public enum ActionCommand: Codable, Sendable, Equatable {
     /// `.cmux("workspace.select", ["workspace_id": "<uuid>"])`. Maps directly
     /// onto the socket command protocol (`{"method","params"}`).
     case cmux(method: String, params: [String: String])
+    /// A host diagnostic for a parameter that JavaScript could not encode.
+    case invalidParameters(method: String, parameter: String?)
     case log(String)
     /// Opens a URL (host runs it, e.g. via the workspace opener).
     case openURL(String)

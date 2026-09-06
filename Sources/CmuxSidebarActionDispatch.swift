@@ -59,6 +59,21 @@ func makeCmuxSidebarActionDispatch() -> SidebarActionDispatch {
             }
             for command in commands {
                 switch command {
+                case let .invalidParameters(method, parameter):
+                    var diagnostic: [String: Any] = [
+                        "method": method,
+                        "code": "invalid_parameters",
+                        "message": String(localized: "sidebar.action.serializationFailed", defaultValue: "A sidebar action parameter could not be serialized."),
+                    ]
+                    if let parameter {
+                        diagnostic["parameter"] = parameter
+                    }
+                    CmuxEventBus.shared.publish(
+                        name: "sidebar.action.failed",
+                        category: "sidebar",
+                        source: "custom-sidebar",
+                        payload: diagnostic
+                    )
                 case let .cmux(method, params):
                     var payload: [String: Any] = ["method": method, "id": UUID().uuidString]
                     if !params.isEmpty {

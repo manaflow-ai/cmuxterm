@@ -444,11 +444,20 @@
 
   g.cmux = (method, params) => {
     const p = {};
-    for (const k of Object.keys(params || {})) {
-      const value = params[k];
-      p[k] = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
+    try {
+      for (const k of Object.keys(params || {})) {
+        const value = params[k];
+        p[k] = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
+      }
+      __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
+    } catch (_) {
+      // Keep author errors in the normal host diagnostic path. In particular,
+      // cyclic objects and BigInt values must not disappear before validation.
+      __host_action(JSON.stringify({
+        kind: "invalidParameters",
+        method: typeof method === "string" ? method : "cmux",
+      }));
     }
-    __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
   };
   g.openURL = (url) => __host_action(JSON.stringify({ kind: "openURL", url: String(url) }));
   g.log = (message) => __host_action(JSON.stringify({ kind: "log", message: String(message) }));

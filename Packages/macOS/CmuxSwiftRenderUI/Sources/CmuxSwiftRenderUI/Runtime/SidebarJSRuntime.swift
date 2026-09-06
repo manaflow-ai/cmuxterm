@@ -133,6 +133,11 @@ public final class SidebarJSRuntime {
                 }
             }
             action = ButtonAction(commands: [.cmux(method: method, params: params)])
+        case "invalidParameters":
+            guard let method = object["method"] as? String else { return }
+            action = ButtonAction(commands: [
+                .invalidParameters(method: method, parameter: object["parameter"] as? String)
+            ])
         case "openURL":
             guard let url = object["url"] as? String else { return }
             action = ButtonAction(commands: [.openURL(url)])

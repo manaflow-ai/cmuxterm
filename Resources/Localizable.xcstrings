@@ -243055,6 +243055,23 @@
         }
       }
     },
+    "sidebar.action.serializationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sidebar action parameter could not be serialized."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サイドバーアクションのパラメータをシリアル化できませんでした。"
+          }
+        }
+      }
+    },
     "sidebar.custom.missing": {
       "extractionState": "manual",
       "localizations": {
