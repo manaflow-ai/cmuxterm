@@ -185,6 +185,27 @@ struct SidebarJSRuntimeTests {
         })
     }
 
+    @Test func buttonTapReportsUndefinedJSONParameterSerializationFailure() async throws {
+        let runtime = SidebarJSRuntime()
+        var captured: [ActionCommand] = []
+        runtime.dispatch = SidebarActionDispatch { action in
+            captured.append(contentsOf: action.commands)
+        }
+        runtime.start(source: """
+        sidebar(() => Button("Create", () =>
+            cmux("workspace.create", { workspace_env: { toJSON: () => undefined } })
+        ))
+        """)
+        let rootId = try #require(runtime.store.rootId)
+        runtime.dispatchEvent(nodeId: rootId, event: "tap")
+        await pumpActions()
+        #expect(captured.count == 1)
+        #expect(captured.allSatisfy { command in
+            if case .cmux = command { return false }
+            return true
+        })
+    }
+
     @Test func reorderableCarriesItemKeysAndMoveHandler() async {
         let runtime = SidebarJSRuntime()
         var captured: [ActionCommand] = []
