@@ -25,6 +25,12 @@ final class WorkspaceSidebarLayoutObservationModel {
     @ObservationIgnored
     private var hasUnobservedChange = false
 
+    deinit {
+        for continuation in changeObservers.values {
+            continuation.finish()
+        }
+    }
+
     /// Returns an independently subscribed stream of pane-topology changes.
     func changes() -> AsyncStream<Void> {
         AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
