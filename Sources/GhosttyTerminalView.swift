@@ -429,12 +429,7 @@ class GhosttyApp {
             )
             return TerminalSurfaceViewFactory(
                 imageTransferPreparation: preparationService,
-                paneDropTargetRegistryProvider: {
-                    guard let registry = AppDelegate.shared?.paneDropTargetRegistry else {
-                        preconditionFailure("Native drag coordinator is unavailable while creating a terminal surface")
-                    }
-                    return registry
-                }
+                paneDropTargetRegistryProvider: { AppDelegate.nativeDragCoordinator.paneDropTargetRegistry }
             )
         }(),
         spawnPolicy: TerminalSurfaceSpawnPolicyBridge(),

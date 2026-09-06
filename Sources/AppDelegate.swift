@@ -544,6 +544,7 @@ final class CmuxMainThreadTurnProfiler {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuItemValidation, NSMenuDelegate, CmuxConfigStoreReloadEnvironment {
     nonisolated(unsafe) static var shared: AppDelegate?
+    static let nativeDragCoordinator = NativeDragCoordinator()
     /// Stateless control-socket syscall layer (CmuxControlSocket); composition-root owned.
     nonisolated let socketTransport = SocketTransport()
     /// Owns the About Titlebar Debug subsystem (CmuxAppKitSupportUI); composition-root
@@ -566,7 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Owns the one process-local Vault drag capability registry.
     let sessionDragRegistry = SessionDragRegistry()
     /// Owns process-local native drag capabilities and pane-target cleanup.
-    let nativeDragCoordinator = NativeDragCoordinator()
+    let nativeDragCoordinator = Self.nativeDragCoordinator
     var tabDragTransferRegistry: TabDragTransferRegistry {
         nativeDragCoordinator.tabDragTransferRegistry
     }
