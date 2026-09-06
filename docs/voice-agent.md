@@ -72,7 +72,11 @@ Voice tab (SwiftUI) ── hidden 1×1 WKWebView ── WebRTC ──► voice-a
 
 `CMUX_VOICE_AGENT_TOKEN`, `CMUX_VOICE_AGENT_PORT=0`, `CMUX_VOICE_AGENT_STATE_FILE`,
 `CMUX_VOICE_AGENT_LAUNCH_ID`, `CMUX_SOCKET_PATH`, `CMUX_SOCKET_CAPABILITY`,
-`ULTRAVOX_API_KEY`, optional `ULTRAVOX_VOICE`, `CMUX_VOICE_TRUST_TERMINAL=1`.
+`ULTRAVOX_API_KEY`, optional `ULTRAVOX_VOICE`, `CMUX_VOICE_TRUST_TERMINAL=1`,
+optional `CMUX_VOICE_GREETING` (fixed opening line, or `off` to let the user speak first).
+
+The agent greets you as soon as the call connects, naming the current
+workspace and inviting a command; you can interrupt it at any time.
 
 ## Privacy
 

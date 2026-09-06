@@ -11,6 +11,7 @@ Environment:
     CMUX_SOCKET_CAPABILITY      optional capability envelope (set by cmux when it spawns us)
     CMUX_VOICE_TRUST_TERMINAL   "1" to run commands without confirmation
     CMUX_VOICE_MAX_MINUTES      session cap (default 30)
+    CMUX_VOICE_GREETING         fixed opening line, or "off" to let the user speak first
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from loguru import logger
 
 from cmux_voice.cmux_client import CmuxClient, CmuxError
 from cmux_voice.policy import ConfirmationPolicy
-from cmux_voice.prompt import build_system_prompt
+from cmux_voice.prompt import build_greeting_prompt, build_system_prompt
 from cmux_voice.state import UIState
 from cmux_voice.tools import ALLOWED_METHODS, ToolSpec, VoiceTools
 
@@ -61,6 +62,20 @@ def load_dotenv_if_present() -> None:
         os.environ.setdefault(key, value)
 
 
+def first_speaker_settings(ui_summary: str = "") -> Dict[str, Any]:
+    """The agent greets the user as soon as the call connects.
+
+    `CMUX_VOICE_GREETING` overrides the generated greeting with fixed text
+    (set it to "off" to let the user speak first).
+    """
+    override = os.environ.get("CMUX_VOICE_GREETING", "").strip()
+    if override.lower() in {"off", "none", "user"}:
+        return {"user": {}}
+    if override:
+        return {"agent": {"text": override, "uninterruptible": False}}
+    return {"agent": {"prompt": build_greeting_prompt(ui_summary), "uninterruptible": False}}
+
+
 def build_tools(on_state=None, on_end_session=None) -> VoiceTools:
     client = CmuxClient(allowed_methods=ALLOWED_METHODS)
     policy = ConfirmationPolicy(trust_terminal_input=os.environ.get("CMUX_VOICE_TRUST_TERMINAL") == "1")
@@ -90,6 +105,7 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
             voice=uuid.UUID(voice) if voice else None,
             output_medium=output_medium,
             max_duration=datetime.timedelta(minutes=minutes),
+            extra={"firstSpeakerSettings": first_speaker_settings(ui_summary)},
         ),
         one_shot_selected_tools=ToolsSchema(standard_tools=schemas),
     )

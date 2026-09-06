@@ -71,3 +71,36 @@ def test_tls_configuration_respects_existing_override(monkeypatch):
     monkeypatch.setenv("SSL_CERT_FILE", "/custom/ca.pem")
     bot.configure_tls_certificates()
     assert os.environ["SSL_CERT_FILE"] == "/custom/ca.pem"
+
+
+def test_agent_greets_first_by_default(monkeypatch):
+    import bot
+
+    monkeypatch.delenv("CMUX_VOICE_GREETING", raising=False)
+    settings = bot.first_speaker_settings('Workspaces (1): 1 "api" (current)\nCurrent workspace "api" has 1 pane(s): pane 1: [terminal "zsh" (focused)]')
+    assert "agent" in settings
+    assert settings["agent"]["uninterruptible"] is False
+    assert 'workspace called "api"' in settings["agent"]["prompt"]
+
+
+def test_greeting_override_and_off(monkeypatch):
+    import bot
+
+    monkeypatch.setenv("CMUX_VOICE_GREETING", "Hi Derek, ready when you are.")
+    assert bot.first_speaker_settings()["agent"]["text"] == "Hi Derek, ready when you are."
+    monkeypatch.setenv("CMUX_VOICE_GREETING", "off")
+    assert bot.first_speaker_settings() == {"user": {}}
+
+
+def test_greeting_reaches_ultravox_call_request(monkeypatch):
+    """The extra `firstSpeakerSettings` must land in the call-creation body."""
+    import bot
+    from cmux_voice.cmux_client import CmuxClient
+    from cmux_voice.policy import ConfirmationPolicy
+    from cmux_voice.tools import ALLOWED_METHODS, VoiceTools
+
+    monkeypatch.setenv("ULTRAVOX_API_KEY", "test-key")
+    monkeypatch.delenv("CMUX_VOICE_GREETING", raising=False)
+    tools = VoiceTools(CmuxClient("/nonexistent.sock", allowed_methods=ALLOWED_METHODS), ConfirmationPolicy())
+    llm = bot.build_llm(tools, output_medium="voice", ui_summary="")
+    assert llm._params.extra["firstSpeakerSettings"]["agent"]["prompt"].startswith("Greet the user")

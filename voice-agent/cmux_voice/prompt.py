@@ -29,3 +29,21 @@ How to behave:
 - Never close, hide, or act on the voice panel itself.
 - If a tool returns ok=false, say what failed in plain words and suggest one fix. Do not retry the same call more than once.
 - When the user says stop, goodbye, or end the session, call end_session.{state_block}"""
+
+
+def build_greeting_prompt(ui_summary: str = "") -> str:
+    """Instructions for the agent's opening line, spoken as soon as the call connects."""
+    where = ""
+    for line in ui_summary.splitlines():
+        if line.startswith("Current workspace "):
+            name = line.split('"')[1] if line.count('"') >= 2 else ""
+            if name:
+                where = f' You are looking at the workspace called "{name}".'
+            break
+    return (
+        "Greet the user in one short, friendly sentence as the cmux voice assistant, "
+        "then tell them they can ask you to open, split, or switch things, run commands, "
+        "or browse the web, and ask what they would like to do."
+        + where
+        + " Keep it under 20 words. Do not list tools or numbers."
+    )
