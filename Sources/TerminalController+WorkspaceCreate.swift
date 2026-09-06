@@ -203,8 +203,9 @@ extension TerminalController {
         guard let tabManager = v2ResolveTabManager(params: params) else {
             return .err(code: "unavailable", message: "TabManager not available", data: nil)
         }
-        guard let rawWorkspaceId = v2RawString(params, "workspace_id")?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let workspaceId = UUID(uuidString: rawWorkspaceId) else {
+        // A UUID or a handle ref (`workspace:3`), like every other workspace_id on the socket:
+        // `cmux vm open <machine> --workspace workspace:3` lands here.
+        guard let workspaceId = v2UUIDAny(params["workspace_id"]) else {
             return .err(code: "invalid_params", message: "workspace_id is required", data: nil)
         }
         guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else {
@@ -245,8 +246,9 @@ extension TerminalController {
         guard let tabManager = v2ResolveTabManager(params: params) else {
             return .err(code: "unavailable", message: "TabManager not available", data: nil)
         }
-        guard let rawWorkspaceId = v2RawString(params, "workspace_id")?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let workspaceId = UUID(uuidString: rawWorkspaceId) else {
+        // A UUID or a handle ref (`workspace:3`), like every other workspace_id on the socket:
+        // `cmux vm open <machine> --workspace workspace:3` lands here.
+        guard let workspaceId = v2UUIDAny(params["workspace_id"]) else {
             return .err(code: "invalid_params", message: "workspace_id is required", data: nil)
         }
         guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else {
@@ -255,13 +257,22 @@ extension TerminalController {
         guard let vmID = WorkspaceCloudVMBinding.normalizedVMID(v2RawString(params, "vm_id")) else {
             return .err(code: "invalid_params", message: "vm_id is required", data: ["workspace_id": workspaceId.uuidString])
         }
-        let isBase = v2Bool(params, "base") ?? false
-        workspace.cloudVMBinding = WorkspaceCloudVMBinding(vmID: vmID, isBase: isBase)
+        let previousBinding = workspace.cloudVMBinding
+        let sameMachine = previousBinding?.vmID == vmID
+        let isBase = v2Bool(params, "base") ?? (sameMachine ? (previousBinding?.isBase ?? false) : false)
+        // Optional: which cmux-tui workspace on the machine this local workspace stands
+        // for. A rebind that omits it keeps the recorded one (Base re-opens rebind).
+        let remoteRaw = v2RawString(params, "remote_workspace_id")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let remoteWorkspaceID = remoteRaw?.isEmpty == false
+            ? remoteRaw
+            : (sameMachine ? previousBinding?.remoteWorkspaceID : nil)
+        workspace.cloudVMBinding = WorkspaceCloudVMBinding(vmID: vmID, isBase: isBase, remoteWorkspaceID: remoteWorkspaceID)
         return .ok([
             "workspace_id": workspaceId.uuidString,
             "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceId),
             "vm_id": vmID,
             "base": isBase,
+            "remote_workspace_id": remoteWorkspaceID ?? NSNull(),
             "transport": "cmux-remote",
         ])
     }

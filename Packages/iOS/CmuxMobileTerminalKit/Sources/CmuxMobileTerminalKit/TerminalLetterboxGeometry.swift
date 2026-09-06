@@ -57,27 +57,39 @@ public struct TerminalLetterboxGeometry {
     /// - Chrome hidden (HIDE button): the grid reclaims everything; nothing is
     ///   reserved (there is no bar to keep a seam against).
     ///
+    /// When the surface extends under the top safe area for the scroll-edge
+    /// band (iOS 26 navigation-bar blur over live scrollback rows), the
+    /// bounds include that band, so `topContentInset` reserves it: the grid
+    /// starts below the bar exactly where it did before the expansion, and
+    /// the band above it holds render-only overscan rows.
+    ///
     /// - Parameters:
     ///   - bounds: The host view bounds size in points.
     ///   - composerBandHeight: The open composer band height in points (0 closed).
     ///   - toolbarHeight: The reserved persistent toolbar height in points.
     ///   - bottomSafeAreaInset: The resolved bottom safe-area inset in points.
     ///   - chromeHidden: True while the HIDE button has suppressed the dock.
+    ///   - topContentInset: The top safe-area band included in `bounds` that
+    ///     the grid must not occupy (0 when the surface does not underlap
+    ///     the top bar).
     /// - Returns: The grid container size in points.
     public static func terminalContainerSize(
         bounds: CGSize,
         composerBandHeight: CGFloat,
         toolbarHeight: CGFloat,
         bottomSafeAreaInset: CGFloat,
-        chromeHidden: Bool
+        chromeHidden: Bool,
+        topContentInset: CGFloat = 0
     ) -> CGSize {
         let reservedBottom: CGFloat = chromeHidden
             ? 0
             : max(0, composerBandHeight) + max(0, toolbarHeight) + max(0, bottomSafeAreaInset)
                 + dockSeamPadding
-        let bottomInset = min(reservedBottom, max(0, bounds.height - 1))
+        let reservedTop = max(0, topContentInset)
+        let reserved = reservedBottom + reservedTop
+        let totalInset = min(reserved, max(0, bounds.height - 1))
         let containerW = max(1, bounds.width)
-        let containerH = max(1, bounds.height - bottomInset)
+        let containerH = max(1, bounds.height - totalInset)
         return CGSize(width: containerW, height: containerH)
     }
 
@@ -94,10 +106,39 @@ public struct TerminalLetterboxGeometry {
     ///
     /// - Parameters:
     ///   - viewInset: The view's `safeAreaInsets.bottom` (may be a stale 0).
-    ///   - windowInset: The window's `safeAreaInsets.bottom` (authoritative).
+    ///   - windowInset: The window's `safeAreaInsets.bottom` (authoritative
+    ///     when the window reports it).
+    ///   - capturedInset: A safe-area value captured outside an ignored
+    ///     SwiftUI subtree, when UIKit cannot expose it to the terminal leaf.
+    ///   - ancestorInsets: Safe-area values reported by UIKit ancestors. A
+    ///     SwiftUI `ignoresSafeArea` subtree can make both the surface and its
+    ///     immediate host report zero even though an outer hosting container
+    ///     still carries the device's bottom inset.
     /// - Returns: The inset to reserve in points.
-    public static func resolvedBottomSafeAreaInset(viewInset: CGFloat, windowInset: CGFloat) -> CGFloat {
-        viewInset > 0 ? viewInset : max(0, windowInset)
+    public static func resolvedBottomSafeAreaInset(
+        viewInset: CGFloat,
+        windowInset: CGFloat,
+        capturedInset: CGFloat = 0,
+        ancestorInsets: [CGFloat] = []
+    ) -> CGFloat {
+        if viewInset > 0 {
+            return viewInset
+        }
+        if windowInset > 0 {
+            return windowInset
+        }
+        if capturedInset > 0 {
+            return capturedInset
+        }
+        // Ancestors may add their own bottom chrome (for example a tab or
+        // navigation container), so use the smallest positive inset rather
+        // than inheriting the largest container reservation. This recovers
+        // the physical device safe area without reserving a parent bar twice.
+        return ancestorInsets
+            .filter { $0 > 0 }
+            .min()
+            .map { max(0, $0) }
+            ?? 0
     }
 
     /// The container size in device pixels for libghostty's `set_size`.
@@ -264,6 +305,46 @@ public struct TerminalLetterboxGeometry {
         let combined = min(max(currentPositionPx, 0), maxPosition) - reveal
         let next = min(max(combined + deltaPixels, -maxReveal), maxPosition)
         return (max(0, next), max(0, -next))
+    }
+
+    /// Resolves one line-path (alternate-screen / TUI) scroll delta against
+    /// the keyboard top-reveal zone, returning the leftover delta that should
+    /// become mouse-wheel input for the app.
+    ///
+    /// The keyboard-up bottom-pin clips the render's top above the screen on
+    /// alternate screens too, but unlike the grid axis there is no scrollback
+    /// position to order the reveal against: wheel lines are input for the
+    /// TUI, and how much of them it consumes (or whether it scrolls at all)
+    /// is invisible to the phone. The reveal therefore resolves FIRST in both
+    /// directions — pulling toward older content grows it until the clipped
+    /// top is fully visible (those rows are the content adjacent above the
+    /// viewport), pushing toward newer drains it until the render is
+    /// re-pinned (bringing the TUI's bottom rows back from under the
+    /// keyboard) — and only the leftover is dispatched as wheel lines. Any
+    /// other ordering would need the TUI's scroll extent, which the wheel
+    /// protocol cannot report.
+    ///
+    /// - Parameters:
+    ///   - currentRevealPx: The reveal already granted, in device pixels; a
+    ///     value beyond the current budget is clamped before the delta
+    ///     applies (dropped entirely on a zero budget), never converted into
+    ///     wheel input.
+    ///   - deltaPixels: The gesture delta in device pixels (negative = toward
+    ///     older content).
+    ///   - maxRevealPx: The clipped-top budget in device pixels (0 whenever
+    ///     the keyboard is down).
+    /// - Returns: The next reveal, and the delta remaining for wheel
+    ///   dispatch (same sign as `deltaPixels`, or 0 when the reveal absorbed
+    ///   all of it).
+    public static func lineScrollTopRevealResolution(
+        currentRevealPx: Double,
+        deltaPixels: Double,
+        maxRevealPx: Double
+    ) -> (revealPx: Double, leftoverDeltaPixels: Double) {
+        let maxReveal = max(0, maxRevealPx)
+        let reveal = maxReveal > 0 ? min(max(0, currentRevealPx), maxReveal) : 0
+        let next = min(max(reveal - deltaPixels, 0), maxReveal)
+        return (next, deltaPixels + (next - reveal))
     }
 
     /// The cell size in device pixels derived from a measured surface size.

@@ -36,6 +36,8 @@ struct MacComputerRow: View {
     /// button, so the row does not flash a dimmed state.
     var isConnecting: Bool = false
 
+    @State private var showListAuthInfo = false
+
     var body: some View {
         HStack(spacing: 8) {
             rowContainer
@@ -97,6 +99,9 @@ struct MacComputerRow: View {
                     if let buildLabel = computer.buildLabel {
                         ComputerBuildBadge(label: buildLabel)
                     }
+                    if showsListAuthWarning {
+                        listAuthWarningButton
+                    }
                 }
                 Text(connectionLine)
                     .font(.caption)
@@ -154,6 +159,73 @@ struct MacComputerRow: View {
                     "MobileComputerStatus-\(computer.connectionRef.automationID)-\(statusIdentifierSuffix)"
                 )
         }
+    }
+
+    /// Whether the account device list has a known-version compatibility warning
+    /// for this Mac. A seeded/unverified row stays quiet until its first hello
+    /// records the build version in the durable overlay.
+    private var showsListAuthWarning: Bool {
+        MobileMacListAuthState.shared.entry(deviceID: computer.deviceId)?.isOutdated == true
+    }
+
+    /// Outdated rows carry a compact warning triangle beside the name; the
+    /// explanation lives in a popover so the row itself stays one avatar tall.
+    /// Borderless keeps the tap target separate from the row's navigation.
+    private var listAuthWarningButton: some View {
+        Button {
+            showListAuthInfo = true
+        } label: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(listAuthWarningTitle)
+        .accessibilityIdentifier(
+            "MobileComputerListAuthWarning-\(computer.connectionRef.automationID)"
+        )
+        .popover(isPresented: $showListAuthInfo, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text(listAuthWarningTitle)
+                        .font(.subheadline.weight(.semibold))
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                Text(listAuthWarningMessage)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding()
+            .frame(idealWidth: 300, maxWidth: 340)
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var listAuthWarningTitle: String {
+        return L10n.string(
+            "computers.version.outdated.title",
+            defaultValue: "Mac update required"
+        )
+    }
+
+    private var listAuthWarningMessage: String {
+        guard let entry = MobileMacListAuthState.shared.entry(deviceID: computer.deviceId),
+              entry.isOutdated,
+              let required = entry.minimumSupportedVersion
+        else {
+            return ""
+        }
+        let requirement = "cmux \(required) or later"
+        return String(
+            format: L10n.string(
+                "mobile.macUpdate.requiredOnMacFormat",
+                defaultValue: "Requires %@ on your Mac."
+            ),
+            requirement
+        )
     }
 
     private var dotColor: Color {
