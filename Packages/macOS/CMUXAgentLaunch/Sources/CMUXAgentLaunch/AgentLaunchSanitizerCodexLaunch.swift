@@ -262,9 +262,15 @@ private func cmuxCodexHookScriptFilename(from command: String) -> String? {
     let url = URL(fileURLWithPath: scriptPath, isDirectory: false).standardizedFileURL
     // A generated command is the complete executable path. Canonical shell
     // quoting already proves that boundary whitespace belongs to the path; the
-    // legacy bare form still needs the conservative component check because it
-    // cannot distinguish a complete path token from a malformed command.
+    // legacy bare form still needs conservative validation because it cannot
+    // distinguish a complete path token from a malformed command.
     guard url.path == scriptPath else { return nil }
+    if !command.hasPrefix("'"),
+       scriptPath.unicodeScalars.contains(where: {
+           CharacterSet.controlCharacters.contains($0)
+       }) {
+        return nil
+    }
     if !command.hasPrefix("'"),
        !url.pathComponents.allSatisfy({
            $0 == $0.trimmingCharacters(in: .whitespaces)
