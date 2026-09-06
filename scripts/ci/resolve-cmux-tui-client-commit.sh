@@ -45,6 +45,8 @@ done
 case "$MAX_FALLBACK" in
   ''|*[!0-9]*) echo "error: --max-fallback must be a non-negative integer" >&2; exit 64 ;;
 esac
+# Decimal, so a value with a leading zero (08) is not read as octal by the arithmetic below.
+MAX_FALLBACK=$((10#$MAX_FALLBACK))
 
 head_sha="$(git rev-parse --verify "${HEAD_REV}^{commit}")"
 shallow_file="$(git rev-parse --git-path shallow)"
@@ -99,7 +101,9 @@ skipped=0
 for ((i = 0; i < ${#CANDIDATES[@]}; i++)); do
   sha="${CANDIDATES[$i]}"
   url="$BASE/$sha/manifest.json"
-  if curl --proto '=https,file' --tlsv1.2 -fsS --retry 2 --retry-delay 2 -o /dev/null "$url" 2>/dev/null; then
+  # One probe per candidate, no retry loop: a transient failure just moves on to the
+  # next candidate (or fails exact mode, which a re-run covers) instead of waiting.
+  if curl --proto '=https,file' --tlsv1.2 -fsS -o /dev/null "$url" 2>/dev/null; then
     chosen="$sha"
     break
   fi

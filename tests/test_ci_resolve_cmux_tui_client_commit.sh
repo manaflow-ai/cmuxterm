@@ -77,6 +77,13 @@ if ! grep -q '^::warning' "$TMP/fallback.err"; then
   exit 1
 fi
 
+# A leading zero is decimal, not octal: 08 means eight, not a Bash arithmetic error.
+got="$(cd "$TMP/work" && "$RESOLVER" --max-fallback 08 2>/dev/null)"
+if [[ "$got" != "$C1" ]]; then
+  echo "FAIL: --max-fallback 08 must be read as decimal 8 and resolve $C1, got '$got'"
+  exit 1
+fi
+
 # A full clone takes the same decision without deepening.
 git clone -q "file://$TMP/src" "$TMP/full"
 got="$(cd "$TMP/full" && "$RESOLVER" --max-fallback 3 2>/dev/null)"
