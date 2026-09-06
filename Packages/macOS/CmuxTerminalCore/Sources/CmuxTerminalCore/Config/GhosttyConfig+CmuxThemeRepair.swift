@@ -1,6 +1,37 @@
 import Foundation
 
 extension GhosttyConfig {
+    /// Returns the last raw theme directive inside the cmux-managed block.
+    static func lastCmuxManagedThemeDirective(in contents: String) -> String? {
+        var insideManagedBlock = false
+        var rawThemeValue: String?
+
+        for line in contents.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch trimmed {
+            case "# cmux themes start":
+                insideManagedBlock = true
+            case "# cmux themes end":
+                insideManagedBlock = false
+            default:
+                guard insideManagedBlock else { continue }
+                let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
+                guard parts.count == 2,
+                      parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == "theme" else {
+                    continue
+                }
+                let value = parts[1]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                if !value.isEmpty {
+                    rawThemeValue = value
+                }
+            }
+        }
+
+        return rawThemeValue
+    }
+
     // Shared by the primary config parser and this repair extension. It stays
     // internal because Swift's `private` members cannot be referenced by a
     // same-type extension in another file; callers outside this module do not
@@ -63,34 +94,7 @@ extension GhosttyConfig {
     /// - Returns: A normalized `light:…,dark:…` value when the managed block is
     ///   single-sided, otherwise `nil`.
     public static func normalizedCmuxManagedThemeValue(in contents: String) -> String? {
-        var insideManagedBlock = false
-        var rawThemeValue: String?
-
-        for line in contents.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            switch trimmed {
-            case "# cmux themes start":
-                insideManagedBlock = true
-            case "# cmux themes end":
-                insideManagedBlock = false
-            default:
-                guard insideManagedBlock else { continue }
-                let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
-                guard parts.count == 2,
-                      parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == "theme" else {
-                    continue
-                }
-
-                let value = parts[1]
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                if !value.isEmpty {
-                    rawThemeValue = value
-                }
-            }
-        }
-
-        guard let rawThemeValue else { return nil }
+        guard let rawThemeValue = lastCmuxManagedThemeDirective(in: contents) else { return nil }
         let components = conditionalThemeComponents(from: rawThemeValue)
         switch (components.light, components.dark) {
         case let (light?, nil):

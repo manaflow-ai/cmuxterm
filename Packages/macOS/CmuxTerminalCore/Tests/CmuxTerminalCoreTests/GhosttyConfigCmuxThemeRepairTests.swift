@@ -104,4 +104,26 @@ import Testing
 
         #expect(config.theme == "Included Theme")
     }
+
+    @Test func laterUnmarkedThemeKeepsPrecedenceOverRepairedManagedTheme() throws {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-theme-repair-later-theme-\(UUID().uuidString)", isDirectory: false)
+        defer { try? FileManager.default.removeItem(at: path) }
+        try """
+        # cmux themes start
+        theme = light:Legacy Theme
+        # cmux themes end
+        theme = User Theme
+        """.write(to: path, atomically: true, encoding: .utf8)
+
+        var config = GhosttyConfig()
+        config.loadResolvedUserConfig(
+            configPaths: [path.path],
+            preferredColorScheme: .light,
+            environment: [:],
+            bundleResourceURL: nil
+        )
+
+        #expect(config.theme == "User Theme")
+    }
 }
