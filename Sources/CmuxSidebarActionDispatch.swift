@@ -15,6 +15,49 @@ private let cmuxSidebarWorkerQueue = DispatchQueue(label: "com.cmux.sidebar-acti
 /// (CmuxSwiftRenderUI), where its FIFO/newest-wins semantics are unit-tested.
 private let sidebarSelectCoalescer = SidebarSelectCoalescer()
 
+private let cmuxSidebarJSONParameterNames: Set<String> = [
+    "layout", "workspace_env", "initial_env", "env", "workspace_ids",
+    "child_workspace_ids", "surface_ids", "ids", "image_paths", "paths",
+    "args", "topics", "diff_viewer_files", "attachments", "delivered_ids",
+    "notification_ids", "selections", "tags", "cookies", "event", "events",
+    "caller", "daemon_websocket_headers", "comment",
+]
+
+private let cmuxSidebarBooleanParameterNames: Set<String> = [
+    "focus", "select", "open", "enabled", "clear", "dry_run", "base",
+    "eager_load_terminal", "auto_refresh_metadata",
+]
+
+private let cmuxSidebarIntegerParameterNames: Set<String> = [
+    "index", "to_index", "priority", "port", "amount", "count", "limit",
+    "offset", "row", "column", "width", "height",
+]
+
+/// Restores the typed values that the sidebar interpreter serializes into its
+/// string-only action IR. Structured values are selected by parameter name,
+/// rather than by looking at their text shape, so a string such as "[1]"
+/// remains a string for commands like `surface.send_text`.
+func cmuxSidebarTypedParameters(_ params: [String: String]) -> [String: Any] {
+    var typed: [String: Any] = [:]
+    for (key, value) in params {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cmuxSidebarJSONParameterNames.contains(key),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) {
+            typed[key] = json
+        } else if cmuxSidebarBooleanParameterNames.contains(key),
+                  let boolValue = Bool(trimmed.lowercased()) {
+            typed[key] = boolValue
+        } else if cmuxSidebarIntegerParameterNames.contains(key),
+                  let intValue = Int(trimmed) {
+            typed[key] = intValue
+        } else {
+            typed[key] = value
+        }
+    }
+    return typed
+}
+
 // The custom-sidebar rendering, interpreter, JSON DSL, resizable split, and
 // the file-watching model now live in the `CmuxSwiftRender` (logic) and
 // `CmuxSwiftRenderUI` (SwiftUI) packages. The app target keeps only the
@@ -39,18 +82,6 @@ func makeCmuxSidebarActionDispatch() -> SidebarActionDispatch {
         let controller = TerminalController.shared
         let commands = action.commands
         let selectGeneration = sidebarSelectCoalescer.generation(for: commands)
-        let jsonParameterNames: Set<String> = [
-            "layout", "workspace_env", "initial_env", "env", "workspace_ids",
-            "child_workspace_ids", "surface_ids", "ids",
-        ]
-        let booleanParameterNames: Set<String> = [
-            "focus", "select", "open", "enabled", "clear", "dry_run", "base",
-            "eager_load_terminal", "auto_refresh_metadata",
-        ]
-        let integerParameterNames: Set<String> = [
-            "index", "to_index", "priority", "port", "amount", "count", "limit",
-            "offset", "row", "column", "width", "height",
-        ]
         cmuxSidebarWorkerQueue.async {
             // A newer select is already queued behind this one: skip the heavy
             // switch, the burst's final click defines the end state.
@@ -77,31 +108,7 @@ func makeCmuxSidebarActionDispatch() -> SidebarActionDispatch {
                 case let .cmux(method, params):
                     var payload: [String: Any] = ["method": method, "id": UUID().uuidString]
                     if !params.isEmpty {
-                        // Params arrive as strings; coerce integer-looking values
-                        // (e.g. a reorder `index`) to numbers so typed v2 params
-                        // like v2Int decode them.
-                        var typed: [String: Any] = [:]
-                        for (key, value) in params {
-                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if (jsonParameterNames.contains(key) || trimmed.hasPrefix("[")),
-                               let data = trimmed.data(using: .utf8),
-                               let json = try? JSONSerialization.jsonObject(with: data) {
-                                // Structured values (layout, environment maps,
-                                // and id arrays) travel through the interpreter's
-                                // string-only action IR as JSON and are restored
-                                // before entering the shared socket path.
-                                typed[key] = json
-                            } else if booleanParameterNames.contains(key),
-                                      let boolValue = Bool(trimmed.lowercased()) {
-                                typed[key] = boolValue
-                            } else if integerParameterNames.contains(key),
-                                      let intValue = Int(trimmed) {
-                                typed[key] = intValue
-                            } else {
-                                typed[key] = value
-                            }
-                        }
-                        payload["params"] = typed
+                        payload["params"] = cmuxSidebarTypedParameters(params)
                     }
                     guard let data = try? JSONSerialization.data(withJSONObject: payload),
                           let line = String(data: data, encoding: .utf8) else { continue }
