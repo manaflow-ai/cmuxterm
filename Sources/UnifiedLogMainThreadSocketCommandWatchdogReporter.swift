@@ -6,7 +6,10 @@ final class UnifiedLogMainThreadSocketCommandWatchdogReporter: MainThreadSocketC
     private static let subsystem = "com.cmuxterm.app"
     private static let category = "socket-command-watchdog"
 
-    private let logger = Logger(subsystem: Self.subsystem, category: Self.category)
+    private let logger = Logger(
+        subsystem: UnifiedLogMainThreadSocketCommandWatchdogReporter.subsystem,
+        category: UnifiedLogMainThreadSocketCommandWatchdogReporter.category
+    )
 
     func reportHang(_ observation: MainThreadSocketCommandWatchdogObservation) {
         let descriptor = observation.descriptor
