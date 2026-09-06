@@ -1734,6 +1734,7 @@
               "switchRightSidebarToMachines",
               "triggerFlash",
               "toggleVoiceAgent",
+              "toggleTerminalBlueprint",
               "nextSurface",
               "prevSurface",
               "moveSurfaceLeft",

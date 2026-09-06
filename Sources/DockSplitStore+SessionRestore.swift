@@ -460,6 +460,7 @@ extension DockSplitStore {
         )
         terminal.adoptOwnedSessionScrollbackReplayArtifact(replayFileURL)
         terminal.restoreSessionTextBoxDraft(terminalSnapshot.textBoxDraft)
+        terminal.restoreSessionBlueprint(terminalSnapshot.blueprint)
 
         guard attachSessionRestoredPanel(terminal, snapshot: snapshot, inPane: paneId) != nil else {
             if let replayFileURL { try? FileManager.default.removeItem(at: replayFileURL) }

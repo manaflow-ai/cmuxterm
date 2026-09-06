@@ -1003,6 +1003,15 @@ class TabManager: ObservableObject {
         return panel.toggleTextBoxInput()
     }
 
+    /// Shared model path behind every blueprint drawer entrypoint (shortcut,
+    /// palette, tab bar, menu, socket). Returns `false` when the feature is
+    /// off, no terminal is focused, or the intent does not apply.
+    @discardableResult
+    func performBlueprintAction(_ intent: TerminalBlueprintState.Intent) -> Bool {
+        guard TerminalBlueprintFeature.isEnabled(), let panel = selectedTerminalPanel else { return false }
+        return panel.blueprint.perform(intent)
+    }
+
     /// Clears the focused terminal's visible screen while preserving scrollback.
     ///
     /// See `TerminalSurface.clearScreenKeepingScrollback()`. The shared model path

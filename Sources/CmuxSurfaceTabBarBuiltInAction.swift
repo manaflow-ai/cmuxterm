@@ -12,6 +12,7 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
     case splitRight = "cmux.splitRight"
     case splitDown = "cmux.splitDown"
     case voiceRecap = "cmux.voiceRecap"
+    case toggleBlueprint = "cmux.toggleBlueprint"
 
     init?(configID: String) {
         switch configID {
@@ -38,6 +39,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             self = .splitDown
         case "cmux.voiceRecap", "voiceRecap", "recap":
             self = .voiceRecap
+        case "cmux.toggleBlueprint", "toggleBlueprint", "blueprint":
+            self = .toggleBlueprint
         default:
             return nil
         }
@@ -72,6 +75,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return (String(localized: "command.terminalSplitDown.title", defaultValue: "Split Down"), ["terminal", "split", "down"])
         case .voiceRecap:
             return (String(localized: "command.voiceRecap.title", defaultValue: "Speak a Recap of This Terminal"), ["voice", "recap", "summary", "summarize", "speak", "agent"])
+        case .toggleBlueprint:
+            return (String(localized: "command.toggleBlueprint.title", defaultValue: "Toggle Blueprint"), ["blueprint", "canvas", "diagram", "sketch", "draw", "terminal"])
         }
     }
 
@@ -97,12 +102,14 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return "square.split.1x2"
         case .voiceRecap:
             return "waveform.circle"
+        case .toggleBlueprint:
+            return "rectangle.and.pencil.and.ellipsis"
         }
     }
 
     var bonsplitAction: BonsplitConfiguration.SplitActionButton.Action? {
         switch self {
-        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator, .voiceRecap:
+        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator, .voiceRecap, .toggleBlueprint:
             return nil
         case .newTerminal:
             return .newTerminal

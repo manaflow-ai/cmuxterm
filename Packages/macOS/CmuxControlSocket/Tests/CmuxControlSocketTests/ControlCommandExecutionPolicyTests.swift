@@ -180,6 +180,24 @@ struct ControlCommandExecutionPolicyTests {
         #expect(ControlCommandExecutionPolicy(forV1Command: "read_screen") == .socketWorker(mainThreadCallable: false))
     }
 
+    @Test func blueprintCanvasVerbsRunOnTheWorkerAndAreNotMainThreadCallable() {
+        // These await the blueprint canvas page (WKWebView JavaScript), which
+        // cannot answer while the main actor is held; the drawer may even
+        // still be loading. Reads and drawer verbs stay on the main actor.
+        for method in [
+            "blueprint.set",
+            "blueprint.apply_ops",
+            "blueprint.render_mermaid",
+            "blueprint.export",
+            "blueprint.send_to_terminal",
+        ] {
+            #expect(ControlCommandExecutionPolicy(forMethod: method) == .socketWorker(mainThreadCallable: false), "\(method)")
+        }
+        for method in ["blueprint.state", "blueprint.get", "blueprint.show", "blueprint.hide", "blueprint.collapse", "blueprint.expand"] {
+            #expect(ControlCommandExecutionPolicy(forMethod: method) == .mainActor, "\(method)")
+        }
+    }
+
     @Test func windowScreenshotsRunOnTheWorkerAndAreNotMainThreadCallable() {
         #expect(
             ControlCommandExecutionPolicy(forMethod: "debug.window.screenshot")

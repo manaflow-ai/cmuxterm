@@ -364,6 +364,71 @@ cmux_codex_computer_use_enabled_for_invocation() {
     return 0
 }
 
+# Blueprint (the per-terminal diagram canvas) MCP server: the bundled cmux CLI
+# on stdio. Codex forwards only an allowlisted child env, so the cmux binding
+# variables are passed explicitly. Fail-closed on CMUX_BLUEPRINT_MCP_DISABLED=1,
+# --strict-mcp-config, a missing cmux binding, a stale socket node, and the
+# app-owned Blueprint beta toggle (mirrored to a file by cmux).
+cmux_blueprint_app_enabled() {
+    local home="${HOME:-}"
+    [[ "$home" = /* ]] || return 1
+    local setting_file="${CMUX_BLUEPRINT_SETTING_FILE:-$home/Library/Application Support/cmux/blueprint/enabled}"
+    [[ -r "$setting_file" ]] || return 1
+    local enabled=""
+    IFS= read -r enabled < "$setting_file" || true
+    [[ "$enabled" == "1" ]]
+}
+
+cmux_codex_blueprint_enabled_for_invocation() {
+    [[ "${CMUX_BLUEPRINT_MCP_DISABLED:-0}" == "1" ]] && return 1
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --strict-mcp-config|--strict-mcp-config=*)
+                return 1
+                ;;
+        esac
+    done
+    [[ -n "${CMUX_SURFACE_ID:-}" ]] || return 1
+    cmux_computer_use_surface_socket_available || return 1
+    cmux_blueprint_app_enabled
+}
+
+cmux_codex_emit_blueprint_args() {
+    cmux_codex_blueprint_enabled_for_invocation "$@" || return 1
+    local cmux_bin
+    cmux_bin="$(resolve_hook_cmux_bin)"
+    [[ "$cmux_bin" = /* && -x "$cmux_bin" ]] || return 1
+    printf '%s\0' \
+        "-c" \
+        "mcp_servers.cmux-blueprint.command=\"$(cmux_computer_use_json_escape "$cmux_bin")\"" \
+        "-c" \
+        'mcp_servers.cmux-blueprint.args=["blueprint","mcp"]'
+    local key value
+    for key in CMUX_SURFACE_ID CMUX_WORKSPACE_ID CMUX_SOCKET_PATH CMUX_SOCKET_CAPABILITY; do
+        value="${!key:-}"
+        [[ -n "$value" ]] || continue
+        printf '%s\0' \
+            "-c" \
+            "mcp_servers.cmux-blueprint.env.$key=\"$(cmux_computer_use_json_escape "$value")\""
+    done
+    printf '%s\0' \
+        "-c" \
+        'mcp_servers.cmux-blueprint.env.NODE_OPTIONS=""' \
+        "-c" \
+        'mcp_servers.cmux-blueprint.env.BUN_OPTIONS=""'
+}
+
+cmux_codex_blueprint_args=()
+cmux_codex_read_blueprint_args() {
+    local arg
+    while IFS= read -r -d '' arg; do
+        cmux_codex_blueprint_args+=("$arg")
+    done < <(cmux_codex_emit_blueprint_args "$@" 2>/dev/null)
+    (( ${#cmux_codex_blueprint_args[@]} > 0 )) || return 1
+    return 0
+}
+
 cmux_codex_emit_computer_use_args() {
     cmux_codex_computer_use_enabled_for_invocation "$@" || return 1
     # Codex v0.153 consumes skills.config as enable/disable rules only; it does
@@ -667,6 +732,7 @@ fi
 # CLI is local and does not need the cmux hook socket, so a failed or empty
 # `hooks codex inject-args` emit must not silently drop computer use.
 cmux_codex_read_computer_use_args "$@" || true
+cmux_codex_read_blueprint_args "$@" || true
 
 if [[ "${CMUX_CUA_DIAGNOSTICS:-0}" == "1" ]]; then
     if cmux_codex_cua_attachment_present; then
@@ -678,11 +744,11 @@ if [[ "${CMUX_CUA_DIAGNOSTICS:-0}" == "1" ]]; then
 fi
 
 if cmux_codex_read_inject_args; then
-    exec "$REAL_CODEX" "${cmux_codex_computer_use_args[@]}" "${cmux_codex_injected_args[@]}" "$@"
+    exec "$REAL_CODEX" "${cmux_codex_computer_use_args[@]}" "${cmux_codex_blueprint_args[@]}" "${cmux_codex_injected_args[@]}" "$@"
 fi
 
 # A reconciled persistent channel intentionally emits no overrides; an emitter
 # failure also returns nothing. In both cases preserve the cmux surface context
 # and Computer Use attachment so persistent, native, or future hooks can still
 # bind this session.
-exec "$REAL_CODEX" "${cmux_codex_computer_use_args[@]}" "$@"
+exec "$REAL_CODEX" "${cmux_codex_computer_use_args[@]}" "${cmux_codex_blueprint_args[@]}" "$@"

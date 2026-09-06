@@ -46,6 +46,7 @@ public enum ShortcutAction: String, CaseIterable, Sendable, Hashable, SettingCod
     case switchRightSidebarToMachines
     case triggerFlash
     case toggleVoiceAgent
+    case toggleTerminalBlueprint
 
     // MARK: Navigation
     case nextSurface

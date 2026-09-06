@@ -4,6 +4,77 @@ import { defineConfig } from "vite";
 
 const outDir = process.env.CMUX_WEBVIEWS_OUT_DIR ?? "../Resources/markdown-viewer/webviews-app";
 
+const blueprintMermaidPackages = [
+  "/@excalidraw/mermaid-to-excalidraw/",
+  "/@excalidraw/markdown-to-text/",
+  "/mermaid/",
+  "/@mermaid-js/",
+  "/@chevrotain/",
+  "/chevrotain/",
+  "/langium/",
+  "/vscode-",
+  "/cytoscape",
+  "/elkjs/",
+  "/dagre-d3-es/",
+  "/d3",
+  "/internmap/",
+  "/delaunator/",
+  "/robust-predicates/",
+  "/khroma/",
+  "/dompurify/",
+  "/katex/",
+  "/ts-dedent/",
+  "/stylis/",
+  "/lodash-es/",
+  "/uuid/",
+  "/dayjs/",
+  "/marked/",
+  "/@iconify/",
+  "/layout-base/",
+  "/cose-base/",
+  "/@antv/",
+];
+
+function isBlueprintMermaidModule(id) {
+  return blueprintMermaidPackages.some((fragment) => id.includes(fragment));
+}
+
+// Excalidraw's own runtime dependencies, including the ones it imports lazily
+// (file pickers, image downscaling). Pinned to the blueprint vendor chunk so
+// the canvas does not fan out into a dozen tiny chunks and so nothing the
+// canvas needs at startup lands in the lazily fetched Mermaid chunk.
+const blueprintVendorPackages = [
+  "/@excalidraw/",
+  "/roughjs/",
+  "/hachure-fill/",
+  "/path-data-parser/",
+  "/points-on-curve/",
+  "/points-on-path/",
+  "/nanoid/",
+  "/browser-fs-access/",
+  "/canvas-roundrect-polyfill/",
+  "/pica/",
+  "/image-blob-reduce/",
+  "/lodash.throttle/",
+  "/lodash.debounce/",
+  "/@braintree/sanitize-url/",
+  "/@radix-ui/",
+  "/clsx/",
+  "/open-color/",
+  "/jotai",
+  "/tunnel-rat/",
+  "/png-chunk",
+  "/perfect-freehand/",
+  "/pako/",
+  "/fuzzy/",
+  "/fractional-indexing/",
+  "/es6-promise-pool/",
+];
+
+function isBlueprintVendorModule(id) {
+  return blueprintVendorPackages.some((fragment) => id.includes(fragment));
+}
+
 export default defineConfig({
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
@@ -76,6 +147,16 @@ export default defineConfig({
             id.includes("/oniguruma-to-es/")
           ) {
             return "diff-vendor";
+          }
+          // The blueprint canvas (Excalidraw) loads only from the blueprint
+          // surface. Its Mermaid importer, with the whole mermaid runtime and
+          // its layout engines behind it, is a lazy `import()` inside the
+          // bridge, so it gets its own chunk that is fetched on first use.
+          if (isBlueprintMermaidModule(id)) {
+            return "blueprint-mermaid";
+          }
+          if (isBlueprintVendorModule(id)) {
+            return "blueprint-vendor";
           }
           // Framework code both surfaces share. Pinning it to a stable `vendor`
           // chunk name keeps the shared chunk from being renamed (and rehashed)

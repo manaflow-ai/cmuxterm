@@ -202,6 +202,16 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
         // Presents the Cloud tree style gallery window: one v2MainSync hop for
         // the presentation, like debug.window.screenshot's capture wait.
         "debug.cloudtree.gallery",
+        // Blueprint verbs that wait on the canvas page (Excalidraw in a
+        // WKWebView) for the same reason as the browser methods below: the
+        // page cannot answer while the handler holds the main thread, and a
+        // drawer that is still loading would deadlock a main-actor wait. The
+        // state reads and drawer verbs stay on the main-actor coordinator.
+        "blueprint.set",
+        "blueprint.apply_ops",
+        "blueprint.render_mermaid",
+        "blueprint.export",
+        "blueprint.send_to_terminal",
         // Browser automation methods that wait on page JavaScript, WebKit
         // cookies, or capture callbacks run on the socket worker: on the main
         // actor they block SwiftUI updates for their full duration, and on a

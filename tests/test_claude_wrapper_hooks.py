@@ -1296,6 +1296,145 @@ def expect_cmux_cua_config(
     expect_computer_use_env_scrubbed(server, failures, context, helper_owned=bundled_client)
 
 
+def blueprint_sandbox(*, enabled: bool | None = True, disabled_env: bool = False):
+    """Sandbox HOME with the app-owned Blueprint live setting file the wrapper reads."""
+
+    def setup(tmp: Path, env: dict) -> None:
+        sandbox_home = tmp / "home"
+        sandbox_home.mkdir(exist_ok=True)
+        env["HOME"] = str(sandbox_home)
+        env.pop("CMUX_BLUEPRINT_MCP_DISABLED", None)
+        env.pop("CMUX_BLUEPRINT_SETTING_FILE", None)
+        env["CMUX_WORKSPACE_ID"] = "workspace:test"
+        env["CMUX_SOCKET_CAPABILITY"] = "cap-test-token"
+        if enabled is not None:
+            setting = sandbox_home / "Library" / "Application Support" / "cmux" / "blueprint" / "enabled"
+            setting.parent.mkdir(parents=True, exist_ok=True)
+            setting.write_text("1\n" if enabled else "0\n", encoding="utf-8")
+        if disabled_env:
+            env["CMUX_BLUEPRINT_MCP_DISABLED"] = "1"
+
+    return setup
+
+
+def injected_mcp_configs(argv: list[str]) -> list[dict]:
+    configs: list[dict] = []
+    for arg in argv:
+        if arg.startswith("--mcp-config="):
+            configs.append(json.loads(arg.split("=", 1)[1]))
+    return configs
+
+
+def blueprint_server(argv: list[str]) -> dict | None:
+    for config in injected_mcp_configs(argv):
+        server = config.get("mcpServers", {}).get("cmux-blueprint")
+        if server is not None:
+            return server
+    return None
+
+
+def test_live_socket_attaches_cmux_blueprint_when_enabled(failures: list[str]) -> None:
+    code, real_argv, _, stderr, _, _, _, _, _, launch_argv_b64 = run_wrapper(
+        socket_state="live",
+        argv=["hello"],
+        setup_sandbox=blueprint_sandbox(enabled=True),
+    )
+    expect(code == 0, f"blueprint inject: wrapper exited {code}: {stderr}", failures)
+    expect(
+        "--mcp-config" not in real_argv,
+        f"blueprint inject: must use the single-token --mcp-config=<json> form, got {real_argv}",
+        failures,
+    )
+    server = blueprint_server(real_argv)
+    expect(server is not None, f"blueprint inject: expected a cmux-blueprint MCP config, got {real_argv}", failures)
+    if server is None:
+        return
+    command = server.get("command", "")
+    # The sandbox is gone by now; the wrapper itself required an executable file.
+    expect(
+        Path(command).is_absolute() and Path(command).name == "cmux",
+        f"blueprint inject: command must be the absolute bundled cmux CLI, got {command!r}",
+        failures,
+    )
+    expect(server.get("args") == ["blueprint", "mcp"], f"blueprint inject: args must be ['blueprint','mcp'], got {server.get('args')}", failures)
+    env = server.get("env", {})
+    expect(env.get("CMUX_SURFACE_ID") == "surface:test", f"blueprint inject: surface binding missing, got {env}", failures)
+    expect(env.get("CMUX_WORKSPACE_ID") == "workspace:test", f"blueprint inject: workspace binding missing, got {env}", failures)
+    expect(env.get("CMUX_SOCKET_PATH", "").endswith("/cmux.sock"), f"blueprint inject: socket path missing, got {env}", failures)
+    expect(env.get("CMUX_SOCKET_CAPABILITY") == "cap-test-token", f"blueprint inject: capability token missing, got {env}", failures)
+    expect(env.get("NODE_OPTIONS") == "" and env.get("BUN_OPTIONS") == "", f"blueprint inject: runtime preloads must be scrubbed, got {env}", failures)
+    # Its own config token, so it can be disabled independently of computer use.
+    expect(
+        all("cmux-cua" not in config.get("mcpServers", {}) for config in injected_mcp_configs(real_argv) if "cmux-blueprint" in config.get("mcpServers", {})),
+        f"blueprint inject: must not be folded into the computer-use config, got {real_argv}",
+        failures,
+    )
+    prompt_index = real_argv.index("hello") if "hello" in real_argv else -1
+    config_index = next((i for i, arg in enumerate(real_argv) if arg.startswith("--mcp-config=") and "cmux-blueprint" in arg), -1)
+    expect(0 <= config_index < prompt_index, f"blueprint inject: config must precede user args, got {real_argv}", failures)
+    captured = decode_nul_argv(launch_argv_b64)
+    expect(
+        blueprint_server(captured) is None,
+        f"blueprint inject: captured launch argv must not include the injected flag, got {captured}",
+        failures,
+    )
+
+
+def test_blueprint_attaches_alongside_cmux_cua_as_separate_tokens(failures: list[str]) -> None:
+    cua_setup = computer_use_sandbox()
+    blueprint_setup = blueprint_sandbox(enabled=True)
+
+    def setup(tmp: Path, env: dict) -> None:
+        cua_setup(tmp, env)
+        blueprint_setup(tmp, env)
+
+    code, real_argv, _, stderr, _, _, _, _, _, _ = run_wrapper(
+        socket_state="live",
+        argv=["hello"],
+        setup_sandbox=setup,
+    )
+    expect(code == 0, f"blueprint+cua: wrapper exited {code}: {stderr}", failures)
+    configs = injected_mcp_configs(real_argv)
+    names = [sorted(config.get("mcpServers", {}).keys()) for config in configs]
+    expect(names == [["cmux-cua"], ["cmux-blueprint"]], f"blueprint+cua: expected two independent configs, cua first, got {names}", failures)
+    expect_cmux_cua_config(extract_injected_mcp_config(real_argv), failures, "blueprint+cua", "cmux-cua", bundled_client=True)
+
+
+def test_blueprint_skipped_when_app_toggle_is_off_or_missing(failures: list[str]) -> None:
+    for enabled in (False, None):
+        code, real_argv, _, stderr, _, _, _, _, _, _ = run_wrapper(
+            socket_state="live",
+            argv=["hello"],
+            setup_sandbox=blueprint_sandbox(enabled=enabled),
+        )
+        expect(code == 0, f"blueprint toggle {enabled}: wrapper exited {code}: {stderr}", failures)
+        expect(
+            blueprint_server(real_argv) is None,
+            f"blueprint toggle {enabled}: must not attach while the Blueprint beta is off, got {real_argv}",
+            failures,
+        )
+
+
+def test_blueprint_skipped_when_disabled_or_strict_or_stale(failures: list[str]) -> None:
+    cases = [
+        ("disabled env", "live", ["hello"], blueprint_sandbox(enabled=True, disabled_env=True)),
+        ("strict mcp", "live", ["--strict-mcp-config", "hello"], blueprint_sandbox(enabled=True)),
+        ("missing socket", "missing", ["hello"], blueprint_sandbox(enabled=True)),
+    ]
+    for label, socket_state, argv, setup in cases:
+        code, real_argv, _, stderr, _, _, _, _, _, _ = run_wrapper(
+            socket_state=socket_state,
+            argv=argv,
+            setup_sandbox=setup,
+        )
+        expect(code == 0, f"blueprint {label}: wrapper exited {code}: {stderr}", failures)
+        expect(
+            blueprint_server(real_argv) is None,
+            f"blueprint {label}: must fail closed, got {real_argv}",
+            failures,
+        )
+
+
 def test_live_socket_attaches_cmux_cua_when_available(failures: list[str]) -> None:
     code, real_argv, _, stderr, _, _, _, _, _, launch_argv_b64 = run_wrapper(
         socket_state="live",
@@ -2634,6 +2773,10 @@ def main() -> int:
     test_hidden_attach_subcommand_bypasses_hook_injection(failures)
     test_passthrough_flags_bypass_hook_injection(failures)
     test_live_socket_attaches_cmux_cua_when_available(failures)
+    test_live_socket_attaches_cmux_blueprint_when_enabled(failures)
+    test_blueprint_attaches_alongside_cmux_cua_as_separate_tokens(failures)
+    test_blueprint_skipped_when_app_toggle_is_off_or_missing(failures)
+    test_blueprint_skipped_when_disabled_or_strict_or_stale(failures)
     test_computer_use_wrapper_is_a_pure_proxy(failures)
     test_computer_use_skips_without_daemon_credential(failures)
     test_computer_use_reads_private_daemon_credential_file(failures)

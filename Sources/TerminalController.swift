@@ -1654,6 +1654,10 @@ class TerminalController {
             return v2AsyncResultCall(id: request.id, timeoutSeconds: 60) {
                 await self.v2VaultFork(params: request.params)
             }
+        case "blueprint.set", "blueprint.apply_ops", "blueprint.render_mermaid",
+             "blueprint.export", "blueprint.send_to_terminal":
+            // Canvas verbs await the blueprint page; see ControlCommandExecutionPolicy.
+            return v2BlueprintCanvasCommandOnSocketWorker(id: request.id, method: request.method, params: request.params)
         case "surface.read_text":
             return v2Result(id: request.id, v2SurfaceReadText(params: request.params))
         case "surface.ssh_session_attach.resolve":
@@ -3286,6 +3290,11 @@ class TerminalController {
             ]
             methods.removeAll { taskComposerMethods.contains($0) }
         }
+        if TerminalBlueprintFeature.isEnabled() {
+            // The blueprint verbs exist only while the beta toggle is on, so
+            // agents and the MCP server can tell "off" from "old app".
+            methods.append(contentsOf: Self.v2BlueprintMethods)
+        }
         methods.append(contentsOf: ControlCommandExecutionPolicy.simulatorMethods)
 #if DEBUG
         methods.append(contentsOf: Self.v2DebugMethodNames)
@@ -4052,7 +4061,7 @@ class TerminalController {
     /// Bridges a legacy `Any?` request id to the wire value: missing ids
     /// encode as JSON `null`; an unencodable id reports overall encode
     /// failure (the legacy `isValidJSONObject` behavior).
-    private nonisolated static func v2WireId(_ id: Any?) -> JSONValue? {
+    nonisolated static func v2WireId(_ id: Any?) -> JSONValue? {
         guard let id else { return .null }
         return JSONValue(foundationObject: id)
     }

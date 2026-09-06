@@ -49,6 +49,14 @@ final class TerminalPanel: Panel, ObservableObject {
     @Published private(set) var tmuxLayoutReport: TmuxPaneLayoutReport?
     let shellActivity = TerminalPanelShellActivityModel()
     let textBoxState = TerminalPanelTextBoxState()
+    /// The per-terminal blueprint drawer model. Every entrypoint (drawer
+    /// buttons, shortcut, palette, tab bar, menu, socket) mutates it through
+    /// `TerminalBlueprintState.perform(_:)`.
+    let blueprint: TerminalBlueprintState
+    /// Where this panel's blueprint document and exports live; nil under tests.
+    let blueprintStore: TerminalBlueprintStore?
+    /// Keeps the blueprint web view alive across SwiftUI churn.
+    let blueprintWebSession = TerminalBlueprintWebSession()
     @Published var isTextBoxActive: Bool = false
     @Published var textBoxContent: String = ""
     @Published var textBoxAttachments: [TextBoxAttachment] = []
@@ -172,6 +180,36 @@ final class TerminalPanel: Panel, ObservableObject {
         self.workspaceId = workspaceId
         self.surface = surface
         self.title = surface.agentPanelTitle ?? "Terminal"
+        let blueprintStore = TerminalBlueprintStore.makeDefault()
+        self.blueprintStore = blueprintStore
+        self.blueprint = TerminalBlueprintState(store: blueprintStore)
+        blueprint.surfaceIDProvider = { [weak self] in self?.stableSurfaceId ?? UUID() }
+        blueprint.onRequestTerminalFocus = { [weak self] in
+            _ = self?.focusTerminalSurface(respectForeignFirstResponder: false)
+        }
+        blueprint.onCanvasRequested = { [weak self] in
+            self?.ensureBlueprintCanvasLoaded()
+        }
+        blueprint.onSendToTerminal = { [weak self] in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.sendBlueprintToTerminal(options: TerminalBlueprintSendOptions())
+                } catch {
+                    self.blueprint.reportError(TerminalBlueprintErrorText.describe(error))
+                }
+            }
+        }
+        blueprint.onChange = { [weak self] change in
+            self?.publishBlueprintChange(change)
+        }
+        blueprint.onVisibilityChange = { [weak self] visibility in
+            self?.publishBlueprintVisibility(visibility)
+        }
+        blueprint.onSentToTerminal = { [weak self] formats in
+            self?.publishBlueprintSentToTerminal(formats: formats)
+        }
         // Subscribe to surface's search state changes
         surface.$searchState
             .sink { [weak self] state in
@@ -466,6 +504,125 @@ final class TerminalPanel: Panel, ObservableObject {
         }
     }
 
+    /// The blueprint canvas took pointer focus; release terminal focus the
+    /// same way the text box does so the terminal stops drawing a cursor.
+    func blueprintDidBecomeFocused() {
+        surface.setFocus(false)
+        hostedView.setActive(false)
+    }
+
+    // MARK: - Blueprint events
+
+    private static let blueprintEventCategory = "blueprint"
+
+    func publishBlueprintChange(_ change: TerminalBlueprintChange) {
+        CmuxEventBus.shared.publish(
+            name: "blueprint.changed",
+            category: Self.blueprintEventCategory,
+            source: "blueprint",
+            workspaceId: workspaceId.uuidString,
+            surfaceId: id.uuidString,
+            payload: [
+                "revision": change.revision,
+                "updated_by": change.updatedBy.rawValue,
+                "element_count": change.elementCount,
+            ]
+        )
+    }
+
+    func publishBlueprintVisibility(_ visibility: TerminalBlueprintVisibility) {
+        CmuxEventBus.shared.publish(
+            name: "blueprint.visibility",
+            category: Self.blueprintEventCategory,
+            source: "blueprint",
+            workspaceId: workspaceId.uuidString,
+            surfaceId: id.uuidString,
+            payload: [
+                "visible": visibility.isOpen,
+                "collapsed": visibility.isCollapsed,
+            ]
+        )
+    }
+
+    func publishBlueprintSentToTerminal(formats: [String]) {
+        CmuxEventBus.shared.publish(
+            name: "blueprint.sent_to_terminal",
+            category: Self.blueprintEventCategory,
+            source: "blueprint",
+            workspaceId: workspaceId.uuidString,
+            surfaceId: id.uuidString,
+            payload: [
+                "revision": blueprint.revision,
+                "formats": formats,
+            ]
+        )
+    }
+
+    /// Creates the canvas page offscreen when the drawer is not showing it,
+    /// so agent draws and exports work for hidden and background terminals.
+    func ensureBlueprintCanvasLoaded() {
+        let isDark = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        blueprintWebSession.ensureLoaded(state: blueprint, isDark: isDark)
+    }
+
+    /// "Send to terminal": exports the canvas, writes the PNG next to the
+    /// stored document, and pastes one block (PNG path, Mermaid or summary,
+    /// optionally JSON) into this terminal's prompt.
+    func sendBlueprintToTerminal(options: TerminalBlueprintSendOptions) async throws -> TerminalBlueprintSendResult {
+        let state = blueprint
+        var pngPath: String?
+        var mermaid = state.mermaidSource
+        if options.includePNG || (options.includeMermaid && mermaid == nil) {
+            try await state.ensureCanvasReady()
+            let export = try await state.requestExport(
+                png: options.includePNG,
+                svg: false,
+                mermaid: options.includeMermaid && mermaid == nil,
+                scale: 2,
+                dark: false
+            )
+            if options.includePNG, let data = export.pngData, let blueprintStore {
+                let url = try await blueprintStore.writeExport(surfaceID: state.surfaceID, data: data, fileExtension: "png")
+                pngPath = url.path
+            }
+            if mermaid == nil, let exported = export.mermaid, !exported.isEmpty {
+                mermaid = exported
+            }
+        }
+        let composed = TerminalBlueprintPromptComposer.compose(
+            TerminalBlueprintPromptComposer.Input(
+                revision: state.revision,
+                elementCount: state.elementCount,
+                pngPath: pngPath,
+                mermaid: mermaid,
+                summary: state.summaryText,
+                sceneJSON: state.sceneJSON
+            ),
+            options: options
+        )
+        guard sendText(composed.text) else {
+            throw TerminalBlueprintError.exportFailed("The terminal did not accept the text")
+        }
+        if options.submit {
+            _ = sendInputResult("\r")
+        }
+        state.didSendToTerminal(formats: composed.formats)
+        return TerminalBlueprintSendResult(
+            revision: state.revision,
+            pngPath: pngPath,
+            textLength: composed.text.count,
+            formats: composed.formats
+        )
+    }
+
+    func sessionBlueprintSnapshot() -> SessionTerminalBlueprintSnapshot? {
+        blueprint.sessionSnapshot()
+    }
+
+    func restoreSessionBlueprint(_ snapshot: SessionTerminalBlueprintSnapshot?) {
+        blueprint.restore(from: snapshot)
+    }
+
     func sessionTextBoxDraftSnapshot() -> SessionTextBoxInputDraftSnapshot? {
         if let textBoxInputView {
             return textBoxInputView.sessionDraftSnapshot(isActive: isTextBoxActive)
@@ -682,6 +839,9 @@ final class TerminalPanel: Panel, ObservableObject {
         )
         discardAgentHibernationPhaseForPermanentClose()
         discardTextBoxContentForClose()
+        let blueprint = blueprint
+        Task { await blueprint.flushPendingSave() }
+        blueprintWebSession.teardown()
         removeOwnedSessionScrollbackReplayArtifact()
         // Detach from the window portal on real close so stale hosted views
         // cannot remain above browser panes after split close.
