@@ -135,11 +135,14 @@ extension TerminalController {
             environment: inputs.startupEnvironment,
             tmuxStartCommand: kind == .terminal ? inputs.tmuxStartCommand : nil,
             initialInput: kind == .terminal ? inputs.initialInput : nil,
-            focus: focus,
+            focus: false,
             preloadInitialNavigationInBackground: kind == .browser
         )
         guard let newPanelId else {
             return .createFailed
+        }
+        if focus {
+            dock.focusPanelFromDockInteraction(newPanelId, window: nil)
         }
         return .createdDock(
             windowID: dock.workspaceId,

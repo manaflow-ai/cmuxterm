@@ -5,6 +5,7 @@ import {
   accountAnalyticsForwardLeases,
   accountDeletionTombstones,
   accountMutationLeases,
+  cloudOrganizations,
   cloudVmBaseGenerations,
   cloudVmBases,
   cloudVmBillingGrants,
@@ -38,9 +39,6 @@ process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY ??= "test-stack-publishable
 process.env.SUBROUTER_STACK_TENANT_DELETE_TOKEN ??=
   "0123456789abcdef0123456789abcdef-test";
 process.env.SUBROUTER_STACK_AUTH_TIMEOUT_MS ??= "10000";
-
-// This suite varies hosted Subrouter configuration between isolated test cases.
-mock.module("../app/env", () => ({ env: process.env }));
 
 const ACCOUNT_USER_ID = "account-user-1";
 const originalPostHogPersonalApiKey = process.env.POSTHOG_PERSONAL_API_KEY;
@@ -866,9 +864,12 @@ describe("account deletion route", () => {
     expect(deletedTables).not.toContain(cloudVmDomains);
     expect(deletedTables).toContain(devices);
     expect(deletedTables).toContain(proWelcomeFulfillments);
+    expect(deletedTables).toContain(cloudOrganizations);
+    expect(updatedRows.filter(({ table }) => table === cloudOrganizations)).toHaveLength(2);
     const nonStripeUpdates = updatedRows.filter(({ table }) =>
       table !== stripeSubscriptions &&
       table !== stripeCustomers &&
+      table !== cloudOrganizations &&
       table !== cloudVmDomains
     );
     expect(nonStripeUpdates.map(({ table, values }) => ({
@@ -883,6 +884,7 @@ describe("account deletion route", () => {
       { table: cloudVmBaseGenerations, values: { createdByUserId: "deleted-account" } },
     ]);
     for (const update of updatedRows) {
+      if (update.table === cloudOrganizations) continue; // Organization metadata has no updatedAt column.
       expect((update.values as { readonly updatedAt?: unknown }).updatedAt).toBeInstanceOf(Date);
     }
     expect(deletedVaultObjects).toEqual([
