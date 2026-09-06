@@ -14,19 +14,15 @@ struct VaultAllSessionsBar: View {
     /// Cmd+Enter — resume the top search result.
     let onResumeTopResult: () -> Void
 
-    @FocusState private var searchFieldFocused: Bool
     @Environment(\.cmuxGlobalFontMagnificationPercent) private var globalFontPercent
 
     private var searchFieldHeight: CGFloat {
         _ = globalFontPercent
-        // A native NSSearchField sits at roughly 22 points on macOS. Keep
-        // that comfortable baseline while allowing the app-wide text scale
-        // to grow the control instead of clipping its editor.
-        return max(22, RightSidebarChromeMetrics.controlHeight + 2)
+        return SidebarSearchField.visibleHeight
     }
 
     private var searchBarHeight: CGFloat {
-        max(RightSidebarChromeMetrics.secondaryBarHeight, searchFieldHeight + 6)
+        max(RightSidebarChromeMetrics.secondaryBarHeight, searchFieldHeight + 8)
     }
 
     var body: some View {
@@ -34,66 +30,23 @@ struct VaultAllSessionsBar: View {
             searchField
             overflowMenu
         }
-        // Keep the same 28-point rhythm and 4/6-point outer insets as the
-        // mode bar, but let this toolbar flow into the session list without a
-        // second separator line. The field itself is two points taller than
-        // the compact icon controls, so use three-point vertical insets here.
-        .padding(.leading, 4)
+        // Match Find's field height and leading/top insets.
+        .padding(.leading, 8)
         .padding(.trailing, 0)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .frame(height: searchBarHeight)
     }
 
     private var searchField: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .cmuxFont(size: 12, weight: .regular)
-                .foregroundColor(.secondary)
-            TextField(
-                String(localized: "sessionIndex.allSessions.searchPlaceholder",
-                       defaultValue: "Search sessions…"),
-                text: $searchText
-            )
-            .textFieldStyle(.plain)
-            .cmuxFont(size: 13)
-            .focused($searchFieldFocused)
-            .onSubmit { onPeekTopResult() }
-            .onKeyPress(.return, phases: .down) { press in
-                guard press.modifiers.contains(.command) else { return .ignored }
-                onResumeTopResult()
-                return .handled
-            }
-            .onKeyPress(.escape) {
-                guard !searchText.isEmpty else { return .ignored }
-                searchText = ""
-                return .handled
-            }
-            .accessibilityIdentifier("VaultAllSessionsSearchField")
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .cmuxFont(size: 12)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(String(localized: "sessionIndex.allSessions.clearSearch",
-                                                defaultValue: "Clear search")))
-            }
-        }
-        // A plain editor inside one low-contrast, borderless control fill
-        // keeps the behavior of a normal macOS search field without adding a
-        // second outline to the chrome.
-        .padding(.horizontal, 9)
-        .frame(height: searchFieldHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: 7,
-                style: .continuous
-            )
-                .fill(Color.primary.opacity(0.06))
+        SidebarSearchFieldView(
+            text: $searchText,
+            placeholder: String(localized: "sessionIndex.allSessions.searchPlaceholder",
+                                defaultValue: "Search sessions…"),
+            accessibilityIdentifier: "VaultAllSessionsSearchField",
+            onSubmit: onPeekTopResult,
+            onCommandSubmit: onResumeTopResult
         )
+        .frame(height: searchFieldHeight)
         // The field owns the flexible width; the utility controls keep their
         // standard 20-point targets at the trailing edge.
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -928,7 +928,7 @@ final class FileExplorerContainerView: NSView {
     }
     private let searchDebounceDelayMilliseconds = 200
     private var searchBarVisibleHeight: CGFloat { max(48, GlobalFontMagnification.scaled(48)) }
-    private var searchFieldVisibleHeight: CGFloat { max(24, GlobalFontMagnification.scaled(24)) }
+    private var searchFieldVisibleHeight: CGFloat { SidebarSearchField.visibleHeight }
 
 #if DEBUG
     private var debugLastSearchTextChangeUptime: TimeInterval = 0
@@ -977,12 +977,6 @@ final class FileExplorerContainerView: NSView {
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.setAccessibilityIdentifier("FileExplorerSearchField")
         searchField.placeholderString = String(localized: "fileExplorer.search.placeholder", defaultValue: "Search files")
-        searchField.focusRingType = .none
-        searchField.cell?.usesSingleLineMode = true
-        searchField.cell?.isScrollable = true
-        searchField.cell?.lineBreakMode = .byClipping
-        searchField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        searchField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         searchField.delegate = self
         searchField.onCancel = { [weak self] in
             self?.closeSearchAndFocusOutline()
@@ -1176,7 +1170,7 @@ final class FileExplorerContainerView: NSView {
     }
 
     private func applyChromeFonts() {
-        searchField.font = GlobalFontMagnification.systemFont(ofSize: 12, weight: .regular)
+        searchField.applyFontScale()
         searchStatusLabel.font = GlobalFontMagnification.systemFont(ofSize: 11, weight: .medium)
         emptyLabel.font = GlobalFontMagnification.systemFont(ofSize: 13)
         searchFieldHeightConstraint?.constant = searchFieldVisibleHeight
