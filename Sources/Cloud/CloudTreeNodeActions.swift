@@ -259,11 +259,19 @@ struct CloudTreeNodeActions {
                 } else {
                     run(openingLabel(machine)) { catalog in
                         let routedGroup = group.withRemoteWorkspaceID(remoteWorkspaceID)
+                        // Clicking a workspace row opens its layout: the machine screen's
+                        // splits, ratios and tabs, when the daemon reports them (nil → grid).
+                        let layout: SurfaceProjectionLayout? = if let remoteWorkspaceID = routedGroup.remoteWorkspaceID {
+                            await CloudWorkspaceLayoutTranslator.fetch(machine: machine, workspaceID: remoteWorkspaceID, catalog: catalog)
+                        } else {
+                            nil
+                        }
                         let opened = try await catalog.projectGroupAsNewLocalWorkspace(
                             routedGroup,
                             title: Self.localWorkspaceTitle(hostName: machineName(machine), group: group),
                             focus: true,
-                            host: .app
+                            host: .app,
+                            layout: layout
                         )
                         catalog.bindCloudWorkspace(
                             localWorkspaceID: opened.workspaceID,

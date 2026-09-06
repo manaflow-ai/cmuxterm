@@ -380,6 +380,9 @@ extension TerminalController {
                 projections = try await catalog.projectGroup(group, into: destination, focus: focus)
                 workspaceID = destination.workspaceID
             } else {
+                // The machine screen's geometry, when the daemon can report it: the new
+                // local workspace then mirrors its splits, ratios and tabs (nil → grid).
+                let layout = await CloudWorkspaceLayoutTranslator.fetch(machine: machine, workspaceID: workspace.id, catalog: catalog)
                 let opened = try await catalog.projectGroupAsNewLocalWorkspace(
                     group,
                     title: CloudTreeNodeActions.localWorkspaceTitle(
@@ -387,7 +390,8 @@ extension TerminalController {
                         group: group
                     ),
                     focus: focus,
-                    host: .app
+                    host: .app,
+                    layout: layout
                 )
                 workspaceID = opened.workspaceID
                 projections = opened.projections
