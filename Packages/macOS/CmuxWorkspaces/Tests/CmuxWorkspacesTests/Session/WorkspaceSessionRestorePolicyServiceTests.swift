@@ -375,6 +375,11 @@ struct WorkspaceSessionRestorePolicyServiceTests {
 
         #expect(service.restorableTmuxStartCommand(command) == command)
         #expect(service.localTmuxStartCommand(command) == command)
+        let legacyCommand = command.replacingOccurrences(
+            of: "/usr/bin/env TMUX= CMUX_LOCAL_TMUX=1",
+            with: "TMUX= CMUX_LOCAL_TMUX=1 exec"
+        )
+        #expect(service.localTmuxStartCommand(legacyCommand) == command)
         #expect(service.restorableTmuxStartCommand("CMUX_LOCAL_TMUX=1 exec tmux attach -t work") == nil)
 
         let malformedCommands = [
@@ -432,6 +437,6 @@ struct WorkspaceSessionRestorePolicyServiceTests {
             .map(quote)
             .joined(separator: " ")
         let condition = "#{==:#{@cmux_local_server_id},\(serverID.uuidString.lowercased())}"
-        return "TMUX= CMUX_LOCAL_TMUX=1 exec \(quote(executable)) -S \(quote(socket)) if-shell -F \(quote(condition)) \(quote(action)) \(quote("run-shell false"))"
+        return "/usr/bin/env TMUX= CMUX_LOCAL_TMUX=1 \(quote(executable)) -S \(quote(socket)) if-shell -F \(quote(condition)) \(quote(action)) \(quote("run-shell false"))"
     }
 }

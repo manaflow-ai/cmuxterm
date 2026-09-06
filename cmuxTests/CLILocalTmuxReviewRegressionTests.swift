@@ -433,7 +433,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         }
         let action = ["attach-session", "-t", "$104"].map(quote).joined(separator: " ")
         let condition = "#{==:#{@cmux_local_server_id},44444444-4444-4444-4444-444444444444}"
-        let expectedCommand = "TMUX= CMUX_LOCAL_TMUX=1 exec \(quote(fakeTmuxURL.path)) -S \(quote(root.appendingPathComponent("server.sock").path)) if-shell -F \(quote(condition)) \(quote(action)) \(quote("run-shell false"))"
+        let expectedCommand = "/usr/bin/env TMUX= CMUX_LOCAL_TMUX=1 \(quote(fakeTmuxURL.path)) -S \(quote(root.appendingPathComponent("server.sock").path)) if-shell -F \(quote(condition)) \(quote(action)) \(quote("run-shell false"))"
         let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
             guard let payload = self.jsonObject(line),
                   let id = payload["id"] as? String,

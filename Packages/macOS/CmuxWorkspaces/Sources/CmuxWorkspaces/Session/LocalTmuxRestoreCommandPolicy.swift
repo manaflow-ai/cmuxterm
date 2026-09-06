@@ -14,10 +14,15 @@ struct LocalTmuxRestoreCommandPolicy: Sendable {
             return nil
         }
         let words = shellWords(command)
-        guard words.count == 11,
-              words[0] == "TMUX=",
-              words[1] == "CMUX_LOCAL_TMUX=1",
-              words[2] == "exec",
+        let isCanonicalCommand = words.count == 11
+            && words[0] == "/usr/bin/env"
+            && words[1] == "TMUX="
+            && words[2] == "CMUX_LOCAL_TMUX=1"
+        let isLegacyCommand = words.count == 11
+            && words[0] == "TMUX="
+            && words[1] == "CMUX_LOCAL_TMUX=1"
+            && words[2] == "exec"
+        guard isCanonicalCommand || isLegacyCommand,
               words[3].hasPrefix("/"),
               URL(fileURLWithPath: words[3]).standardizedFileURL.path == words[3],
               words[4] == "-S",
@@ -39,9 +44,12 @@ struct LocalTmuxRestoreCommandPolicy: Sendable {
         let action = ["attach-session", "-t", sessionID]
             .map(shellQuote)
             .joined(separator: " ")
-        let canonical = "TMUX= CMUX_LOCAL_TMUX=1 exec \(shellQuote(words[3])) -S \(shellQuote(words[5])) if-shell -F \(shellQuote(condition)) \(shellQuote(action)) \(shellQuote(words[10]))"
-        guard command == canonical else { return nil }
-        return command
+        let canonical = "/usr/bin/env TMUX= CMUX_LOCAL_TMUX=1 \(shellQuote(words[3])) -S \(shellQuote(words[5])) if-shell -F \(shellQuote(condition)) \(shellQuote(action)) \(shellQuote(words[10]))"
+        let legacyCanonical = "TMUX= CMUX_LOCAL_TMUX=1 exec \(shellQuote(words[3])) -S \(shellQuote(words[5])) if-shell -F \(shellQuote(condition)) \(shellQuote(action)) \(shellQuote(words[10]))"
+        guard (isCanonicalCommand && command == canonical)
+            || (isLegacyCommand && command == legacyCanonical)
+        else { return nil }
+        return canonical
     }
 
     private func containsControlScalar(_ command: String) -> Bool {

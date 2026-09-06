@@ -30,7 +30,10 @@ struct LocalTmuxCommandBuilder {
     func attachCommand(binding: LocalTmuxSessionBinding) -> String {
         let condition = serverIdentityCondition(binding)
         let action = tmuxCommand("attach-session", "-t", binding.sessionID.rawValue)
-        return "TMUX= \(Self.restoreMarker) exec \(shellQuote(tmuxPath)) -S \(shellQuote(socketPath)) if-shell -F \(shellQuote(condition)) \(shellQuote(action)) \(shellQuote(Self.identityMismatchCommand))"
+        // Ghostty evaluates a shell command as `exec -l <command>`. Put the
+        // environment assignments behind `env` so that wrapper treats the
+        // executable as `/usr/bin/env`, rather than trying to execute `TMUX=`.
+        return "/usr/bin/env TMUX= \(Self.restoreMarker) \(shellQuote(tmuxPath)) -S \(shellQuote(socketPath)) if-shell -F \(shellQuote(condition)) \(shellQuote(action)) \(shellQuote(Self.identityMismatchCommand))"
     }
 
     func hasSessionArguments(_ sessionName: String) -> [String] {
