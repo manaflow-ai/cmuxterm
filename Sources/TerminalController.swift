@@ -119,6 +119,10 @@ nonisolated private func v2RemotePTYUserFacingErrorMessage(_ message: String) ->
 @MainActor
 class TerminalController {
     static let shared = TerminalController()
+    /// The app-managed Cloud tunnel, set by the AppDelegate composition root
+    /// next to `VMClient.bootstrap`. Nil only before startup finishes; the
+    /// `vm.tunnel_*` socket verbs report browser access as unavailable until then.
+    var cloudTunnel: CloudTunnelCoordinator?
 #if DEBUG
     nonisolated let windowScreenshotCaptureCoordinator =
         WindowScreenshotCaptureCoordinator()
@@ -2999,6 +3003,9 @@ class TerminalController {
             "vm.publication_verify",
             "vm.publication_update",
             "vm.publication_delete",
+            "vm.publication_grants",
+            "vm.publication_grant",
+            "vm.publication_ungrant",
             "vm.domain_list",
             "vm.domain_verify",
             "vm.create",
@@ -3039,6 +3046,12 @@ class TerminalController {
             "vm.link_socket",
             "vm.cloud_agent_open",
             "vm.cloud_prompt",
+            "vm.tunnel_config",
+            "vm.tunnel_status",
+            "vm.tunnel_revoke",
+            "vm.tunnel_up",
+            "vm.tunnel_down",
+            "vm.tunnel_wait",
             "surface.catalog",
             "surface.project",
             "surface.new_terminal",
@@ -10982,17 +10995,19 @@ class TerminalController {
                     return
                 }
 
+                dock.noteKeyboardFocusIntent(window: nil)
                 guard let panelId = dock.newSurface(
                     kind: .browser,
                     inPane: pane,
                     url: url,
-                    focus: true,
+                    focus: false,
                     preloadInitialNavigationInBackground: true
                 ),
                     let panel = dock.browserPanel(for: panelId) else {
                     result = .err(code: "internal_error", message: "Failed to create browser tab", data: nil)
                     return
                 }
+                dock.focusPanelFromDockInteraction(panelId, window: nil)
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
                     "workspace_ref": v2Ref(kind: .workspace, uuid: dock.workspaceId),
@@ -11087,7 +11102,7 @@ class TerminalController {
                         )
                     )
                 } else {
-                    dock.focusPanel(targetId)
+                    dock.focusPanelFromDockInteraction(targetId, window: nil)
                 }
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,

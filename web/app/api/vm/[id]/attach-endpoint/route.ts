@@ -65,6 +65,7 @@ export async function POST(
           const endpoint = await runVmWorkflow(openVmCmuxRemote({
             userId: user.id,
             billingTeamId: account.entitlements.billingTeamId,
+            maxActiveVms: account.entitlements.maxActiveVms,
             teamIds: user.teamIds,
             providerVmId: id,
             deviceFingerprint,
@@ -90,6 +91,7 @@ export async function POST(
         const endpoint = await runVmWorkflow(openAttachEndpoint({
           userId: user.id,
           billingTeamId: account.entitlements.billingTeamId,
+          maxActiveVms: account.entitlements.maxActiveVms,
           callerPlanId: account.entitlements.planId,
           teamIds: user.teamIds,
           providerVmId: id,
