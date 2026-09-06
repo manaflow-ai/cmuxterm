@@ -60,8 +60,7 @@ build_args=(--output-dir "$OUTPUT_DIR")
 if [[ -n "$ARCHS_RAW" ]]; then
   build_args+=(--archs "$ARCHS_RAW")
 fi
-CMUX_ALLOW_LOW_SPACE_BUILD="${CMUX_ALLOW_LOW_SPACE_BUILD:-1}" \
-  "$ROOT/scripts/build-cmux-cli-rust.sh" "${build_args[@]}"
+"$ROOT/scripts/build-cmux-cli-rust.sh" "${build_args[@]}"
 
 DEST_DIR="$APP_PATH/Contents/Resources/bin"
 mkdir -p "$DEST_DIR"

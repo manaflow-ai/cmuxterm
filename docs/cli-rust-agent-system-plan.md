@@ -7,7 +7,8 @@ Status: migration in progress. The Rust compatibility crate is
 During the migration installer these are copied as `cmux-rust` and
 `coderouter-rust`. This is deliberate. It gives release and end-to-end tests a
 real artifact without replacing the production Swift CLI before the parity
-gate passes.
+gate passes. The macOS app target builds and signs these candidate artifacts;
+release stripping includes both binaries in the size measurement.
 
 This plan defines the system contract for moving the macOS CLI from Swift to
 Rust. It is written around end-user behavior and agent control. A literal
@@ -235,6 +236,10 @@ Release CI must record:
 - CodeRouter size and checksum;
 - parity manifest coverage;
 - output/exit/protocol conformance result.
+
+Rust build scripts keep the repository disk guard active. A local developer
+may set `CMUX_ALLOW_LOW_SPACE_BUILD=1` for an explicit test build when the
+guard permits it; the installer never sets that override silently.
 
 A lazy download is allowed for advanced CodeRouter features only when the
 primary `cr add codex` path works from a fresh cmux download. The release must
