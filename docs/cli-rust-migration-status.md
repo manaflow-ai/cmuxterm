@@ -53,19 +53,22 @@ All 12 families remain incomplete:
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
-| topology | partial | window inspection and basic window actions are ported; workspace, pane, surface, tree, and tab actions remain |
+| topology | partial | window inspection and basic window actions are ported; handle normalization, tree, tab, and exact topology output remain |
 | terminal-and-notifications | partial | terminal reads/sends and basic notification create/list/dismiss/read/open actions are ported; selection, capture, feed, advanced targeting, and logs remain |
-| browser | partial | open, navigate, back, forward, reload, URL, and webview focus aliases are ported; snapshots, selectors, eval, profiles, storage, and browser namespace parsing remain |
+| browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press aliases are ported; profiles, storage, selector normalization, and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
 | cloud-and-remotes | pending | VM, cloud, remote, SSH, and remote terminal paths |
 | compatibility | pending | tmux compatibility and hidden agent commands |
 
 The Rust candidate currently provides the migration slice for capabilities,
 context, RPC, ping, identify, window inspection and basic window actions,
-workspace and pane inspection, terminal text reads and sends, basic notification
-actions, common browser navigation aliases, auth status/sign-in/sign-out,
+workspace and pane inspection and creation, workspace close/select/rename,
+surface creation, terminal text reads and sends, basic notification actions,
+common browser navigation and automation aliases, auth status/sign-in/sign-out,
 socket refresh/debug controls, limited AI accounts, `cr add codex`, and
-CodeRouter delegation.
+CodeRouter delegation. The new topology and browser commands still need
+Swift-compatible handle normalization, help text, output formatting, and
+side-effect conformance.
 The Rust candidate binaries are about 1.375 MiB each as universal Mach-O
 artifacts. Keeping Swift in production while the gate is red adds about
 2.62 MiB. Removing Swift before the gate passes would risk breaking commands,
@@ -86,7 +89,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (17 tests).
+- `cargo test -p cmux-cli` (19 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -94,6 +97,8 @@ The following checks passed for the current slice:
 - V2 request construction tests for workspace, pane, and terminal context.
 - Notification list parsing and notification command parsing tests.
 - Browser navigation alias parsing tests.
+- Browser namespace parsing coverage for the supported automation verbs.
+- Workspace and surface creation command parsing and boolean flag tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
 - Universal arm64 and x86_64 Rust builds.
@@ -101,6 +106,8 @@ The following checks passed for the current slice:
   tests.
 - `cmux cr add codex` sends `aiAccounts.upload` with no credential in argv or
   socket parameters.
+- `python3 scripts/generate-cli-rust-command-inventory.py --check` (pass).
+- `git diff --check` (pass).
 
 The authoritative gate command is:
 
@@ -108,8 +115,8 @@ The authoritative gate command is:
 python3 scripts/check-cli-rust-parity.py
 ```
 
-It must exit `0` before production cutover. At the last update it exits `3`
-because all 12 families are incomplete.
+It must exit `0` before production cutover. The 2026-09-06 run exits `3`:
+the manifest is valid, but all 12 families remain incomplete.
 
 ## Work sequence
 

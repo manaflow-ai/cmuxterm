@@ -334,7 +334,14 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 | "is-webview-focused"
                 | "auth"
                 | "login"
-                | "logout"),
+                | "logout"
+                | "browser"
+                | "new-workspace"
+                | "close-workspace"
+                | "select-workspace"
+                | "rename-workspace"
+                | "new-pane"
+                | "new-surface"),
             ),
         ) => {
             CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
@@ -625,6 +632,14 @@ fn option_value(arguments: &[String], name: &str) -> Option<String> {
         })
 }
 
+fn parse_bool(value: &str, flag: &str) -> Result<Value, CliError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(Value::Bool(true)),
+        "0" | "false" | "no" | "off" => Ok(Value::Bool(false)),
+        _ => Err(CliError::Usage(format!("{flag} must be true or false"))),
+    }
+}
+
 fn reject_known_options(
     command: &str,
     arguments: &[String],
@@ -749,6 +764,9 @@ fn run_socket_v2_command(
     options: GlobalOptions,
 ) -> Result<(), CliError> {
     let json_output = options.json || arguments.iter().any(|argument| argument == "--json");
+    if command == "browser" {
+        return run_browser_command(arguments, options, json_output);
+    }
     let id_format = option_value(&arguments, "--id-format")
         .or_else(|| options.id_format.clone())
         .unwrap_or_else(|| "refs".into());
@@ -880,6 +898,185 @@ fn run_socket_v2_command(
                 }
             }
         }
+        "new-workspace" => {
+            // Keep the legacy command on the v2 resource API. The Swift CLI
+            // sends the same fields and then writes --command to the new
+            // workspace after creation.
+            params.clear();
+            let workspace_args = arguments.as_slice();
+            if let Some(cwd) = option_value(workspace_args, "--cwd") {
+                params.insert("cwd".into(), Value::String(cwd));
+            }
+            if let Some(title) = option_value(workspace_args, "--name") {
+                params.insert("title".into(), Value::String(title));
+            }
+            if let Some(description) = option_value(workspace_args, "--description") {
+                params.insert("description".into(), Value::String(description));
+            }
+            if let Some(group) = option_value(workspace_args, "--group") {
+                params.insert("group_id".into(), Value::String(group));
+            }
+            if let Some(placement) = option_value(workspace_args, "--group-placement") {
+                params.insert("group_placement".into(), Value::String(placement));
+            }
+            if let Some(reference) = option_value(workspace_args, "--group-reference") {
+                params.insert("group_reference_workspace_id".into(), Value::String(reference));
+            }
+            if let Some(layout) = option_value(workspace_args, "--layout") {
+                let layout = serde_json::from_str::<Value>(&layout).map_err(|error| {
+                    CliError::Usage(format!(
+                        "new-workspace: --layout value must be valid JSON: {error}"
+                    ))
+                })?;
+                if !layout.is_object() {
+                    return Err(CliError::Usage(
+                        "new-workspace: --layout value must be a JSON object".into(),
+                    ));
+                }
+                params.insert("layout".into(), layout);
+            }
+            if let Some(window) = option_value(workspace_args, "--window") {
+                params.insert("window_id".into(), Value::String(window));
+            } else if let Some(window) = options.window.clone() {
+                params.insert("window_id".into(), Value::String(window));
+            }
+            if let Some(focus) = option_value(workspace_args, "--focus") {
+                params.insert("focus".into(), parse_bool(&focus, "--focus")?);
+            }
+            let command_text = option_value(workspace_args, "--command");
+            let result = socket(&options)?.send_v2("workspace.create", Value::Object(params))?;
+            let result = format_ids(result, &id_format);
+            if !json_output {
+                let handle = result
+                    .get("workspace_ref")
+                    .or_else(|| result.get("workspace_id"))
+                    .or_else(|| result.get("workspace"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if handle.is_empty() {
+                    print_result(&result, false);
+                } else {
+                    println!("OK {handle}");
+                }
+            } else {
+                print_result(&result, true);
+            }
+            if let Some(command_text) = command_text {
+                let workspace_id = result
+                    .get("workspace_ref")
+                    .or_else(|| result.get("workspace_id"))
+                    .or_else(|| result.get("workspace"))
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                if !workspace_id.is_null() {
+                    let mut send_params = serde_json::Map::new();
+                    send_params.insert("workspace_id".into(), workspace_id);
+                    send_params.insert(
+                        "text".into(),
+                        Value::String(unescape_send_text(&(command_text + "\\n"))),
+                    );
+                    let _ = socket(&options)?
+                        .send_v2("surface.send_text", Value::Object(send_params))?;
+                }
+            }
+            return Ok(());
+        }
+        "close-workspace" | "select-workspace" | "rename-workspace" => {
+            let workspace = option_value(&arguments, "--workspace")
+                .or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
+            if command != "rename-workspace" && workspace.is_none() {
+                return Err(CliError::Usage(format!("{command} requires --workspace")));
+            }
+            params.clear();
+            if let Some(window) =
+                option_value(&arguments, "--window").or_else(|| options.window.clone())
+            {
+                params.insert("window_id".into(), Value::String(window));
+            }
+            if let Some(workspace) = workspace {
+                params.insert("workspace_id".into(), Value::String(workspace));
+            }
+            let method = match command {
+                "close-workspace" => "workspace.close",
+                "select-workspace" => "workspace.select",
+                "rename-workspace" => {
+                    let title = option_value(&arguments, "--title").or_else(|| {
+                        let mut values = Vec::new();
+                        let mut index = 0;
+                        while index < arguments.len() {
+                            if arguments[index] == "--" {
+                                values.extend(arguments[index + 1..].iter().cloned());
+                                break;
+                            }
+                            if arguments[index].starts_with("--") {
+                                index += 2;
+                            } else {
+                                values.push(arguments[index].clone());
+                                index += 1;
+                            }
+                        }
+                        (!values.is_empty()).then(|| values.join(" "))
+                    });
+                    let title =
+                        title.filter(|value| !value.trim().is_empty()).ok_or_else(|| {
+                            CliError::Usage("rename-workspace requires a title".into())
+                        })?;
+                    params.insert("title".into(), Value::String(title));
+                    "workspace.rename"
+                }
+                _ => unreachable!(),
+            };
+            let result =
+                format_ids(socket(&options)?.send_v2(method, Value::Object(params))?, &id_format);
+            print_result(&result, json_output);
+            return Ok(());
+        }
+        "new-pane" | "new-surface" => {
+            if let Some(window) =
+                option_value(&arguments, "--window").or_else(|| options.window.clone())
+            {
+                params.insert("window_id".into(), Value::String(window));
+            }
+            if let Some(workspace) = option_value(&arguments, "--workspace")
+                .or_else(|| env::var("CMUX_WORKSPACE_ID").ok())
+            {
+                params.insert("workspace_id".into(), Value::String(workspace));
+            }
+            if let Some(kind) = option_value(&arguments, "--type") {
+                params.insert("type".into(), Value::String(kind));
+            }
+            if let Some(direction) = option_value(&arguments, "--direction") {
+                params.insert("direction".into(), Value::String(direction));
+            }
+            if let Some(url) = option_value(&arguments, "--url") {
+                params.insert("url".into(), Value::String(url));
+            }
+            if let Some(placement) = option_value(&arguments, "--placement") {
+                params.insert("placement".into(), Value::String(placement));
+            }
+            if let Some(pane) = option_value(&arguments, "--pane") {
+                params.insert("pane_id".into(), Value::String(pane));
+            }
+            if let Some(provider) = option_value(&arguments, "--provider") {
+                params.insert("provider_id".into(), Value::String(provider));
+            }
+            if let Some(renderer) = option_value(&arguments, "--renderer") {
+                params.insert("renderer_kind".into(), Value::String(renderer));
+            }
+            if let Some(cwd) = option_value(&arguments, "--working-directory")
+                .or_else(|| option_value(&arguments, "--cwd"))
+            {
+                params.insert("working_directory".into(), Value::String(cwd));
+            }
+            if let Some(focus) = option_value(&arguments, "--focus") {
+                params.insert("focus".into(), parse_bool(&focus, "--focus")?);
+            }
+            let method = if command == "new-pane" { "pane.create" } else { "surface.create" };
+            let result =
+                format_ids(socket(&options)?.send_v2(method, Value::Object(params))?, &id_format);
+            print_result(&result, json_output);
+            return Ok(());
+        }
         "close-surface" => "surface.close",
         "surface-health" => "surface.health",
         "debug-terminals" => "debug.terminals",
@@ -925,6 +1122,337 @@ fn run_socket_v2_command(
         println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
     } else {
         print_result(&result, json_output);
+    }
+    Ok(())
+}
+
+/// Execute the high-value browser namespace commands. The Swift CLI has a
+/// larger browser surface; this function keeps the common automation verbs on
+/// the same v2 methods so agents can use the bundled CLI without a second
+/// browser client.
+fn run_browser_command(
+    arguments: Vec<String>,
+    options: GlobalOptions,
+    json_output: bool,
+) -> Result<(), CliError> {
+    let verbs_without_surface = [
+        "open",
+        "open-split",
+        "new",
+        "navigate",
+        "goto",
+        "back",
+        "forward",
+        "reload",
+        "snapshot",
+        "eval",
+        "wait",
+        "click",
+        "dblclick",
+        "hover",
+        "focus",
+        "check",
+        "uncheck",
+        "scroll-into-view",
+        "scrollintoview",
+        "fill",
+        "type",
+        "press",
+        "key",
+        "keydown",
+        "keyup",
+        "url",
+        "get-url",
+        "focus-webview",
+        "is-webview-focused",
+    ];
+    let mut command_args = arguments;
+    let mut positional_surface = if command_args.first().is_some_and(|value| {
+        !value.starts_with('-')
+            && !verbs_without_surface.contains(&value.to_ascii_lowercase().as_str())
+    }) {
+        Some(command_args.remove(0))
+    } else {
+        None
+    };
+    let subcommand = command_args
+        .first()
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| CliError::Usage("browser requires a subcommand".into()))?;
+    let mut rest = command_args[1..].to_vec();
+    if positional_surface.is_none()
+        && option_value(&rest, "--surface").is_none()
+        && rest.first().is_some_and(|value| {
+            !value.starts_with('-')
+                && !verbs_without_surface.contains(&value.to_ascii_lowercase().as_str())
+        })
+    {
+        positional_surface = Some(rest.remove(0));
+    }
+    let mut params = context_params(&rest, &options)?;
+    if let Some(surface) = positional_surface.or_else(|| option_value(&rest, "--surface")) {
+        params.insert("surface_id".into(), Value::String(surface));
+    }
+    let surface_required = || {
+        params
+            .get("surface_id")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| {
+                CliError::Usage(format!(
+                    "browser {subcommand} requires a surface handle (use --surface <id>)"
+                ))
+            })
+    };
+    let has_flag = |name: &str| rest.iter().any(|value| value == name);
+    let positional_values = |values: &[String], value_flags: &[&str]| {
+        let mut result = Vec::new();
+        let mut index = 0;
+        while index < values.len() {
+            let value = &values[index];
+            if value == "--" {
+                result.extend(values[index + 1..].iter().cloned());
+                break;
+            }
+            if value_flags.contains(&value.as_str()) {
+                index += 2;
+            } else if value.starts_with("--") {
+                index += 1;
+            } else {
+                result.push(value.clone());
+                index += 1;
+            }
+        }
+        result
+    };
+    let send = |method: &str, params: serde_json::Map<String, Value>| -> Result<Value, CliError> {
+        let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+        let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+        print_result(&result, json_output);
+        Ok(result)
+    };
+
+    match subcommand.as_str() {
+        "open" | "open-split" | "new" => {
+            let url =
+                positional_values(&rest, &["--workspace", "--window", "--focus", "--profile"])
+                    .join(" ");
+            if !url.trim().is_empty() {
+                params.insert("url".into(), Value::String(url));
+            }
+            if let Some(profile) = option_value(&rest, "--profile") {
+                params.insert("profile".into(), Value::String(profile));
+            }
+            if let Some(focus) = option_value(&rest, "--focus") {
+                params.insert("focus".into(), parse_bool(&focus, "--focus")?);
+            }
+            let _ = send("browser.open_split", params)?;
+        }
+        "navigate" | "goto" => {
+            let surface = surface_required()?;
+            let url = positional_values(&rest, &["--workspace", "--window"]).join(" ");
+            if url.trim().is_empty() {
+                return Err(CliError::Usage(format!("browser {subcommand} requires a URL")));
+            }
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("url".into(), Value::String(url));
+            if has_flag("--snapshot-after") {
+                params.insert("snapshot_after".into(), Value::Bool(true));
+            }
+            let _ = send("browser.navigate", params)?;
+        }
+        "back" | "forward" | "reload" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            if has_flag("--snapshot-after") {
+                params.insert("snapshot_after".into(), Value::Bool(true));
+            }
+            let method = match subcommand.as_str() {
+                "back" => "browser.back",
+                "forward" => "browser.forward",
+                _ => "browser.reload",
+            };
+            let _ = send(method, params)?;
+        }
+        "url" | "get-url" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            let result = socket(&options)?.send_v2("browser.url.get", Value::Object(params))?;
+            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            if json_output {
+                print_result(&result, true);
+            } else {
+                println!("{}", result.get("url").and_then(Value::as_str).unwrap_or_default());
+            }
+        }
+        "focus-webview" | "is-webview-focused" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            let method = if subcommand == "focus-webview" {
+                "browser.focus_webview"
+            } else {
+                "browser.is_webview_focused"
+            };
+            let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            if json_output {
+                print_result(&result, true);
+            } else if subcommand == "is-webview-focused" {
+                println!("{}", result.get("focused").and_then(Value::as_bool).unwrap_or(false));
+            } else {
+                print_result(&result, false);
+            }
+        }
+        "snapshot" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            if let Some(selector) = option_value(&rest, "--selector") {
+                params.insert("selector".into(), Value::String(selector));
+            }
+            for flag in ["--interactive", "-i", "--cursor", "--compact"] {
+                if has_flag(flag) {
+                    let key =
+                        if flag == "-i" { "interactive" } else { flag.trim_start_matches('-') };
+                    params.insert(key.into(), Value::Bool(true));
+                }
+            }
+            if let Some(depth) = option_value(&rest, "--max-depth") {
+                let depth = depth.parse::<u64>().map_err(|_| {
+                    CliError::Usage("--max-depth must be a non-negative integer".into())
+                })?;
+                params.insert("max_depth".into(), Value::Number(depth.into()));
+            }
+            let result = socket(&options)?.send_v2("browser.snapshot", Value::Object(params))?;
+            let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+            if json_output {
+                print_result(&result, true);
+            } else {
+                println!(
+                    "{}",
+                    result.get("snapshot").and_then(Value::as_str).unwrap_or("Empty page")
+                );
+            }
+        }
+        "eval" => {
+            let surface = surface_required()?;
+            let script = option_value(&rest, "--script")
+                .or_else(|| Some(positional_values(&rest, &["--workspace", "--window"]).join(" ")))
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| CliError::Usage("browser eval requires a script".into()))?;
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("script".into(), Value::String(script));
+            let _ = send("browser.eval", params)?;
+        }
+        "wait" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            if let Some(selector) = option_value(&rest, "--selector") {
+                params.insert("selector".into(), Value::String(selector));
+            } else if let Some(selector) =
+                positional_values(&rest, &["--workspace", "--window"]).first().cloned()
+            {
+                params.insert("selector".into(), Value::String(selector));
+            }
+            for (flag, key) in [
+                ("--text", "text_contains"),
+                ("--url", "url_contains"),
+                ("--url-contains", "url_contains"),
+                ("--load-state", "load_state"),
+                ("--function", "function"),
+            ] {
+                if let Some(value) = option_value(&rest, flag) {
+                    params.insert(key.into(), Value::String(value));
+                }
+            }
+            if let Some(timeout) = option_value(&rest, "--timeout-ms") {
+                let timeout = timeout
+                    .parse::<u64>()
+                    .map_err(|_| CliError::Usage("--timeout-ms must be an integer".into()))?;
+                params.insert("timeout_ms".into(), Value::Number(timeout.into()));
+            } else if let Some(timeout) = option_value(&rest, "--timeout") {
+                let timeout = timeout
+                    .parse::<f64>()
+                    .map_err(|_| CliError::Usage("--timeout must be a number".into()))?;
+                if !timeout.is_finite() || timeout < 0.0 {
+                    return Err(CliError::Usage("--timeout must be a number".into()));
+                }
+                let timeout_ms = (timeout * 1000.0).max(1.0) as u64;
+                params.insert("timeout_ms".into(), Value::Number(timeout_ms.into()));
+            }
+            let _ = send("browser.wait", params)?;
+        }
+        "click" | "dblclick" | "hover" | "focus" | "check" | "uncheck" | "scroll-into-view"
+        | "scrollintoview" => {
+            let surface = surface_required()?;
+            let selector = option_value(&rest, "--selector")
+                .or_else(|| positional_values(&rest, &["--workspace", "--window"]).first().cloned())
+                .ok_or_else(|| {
+                    CliError::Usage(format!("browser {subcommand} requires a selector"))
+                })?;
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("selector".into(), Value::String(selector));
+            if has_flag("--snapshot-after") {
+                params.insert("snapshot_after".into(), Value::Bool(true));
+            }
+            let method = match subcommand.as_str() {
+                "click" => "browser.click",
+                "dblclick" => "browser.dblclick",
+                "hover" => "browser.hover",
+                "focus" => "browser.focus",
+                "check" => "browser.check",
+                "uncheck" => "browser.uncheck",
+                _ => "browser.scroll_into_view",
+            };
+            let _ = send(method, params)?;
+        }
+        "fill" | "type" => {
+            let surface = surface_required()?;
+            let values =
+                positional_values(&rest, &["--workspace", "--window", "--selector", "--text"]);
+            let selector = option_value(&rest, "--selector").or_else(|| values.first().cloned());
+            let selector = selector.ok_or_else(|| {
+                CliError::Usage(format!("browser {subcommand} requires a selector"))
+            })?;
+            let text = option_value(&rest, "--text")
+                .or_else(|| {
+                    if option_value(&rest, "--selector").is_some() {
+                        (!values.is_empty()).then(|| values.join(" "))
+                    } else {
+                        (values.len() > 1).then(|| values[1..].join(" "))
+                    }
+                })
+                .unwrap_or_default();
+            if subcommand == "type" && text.is_empty() {
+                return Err(CliError::Usage("browser type requires text".into()));
+            }
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("selector".into(), Value::String(selector));
+            params.insert("text".into(), Value::String(text));
+            if has_flag("--snapshot-after") {
+                params.insert("snapshot_after".into(), Value::Bool(true));
+            }
+            let method = if subcommand == "type" { "browser.type" } else { "browser.fill" };
+            let _ = send(method, params)?;
+        }
+        "press" | "key" | "keydown" | "keyup" => {
+            let surface = surface_required()?;
+            let key = option_value(&rest, "--key")
+                .or_else(|| positional_values(&rest, &["--workspace", "--window"]).first().cloned())
+                .ok_or_else(|| CliError::Usage(format!("browser {subcommand} requires a key")))?;
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("key".into(), Value::String(key));
+            if has_flag("--snapshot-after") {
+                params.insert("snapshot_after".into(), Value::Bool(true));
+            }
+            let method = match subcommand.as_str() {
+                "keydown" => "browser.keydown",
+                "keyup" => "browser.keyup",
+                _ => "browser.press",
+            };
+            let _ = send(method, params)?;
+        }
+        _ => return Err(CliError::Usage(format!("Unsupported browser subcommand: {subcommand}"))),
     }
     Ok(())
 }
@@ -1048,7 +1576,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  close-surface --surface <id>\n  surface-health [--surface <id>]\n  debug-terminals\n  trigger-flash [--surface <id>]\n  refresh-surfaces\n  reload-config\n  set-app-focus <true|false>\n  simulate-app-active\n  auth [status|login|logout]\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  new-workspace [options]       Create a workspace\n  close-workspace --workspace <id>\n  select-workspace --workspace <id>\n  rename-workspace [options]    Rename a workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  new-pane [options]            Create a pane\n  new-surface [options]         Create a surface\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  browser <surface> <command>   Browser automation namespace\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  close-surface --surface <id>\n  surface-health [--surface <id>]\n  debug-terminals\n  trigger-flash [--surface <id>]\n  refresh-surfaces\n  reload-config\n  set-app-focus <true|false>\n  simulate-app-active\n  auth [status|login|logout]\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -1682,6 +2210,47 @@ mod tests {
                 arguments: vec!["status".into(), "--json".into()]
             }
         );
+        let (_, browser) = parse_args(
+            &["browser".into(), "surface:1".into(), "snapshot".into(), "--interactive".into()],
+            Program::Cmux,
+        )
+        .unwrap();
+        assert_eq!(
+            browser,
+            CommandLine::SocketV2 {
+                command: "browser".into(),
+                arguments: vec!["surface:1".into(), "snapshot".into(), "--interactive".into()]
+            }
+        );
+    }
+
+    #[test]
+    fn parses_workspace_and_surface_creation_commands() {
+        for (name, expected) in [
+            ("new-workspace", "new-workspace"),
+            ("close-workspace", "close-workspace"),
+            ("select-workspace", "select-workspace"),
+            ("rename-workspace", "rename-workspace"),
+            ("new-pane", "new-pane"),
+            ("new-surface", "new-surface"),
+        ] {
+            let (_, command) =
+                parse_args(&[name.into(), "--focus".into(), "true".into()], Program::Cmux).unwrap();
+            assert_eq!(
+                command,
+                CommandLine::SocketV2 {
+                    command: expected.into(),
+                    arguments: vec!["--focus".into(), "true".into()]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn parses_boolean_flags_for_creation_commands() {
+        assert_eq!(parse_bool("true", "--focus").unwrap(), Value::Bool(true));
+        assert_eq!(parse_bool("0", "--focus").unwrap(), Value::Bool(false));
+        assert!(parse_bool("maybe", "--focus").is_err());
     }
 
     #[test]
