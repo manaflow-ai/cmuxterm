@@ -1735,11 +1735,8 @@ fn run_wg(args: &[String]) -> anyhow::Result<()> {
     let flags = parse_wg_hub_flags(&args[1..])?;
     let owner = flags.exit_with_parent.then(current_parent_process_id);
     let async_runtime = tokio_runtime()?;
-    let net = start_wireguard_with_timeout(
-        &async_runtime,
-        &flags.config,
-        WIREGUARD_HUB_START_TIMEOUT,
-    )?;
+    let net =
+        start_wireguard_with_timeout(&async_runtime, &flags.config, WIREGUARD_HUB_START_TIMEOUT)?;
     async_runtime.block_on(net.wait_for_handshake(WIREGUARD_HUB_HANDSHAKE_TIMEOUT)).map_err(
         |error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())),
     )?;
@@ -1845,15 +1842,16 @@ fn start_wireguard_with_timeout_inner(
     })?;
     let net = match timeout {
         Some(timeout) => runtime
-            .block_on(tokio::time::timeout(
-                timeout,
-                cmux_wg::WgNet::start_with_new_socket(config),
-            ))
+            .block_on(tokio::time::timeout(timeout, cmux_wg::WgNet::start_with_new_socket(config)))
             .map_err(|_| anyhow!("WireGuard startup timed out after {timeout:?}"))?
-            .map_err(|error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())))?,
-        None => runtime
-            .block_on(cmux_wg::WgNet::start_with_new_socket(config))
-            .map_err(|error| anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string())))?,
+            .map_err(|error| {
+                anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string()))
+            })?,
+        None => {
+            runtime.block_on(cmux_wg::WgNet::start_with_new_socket(config)).map_err(|error| {
+                anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string()))
+            })?
+        }
     };
     Ok(Arc::new(net))
 }
