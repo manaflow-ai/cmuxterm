@@ -108,7 +108,7 @@ public struct CodexWriterRecovery: Sendable {
             return Int32(line.dropFirst())
         })
         guard !lsofPIDs.isEmpty,
-              let psOutput = commandOutput(path: "/bin/ps", arguments: ["-axo", "pid=,ppid=,lstart=,command="]) else {
+              let psOutput = commandOutput(path: "/bin/ps", arguments: ["-ww", "-axo", "pid=,ppid=,lstart=,command="]) else {
             return ([], [], false)
         }
         var allProcesses: [CodexWriterProcessEvidence] = []
