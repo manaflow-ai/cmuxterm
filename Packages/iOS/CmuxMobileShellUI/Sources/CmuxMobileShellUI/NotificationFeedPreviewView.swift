@@ -16,6 +16,7 @@ public struct NotificationFeedPreviewView: View {
     @State private var items: [MobileNotificationFeedItem]
     @State private var projection = NotificationFeedProjection()
     @State private var notificationRoute: NotificationWorkspaceRoute?
+    @State private var restoreSearchOnPop = false
     @State private var pendingSearchNotificationNavigationID: MobileWorkspacePreview.ID?
     @State private var macSelection: WorkspaceMacSelection = .all
 
@@ -76,9 +77,18 @@ public struct NotificationFeedPreviewView: View {
                                     defaultValue: "Workspace"
                                 )
                         )
-                        .toolbarVisibility(.hidden, for: .tabBar)
+                        .onDisappear {
+                            guard restoreSearchOnPop else { return }
+                            restoreSearchOnPop = false
+                            guard selectedTab == .search, notificationRoute == nil else { return }
+                            primarySearchCoordinator.setPresentation(true)
+                        }
                     }
                 }
+                .toolbarVisibility(
+                    notificationRoute == nil ? .automatic : .hidden,
+                    for: .tabBar
+                )
             }
             .background {
                 NotificationFeedSearchProjectionSync(
@@ -91,6 +101,11 @@ public struct NotificationFeedPreviewView: View {
         .onChange(of: primarySearchCoordinator.isPresented) { _, isPresented in
             guard !isPresented else { return }
             consumePendingSearchNavigation(for: selectedTab)
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            if oldValue == .search, newValue != .search {
+                restoreSearchOnPop = false
+            }
         }
         .onChange(of: items, initial: true) { _, items in
             projection.update(items: items, referenceDate: referenceDate)
@@ -140,6 +155,8 @@ public struct NotificationFeedPreviewView: View {
             open: { item in
                 let workspaceID = MobileWorkspacePreview.ID(rawValue: item.remoteWorkspaceID)
                 if selectedTab == .search {
+                    primarySearchCoordinator.deactivateCurrentSearch()
+                    restoreSearchOnPop = true
                     notificationRoute = NotificationWorkspaceRoute(id: workspaceID)
                 } else if primarySearchCoordinator.isPresented {
                     pendingSearchNotificationNavigationID = workspaceID

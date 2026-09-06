@@ -3949,6 +3949,15 @@ final class cmuxUITests: XCTestCase {
         ]
         XCTAssertTrue(workspaceDestination.waitForExistence(timeout: 3))
         XCTAssertTrue(app.navigationBars["Release"].waitForExistence(timeout: 3))
+
+        let systemBack = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(systemBack.waitForHittable(timeout: 3))
+        systemBack.tap()
+        XCTAssertTrue(searchField.waitForHittable(timeout: 3))
+        XCTAssertEqual(searchField.value as? String, "Tests passed")
+        XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
+        XCTAssertTrue(waitForNotHittable(nonmatchingRow, timeout: 3))
+        XCTAssertGreaterThan(searchField.frame.midY, app.frame.midY)
     }
 
     @MainActor

@@ -254,6 +254,7 @@ struct WorkspaceShellView: View {
     // instead of stranding the user on a deactivated search tab whose selected
     // (tinted) search control suggests a search is still in progress.
     @State private var searchSelectionReturnsToWorkspaces = false
+    @State private var restoreNotificationSearchOnPop = false
     @State private var rootToolbarMachineSnapshots: WorkspaceMachineSnapshots?
     @State private var rootToolbarPendingSelection: WorkspaceMacSelection?
     @State private var rootToolbarSelectionTask: Task<Void, Never>?
@@ -373,6 +374,7 @@ struct WorkspaceShellView: View {
                     notificationSearchNavigationPath = []
                     workspaceSearchNavigationPath = []
                     searchSelectionReturnsToWorkspaces = false
+                    restoreNotificationSearchOnPop = false
                 }
             }
             .onChange(of: visibleSimulatorWorkspaceID) { previousWorkspaceID, workspaceID in
@@ -574,7 +576,21 @@ struct WorkspaceShellView: View {
                     canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
                 )
                 .toolbarVisibility(.hidden, for: .tabBar)
+                .onDisappear {
+                    guard restoreNotificationSearchOnPop else { return }
+                    restoreNotificationSearchOnPop = false
+                    guard selectedPrimaryTab == .search,
+                          notificationSearchNavigationPath.isEmpty else { return }
+                    primarySearchCoordinator.setPresentation(true)
+                }
             }
+            // Make the tab bar available before the popped destination
+            // disappears. This gives the restored search field its normal
+            // bottom placement.
+            .toolbarVisibility(
+                notificationSearchNavigationPath.isEmpty ? .automatic : .hidden,
+                for: .tabBar
+            )
         }
     }
 
@@ -1488,6 +1504,8 @@ struct WorkspaceShellView: View {
                 selectedTab: selectedPrimaryTab
             ) {
             case .mountedNotificationSearch:
+                primarySearchCoordinator.deactivateCurrentSearch()
+                restoreNotificationSearchOnPop = true
                 if notificationSearchNavigationPath.last != workspaceID {
                     notificationSearchNavigationPath = [workspaceID]
                 }
