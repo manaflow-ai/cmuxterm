@@ -217,20 +217,18 @@ struct GhosttyTerminalViewVisibilityPolicyTests {
     }
 
     @Test func portalReconciliationSchedulerDefersCoalescesAndPreservesRequiredWork() async {
-        let scheduler = TerminalPortalReconciliationScheduler()
         var observedReasons: TerminalPortalReconciliationReasons?
-        var usedLatestReconciliation = false
-
-        scheduler.stage(reasons: [.bindingRequired]) { _ in
-            Issue.record("The superseded reconciliation must not run")
-        }
-        scheduler.stage(reasons: [.flushPendingManualSizeReport]) { reasons in
+        var flushCount = 0
+        let scheduler = TerminalPortalReconciliationScheduler { reasons in
+            flushCount += 1
             observedReasons = reasons
-            usedLatestReconciliation = true
         }
+
+        scheduler.stage(reasons: [.bindingRequired])
+        scheduler.stage(reasons: [.flushPendingManualSizeReport])
 
         #expect(observedReasons == nil)
-        #expect(!usedLatestReconciliation)
+        #expect(flushCount == 0)
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             RunLoop.main.perform(inModes: [.common]) {
@@ -240,7 +238,7 @@ struct GhosttyTerminalViewVisibilityPolicyTests {
 
         #expect(observedReasons?.contains(.bindingRequired) == true)
         #expect(observedReasons?.contains(.flushPendingManualSizeReport) == true)
-        #expect(usedLatestReconciliation)
+        #expect(flushCount == 1)
     }
 
     @Test func detachedCurrentHostPersistsHiddenVisibilityBeforeRebind() async {
