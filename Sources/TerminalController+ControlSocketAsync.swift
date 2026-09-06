@@ -125,7 +125,7 @@ extension TerminalController {
                 )
             }
 
-            let response = await CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+            let response: String? = await CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
                 await withSocketCommandPolicyAsync(
                     commandKey: authorizedRequest.method,
                     isV2: true,
