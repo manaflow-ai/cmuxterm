@@ -20,7 +20,10 @@ struct RemoteDaemonRPCClientErrorMetadataTests {
             remotePath: "/fake/cmuxd-remote",
             strings: RemoteDaemonStrings(
                 missingPersistentPTYCapability: "missing persistent PTY",
-                missingRequiredFunctionality: "missing functionality"
+                missingRequiredFunctionality: "missing functionality",
+                cloudNotificationClearWorkspaceInvalid: "invalid workspace",
+                cloudNotificationClearWorkspaceDenied: "workspace denied",
+                cloudNotificationClearSurfaceInvalid: "invalid surface"
             )
         ) { _ in }
         defer { client.stop() }
@@ -53,7 +56,10 @@ struct RemoteDaemonRPCClientErrorMetadataTests {
             remotePath: "/fake/cmuxd-remote",
             strings: RemoteDaemonStrings(
                 missingPersistentPTYCapability: "missing persistent PTY",
-                missingRequiredFunctionality: "missing functionality"
+                missingRequiredFunctionality: "missing functionality",
+                cloudNotificationClearWorkspaceInvalid: "invalid workspace",
+                cloudNotificationClearWorkspaceDenied: "workspace denied",
+                cloudNotificationClearSurfaceInvalid: "invalid surface"
             )
         ) { _ in }
         let queue = DispatchQueue(label: "cmux.remote-daemon-test.pty-event")

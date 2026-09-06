@@ -30,6 +30,15 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
     var isComposerActive: Bool = false
     /// Theme for this exact Mac terminal surface.
     var terminalTheme: TerminalTheme
+    /// The top safe-area band the surface underlaps for the iOS 26
+    /// scroll-edge band (0 = band off). Captured by the detail screen from
+    /// SwiftUI geometry OUTSIDE the safe-area expansion, because a UIKit
+    /// view inside `ignoresSafeArea` reads a zero top inset.
+    var topContentInset: CGFloat = 0
+    /// Bottom safe-area inset captured outside the terminal's ignored SwiftUI
+    /// subtree. UIKit leaf and window values remain authoritative when present;
+    /// this is the fallback for edge-to-edge disconnected layouts.
+    var bottomSafeAreaInset: CGFloat = 0
     /// Raw Mac Ghostty defaults installed into the local mirror surface.
     var terminalConfigTheme: TerminalTheme
     /// The store's raw config generation. This drives a surface-local
@@ -112,6 +121,8 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
         // math reads this flag, so it must never depend on that ordering contract.
         view.setComposerActive(isComposerActive)
         context.coordinator.setComposerMounted(isComposerActive)
+        view.setTopContentInset(topContentInset)
+        view.setCapturedBottomSafeAreaInset(bottomSafeAreaInset)
         context.coordinator.themeApplicationScheduler.seed(generation: configThemeGeneration)
         // The composition root's tracker spans host lifetimes, so a host built
         // for a reattached surface recovers keyboard transitions it missed.
@@ -121,7 +132,8 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
             surfaceView: view,
             keyboardFrameTracker: context.environment.mobileKeyboardFrameTracker
                 ?? context.coordinator.fallbackKeyboardFrameTracker,
-            keyboardDockRebuildRevertEnabled: context.environment.keyboardDockRebuildRevertEnabled
+            keyboardDockRebuildRevertEnabled: context.environment.keyboardDockRebuildRevertEnabled,
+            capturedBottomSafeAreaInset: bottomSafeAreaInset
         )
     }
 
@@ -138,6 +150,10 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
         surfaceView.autoFocusOnWindowAttach = autoFocusOnWindowAttach
         surfaceView.terminalTheme = terminalTheme
         surfaceView.terminalConfigTheme = terminalConfigTheme
+        surfaceView.setTopContentInset(topContentInset)
+        if let hostView = uiView as? GhosttySurfaceHostView {
+            hostView.setCapturedBottomSafeAreaInset(bottomSafeAreaInset)
+        }
         context.coordinator.onArtifactFilesRequested = onArtifactFilesRequested
         context.coordinator.onArtifactPathTapped = onArtifactPathTapped
         context.coordinator.onVisibleArtifactCountChanged = onVisibleArtifactCountChanged
@@ -653,7 +669,19 @@ struct GhosttySurfaceRepresentable: UIViewRepresentable {
                             RenderGridApplyContract(
                                 columns: $0.columns,
                                 rows: $0.rows,
-                                isDelta: !$0.full
+                                isDelta: !$0.full,
+                                // Primary screen deltas use the ordered local
+                                // mirror fast path. Its generation fence is
+                                // sufficient and avoids a libghostty size
+                                // query for every echoed keystroke. Full and
+                                // alternate-screen frames retain the exact
+                                // dimension check used by replay safety.
+                                requiresSurfaceDimensionCheck: !(
+                                    store.usesScreenAnchoredRenderGrid
+                                        && !$0.full
+                                        && $0.anchor == .screen
+                                        && $0.activeScreen == .primary
+                                )
                             )
                         }
                         let applied = await surfaceView.processOutputAndWait(

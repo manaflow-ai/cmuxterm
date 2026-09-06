@@ -148,6 +148,64 @@ struct TerminalLetterboxGeometryTests {
         #expect(TerminalLetterboxGeometry.dockSeamPadding == 8)
     }
 
+    // MARK: - Scroll-edge band (top content inset)
+
+    // With the surface extended under the top bar for the scroll-edge band,
+    // the bounds grow by the top safe area and the SAME amount is reserved,
+    // so the grid is identical to the un-expanded layout: the band is
+    // render-only and never costs (or gains) a grid row.
+    @Test("top content inset reserves the band without changing the grid")
+    func topContentInsetReservesBand() {
+        let topInset: CGFloat = 106
+        let expanded = TerminalLetterboxGeometry.terminalContainerSize(
+            bounds: CGSize(
+                width: Self.phoneBounds.width,
+                height: Self.phoneBounds.height + topInset
+            ),
+            composerBandHeight: 0,
+            toolbarHeight: 0,
+            bottomSafeAreaInset: Self.homeIndicator,
+            chromeHidden: false,
+            topContentInset: topInset
+        )
+        let unexpanded = TerminalLetterboxGeometry.terminalContainerSize(
+            bounds: Self.phoneBounds,
+            composerBandHeight: 0,
+            toolbarHeight: 0,
+            bottomSafeAreaInset: Self.homeIndicator,
+            chromeHidden: false
+        )
+        #expect(expanded == unexpanded)
+    }
+
+    // HIDE suppresses the bottom dock only; the navigation bar is still
+    // overlaid, so the band above the grid stays reserved.
+    @Test("chrome hidden keeps the top band reserved")
+    func chromeHiddenKeepsTopBand() {
+        let size = TerminalLetterboxGeometry.terminalContainerSize(
+            bounds: Self.phoneBounds,
+            composerBandHeight: 120,
+            toolbarHeight: Self.toolbar,
+            bottomSafeAreaInset: Self.homeIndicator,
+            chromeHidden: true,
+            topContentInset: 106
+        )
+        #expect(size.height == 768) // 874 - 106 band
+    }
+
+    @Test("negative top content inset is clamped to zero")
+    func negativeTopContentInsetClamps() {
+        let size = TerminalLetterboxGeometry.terminalContainerSize(
+            bounds: Self.phoneBounds,
+            composerBandHeight: 0,
+            toolbarHeight: 0,
+            bottomSafeAreaInset: Self.homeIndicator,
+            chromeHidden: false,
+            topContentInset: -20
+        )
+        #expect(size.height == 832)
+    }
+
     // The keyboard is not a parameter of `terminalContainerSize` AT ALL: the
     // grid keeps its keyboard-down size while the keyboard is up and the host
     // slides the full-height render so its bottom edge rides the composer
@@ -187,6 +245,40 @@ struct TerminalLetterboxGeometryTests {
         #expect(TerminalLetterboxGeometry.resolvedBottomSafeAreaInset(viewInset: 34, windowInset: 34) == 34)
         // Both zero (pre-window-attach) => 0.
         #expect(TerminalLetterboxGeometry.resolvedBottomSafeAreaInset(viewInset: 0, windowInset: 0) == 0)
+    }
+
+    @Test("resolved safe-area inset recovers the smallest positive ancestor")
+    func resolvedSafeAreaUsesAncestorWhenWindowIsZero() {
+        // A SwiftUI ignored-safe-area subtree can zero the leaf and window
+        // fallback while an outer hosting container still reports the device
+        // inset. Larger ancestors may include their own tab/navigation chrome,
+        // so the smallest positive value is the physical safe area we want.
+        #expect(
+            TerminalLetterboxGeometry.resolvedBottomSafeAreaInset(
+                viewInset: 0,
+                windowInset: 0,
+                ancestorInsets: [83, 34]
+            ) == 34
+        )
+        #expect(
+            TerminalLetterboxGeometry.resolvedBottomSafeAreaInset(
+                viewInset: 0,
+                windowInset: 0,
+                ancestorInsets: [0, -4]
+            ) == 0
+        )
+    }
+
+    @Test("resolved safe-area inset prefers a captured outer SwiftUI inset")
+    func resolvedSafeAreaUsesCapturedInset() {
+        #expect(
+            TerminalLetterboxGeometry.resolvedBottomSafeAreaInset(
+                viewInset: 0,
+                windowInset: 0,
+                capturedInset: 34,
+                ancestorInsets: [83]
+            ) == 34
+        )
     }
 
     @Test("keyboard absorption slack: blank rows absorb before content moves")
