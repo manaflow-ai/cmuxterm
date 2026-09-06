@@ -30,6 +30,13 @@ struct CodexWriterRecoveryTests {
                 watchedAppServerPorts: [59111]
             ).classification == .ownedAppServer
         )
+        #expect(orphan.appServerPort == 59152)
+        #expect(
+            CodexWriterRecoveryAssessment(
+                holder: orphan,
+                watchedAppServerPorts: [59152]
+            ).classification == .ownedAppServer
+        )
     }
 
     @Test("parses recovery and resume thread IDs without mistaking remote arguments")
