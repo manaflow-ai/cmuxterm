@@ -312,7 +312,7 @@ VM subcommands:
 | `vm ssh-info` | Print SSH connection info. |
 | `vm ssh-attach` | Internal attach helper. |
 | `vm exec` | Run a shell command inside a VM. |
-| `vm tui <id>` | Open the FULL cmux-tui client (its own workspaces/panes/tabs) in a pane — every other open gives a plain terminal instead; enrolls this Mac's device on first use (hidden helpers, used only by this command: `vm-tui-connect --config <file>` execs the local cmux-tui client in the pane; `vm-tui-approve --id <vm> --invitation-id <id> [--invite-file <path>]` is the detached process that approves the pending enrollment through the app and removes the invite file). |
+| `vm tui <id>` | Open the FULL cmux-tui client (its own workspaces/panes/tabs) in a pane — every other open gives a plain terminal instead; dials the machine's trusted-carrier listener over the private network, so no device enrollment or approval happens (hidden helper, used only by this command: `vm-tui-connect --config <file>` execs the local cmux-tui client in the pane). |
 | `vm run -- <command...>` | Run a command without naming a machine: reuses an idle machine the router provisioned earlier (persisted in `~/.cmuxterm/vm-run-pool.json`, labeled `agent-pool`), wakes a sleeper, or provisions a fresh one; `--sync` pushes the cwd first, `--pull <remote>` fetches results, and the remote exit code passes through. |
 | `vm push <id> <local> [remote]`, `vm upload` | Copy a local file or directory onto a VM over the exec channel (base64-chunked, SHA-256 verified; directories travel as tarballs). |
 | `vm pull <id> <remote> [local]`, `vm download` | Copy a file or directory from a VM to local disk over the exec channel. |
@@ -455,7 +455,7 @@ Browser subcommands:
 | `browser wait` | Wait for selector, text, URL, load state, or JS predicate. |
 | `browser click`, `browser dblclick`, `browser hover`, `browser focus`, `browser check`, `browser uncheck`, `browser scroll-into-view` | Run element interaction. |
 | `browser type`, `browser fill` | Type into or set an input. |
-| `browser press`, `browser key`, `browser keydown`, `browser keyup` | Send keyboard input as `--key <key>` or positional `<key>` using Playwright/W3C names such as `Enter`, `Tab`, `Escape`, `ArrowLeft`, and `Space`. `Space`, `Spacebar`, and `space` emit DOM key `" "` with code `"Space"`; raw `--key ' '` is also accepted. |
+| `browser press`, `browser key`, `browser keydown`, `browser keyup` | Send keyboard input as `--key <key>` or positional `<key>` using Playwright/W3C names such as `Enter`, `Tab`, `Escape`, `ArrowLeft`, and `Space`. Supported keys are replayed through native WebKit input so browser default behavior (including contenteditable caret movement and scrolling) runs; opaque key tokens retain a page-event compatibility fallback. `Space`, `Spacebar`, and `space` emit DOM key `" "` with code `"Space"`; raw `--key ' '` is also accepted. Use `keydown`/`keyup` around a supported modifier to hold it across a subsequent key action. |
 | `browser select` | Select an option. |
 | `browser scroll` | Scroll page or element. |
 | `browser screenshot` | Save a screenshot. |
