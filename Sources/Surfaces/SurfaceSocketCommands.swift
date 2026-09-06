@@ -698,7 +698,8 @@ extension TerminalController {
     // MARK: - Shared pieces
 
     /// The catalog's provider for `machine`; a cloud machine the catalog has not seen yet
-    /// (just created) gets one fleet re-read before the caller reports "no provider".
+    /// (just created) gets a short bounded fleet re-read before the caller reports
+    /// "no provider".
     nonisolated static func surfaceProvider(for machine: SurfaceMachineID, catalog: SurfaceCatalog) async throws -> (any SurfaceProvider)? {
         if let provider = await catalog.provider(for: machine) { return provider }
         guard case .cloud(let machineID) = machine else { return nil }

@@ -15,8 +15,7 @@ struct CloudTreePendingMachineRowContent: View {
         case .singleLine:
             CloudTreeMachineBand(style: style) {
                 HStack(alignment: .center, spacing: CloudTreeRowGrid.dotGap) {
-                    leadingGlyph
-                        .frame(width: CloudTreeRowGrid.dotSlot, alignment: .center)
+                    CloudTreeMachineLeadingSlot { leadingGlyph }
                     HStack(alignment: .firstTextBaseline, spacing: CloudTreeRowGrid.dotGap) {
                         name
                         status
@@ -28,8 +27,8 @@ struct CloudTreePendingMachineRowContent: View {
             .accessibilityLabel(operation.summaryLine)
         case .twoLine:
             HStack(alignment: .top, spacing: CloudTreeRowGrid.dotGap) {
-                leadingGlyph
-                    .frame(width: CloudTreeRowGrid.dotSlot, height: style.machineNameLineHeight, alignment: .center)
+                CloudTreeMachineLeadingSlot { leadingGlyph }
+                    .frame(height: style.machineNameLineHeight)
                 VStack(alignment: .leading, spacing: CloudTreeRowGrid.machineLineSpacing) {
                     name
                         .frame(height: style.machineNameLineHeight)

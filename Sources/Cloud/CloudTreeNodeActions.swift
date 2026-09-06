@@ -91,6 +91,15 @@ struct CloudTreeNodeActions {
         let startingLabel: (SurfaceMachineID) -> String = { machine in
             String(format: String(localized: "cloudTree.operation.newTerminal", defaultValue: "Starting a terminal on %@\u{2026}"), machineName(machine))
         }
+        func resolvedProvider(
+            for machine: SurfaceMachineID,
+            catalog: SurfaceCatalog
+        ) async throws -> any SurfaceProvider {
+            guard let provider = try await TerminalController.surfaceProvider(for: machine, catalog: catalog) else {
+                throw SurfaceCatalogError.noProvider(machine)
+            }
+            return provider
+        }
         return CloudTreeNodeActions(
             project: { resource, placement, reuseExisting in
                 // Capture the caller's workspace before the async operation starts.
@@ -107,6 +116,7 @@ struct CloudTreeNodeActions {
                     capturedPortWorkspaceID = nil
                 }
                 run(openingLabel(resource.machine)) { catalog in
+                    _ = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     let workspaceID: UUID
                     if resource.forwardedPort != nil {
                         guard let preferred = capturedPortWorkspaceID else {
@@ -149,6 +159,7 @@ struct CloudTreeNodeActions {
             },
             projectRemoteView: { resource, view, placement, reuseExisting in
                 run(openingLabel(resource.machine)) { catalog in
+                    _ = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     _ = try await catalog.project(
                         resource,
                         into: try destination(placement),
@@ -160,6 +171,7 @@ struct CloudTreeNodeActions {
             },
             projectInLocalWorkspace: { resource, workspaceID in
                 run(openingLabel(resource.machine)) { catalog in
+                    _ = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     if let port = resource.forwardedPort {
                         _ = try await catalog.openCloudPort(
                             machine: resource.machine,
@@ -182,6 +194,7 @@ struct CloudTreeNodeActions {
             },
             projectRemoteViewInLocalWorkspace: { resource, view, workspaceID in
                 run(openingLabel(resource.machine)) { catalog in
+                    _ = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     _ = try await catalog.project(
                         resource,
                         into: .workspace(id: workspaceID, placement: .split),
@@ -194,7 +207,7 @@ struct CloudTreeNodeActions {
             },
             newTerminal: { machine, remoteWorkspaceID in
                 run(startingLabel(machine)) { catalog in
-                    guard let provider = catalog.provider(for: machine) else { throw SurfaceCatalogError.noProvider(machine) }
+                    let provider = try await resolvedProvider(for: machine, catalog: catalog)
                     let resource = try await provider.createTerminal(command: nil, cwd: nil, name: nil, remoteWorkspaceID: remoteWorkspaceID)
                     let (projection, _) = try await catalog.project(
                         resource.id,
@@ -209,7 +222,7 @@ struct CloudTreeNodeActions {
             openGroup: { machine, group, placement, remoteWorkspaceID in
                 if group.isEmpty {
                     run(startingLabel(machine)) { catalog in
-                        guard let provider = catalog.provider(for: machine) else { throw SurfaceCatalogError.noProvider(machine) }
+                        let provider = try await resolvedProvider(for: machine, catalog: catalog)
                         let resource = try await provider.createTerminal(command: nil, cwd: nil, name: nil, remoteWorkspaceID: remoteWorkspaceID)
                         let (projection, _) = try await catalog.project(
                             resource.id,
@@ -222,6 +235,7 @@ struct CloudTreeNodeActions {
                     }
                 } else {
                     run(openingLabel(machine)) { catalog in
+                        _ = try await resolvedProvider(for: machine, catalog: catalog)
                         let routedGroup = group.withRemoteWorkspaceID(remoteWorkspaceID)
                         _ = try await catalog.projectGroup(
                             routedGroup,
@@ -234,7 +248,7 @@ struct CloudTreeNodeActions {
             openGroupAsWorkspace: { machine, group, remoteWorkspaceID in
                 if group.isEmpty {
                     run(startingLabel(machine)) { catalog in
-                        guard let provider = catalog.provider(for: machine) else { throw SurfaceCatalogError.noProvider(machine) }
+                        let provider = try await resolvedProvider(for: machine, catalog: catalog)
                         let resource = try await provider.createTerminal(command: nil, cwd: nil, name: nil, remoteWorkspaceID: remoteWorkspaceID)
                         let opened = try await catalog.projectGroupAsNewLocalWorkspace(
                             SurfaceResourceGroup(
@@ -258,6 +272,7 @@ struct CloudTreeNodeActions {
                     }
                 } else {
                     run(openingLabel(machine)) { catalog in
+                        _ = try await resolvedProvider(for: machine, catalog: catalog)
                         let routedGroup = group.withRemoteWorkspaceID(remoteWorkspaceID)
                         let opened = try await catalog.projectGroupAsNewLocalWorkspace(
                             routedGroup,
@@ -276,7 +291,7 @@ struct CloudTreeNodeActions {
             },
             newWorkspace: { machine in
                 run(String(format: String(localized: "cloudTree.operation.newWorkspace", defaultValue: "Creating a workspace on %@\u{2026}"), machineName(machine))) { catalog in
-                    guard let provider = catalog.provider(for: machine) else { throw SurfaceCatalogError.noProvider(machine) }
+                    let provider = try await resolvedProvider(for: machine, catalog: catalog)
                     _ = try await Self.createWorkspaceAndOpenLocally(machine: machine, provider: provider, catalog: catalog, name: nil, focus: true)
                 }
             },
@@ -287,7 +302,7 @@ struct CloudTreeNodeActions {
                     verb: String(localized: "cloudTree.killTerminal.confirm", defaultValue: "Kill")
                 ) else { return }
                 run(String(format: String(localized: "cloudTree.operation.close", defaultValue: "Closing on %@\u{2026}"), machineName(resource.machine))) { catalog in
-                    guard let provider = catalog.provider(for: resource.machine) else { throw SurfaceCatalogError.noProvider(resource.machine) }
+                    let provider = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     try await provider.closeTerminal(resource)
                 }
             },
@@ -306,7 +321,7 @@ struct CloudTreeNodeActions {
                     guard confirmDestructive(title: title, message: message, verb: String(localized: "cloudTree.closeWorkspace.confirm", defaultValue: "Close")) else { return }
                 }
                 run(String(format: String(localized: "cloudTree.operation.closeWorkspace", defaultValue: "Closing %@\u{2026}"), workspace.name)) { catalog in
-                    guard let provider = catalog.provider(for: machine) else { throw SurfaceCatalogError.noProvider(machine) }
+                    let provider = try await resolvedProvider(for: machine, catalog: catalog)
                     _ = try await Self.deleteWorkspaceAndTerminals(machine: machine, provider: provider, catalog: catalog, workspaceID: workspace.id)
                 }
             },
@@ -316,6 +331,7 @@ struct CloudTreeNodeActions {
                     current: workspace.name
                 ), name != workspace.name else { return }
                 run(String(format: String(localized: "cloudTree.operation.renameWorkspace", defaultValue: "Renaming %@\u{2026}"), workspace.name)) { catalog in
+                    _ = try await resolvedProvider(for: machine, catalog: catalog)
                     try await catalog.renameRemoteWorkspace(on: machine, id: workspace.id, name: name)
                 }
             },
@@ -330,6 +346,7 @@ struct CloudTreeNodeActions {
                     ? String(format: String(localized: "cloudTree.operation.clearTerminal", defaultValue: "Clearing %@\u{2026}"), current)
                     : String(format: String(localized: "cloudTree.operation.renameTerminal", defaultValue: "Renaming %@\u{2026}"), current)
                 run(operationLabel) { catalog in
+                    _ = try await resolvedProvider(for: resource.machine, catalog: catalog)
                     if let view {
                         try await catalog.renameRemoteTab(on: resource.machine, id: view.tabID, name: name)
                     } else {

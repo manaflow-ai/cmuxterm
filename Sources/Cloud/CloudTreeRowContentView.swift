@@ -23,6 +23,20 @@ enum CloudTreeRowGrid {
     static let machineLineSpacing: CGFloat = 1
 }
 
+/// Keeps the glyph column at a fixed width even when a glyph has a larger
+/// intrinsic size (for example, SwiftUI's mini progress indicator). Without
+/// the wrapper, the pending row can move its title relative to machine rows.
+struct CloudTreeMachineLeadingSlot<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ZStack(alignment: .center) {
+            content()
+        }
+        .frame(width: CloudTreeRowGrid.dotSlot)
+    }
+}
+
 /// The semantic colors the tinted and chip icon treatments use. One palette so
 /// every preset colors a kind the same way.
 enum CloudTreeIconPalette {
@@ -513,10 +527,11 @@ struct CloudTreeLocalMachineRowContent: View {
         case .singleLine:
             CloudTreeMachineBand(style: style) {
                 HStack(alignment: .center, spacing: CloudTreeRowGrid.dotGap) {
-                    Image(systemName: "laptopcomputer")
-                        .font(.system(size: max(style.iconSize, 9), weight: .regular))
-                        .foregroundStyle(style.iconTreatment == .monochrome ? AnyShapeStyle(.secondary) : AnyShapeStyle(CloudTreeIconPalette.machine))
-                        .frame(width: CloudTreeRowGrid.dotSlot, alignment: .center)
+                    CloudTreeMachineLeadingSlot {
+                        Image(systemName: "laptopcomputer")
+                            .font(.system(size: max(style.iconSize, 9), weight: .regular))
+                            .foregroundStyle(style.iconTreatment == .monochrome ? AnyShapeStyle(.secondary) : AnyShapeStyle(CloudTreeIconPalette.machine))
+                    }
                     Text(row.name)
                         .cmuxFont(size: style.machineNameSize, weight: style.machineBand ? .semibold : .medium, design: style.fontDesign)
                         .foregroundStyle(.primary)
@@ -529,10 +544,12 @@ struct CloudTreeLocalMachineRowContent: View {
             .accessibilityLabel(row.name)
         case .twoLine:
             HStack(alignment: .top, spacing: CloudTreeRowGrid.dotGap) {
-                Image(systemName: "laptopcomputer")
-                    .font(.system(size: 9, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .frame(width: CloudTreeRowGrid.dotSlot, height: style.machineNameLineHeight, alignment: .center)
+                CloudTreeMachineLeadingSlot {
+                    Image(systemName: "laptopcomputer")
+                        .font(.system(size: 9, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(height: style.machineNameLineHeight)
                 VStack(alignment: .leading, spacing: CloudTreeRowGrid.machineLineSpacing) {
                     Text(row.name)
                         .cmuxFont(size: style.machineNameSize, weight: .medium, design: style.fontDesign)
@@ -611,17 +628,19 @@ struct CloudTreeMachineRowContent: View {
                 // glyph — that one changes what a click does.
                 HStack(alignment: .center, spacing: CloudTreeRowGrid.dotGap) {
                     if machine.freeAccess == .expired {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: CloudTreeRowGrid.dotSlot, alignment: .center)
+                        CloudTreeMachineLeadingSlot {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
                     } else {
                         // This row is another computer: the same outline cloud as the
                         // titlebar Cloud button, dimmed so it doesn't compete with the name.
-                        Image(systemName: "cloud")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .frame(width: CloudTreeRowGrid.dotSlot, alignment: .center)
+                        CloudTreeMachineLeadingSlot {
+                            Image(systemName: "cloud")
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     // Name and fact differ in point size, so they share a
                     // baseline (like the group and session rows above); the
@@ -651,15 +670,19 @@ struct CloudTreeMachineRowContent: View {
             // No status dot; only the expired lock earns the leading slot.
             HStack(alignment: .top, spacing: CloudTreeRowGrid.dotGap) {
                 if machine.freeAccess == .expired {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: CloudTreeRowGrid.dotSlot, height: style.machineNameLineHeight, alignment: .center)
+                    CloudTreeMachineLeadingSlot {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(height: style.machineNameLineHeight)
                 } else {
-                    Image(systemName: "cloud")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: CloudTreeRowGrid.dotSlot, height: style.machineNameLineHeight, alignment: .center)
+                    CloudTreeMachineLeadingSlot {
+                        Image(systemName: "cloud")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(height: style.machineNameLineHeight)
                 }
                 VStack(alignment: .leading, spacing: CloudTreeRowGrid.machineLineSpacing) {
                     Text(machine.displayName)

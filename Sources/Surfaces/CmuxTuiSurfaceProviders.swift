@@ -96,11 +96,21 @@ final class CmuxTuiSurfaceProviderRegistry {
 
     /// The provider for a machine that may have been created a moment ago (`cmux vm new`
     /// opens its terminal right after `POST /api/vm` returns): when the registry has not
-    /// listed it yet, re-read the fleet once instead of failing with "no provider".
+    /// listed it yet, re-read the fleet briefly while the control plane's list catches up
+    /// instead of failing with "no provider".
     func providerRefreshingIfMissing(machineID: String) async -> CmuxTuiSurfaceProvider? {
         if let provider = providers[machineID] { return provider }
-        await refresh(force: true)
-        return providers[machineID]
+        // Create and list are separate control-plane operations. A successful create
+        // can be visible to the next request before it appears in the fleet index, so
+        // one immediate re-read is still racy. Keep this bounded: this is a recovery
+        // path for a just-created machine, not a second polling loop.
+        for attempt in 0..<3 {
+            await refresh(force: true)
+            if let provider = providers[machineID] { return provider }
+            guard attempt < 2 else { break }
+            try? await Task.sleep(for: .milliseconds(250 * (1 << attempt)))
+        }
+        return nil
     }
 
     func machineWasDeleted(_ id: String) {
