@@ -13,8 +13,7 @@ struct CodexWriterRestoreMessage {
     }
 
     var text: String {
-        guard let lock = inspection.lock else { return "" }
-        if lock.state != .active {
+        if inspection.lock?.state != .active {
             return String(localized: "codex.restore.writerCheckUnavailable", defaultValue: "cmux could not verify the Codex session owner. No new writer was started. Continue in the original terminal, or retry after checking the Codex account configuration.")
         }
         return String(localized: "codex.restore.activeWriter", defaultValue: "This Codex session already has an active writer. Continue in the original terminal, or exit that Codex session normally before retrying. cmux did not remove the lock or start another writer.")
