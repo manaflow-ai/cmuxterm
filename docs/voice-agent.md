@@ -28,6 +28,11 @@ CLI or the command palette would.
 | "Option two" / "the second one" | Down arrow N-1 times then Enter, for Claude Code style choice menus (confirms first unless trusted) |
 | "Next" / "previous" / "confirm" / "cancel" | Arrow keys, Enter, Escape in a prompt menu |
 | "Scroll up" / "scroll down two pages" / "go to the top" | `surface.scroll` (Ghostty page scroll bindings) |
+| "Go to the staff portal folder" / "open the voice agent directory" | Finds the folder by name (current directory first, then Spotlight and project roots), asks if several match, then runs `cd` |
+| "Check me out of this branch into develop" / "stage everything and commit saying fix login" | The agent composes the exact git or shell command, reads it back, and runs it after "yes" (destructive commands always confirm) |
+| "Where am I?" (in the shell) | Working directory and git branch |
+| "Write down: make the login async and add tests" / "tell it to …" | Rewrites your rough words into a clear message and types it into the focused input (Claude Code, Codex, or the shell) without sending |
+| "Enter" / "send it" | Submits whatever is in the focused input. No confirmation when the agent just typed it for you |
 | "Goodbye" | Ends the session |
 
 Closing tabs or workspaces always asks first. Running a command asks first

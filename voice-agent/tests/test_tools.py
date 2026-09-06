@@ -82,7 +82,7 @@ def test_error_response_raises_with_code(fake: FakeCmux):
 async def test_get_ui_state_calls_tree_and_panes(tools: VoiceTools, fake: FakeCmux):
     res = await tools.get_ui_state()
     assert res["ok"] and "web frontend" in res["say"]
-    assert fake.methods() == ["system.tree", "pane.list"]
+    assert fake.methods() == ["system.tree", "pane.list", "workspace.list"]
 
 
 async def test_read_terminal_returns_tail(tools: VoiceTools, fake: FakeCmux):
@@ -268,9 +268,10 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "equalize_splits", "type_text", "press_key", "run_command", "interrupt",
         "browser_navigate", "browser_history", "confirm", "end_session",
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
+        "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
-    assert confirming == {"close_workspace", "close_tab", "run_command"}
+    assert confirming == {"close_workspace", "close_tab", "run_command", "run_shell"}
     assert all(s.cancel_on_interruption for s in tools.specs())
 
 
@@ -365,3 +366,79 @@ async def test_scroll_rejects_nonsense(tools: VoiceTools, fake: FakeCmux):
     res = await tools.scroll("sideways")
     assert res["ok"] is False
     assert "surface.scroll" not in fake.methods()
+
+
+# --------------------------------------------------------- generalized shell
+
+
+async def test_go_to_directory_cds_into_unique_match(tools: VoiceTools, fake: FakeCmux, monkeypatch, tmp_path):
+    from cmux_voice import shell_context as sc
+    target = tmp_path / "staff-portal"; target.mkdir()
+    monkeypatch.setattr(sc, "shell_context", lambda tty, fallback_cwd=None: sc.ShellContext(cwd=str(tmp_path), git_branch=None, git_root=None))
+    monkeypatch.setattr(sc, "find_directories", lambda name, parent=None, cwd=None, roots=None, limit=6: [str(target)])
+    res = await tools.go_to_directory("staff portal")
+    assert res["ok"] and res["path"] == str(target)
+    sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert sent[0]["params"]["text"] == f"cd {str(target)}"
+    assert sent[1]["params"]["key"] == "enter"
+
+
+async def test_go_to_directory_asks_when_ambiguous(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    from cmux_voice import shell_context as sc
+    monkeypatch.setattr(sc, "shell_context", lambda tty, fallback_cwd=None: sc.ShellContext(cwd="/tmp", git_branch=None, git_root=None))
+    monkeypatch.setattr(sc, "find_directories", lambda name, parent=None, cwd=None, roots=None, limit=6: ["/a/Staff-Portal", "/b/archive/Staff-Portal"])
+    res = await tools.go_to_directory("staff portal")
+    assert res["status"] == "ambiguous"
+    assert "Which one?" in res["say"]
+    assert "surface.send_text" not in fake.methods()
+
+
+async def test_go_to_directory_not_found(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    from cmux_voice import shell_context as sc
+    monkeypatch.setattr(sc, "shell_context", lambda tty, fallback_cwd=None: sc.ShellContext(cwd="/tmp", git_branch=None, git_root=None))
+    monkeypatch.setattr(sc, "find_directories", lambda *a, **k: [])
+    res = await tools.go_to_directory("nowhere")
+    assert res["ok"] is False and "couldn't find" in res["say"]
+
+
+async def test_shell_context_tool_reports_branch(tools: VoiceTools, monkeypatch):
+    from cmux_voice import shell_context as sc
+    monkeypatch.setattr(sc, "shell_context", lambda tty, fallback_cwd=None: sc.ShellContext(cwd="/Users/me/proj", git_branch="main", git_root="/Users/me/proj"))
+    res = await tools.shell_context()
+    assert res["ok"] and res["say"] == "You are in /Users/me/proj, on branch main."
+
+
+async def test_run_shell_confirms_then_runs(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.run_shell("git checkout develop")
+    assert res["status"] == "needs_confirmation" and "git checkout develop" in res["say"]
+    res = await tools.confirm("yes")
+    assert res["ok"] and res["command"] == "git checkout develop"
+    sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert sent[-2]["params"]["text"] == "git checkout develop" and sent[-1]["params"]["key"] == "enter"
+
+
+async def test_run_shell_trusted_skips_confirm_but_not_for_risky(fake: FakeCmux):
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.run_shell("git status")
+    assert res["ok"]
+    res = await t.run_shell("git push --force origin main")
+    assert res["status"] == "needs_confirmation"
+    res = await t.run_shell("rm -rf build")
+    assert res["status"] == "needs_confirmation"
+    client.close()
+
+
+async def test_compose_then_enter_needs_no_confirmation(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.compose_and_type("Please refactor the login handler to use async/await and add tests.")
+    assert res["ok"] and res["say"] == "Written. Say enter to send it."
+    assert "surface.send_key" not in fake.methods()
+    res = await tools.press_enter()
+    assert res["ok"] and res["say"] == "Sent."
+    assert {"method": "surface.send_key", "params": {"surface_id": "S-B1", "key": "enter"}} in fake.requests
+
+
+async def test_press_enter_alone_confirms(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.press_enter()
+    assert res["status"] == "needs_confirmation"
+    assert "surface.send_key" not in fake.methods()

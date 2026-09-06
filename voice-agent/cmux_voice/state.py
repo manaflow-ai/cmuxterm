@@ -22,6 +22,7 @@ class Surface:
     selected_in_pane: bool
     focused: bool
     url: Optional[str] = None
+    tty: Optional[str] = None
 
     @property
     def is_terminal(self) -> bool:
@@ -71,6 +72,7 @@ class Workspace:
     title: str
     selected: bool
     panes: List[Pane] = field(default_factory=list)
+    current_directory: Optional[str] = None
 
     @property
     def number(self) -> int:
@@ -111,6 +113,7 @@ class UIState:
                             selected_in_pane=bool(s.get("selected_in_pane", False)),
                             focused=bool(s.get("focused", False)),
                             url=s.get("url"),
+                            tty=s.get("tty"),
                         )
                     )
                 panes.append(
@@ -131,6 +134,7 @@ class UIState:
                     title=str(w.get("title") or ""),
                     selected=bool(w.get("selected", False)),
                     panes=panes,
+                    current_directory=w.get("current_directory"),
                 )
             )
         workspaces.sort(key=lambda x: x.index)

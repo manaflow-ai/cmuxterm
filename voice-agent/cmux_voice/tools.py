@@ -10,11 +10,14 @@ Handlers never raise. They return a dict with at least:
 
 from __future__ import annotations
 
+import asyncio
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .cmux_client import CmuxClient, CmuxError
+from . import shell_context as shellctx
 from .policy import ConfirmationPolicy
 from .state import Pane, Surface, UIState, Workspace
 
@@ -73,6 +76,13 @@ ALLOWED_METHODS = frozenset(
     }
 )
 
+_RISKY = re.compile(r"\b(rm\s+-[rf]|git\s+(push\s+.*--force|reset\s+--hard|clean\s+-[fd]|branch\s+-D)|sudo\b|mkfs|dd\s+if=|:\(\)\s*\{)", re.IGNORECASE)
+
+
+def _is_risky(command: str) -> bool:
+    return bool(_RISKY.search(command))
+
+
 _URL_LIKE = re.compile(r"^(https?://|file://|localhost(:\d+)?(/|$)|[\w.-]+\.[a-z]{2,}(/|:|$))", re.IGNORECASE)
 
 
@@ -94,6 +104,7 @@ class VoiceTools:
         self._on_end_session = on_end_session
         # While on, everything the user says is typed into the terminal verbatim.
         self.dictation_active = False
+        self._last_typed_surface: Optional[str] = None
 
     # ------------------------------------------------------------ snapshot
 
@@ -105,6 +116,13 @@ class VoiceTools:
         except CmuxError:
             pane_rows = []
         self.state = UIState.from_tree(tree or {}, pane_rows)
+        try:
+            rows = (await self.client.acall("workspace.list") or {}).get("workspaces") or []
+            dirs = {str(r.get("id")): r.get("current_directory") for r in rows}
+            for w in self.state.workspaces:
+                w.current_directory = dirs.get(w.id) or w.current_directory
+        except CmuxError:
+            pass
         if self._on_state is not None:
             await self._on_state(self.state)
         return self.state
@@ -359,6 +377,7 @@ class VoiceTools:
             await self.client.acall("surface.send_text", {"surface_id": s.id, "text": text})
         except CmuxError as e:
             return self._fail(f"I couldn't type into the terminal: {e}")
+        self._last_typed_surface = s.id
         return await self._done(f"Typed {text}.", flash_surface=s.id)
 
     async def press_key(self, key: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -460,6 +479,7 @@ class VoiceTools:
             await self.client.acall("surface.send_text", {"surface_id": s.id, "text": text})
         except CmuxError as e:
             return self._fail(f"I couldn't type that: {e}")
+        self._last_typed_surface = s.id
         return await self._done("Typed.", flash_surface=s.id, typed=text)
 
     async def set_dictation(self, enabled: bool) -> Dict[str, Any]:
@@ -540,6 +560,115 @@ class VoiceTools:
         say = {"up": f"Scrolled up {n} page{'s' if n > 1 else ''}.", "down": f"Scrolled down {n} page{'s' if n > 1 else ''}.", "top": "At the top.", "bottom": "At the bottom."}[d]
         return {"ok": True, "say": say}
 
+    # ------------------------------------------------------ tools: shell context
+
+    async def _shell_context(self, surface: Surface) -> shellctx.ShellContext:
+        st = await self._state()
+        fallback = st.current_workspace.current_directory if st.current_workspace else None
+        return await asyncio.to_thread(shellctx.shell_context, surface.tty, fallback)
+
+    async def shell_context(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Where the terminal is: working directory and git branch."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        say = f"You are in {shellctx.speakable(ctx.cwd)}" if ctx.cwd else "I can't tell the working directory"
+        if ctx.git_branch:
+            say += f", on branch {ctx.git_branch}"
+        return {"ok": True, "say": say + ".", "cwd": ctx.cwd, "git_branch": ctx.git_branch, "git_root": ctx.git_root}
+
+    async def go_to_directory(self, name: str, parent: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Find a folder by spoken name and cd into it. Not confirm-gated: navigation is harmless."""
+        if not name or not name.strip():
+            return self._fail("Which folder?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        candidates = await asyncio.to_thread(shellctx.find_directories, name, parent=parent, cwd=ctx.cwd)
+        if not candidates:
+            return self._fail(f"I couldn't find a folder called {name}." + (f" under {parent}." if parent else ""))
+        best = candidates[0]
+        others = [c for c in candidates[1:] if os.path.basename(c).lower() == os.path.basename(best).lower()]
+        if others and not parent and len(candidates) > 1:
+            # Same folder name in several places: ask, listing parents.
+            options = ", ".join(shellctx.speakable(c) for c in candidates[:4])
+            return {
+                "ok": True,
+                "status": "ambiguous",
+                "say": f"I found several: {options}. Which one?",
+                "candidates": candidates[:4],
+            }
+        command = shellctx.cd_command(best)
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": command})
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't change directory: {e}")
+        return await self._done(f"Now in {shellctx.speakable(best)}.", flash_surface=s.id, path=best, command=command)
+
+    async def run_shell(self, command: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Run a shell command the model composed from the user's intent. Same trust rule as run_command."""
+        if not command or not command.strip():
+            return self._fail("What should I run?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        cmd = command.strip()
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": cmd})
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't run that: {e}")
+            return await self._done(f"Ran {cmd}.", flash_surface=s.id, command=cmd)
+
+        # Trusted input skips the question, except for destructive commands
+        # (force pushes, hard resets, rm -rf, sudo), which always confirm.
+        if self.policy.trust_terminal_input and not _is_risky(cmd):
+            return await execute()
+        return self.policy.stage("run_shell", {"command": cmd}, f"Run {cmd}?", execute)
+
+    async def compose_and_type(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Type a message the model has already rewritten into the focused input (terminal or an agent CLI), no Enter."""
+        if not text or not text.strip():
+            return self._fail("What should I write?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        body = text.strip()
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": body})
+        except CmuxError as e:
+            return self._fail(f"I couldn't type that: {e}")
+        self._last_typed_surface = s.id
+        return await self._done("Written. Say enter to send it.", flash_surface=s.id, typed=body)
+
+    async def press_enter(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Submit whatever is in the focused input. Trust rule: like pressing Enter."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't press enter: {e}")
+            self._last_typed_surface = None
+            return await self._done("Sent.", flash_surface=s.id)
+
+        if self.policy.trust_terminal_input or self._last_typed_here(s):
+            return await execute()
+        return self.policy.stage("press_enter", {}, "Press enter?", execute)
+
+    def _last_typed_here(self, s: Surface) -> bool:
+        """Enter right after the agent itself typed into this surface needs no confirmation:
+        the user already heard what was written."""
+        return self._last_typed_surface == s.id
+
     # ------------------------------------------------------------ tools: browser
 
     async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -616,6 +745,11 @@ class VoiceTools:
             ToolSpec("choose_option", "Pick a numbered option from a prompt menu in the terminal, such as a Claude Code choice list: moves down N-1 times and presses enter.", {"number": {"type": "integer", "description": "1-based option number."}, "target": target_prop}, self.choose_option, required=["number"]),
             ToolSpec("menu_navigate", "Move through a prompt menu in the terminal: next or previous (arrow keys), confirm (enter), cancel (escape), tab, or toggle (space).", {"action": {"type": "string", "enum": ["next", "previous", "confirm", "cancel", "tab", "toggle"]}, "times": {"type": "integer", "description": "How many steps for next/previous. Default 1."}, "target": target_prop}, self.menu_navigate, required=["action"]),
             ToolSpec("scroll", "Scroll the terminal view up or down by pages, or jump to the top or bottom.", {"direction": {"type": "string", "enum": ["up", "down", "top", "bottom"]}, "pages": {"type": "integer", "description": "Pages to scroll for up/down. Default 1."}, "target": target_prop}, self.scroll),
+            ToolSpec("shell_context", "Report the terminal's working directory and git branch. Call before composing a shell or git command when the answer depends on where the user is.", {"target": target_prop}, self.shell_context),
+            ToolSpec("go_to_directory", "Change the terminal's directory to a folder the user names. Finds it by name (relative to the current directory, then by search) and runs cd. Ask only if several folders share the name.", {"name": {"type": "string", "description": "Folder name or path as spoken, e.g. 'staff portal', 'voice agent', 'src/lib'."}, "parent": {"type": "string", "description": "Optional parent folder name to disambiguate."}, "target": target_prop}, self.go_to_directory, required=["name"]),
+            ToolSpec("run_shell", "Run a shell or git command that YOU composed from the user's intent, e.g. 'switch to develop' -> git checkout develop. Compose exact, correct syntax; call shell_context first if it depends on the current branch or directory. Requires confirmation unless trusted input is on.", {"command": {"type": "string", "description": "The exact command line."}, "target": target_prop}, self.run_shell, required=["command"]),
+            ToolSpec("compose_and_type", "Write a message YOU rewrote from the user's rough words into the focused input, such as a Claude Code prompt or a commit message, without sending it. The user then says enter to send.", {"text": {"type": "string", "description": "The polished text to type."}, "target": target_prop}, self.compose_and_type, required=["text"]),
+            ToolSpec("press_enter", "Press enter to submit whatever is in the focused input, terminal or agent CLI. Use when the user says enter, send, submit, or go.", {"target": target_prop}, self.press_enter),
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
