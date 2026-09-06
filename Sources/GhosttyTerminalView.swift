@@ -13919,7 +13919,33 @@ struct GhosttyTerminalView: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         var attachGeneration: Int = 0
-        let portalReconciliationScheduler = TerminalPortalReconciliationScheduler()
+        lazy var portalReconciliationScheduler = TerminalPortalReconciliationScheduler { [weak self] reasons in
+            guard let self,
+                  let host = self.pendingPortalReconciliationHost,
+                  let hostedView = self.hostedView,
+                  let terminalSurface = self.pendingPortalReconciliationSurface,
+                  let snapshot = self.pendingPortalReconciliationSnapshot,
+                  let reason = self.pendingPortalReconciliationReason else {
+                return
+            }
+            self.pendingPortalReconciliationHost = nil
+            self.pendingPortalReconciliationSurface = nil
+            self.pendingPortalReconciliationSnapshot = nil
+            self.pendingPortalReconciliationReason = nil
+            GhosttyTerminalView.performPortalReconciliation(
+                hostedView: hostedView,
+                host: host,
+                coordinator: self,
+                terminalSurface: terminalSurface,
+                snapshot: snapshot,
+                reasons: reasons,
+                reason: reason
+            )
+        }
+        weak var pendingPortalReconciliationHost: HostContainerView?
+        weak var pendingPortalReconciliationSurface: TerminalSurface?
+        var pendingPortalReconciliationSnapshot: TerminalPortalReconciliationSnapshot?
+        var pendingPortalReconciliationReason: String?
         // Track the latest desired state so attach retries can re-apply focus after re-parenting.
         var desiredIsActive: Bool = true
         var desiredIsVisibleInUI: Bool = true
@@ -14244,6 +14270,10 @@ struct GhosttyTerminalView: NSViewRepresentable {
         coordinator.desiredPortalZPriority = 0
         coordinator.lastBoundHostId = nil
         coordinator.portalReconciliationScheduler.cancel()
+        coordinator.pendingPortalReconciliationHost = nil
+        coordinator.pendingPortalReconciliationSurface = nil
+        coordinator.pendingPortalReconciliationSnapshot = nil
+        coordinator.pendingPortalReconciliationReason = nil
         let hostedView = coordinator.hostedView
         let host = nsView as? HostContainerView
         let wasBoundToDismantledHost: Bool = {

@@ -29,6 +29,9 @@ struct SidebarWorkspaceSnapshotBuilder {
         let url: URL
         let status: SidebarPullRequestStatus
         let isStale: Bool
+        let title: String = ""
+        let statusLabel: String = ""
+        let openTooltip: String = ""
     }
 
     struct Snapshot: Equatable {
@@ -70,5 +73,7 @@ struct SidebarWorkspaceSnapshotBuilder {
         let checklistCompletedCount: Int
         let checklistTotalCount: Int
         let checklistFirstUncheckedText: String?
+        let remoteReconnectHelpText: String = ""
+        let loadingTooltip: String = ""
     }
 }

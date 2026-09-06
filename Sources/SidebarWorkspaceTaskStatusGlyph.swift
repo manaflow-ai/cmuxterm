@@ -7,18 +7,7 @@ import SwiftUI
 extension WorkspaceTaskStatus {
     /// The localized lane name shown in menus, palette entries, and tooltips.
     var displayName: String {
-        switch self {
-        case .todo:
-            return String(localized: "sidebar.status.todo", defaultValue: "Todo")
-        case .working:
-            return String(localized: "sidebar.status.working", defaultValue: "Working")
-        case .needsAttention:
-            return String(localized: "sidebar.status.needsAttention", defaultValue: "Needs Attention")
-        case .review:
-            return String(localized: "sidebar.status.review", defaultValue: "In Review")
-        case .done:
-            return String(localized: "sidebar.status.done", defaultValue: "Done")
-        }
+        SidebarWorkspaceRowLocalizedStrings.statusDisplayName(self)
     }
 }
 
@@ -76,23 +65,10 @@ struct SidebarWorkspaceTaskStatusGlyphModel: Equatable {
     }
 
     /// Localized format strings resolved once, not per render.
-    private static let manualTooltipFormat = String(
-        localized: "sidebar.status.tooltip.manual",
-        defaultValue: "%@ — set manually"
-    )
-    private static let inferredTooltipFormat = String(
-        localized: "sidebar.status.tooltip.inferred",
-        defaultValue: "%@ — inferred"
-    )
-
     /// The localized tooltip: lane name plus whether it was set manually or
     /// inferred from live signals.
     static func tooltip(status: WorkspaceTaskStatus, hasOverride: Bool) -> String {
-        String(
-            format: hasOverride ? manualTooltipFormat : inferredTooltipFormat,
-            locale: .current,
-            status.displayName
-        )
+        SidebarWorkspaceRowLocalizedStrings.statusTooltip(status: status, hasOverride: hasOverride)
     }
 }
 
@@ -128,7 +104,7 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
     @State private var isStatusPopoverPresented = false
 
     private var labelText: String {
-        String(localized: "sidebar.status.compactLabel", defaultValue: "Status: \(status.displayName)")
+        SidebarWorkspaceRowLocalizedStrings.statusCompactLabel(status)
     }
 
     var body: some View {
@@ -172,7 +148,7 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
             }
         )
         .fixedSize(horizontal: true, vertical: true)
-        .safeHelp(String(localized: "sidebar.status.compactTooltip", defaultValue: "Change workspace status"))
+        .safeHelp(SidebarWorkspaceRowLocalizedStrings.statusCompactTooltip)
         .accessibilityLabel(labelText)
         .accessibilityIdentifier("SidebarWorkspaceManualStatusIndicatorMenu")
     }

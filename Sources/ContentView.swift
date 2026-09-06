@@ -15650,7 +15650,7 @@ struct TabItemView: View, Equatable {
                             actions.reconnectTargets([workspaceId])
                         } label: {
                             Label(
-                                String(localized: "sidebar.remote.reconnect.button", defaultValue: "Reconnect"),
+                                SidebarWorkspaceRowLocalizedStrings.remoteReconnectButton,
                                 systemImage: "arrow.clockwise"
                             )
                             .labelStyle(.titleAndIcon)
@@ -15658,14 +15658,7 @@ struct TabItemView: View, Equatable {
                         }
                         .buttonStyle(.borderless)
                         .foregroundColor(activeSecondaryColor(0.9))
-                        .safeHelp(String(
-                            format: String(
-                                localized: "sidebar.remote.reconnect.help",
-                                defaultValue: "Reconnect to %@"
-                            ),
-                            locale: .current,
-                            remoteWorkspaceSidebarText
-                        ))
+                        .safeHelp(workspaceSnapshot.remoteReconnectHelpText)
                     }
                 }
             }
@@ -15694,16 +15687,15 @@ struct TabItemView: View, Equatable {
         let workspaceSnapshot = self.workspaceSnapshot
         let rowBackgroundColor = backgroundColor(for: workspaceSnapshot)
         let rowRailColor = railColor(for: workspaceSnapshot)
-        let accessibilityTitle = accessibilityTitle(for: workspaceSnapshot)
-        let closeWorkspaceTooltip = String(localized: "sidebar.closeWorkspace.tooltip", defaultValue: "Close Workspace")
-        let protectedWorkspaceTooltip = String(
-            localized: "sidebar.pinnedWorkspaceProtected.tooltip",
-            defaultValue: "Pinned workspace. Closing requires confirmation."
-        )
-        let closeButtonTooltip = workspaceSnapshot.isPinned ? protectedWorkspaceTooltip : KeyboardShortcutSettings.Action.closeWorkspace.tooltip(closeWorkspaceTooltip)
-        let accessibilityHintText = String(localized: "sidebar.workspace.accessibilityHint", defaultValue: "Activate to focus this workspace. Drag to reorder, or use Move Up and Move Down actions.")
-        let moveUpActionText = String(localized: "sidebar.workspace.moveUpAction", defaultValue: "Move Up")
-        let moveDownActionText = String(localized: "sidebar.workspace.moveDownAction", defaultValue: "Move Down")
+        let closeButtonTooltip = workspaceSnapshot.isPinned
+            ? SidebarWorkspaceRowLocalizedStrings.pinnedWorkspaceProtectedTooltip
+            : KeyboardShortcutSettings.Action.closeWorkspace.tooltip(
+                SidebarWorkspaceRowLocalizedStrings.closeWorkspaceTooltip
+            )
+        let accessibilityTitle = snapshot.accessibilityTitle
+        let accessibilityHintText = SidebarWorkspaceRowLocalizedStrings.accessibilityHint
+        let moveUpActionText = SidebarWorkspaceRowLocalizedStrings.moveUpAction
+        let moveDownActionText = SidebarWorkspaceRowLocalizedStrings.moveDownAction
         let latestNotificationSubtitle = latestNotificationText
         let conversationMessageSubtitle = !settings.hidesAllDetails && settings.iMessageModeEnabled
             ? workspaceSnapshot.latestConversationMessage?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -15740,7 +15732,7 @@ struct TabItemView: View, Equatable {
         let trailingStatusActive = badgeOnTrailing || spinnerOnTrailing
         let titleRowSpacing: CGFloat = spinnerOnLeading ? 6 : 8
         let badgeFont = magnifiedFont(scaledFontSize(9), weight: .semibold)
-        let spinnerTooltip = SidebarWorkspaceLoadingTooltip.text(count: workspaceSnapshot.activeCodingAgentCount)
+        let spinnerTooltip = workspaceSnapshot.loadingTooltip
         let spinnerColor = usesInvertedActiveForeground ? selectedWorkspaceForegroundNSColor(opacity: 0.55) : .secondaryLabelColor
         let rowView = VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .sidebarTitleFirstLineCenter, spacing: titleRowSpacing) {
@@ -15758,7 +15750,7 @@ struct TabItemView: View, Equatable {
                 if workspaceSnapshot.isMuted {
                     CmuxSystemSymbolImage(magnified: "bell.slash.fill", pointSize: scaledFontSize(9), weight: .semibold)
                         .foregroundColor(activeSecondaryColor(0.8))
-                        .safeHelp(String(localized: "sidebar.mutedWorkspace.tooltip", defaultValue: "Notifications muted for this workspace"))
+                        .safeHelp(SidebarWorkspaceRowLocalizedStrings.mutedWorkspaceTooltip)
                 }
 
                 // Chrome-style media-activity glyphs: a noisy or capturing
@@ -15798,14 +15790,8 @@ struct TabItemView: View, Equatable {
                     SidebarInlineRenameField(
                         initialText: renameDraft,
                         fontSize: GlobalFontMagnification.scaledSize(scaledFontSize(12.5), percent: globalFontMagnificationPercent), textColor: selectedWorkspaceForegroundNSColor(opacity: 1.0),
-                        accessibilityLabel: String(
-                            localized: "sidebar.workspace.rename.field.accessibilityLabel",
-                            defaultValue: "Rename workspace"
-                        ),
-                        placeholder: String(
-                            localized: "commandPalette.rename.workspacePlaceholder",
-                            defaultValue: "Workspace name"
-                        ),
+                        accessibilityLabel: SidebarWorkspaceRowLocalizedStrings.renameFieldAccessibilityLabel,
+                        placeholder: SidebarWorkspaceRowLocalizedStrings.workspaceNamePlaceholder,
                         onCommit: { newName in
                             if let title = SidebarInlineRenameCommit().titleToCommit(
                                 draft: newName,
@@ -16027,16 +16013,14 @@ struct TabItemView: View, Equatable {
             if detailVisibility.showsPullRequests, !workspaceSnapshot.pullRequestRows.isEmpty {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(workspaceSnapshot.pullRequestRows) { pullRequest in
-                        let pullRequestNumber = String(pullRequest.number)
-                        let pullRequestTitle = "\(pullRequest.label) #\(pullRequestNumber)"
                         let rowContent = HStack(alignment: .center, spacing: 4) {
                             PullRequestStatusIcon(
                                 status: pullRequest.status,
                                 color: pullRequestForegroundColor,
                                 fontScale: fontScale
                             )
-                            Text(pullRequestTitle).underline(settings.makesPullRequestsClickable).lineLimit(1).truncationMode(.tail)
-                            Text(pullRequestStatusLabel(pullRequest.status)).lineLimit(1)
+                            Text(pullRequest.title).underline(settings.makesPullRequestsClickable).lineLimit(1).truncationMode(.tail)
+                            Text(pullRequest.statusLabel).lineLimit(1)
                             Spacer(minLength: 0)
                         }
                         .font(magnifiedFont(scaledFontSize(10), weight: .semibold))
@@ -16046,7 +16030,7 @@ struct TabItemView: View, Equatable {
                             Button(action: { openPullRequestLink(pullRequest.url) }) { rowContent }
                                 .buttonStyle(.plain)
                                 .tint(pullRequestForegroundColor)
-                                .safeHelp(String(localized: "sidebar.pullRequest.openTooltip", defaultValue: "Open \(pullRequestTitle)"))
+                                .safeHelp(pullRequest.openTooltip)
                                 .accessibilityIdentifier("SidebarPullRequestRow")
                         } else {
                             rowContent.accessibilityElement(children: .combine).accessibilityIdentifier("SidebarPullRequestRow")
@@ -16256,12 +16240,6 @@ struct TabItemView: View, Equatable {
         ) ?? NSColor(hex: hex) ?? .gray
     }
 
-    private func accessibilityTitle(
-        for workspaceSnapshot: SidebarWorkspaceSnapshotBuilder.Snapshot
-    ) -> String {
-        String(localized: "accessibility.workspacePosition", defaultValue: "\(workspaceSnapshot.title), workspace \(index + 1) of \(accessibilityWorkspaceCount)")
-    }
-
     func moveBy(_ delta: Int) {
         actions.moveBy(delta)
     }
@@ -16280,14 +16258,6 @@ struct TabItemView: View, Equatable {
 
     private func openPortLink(_ port: Int) {
         actions.openPort(port)
-    }
-
-    private func pullRequestStatusLabel(_ status: SidebarPullRequestStatus) -> String {
-        switch status {
-        case .open: return String(localized: "sidebar.pullRequest.statusOpen", defaultValue: "open")
-        case .merged: return String(localized: "sidebar.pullRequest.statusMerged", defaultValue: "merged")
-        case .closed: return String(localized: "sidebar.pullRequest.statusClosed", defaultValue: "closed")
-        }
     }
 
     private func logLevelIcon(_ level: SidebarLogLevel) -> String {

@@ -74,6 +74,10 @@ struct SidebarWorkspaceSnapshotFactory {
             )
         }
         let checklistProgress = workspace.checklistProgressSummary
+        let activeCodingAgentCount = SidebarAgentActivitySummary.visibleActiveCodingAgentCount(
+            showsAgentActivity: showsAgentActivity,
+            statesByPanelId: workspace.agentLifecycleStatesByPanelId
+        )
         return SidebarWorkspaceSnapshotBuilder.Snapshot(
             presentationKey: presentationKey,
             title: workspace.title,
@@ -97,10 +101,7 @@ struct SidebarWorkspaceSnapshotFactory {
                 : [],
             latestLog: detailVisibility.showsLog ? workspace.logEntries.last : nil,
             progress: detailVisibility.showsProgress ? workspace.progress : nil,
-            activeCodingAgentCount: SidebarAgentActivitySummary.visibleActiveCodingAgentCount(
-                showsAgentActivity: showsAgentActivity,
-                statesByPanelId: workspace.agentLifecycleStatesByPanelId
-            ),
+            activeCodingAgentCount: activeCodingAgentCount,
             compactGitBranchSummaryText: compactGitBranchSummaryText,
             compactDirectoryCandidates: compactDirectoryCandidates,
             compactBranchDirectoryCandidates: compactBranchDirectoryCandidates,
@@ -117,7 +118,9 @@ struct SidebarWorkspaceSnapshotFactory {
             checklistItems: workspace.todoState.checklist,
             checklistCompletedCount: checklistProgress.completedCount,
             checklistTotalCount: checklistProgress.totalCount,
-            checklistFirstUncheckedText: checklistProgress.firstUncheckedText
+            checklistFirstUncheckedText: checklistProgress.firstUncheckedText,
+            remoteReconnectHelpText: remoteReconnectHelpText,
+            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(count: activeCodingAgentCount)
         )
     }
 
@@ -154,6 +157,17 @@ struct SidebarWorkspaceSnapshotFactory {
         let target = workspace.remoteDisplayTarget?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let target, !target.isEmpty { return target }
         return String(localized: "sidebar.remote.subtitleFallback", defaultValue: "Remote workspace")
+    }
+
+    private var remoteReconnectHelpText: String {
+        guard workspace.isRemoteWorkspace,
+              !workspace.isManagedCloudVMWorkspace,
+              workspace.remoteConnectionState == .suspended ||
+                workspace.remoteConnectionState == .disconnected,
+              let target = remoteWorkspaceSidebarText else {
+            return ""
+        }
+        return SidebarWorkspaceRowLocalizedStrings.remoteReconnectHelp(target: target)
     }
 
     private var copyableSidebarSSHError: String? {
@@ -338,13 +352,20 @@ struct SidebarWorkspaceSnapshotFactory {
         orderedPanelIds: [UUID]
     ) -> [SidebarWorkspaceSnapshotBuilder.PullRequestDisplay] {
         workspace.sidebarPullRequestsInDisplayOrder(orderedPanelIds: orderedPanelIds).map {
+            let title = "\($0.label) #\($0.number)"
             SidebarWorkspaceSnapshotBuilder.PullRequestDisplay(
                 id: "\($0.label.lowercased())#\($0.number)|\($0.url.absoluteString)",
                 number: $0.number,
                 label: $0.label,
                 url: $0.url,
                 status: $0.status,
-                isStale: $0.isStale
+                isStale: $0.isStale,
+                title: title,
+                statusLabel: SidebarWorkspaceRowLocalizedStrings.pullRequestStatusLabel($0.status),
+                openTooltip: SidebarWorkspaceRowLocalizedStrings.pullRequestOpenTooltip(
+                    label: $0.label,
+                    number: $0.number
+                )
             )
         }
     }
