@@ -564,6 +564,43 @@ over the same catalog (`vm.tree` is the catalog restricted to cloud machines;
 `<id>/browser/port:<n>`, registering the port first when the probe has not
 seen it). CLI: `cmux surface ls|open|new-terminal` and `cmux vm tree|open`.
 
+## Layouts, environment, and the in-VM `cmux` (2026-09-06)
+
+A machine workspace *is* its screen's layout. Two things make it travel as data:
+
+- **Geometry-honoring open.** `vm.workspace_open` (the sidebar row click, `cmux vm
+  workspace open`, `cmux vm layout apply --open`) reads the workspace's focused
+  screen `layout` (the daemon `LayoutDocument` already carried by `session current
+  snapshot`) through `CloudWorkspaceLayoutTranslator` and builds the local panes
+  from it: `LayoutSplit` → a local split in the same direction with the same
+  ratio (`horizontal` = side by side, `vertical` = stacked), a leaf's tabs → tabs
+  of that pane in daemon order, stacks → stacked splits, viewport columns →
+  side-by-side splits. Unknown resources are dropped and an empty leaf collapses;
+  with no layout the old one-pane-per-terminal alternation remains. Nothing in a
+  layout can name a Mac surface: it only selects which of the machine's own
+  resources project where.
+- **Declarative layouts.** `cmux layout export|apply` in the in-VM shim
+  (`web/services/vms/guestCli.ts`) speak the Mac's `CmuxLayoutNode` document
+  (`cmux new-workspace --layout`, `cmux layout save|get`). `apply` composes the
+  daemon's v2 verbs — `workspace create --empty`, `workspace <ws> run`, `pane <p>
+  split --right|--down --ratio --cwd`, `pane <p> run -- env K=V bash -l`,
+  `terminal <placeholder> close`, `tab create browser --url`, `terminal write|keys`
+  for typed `command`s, `pane focus` — so no daemon change is needed. The Mac CLI
+  (`cmux vm layout export|apply`) runs that implementation over `vm.exec`; inside
+  a machine the same verb works locally and toward linked peers.
+
+The shim also carries `cmux env set|ls|rm|path` (a 0600 `~/.config/cmux/env` of
+`export` lines plus an idempotent hook in `~/.profile`/`~/.bashrc`, so every
+login and interactive shell cmux starts sees the values; the Mac's `cmux vm env`
+pipes values base64 over exec) and the Mac spellings for the machine's own
+session: `cmux tree`, `new-workspace`, `new-split`, `send`, `send-key`,
+`read-screen`, `terminal send|read|wait|close` (default target
+`$CMUX_TUI_TERMINAL_ID`, the caller's own terminal). Every one of them takes a
+linked peer as `cmux vm <verb> <peer> …`, and `cmux vm agent <peer> --agent <a>
+-- <prompt>` starts a durable agent terminal on the peer through the peer's own
+shim and CodeRouter config. The trust boundary below is unchanged: links are
+granted only from the Mac, and no control-plane credential enters a machine.
+
 ## Notifications from a machine
 
 `cmux notify` inside a machine is the guest shim (`web/services/vms/guestCli.ts`)

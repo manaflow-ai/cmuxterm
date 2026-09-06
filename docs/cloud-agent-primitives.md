@@ -38,30 +38,38 @@ What completes the story:
   `vm agent --fan-out N -- <prompt>` = fork × N + one agent each + a summary
   workspace collecting the results.
 
-## Goal 3 — layouts as data
+## Goal 3 — layouts as data (shipped)
 
-The daemon already treats layout as a resource: `workspace <sel> layout apply`
-takes a `LayoutDocument`, and `screen layout export` reads one back. Missing is
-only the `cmux vm` plumbing and the projection contract:
+One declarative document on both sides — the `CmuxLayoutNode` schema the Mac
+already uses for `cmux new-workspace --layout`, `cmux layout save|get|open` and
+cmux.json workspaces (`{"pane":{"surfaces":[…]}}` leaves, `{"direction","split",
+"children"}` splits). The daemon's own `LayoutDocument` (pane/tab ids, split ids)
+stays the wire truth; the declarative form is what people and agents write.
 
 ```bash
-cmux vm layout export <machine> <ws>            # LayoutDocument JSON to stdout
-cmux vm layout apply  <machine> <ws> [file|-]   # build panes/splits/tabs from JSON
-cmux vm layout apply  <machine> <ws> --preset agent-triage   # named presets
+cmux vm layout export <machine> [<ws>] [--raw]        # {"name","cwd","layout"}; --raw: the LayoutDocument
+cmux vm layout apply  <machine> <file|-> [--name <n>|--workspace <empty-ws>] [--cwd <dir>] [--from-saved <mac-layout>] [--open]
 ```
 
-- **Author without opening**: an agent composes a LayoutDocument (editor pane
-  left, agent terminal right, test-watcher tab, log tail bottom), applies it to
-  a cloud workspace, and never projects a pane anywhere.
-- **Monitor without opening**: `vm tree --json` / `session snapshot` already
-  carry the full topology; `layout export` adds the exact geometry. An agent
-  can assert "the test watcher is still in tab 2" headlessly.
-- **Click-to-materialize**: `vm workspace open` already builds local panes from
-  the machine workspace; it should honor the stored geometry (splits and
-  ratios), not just pane-per-terminal — so the layout an agent arranged in the
-  cloud is the layout that appears on the Mac. Geometry travels machine→Mac as
-  data; nothing in a LayoutDocument can name a Mac surface or socket (same
-  boundary the notification relay enforces).
+- **One implementation, three entrypoints.** `layout export|apply` live in the
+  in-VM `cmux` shim (POSIX sh + jq over the daemon's v2 verbs: `workspace run`,
+  `pane split --ratio --cwd`, `pane run`, `tab create browser`, `terminal write|keys`).
+  The Mac CLI runs that implementation over the exec channel; inside a machine
+  the same verb works locally and toward linked peers (`cmux vm layout … <peer>`).
+  Presets are just files (a layout saved on the Mac applies with `--from-saved`).
+- **Author without opening**: `apply` builds a new (or an empty) workspace
+  headlessly; `command`s are typed into login shells so panes survive them and
+  the scrollback shows what ran. `--open` is the only thing that touches the Mac.
+- **Monitor without opening**: `vm tree --json` carries the topology; `export`
+  adds the geometry; `terminal read|wait` the content.
+- **Click-to-materialize (shipped)**: `vm workspace open`, `--open`, and the
+  sidebar row build the local panes from the screen's LayoutDocument — split
+  directions, divider ratios, tabs per pane — falling back to one pane per
+  terminal only when no layout is known. Geometry travels machine→Mac as data;
+  nothing in a document can name a Mac surface or socket (the same boundary
+  the notification relay enforces).
+- **Next**: `vm layout apply` into a non-empty workspace as an additional
+  screen; a `--watch` that re-exports on daemon layout events.
 
 ## Goal 4 — everything an agent needs to set up a working environment
 
@@ -71,21 +79,31 @@ The checklist an agent runs through, each item a primitive (not a doc):
 2. **Code**: `vm push` (shipped) / `vm repo clone` (next).
 3. **Toolchain + deps**: `vm dev` detect→record→replay; devcontainer.json
    honored — designed.
-4. **Secrets**: `vm env set` per (user, project), materialized at setup,
-   edge-resident later — designed.
+4. **Secrets**: `vm env set|ls|rm` — shipped machine-local (0600 file on the
+   persistent volume, sourced by every shell cmux starts: terminals, `vm exec`,
+   `vm agent`, layout panes, in-VM `cmux agent`); per-(user, project) storage and
+   edge-resident values remain the long game (docs/vm-identity-edge-auth.md).
 5. **Services**: recipe `services` (postgres/redis via the baked docker) with
    health gates — next, part of `vm dev` P2.
-6. **Workspace + layout**: named workspace (designed) + `vm layout apply` —
-   this doc.
+6. **Workspace + layout**: `vm workspace new --name` + `vm layout apply` —
+   shipped; the person's click reproduces the geometry.
 7. **Verification**: recipe `checks` in a durable terminal; the exit receipt is
    the proof the environment works — designed.
 8. **Handoff**: `vm handoff` (shipped), `cmux notify` from inside (this
-   branch), peer links for multi-machine pipelines (`vm link`, shipped).
+   branch), peer links for multi-machine pipelines (`vm link`, shipped) — and,
+   inside a machine, the Mac's own verbs for its session and its peers
+   (`cmux terminal send|read|wait`, `send-key`, `new-workspace`, `layout`,
+   `env`, `cmux vm agent <peer> …`): an agent in the cloud has parity with an
+   agent on the Mac.
 
 ## Sequencing
 
-1. `vm layout export/apply` — smallest lift (daemon ops exist), unlocks goal 3.
-2. `vm dev` P1 (route+sync+detect+named workspace) — unlocks goal 4 end to end.
-3. `vm push --watch`, `vm repo clone`, recipe `services`.
-4. Push-notification forwarding for the ledger; `vm agent --until-done`,
+1. ~~`vm layout export/apply`~~ shipped, with geometry-honoring open and the
+   in-VM parity verbs (`cmux terminal|send-key|new-workspace|layout|env`,
+   `cmux vm … <peer>`).
+2. ~~`vm env set|ls|rm`~~ shipped machine-local; control-plane/edge storage later.
+3. `vm dev` P1 (route+sync+detect+named workspace+layout) — unlocks goal 4 in
+   one verb; today it is a four-line recipe (route, push, env set, layout apply).
+4. `vm push --watch`, `vm repo clone`, recipe `services`.
+5. Push-notification forwarding for the ledger; `vm agent --until-done`,
    `--fan-out`.

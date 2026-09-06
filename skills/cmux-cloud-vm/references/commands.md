@@ -40,6 +40,16 @@ cmux coderouter usage                  # this machine's 30-day usage JSON
 cmux coderouter models                 # models exposed through the edge
 cmux coderouter agent <agent> ...      # run claude/codex/opencode/pi via CodeRouter
 cmux agent <agent> ...                 # short alias for coderouter agent
+
+# In-VM parity verbs (the Mac spellings, against this machine's own session; default target = $CMUX_TUI_TERMINAL_ID)
+cmux tree [--json]                     # session snapshot (workspaces, screens, panes, tabs, terminals)
+cmux new-workspace [--name <n>]        # workspace create
+cmux new-split <left|right|up|down> [--pane <pane_id>]
+cmux send [--terminal <id>] <text…> ; cmux send-key [--terminal <id>] <key…> ; cmux read-screen [--terminal <id>]
+cmux terminal send <id> [text] [--keys k1,k2] | read <id> | wait <id> --pattern <re> [--timeout <s>] | close <id>
+cmux layout export [--workspace <ws>] [--raw] | cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
+cmux env set KEY=VALUE… [--from-file <.env>] [-] | ls [--show] [--json] | rm KEY… | path
+cmux vm <verb> <peer> …                # any of the above on a linked peer machine (see "Machine-to-machine links")
 ```
 
 Tree line shapes:
@@ -142,6 +152,45 @@ cmux vm pull <id> <remote-path> [local-path]        # file or directory back to 
 
 Aliases: `upload` / `download`. Transfers ride the exec channel (no SSH), chunked base64, 256 MB cap; directories travel as tarballs and merge into the destination. Remote paths are relative to `/root` (the persistent volume).
 
+## Layouts (the shape of a machine workspace)
+
+```bash
+cmux vm layout export <id> [<ws-id|name>] [--raw] [--json]   # {"name","cwd","layout": Node}; default: the focused workspace; --raw: the daemon LayoutDocument (pane/tab ids, split ids)
+cmux vm layout apply <id> <file>|- [--name <n>] [--cwd <dir>] [--open] [--json]   # build a NEW workspace from the document; --open shows it here with the same geometry
+cmux vm layout apply <id> <file> --workspace <ws-id>          # into an existing EMPTY workspace (from `vm workspace new --no-open`); a non-empty one is refused
+cmux vm layout apply <id> --from-saved <name> [--open]        # a Mac saved layout (`cmux layout save <name>`), applied in the cloud
+```
+
+Document (identical to `cmux new-workspace --layout`, `cmux layout get`, cmux.json workspaces):
+
+```json
+{"name": "app", "cwd": "/root/work/app",
+ "layout": {"direction": "horizontal", "split": 0.6, "children": [
+   {"pane": {"surfaces": [{"type": "terminal", "name": "agent", "command": "claude"}]}},
+   {"direction": "vertical", "split": 0.5, "children": [
+     {"pane": {"surfaces": [{"type": "terminal", "name": "tests", "command": "bun test --watch"},
+                            {"type": "terminal", "name": "logs", "cwd": "logs"}]}},
+     {"pane": {"surfaces": [{"type": "browser", "url": "http://localhost:3000"}]}}]}]}}
+```
+
+- Wrappers accepted: the bare `layout` node, `{"name","cwd","env","layout"}`, or a saved layout `{"name","description","workspace":{…}}`.
+- `horizontal` = side by side (first child left), `vertical` = stacked (first child top); `split` = the first child's share, 0.1–0.9 (default 0.5).
+- Surface: `type` terminal|browser (`project` is Mac-only and skipped with a warning), `name` (tab name), `cwd` (relative to the document `cwd`, default `/root`), `env` (process environment of that shell), `command` (typed into the shell, then Enter — the shell survives it), `url` (browser), `focus`.
+- Every terminal is a login shell (`bash -l`), so `vm env` values and the agents' PATH apply. Output: `OK workspace=ws_… name=… panes=N surfaces=M` or `--json` `{workspace_id, workspace_name, panes:[{pane_id, surfaces:[{type, terminal_id|browser_id, tab_id, name}]}], warnings}`.
+- The same verb exists inside the machine (`cmux layout export|apply`) and toward linked peers (`cmux vm layout … <peer>`); the Mac form runs that implementation over the exec channel. A machine whose shim predates it says so (reconnect: `cmux vm tree <id> --refresh`).
+- Exit codes: 0 built; 1 daemon refused (message names the op); 2 invalid document (message names the JSON path, e.g. `$.children[1]`) — nothing is created on a 2.
+
+## Environment (project secrets and settings on a machine)
+
+```bash
+cmux vm env set <id> KEY=VALUE [KEY2=VALUE2 …]        # /root/.config/cmux/env (0600) on the persistent volume
+cmux vm env set <id> --from-file .env                 # dotenv rules: blank and # lines skipped, optional `export `, matching quotes stripped
+cmux vm env ls <id> [--show] [--json]                 # names; --show adds values; --json {path, keys, values?}
+cmux vm env rm <id> KEY [KEY2 …]
+```
+
+Values are sourced by every login/interactive shell on the machine (a one-line hook in `~/.profile` and `~/.bashrc`, installed on first `set`), so every terminal cmux starts (`vm open`, `surface new-terminal`, `vm agent`, layout panes), `vm exec`, and the in-VM `cmux agent …` see them. Keys must match `[A-Za-z_][A-Za-z0-9_]*`. Values travel base64 over the exec channel, never as plaintext argv, and are never echoed by `ls` without `--show`. Snapshots and forks carry the file (it lives in `/root`).
+
 ## Opening things for the human (`vm open`)
 
 ```bash
@@ -177,8 +226,12 @@ cmux vm link <src> <dst>               # grant <src> a cmux-remote link to <dst>
 The Mac brokers the destination route and a single-use enrollment invitation,
 then writes only that scoped peer grant into `<src>`. From inside the source
 machine, the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
-`cmux vm tree <dst>`, and other peer verbs; no control-plane credential enters a
-machine.
+`cmux vm tree <dst>`, `cmux vm terminal send|read|wait|close <dst> <term> …`,
+`cmux vm send-key <dst> <term> <keys…>`, `cmux vm workspace new|rename|close|rm <dst> …`,
+`cmux vm agent <dst> --agent <a> [--name <n>] [--cwd <dir>] -- <prompt>` (a durable
+terminal on the peer running `cmux agent <a> …` with the peer's own CodeRouter config),
+`cmux vm layout export|apply <dst> …`, and `cmux vm env set|ls|rm <dst> …`; no
+control-plane credential enters a machine.
 
 ## SSH (provider-dependent)
 

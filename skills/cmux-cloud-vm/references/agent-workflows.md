@@ -36,6 +36,30 @@ cmux vm exec "$id" -- sh -c 'cd work/app && bun install'
 
 Finish with `cmux notify --title "Cloud dev server up" --body "<url>"`.
 
+## 1b. Stage a finished workspace for the human (layout + env + code)
+
+The person wants to open one workspace and find everything in place: the checkout, the secrets, an agent pane, a test watcher, the app in a browser pane. Build it headlessly, verify, then open.
+
+```bash
+id=$(cmux vm route --json | jq -r '.machine')
+cmux vm push "$id" . work/app                                         # code (or a git bundle, §3)
+cmux vm env set "$id" --from-file .env.cloud                          # secrets: on the machine, never in the layout
+cat > /tmp/app-layout.json <<'JSON'
+{"name":"app","cwd":"/root/work/app","layout":{"direction":"horizontal","split":0.6,"children":[
+  {"pane":{"surfaces":[{"type":"terminal","name":"claude","command":"claude","focus":true}]}},
+  {"direction":"vertical","split":0.5,"children":[
+    {"pane":{"surfaces":[{"type":"terminal","name":"tests","command":"bun test --watch"},{"type":"terminal","name":"shell"}]}},
+    {"pane":{"surfaces":[{"type":"terminal","name":"dev","command":"bun run dev"},{"type":"browser","url":"http://localhost:3000"}]}}]}]}}
+JSON
+ws=$(cmux vm layout apply "$id" /tmp/app-layout.json --json | jq -r '.workspace_id')
+cmux vm tree "$id"                                                     # the panes exist; agents/tests show their state
+cmux vm terminal wait "$id" "$(cmux vm tree "$id" --json | jq -r '.resources[] | select(.title=="dev") | .key')" --pattern 'localhost:3000' --timeout 120
+cmux vm workspace open "$id" "$ws"                                     # same geometry on the Mac (or: layout apply … --open)
+cmux notify --title "Workspace ready: app" --body "cmux vm open $id/$ws"
+```
+
+Reuse a human's arrangement: `cmux vm layout export <id> <ws> > team-layout.json`, commit it next to the repo, and `cmux vm layout apply <fork> team-layout.json` on every fork. A layout the person saved on the Mac (`cmux layout save dev`) applies in the cloud with `--from-saved dev`.
+
 ## 2. Hand a task to an agent on the machine
 
 ```bash
@@ -47,6 +71,33 @@ cmux vm tree "$(echo "$term" | jq -r '.machine')"                 # [agent claud
 The agent runs as a detached terminal in the machine's cmux-tui session: it keeps going if the pane closes, and `cmux vm open <reattach address>` brings it back (reusing the pane if one already shows it). Fan out by calling `vm agent` once per task with `--machine` pinned to different machines (or forks, §4) and watch them all in `cmux vm tree`.
 
 Inside the machine the agent authenticates like it would locally (its own login, or CodeRouter's env/config under `/root`, set once with `vm exec`). Never copy the user's tokens onto a machine unless they ask.
+
+## 2b. Agents talking to agents (same machine, and across machines)
+
+On one machine, an agent drives a sibling terminal headlessly — from the Mac or from inside the machine with the same verbs:
+
+```bash
+# from the Mac
+cmux vm terminal send <id> <term> 'run the failing test again' --keys enter
+cmux vm terminal wait <id> <term> --pattern '❯|\$ $' --timeout 600 && cmux vm terminal read <id> <term>
+# from inside the machine (an agent's own hooks/scripts); default target = its own terminal
+cmux send-key --terminal <term> enter
+cmux terminal read <term>
+```
+
+Across machines, the person's Mac grants a link once, then the source machine speaks to the peer with the Mac grammar:
+
+```bash
+cmux vm link <builder> <reviewer>                       # on the Mac: builder may reach reviewer
+# inside <builder>:
+cmux vm agent reviewer --agent codex --name "review" --cwd /root/work/app -- "review the diff on branch feat/x and write REVIEW.md"
+cmux vm terminal wait reviewer <term> --pattern 'REVIEW.md written' --timeout 1800
+cmux vm exec reviewer -- cat /root/work/app/REVIEW.md
+cmux vm env set reviewer GITHUB_REPO=org/app                       # settings for the peer's shells
+cmux vm layout apply reviewer review-layout.json --name review     # a workspace on the peer, ready for the human
+```
+
+Only the Mac can grant or revoke links; a machine never holds a control-plane credential and can reach only the peers it was linked to.
 
 ## 3. Repo with history (private repos, no credentials on the machine)
 

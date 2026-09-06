@@ -10,6 +10,7 @@ You are helping the user work with cmux Cloud machines through the `cmux` CLI. T
 - Base is a separate single per-user persistent slot, pinned to the top of the sidebar. `cmux vm new` mints fresh machines; `cmux vm base` always reopens the same one.
 - Terminals on a machine live in its cmux-tui session (workspaces `ws_…`, terminals `term_…`). They keep running detached. `cmux vm tree` catalogs every surface, and every line is an address `cmux vm open` (machine targets) or `cmux surface open` (any entry, including This Mac) accepts: `brave-otter/main/term_2f9c…`, `brave-otter:desktop`, `brave-otter:port/3000`.
 - One machine hosts many workspaces. Make a workspace per task *inside* the machine (`cmux vm workspace new <id> --name <task>`, the machine's ⌘N) rather than a machine per task; the Cloud sidebar groups them under the machine's Workspaces group. `cmux vm open <machine>/<ws>` takes the `ws_…` id, or the workspace name only when exactly one workspace has it (colliding names need the id), and starts a shell in an empty one.
+- A workspace is a layout: its screen's panes, splits, divider ratios and tabs. `cmux vm layout export <id> <ws>` reads it as JSON and `cmux vm layout apply <id> <file>` builds one — the same document `cmux new-workspace --layout` and `cmux layout save|get` use on the Mac. Opening the workspace on the Mac reproduces that geometry.
 - Pool machines (labeled `agent-pool` in `cmux vm ls`) are provisioned by the `vm run`/`vm agent` router and reused for routed work. The router never drafts machines a person made by hand.
 - Plans cap active machine count and memory. `cmux vm ls` prints the meter and, on free plans, when free cloud access expires.
 
@@ -70,7 +71,12 @@ cmux vm terminal read <id> <term>           # the terminal's visible screen (wha
 cmux surface ls [--json]                    # every surface (This Mac + machines) and which panes show it
 cmux surface open <machine>/<kind>/<key> [--new] [--pane <p> --left|--right|--up|--down|--tab]
 cmux surface new-terminal --machine <id> [--remote-workspace <ws>] [--cwd <dir>] [-- <cmd...>]
+cmux vm layout export <id> [<ws>] [--raw]  # the workspace's shape as JSON ({"name","cwd","layout"})
+cmux vm layout apply <id> <file>|- [--name <n>] [--workspace <empty-ws>] [--cwd <dir>] [--from-saved <name>] [--open]
+cmux vm env set <id> KEY=VALUE… [--from-file .env] ; cmux vm env ls <id> [--show] ; cmux vm env rm <id> KEY…
 ```
+
+Layout document: `{"pane":{"surfaces":[{"type":"terminal"|"browser","name"?,"cwd"?,"command"?,"env"?,"url"?,"focus"?}]}}` leaves and `{"direction":"horizontal"|"vertical","split":0.1–0.9,"children":[a,b]}` splits (`horizontal` = side by side, first child left; `vertical` = stacked; `split` = the first child's share). Terminals are login shells in `cwd` (relative to the document `cwd`, default `/root`); `command` is typed into the shell so the pane survives it. `apply` builds a new workspace (`--name`) or fills an empty one (`--workspace`), never a non-empty one; exit 2 with the JSON path on a malformed document. `vm env` values live 0600 at `/root/.config/cmux/env` and are sourced by every shell cmux starts on that machine (terminals, `vm exec`, `vm agent`, layout panes) — put secrets there, names in the layout, never values in a document you commit.
 
 A pane showing a machine surface is an ordinary local cmux pane: move, split, reorder, or close it with the local workspace/pane commands (`cmux --help`), and closing a pane never kills the machine's terminal. Workspace (`ws_…`) and terminal (`term_…`) ids come from `cmux vm tree`; `cmux vm tree --refresh` re-reads the fleet and every machine (a machine you just created shows up at once). A `--workspace`/`--pane` that names nothing is an error, never a silent open somewhere else.
 
@@ -127,12 +133,25 @@ cmux workspace current run -- bun test        # run a command in a durable termi
 cmux session current snapshot --json          # this machine's workspace/terminal tree
 ```
 
-`cmux vm …` inside a machine talks to OTHER machines the Mac linked to this one (`cmux vm link <this-machine> <peer>` on the Mac grants access):
+The Mac spellings work there too, against the machine's own session (default target: the terminal you run them from, `$CMUX_TUI_TERMINAL_ID`):
+
+```
+cmux tree --json ; cmux new-workspace --name tests ; cmux new-split right
+cmux send-key --terminal <term> ctrl+c ; cmux send --terminal <term> 'bun test' ; cmux read-screen --terminal <term>
+cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
+cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
+cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
+```
+
+`cmux vm …` inside a machine talks to OTHER machines the Mac linked to this one (`cmux vm link <this-machine> <peer>` on the Mac grants access), with the peer as the first argument and the same grammar as on the Mac:
 
 ```
 cmux vm ls                          # linked peers and their link state
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
+cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>
+cmux vm workspace new|rename|close|rm <peer> … ; cmux vm layout export|apply <peer> … ; cmux vm env set|ls|rm <peer> …
+cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] -- <prompt>   # a durable agent terminal on the peer
 ```
 
 Machine-to-machine access is grant-based: no control-plane credential lives in any VM, and a machine can only reach peers the user's Mac explicitly linked.

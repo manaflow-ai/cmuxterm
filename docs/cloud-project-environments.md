@@ -26,6 +26,8 @@ cmux vm dev -- bun test    # …and run this in it once it's ready
    after the project (`vm workspace new`), so the sidebar and `vm tree` show
    *myrepo* with its terminals, not an anonymous `main`. New terminals for this
    project land there (`--remote-workspace`).
+   With a `layout` in the manifest, the workspace is built by `vm layout apply`
+   (shipped) and opens on the Mac with the same geometry.
 5. **Verify** — run the manifest's `checks` (e.g. `bun test --help`) in a durable
    terminal; print the workspace address; open it unless `--detach`.
 
@@ -58,10 +60,15 @@ Setup must be automatic on first contact and deterministic after.
   gates the install). A repo that ships `.cmux/cloud.json` never runs detection:
   what the file says is what happens, on every machine, for every teammate.
 - **Secrets** (`env`) are *named*, never valued, in the repo. Values come from
-  `cmux vm env set DATABASE_URL=…` — stored control-plane-side per (user, project),
-  materialized into the machine's env file at setup, revoked with access. This
-  slots into the edge-injection identity plan (docs/vm-identity-edge-auth.md):
-  the long game is values living at the TLS edge, not in the guest at all.
+  `cmux vm env set <machine> DATABASE_URL=…` — shipped today as a machine-local
+  file (`/root/.config/cmux/env`, 0600, on the persistent volume, sourced by every
+  shell cmux starts). Control-plane storage per (user, project) with materialization
+  at setup and revocation with access is the next step, and the long game is values
+  living at the TLS edge (docs/vm-identity-edge-auth.md), not in the guest at all.
+- **Layout** (`layout`) is the workspace shape the manifest can carry — the same
+  `CmuxLayoutNode` document `cmux vm layout apply` takes today — so `vm dev` can end
+  in a finished workspace (agent pane, test watcher, dev server + browser) instead
+  of one shell.
 - **Ports** pre-registers the project's dev-server ports so `vm tree` shows them
   (and `vm open <m>:port/<n>` works) before the first probe.
 
@@ -86,6 +93,7 @@ Setup must be automatic on first contact and deterministic after.
    detection prints what it ran and suggests committing the generated
    `.cmux/cloud.json`.
 2. **P2** — manifest replay with lockfile-hash gating, `checks`, `ports`,
-   `vm env set/list/rm`, `vm dev --watch` incremental sync.
+   `layout`, `vm dev --watch` incremental sync (`vm env set/ls/rm` already exists
+   machine-local; P2 reads the manifest's `env` names and reports which are unset).
 3. **P3** — devcontainer.json compatibility, per-project size, fork-aware setup
    (a fork skips setup when the lockfile hash matches), edge-resident secrets.

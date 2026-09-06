@@ -14,7 +14,7 @@ Everything the Cloud sidebar can do, from the CLI — plus agent-only primitives
 | **Machine** | A persistent cloud VM (`cmux vm ls`). cmux-created machines have no provider idle timeout, so they stay available until the user pauses/stops or destroys them; an already-sleeping machine wakes on connect or exec. `/root` is a 16 GB persistent volume; the rest of the filesystem is disposable compute. |
 | **Contents** | Ubuntu 24.04 (shared devbox image): node, bun, uv, git, gh, ripgrep, fd, jq, tmux, xdotool, Chrome, `cua-driver`. **Claude Code, Codex, OpenCode, and Pi are preinstalled**. Desktop-kind machines (the default; `vm new --base` makes a shell-only machine with no screen) boot a desktop: TigerVNC on `:1` with an openbox session, a dock (Chrome, Files, Ghostty) and noVNC on 6901 — the **Desktop** row in the sidebar / `vm open <m>:desktop` shows it. Shells on the machine get `DISPLAY=:1` (and the accessibility bus) while the desktop is up, so `agent-browser`, `xdotool` and `cua-driver mcp` act on that screen. |
 | **Session** | Every machine runs the **cmux-tui remote daemon**: its own workspaces → terminals, visible in `cmux vm tree`. A terminal you start there keeps running when the Mac disconnects. |
-| **Workspaces** | One machine hosts **many** cmux-tui workspaces: the machine is the big box, workspaces are the desks in it. Make a workspace per task *inside* a machine (`cmux vm workspace new <id> --name <task>`, the machine's ⌘N) — not a machine per task. The Cloud sidebar shows them grouped under the machine's Workspaces group. |
+| **Workspaces** | One machine hosts **many** cmux-tui workspaces: the machine is the big box, workspaces are the desks in it. Make a workspace per task *inside* a machine (`cmux vm workspace new <id> --name <task>`, the machine's ⌘N) — not a machine per task. The Cloud sidebar shows them grouped under the machine's Workspaces group. A workspace **is a layout**: its screen's splits, ratios and tabs. `cmux vm layout export/apply` reads and writes that shape as JSON (the same document `cmux new-workspace --layout` and `cmux layout save/get` use locally), and clicking the workspace row opens it on the Mac with the same geometry. |
 | **Surface** | A terminal, VNC screen or browser — on This Mac or on a machine — with a stable id `<machine>/<kind>/<key>` (`cmux surface ls --json`). Panes *project* surfaces: `cmux surface open <id>` reuses the pane already showing one, or lands it at a pane edge you choose; closing a pane never kills a machine's terminal. |
 | **Base** | The one pinned persistent machine (`cmux vm base open`) — use it for the user's ongoing work. |
 | **Pool** | Machines the router provisioned for agent work (`agent-pool` in `vm ls`). `vm run`/`vm agent` only draft these; hand-made machines need `--machine <id>`. |
@@ -41,6 +41,8 @@ cmux vm agent --agent claude --sync -- "run the tests and fix failures"   # a de
 cmux vm tree                                             # the surface catalog: This Mac, then every machine, workspace, terminal, desktop, port
 cmux vm open vivid-newt/main/term_2f9c                   # show the human one terminal (reuses its pane if open)
 cmux surface open vivid-newt/display/display:1 --pane pane:2 --left   # any surface, at a pane edge (same drop rules as the sidebar)
+cmux vm env set vivid-newt DATABASE_URL=postgres://… --from-file .env     # project secrets, on the machine's persistent volume, in every shell/agent it starts
+cmux vm layout apply vivid-newt dev-layout.json --name app --open       # build the workspace shape (panes, ratios, tabs, commands) and show it
 ```
 
 Repeat runs from the same directory hit the same machine (sticky binding), so synced checkouts and dependencies stay warm. `--new` forces a fresh machine; `--machine <id>` pins one.
@@ -96,6 +98,56 @@ The user cannot see inside the machine: print URLs, pull artifacts, or open a pa
 
 A pane showing a machine surface is an ordinary local pane: move, split, reorder, or close it with the local topology verbs (`../cmux/SKILL.md`) and the surface catalog follows the pane; closing a pane never kills the machine's terminal. Rearranging the machine's own cmux-tui topology from inside is what `cmux vm tui <id>` is for.
 
+## Layouts as data (the shape of a workspace)
+
+When a person clicks a machine workspace they land in a **layout**: which panes exist, how they are split, the divider ratios, which tabs sit in each pane, and what runs where. Agents author and read that shape as JSON, never by dragging panes:
+
+```bash
+cmux vm layout export <m> <ws>                    # {"name","cwd","layout": …} for that workspace (--raw: the daemon's exact LayoutDocument)
+cmux vm layout apply  <m> dev.json --name app     # build a NEW workspace on the machine from the document (never touches a non-empty one)
+cmux vm layout apply  <m> - --workspace <ws> <<'JSON'   # stdin; --workspace must name an EMPTY workspace (vm workspace new --no-open)
+{"direction":"horizontal","split":0.6,"children":[
+  {"pane":{"surfaces":[{"type":"terminal","name":"agent","cwd":"work/app","command":"claude"}]}},
+  {"direction":"vertical","children":[
+    {"pane":{"surfaces":[{"type":"terminal","name":"tests","cwd":"work/app","command":"bun test --watch"}]}},
+    {"pane":{"surfaces":[{"type":"browser","url":"http://localhost:3000"}]}}]}]}
+JSON
+cmux vm layout apply <m> --from-saved dev --open  # a layout saved on the Mac (`cmux layout save dev`) applied in the cloud, then opened here
+cmux layout get dev | cmux vm layout apply <m> -  # the same, piped
+```
+
+The document is the one cmux already uses locally (`cmux new-workspace --layout`, `cmux layout save|get|open`, `cmux.json` workspaces): `{"pane":{"surfaces":[…]}}` leaves and `{"direction":"horizontal"|"vertical","split":0.1–0.9,"children":[a,b]}` splits; `horizontal` = side by side (first child left), `vertical` = stacked (first child top), `split` = the first child's share. A surface is `{"type":"terminal"|"browser","name"?,"cwd"?,"command"?,"env"?,"url"?,"focus"?}`. In the cloud a terminal surface is a login shell in `cwd` (relative to `/root`, or the document's `cwd`) with `env` in its process environment; `command` is typed into that shell and stays reviewable in the scrollback, so the pane survives the command. `project` surfaces are Mac-only and skipped. `vm workspace open` (and the sidebar click) then materializes the same splits, ratios and tabs locally, so the layout an agent arranged in the cloud is the layout the person sees. Export first when you want to reproduce a human's arrangement on another machine or in a fork.
+
+## Project environment: env vars, files, repos
+
+```bash
+cmux vm env set <m> DATABASE_URL=… API_KEY=…       # stored 0600 at /root/.config/cmux/env on the machine's persistent volume
+cmux vm env set <m> --from-file .env               # dotenv rules: blank/# skipped, optional `export `, quotes stripped
+cmux vm env ls <m> [--show] [--json]               # names only unless --show
+cmux vm env rm <m> API_KEY
+cmux vm push <m> ./config work/app/config          # files and folders (tarball, SHA-256 verified; .git/node_modules excluded by default)
+git bundle create /tmp/repo.bundle --all && cmux vm push <m> /tmp/repo.bundle work/repo.bundle   # a private repo with history, no credential on the machine
+cmux vm exec <m> -- sh -c 'cd work && git clone repo.bundle app'
+```
+
+`vm env` values are sourced by every login and interactive shell on the machine (`~/.profile` / `~/.bashrc` hook, installed once), so terminals from `vm open`, `surface new-terminal`, `vm agent`, layout panes and `vm exec` all see them, and so do agents the in-VM `cmux agent …` starts. Values never transit the control plane as plaintext arguments (they ride base64 over the exec channel) and never enter the repo: commit the *names* (for example in a layout's `env` or a README) and set the values per machine. Do not put the user's own account tokens on a machine unless they ask; model credentials already reach agents through CodeRouter's edge.
+
+## Inside a machine: the same verbs, and other machines
+
+Every machine has its own `cmux` (a shim over its cmux-tui daemon). An agent running *in* the machine drives its own session with the Mac spellings — the target defaults to its own terminal (`$CMUX_TUI_TERMINAL_ID`):
+
+```bash
+cmux tree --json                        # this machine's workspaces/terminals
+cmux new-workspace --name tests         # a workspace here
+cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
+cmux send-key --terminal <term> ctrl+c  # keys into another terminal on this machine
+cmux layout apply --name app app.json   # the same layout verb, locally
+cmux env ls                             # the same env file
+cmux notify --title "done" --body "…"   # lands on the Mac pane showing this terminal
+```
+
+To talk to **another** machine (a second agent, a service box), the Mac grants a link once — `cmux vm link <src> <dst>` — and then, inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only the peers the person's Mac linked.
+
 ## CodeRouter and model credentials
 
 CodeRouter routes **model credentials**, not compute. An agent started with `vm agent` inside a machine authenticates the same way it would locally (its own login, or CodeRouter's env/config in the machine's `/root`); set that up once on the machine (`vm exec <id> -- …`) and it persists on the volume. Do not put the user's tokens on a machine unless they ask.
@@ -124,6 +176,7 @@ provider subcommands pass through unchanged.
 - **Stay headless while working** (`--detach`, `--no-open`, `--print`); open panes (`vm open`, `vm tree`'s addresses) to *show* results.
 - **Checkpoint before risky operations** (`vm snapshot`), fork instead of experimenting on a machine the user relies on.
 - **Only destroy what you created this session.** `vm rm` is permanent.
+- **Stage, then show.** Compose the machine workspace headlessly (`vm workspace new --no-open`, `vm layout apply`, `vm env set`, `vm push`), verify with `vm tree`/`terminal read`, and only then `vm workspace open` / `--open` so the person lands in a finished layout, not a half-built one.
 
 ## Common issues and fixes
 
