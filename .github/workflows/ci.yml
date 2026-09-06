@@ -2343,6 +2343,9 @@ jobs:
           cache_path="build-universal/CompilationCache.noindex"
           max_cache_kib=$((5 * 1024 * 1024))
           if [ -d "$cache_path" ]; then
+            # A warm build leaves a dead CAS generation behind, which doubles
+            # the directory and used to trip this bound on every warm run.
+            python3 scripts/ci/prune-xcode-compilation-cache.py "$cache_path"
             cache_kib=$(du -sk "$cache_path" | awk '{print $1}')
           else
             cache_kib=0

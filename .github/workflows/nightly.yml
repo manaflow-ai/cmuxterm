@@ -35,10 +35,6 @@ permissions:
 
 env:
   CREATE_DMG_VERSION: 8.0.0
-  # Bump when the CAS cache layout or Xcode cache flags change. The source
-  # revision, runner architecture, and selected Xcode digest remain part of
-  # the key below; this version is an explicit fail-safe invalidation knob.
-  XCODE_COMPILATION_CACHE_SCHEMA: v2
 
 jobs:
   decide:
@@ -168,9 +164,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build-universal/CompilationCache.noindex
-          key: xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
+          key: xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
           restore-keys: |
-            xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-
+            xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-
 
       - name: Install compilation dependencies
         if: steps.compilation-cache-restore.outputs.cache-hit != 'true'
@@ -214,28 +210,42 @@ jobs:
             CODE_SIGNING_ALLOWED=NO ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Nightly build
 
       - name: Bound Xcode compilation cache size
+        id: compilation-cache-bound
         if: steps.compilation-cache-restore.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           cache_path="build-universal/CompilationCache.noindex"
           max_cache_kib=$((5 * 1024 * 1024))
           if [ -d "$cache_path" ]; then
+            # Xcode's CAS chains v1.N generations: the newest is the primary,
+            # the one before it is the upstream it faults objects in from, and
+            # anything older is dead until the CAS's next open deletes it. A
+            # warm build leaves that dead generation behind, so the directory
+            # measures two full builds (6.3 GiB on main) and this bound used
+            # to drop every warm cache. Prune it first, as the CAS itself would.
+            python3 scripts/ci/prune-xcode-compilation-cache.py "$cache_path"
             cache_kib=$(du -sk "$cache_path" | awk '{print $1}')
           else
             cache_kib=0
           fi
           echo "Xcode compilation cache size: ${cache_kib} KiB (limit: ${max_cache_kib} KiB)"
+          save=false
           if [ "$cache_kib" -gt "$max_cache_kib" ]; then
             echo "Xcode compilation cache exceeds 5 GiB; skipping cache save"
             rm -rf "$cache_path"
+          elif [ "$cache_kib" -gt 0 ]; then
+            save=true
+          else
+            echo "Xcode compilation cache is empty; skipping cache save"
           fi
+          echo "save=${save}" >> "$GITHUB_OUTPUT"
 
       - name: Save Xcode compilation cache
-        if: steps.compilation-cache-restore.outputs.cache-hit != 'true' && hashFiles('build-universal/CompilationCache.noindex/**') != ''
+        if: steps.compilation-cache-restore.outputs.cache-hit != 'true' && steps.compilation-cache-bound.outputs.save == 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build-universal/CompilationCache.noindex
-          key: xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
+          key: xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
 
   build-nightly-ghostty-cli-helper:
     needs: decide
@@ -337,9 +347,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build-universal/CompilationCache.noindex
-          key: xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
+          key: xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
           restore-keys: |
-            xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-
+            xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-
 
       - name: Install compilation dependencies
         run: |
@@ -422,27 +432,41 @@ jobs:
             CODE_SIGNING_ALLOWED=NO ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Nightly build
 
       - name: Bound Xcode compilation cache size
+        id: compilation-cache-bound
         run: |
           set -euo pipefail
           cache_path="build-universal/CompilationCache.noindex"
           max_cache_kib=$((5 * 1024 * 1024))
           if [ -d "$cache_path" ]; then
+            # Xcode's CAS chains v1.N generations: the newest is the primary,
+            # the one before it is the upstream it faults objects in from, and
+            # anything older is dead until the CAS's next open deletes it. A
+            # warm build leaves that dead generation behind, so the directory
+            # measures two full builds (6.3 GiB on main) and this bound used
+            # to drop every warm cache. Prune it first, as the CAS itself would.
+            python3 scripts/ci/prune-xcode-compilation-cache.py "$cache_path"
             cache_kib=$(du -sk "$cache_path" | awk '{print $1}')
           else
             cache_kib=0
           fi
           echo "Xcode compilation cache size: ${cache_kib} KiB (limit: ${max_cache_kib} KiB)"
+          save=false
           if [ "$cache_kib" -gt "$max_cache_kib" ]; then
             echo "Xcode compilation cache exceeds 5 GiB; skipping cache save"
             rm -rf "$cache_path"
+          elif [ "$cache_kib" -gt 0 ]; then
+            save=true
+          else
+            echo "Xcode compilation cache is empty; skipping cache save"
           fi
+          echo "save=${save}" >> "$GITHUB_OUTPUT"
 
       - name: Save Xcode compilation cache
-        if: steps.compilation-cache-restore.outputs.cache-hit != 'true' && hashFiles('build-universal/CompilationCache.noindex/**') != ''
+        if: steps.compilation-cache-restore.outputs.cache-hit != 'true' && steps.compilation-cache-bound.outputs.save == 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: build-universal/CompilationCache.noindex
-          key: xcode-compilation-release-${{ env.XCODE_COMPILATION_CACHE_SCHEMA }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
+          key: xcode-compilation-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.compilation-cache-key.outputs.toolchain }}-${{ needs.decide.outputs.head_sha }}
 
       # Bundle once here, not per sign variant, so every variant carries the same
       # cmux-tui build and the download happens a single time.
