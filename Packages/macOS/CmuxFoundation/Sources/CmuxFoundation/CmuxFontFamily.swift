@@ -1,5 +1,5 @@
-import AppKit
-import SwiftUI
+public import AppKit
+public import SwiftUI
 
 /// A normalized, optional font-family override shared by AppKit and SwiftUI.
 /// An empty value means that the platform's system font should be used.
