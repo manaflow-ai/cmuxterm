@@ -66914,6 +66914,23 @@
         }
       }
     },
+    "cli.vm.tui.trustedListenerPending": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Cloud machine is still preparing remote access. Try again shortly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドマシンはまだリモートアクセスを準備中です。しばらくしてからもう一度お試しください。"
+          }
+        }
+      }
+    },
     "cli.vm.tui.mode.carrier": {
       "extractionState": "manual",
       "localizations": {
@@ -67581,6 +67598,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Помилка SSH (%@): %@"
+          }
+        }
+      }
+    },
+    "cloud.link.trustedListenerPending": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Cloud machine is still preparing remote access. Try again shortly."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドマシンはまだリモートアクセスを準備中です。しばらくしてからもう一度お試しください。"
           }
         }
       }

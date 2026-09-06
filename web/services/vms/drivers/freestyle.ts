@@ -691,7 +691,15 @@ const REMOTE_WS_BIND_OVERRIDE =
  * then restart the unit. Without systemd (or the unit), fall back to a direct
  * daemon launch carrying both.
  */
-export function freestyleStartDaemonCommand(): string {
+/**
+ * `replaceExisting` is the trusted-listener heal: a daemon that already runs
+ * without the trusted env must go, or installing the pinned binary changes
+ * nothing for the live process. systemd restarts unconditionally; the
+ * fallback launcher otherwise keeps a running daemon.
+ */
+export function freestyleStartDaemonCommand(options?: { replaceExisting?: boolean }): string {
+  const replace = options?.replaceExisting === true;
+  const fallbackLaunch = `(setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &)`;
   return [
     "if [ -d /run/systemd/system ] && [ -f /etc/systemd/system/cmux-tui-daemon.service ]; then",
     `mkdir -p ${REMOTE_WS_BIND_OVERRIDE.replace(/\/[^/]+$/, "")};`,
@@ -699,7 +707,9 @@ export function freestyleStartDaemonCommand(): string {
     "systemctl daemon-reload;",
     "systemctl restart cmux-tui-daemon;",
     "else",
-    `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || (setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &);`,
+    replace
+      ? `pkill -f 'cmux-tui server [s]tart' >/dev/null 2>&1; sleep 1; ${fallbackLaunch};`
+      : `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || ${fallbackLaunch};`,
     "fi",
   ].join(" ");
 }
@@ -1323,17 +1333,25 @@ export class FreestyleProvider implements VMProvider {
           const data = persisted ?? await vm.data();
           const route = freestyleCmuxRemoteRoute(data, vmId);
           const fingerprint = options?.deviceFingerprint;
-          const source = await resolveCmuxTuiSource("freestyle");
           let { bundle, healed } = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
           // A daemon from a bake that predates the trusted listener is brought to
           // the pinned build and restarted with the drop-in — but never under a
           // device that is already enrolled there, whose sessions the restart
-          // would end; that device keeps dialing with its stored key.
+          // would end; that device keeps dialing with its stored key. The
+          // manifest is read only here, so a manifest outage cannot reject an
+          // attach that needs no heal.
           if (!bundle.trustedCarrier && !bundle.enrolled) {
             healed = true;
+            const source = await this.deps.resolveDaemonSource("freestyle");
             await this.installTrustedCmuxTui(vm, vmId, source);
             const retried = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
             bundle = retried.bundle;
+            if (!bundle.trustedCarrier) {
+              throw new ProviderError(
+                "freestyle",
+                `cmux-tui daemon in ${vmId} still refuses the trusted listener after the pinned build was installed and restarted`,
+              );
+            }
           }
           span.setAttribute("cmux.vm.cmux_remote.healed", healed);
           span.setAttribute("cmux.vm.cmux_remote.trusted", bundle.trustedCarrier);
@@ -1399,7 +1417,7 @@ export class FreestyleProvider implements VMProvider {
           throw new ProviderError("freestyle", `cmux-tui install in ${vmId} failed: ${errorMessage(err)}`);
         });
     }
-    await this.execOrThrow(vm, vmId, freestyleStartDaemonCommand(), 60_000);
+    await this.execOrThrow(vm, vmId, freestyleStartDaemonCommand({ replaceExisting: true }), 60_000);
     await waitForCmuxTuiReady(this.cmuxTuiInvoke(vm), "freestyle", vmId);
   }
 

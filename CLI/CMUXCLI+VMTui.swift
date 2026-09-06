@@ -345,7 +345,10 @@ extension CMUXCLI {
         let trustedCarrier = (info["trusted_carrier"] as? Bool) ?? false
         if known == nil {
             guard trustedCarrier else {
-                throw CLIError(message: "The Cloud machine's daemon is not serving the trusted listener yet. Retry in a moment.")
+                throw CLIError(message: String(
+                    localized: "cli.vm.tui.trustedListenerPending",
+                    defaultValue: "The Cloud machine is still preparing remote access. Try again shortly."
+                ))
             }
             // Later opens reuse the private route with no control-plane call.
             Self.saveVMTuiDevice(vmId: vmId, deviceFingerprint: Self.carrierDeviceMarker)

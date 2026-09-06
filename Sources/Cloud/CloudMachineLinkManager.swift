@@ -154,7 +154,10 @@ actor CloudMachineLinkManager {
                 )
                 session = endpoint.session
                 guard endpoint.trustedCarrier else {
-                    throw ManagerError.retryLater("The Cloud machine's daemon is not serving the trusted listener yet.")
+                    throw ManagerError.retryLater(String(
+                        localized: "cloud.link.trustedListenerPending",
+                        defaultValue: "The Cloud machine is still preparing remote access. Try again shortly."
+                    ))
                 }
                 carrier = true
             }

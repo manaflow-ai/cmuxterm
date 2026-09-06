@@ -2294,6 +2294,7 @@ fn finish_server_shutdown<W, R>(
 /// `CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1` is how a systemd drop-in turns the
 /// trusted listener on for a daemon whose baked launch line predates the flag
 /// (cmux Cloud machines healed in place). Only an exact truthy value counts.
+#[cfg(unix)]
 fn remote_ws_trusted_carrier_from_env() -> bool {
     std::env::var("CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER")
         .map(|value| matches!(value.trim(), "1" | "true" | "yes"))
