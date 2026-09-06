@@ -228,6 +228,11 @@ public abstract class GeneratedCmuxClient {
         return Tree.fromWire(result);
     }
 
+    public final MachineListeningTcpResult machineListeningTcp() throws CmuxException {
+        Object result = execute(Commands.MACHINE_LISTENING_TCP, Map.of());
+        return MachineListeningTcpResult.fromWire(result);
+    }
+
     public final MachineUsageResult machineUsage() throws CmuxException {
         Object result = execute(Commands.MACHINE_USAGE, Map.of());
         return MachineUsageResult.fromWire(result);
@@ -436,6 +441,11 @@ public abstract class GeneratedCmuxClient {
     public final EmptyResult sendKey(SendKeyRequest request) throws CmuxException {
         Object result = execute(Commands.SEND_KEY, request.toWire());
         return EmptyResult.fromWire(result);
+    }
+
+    public final ServerStatsResult serverStats() throws CmuxException {
+        Object result = execute(Commands.SERVER_STATS, Map.of());
+        return ServerStatsResult.fromWire(result);
     }
 
     public final SetCellPixelsResult setCellPixels(SetCellPixelsRequest request) throws CmuxException {
