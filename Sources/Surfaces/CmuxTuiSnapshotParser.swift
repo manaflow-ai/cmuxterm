@@ -398,7 +398,14 @@ struct CmuxTuiSnapshotParser: Sendable {
         _ rows: [[String: Any]],
         focusedFirst: Bool = false
     ) -> [(element: [String: Any], offset: Int)] {
-        rows.enumerated().sorted { left, right in
+        // `enumerated()` produces `(offset:element:)`, while this helper's
+        // public shape is `(element:offset:)`. Swift can implicitly relabel
+        // the tuple at compile time, but the generated cast traps at runtime
+        // for every non-empty result. Relabel each element before sorting so
+        // the returned array already has the declared tuple shape.
+        rows.enumerated().map { entry in
+            (element: entry.element, offset: entry.offset)
+        }.sorted { left, right in
             if focusedFirst {
                 let leftFocused = (left.element["focused"] as? Bool) == true
                 let rightFocused = (right.element["focused"] as? Bool) == true
