@@ -214,19 +214,12 @@ export function freestyleClient(timeoutMs = DEFAULT_TIMEOUT_MS): Freestyle {
  *   Opening 1337 to the Internet as well would hand back exactly the exposure
  *   the VPC exists to remove.
  */
-export function freestyleFirewallRules(options?: { publicDaemonIngress?: boolean }) {
+export function freestyleFirewallRules() {
   const rules: Array<{
     action: "allow";
     source: { public?: true };
     destination: { public?: true; port?: number; protocol?: "tcp" };
   }> = [{ action: "allow", source: {}, destination: { public: true } }];
-  if (options?.publicDaemonIngress) {
-    rules.push({
-      action: "allow",
-      source: { public: true },
-      destination: { port: CMUX_TUI_PORT, protocol: "tcp" },
-    });
-  }
   return rules;
 }
 
@@ -385,26 +378,6 @@ export function freestyleNetworkAddressMetadata(
 }
 
 /** The Freestyle VPC/tunnel records mapped onto the driver-neutral shapes. */
-/** Legacy capability-domain suffixes retained for port preview compatibility. */
-export const FREESTYLE_PORT_RULE_DOMAIN_SUFFIXES = ["cmux.sh", "style.dev"] as const;
-
-/** Matches a driver-minted, 96-bit capability-domain preview hostname. */
-export const FREESTYLE_PORT_RULE_DOMAIN_RE = /^cmux-([0-9a-f]{24})\.((?:cmux\.sh)|(?:cmux\.site)|(?:style\.dev))$/;
-
-/** Returns the configured legacy preview suffix first, then the safe fallback. */
-export function freestylePortRuleDomainSuffixes(env: NodeJS.ProcessEnv = process.env): readonly string[] {
-  const pinned = env.CMUX_VM_PORT_PREVIEW_DOMAIN?.trim().toLowerCase();
-  if (pinned && FREESTYLE_PORT_RULE_DOMAIN_RE.test(`cmux-${"0".repeat(24)}.${pinned}`)) {
-    return [pinned, ...FREESTYLE_PORT_RULE_DOMAIN_SUFFIXES.filter((suffix) => suffix !== pinned)];
-  }
-  return FREESTYLE_PORT_RULE_DOMAIN_SUFFIXES;
-}
-
-/** Mints a fresh legacy capability-domain hostname. */
-export function mintFreestylePortRuleDomain(suffix: string = FREESTYLE_PORT_RULE_DOMAIN_SUFFIXES[0]): string {
-  return `cmux-${randomBytes(12).toString("hex")}.${suffix}`;
-}
-
 export function mapFreestyleNetwork(data: VpcData): ProviderNetwork {
   return {
     id: data.id,
