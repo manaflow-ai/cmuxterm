@@ -1,5 +1,15 @@
 public import CoreGraphics
 
+/// The window presentation geometry that a repair operation must preserve.
+public enum MainWindowFrameFitMode: Sendable {
+    /// Recover a window whose visible frame is no longer reachable.
+    case visibleFrame
+    /// Restore an AppKit-zoomed window to the target display's visible frame.
+    case zoomed
+    /// Restore a native-fullscreen window to the target display's full frame.
+    case nativeFullscreen
+}
+
 /// Pure decision core for fitting main-window frames into current visible displays.
 ///
 /// Callers use this after a real display-topology change, or while restoring
@@ -106,12 +116,50 @@ public struct MainWindowVisibleFrameFitCore: Sendable {
         return rectApproximatelyEqual(fitted, standardizedFrame) ? nil : fitted
     }
 
+    /// Returns the frame required by the requested window presentation mode.
+    ///
+    /// `visibleFrame` retains the existing recoverable-window behavior. The
+    /// other modes intentionally return the target display's exact bounds: a
+    /// zoomed window is defined by the visible frame, while native fullscreen
+    /// owns the entire display frame, including the menu-bar area.
+    public func repairedFrame(
+        for frame: CGRect,
+        displays: [SessionDisplayGeometry],
+        minimumWidth: CGFloat,
+        minimumHeight: CGFloat,
+        mode: MainWindowFrameFitMode
+    ) -> CGRect? {
+        switch mode {
+        case .visibleFrame:
+            return fittedFrame(
+                for: frame,
+                displays: displays,
+                minimumWidth: minimumWidth,
+                minimumHeight: minimumHeight
+            )
+        case .zoomed:
+            return exactDisplayBounds(
+                for: frame,
+                displays: displays,
+                useVisibleFrame: true
+            )
+        case .nativeFullscreen:
+            return exactDisplayBounds(
+                for: frame,
+                displays: displays,
+                useVisibleFrame: false
+            )
+        }
+    }
+
     private func targetDisplay(
         for frame: CGRect,
-        in displays: [SessionDisplayGeometry]
+        in displays: [SessionDisplayGeometry],
+        useVisibleFrame: Bool = true
     ) -> SessionDisplayGeometry? {
         let overlaps = displays.map { display in
-            (display: display, area: intersectionArea(frame, display.visibleFrame))
+            let targetFrame = useVisibleFrame ? display.visibleFrame : display.frame
+            return (display: display, area: intersectionArea(frame, targetFrame))
         }
         if let best = overlaps.max(by: { $0.area < $1.area }), best.area > 0 {
             return best.display
@@ -119,9 +167,35 @@ public struct MainWindowVisibleFrameFitCore: Sendable {
 
         let center = CGPoint(x: frame.midX, y: frame.midY)
         return displays.min { lhs, rhs in
-            distanceSquared(from: center, to: lhs.visibleFrame)
-                < distanceSquared(from: center, to: rhs.visibleFrame)
+            let lhsFrame = useVisibleFrame ? lhs.visibleFrame : lhs.frame
+            let rhsFrame = useVisibleFrame ? rhs.visibleFrame : rhs.frame
+            return distanceSquared(from: center, to: lhsFrame)
+                < distanceSquared(from: center, to: rhsFrame)
         }
+    }
+
+    private func exactDisplayBounds(
+        for frame: CGRect,
+        displays: [SessionDisplayGeometry],
+        useVisibleFrame: Bool
+    ) -> CGRect? {
+        let standardizedFrame = frame.standardized
+        guard isUsableRect(standardizedFrame) else { return nil }
+
+        let usableDisplays = displays.filter {
+            let bounds = useVisibleFrame ? $0.visibleFrame : $0.frame
+            return isUsableRect(bounds)
+        }
+        guard let targetDisplay = targetDisplay(
+            for: standardizedFrame,
+            in: usableDisplays,
+            useVisibleFrame: useVisibleFrame
+        ) else {
+            return nil
+        }
+
+        let targetBounds = useVisibleFrame ? targetDisplay.visibleFrame : targetDisplay.frame
+        return rectApproximatelyEqual(targetBounds, standardizedFrame) ? nil : targetBounds
     }
 
     private func topologyEntry(

@@ -195,12 +195,11 @@ extension AppDelegate {
 #endif
             window.setFrame(corrected, display: true)
         }
-        if visibleFrameFitTopologyChanged {
-            fitRestoredMainWindowFramesIfNeeded(
-                windows: mainWindows,
-                displays: displays.available
-            )
-        }
+        MainWindowFrameReconciler().repair(
+            displays: displays.available,
+            windows: mainWindows,
+            trigger: .displayTopology(repairOrdinaryWindows: visibleFrameFitTopologyChanged)
+        )
     }
 
     /// Restores each window's remembered frame for `signature`, routed through

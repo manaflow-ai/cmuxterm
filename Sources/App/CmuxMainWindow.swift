@@ -95,6 +95,18 @@ func configureCmuxMainWindowDragBehavior(_ window: NSWindow) {
 
 @MainActor
 final class CmuxMainWindow: NSWindow {
+    private enum WindowZoomIntent {
+        case userSized
+        case zoomed
+    }
+
+    private var zoomIntent = WindowZoomIntent.userSized
+
+    /// Preserves the user's zoom intent even if AppKit temporarily applies a
+    /// smaller frame while the app is inactive or displays are reconnecting.
+    var cmuxWantsZoomedFrame: Bool {
+        zoomIntent == .zoomed || isZoomed
+    }
 
     /// No content may resize this window past the attached display union. The content view
     /// hosts AppKit subtrees whose subviews carry REQUIRED autoresizing-mask
@@ -105,16 +117,20 @@ final class CmuxMainWindow: NSWindow {
     /// (observed live: the window at 29,000 points wide, growing every
     /// pass). The user sizes this window; layout does not.
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {
-        guard !styleMask.contains(.fullScreen) else {
-            super.setFrame(frameRect, display: flag)
-            return
+        if inLiveResize {
+            zoomIntent = .userSized
         }
-        let capped = Self.frameByCappingOversizedDimensions(
-            frameRect,
-            displayFrames: NSScreen.screens.map {
-                (frame: $0.frame, visibleFrame: $0.visibleFrame)
-            }
-        )
+        let capped: NSRect
+        if styleMask.contains(.fullScreen) {
+            capped = frameRect
+        } else {
+            capped = Self.frameByCappingOversizedDimensions(
+                frameRect,
+                displayFrames: NSScreen.screens.map {
+                    (frame: $0.frame, visibleFrame: $0.visibleFrame)
+                }
+            )
+        }
         super.setFrame(
             Self.frameByRaisingUndersizedDimensions(
                 capped,
@@ -124,6 +140,11 @@ final class CmuxMainWindow: NSWindow {
             ),
             display: flag
         )
+    }
+
+    override func zoom(_ sender: Any?) {
+        super.zoom(sender)
+        zoomIntent = isZoomed ? .zoomed : .userSized
     }
 
     /// Caps runaway content-derived dimensions to the display union while
