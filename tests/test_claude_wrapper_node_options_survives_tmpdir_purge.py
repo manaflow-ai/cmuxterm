@@ -45,7 +45,7 @@ def main() -> int:
         root = Path(td)
         wrapper_dir = root / "cmux.app" / "Contents" / "Resources" / "bin"
         real_dir = root / "real-bin"
-        home_dir = root / "home"
+        home_dir = root / "home with spaces"
         session_tmpdir = root / "session-tmp"
         wrapper_dir.mkdir(parents=True)
         real_dir.mkdir()
@@ -110,12 +110,12 @@ exit 0
 
             try:
                 node_options = wait_for_text(ready_path)
-                match = re.search(r"--require=(\S+)", node_options)
+                match = re.search(r'--require="([^"]+)"|--require=(\S+)', node_options)
                 if match is None:
                     print(f"FAIL: wrapped Claude did not receive a restore preload: {node_options!r}")
                     return 1
 
-                restore_path = Path(match.group(1))
+                restore_path = Path(match.group(1) or match.group(2))
                 legacy_root = session_tmpdir / "cmux-claude-node-options"
                 shutil.rmtree(legacy_root, ignore_errors=True)
                 continue_path.touch()

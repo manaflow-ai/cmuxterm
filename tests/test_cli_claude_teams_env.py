@@ -528,9 +528,9 @@ def main() -> int:
         print(f"stderr={proc.stderr.strip()}")
         return 1
 
-    if node_options_value != "--trace-warnings":
+    if not node_options_value.startswith("--require=") or str(bad_tmpdir) in node_options_value:
         print(
-            "FAIL: expected claude-teams to skip restore preload injection when TMPDIR is unusable, "
+            "FAIL: expected claude-teams to use the durable restore preload when TMPDIR is unusable, "
             f"got {node_options_value!r}"
         )
         return 1

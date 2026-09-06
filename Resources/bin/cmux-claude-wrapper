@@ -848,23 +848,20 @@ exec_real_claude_passthrough() {
 REAL_CLAUDE="$(find_real_claude)" || { echo "Error: claude not found in PATH" >&2; exit 127; }
 
 ensure_node_options_restore_module() {
-    local guard_dir="${TMPDIR:-/tmp}"
-    guard_dir="${guard_dir%/}/cmux-claude-node-options"
+    local guard_dir
+    guard_dir="$(cmux_claude_wrapper_node_options_cache_dir)" || return 1
     local guard_path="$guard_dir/restore-node-options.cjs"
+    [[ ! -L "$guard_dir" ]] || return 1
     mkdir -p "$guard_dir" || return 1
+    chmod 0700 "$guard_dir" || return 1
+    [[ ! -L "$guard_path" ]] || return 1
     local temp_path
-    temp_path="$(mktemp "$guard_dir/restore-node-options.cjs.XXXXXX")" || return 1
-    cat >"$temp_path" <<'EOF'
-const hadOriginalNodeOptions = process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT === "1";
-if (hadOriginalNodeOptions) {
-  process.env.NODE_OPTIONS = process.env.CMUX_ORIGINAL_NODE_OPTIONS ?? "";
-} else {
-  delete process.env.NODE_OPTIONS;
-}
-delete process.env.CMUX_ORIGINAL_NODE_OPTIONS;
-delete process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT;
-EOF
-    chmod 0644 "$temp_path" || {
+    temp_path="$(mktemp "$guard_dir/.restore-node-options.cjs.XXXXXX")" || return 1
+    cmux_claude_wrapper_node_options_restore_source >"$temp_path" || {
+        rm -f "$temp_path"
+        return 1
+    }
+    chmod 0600 "$temp_path" || {
         rm -f "$temp_path"
         return 1
     }
@@ -876,12 +873,89 @@ EOF
             return 1
         }
     fi
+    cmux_claude_wrapper_recreate_legacy_node_options_modules
     printf '%s' "$guard_path"
+}
+
+cmux_claude_wrapper_node_options_restore_source() {
+    cat <<'EOF'
+const hadOriginalNodeOptions = process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT === "1";
+if (hadOriginalNodeOptions) {
+  process.env.NODE_OPTIONS = process.env.CMUX_ORIGINAL_NODE_OPTIONS ?? "";
+} else {
+  delete process.env.NODE_OPTIONS;
+}
+delete process.env.CMUX_ORIGINAL_NODE_OPTIONS;
+delete process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT;
+EOF
+}
+
+cmux_claude_wrapper_node_options_path_is_safe() {
+    local path="$1"
+    [[ "$path" == /* ]] || return 1
+    [[ "$path" != *[\\\"\']* ]]
+}
+
+cmux_claude_wrapper_node_options_cache_dir() {
+    local home="${HOME:-}"
+    [[ -n "$home" ]] || return 1
+    local cache_root="$home/.cmuxterm"
+    cmux_claude_wrapper_node_options_path_is_safe "$cache_root" || return 1
+    printf '%s/cmux-claude-node-options' "$cache_root"
+}
+
+cmux_claude_wrapper_recreate_legacy_node_options_modules() {
+    local existing="${NODE_OPTIONS:-}"
+    local -a tokens=()
+    local token
+    local path=""
+    local legacy_dir
+    local legacy_path
+    local temp_path
+
+    [[ -n "$existing" ]] || return 0
+    read -r -a tokens <<<"$existing"
+    local skip_next=0
+    for token in "${tokens[@]}"; do
+        if (( skip_next )); then
+            path="$token"
+            skip_next=0
+        elif [[ "$token" == "--require" || "$token" == "-r" ]]; then
+            skip_next=1
+            continue
+        elif [[ "$token" == --require=* ]]; then
+            path="${token#--require=}"
+        elif [[ "$token" == -r=* ]]; then
+            path="${token#-r=}"
+        else
+            continue
+        fi
+
+        [[ "$path" == */cmux-claude-node-options/restore-node-options.cjs ]] || continue
+        legacy_path="$path"
+        legacy_dir="${legacy_path%/*}"
+        [[ "$legacy_path" != "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" ]] || continue
+        [[ ! -L "$legacy_dir" && ! -L "$legacy_path" ]] || continue
+        mkdir -p "$legacy_dir" 2>/dev/null || continue
+        [[ -f "$legacy_path" ]] && continue
+        temp_path="$(mktemp "$legacy_dir/.restore-node-options.cjs.XXXXXX" 2>/dev/null)" || continue
+        cmux_claude_wrapper_node_options_restore_source >"$temp_path" || {
+            rm -f "$temp_path"
+            continue
+        }
+        chmod 0600 "$temp_path" 2>/dev/null || {
+            rm -f "$temp_path"
+            continue
+        }
+        mv -f "$temp_path" "$legacy_path" 2>/dev/null || rm -f "$temp_path"
+    done
 }
 
 merge_node_options() {
     local guard_path="$1"
-    local require_flag="--require=$guard_path"
+    local escaped_guard_path="${guard_path//\/\\}"
+    escaped_guard_path="${escaped_guard_path//\"/\\\"}"
+    local require_flag="--require=\"$escaped_guard_path\""
     local memory_flag="--max-old-space-size=4096"
     local existing="${NODE_OPTIONS:-}"
     local -a filtered=()
@@ -949,7 +1023,9 @@ normalize_node_options_for_restore() {
 install_cmux_node_options() {
     local guard_path
     if guard_path="$(ensure_node_options_restore_module)"; then
-        if [[ ${NODE_OPTIONS+x} && "${NODE_OPTIONS:-}" == *"--require=$guard_path"* ]]; then
+        local escaped_guard_path="${guard_path//\/\\}"
+        escaped_guard_path="${escaped_guard_path//\"/\\\"}"
+        if [[ ${NODE_OPTIONS+x} && "${NODE_OPTIONS:-}" == *"--require=\"$escaped_guard_path\""* ]]; then
             return 0
         fi
         if [[ ${NODE_OPTIONS+x} ]]; then

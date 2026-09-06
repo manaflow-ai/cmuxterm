@@ -23898,17 +23898,6 @@ struct CMUXCLI {
         print("TMUX_PANE=\(dump("TMUX_PANE"))")
     }
 
-    private static let claudeNodeOptionsRestoreModule = """
-    const hadOriginalNodeOptions = process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT === "1";
-    if (hadOriginalNodeOptions) {
-        process.env.NODE_OPTIONS = process.env.CMUX_ORIGINAL_NODE_OPTIONS ?? "";
-    } else {
-        delete process.env.NODE_OPTIONS;
-    }
-    delete process.env.CMUX_ORIGINAL_NODE_OPTIONS;
-    delete process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT;
-    """
-
     private func configureClaudeTeamsEnvironment(
         processEnvironment: [String: String],
         shimDirectory: URL,
@@ -23975,23 +23964,6 @@ struct CMUXCLI {
         let tmuxURL = root.appendingPathComponent("tmux", isDirectory: false)
         try writeShimIfChanged(tmuxShimScript, to: tmuxURL)
         return root
-    }
-
-    private func createClaudeNodeOptionsRestoreModule() throws -> URL {
-        let rawTemporaryDirectory = ProcessInfo.processInfo.environment["TMPDIR"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let temporaryDirectory: String
-        if let rawTemporaryDirectory, !rawTemporaryDirectory.isEmpty {
-            temporaryDirectory = rawTemporaryDirectory
-        } else {
-            temporaryDirectory = NSTemporaryDirectory()
-        }
-        let root = URL(fileURLWithPath: temporaryDirectory, isDirectory: true)
-            .appendingPathComponent("cmux-claude-node-options", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: nil)
-        let restoreModuleURL = root.appendingPathComponent("restore-node-options.cjs", isDirectory: false)
-        try writeShimIfChanged(Self.claudeNodeOptionsRestoreModule, to: restoreModuleURL)
-        return restoreModuleURL
     }
 
     private func runClaudeTeams(
@@ -31540,61 +31512,6 @@ struct CMUXCLI {
             return tasks.contains { ($0["status"] as? String) == "running" }
         }
         return false
-    }
-
-    private func mergedNodeOptions(existing: String?, restoreModulePath: String) -> String {
-        let requireOption = "--require=\(restoreModulePath)"
-        let memoryOption = "--max-old-space-size=4096"
-        let cleanedExisting = cleanedNodeOptions(existing)
-        guard !cleanedExisting.isEmpty else {
-            return "\(requireOption) \(memoryOption)"
-        }
-        return "\(requireOption) \(memoryOption) \(cleanedExisting)"
-    }
-
-    private func cleanedNodeOptions(_ existing: String?) -> String {
-        let tokens = (existing ?? "")
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-        guard !tokens.isEmpty else { return "" }
-
-        var filtered: [String] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            if token == "--max-old-space-size" {
-                index += min(2, tokens.count - index)
-                continue
-            }
-            if token.hasPrefix("--max-old-space-size=") {
-                index += 1
-                continue
-            }
-            filtered.append(token)
-            index += 1
-        }
-        return filtered.joined(separator: " ")
-    }
-
-    private func normalizedNodeOptionsForRestore(_ existing: String) -> String {
-        let tokens = existing
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-        guard !tokens.isEmpty else { return "" }
-
-        var normalized: [String] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            if token == "--max-old-space-size", index + 1 < tokens.count {
-                normalized.append("--max-old-space-size=\(tokens[index + 1])")
-                index += 2
-                continue
-            }
-            normalized.append(token)
-            index += 1
-        }
-        return normalized.joined(separator: " ")
     }
 
     // MARK: - Codex hooks
