@@ -55,6 +55,20 @@ Text mode (no microphone, still calls Ultravox):
 .venv/bin/python harness.py "what do I have open" "split right"
 ```
 
+## Live scenarios
+
+With a tagged cmux running and the key in the environment, `scenario.py`
+drives real voice turns and scores each by its effect on the terminal:
+
+```bash
+CMUX_TAG=voice CMUX_SOCKET_PATH=/tmp/cmux-debug-voice.sock CMUX_VOICE_TRUST_TERMINAL=1 \
+  .venv/bin/python scenario.py            # default: cd, git, open Claude Code, prompt it, quit
+SCENARIO='[{"say":"split right","check":"in_claude"}]' .venv/bin/python scenario.py
+```
+
+It needs `~/Local-Projects/voice-scratch` (a throwaway git repo) and a
+focused terminal at least 60 columns wide.
+
 ## Tests
 
 ```bash

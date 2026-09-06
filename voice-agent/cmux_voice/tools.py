@@ -173,7 +173,8 @@ class VoiceTools:
         return pane
 
     async def _surface_of_kind(self, target: Optional[str], kind: str, missing: str) -> Surface | Dict[str, Any]:
-        st = await self._state()
+        # The focused surface changes under the user's hands; never act on a cached one.
+        st = await self._state() if target else (await self._state_fresh() or await self._state())
         if target:
             # Resolve without a kind filter first so a wrong-kind target gets a precise message.
             s = st.resolve_surface(target)
@@ -190,6 +191,12 @@ class VoiceTools:
         if s is None:
             return self._fail(missing)
         return s
+
+    def _pane_of(self, surface: Surface) -> Optional[Pane]:
+        ws = self.state.current_workspace if self.state else None
+        if ws is None:
+            return None
+        return next((p for p in ws.panes if any(x.id == surface.id for x in p.surfaces)), None)
 
     async def _terminal(self, target: Optional[str]) -> Surface | Dict[str, Any]:
         return await self._surface_of_kind(target, "terminal", "I could not find a terminal to type into.")
@@ -312,10 +319,20 @@ class VoiceTools:
 
         return self.policy.stage("close_workspace", {"target": target}, f"Close workspace {ws.title} with {tabs} tab{'s' if tabs != 1 else ''}?", execute)
 
+    MIN_SPLIT_COLUMNS = 60  # a terminal narrower than this cannot show an agent CLI or a diff
+
     async def split(self, direction: str = "right", kind: str = "terminal", url: Optional[str] = None) -> Dict[str, Any]:
         d = (direction or "right").strip().lower()
         if d not in {"left", "right", "up", "down"}:
             return self._fail("Direction must be left, right, up, or down.")
+        st = await self._state_fresh() or await self._state()
+        pane = st.focused_pane
+        if pane is not None and d in {"left", "right"} and pane.columns and pane.columns < 2 * self.MIN_SPLIT_COLUMNS:
+            n = len(st.current_workspace.panes) if st.current_workspace else 0
+            return self._fail(
+                f"This pane is only {pane.columns} columns wide, so splitting it sideways would leave both halves too narrow to use. "
+                + (f"There are already {n} panes here; say close this pane, or split down instead." if n > 1 else "Say split down instead, or make the window wider.")
+            )
         k = (kind or "terminal").strip().lower()
         try:
             if k == "browser" or url:
@@ -357,6 +374,23 @@ class VoiceTools:
             return await self._done(f"Closed {s.title or 'the tab'}.")
 
         return self.policy.stage("close_tab", {"target": target}, f"Close the {s.type} tab {s.title}?", execute)
+
+    async def close_pane(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Close a pane (all its tabs). Confirm-gated."""
+        pane = await self._pane(target)
+        if isinstance(pane, dict):
+            return pane
+        n = len(pane.surfaces)
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for surf in list(pane.surfaces):
+                    await self.client.acall("surface.close", {"surface_id": surf.id})
+            except CmuxError as e:
+                return self._fail(f"I couldn't close that pane: {e}")
+            return await self._done(f"Closed pane {pane.number}.")
+
+        return self.policy.stage("close_pane", {"target": target}, f"Close pane {pane.number} with {n} tab{'s' if n != 1 else ''}?", execute)
 
     async def equalize_splits(self) -> Dict[str, Any]:
         try:
@@ -414,7 +448,8 @@ class VoiceTools:
                 await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
             except CmuxError as e:
                 return self._fail(f"I couldn't run that: {e}")
-            return await self._done(f"Ran {command}.", flash_surface=s.id)
+            output = await self._output_after(s.id, command)
+            return await self._done(f"Ran {command}.", flash_surface=s.id, output=output)
 
         if self.policy.trust_terminal_input:
             return await execute()
@@ -560,6 +595,36 @@ class VoiceTools:
         say = {"up": f"Scrolled up {n} page{'s' if n > 1 else ''}.", "down": f"Scrolled down {n} page{'s' if n > 1 else ''}.", "top": "At the top.", "bottom": "At the bottom."}[d]
         return {"ok": True, "say": say}
 
+    async def _output_after(self, surface_id: str, command: str, settle_s: float = 1.2, max_lines: int = 25) -> str:
+        """The lines the terminal printed after `command`, once a prompt returns (or settle_s elapses).
+
+        Gives the model something to answer with ("what changed?", "list the files")
+        instead of narrating that a command ran. Long output is truncated from the top.
+        """
+        deadline = asyncio.get_running_loop().time() + max(settle_s, 6.0)
+        last = ""
+        while True:
+            await asyncio.sleep(0.4)
+            try:
+                text = (await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 80}) or {}).get("text") or ""
+            except CmuxError:
+                return ""
+            lines = [l.rstrip() for l in text.rstrip().splitlines()]
+            # Find the echoed command line (last occurrence), take what follows.
+            idx = next((i for i in range(len(lines) - 1, -1, -1) if command.strip() in lines[i]), None)
+            after = lines[idx + 1:] if idx is not None else lines[-max_lines:]
+            body = [l for l in after if l.strip()]
+            prompt_back = bool(body) and _looks_like_shell_prompt(body[-1])
+            # Drop every prompt line, not just the last: the model otherwise reads
+            # "user@host dir %" as output and invents files or folders from it.
+            body = [l for l in body if not _looks_like_shell_prompt(l)]
+            joined = "\n".join(body[-max_lines:])
+            if prompt_back or (joined == last and asyncio.get_running_loop().time() > deadline - (6.0 - settle_s)):
+                return joined
+            if asyncio.get_running_loop().time() > deadline:
+                return joined
+            last = joined
+
     # ------------------------------------------------------ tools: shell context
 
     async def _shell_context(self, surface: Surface) -> shellctx.ShellContext:
@@ -623,7 +688,8 @@ class VoiceTools:
                 await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
             except CmuxError as e:
                 return self._fail(f"I couldn't run that: {e}")
-            return await self._done(f"Ran {cmd}.", flash_surface=s.id, command=cmd)
+            output = await self._output_after(s.id, cmd)
+            return await self._done(f"Ran {cmd}.", flash_surface=s.id, command=cmd, output=output)
 
         # Trusted input skips the question, except for destructive commands
         # (force pushes, hard resets, rm -rf, sudo), which always confirm.
@@ -671,21 +737,53 @@ class VoiceTools:
 
     # -------------------------------------------------------- tools: agents (Claude Code)
 
-    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 15.0) -> bool:
+    # First-run dialogs an agent CLI may show before its input box. The user
+    # asked to open the agent in this folder, so accepting is the implied choice.
+    _AGENT_STARTUP_DIALOGS = (
+        ("trust this folder", "enter"),
+        ("Enter to confirm", "enter"),
+        ("Press Enter to continue", "enter"),
+    )
+
+    async def _agent_box_visible(self, surface_id: str) -> bool:
+        try:
+            res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 14}) or {}
+        except CmuxError:
+            return False
+        tail = [l.strip() for l in (res.get("text") or "").rstrip().splitlines()[-10:]]
+        return any(_is_bare_agent_prompt(l) or l.startswith("❯") for l in tail) and not any(_looks_like_shell_prompt(l) for l in tail[-1:])
+
+    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 20.0) -> bool:
         """Poll the terminal until an agent CLI input box is empty and ready.
 
         Claude Code draws its box with placeholder text ("❯ Try ...") about a
         second after launch and clears it ~0.4 s later; text typed into the
         placeholder frame is lost. Wait for a bare prompt line, seen twice.
+        On a first run in a folder Claude Code first asks "Do you trust this
+        folder?"; that is accepted (once) before waiting for the box.
         """
         deadline = asyncio.get_running_loop().time() + timeout_s
         stable = 0
+        accepted_dialog = False
         while asyncio.get_running_loop().time() < deadline:
             try:
-                res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 12}) or {}
+                res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 20}) or {}
             except CmuxError:
                 return False
-            tail = [line.strip() for line in (res.get("text") or "").rstrip().splitlines()[-8:]]
+            text = res.get("text") or ""
+            tail = [line.strip() for line in text.rstrip().splitlines()[-12:]]
+            if not accepted_dialog:
+                for needle, key in self._AGENT_STARTUP_DIALOGS:
+                    if any(needle.lower() in line.lower() for line in tail):
+                        try:
+                            await self.client.acall("surface.send_key", {"surface_id": surface_id, "key": key})
+                        except CmuxError:
+                            return False
+                        accepted_dialog = True
+                        await asyncio.sleep(1.0)
+                        break
+                if accepted_dialog:
+                    continue
             if any(_is_bare_agent_prompt(line) for line in tail):
                 stable += 1
                 if stable >= 2:
@@ -709,17 +807,35 @@ class VoiceTools:
         s = await self._terminal(target)
         if isinstance(s, dict):
             return s
+        pane = self._pane_of(s)
+        if pane is not None and pane.columns and pane.columns < self.MIN_SPLIT_COLUMNS:
+            return self._fail(
+                f"That terminal is only {pane.columns} columns wide, too narrow for {agent} to draw its screen. "
+                "Say close the other panes or equalize the splits first, then open it again."
+            )
+        label = {"claude": "Claude Code", "codex": "Codex", "opencode": "OpenCode", "gemini": "Gemini", "pi": "Pi"}[binary]
+        # Already running here? Then just use it (type the prompt if given).
+        if await self._agent_box_visible(s.id):
+            if prompt and prompt.strip():
+                try:
+                    await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+                except CmuxError as e:
+                    return self._fail(f"{label} is open, but I couldn't type the prompt: {e}")
+                self._last_typed_surface = s.id
+                return await self._done(f"{label} is already open here; I typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip(), already_open=True)
+            return {"ok": True, "say": f"{label} is already open in this terminal.", "agent": binary, "already_open": True}
         try:
             await self.client.acall("surface.send_text", {"surface_id": s.id, "text": binary})
             await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
         except CmuxError as e:
             return self._fail(f"I couldn't open {agent}: {e}")
-        label = {"claude": "Claude Code", "codex": "Codex", "opencode": "OpenCode", "gemini": "Gemini", "pi": "Pi"}[binary]
+        # Wait for the CLI's input box (accepting a first-run trust dialog on the
+        # way) whether or not there is a prompt to type: the user's next words
+        # go into that box, and typing before it exists loses them.
+        ready = await self._wait_for_agent_prompt(s.id)
+        if not ready:
+            return self._fail(f"I launched {label}, but its input box never appeared. Read the terminal to see what it is showing.")
         if prompt and prompt.strip():
-            # Type only once the CLI has drawn its input box; typing earlier queues
-            # the text as a message behind the launch command. Claude Code can take
-            # several seconds to start, so poll the screen instead of sleeping.
-            await self._wait_for_agent_prompt(s.id)
             try:
                 await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
             except CmuxError as e:
@@ -792,6 +908,7 @@ class VoiceTools:
             ToolSpec("split", "Split the focused pane and open a new terminal or browser there.", {"direction": {"type": "string", "enum": ["left", "right", "up", "down"], "description": "Where the new pane goes. Default right."}, "kind": {"type": "string", "enum": ["terminal", "browser"], "description": "What to open. Default terminal."}, "url": {"type": "string", "description": "For a browser, the address to open."}}, self.split),
             ToolSpec("new_tab", "Open a new tab in the focused pane.", {"kind": {"type": "string", "enum": ["terminal", "browser"], "description": "Default terminal."}, "url": {"type": "string", "description": "For a browser, the address to open."}}, self.new_tab),
             ToolSpec("close_tab", "Close a tab. Requires confirmation.", {"target": target_prop}, self.close_tab),
+            ToolSpec("close_pane", "Close a whole pane (all of its tabs). Requires confirmation.", {"target": pane_target_prop}, self.close_pane),
             ToolSpec("equalize_splits", "Make all panes in the current workspace the same size.", {}, self.equalize_splits),
             ToolSpec("type_text", "Type text into a terminal without pressing enter.", {"text": {"type": "string", "description": "Exactly what to type."}, "target": target_prop}, self.type_text, required=["text"]),
             ToolSpec("press_key", "Press a key in a terminal: enter, escape, tab, up, down, left, right, backspace, ctrl-c, ctrl-d, or combos like ctrl-l.", {"key": {"type": "string", "description": "The key name."}, "target": target_prop}, self.press_key, required=["key"]),
@@ -815,6 +932,14 @@ class VoiceTools:
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
             ToolSpec("end_session", "End the voice session when the user says stop, goodbye, or that they are done.", {}, self.end_session),
         ]
+
+
+_SHELL_PROMPT = re.compile(r"^\S+@\S+\s+\S+\s*[%$#]\s*$|^[%$#]\s*$|^\S+\s*[%$#]\s*$")
+
+
+def _looks_like_shell_prompt(line: str) -> bool:
+    stripped = line.strip()
+    return bool(_SHELL_PROMPT.match(stripped)) or stripped.endswith((" %", " $", "❯"))
 
 
 def _is_bare_agent_prompt(line: str) -> bool:

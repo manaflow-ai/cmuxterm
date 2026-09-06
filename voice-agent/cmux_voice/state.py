@@ -42,6 +42,8 @@ class Pane:
     surfaces: List[Surface] = field(default_factory=list)
     frame: Optional[Dict[str, float]] = None  # {"x","y","width","height"} in window points
     position: str = ""  # human word such as "left", "right", "top-left"
+    columns: Optional[int] = None  # terminal cells across, from pane.list
+    rows: Optional[int] = None
 
     @property
     def number(self) -> int:
@@ -148,11 +150,16 @@ class UIState:
         ws = self.current_workspace
         if ws is None:
             return
-        frames = {str(row.get("id")): row.get("pixel_frame") for row in pane_rows}
+        by_id = {str(row.get("id")): row for row in pane_rows}
         for pane in ws.panes:
-            frame = frames.get(pane.id)
+            row = by_id.get(pane.id) or {}
+            frame = row.get("pixel_frame")
             if isinstance(frame, dict) and all(k in frame for k in ("x", "y", "width", "height")):
                 pane.frame = {k: float(frame[k]) for k in ("x", "y", "width", "height")}
+            if row.get("columns"):
+                pane.columns = int(row["columns"])
+            if row.get("rows"):
+                pane.rows = int(row["rows"])
         _assign_positions(ws.panes)
 
     # --------------------------------------------------------------- accessors

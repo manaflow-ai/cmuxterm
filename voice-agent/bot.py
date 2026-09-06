@@ -97,6 +97,8 @@ def with_reply_hint(tool_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
         out["reply"] = "Tell the user this did not work, say why in a few words, and offer one next step."
     elif tool_name in {"get_ui_state", "read_terminal", "which_pane", "shell_context"}:
         out["reply"] = "Answer the user's question from this information in one or two spoken sentences."
+    elif tool_name in {"run_shell", "run_command"} and out.get("output"):
+        out["reply"] = "Tell the user what the command printed, in one or two spoken sentences; read short lists aloud, summarize long output. Do not say only that it ran."
     else:
         out["reply"] = "Confirm out loud in one natural sentence what you just did."
     return out

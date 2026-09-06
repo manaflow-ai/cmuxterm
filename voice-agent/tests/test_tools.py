@@ -268,10 +268,10 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "equalize_splits", "type_text", "press_key", "run_command", "interrupt",
         "browser_navigate", "browser_history", "confirm", "end_session",
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
-        "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent",
+        "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent", "close_pane",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
-    assert confirming == {"close_workspace", "close_tab", "run_command", "run_shell"}
+    assert confirming == {"close_workspace", "close_tab", "close_pane", "run_command", "run_shell"}
     assert all(s.cancel_on_interruption for s in tools.specs())
 
 
@@ -447,7 +447,24 @@ async def test_press_enter_alone_confirms(tools: VoiceTools, fake: FakeCmux):
 # ---------------------------------------------------------------- agents
 
 
-async def test_open_agent_launches_claude_without_confirmation(tools: VoiceTools, fake: FakeCmux):
+async def test_open_agent_launches_claude_without_confirmation(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    import cmux_voice.tools as t
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
+    base = fake.responder
+    frames = ["user@host proj % ", "user@host proj % claude\n────\n❯ \n────\n", "user@host proj % claude\n────\n❯ \n────\n"]
+    reads = {"n": 0}
+
+    def responder(m, p):
+        if m == "surface.read_text":
+            reads["n"] += 1
+            return {"text": frames[min(reads["n"] - 1, len(frames) - 1)]}
+        return base(m, p)
+
+    fake.responder = responder
     res = await tools.open_agent()
     assert res["ok"] and res["say"] == "Opened Claude Code." and res["agent"] == "claude"
     sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
@@ -486,3 +503,120 @@ async def test_open_agent_with_prompt_types_but_does_not_send(tools: VoiceTools,
 async def test_open_agent_unknown(tools: VoiceTools, fake: FakeCmux):
     res = await tools.open_agent("emacs")
     assert res["ok"] is False and "don't know" in res["say"]
+
+
+async def test_run_shell_reads_output_back(fake: FakeCmux):
+    frames = iter(["$ git status\nOn branch develop\nUntracked files:\n  notes.txt\n$ "])
+    base = fake.responder
+    def responder(m, p):
+        if m == "surface.read_text":
+            return {"text": next(frames, "$ git status\nOn branch develop\nUntracked files:\n  notes.txt\n$ ")}
+        return base(m, p)
+    fake.responder = responder
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.run_shell("git status")
+    assert res["ok"] and "notes.txt" in res["output"] and "On branch develop" in res["output"]
+    assert "$ " not in res["output"].splitlines()[-1]
+    client.close()
+
+
+async def test_default_terminal_is_resolved_from_fresh_state(fake: FakeCmux):
+    """Focus moved after the last snapshot: tools must act on the newly focused terminal."""
+    from tests.conftest import sample_tree
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    await t.refresh()
+    moved = sample_tree()
+    panes = moved["windows"][0]["workspaces"][1]["panes"]
+    panes[0]["focused"] = False; panes[0]["surfaces"][0]["focused"] = False
+    panes[1]["focused"] = True; panes[1]["surfaces"][0]["focused"] = True
+    base = fake.responder
+    fake.responder = lambda m, p: moved if m == "system.tree" else base(m, p)
+    await t.type_text("hi")
+    assert {"method": "surface.send_text", "params": {"surface_id": "S-B2", "text": "hi"}} in fake.requests
+    client.close()
+
+
+async def test_run_command_output_excludes_prompt_lines(fake: FakeCmux):
+    base = fake.responder
+    fake.responder = lambda m, p: {"text": "user@host scratch % ls\nREADME.md\nnotes.txt\nuser@host scratch % "} if m == "surface.read_text" else base(m, p)
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.run_command("ls")
+    assert res["output"].splitlines() == ["README.md", "notes.txt"]
+    client.close()
+
+
+async def test_split_refuses_when_pane_too_narrow(fake: FakeCmux):
+    from tests.conftest import sample_panes
+    rows = sample_panes(); rows["panes"][0]["columns"] = 40; rows["panes"][0]["rows"] = 46
+    base = fake.responder
+    fake.responder = lambda m, p: rows if m == "pane.list" else base(m, p)
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.split("right")
+    assert res["ok"] is False and "too narrow" in res["say"]
+    assert "surface.split" not in fake.methods()
+    res = await t.split("down")
+    assert res["ok"]
+    client.close()
+
+
+async def test_open_agent_refuses_narrow_terminal(fake: FakeCmux):
+    from tests.conftest import sample_panes
+    rows = sample_panes(); rows["panes"][0]["columns"] = 12
+    base = fake.responder
+    fake.responder = lambda m, p: rows if m == "pane.list" else base(m, p)
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.open_agent("claude")
+    assert res["ok"] is False and "too narrow" in res["say"]
+    assert "surface.send_text" not in fake.methods()
+    client.close()
+
+
+async def test_close_pane_confirms_then_closes_all_tabs(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.close_pane("2")
+    assert res["status"] == "needs_confirmation" and "2 tabs" in res["say"]
+    res = await tools.confirm("yes")
+    assert res["ok"]
+    closed = [r["params"]["surface_id"] for r in fake.requests if r["method"] == "surface.close"]
+    assert closed == ["S-B2", "S-B3"]
+
+
+async def test_open_agent_accepts_first_run_trust_dialog(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    import cmux_voice.tools as t
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
+    frames = ["starting…\n", "Do you trust the files in this folder?\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel\n", "────\n❯ Try \"x\"\n────\n", "────\n❯ \n────\n", "────\n❯ \n────\n"]
+    reads = {"n": 0}
+    base = fake.responder
+    def responder(m, p):
+        if m == "surface.read_text":
+            reads["n"] += 1
+            return {"text": frames[min(reads["n"] - 1, len(frames) - 1)]}
+        return base(m, p)
+    fake.responder = responder
+    res = await tools.open_agent("claude")
+    assert res["ok"] and res["say"] == "Opened Claude Code."
+    keys = [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"]
+    assert keys == ["enter", "enter"]  # launch, then accept the trust dialog
+
+
+async def test_open_agent_is_idempotent_when_already_open(fake: FakeCmux):
+    base = fake.responder
+    fake.responder = lambda m, p: {"text": "────\n❯ \n────\n  ⏵⏵ auto mode on\n"} if m == "surface.read_text" else base(m, p)
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.open_agent("claude")
+    assert res["ok"] and res["already_open"] and "already open" in res["say"]
+    assert "surface.send_key" not in fake.methods()  # did not relaunch
+    res = await t.open_agent("claude", prompt="Summarize this repo.")
+    assert res["already_open"] and res["typed"] == "Summarize this repo."
+    sent = [r for r in fake.requests if r["method"] == "surface.send_text"]
+    assert sent == [{"method": "surface.send_text", "params": {"surface_id": "S-B1", "text": "Summarize this repo."}}]
+    client.close()
