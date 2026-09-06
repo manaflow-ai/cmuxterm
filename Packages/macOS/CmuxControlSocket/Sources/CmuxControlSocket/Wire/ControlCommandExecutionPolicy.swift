@@ -355,7 +355,6 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
         "notification.create_for_target",
         "notification.create_for_caller",
         "workspace.set_auto_title",
-        "surface.sync_codex_native_title",
         // The v2 resolution reads: non-blocking single-hop snapshot reads
         // whose hop collapses inline on a main-thread caller, so they are
         // safe by construction — and cmuxTests drive them through

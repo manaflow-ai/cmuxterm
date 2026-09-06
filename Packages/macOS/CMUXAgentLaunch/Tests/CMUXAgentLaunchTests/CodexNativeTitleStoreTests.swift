@@ -9,23 +9,30 @@ struct CodexNativeTitleStoreTests {
         case database
     }
 
+    /// Reads the title associated with the requested Codex session only.
     @Test func readsTheNativeThreadTitleForAnExactSession() throws {
         let fixture = try makeDatabase(sessionId: "codex-session", title: "測試 cmux 與 codex Tab 同步")
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
 
-        #expect(CodexNativeTitleStore.title(forSessionId: fixture.sessionId, dbPath: fixture.database.path) == "測試 cmux 與 codex Tab 同步")
+        let store = CodexNativeTitleStore(databasePath: fixture.database.path)
+        #expect(store.title(forSessionId: fixture.sessionId) == "測試 cmux 與 codex Tab 同步")
     }
 
+    /// Returns no title for missing, empty, or unavailable session data.
     @Test(arguments: ["missing-session", ""])
     func returnsNilWhenTheTitleCannotBeResolved(sessionId: String) throws {
         let fixture = try makeDatabase(sessionId: "codex-session", title: "existing title")
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
 
-        #expect(CodexNativeTitleStore.title(forSessionId: sessionId, dbPath: fixture.database.path) == nil)
+        let store = CodexNativeTitleStore(databasePath: fixture.database.path)
+        #expect(store.title(forSessionId: sessionId) == nil)
         let missingDatabase = fixture.directory.appendingPathComponent("missing.sqlite")
-        #expect(CodexNativeTitleStore.title(forSessionId: sessionId, dbPath: missingDatabase.path) == nil)
+        let missingStore = CodexNativeTitleStore(databasePath: missingDatabase.path)
+        #expect(missingStore.title(forSessionId: sessionId) == nil)
     }
 
+    /// Creates a temporary SQLite database that mirrors the Codex thread table.
+    /// Creates a temporary SQLite database that mirrors the Codex thread table.
     private func makeDatabase(sessionId: String, title: String) throws -> (directory: URL, database: URL, sessionId: String) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-codex-title-test-\(UUID().uuidString)", isDirectory: true)

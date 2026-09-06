@@ -27,6 +27,18 @@ import Testing
         return try decodeResponse(TerminalController.shared.handleSocketLine(requestLine))
     }
 
+    /// Sends a request through the asynchronous socket dispatcher used by
+    /// real control-socket connections.
+    private func callAsync(method: String, params: [String: Any]) async throws -> [String: Any] {
+        let request: [String: Any] = ["id": method, "method": method, "params": params]
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        let requestLine = try #require(String(data: requestData, encoding: .utf8))
+        let response = try await #require(
+            TerminalController.shared.processCommandUsingSocketExecutionPolicyAsync(requestLine)
+        )
+        return try decodeResponse(response)
+    }
+
     /// Runs `body` with the auto-naming setting forced to `enabled`, restoring
     /// the user's previous value afterwards.
     private func withAutoNamingSetting<T>(_ enabled: Bool, _ body: () throws -> T) rethrows -> T {
@@ -41,6 +53,24 @@ import Testing
             }
         }
         return try body()
+    }
+
+    /// Runs an asynchronous test body with the auto-naming setting restored.
+    private func withAutoNamingSettingAsync<T>(
+        _ enabled: Bool,
+        _ body: () async throws -> T
+    ) async rethrows -> T {
+        let key = AutomationCatalogSection().workspaceAutoNaming.userDefaultsKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.set(enabled, forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        return try await body()
     }
 
     /// Runs `body` with the auto-naming agent override set to `slug`, restoring
@@ -65,6 +95,17 @@ import Testing
         TerminalController.shared.setActiveTabManager(manager)
         defer { TerminalController.shared.setActiveTabManager(nil) }
         return try body(manager, workspace)
+    }
+
+    /// Runs an asynchronous test body with an isolated active tab manager.
+    private func withManagerAsync<T>(
+        _ body: @MainActor (TabManager, Workspace) async throws -> T
+    ) async throws -> T {
+        let manager = TabManager(autoWelcomeIfNeeded: false)
+        let workspace = try #require(manager.tabs.first)
+        TerminalController.shared.setActiveTabManager(manager)
+        defer { TerminalController.shared.setActiveTabManager(nil) }
+        return try await body(manager, workspace)
     }
 
     @Test func probeReportsSummarizerAgentOverride() throws {
@@ -293,13 +334,14 @@ import Testing
         }
     }
 
-    @Test func codexNativeTitleSyncAppliesToRawPanelTitleWithAutoNamingDisabled() throws {
-        try withAutoNamingSetting(false) {
-            try withManager { _, workspace in
+    /// Applies a native Codex title without requiring auto-naming.
+    @Test func codexNativeTitleSyncAppliesToRawPanelTitleWithAutoNamingDisabled() async throws {
+        try await withAutoNamingSettingAsync(false) {
+            try await withManagerAsync { _, workspace in
                 let pane = try #require(workspace.bonsplitController.allPaneIds.first)
                 let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: true)?.id)
 
-                let envelope = try call(method: "surface.sync_codex_native_title", params: [
+                let envelope = try await callAsync(method: "surface.sync_codex_native_title", params: [
                     "workspace_id": workspace.id.uuidString,
                     "panel_id": panelId.uuidString,
                     "title": "測試 cmux 與 codex Tab 同步"
@@ -312,13 +354,14 @@ import Testing
         }
     }
 
-    @Test func codexNativeTitleSyncPreservesExistingCustomPanelTitle() throws {
-        try withManager { _, workspace in
+    /// Leaves an explicitly renamed panel unchanged when Codex syncs a title.
+    @Test func codexNativeTitleSyncPreservesExistingCustomPanelTitle() async throws {
+        try await withManagerAsync { _, workspace in
             let pane = try #require(workspace.bonsplitController.allPaneIds.first)
             let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: true)?.id)
             _ = workspace.setPanelCustomTitle(panelId: panelId, title: "my renamed tab", source: .user)
 
-            let envelope = try call(method: "surface.sync_codex_native_title", params: [
+            let envelope = try await callAsync(method: "surface.sync_codex_native_title", params: [
                 "workspace_id": workspace.id.uuidString,
                 "panel_id": panelId.uuidString,
                 "title": "fresh Codex conversation title"

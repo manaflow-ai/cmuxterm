@@ -93,19 +93,23 @@ extension CMUXCLI {
             telemetry.breadcrumb("codex-hook.native-title-sync.invalid-target")
             return
         }
-        guard let title = CodexNativeTitleStore.title(
-            forSessionId: sessionId,
+        let titleStore = CodexNativeTitleStore(
             codexHome: normalizedHookValue(environment["CODEX_HOME"])
-        ) else {
+        )
+        guard let title = titleStore.title(forSessionId: sessionId) else {
             telemetry.breadcrumb("codex-hook.native-title-sync.no-title")
             return
         }
-        _ = try? client.sendV2(method: "surface.sync_codex_native_title", params: [
-            "workspace_id": workspaceId,
-            "panel_id": surfaceId,
-            "title": title
-        ])
-        telemetry.breadcrumb("codex-hook.native-title-sync.sent")
+        do {
+            _ = try client.sendV2(method: "surface.sync_codex_native_title", params: [
+                "workspace_id": workspaceId,
+                "panel_id": surfaceId,
+                "title": title
+            ])
+            telemetry.breadcrumb("codex-hook.native-title-sync.sent")
+        } catch {
+            telemetry.breadcrumb("codex-hook.native-title-sync.send-failed")
+        }
     }
 
     /// Starts the title lookup after the synchronous Codex Stop hook returns.

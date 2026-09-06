@@ -272,7 +272,7 @@ struct ControlCommandExecutionPolicyTests {
         for method in [
             "notification.create", "notification.create_for_surface",
             "notification.create_for_target", "notification.create_for_caller",
-            "workspace.set_auto_title", "surface.sync_codex_native_title",
+            "workspace.set_auto_title",
         ] {
             let policy = ControlCommandExecutionPolicy(forMethod: method)
             #expect(policy == .socketWorker(mainThreadCallable: true), "\(method)")
@@ -281,6 +281,13 @@ struct ControlCommandExecutionPolicyTests {
         // The read-side notification verbs stay on the main lane.
         #expect(ControlCommandExecutionPolicy(forMethod: "notification.list") == .mainActor)
         #expect(ControlCommandExecutionPolicy(forMethod: "notification.clear") == .mainActor)
+    }
+
+    @Test func codexNativeTitleSyncRunsAsyncOnTheWorker() {
+        #expect(
+            ControlCommandExecutionPolicy(forMethod: "surface.sync_codex_native_title")
+                == .socketWorker(mainThreadCallable: false)
+        )
     }
 
     @Test func v1CommandsDefaultToTheMainActor() {

@@ -2,19 +2,27 @@ import Foundation
 import SQLite3
 
 /// Reads Codex's authoritative native thread title from its state database.
-/// Callers can provide a Codex home or database path for alternate profiles
-/// and deterministic fixture tests.
-public enum CodexNativeTitleStore {
+public struct CodexNativeTitleStore: Sendable {
+    private let databasePath: String
+
+    /// Creates a title store for the Codex profile at `codexHome`.
+    public init(codexHome: String? = nil) {
+        self.databasePath = Self.databasePath(forCodexHome: codexHome)
+    }
+
+    /// Creates a title store for a database path.
+    ///
+    /// This initializer is internal so production callers select a Codex home,
+    /// while package tests can inject deterministic SQLite fixtures.
+    init(databasePath: String) {
+        self.databasePath = databasePath
+    }
+
     /// Returns the non-empty title for an active session, or nil when Codex's
     /// database, session row, or title is unavailable.
-    public static func title(
-        forSessionId sessionId: String,
-        codexHome: String? = nil,
-        dbPath: String? = nil
-    ) -> String? {
+    public func title(forSessionId sessionId: String) -> String? {
         let normalizedSessionId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedSessionId.isEmpty else { return nil }
-        let databasePath = dbPath ?? databasePath(forCodexHome: codexHome)
 
         var database: OpaquePointer?
         guard sqlite3_open_v2(databasePath, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
@@ -23,7 +31,6 @@ public enum CodexNativeTitleStore {
             return nil
         }
         defer { sqlite3_close(database) }
-        sqlite3_busy_timeout(database, 250)
 
         var statement: OpaquePointer?
         let query = "SELECT title FROM threads WHERE id = ?1 AND archived = 0 LIMIT 1"
@@ -44,6 +51,7 @@ public enum CodexNativeTitleStore {
         return title.isEmpty ? nil : title
     }
 
+    /// Builds the state-database path for a Codex home directory.
     private static func databasePath(forCodexHome codexHome: String?) -> String {
         let home = (codexHome ?? "~/.codex") as NSString
         return URL(fileURLWithPath: home.expandingTildeInPath, isDirectory: true)

@@ -1221,7 +1221,6 @@ class TerminalController {
         "notification.create_for_target",
         "notification.create_for_caller",
         "workspace.set_auto_title",
-        "surface.sync_codex_native_title",
     ]
 
     nonisolated func socketWorkerV2Response(handling parsedRequest: ControlRequest) -> String? {
@@ -1229,6 +1228,16 @@ class TerminalController {
         return withSocketCommandPolicy(commandKey: request.method, isV2: true, params: request.params) {
             if let workspaceParamError = v2UnsupportedWorkspaceAliasError(method: request.method, params: request.params) {
                 return v2Result(id: request.id, workspaceParamError)
+            }
+            if request.method == "surface.sync_codex_native_title" {
+                return v2Error(
+                    id: request.id,
+                    code: "invalid_dispatch",
+                    message: String(
+                        localized: "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired",
+                        defaultValue: "surface.sync_codex_native_title requires asynchronous socket dispatch"
+                    )
+                )
             }
             if Self.socketWorkerCoordinatorHopMethods.contains(request.method) {
                 // Mirror processParsedV2Command's tail: one main hop for the
@@ -4438,16 +4447,44 @@ class TerminalController {
     private func v2SurfaceSyncCodexNativeTitle(params: [String: Any]) -> V2CallResult {
         guard let title = v2String(params, "title")?.trimmingCharacters(in: .whitespacesAndNewlines),
               !title.isEmpty else {
-            return .err(code: "invalid_params", message: "Missing or invalid title", data: nil)
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.invalidTitle",
+                    defaultValue: "Missing or invalid title"
+                ),
+                data: nil
+            )
         }
         guard let tabManager = v2ResolveTabManager(params: params) else {
-            return .err(code: "unavailable", message: "TabManager not available", data: nil)
+            return .err(
+                code: "unavailable",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable",
+                    defaultValue: "TabManager not available"
+                ),
+                data: nil
+            )
         }
         guard let workspaceId = v2UUID(params, "workspace_id") else {
-            return .err(code: "invalid_params", message: "Missing or invalid workspace_id", data: nil)
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid",
+                    defaultValue: "Missing or invalid workspace_id"
+                ),
+                data: nil
+            )
         }
         guard let panelId = v2UUID(params, "panel_id") else {
-            return .err(code: "invalid_params", message: "Missing or invalid panel_id", data: nil)
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelIdInvalid",
+                    defaultValue: "Missing or invalid panel_id"
+                ),
+                data: nil
+            )
         }
 
         var found = false
@@ -4463,10 +4500,17 @@ class TerminalController {
         }
 
         guard found else {
-            return .err(code: "not_found", message: "Panel not found", data: [
-                "workspace_id": workspaceId.uuidString,
-                "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceId)
-            ])
+            return .err(
+                code: "not_found",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelNotFound",
+                    defaultValue: "Panel not found"
+                ),
+                data: [
+                    "workspace_id": workspaceId.uuidString,
+                    "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceId)
+                ]
+            )
         }
         return .ok(["applied": applied])
     }
