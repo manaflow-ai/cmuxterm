@@ -758,6 +758,14 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(CmuxTuiSnapshotParser.terminalProjectionTarget(from: snapshot) == nil)
     }
 
+    @Test func resourcesCanOrderSnapshotRowsWithoutTupleCastCrash() {
+        let resources = CmuxTuiSnapshotParser.terminals(
+            fromSnapshot: Self.sessionSnapshot,
+            machine: Self.machine
+        )
+        #expect(resources.map(\.id.key) == ["term_build", "term_shell"])
+    }
+
     @Test func resourceKindWireFormAcceptsTheOldScreenName() throws {
         #expect(SurfaceResourceKind(wire: "display") == .display)
         #expect(SurfaceResourceKind(wire: "screen") == .display, "pre-rename apps and persisted sessions say screen")
