@@ -22,7 +22,7 @@ async function sendHook(
   };
   const result = runCmux(["hooks", "enqueue", "pi", subcommand], cwd, JSON.stringify(payload));
   if (!result.ok) {
-    warn(ctx, "cmux hook command failed", {
+    warn(context, "cmux hook command failed", {
       subcommand,
       status: result.status,
       stderr_available: result.stderr.trim().length > 0,
@@ -176,6 +176,7 @@ async function ensureResumeBinding(
   sessionId: string,
 ): Promise<void> {
   if (process.env.CMUX_PI_HOOKS_DISABLED === "1") return;
+  if (!detectedPiVersion()) return;
   const target = surfaceTargetArgs(dispatcher, sessionId);
   if (!target) return;
 
@@ -218,28 +219,6 @@ async function ensureResumeBinding(
       reason: "verification-failure",
     });
   }
-}
-
-async function clearResumeBinding(
-  dispatcher: PiCmuxCommandDispatcher,
-  context: PiExtensionContextSnapshot,
-  sessionId: string,
-): Promise<void> {
-  if (process.env.CMUX_PI_HOOKS_DISABLED === "1") return;
-  const target = surfaceTargetArgs(dispatcher, sessionId);
-  if (!target) return;
-  const cwd = context.cwd;
-  await dispatcher.run([
-    "--json",
-    "surface",
-    "resume",
-    "clear",
-    ...target,
-    "--checkpoint-id",
-    sessionId,
-    "--source",
-    "agent-hook",
-  ], cwd, undefined, context);
 }
 
 function sendDirectSessionFinalize(ctx: ExtensionContext, sessionId: string, cwd: string): void {
@@ -470,6 +449,7 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
       state.pendingCompletion = undefined;
       state.feedDeliveryFailed = false;
       state.stopped = false;
+      state.needsSessionFinalize = false;
     }
     if (!sessionId) return;
     enqueueLifecycleTask(sessionId, context, async () => {
@@ -522,10 +502,11 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
 
   pi.on("agent_end", (event, ctx) => {
     const context = snapshotContext(ctx);
-    const sessionId = context.sessionId;
-    if (!sessionId) return;
-    const state = stateFor(sessionStates, sessionId);
-    const assistantCompletion = assistantCompletionFrom(event);
+  const sessionId = context.sessionId;
+  if (!sessionId) return;
+  const state = stateFor(sessionStates, sessionId);
+  const assistantCompletion = assistantCompletionFrom(event);
+  state.needsSessionFinalize = !assistantCompletion.suppressNotification;
     // Preserve the latest low-level result until Pi confirms no automatic work remains.
     state.pendingCompletion = {
       lastAssistantMessage: assistantCompletion.lastAssistantMessage || state.pendingCompletion?.lastAssistantMessage,
@@ -563,6 +544,7 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
     const sessionId = context.sessionId;
     if (!sessionId) return;
     const state = stateFor(sessionStates, sessionId);
+    const shouldFinalize = !state.stopped || state.needsSessionFinalize;
     let stopPayload: HookExtra | undefined;
     if (!state.stopped) {
       const turnId = finishTurn(sessionStates, sessionId, event);
@@ -577,11 +559,11 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
       state.feedDeliveryFailed = false;
       if (!feedDelivered) await warnFeedDeliveryDropped(context, sessionId);
       if (stopPayload) await sendHook(dispatcher, "stop", context, stopPayload);
-      try {
-        await clearResumeBinding(dispatcher, context, sessionId);
-      } finally {
-        releaseSessionRuntime(dispatcher, sessionStates, sessionId);
+      if (shouldFinalize) {
+        const finalized = await sendHook(dispatcher, "session-finalize", context);
+        if (!finalized) sendDirectSessionFinalize(ctx, sessionId, context.cwd);
       }
+      releaseSessionRuntime(dispatcher, sessionStates, sessionId);
     });
   });
 }

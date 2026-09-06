@@ -2483,13 +2483,11 @@ final class ClaudeHookSessionStore {
         return nil
     }
 
-    private func withLockedState<T>(_ body: (inout ClaudeHookSessionStoreFile) throws -> T) throws -> T {
-        let stateURL = URL(fileURLWithPath: statePath, isDirectory: false)
-        try fileManager.createDirectory(
-            at: stateURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: NSNumber(value: Int16(0o700))]
-        )
+    func withLockedState<T>(
+        deadline: Date? = nil,
+        persist: Bool = true,
+        _ body: (inout ClaudeHookSessionStoreFile) throws -> T
+    ) throws -> T {
         let lockPath = statePath + ".lock"
         // The lock file is opened before the state is ever saved, so the first
         // store access on a fresh HOME must create the state directory itself.
@@ -4101,11 +4099,7 @@ final class SocketClient {
             throw CLIError(message: "Failed to encode v2 request")
         }
 
-        let raw = try send(
-            command: requestLine,
-            responseTimeout: responseTimeout,
-            deadline: deadline
-        )
+        let raw = try send(command: requestLine, responseTimeout: responseTimeout, deadline: deadline)
 
         // The server may return plain-text errors (e.g., "ERROR: Access denied ...")
         // before the JSON protocol starts. Surface these directly instead of letting
@@ -28013,13 +28007,6 @@ struct CMUXCLI {
                 fallbackKind: "claude",
                 cwd: hookCwd
             )
-            // `claude --resume <parent> --fork-session` fires SessionStart with the
-            // PARENT session id — the forked session id is only minted at the first
-            // UserPromptSubmit. Upserting here would steal the parent record's
-            // surface/pid/launch command from the pane that still owns that
-            // conversation, so fork launches leave the store untouched; the forked
-            // session is recorded once its own id appears on prompt-submit.
-            // https://github.com/manaflow-ai/cmux/issues/5908
             let isForkSessionLaunch = isClaudeForkSessionLaunch(
                 payload: parsedInput.rawObject,
                 env: ProcessInfo.processInfo.environment,
@@ -28035,7 +28022,8 @@ struct CMUXCLI {
                 telemetry: telemetry
             )
             let shouldPromoteActiveSession = !isForkSessionLaunch && (isClearSessionStart || canReplaceStoppedSession)
-            if let sessionId = parsedInput.sessionId, !isForkSessionLaunch {
+            let acceptedSessionId: String? = parsedInput.sessionId.flatMap { sessionId in
+                guard !isForkSessionLaunch else { return nil }
                 let accepted = (try? sessionStore.upsertAuthoritativeClaudeSessionStart(
                     sessionId: sessionId,
                     source: sessionStartSource,
@@ -28048,30 +28036,45 @@ struct CMUXCLI {
                     hookEventName: reportedHookEventName(from: parsedInput) ?? "SessionStart",
                     turnId: parsedInput.turnId
                 )) == true
-                if accepted, shouldPromoteActiveSession {
+                return accepted ? sessionId : nil
+            }
+            guard isForkSessionLaunch || acceptedSessionId != nil else {
+                telemetry.breadcrumb("claude-hook.session-start.stale")
+                printClaudeHookAck()
+                return
+            }
+            if let acceptedSessionId {
+                if shouldPromoteActiveSession {
                     publishAgentSurfaceResumeBinding(
                         client: client,
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
                         kind: "claude",
                         displayName: String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code"),
-                        sessionId: sessionId,
+                        sessionId: acceptedSessionId,
                         cwd: hookCwd,
                         launchCommand: launchCommand,
                         observedPermissionMode: observedHookPermissionMode
                     )
                 }
+                emitAgentJournalEvent(
+                    client: client,
+                    kind: .sessionStarted,
+                    source: "claude",
+                    agentKey: Self.claudeCodeStatusKey,
+                    sessionId: acceptedSessionId,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    isSubagent: suppressVisibleMutations,
+                    nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionStart",
+                    detail: isClearSessionStart ? "clear-session-start" : nil,
+                    store: sessionStore,
+                    telemetry: telemetry
+                )
             }
-            // Register PID for stale-session detection and OSC suppression.
-            // Startup/resume SessionStart remains non-visible; /clear is a
-            // new active boundary and must keep the sidebar Running before
-            // any late pre-clear Stop can write Idle.
-            // Fork launches register their PID only with an authoritative
-            // surface: the hook reports the PARENT session id (which is often
-            // the workspace-active session), and the pre-prompt fork SessionEnd
-            // cleanup clears only authoritative targets, so a fallback-pane
-            // registration would leave a stale agent PID on a pane the fork
-            // never owned.
+            // SessionStart itself is the process-running signal. Keep ordinary
+            // startup/resume visually quiet, but register the PID immediately so
+            // later hooks and terminal state are attached to this exact surface.
             let shouldRegisterPID = isForkSessionLaunch
                 ? resolvedSurface.isAuthoritative
                 : shouldPromoteActiveSession ||
@@ -28134,7 +28137,10 @@ struct CMUXCLI {
                 let workspaceId = resolvedTarget.workspaceId
                 let resolvedSurface = resolvedTarget
                 let surfaceId = resolvedSurface.surfaceId
-                let claudePid = localClaudePID(mapped: mappedSession)
+                let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+                // Detected once (bounded process-ancestry walk) and reused for
+                // both the suppression gate and the notify payload's subagent
+                // tag, which stays accurate even when suppression is off.
                 let isNestedAgentSession = nestedAgentSessionDetected(
                     currentAgentPID: claudePid,
                     env: ProcessInfo.processInfo.environment
@@ -28540,7 +28546,9 @@ struct CMUXCLI {
                 return
             }
             let workspaceId = resolvedTarget.workspaceId
-            let claudePid = localClaudePID(mapped: mappedSession)
+            let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+            // One ancestry walk per hook event, shared by the suppression gate
+            // and the notify payload's subagent tag.
             let isNestedAgentSession = nestedAgentSessionDetected(
                 currentAgentPID: claudePid,
                 env: ProcessInfo.processInfo.environment
@@ -28753,13 +28761,6 @@ struct CMUXCLI {
         case "push-notification": try runClaudePushNotificationHook(client: client, telemetry: telemetry, parsedInput: parsedInput, sessionStore: sessionStore, routing: hookRouting, markFeedTelemetryHandled: { didSendFeedTelemetry = true }, sendFeedTelemetry: sendClaudeFeedTelemetry)
         case "session-end":
             telemetry.breadcrumb("claude-hook.session-end")
-            // A fork launch that exits before its first prompt fires SessionEnd
-            // with the PARENT session id (the forked id is only minted at the
-            // first UserPromptSubmit). Consuming it would delete the parent
-            // pane's restore record and clear its resume binding even though
-            // that pane still owns the conversation. Post-prompt fork exits
-            // report the forked id and consume normally.
-            // https://github.com/manaflow-ai/cmux/issues/5908
             if let reportedSessionId = parsedInput.sessionId?.trimmingCharacters(in: .whitespacesAndNewlines),
                !reportedSessionId.isEmpty,
                let forkParentSessionId = claudeForkSessionParentId(
@@ -28769,18 +28770,10 @@ struct CMUXCLI {
                ),
                reportedSessionId == forkParentSessionId {
                 telemetry.breadcrumb("claude-hook.session-end.fork-parent-skipped")
-                // The fork pane's claude still exited: clear the agent PID/status
-                // that the fork SessionStart registered for this pane, but leave
-                // the parent record, its resume binding, and the workspace's
-                // notifications alone.
-                let forkClaudePid = hookAgentPID
                 let suppressForkVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                    currentAgentPID: forkClaudePid,
+                    currentAgentPID: hookAgentPID,
                     env: ProcessInfo.processInfo.environment
                 )
-                // Resolve through the live target resolver so the cleanup
-                // follows the fork pane even after a pane move (live pid
-                // probe, then legacy chain, then identity-surface re-home).
                 if !suppressForkVisibleMutations,
                    let forkTarget = try? resolveClaudeHookDeliveryTarget(
                        mappedSession: nil,
@@ -28959,7 +28952,9 @@ struct CMUXCLI {
             let resolvedSurface = resolvedTarget
             let surfaceId = resolvedSurface.surfaceId
             sendClaudeFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
-            let claudePid = localClaudePID(mapped: mappedSession)
+            let claudePid = mappedSession?.pid ?? claudeAgentPID(from: ProcessInfo.processInfo.environment)
+            // One ancestry walk per hook event, shared by the suppression gate
+            // and the notify payload's subagent tag.
             let isNestedAgentSession = nestedAgentSessionDetected(
                 currentAgentPID: claudePid,
                 env: ProcessInfo.processInfo.environment
@@ -29104,9 +29099,11 @@ struct CMUXCLI {
                     sessionId: sessionId,
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
-                    cwd: hookCwd,
-                    transcriptPath: hookTranscriptPath,
-                    agentLifecycle: .running
+                    cwd: parsedInput.cwd,
+                    transcriptPath: parsedInput.transcriptPath,
+                    agentLifecycle: .running,
+                    hookEventName: reportedHookEventName(from: parsedInput) ?? "PreToolUse",
+                    updateLastSummary: true
                 )
             }
             _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
@@ -30028,42 +30025,6 @@ struct CMUXCLI {
 
         guard lastAssistantMessage != nil else { return nil }
         return TranscriptSummary(lastAssistantMessage: lastAssistantMessage)
-    }
-
-    private struct CodexHookFailureSummary {
-        let statusValue: String
-        let subtitle: String
-        let body: String
-    }
-
-    struct CodexHookFailureCandidate {
-        let message: String
-        let codexErrorInfo: String?
-        let additionalDetails: String?
-        let isStreamError: Bool
-    }
-
-    private struct CodexHookUserInputCandidate {
-        let callId: String
-        let question: String?
-    }
-
-    private struct CodexTranscriptSubagentSignals {
-        var isSubagentSession = false
-        var hasSubagentNotificationRelay = false
-    }
-
-    enum CodexTranscriptFailureReadResult {
-        case unavailable
-        case pending
-        case healthy
-        case failure(CodexHookFailureCandidate)
-    }
-
-    private enum CodexMonitorOwnerState {
-        case alive
-        case gone
-        case unknown
     }
 
     private func summarizeCodexHookFailure(
@@ -32037,12 +31998,6 @@ struct CMUXCLI {
         return arguments.isEmpty ? nil : arguments
     }
 
-    /// Whether the Claude process this hook fired from was launched with
-    /// `--fork-session`. Such launches report the PARENT session id in
-    /// SessionStart (the forked id is only minted at the first UserPromptSubmit),
-    /// so hook state keyed by the reported id must not be rebound to the fork
-    /// pane. Reads the raw launch argv — the sanitized launch-command record
-    /// strips `--fork-session`. https://github.com/manaflow-ai/cmux/issues/5908
     private func isClaudeForkSessionLaunch(
         payload: [String: Any]?,
         env: [String: String],
@@ -32057,8 +32012,6 @@ struct CMUXCLI {
         return claudeLaunchArgumentsContainForkSession(arguments)
     }
 
-    /// Accept the same flag forms the launch sanitizer strips: bare
-    /// `--fork-session` and `--fork-session=<value>` (unless explicitly false).
     private func claudeLaunchArgumentsContainForkSession(_ arguments: [String]) -> Bool {
         arguments.contains { argument in
             if argument == "--fork-session" { return true }
@@ -32070,12 +32023,6 @@ struct CMUXCLI {
         }
     }
 
-    /// The parent session id a `--resume <parent> --fork-session` launch was
-    /// forked from, or nil when this hook's process is not a fork launch. Hook
-    /// payloads carrying this id (SessionStart before the forked id is minted,
-    /// and SessionEnd when the fork exits before its first prompt) describe a
-    /// conversation another pane still owns and must not mutate or consume its
-    /// record. https://github.com/manaflow-ai/cmux/issues/5908
     private func claudeForkSessionParentId(
         payload: [String: Any]?,
         env: [String: String],
@@ -32236,8 +32183,102 @@ struct CMUXCLI {
         guard ProcessInfo.processInfo.environment[agentHookRelayOriginEnvironmentKey] != "1" else {
             return
         }
-        if !agentHookSessionHasDurableResumeEvidence(kind: kind, launchCommand: launchCommand) {
-            clearAgentSurfaceResumeBinding(client: client, workspaceId: workspaceId, surfaceId: surfaceId, sessionId: sessionId)
+        if kind == "hermes-agent" {
+            var stateEnvironment = ProcessInfo.processInfo.environment
+            if let launchEnvironment = launchCommand?.environment {
+                stateEnvironment.merge(launchEnvironment) { _, captured in captured }
+            }
+            let existence = HermesAgentIndex.sessionExistence(
+                sessionID: sessionId,
+                stateDBPath: HermesAgentSessionResolver.stateDBPath(env: stateEnvironment)
+            )
+            switch existence {
+            case .exists:
+                break
+            case .missing:
+                clearAgentSurfaceResumeBinding(
+                    client: client,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionId: sessionId,
+                    responseTimeout: responseTimeout,
+                    deadline: deadline
+                )
+                return
+            case .unavailable:
+                // A temporary snapshot failure must not replace or clear a
+                // previously verified durable Hermes checkpoint.
+                return
+            }
+        }
+        var codexEvidenceProvenance: AgentResumeEvidenceProvenance?
+        if kind == "codex" {
+            guard agentHookSessionHasDurableResumeEvidence(
+                kind: kind,
+                launchCommand: launchCommand
+            ) else {
+                logCodexResumeBindingRejection(
+                    reason: "launch-evidence-rejected",
+                    sessionId: sessionId,
+                    incoming: nil,
+                    existing: nil,
+                    telemetry: telemetry
+                )
+                return
+            }
+            switch codexResumeBindingVerification(
+                sessionId: sessionId,
+                transcriptPath: transcriptPath,
+                launchCommand: launchCommand
+            ) {
+            case .exists(let evidence):
+                guard evidence.provenance.mayOwnBinding else {
+                    logCodexResumeBindingRejection(
+                        reason: "incoming-lower-provenance",
+                        sessionId: evidence.sessionId,
+                        incoming: evidence.provenance,
+                        existing: nil,
+                        telemetry: telemetry
+                    )
+                    return
+                }
+                codexEvidenceProvenance = evidence.provenance
+            case .missing:
+                logCodexResumeBindingRejection(
+                    reason: "rollout-missing",
+                    sessionId: sessionId,
+                    incoming: nil,
+                    existing: nil,
+                    telemetry: telemetry
+                )
+                clearAgentSurfaceResumeBinding(
+                    client: client,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionId: sessionId,
+                    responseTimeout: responseTimeout,
+                    deadline: deadline
+                )
+                return
+            case .unavailable:
+                logCodexResumeBindingRejection(
+                    reason: "rollout-store-unavailable",
+                    sessionId: sessionId,
+                    incoming: nil,
+                    existing: nil,
+                    telemetry: telemetry
+                )
+                return
+            }
+        } else if !agentHookSessionHasDurableResumeEvidence(kind: kind, launchCommand: launchCommand) {
+            clearAgentSurfaceResumeBinding(
+                client: client,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                sessionId: sessionId,
+                responseTimeout: responseTimeout,
+                deadline: deadline
+            )
             return
         }
         let resumeEnvironment = agentSurfaceResumeEnvironment(kind: kind, environment: launchCommand?.environment)
@@ -34321,6 +34362,7 @@ export default CMUXSessionRestore;
         let inferredPID = liveProcessIdentityAllowed
             ? (agentPIDFromHookEnvironment(agentName: def.name, env: env) ?? inferredAgentPID())
             : nil
+        let processBindingPolicy: AgentProcessBindingResolution = def.name == "omp" ? .controllingTTY : .corroborated
         let hookWsFlag = optionValue(hookArgs, name: "--workspace")
         let directWorkspaceArg = hookWsFlag
             ?? snapshottedRoute?.workspaceId
@@ -34382,28 +34424,39 @@ export default CMUXSessionRestore;
         // stale/invalid AMBIENT CMUX_WORKSPACE_ID must not abort routing — treated as absent, it falls
         // through to the PID/TTY binding below, which is ground truth.
         let hasInvalidDirectWorkspaceArg = hookWsFlag != nil && resolvedDirectWorkspaceArg == nil
-        var processBindingCache: CallerTerminalBinding?
-        var didResolveProcessBinding = false
-        func processBinding() -> CallerTerminalBinding? {
-            guard !relayOrigin else { return nil }
-            if !didResolveProcessBinding {
-                didResolveProcessBinding = true
-                // Always resolve the agent process's own terminal binding (TTY first, then PID), even
-                // when env supplies both ids. Historically this was suppressed whenever both env ids
-                // were present, which made a leaked/stale CMUX_SURFACE_ID impossible to correct — the
-                // codex jumble class, where a session routes to the wrong surface and the no-pid-gate
-                // resume binding persists it across reload. resolveAgentHookTarget now uses this
-                // binding to OVERRIDE a disagreeing ambient-env surface; the binding stays nil (env
-                // trusted) under remote/SSH where no local TTY maps to a surface.
-                processBindingCache = routeWasSnapshotted
-                    ? snapshottedRoute
-                    : resolveCallerTerminalBindingByTTY(client: client)
-                        ?? resolveAgentProcessTerminalBinding(
-                            pid: inferredPID,
-                            client: client
-                        )
+        var processBindingCache: AgentHookProcessBindingResult?
+        func processBindingResolution() -> AgentHookProcessBindingResult {
+            if let processBindingCache { return processBindingCache }
+            let resolved: AgentHookProcessBindingResult
+            if routeWasSnapshotted {
+                if let snapshottedRoute {
+                    resolved = AgentHookProcessBindingResult(
+                        binding: snapshottedRoute,
+                        source: .liveProcess,
+                        rejectsAmbientClaim: false
+                    )
+                } else {
+                    resolved = AgentHookProcessBindingResult(
+                        binding: nil,
+                        source: nil,
+                        rejectsAmbientClaim: true
+                    )
+                }
+            } else if relayOrigin {
+                resolved = AgentHookProcessBindingResult(
+                    binding: nil,
+                    source: nil,
+                    rejectsAmbientClaim: true
+                )
+            } else {
+                resolved = resolveAgentHookProcessBinding(
+                    pid: inferredPID,
+                    resolution: processBindingPolicy,
+                    client: client
+                )
             }
-            return processBindingCache
+            processBindingCache = resolved
+            return resolved
         }
         func processBinding() -> CallerTerminalBinding? { processBindingResolution().binding }
 #if DEBUG
@@ -34762,11 +34815,10 @@ export default CMUXSessionRestore;
         // restore record, clear the surface resume binding, and clear PID routing.
         func performAgentSessionTeardown() {
             guard let mapped = sessionId.isEmpty ? nil : (try? store.lookup(sessionId: sessionId)) else { return }
-            sendAgentFeedTelemetry(workspaceId: mapped.workspaceId)
-            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: localAgentPID(mapped: mapped),
-                env: env
-            )
+            if def.name != "cursor" {
+                sendAgentFeedTelemetry(workspaceId: mapped.workspaceId)
+            }
+            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(currentAgentPID: mapped.pid, env: env)
             if suppressVisibleMutations {
                 telemetry.breadcrumb("\(def.name)-hook.session-end.nested-suppressed")
             } else if let consumed = try? store.consume(sessionId: sessionId, workspaceId: nil, surfaceId: nil) {
@@ -35791,7 +35843,63 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
-            let pid = localAgentPID(mapped: mapped)
+            if let codexLifecycle {
+                let ownership = codexLifecycle.promptSubmit(
+                    sessionID: sessionId,
+                    turnID: input.turnId,
+                    workspaceID: workspaceId,
+                    surfaceID: surfaceId
+                )
+                guard ownership.ownership == .foreground else {
+                    telemetry.breadcrumb("codex-hook.prompt-submit.nested-or-unknown")
+                    emitJournal(
+                        .turnStarted,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        isSubagent: true,
+                        detail: "nested-prompt-submit"
+                    )
+                    print("{}")
+                    return
+                }
+            }
+            var cursorPromptApprovalNotificationKeys: [String] = []
+            var cursorPromptShouldPreservePendingState = false
+            if def.name == "cursor", !sessionId.isEmpty {
+                guard acquireCursorLifecycleLease(surfaceId: surfaceId) else {
+                    print("{}")
+                    return
+                }
+                if let clearResult = try? store.clearCursorShellApprovals(
+                    sessionId: sessionId,
+                    deadline: cursorShellDeadline
+                ) {
+                    cursorPromptApprovalNotificationKeys = clearResult.notificationCorrelationKeys
+                } else {
+                    cursorPromptShouldPreservePendingState = true
+                }
+                if let hasOtherPending = try? store.hasPendingCursorShellApproval(
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    excludingSessionId: sessionId,
+                    deadline: cursorShellDeadline
+                ) {
+                    cursorPromptShouldPreservePendingState = cursorPromptShouldPreservePendingState || hasOtherPending
+                } else {
+                    cursorPromptShouldPreservePendingState = true
+                    telemetry.breadcrumb("cursor-hook.prompt-submit.pending-lookup-failed")
+                }
+            }
+            if def.name == "omp", let mapped {
+                clearSupersededAgentHookSessions(
+                    [],
+                    owner: mapped,
+                    statusKey: def.statusKey,
+                    store: store,
+                    client: client
+                )
+            }
+            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
             let launchCommand = agentLaunchCommandFromEnvironment(env, fallbackPID: pid, fallbackKind: def.name, cwd: hookCwd ?? mapped?.cwd)
             let transcriptPathForStore = localTranscriptPath(mapped: mapped)
             let resumeLaunchCommand = preferredAgentHookResumeLaunchCommand(
@@ -36030,11 +36138,17 @@ export default CMUXSessionRestore;
                 stopStaleCodexPromptSubmit()
                 return
             }
-            if !relayOrigin, let pid, !suppressVisibleMutations {
-                _ = try? sendV1Command(
-                    "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                    client: client
-                )
+            if let pid, !suppressVisibleMutations {
+                if def.name == "cursor" {
+                    sendCursorCriticalCommand(
+                        "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
+                    )
+                } else {
+                    _ = try? sendV1Command(
+                        "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                        client: client
+                    )
+                }
                 if codexPromptTurnWentTerminal() {
                     stopStaleCodexPromptSubmit(restoreVisibleState: true)
                     return
@@ -36146,8 +36260,44 @@ export default CMUXSessionRestore;
             }
 
         case .stop:
-            if !relayOrigin, def.name == "codex", !sessionId.isEmpty {
-                let stopTurnId = input.turnId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let mapped = sessionId.isEmpty ? nil : (try? store.lookup(sessionId: sessionId))
+            let effectiveCodexStopTurnID = def.name == "codex" && isCodexSettledStopRetry
+                ? (normalizedHookValue(input.turnId) ?? settledStopTurnID)
+                : input.turnId
+            let resolvedTarget = resolveAgentHookTarget(mapped: mapped)
+            let resolvedWorkspaceId = resolvedTarget?.workspaceId
+            let resolvedSurfaceId = resolvedTarget?.surfaceId
+            // Admit ownership before touching the legacy prompt-depth store.
+            // A nested reviewer must not be able to create or mutate a generic
+            // session record merely because it inherited the foreground PID.
+            let codexStopOwnership: CodexTurnLedgerDecision? = {
+                guard def.name == "codex",
+                      !sessionId.isEmpty,
+                      let codexLifecycle else {
+                    return nil
+                }
+                return codexLifecycle.observe(
+                    sessionID: sessionId,
+                    workspaceID: resolvedWorkspaceId,
+                    surfaceID: resolvedSurfaceId,
+                    allowCreate: resolvedTarget != nil
+                )
+            }()
+            var codexStopDecision = codexStopOwnership
+            if def.name == "codex", !sessionId.isEmpty,
+               resolvedTarget != nil || codexStopOwnership?.ownership == .foreground {
+                guard codexStopDecision?.ownership == .foreground else {
+                    telemetry.breadcrumb("codex-hook.stop.nested-or-unknown")
+                    print("{}")
+                    return
+                }
+            }
+            // Retire only after the ledger admits this callback as the
+            // foreground owner. A nested reviewer must not tear down the
+            // foreground Codex transcript monitor while it inherits its PID.
+            if def.name == "codex", !sessionId.isEmpty,
+               codexStopDecision?.ownership == .foreground {
+                let stopTurnId = normalizedHookValue(effectiveCodexStopTurnID) ?? ""
                 if !stopTurnId.isEmpty {
                     retireCodexMonitorLeases(sessionId: sessionId, turnId: stopTurnId, env: env)
                 }
@@ -36187,22 +36337,22 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
-            sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
-            let pid = localAgentPID(mapped: mapped)
+            if def.name == "omp", let mapped {
+                clearSupersededAgentHookSessions(
+                    [],
+                    owner: mapped,
+                    statusKey: def.statusKey,
+                    store: store,
+                    client: client
+                )
+            }
+            if def.name != "cursor" {
+                sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
+            }
+            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
             let codexFailure: CodexHookFailureSummary?
             if def.name == "codex" {
                 codexFailure = summarizeCodexHookFailure(parsedInput: input, sessionId: sessionId, env: env)
-                if !relayOrigin,
-                   subagentNotificationSuppressionEnabled(env: env),
-                   let transcriptPath = normalizedHookValue(hookTranscriptPath)
-                    ?? findCodexTranscriptPath(sessionId: sessionId, env: env) {
-                    codexSubagentSignals = readCodexTranscriptSubagentSignals(
-                        path: transcriptPath,
-                        turnId: input.turnId
-                    )
-                } else {
-                    codexSubagentSignals = CodexTranscriptSubagentSignals()
-                }
             } else {
                 codexFailure = nil
             }
@@ -36453,14 +36603,15 @@ export default CMUXSessionRestore;
             )
 
             if !sessionId.isEmpty, !suppressVisibleMutations {
-                try? store.upsert(sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, cwd: cwd,
-                                  transcriptPath: localTranscriptPath(mapped: mapped),
-                                  pid: pid,
-                                  launchCommand: resumeLaunchCommand,
-                                  agentLifecycle: lifecycleAfterStop,
-                                  lastSubtitle: subtitle,
-                                  lastBody: body,
-                                  lastNotificationStatus: stopNotificationStatus,
+                _ = try? store.upsert(sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, cwd: cwd,
+                    transcriptPath: input.transcriptPath ?? mapped?.transcriptPath,
+                    pid: pid,
+                    launchCommand: resumeLaunchCommand,
+                    agentLifecycle: lifecycleAfterStop,
+                    hookEventName: persistedHookEventName,
+                    lastSubtitle: (def.name == "codex" && codexHasActiveBackgroundWork) ? nil : subtitle,
+                                  lastBody: (def.name == "codex" && codexHasActiveBackgroundWork) ? nil : body,
+                                  lastNotificationStatus: (def.name == "codex" && codexHasActiveBackgroundWork) ? nil : stopNotificationStatus,
                                   updateLastNotificationStatus: true,
                                   runtimeStatus: (hasActiveBackgroundWork && stopNotificationStatus == .idle) ? .running : runtimeStatus(for: stopNotificationStatus),
                                   updateRuntimeStatus: true)
@@ -36482,11 +36633,17 @@ export default CMUXSessionRestore;
                     telemetry: telemetry
                 )
             }
-            if !relayOrigin, let pid, !suppressVisibleMutations {
-                _ = try? sendV1Command(
-                    "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                    client: client
-                )
+            if let pid, !suppressVisibleMutations {
+                if def.name == "cursor" {
+                    sendCursorCriticalCommand(
+                        "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
+                    )
+                } else {
+                    _ = try? sendV1Command(
+                        "set_agent_pid \(pidKey) \(pid) --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                        client: client
+                    )
+                }
             }
 
             let notificationFingerprint = notificationDedupeFingerprint(
@@ -36700,7 +36857,7 @@ export default CMUXSessionRestore;
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
             sendAgentFeedTelemetryUnlessSuppressed(workspaceId: workspaceId, surfaceId: surfaceId)
-            let pid = localAgentPID(mapped: mapped)
+            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
             let launchCommand = agentLaunchCommandFromEnvironment(
                 env,
                 fallbackPID: pid,
@@ -37004,15 +37161,13 @@ export default CMUXSessionRestore;
             }
 
             if !sessionId.isEmpty {
-                let pid = localAgentPID(mapped: mapped)
-                let launchCommand = relayOrigin
-                    ? nil
-                    : agentLaunchCommandFromEnvironment(
-                        env,
-                        fallbackPID: pid,
-                        fallbackKind: def.name,
-                        cwd: notificationCwd
-                    )
+                let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+                let launchCommand = agentLaunchCommandFromEnvironment(
+                    env,
+                    fallbackPID: pid,
+                    fallbackKind: def.name,
+                    cwd: hookCwd ?? mapped?.cwd
+                )
                 let lifecycle = suppressPendingWaitingState ? .running : agentLifecycle(for: summary.status)
                 let storedRuntimeStatus: AgentHookRuntimeStatus? = suppressPendingWaitingState ? .running : runtimeStatus(for: summary.status)
                 // These agents use completion notifications as turn boundaries;
@@ -37026,7 +37181,8 @@ export default CMUXSessionRestore;
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
                         cwd: notificationCwd,
-                        transcriptPath: localTranscriptPath(mapped: mapped),
+                        transcriptPath: input.transcriptPath ?? mapped?.transcriptPath,
+                        turnId: input.turnId,
                         pid: pid,
                         launchCommand: launchCommand,
                         agentLifecycle: lifecycle,
@@ -37216,7 +37372,19 @@ export default CMUXSessionRestore;
             sendAgentFeedTelemetryUnlessSuppressed(workspaceId: workspaceId, surfaceId: surfaceId)
 
         case .sessionEnd:
-            if !relayOrigin, def.name == "codex", !sessionId.isEmpty {
+            if let codexLifecycle, !sessionId.isEmpty {
+                let ownership = codexLifecycle.sessionEnd(
+                    sessionID: sessionId,
+                    workspaceID: resolvedDirectWorkspaceArg,
+                    surfaceID: resolvedDirectSurfaceArg
+                )
+                guard ownership.ownership == .foreground else {
+                    telemetry.breadcrumb("codex-hook.session-end.nested-or-unknown")
+                    print("{}")
+                    return
+                }
+            }
+            if def.name == "codex", !sessionId.isEmpty {
                 retireCodexMonitorLeases(sessionId: sessionId, turnId: nil, env: env)
             }
             if def.sessionEndIsTurnBoundary {
@@ -37413,7 +37581,7 @@ export default CMUXSessionRestore;
             "hook_event_name": hookEventName,
             "_source": source,
         ]
-        if let agentPid {
+        if agentPid > 0 {
             event["_ppid"] = agentPid
         }
         if let workspaceId = feedWorkspaceId(rawObject: parsedInput.object, fallback: workspaceId) {
@@ -37633,9 +37801,9 @@ export default CMUXSessionRestore;
     private func agentPidForFeedSource(
         _ source: String,
         env: [String: String] = ProcessInfo.processInfo.environment
-    ) -> Int? {
+    ) -> Int {
         guard env[agentHookRelayOriginEnvironmentKey] != "1" else {
-            return nil
+            return 0
         }
         let envKey: String
         switch source {
@@ -39870,7 +40038,7 @@ export default CMUXSessionRestore;
             "hook_event_name": hookEventName,
             "_source": source,
         ]
-        if let agentPid {
+        if agentPid > 0 {
             eventDict["_ppid"] = agentPid
         }
         if let workspaceId = feedWorkspaceId(rawObject: stdinObj, fallback: env["CMUX_WORKSPACE_ID"]) {
@@ -39940,18 +40108,67 @@ export default CMUXSessionRestore;
         // If the user doesn't click in time the hook emits {}
         // and Claude falls back to its native TUI prompt.
         //
-        // Non-actionable telemetry remains one-way and best effort.
-        if !isActionable {
-            let request: [String: Any] = [
-                "method": "feed.push",
-                "params": [
-                    "event": eventDict,
-                    "wait_timeout_seconds": 0,
-                ],
-            ]
+        // The response deadline stays below the generated 120s process
+        // timeout, so a stalled daemon still returns neutral output before
+        // the agent kills (and may deny) the hook subprocess.
+        let waitTimeout = isActionable ? Self.feedHookDecisionWaitSeconds : 0
+        let shouldAwaitTelemetryIngestion = source == "pi"
+        let params: [String: Any] = [
+            "event": eventDict,
+            "wait_timeout_seconds": waitTimeout,
+        ]
+
+        var request: [String: Any] = [
+            "method": "feed.push",
+            "params": params,
+        ]
+        if waitTimeout > 0 || shouldAwaitTelemetryIngestion {
+            request["id"] = UUID().uuidString
+        }
+
+        if waitTimeout == 0 && !shouldAwaitTelemetryIngestion {
             let payload = try JSONSerialization.data(withJSONObject: request)
             let line = String(data: payload, encoding: .utf8) ?? "{}"
-            if let client {
+            // Codex-style agents block in their own approval UI while this
+            // (telemetry) event is their only signal, so the permission-prompt
+            // notification — and the clear once execution proceeds — ride
+            // alongside the feed frame. The attention signal goes FIRST and
+            // is AWAITED (bounded); the feed frame stays one-way best-effort
+            // telemetry on its own bounded connection — a relay-backed `send`
+            // closes its socket after the acknowledged command, and an
+            // implicit reconnect inside `sendOneWay` is not bounded by the
+            // write timeout.
+            //
+            // Known accepted residual: codex's fire-and-forget prompt-submit
+            // worker clears the pane at turn start from a DETACHED process.
+            // If that worker is slower than the model's first approval-needing
+            // tool call, its late clear can remove this notification — the
+            // same pre-existing exposure the wrapper-path notification
+            // (`hooks codex notification`) has always had. Fencing clears by
+            // origin time is a cross-layer protocol change deliberately out
+            // of scope here.
+            let sendsAttention = classification.notifiesNativeApprovalPrompt
+                || classification.clearsNativeApprovalPrompt
+            if sendsAttention {
+                deliverNativeApprovalPromptAttention(
+                    classification: classification,
+                    source: source,
+                    toolName: toolName,
+                    eventDict: eventDict,
+                    env: env,
+                    client: client,
+                    socketPath: socketPath,
+                    socketPassword: socketPassword
+                )
+                let telemetrySocketPath = socketPath ?? client?.socketPath
+                if let telemetrySocketPath {
+                    sendBestEffortFeedTelemetry(
+                        socketPath: telemetrySocketPath,
+                        line: line,
+                        socketPassword: socketPassword
+                    )
+                }
+            } else if let client {
                 _ = try? client.sendOneWay(command: line, writeTimeout: 0.05)
             } else if let socketPath {
                 sendBestEffortFeedTelemetry(
@@ -39966,19 +40183,9 @@ export default CMUXSessionRestore;
 
         var ownedClient: SocketClient?
         defer { ownedClient?.close() }
-        let elapsedBeforeConnect = max(
-            0,
-            ProcessInfo.processInfo.systemUptime - invocationStartedAt
+        let clientDeadline = Date().addingTimeInterval(
+            shouldAwaitTelemetryIngestion ? 4 : Self.feedHookClientDeadlineSeconds
         )
-        let remainingClientBudget = Self.feedHookClientDeadlineSeconds - elapsedBeforeConnect
-        guard remainingClientBudget > 0 else {
-            print("{}")
-            return
-        }
-        // Use one absolute deadline for connection, authentication, queue
-        // ordering, and the Feed decision response. This prevents each phase
-        // from starting a fresh timeout and outliving the agent's hook process.
-        let clientDeadline = Date().addingTimeInterval(remainingClientBudget)
 
         func remainingResponseTime() throws -> TimeInterval {
             let remaining = clientDeadline.timeIntervalSinceNow
@@ -40017,43 +40224,20 @@ export default CMUXSessionRestore;
             return
         }
 
-        do {
-            try waitForPriorAgentHookDeliveries(
-                agent: source,
-                client: activeClient,
-                socketPassword: socketPassword,
-                responseTimeout: min(
-                    TimeInterval(Self.agentHookBarrierResponseTimeoutSeconds),
-                    try remainingResponseTime()
-                ),
-                deadline: clientDeadline
-            )
-        } catch {
-            print("{}")
-            return
+        if shouldAwaitTelemetryIngestion {
+            if let target = try resolvePiFeedClaim(commandArgs: commandArgs, client: activeClient) {
+                if let workspaceId = target.workspaceId {
+                    eventDict["workspace_id"] = workspaceId
+                }
+                eventDict["surface_id"] = target.surfaceId
+                request["params"] = [
+                    "event": eventDict,
+                    "wait_timeout_seconds": waitTimeout,
+                ]
+            }
         }
-
-        // Leave three seconds inside the absolute client deadline for the
-        // response envelope and neutral fallback output.
-        let waitTimeout = min(
-            Self.feedHookDecisionWaitSeconds,
-            max(0, try remainingResponseTime() - 3)
-        )
-        guard waitTimeout > 0 else {
-            print("{}")
-            return
-        }
-        let request: [String: Any] = [
-            "id": UUID().uuidString,
-            "method": "feed.push",
-            "params": [
-                "event": eventDict,
-                "wait_timeout_seconds": waitTimeout,
-            ],
-        ]
         let payload = try JSONSerialization.data(withJSONObject: request)
         let line = String(data: payload, encoding: .utf8) ?? "{}"
-
         let response: String
         do {
             response = try activeClient.send(
@@ -41554,10 +41738,7 @@ private enum CMUXCLIOutput {
 
 @main
 struct CMUXTermMain {
-    static func main() {
-        if ProcessInfo.processInfo.environment["CMUX_AGENT_HOOK_DELIVERY_PROCESS_GROUP"] == "1" {
-            _ = Darwin.setpgid(0, 0)
-        }
+    static func main() async {
         let initialSIGPIPEInspectionPayload = CMUXCLI.currentSIGPIPEInspectionPayload()
         _ = signal(SIGPIPE, SIG_DFL)
         configureCLIStdioNoSIGPIPE()

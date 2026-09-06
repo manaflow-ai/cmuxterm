@@ -26,6 +26,7 @@ interface SessionState {
   pendingCompletion?: PendingCompletion;
   feedDeliveryFailed: boolean;
   stopped: boolean;
+  needsSessionFinalize: boolean;
 }
 
 interface CommandResult {
@@ -472,7 +473,12 @@ function snapshotContext(ctx: ExtensionContext): PiExtensionContextSnapshot {
 function stateFor(sessionStates: Map<string, SessionState>, sessionId: string): SessionState {
   let state = sessionStates.get(sessionId);
   if (!state) {
-    state = { nextTurn: 0, feedDeliveryFailed: false, stopped: false };
+    state = {
+      nextTurn: 0,
+      feedDeliveryFailed: false,
+      stopped: false,
+      needsSessionFinalize: false,
+    };
     sessionStates.set(sessionId, state);
   }
   return state;
@@ -491,6 +497,7 @@ function beginTurn(sessionStates: Map<string, SessionState>, sessionId: string, 
   state.activeTurnId = turnId;
   state.pendingCompletion = undefined;
   state.stopped = false;
+  state.needsSessionFinalize = false;
   return turnId;
 }
 
@@ -578,5 +585,6 @@ function runCmux(args: string[], cwd: string, input?: string): CommandResult {
       elapsedMs: Date.now() - startedAt,
     };
   }
+}
 """#
 }

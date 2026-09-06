@@ -250,7 +250,11 @@ extension CMUXCLI {
         return path
     }
 
-    static func feedHookCommandString(for def: AgentHookDef, agentEvent: String) -> String {
+    static func feedHookCommandString(
+        for def: AgentHookDef,
+        agentEvent: String,
+        materializeCodexScripts: Bool = true
+    ) -> String {
         let inline: String
         let noOpCommand = feedHookNoOpShellCommand(for: def, agentEvent: agentEvent)
         switch def.format {
