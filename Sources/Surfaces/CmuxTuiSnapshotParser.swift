@@ -452,7 +452,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 return leftID < rightID
             }
             return left.offset < right.offset
-        }
+        }.map { (element: $0.element, offset: $0.offset) }
     }
 
     /// Returns every valid placement of a terminal. The tab content edge is
