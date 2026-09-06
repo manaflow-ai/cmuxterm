@@ -128,7 +128,7 @@ import Testing
     }
 
     @Test func repairsManagedThemeWhenFileStartsWithUTF8BOM() {
-        let contents = "\u{FEFF}# cmux themes start\n"
+        let contents = "\u{FEFF}  # cmux themes start\n"
             + "theme = light:Solarized Light\n"
             + "# cmux themes end\n"
 
