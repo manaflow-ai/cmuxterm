@@ -214,6 +214,15 @@ export type CmuxRemoteEndpoint = {
     remoteProtocol: number | null;
     version: string | null;
   };
+  /**
+   * The daemon's cloud listener grants carrier authentication: the client dials
+   * `remote connect --carrier` with no enrollment and no invitation, because the
+   * route is reachable only inside the owner's private network. False only for
+   * a daemon the provider could not bring to the trusted build, in which case
+   * an already-enrolled device may still dial with its stored key.
+   */
+  trustedCarrier: boolean;
+  /** @deprecated Never returned since the trusted listener; kept so older clients decode. */
   invitation?: {
     /** Single-use `cmux://enroll/...` URI; the client must pass it via `--invite-file`, never argv. */
     uri: string;
@@ -478,7 +487,9 @@ export interface VMProvider {
   // Every cmux Cloud machine runs this daemon; providers that have not been migrated
   // leave this undefined.
   openCmuxRemote?(vmId: string, options?: CmuxRemoteAttachOptions): Promise<CmuxRemoteEndpoint>;
-  // Optional: approve the pending enrollment a previous openCmuxRemote invited.
+  // Optional, compatibility only: the trusted listener needs no approval, so a
+  // provider answers `approved` without touching the machine. Older Mac builds
+  // still call it once after their first connect.
   approveCmuxRemoteEnrollment?(
     vmId: string,
     invitationId: string,
