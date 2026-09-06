@@ -2549,7 +2549,7 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
         XCTAssertTrue(
             workspace.updateRemotePanelDirectory(
                 panelId: sourcePanelId,
-                directory: "/srv/cmux/selected-\(UUID().uuidString)"
+                directory: "/srv/cmux/selected"
             )
         )
 
@@ -2563,7 +2563,7 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
         XCTAssertNil(withoutFallback.requestedWorkingDirectory)
         XCTAssertNil(withoutFallback.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"))
 
-        let explicitDirectory = "/srv/cmux/explicit-\(UUID().uuidString)"
+        let explicitDirectory = "/srv/cmux/explicit"
         let withExplicitDirectory = try XCTUnwrap(
             workspace.newTerminalSurface(
                 inPane: paneId,
