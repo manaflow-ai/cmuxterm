@@ -2048,11 +2048,13 @@ class TerminalController {
         )
     }
 
+    private nonisolated static let socketCommandTokenAllowedCharacters =
+        CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-:")
+
     private nonisolated static func sanitizedSocketCommandToken(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-:")
         let scalars = trimmed.unicodeScalars.map { scalar -> Character in
-            allowed.contains(scalar) ? Character(scalar) : "_"
+            Self.socketCommandTokenAllowedCharacters.contains(scalar) ? Character(scalar) : "_"
         }
         let sanitized = String(scalars).prefix(96)
         return sanitized.isEmpty ? "<empty>" : String(sanitized)
@@ -2446,7 +2448,7 @@ class TerminalController {
             return SocketCommandProcessingResult(
                 response: mainThreadSocketCommandWatchdog.monitor(
                     descriptor: descriptor,
-                    startNs: commandStartNs
+                    startNs: DispatchTime.now().uptimeNanoseconds
                 ) {
                     CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
                         processParsedV2Command(request)
@@ -2496,7 +2498,7 @@ class TerminalController {
         return SocketCommandProcessingResult(
             response: mainThreadSocketCommandWatchdog.monitor(
                 descriptor: descriptor,
-                startNs: commandStartNs
+                startNs: DispatchTime.now().uptimeNanoseconds
             ) {
                 v2MainSync(commandKey: cmd) {
                     self.processCommand(command)
