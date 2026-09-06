@@ -1961,7 +1961,7 @@ const RESUME_SETTLE_INTERVAL = "1 second";
 type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize";
 
 type ResumePreflightOptions = {
-  /** Current resolved allowance; null explicitly means uncapped. */
+  /** Resolved billing-scope allowance; null is unlimited, undefined uses the plan default. */
   readonly maxActiveVms?: number | null;
   /**
    * Probe the provider even when Postgres still says `running`. Providers may
@@ -2039,12 +2039,11 @@ function resumeUntilRunning(
   });
 }
 
-/** Reserve a resume against the caller's current allowance, including paid seats. */
 function reservePausedResumeIfTeam(
   repo: VmRepositoryShape,
   vm: CloudVmRow,
   providerVmId: string,
-  maxActiveVms?: number | null,
+  maxActiveVms: number | null = maxActiveVmsForPlan(vm.billingPlanId),
 ): Effect.Effect<boolean, VmWorkflowError> {
   if (!vm.billingTeamId) return Effect.succeed(false);
   return Effect.gen(function* () {
@@ -2053,7 +2052,7 @@ function reservePausedResumeIfTeam(
       userId: vm.userId,
       billingTeamId: vm.billingTeamId,
       providerVmId,
-      maxActiveVms: maxActiveVms === undefined ? maxActiveVmsForPlan(vm.billingPlanId) : maxActiveVms,
+      maxActiveVms,
     });
     if (!reserved) {
       return yield* Effect.fail(new VmNotFoundError({ vmId: providerVmId }));
@@ -2511,7 +2510,7 @@ export function execVm(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
-  /** Current account allowance, already scaled by paid seats. */
+  /** Current billing-scope machine allowance; null means unlimited. */
   readonly maxActiveVms?: number | null;
   readonly command: string;
   readonly timeoutMs: number;
@@ -2630,7 +2629,7 @@ export function resizeVm(input: {
         providerVmId: input.providerVmId,
         currentDiskMb: currentMb,
         storageMb: input.storageMb,
-        maxActiveVms: input.maxActiveVms ?? maxActiveVmsForPlan(vm.billingPlanId),
+        maxActiveVms: input.maxActiveVms === undefined ? maxActiveVmsForPlan(vm.billingPlanId) : input.maxActiveVms,
       });
       if (!reservation) {
         return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
@@ -2744,7 +2743,7 @@ export function openVmPort(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
-  /** Current account allowance, already scaled by paid seats. */
+  /** Current billing-scope machine allowance; null means unlimited. */
   readonly maxActiveVms?: number | null;
   readonly port: number;
   /** Caller's CURRENT billing plan; used for the free access window. */
@@ -2820,7 +2819,7 @@ export function openVmCmuxRemote(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
-  /** Current account allowance, already scaled by paid seats. */
+  /** Current billing-scope machine allowance; null means unlimited. */
   readonly maxActiveVms?: number | null;
   readonly deviceFingerprint?: string;
   readonly clientCapabilities?: readonly string[];
@@ -2987,7 +2986,7 @@ type OpenAttachEndpointInput = {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
-  /** Current account allowance, already scaled by paid seats. */
+  /** Current billing-scope machine allowance; null means unlimited. */
   readonly maxActiveVms?: number | null;
   readonly options?: AttachOptions;
   readonly sessionTitle?: string | null;
@@ -3007,7 +3006,7 @@ export function openVmSession(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
-  /** Current account allowance, already scaled by paid seats. */
+  /** Current billing-scope machine allowance; null means unlimited. */
   readonly maxActiveVms?: number | null;
   readonly sessionId?: string;
   readonly attachmentId?: string;

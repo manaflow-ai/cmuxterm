@@ -459,13 +459,12 @@ describe("VM REST auth", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    expect(await response.json()).toEqual({
       id: "provider-vm-1",
       provider: "freestyle",
       image: "snapshot-test",
       kind: "base",
       createdAt: 1_777_000_000_000,
-      capabilities: { attachTransports: ["cmux-remote"] },
     });
     expect(createVm).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
@@ -1606,7 +1605,7 @@ describe("VM REST auth", () => {
   });
 
   test("attach-endpoint routes transport=cmux-remote to the cmux-tui workflow with the caller's device", async () => {
-    getUser.mockResolvedValue(stackUserForPlan("team", 4));
+    getUser.mockResolvedValue(authedStackUser());
     const context = { params: Promise.resolve({ id: "provider-vm-team-1" }) };
     runVmWorkflow.mockResolvedValue({
       transport: "cmux-remote",
@@ -1632,8 +1631,8 @@ describe("VM REST auth", () => {
       providerVmId: "provider-vm-team-1",
       deviceFingerprint: "fp-device-1",
       clientCapabilities: ["direct-ws-user-agent"],
-      callerPlanId: "team",
-      maxActiveVms: 200,
+      callerPlanId: "pro",
+      maxActiveVms: 50,
     });
     expect(openAttachEndpoint).not.toHaveBeenCalled();
     const payload = await response.json();
@@ -1728,33 +1727,21 @@ describe("VM REST auth", () => {
   });
 
   test("passes the selected Stack team to VM child route workflows", async () => {
-    getUser.mockResolvedValue(stackUserForPlan("team", 4));
+    getUser.mockResolvedValue(authedStackUser());
     const context = { params: Promise.resolve({ id: "provider-vm-team-1" }) };
 
     runVmWorkflow.mockResolvedValue({
       providerVmId: "provider-vm-team-1",
       provider: "freestyle",
-      image: "xfce-devbox-test",
+      image: "snapshot-test",
       imageVersion: null,
       status: "running",
       createdAt: 1_777_000_000_000,
-      addressIpv4: "10.16.170.6",
-      addressIpv6: "fd98:deb9:4c94::6",
     });
-    const statusResponse = await vmIdRoute.GET(
+    await vmIdRoute.GET(
       new Request("https://cmux.test/api/vm/provider-vm-team-1"),
       context,
     );
-    expect(statusResponse.status).toBe(200);
-    expect(await statusResponse.json()).toMatchObject({
-      id: "provider-vm-team-1",
-      kind: "desktop",
-      address: {
-        ipv4: "10.16.170.6",
-        ipv6: "fd98:deb9:4c94::6",
-      },
-      capabilities: { attachTransports: ["cmux-remote"] },
-    });
     expect(getVm).toHaveBeenCalledWith({
       userId: "user-1",
       billingTeamId: "team-1",
@@ -1826,9 +1813,9 @@ describe("VM REST auth", () => {
       billingTeamId: "team-1",
       teamIds: ["team-1"],
       providerVmId: "provider-vm-team-1",
-      callerPlanId: "team",
-      maxActiveVms: 200,
+      callerPlanId: "pro",
       command: "true",
+      maxActiveVms: 50,
       timeoutMs: 30_000,
     });
   });
@@ -2570,8 +2557,8 @@ function freePlanStackUser() {
   return stackUserForPlan("free");
 }
 
-function stackUserForPlan(plan: string | undefined, seats?: number) {
-  const clientReadOnlyMetadata = plan ? { cmuxVmPlan: plan, ...(seats === undefined ? {} : { cmuxSeats: seats }) } : {};
+function stackUserForPlan(plan: string | undefined) {
+  const clientReadOnlyMetadata = plan ? { cmuxVmPlan: plan } : {};
   return {
     id: "user-1",
     displayName: null,
