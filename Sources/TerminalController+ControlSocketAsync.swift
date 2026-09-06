@@ -87,20 +87,20 @@ extension TerminalController {
             }
 
             let relayAuthorization = authorizeRemoteRelayRequest(request)
-            let parsedPolicy = Self.executionPolicy(forV2Method: request.method)
-            let parsedDescriptor = Self.socketCommandDescriptor(
+            let authorizedRequest = relayAuthorization.request
+            let policy = Self.executionPolicy(forV2Method: authorizedRequest.method)
+            let descriptor = Self.socketCommandDescriptor(
                 protocolName: "v2",
-                method: request.method,
-                policy: parsedPolicy,
+                method: authorizedRequest.method,
+                policy: policy,
                 peerPid: peerPid
             )
             if let errorResponse = relayAuthorization.errorResponse {
                 return SocketCommandProcessingResult(
                     response: errorResponse,
-                    descriptor: parsedDescriptor
+                    descriptor: descriptor
                 )
             }
-            let authorizedRequest = relayAuthorization.request
             let automationOrigin = CmuxAutomationInvocationContext.eventOrigin
             if let focusError = Self.focusSuppressionResponse(
                 method: authorizedRequest.method,
@@ -109,7 +109,7 @@ extension TerminalController {
             ) {
                 return SocketCommandProcessingResult(
                     response: focusError,
-                    descriptor: parsedDescriptor
+                    descriptor: descriptor
                 )
             }
             if let workspaceParamError = v2UnsupportedWorkspaceAliasError(
@@ -121,17 +121,10 @@ extension TerminalController {
                         id: authorizedRequest.id?.foundationObject,
                         workspaceParamError
                     ),
-                    descriptor: parsedDescriptor
+                    descriptor: descriptor
                 )
             }
 
-            let policy = Self.executionPolicy(forV2Method: authorizedRequest.method)
-            let descriptor = Self.socketCommandDescriptor(
-                protocolName: "v2",
-                method: authorizedRequest.method,
-                policy: policy,
-                peerPid: peerPid
-            )
             let response = await CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
                 await withSocketCommandPolicyAsync(
                     commandKey: authorizedRequest.method,

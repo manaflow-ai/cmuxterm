@@ -2374,20 +2374,20 @@ class TerminalController {
             }
 
             let relayAuthorization = authorizeRemoteRelayRequest(parsedRequest)
-            let parsedPolicy = Self.executionPolicy(forV2Method: parsedRequest.method)
-            let parsedDescriptor = Self.socketCommandDescriptor(
+            let request = relayAuthorization.request
+            let policy = Self.executionPolicy(forV2Method: request.method)
+            let descriptor = Self.socketCommandDescriptor(
                 protocolName: "v2",
-                method: parsedRequest.method,
-                policy: parsedPolicy,
+                method: request.method,
+                policy: policy,
                 peerPid: peerPid
             )
             if let errorResponse = relayAuthorization.errorResponse {
                 return SocketCommandProcessingResult(
                     response: errorResponse,
-                    descriptor: parsedDescriptor
+                    descriptor: descriptor
                 )
             }
-            let request = relayAuthorization.request
             let automationOrigin = CmuxAutomationInvocationContext.eventOrigin
             if let focusError = Self.focusSuppressionResponse(
                 method: request.method,
@@ -2396,17 +2396,10 @@ class TerminalController {
             ) {
                 return SocketCommandProcessingResult(
                     response: focusError,
-                    descriptor: parsedDescriptor
+                    descriptor: descriptor
                 )
             }
 
-            let policy = Self.executionPolicy(forV2Method: request.method)
-            let descriptor = Self.socketCommandDescriptor(
-                protocolName: "v2",
-                method: request.method,
-                policy: policy,
-                peerPid: peerPid
-            )
             if let action = browserKeyboardAction(for: request.method),
                let rawKey = request.params["key"]?.foundationObject as? String,
                let event = BrowserKeyboardEvent(rawKey: rawKey),
