@@ -239,7 +239,8 @@ actor CloudMachineLinkManager {
     var connectedMachineCount: Int {
         get async {
             var machineIDs = Set(connecting.keys)
-            for link in links.values where await link.isConnected {
+            for link in links.values {
+                guard await link.isConnected else { continue }
                 machineIDs.insert(await link.machineID)
             }
             return machineIDs.count

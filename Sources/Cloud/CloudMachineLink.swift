@@ -522,7 +522,6 @@ actor CloudMachineLink {
         }
         eventsProcess = process
         eventsProcessExit = exit
-        let continuation = changesContinuation
         let lines = CloudLinkPipe.lines(from: stdout.fileHandleForReading)
         eventsReaderTask = Task.detached { [weak self] in
             var receivedStreamEnd = false
