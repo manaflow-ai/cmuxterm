@@ -5534,6 +5534,8 @@ describe("VM Effect workflows", () => {
   dbTest("same-team concurrent retries of one idempotency key create exactly one provider VM", async () => {
     if (!sql) throw new Error("test database not initialized");
     await sql`truncate cloud_vm_billing_grants, cloud_vm_usage_events, cloud_vm_leases, cloud_vms restart identity cascade`;
+    // A warm network hides the first-use persistence race between these requests.
+    await sql`delete from cloud_vm_networks where user_id = 'user-workflow-race-retry'`;
 
     await sql`
       insert into cloud_vms (
