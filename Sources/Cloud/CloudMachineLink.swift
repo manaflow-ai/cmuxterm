@@ -90,6 +90,14 @@ actor CloudMachineLink {
         let session: String
     }
 
+    /// The first thing the link process tells us: a socket line, stdout closing
+    /// without one, or the connect deadline passing.
+    private enum LinkFirstLine: Sendable {
+        case socket(String)
+        case ended
+        case timedOut
+    }
+
     enum LinkError: Error, LocalizedError {
         case clientMissing
         case spawnFailed(String)
@@ -252,17 +260,28 @@ actor CloudMachineLink {
         }
         let socketPath: String
         do {
-            socketPath = try await withThrowingTaskGroup(of: String?.self) { group in
-                group.addTask { await firstSocket.result }
+            socketPath = try await withThrowingTaskGroup(of: LinkFirstLine.self) { group in
+                group.addTask { (await firstSocket.result).map(LinkFirstLine.socket) ?? .ended }
                 group.addTask {
                     try await Task.sleep(for: timeout)
-                    return nil
+                    return .timedOut
                 }
                 defer { group.cancelAll() }
-                guard let first = try await group.next(), let socket = first else {
+                switch try await group.next() {
+                case .socket(let socket)?:
+                    return socket
+                case .ended?:
+                    // stdout closed before a socket line: the client exited (an older
+                    // client rejecting a flag, a refused dial). Report that exit and its
+                    // stderr, not the deadline it never reached.
+                    await Self.terminateAndWait(process, exit: processExit)
+                    throw LinkError.exited(
+                        status: process.terminationStatus,
+                        output: stderrTail.joined(separator: "\n")
+                    )
+                case .timedOut?, nil:
                     throw LinkError.timedOut
                 }
-                return socket
             }
             guard process.isRunning else {
                 throw LinkError.exited(status: process.terminationStatus, output: stderrTail.joined(separator: "\n"))
