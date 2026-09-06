@@ -194,7 +194,7 @@ struct SessionEntryResumeCoordinatorTests {
             pullRequest: nil,
             modified: Date(timeIntervalSince1970: 1_800_000_008),
             fileURL: nil,
-            specifics: .claude(model: nil, permissionMode: nil)
+            specifics: .claude(model: nil, permissionMode: nil, configDirectoryForResume: nil)
         )
         let launch = try #require(entry.resumeLaunch)
         let snapshot = try #require(launch.startupRestoreAgent)
