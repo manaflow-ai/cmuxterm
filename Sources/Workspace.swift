@@ -1823,12 +1823,12 @@ extension Workspace {
                     nil
                 }
             if restoredAgentResumeLaunch == nil,
-               let remoteRestoreClaim,
+               let unusedClaim = remoteRestoreClaim,
                let restorableAgent {
                 _ = AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                     kind: restorableAgent.kind.rawValue,
                     sessionId: restorableAgent.sessionId,
-                    claim: remoteRestoreClaim
+                    claim: unusedClaim
                 )
                 remoteRestoreClaim = nil
             }

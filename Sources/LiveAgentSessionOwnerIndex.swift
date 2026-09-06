@@ -110,6 +110,7 @@ struct LiveAgentSessionOwnerIndex: Sendable {
             owners.compactMap { owner in
                 guard processIdentityProvider(owner.processID) == owner.processIdentity,
                       let process = processArgumentsProvider(owner.processID),
+                      processIdentityProvider(owner.processID) == owner.processIdentity,
                       validator.currentProcess(
                           process,
                           matches: owner.validationSnapshot,

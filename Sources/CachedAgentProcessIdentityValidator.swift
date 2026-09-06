@@ -115,7 +115,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                 )
             case .piSessionFile:
                 observedSessionID = firstValue(
-                    after: ["--session", "--resume", "-r"],
+                    after: ["--session"],
                     in: arguments
                 ) ?? authoritativeEnvironmentSessionID
             case .grokSessionDirectory:
@@ -137,7 +137,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                     // this registration; argv is intentionally irrelevant.
                     return true
                 }
-                return ifCaseCustom(snapshot.kind)
+                return false
             }
             return ManagedAgentSessionIdentity.sessionIDsMatch(
                 kind: snapshot.kind.rawValue,
@@ -161,17 +161,12 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         default:
             observedSessionID = authoritativeEnvironmentSessionID
         }
-        guard let observedSessionID else { return ifCaseCustom(snapshot.kind) }
+        guard let observedSessionID else { return false }
         return ManagedAgentSessionIdentity.sessionIDsMatch(
             kind: snapshot.kind.rawValue,
             lhs: observedSessionID,
             rhs: snapshot.sessionId
         )
-    }
-
-    private func ifCaseCustom(_ kind: RestorableAgentKind) -> Bool {
-        if case .custom = kind { return true }
-        return false
     }
 
     private func firstValue(

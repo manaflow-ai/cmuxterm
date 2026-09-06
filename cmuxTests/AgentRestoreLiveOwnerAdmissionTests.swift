@@ -140,6 +140,73 @@ struct AgentRestoreLiveOwnerAdmissionTests {
         #expect(!CachedAgentProcessIdentityValidator().currentProcess(process, matches: snapshot))
     }
 
+    @Test("Pi selector flags do not consume the following prompt as a session", arguments: ["--resume", "-r"])
+    func piBooleanSelectorDoesNotClaimPrompt(flag: String) {
+        let sessionID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        let snapshot = SessionRestorableAgentSnapshot(
+            kind: .custom("pi"),
+            sessionId: sessionID,
+            workingDirectory: nil,
+            registration: .builtInPi
+        )
+        let validator = CachedAgentProcessIdentityValidator()
+        let arguments = ["/usr/local/bin/pi", flag, sessionID]
+        #expect(!validator.currentProcess(
+            CmuxTopProcessArguments(arguments: arguments, environment: [:]),
+            matches: snapshot
+        ))
+        #expect(validator.currentProcess(
+            CmuxTopProcessArguments(
+                arguments: arguments,
+                environment: ["CMUX_AGENT_SESSION_ID": sessionID]
+            ),
+            matches: snapshot
+        ))
+        #expect(validator.currentProcess(
+            CmuxTopProcessArguments(
+                arguments: ["/usr/local/bin/pi", "--session", sessionID],
+                environment: [:]
+            ),
+            matches: snapshot
+        ))
+    }
+
+    @Test("A custom executable alone does not prove session ownership")
+    func customProcessWithoutSessionIdentityFailsClosed() {
+        let snapshot = SessionRestorableAgentSnapshot(
+            kind: .custom("custom-agent"),
+            sessionId: "saved-session",
+            workingDirectory: nil
+        )
+        #expect(!CachedAgentProcessIdentityValidator().currentProcess(
+            CmuxTopProcessArguments(arguments: ["/usr/local/bin/custom-agent"], environment: [:]),
+            matches: snapshot
+        ))
+    }
+
+    @Test("Revalidation rejects PID reuse during argv inspection")
+    func cachedOwnerRejectsGenerationChangeDuringArgvRead() throws {
+        let fixture = try makeFixture(ownerState: .live)
+        defer { fixture.cleanup() }
+        let identity = try #require(AgentPIDProcessIdentity(pid: pid_t(fixture.processID)))
+        var inspectedArguments = false
+        let index = fixture.index.liveSessionOwners.revalidated(
+            processArgumentsProvider: { _ in
+                inspectedArguments = true
+                return CmuxTopProcessArguments(
+                    arguments: ["/usr/local/bin/grok", "--session-id", fixture.sessionID],
+                    environment: [:]
+                )
+            },
+            processIdentityProvider: { _ in inspectedArguments ? nil : identity }
+        )
+        #expect(index.owner(
+            kind: fixture.agent.kind.rawValue,
+            sessionID: fixture.sessionID,
+            revalidateProcessEvidence: false
+        ) == nil)
+    }
+
     private struct Fixture {
         let root: URL
         let defaults: UserDefaults

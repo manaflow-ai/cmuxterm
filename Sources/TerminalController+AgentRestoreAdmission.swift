@@ -55,7 +55,14 @@ extension TerminalController {
         let liveOwner = index.liveSessionOwner(
             kind: inputs.kind,
             sessionID: inputs.sessionID,
-            revalidateProcessEvidence: true
+            revalidateProcessEvidence: true,
+            processArgumentsProvider: { pid in
+                CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for: pid)
+            },
+            processPresenceProvider: { pid in
+                guard pid > 0, pid <= Int(Int32.max) else { return .absent }
+                return PIDPresence.current(pid: pid_t(pid))
+            }
         )
         let decision = await v2MainAsync { () -> AgentRestoreAdmissionDecision in
             guard self.agentRestoreTargetMatches(inputs) else {
