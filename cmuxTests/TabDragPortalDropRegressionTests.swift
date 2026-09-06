@@ -9,6 +9,20 @@ import XCTest
 #endif
 
 @MainActor
+private enum TestPaneDropTargetRegistryStore {
+    private static var associationKey: UInt8 = 0
+
+    static func registry(for window: NSWindow) -> PaneDropTargetRegistry {
+        if let registry = objc_getAssociatedObject(window, &associationKey) as? PaneDropTargetRegistry {
+            return registry
+        }
+        let registry = PaneDropTargetRegistry()
+        objc_setAssociatedObject(window, &associationKey, registry, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        return registry
+    }
+}
+
+@MainActor
 final class TabDragPortalDropRegressionTests: XCTestCase {
     func testLiveTabDragRoutesTerminalPortalMouseUpWithoutPaneLatch() {
         XCTAssertTrue(
@@ -99,9 +113,19 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
 }
 
 @MainActor
+extension GhosttySurfaceScrollView {
+    convenience init(surfaceView: GhosttyNSView) {
+        self.init(surfaceView: surfaceView, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+}
+
+@MainActor
 extension WindowBrowserPortal {
     convenience init(window: NSWindow) {
-        self.init(window: window, paneDropTargetRegistry: PaneDropTargetRegistry())
+        self.init(
+            window: window,
+            paneDropTargetRegistry: TestPaneDropTargetRegistryStore.registry(for: window)
+        )
     }
 }
 
@@ -121,13 +145,14 @@ extension BrowserWindowPortalRegistry {
         zPriority: Int = 0,
         paneDropContext: BrowserPaneDropContext? = nil
     ) {
+        guard let window = anchorView.window else { return }
         bind(
             webView: webView,
             to: anchorView,
             visibleInUI: visibleInUI,
             zPriority: zPriority,
             paneDropContext: paneDropContext,
-            paneDropTargetRegistry: PaneDropTargetRegistry()
+            paneDropTargetRegistry: TestPaneDropTargetRegistryStore.registry(for: window)
         )
     }
 }

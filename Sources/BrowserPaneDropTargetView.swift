@@ -26,10 +26,6 @@ final class BrowserPaneDropTargetView: NSView {
 
     override var acceptsFirstResponder: Bool { false }
 
-    override convenience init(frame frameRect: NSRect) {
-        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
-    }
-
     init(frame frameRect: NSRect, paneDropTargetRegistry: PaneDropTargetRegistry) {
         self.paneDropTargetRegistry = paneDropTargetRegistry
         super.init(frame: frameRect)
