@@ -31,7 +31,7 @@ import {
   type VmImageSize,
   type VmImageSizeName,
 } from "../services/vms/images/sizes";
-import { argValue, devboxParkDaemonCommand, hasFlag } from "./devbox-image-common";
+import { argValue, cmuxTuiWebsocketSmokeCommand, devboxParkDaemonCommand, hasFlag } from "./devbox-image-common";
 
 const apiKey = process.env.FREESTYLE_API_KEY;
 const stackToken = process.env.FREESTYLE_STACK_ACCESS_TOKEN;
@@ -153,6 +153,9 @@ for (const name of sizes) {
         const m = await measure(vm);
         throw new Error(`${name}: resize did not take: ${fits(m, size)} (${JSON.stringify(m)})`);
       }
+      await sleep(30_000);
+      const websocket = await sh(vm, cmuxTuiWebsocketSmokeCommand(), 300_000);
+      if (websocket.code !== 0) throw new Error(`${name}: WebSocket smoke failed before snapshot: ${websocket.out.slice(-1000)}`);
       // A resized clone runs a live daemon bound to its own instance id; park
       // it so the derived snapshot, like the master, carries no identity.
       const parked = await sh(vm, devboxParkDaemonCommand(), 120_000);
@@ -170,6 +173,7 @@ for (const name of sizes) {
   const check = await fs.vms.create({ snapshotId: imageId, displayName: `${slugPrefix} verify ${name}`, firewall: FIREWALL });
   let measured: Awaited<ReturnType<typeof measure>>;
   try {
+    await sleep(30_000);
     measured = await measure(check.vm);
     const problem = fits(measured, size);
     if (problem) throw new Error(`${name}: derived snapshot ${imageId} boots wrong: ${problem}`);
@@ -182,6 +186,8 @@ for (const name of sizes) {
       if (daemon.code !== 0) await sleep(1000);
     }
     if (daemon.code !== 0) throw new Error(`${name}: cmux-tui daemon did not come up on the derived snapshot ${imageId}: ${daemon.out.slice(-300)}`);
+    const websocket = await sh(check.vm, cmuxTuiWebsocketSmokeCommand(), 300_000);
+    if (websocket.code !== 0) throw new Error(`${name}: WebSocket smoke failed after snapshot boot: ${websocket.out.slice(-1000)}`);
   } finally {
     await check.vm.delete().catch(() => {});
   }
