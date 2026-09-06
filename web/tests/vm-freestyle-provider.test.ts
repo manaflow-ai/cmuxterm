@@ -396,8 +396,10 @@ describe("Freestyle platform contract", () => {
     expect(freestyleDaemonHealthyCommand()).toContain(":0539 ");
     const start = freestyleStartDaemonCommand();
     expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337");
+    expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1");
     expect(start).toContain("systemctl restart cmux-tui-daemon");
     expect(start).toContain("--remote-ws [::]:1337"); // non-systemd fallback
+    expect(start).toContain("--remote-ws-trusted-carrier");
   });
 
   test("pin check trusts the pin recorded at bake time, falling back to the live pin on older images", () => {
@@ -800,6 +802,80 @@ describe("Freestyle machine sizing", () => {
 // is the machine's VPC address over the owner's tunnel, nothing is minted at
 // the platform and nothing public is opened. noVNC on 6901 has no auth of
 // its own, so a machine outside a private network gets no URL at all.
+describe("Freestyle openCmuxRemote: the trusted-listener heal", () => {
+  const PRIVATE = { publicIpv6: "2602:f75c:0:1::2a", vpcs: [{ ipv4: "10.4.0.7", ipv6: "fd00:4::7" }] };
+  const SOURCE_OK = { url: "https://files.cmux.com/cmux-tui/abc/cmux-tui-linux-x64", sha256: "0".repeat(64), commit: "abc", builtAt: null };
+
+  /** The attach bundle's fenced stdout with the trusted-listener probe printing `trusted`. */
+  function bundleStdout(trusted: "0" | "1"): string {
+    return [
+      "__CMUX_PROBE__",
+      JSON.stringify({ build_identity: "abc", remote_protocol: 12, version: "0.1.0" }),
+      "__CMUX_DEVICES__",
+      "[]",
+      "__CMUX_TRUSTED__",
+      trusted,
+      "__CMUX_END__",
+    ].join("\n");
+  }
+
+  /**
+   * A fake machine whose attach bundle answers `trusted[n]` on its n-th run.
+   * Every other exec (pin check, daemon restart, readiness status) succeeds.
+   */
+  function attachFake(input: { readonly trusted: readonly ("0" | "1")[]; readonly manifest: "ok" | "down" }) {
+    const execs: string[] = [];
+    let bundles = 0;
+    const vm = {
+      data: async () => PRIVATE,
+      exec: async ({ command }: { command: string }) => {
+        execs.push(command);
+        if (command.includes("__CMUX_PROBE__")) {
+          const trusted = input.trusted[Math.min(bundles, input.trusted.length - 1)] ?? "0";
+          bundles += 1;
+          return { statusCode: 0, stdout: bundleStdout(trusted), stderr: "" };
+        }
+        return { statusCode: 0, stdout: "", stderr: "" };
+      },
+    };
+    const client = { vms: { ref: () => vm } } as unknown as Freestyle;
+    const provider = new FreestyleProvider({
+      client: () => client,
+      resolveDaemonSource: async () => {
+        if (input.manifest === "down") throw new Error("manifest fetch failed");
+        return SOURCE_OK;
+      },
+    });
+    return { provider, execs, bundles: () => bundles };
+  }
+
+  test("a daemon that already serves the trusted listener attaches without reading the manifest", async () => {
+    const fake = attachFake({ trusted: ["1"], manifest: "down" });
+    const endpoint = await fake.provider.openCmuxRemote(VM_ID, { clientCapabilities: [] });
+    expect(endpoint.trustedCarrier).toBe(true);
+    expect(endpoint.route).toBe("ws://10.4.0.7:1337/v1/link");
+    expect(fake.bundles()).toBe(1);
+    expect(fake.execs.some((command) => command.includes("systemctl restart cmux-tui-daemon"))).toBe(false);
+  });
+
+  test("an older daemon is replaced with the pinned build and the retried bundle proves trusted mode", async () => {
+    const fake = attachFake({ trusted: ["0", "1"], manifest: "ok" });
+    const endpoint = await fake.provider.openCmuxRemote(VM_ID, { clientCapabilities: [] });
+    expect(endpoint.trustedCarrier).toBe(true);
+    expect(fake.bundles()).toBe(2);
+    const start = fake.execs.find((command) => command.includes("systemctl restart cmux-tui-daemon"));
+    expect(start).toBeDefined();
+    // The heal replaces a fallback daemon rather than keeping the untrusted one.
+    expect(start).toContain("pkill -f 'cmux-tui server [s]tart'");
+  });
+
+  test("a heal that leaves the daemon untrusted fails closed instead of returning an unusable endpoint", async () => {
+    const fake = attachFake({ trusted: ["0", "0"], manifest: "ok" });
+    await expect(fake.provider.openCmuxRemote(VM_ID, { clientCapabilities: [] })).rejects.toThrow(ProviderError);
+    await expect(fake.provider.openCmuxRemote(VM_ID, { clientCapabilities: [] })).rejects.toThrow(/still refuses the trusted listener/);
+  });
+});
+
 describe("Freestyle port open: the private address, the desktop healed", () => {
   const PRIVATE = { publicIpv6: "2602:f75c:0:1::2a", vpcs: [{ ipv4: "10.4.0.7", ipv6: "fd00:4::7" }] };
 
