@@ -27954,13 +27954,6 @@ struct CMUXCLI {
                 parsedInput,
                 env: ProcessInfo.processInfo.environment
             )
-            let visibleMutationApplies = shouldApplyClaudeHookVisibleMutation(
-                sessionStore: sessionStore,
-                parsedInput: parsedInput,
-                workspaceId: workspaceId,
-                surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
-                telemetry: telemetry
-            )
             let canReplaceStoppedSession = shouldReplaceStoppedClaudeSession(
                 sessionStore: sessionStore,
                 parsedInput: parsedInput,
@@ -27968,11 +27961,9 @@ struct CMUXCLI {
                 surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
                 telemetry: telemetry
             )
-            let shouldPromoteNoFlickerSessionStart = isNoFlickerStartupSessionStart
-                && (visibleMutationApplies || canReplaceStoppedSession)
             let shouldPublishSessionStartResumeBinding = isClearSessionStart || canReplaceStoppedSession
             let sessionStartSource = parsedInput.object?["source"] as? String
-            let acceptedSessionId: String? = parsedInput.sessionId.flatMap { sessionId in
+            let acceptedSessionStart = parsedInput.sessionId.map { sessionId -> (sessionId: String, accepted: Bool) in
                 let accepted = (try? sessionStore.upsertAuthoritativeClaudeSessionStart(
                     sessionId: sessionId,
                     source: sessionStartSource,
@@ -27985,13 +27976,16 @@ struct CMUXCLI {
                     hookEventName: reportedHookEventName(from: parsedInput) ?? "SessionStart",
                     turnId: parsedInput.turnId
                 )) == true
-                return accepted ? sessionId : nil
+                return (sessionId: sessionId, accepted: accepted)
             }
-            guard let acceptedSessionId else {
+            guard let acceptedSessionStart, acceptedSessionStart.accepted else {
                 telemetry.breadcrumb("claude-hook.session-start.stale")
                 printClaudeHookAck()
                 return
             }
+            let acceptedSessionId = acceptedSessionStart.sessionId
+            let shouldPromoteNoFlickerSessionStart = isNoFlickerStartupSessionStart
+                && acceptedSessionStart.accepted
             if shouldPublishSessionStartResumeBinding {
                 publishAgentSurfaceResumeBinding(
                     client: client,
