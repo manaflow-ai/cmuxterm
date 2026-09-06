@@ -2843,6 +2843,7 @@
 		2681A216F02BEE5AD12CE00D /* TerminalPastePreparationWorkerTextPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85403EFC95DBB4FA4AE9CE7 /* TerminalPastePreparationWorkerTextPayload.swift */; };
 		F87910110000000000000001 /* TerminalPendingConfigurationReload.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87910110000000000000002 /* TerminalPendingConfigurationReload.swift */; };
 		A93620010000000000000001 /* TerminalPointerIngressRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93620010000000000000002 /* TerminalPointerIngressRegressionTests.swift */; };
+		A93620030000000000000001 /* TerminalPointerNativeHoverUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93620030000000000000002 /* TerminalPointerNativeHoverUITests.swift */; };
 		873900010000000000000001 /* TerminalPointerStyleViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873900010000000000000002 /* TerminalPointerStyleViewTests.swift */; };
 		9612A0010000000000000001 /* TerminalPortalReconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9612B0010000000000000001 /* TerminalPortalReconciliation.swift */; };
 		D0F101000000000000000003 /* TerminalRawMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F101000000000000000013 /* TerminalRawMode.swift */; };
@@ -6059,6 +6060,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		B85403EFC95DBB4FA4AE9CE7 /* TerminalPastePreparationWorkerTextPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPastePreparationWorkerTextPayload.swift; sourceTree = "<group>"; };
 		F87910110000000000000002 /* TerminalPendingConfigurationReload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPendingConfigurationReload.swift; sourceTree = "<group>"; };
 		A93620010000000000000002 /* TerminalPointerIngressRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPointerIngressRegressionTests.swift; sourceTree = "<group>"; };
+		A93620030000000000000002 /* TerminalPointerNativeHoverUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPointerNativeHoverUITests.swift; sourceTree = "<group>"; };
 		873900010000000000000002 /* TerminalPointerStyleViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPointerStyleViewTests.swift; sourceTree = "<group>"; };
 		9612B0010000000000000001 /* TerminalPortalReconciliation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPortalReconciliation.swift; sourceTree = "<group>"; };
 		D0F101000000000000000013 /* TerminalRawMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalRawMode.swift; sourceTree = "<group>"; };
@@ -6688,6 +6690,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B8F266276A1A3D9A45BD840F /* DisplayResolutionRegressionUITests.swift */,
 				F0F0A002A1B2C3D4E5F60718 /* WorkspaceSidebarScrollUITests.swift */,
 				C2577001A1B2C3D4E5F60718 /* TerminalCmdClickUITests.swift */,
+				A93620030000000000000002 /* TerminalPointerNativeHoverUITests.swift */,
 				B82090010000000000000002 /* TCCUsageDescriptionUITests.swift */,
 				B9000131A1B2C3D4E5F60719 /* SidebarPullRequestInteractivityUITests.swift */,
 				E6FA9085A1B2C3D4E5F60718 /* WorkspaceDescriptionUITests.swift */,
@@ -12745,6 +12748,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B8F266236A1A3D9A45BD840F /* SidebarResizeUITests.swift in Sources */,
 				B82090010000000000000001 /* TCCUsageDescriptionUITests.swift in Sources */,
 				C2577000A1B2C3D4E5F60718 /* TerminalCmdClickUITests.swift in Sources */,
+				A93620030000000000000001 /* TerminalPointerNativeHoverUITests.swift in Sources */,
 				C0B4D9B0A1B2C3D4E5F60718 /* UpdatePillUITests.swift in Sources */,
 				E6FA9084A1B2C3D4E5F60718 /* WorkspaceDescriptionUITests.swift in Sources */,
 				F0F0A001A1B2C3D4E5F60718 /* WorkspaceSidebarScrollUITests.swift in Sources */,
