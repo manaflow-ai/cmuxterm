@@ -890,15 +890,17 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
     }
 
     @Test func clientArgvIsExact() {
-        #expect(CloudTuiCommandLine.linkArguments(route: "wss://m.vm.cmux.sh/v1/link?t=1", deviceName: "cmux-mac", stateDir: "/s", inviteFilePath: "/i") ==
-            ["remote", "connect", "wss://m.vm.cmux.sh/v1/link?t=1", "--device-name", "cmux-mac", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--invite-file", "/i"])
-        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", inviteFilePath: nil) ==
+        // A machine's trusted listener is dialed with --carrier: no invite file, no enrollment.
+        #expect(CloudTuiCommandLine.linkArguments(route: "wss://m.vm.cmux.sh/v1/link?t=1", deviceName: "cmux-mac", stateDir: "/s", carrier: true) ==
+            ["remote", "connect", "wss://m.vm.cmux.sh/v1/link?t=1", "--device-name", "cmux-mac", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--carrier"])
+        // A machine this Mac enrolled with before trusted listeners presents its stored key.
+        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s") ==
             ["remote", "connect", "r", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent"])
         // A private-network machine dials through the app's WireGuard hub. Both long-lived
         // helper processes must also stop if their app parent exits without cleanup.
-        #expect(CloudTuiCommandLine.linkArguments(route: "ws://[fd00::10]:1337/v1/link", deviceName: "d", stateDir: "/s", inviteFilePath: "/i", wireguardHubSocket: "/h.sock") ==
-            ["remote", "connect", "ws://[fd00::10]:1337/v1/link", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--invite-file", "/i", "--wireguard-hub", "/h.sock"])
-        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", inviteFilePath: nil, wireguardHubSocket: "") ==
+        #expect(CloudTuiCommandLine.linkArguments(route: "ws://[fd00::10]:1337/v1/link", deviceName: "d", stateDir: "/s", carrier: true, wireguardHubSocket: "/h.sock") ==
+            ["remote", "connect", "ws://[fd00::10]:1337/v1/link", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--carrier", "--wireguard-hub", "/h.sock"])
+        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", wireguardHubSocket: "") ==
             ["remote", "connect", "r", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent"])
         #expect(CloudTuiCommandLine.wireGuardHubArguments(configPath: "/w/cmux-app.conf", socketPath: "/w/hub-1.sock") ==
             ["wg", "hub", "--config", "/w/cmux-app.conf", "--socket", "/w/hub-1.sock", "--exit-with-parent"])
@@ -1070,7 +1072,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             paths: CloudTuiClientPaths(home: root)
         )
         let task = Task {
-            try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", invitationURI: nil)
+            try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main")
         }
         for _ in 0..<200 where !FileManager.default.fileExists(atPath: pidFile.path) {
             try await Task.sleep(for: .milliseconds(10))
@@ -1115,7 +1117,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             clientURL: client,
             paths: CloudTuiClientPaths(home: root)
         )
-        _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", invitationURI: nil)
+        _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main")
         for _ in 0..<200 where !FileManager.default.fileExists(atPath: eventPIDFile.path) {
             try await Task.sleep(for: .milliseconds(10))
         }

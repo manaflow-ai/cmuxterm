@@ -31,6 +31,8 @@ describe("Freestyle Cloud VM daemon repair", () => {
     const daemon = cmuxTuiDaemonCommand(`[::]:${CMUX_TUI_PORT}`);
     expect(daemon).toContain("server start --session cloud");
     expect(daemon).toContain(`--remote-ws [::]:${CMUX_TUI_PORT}`);
+    // The cloud listener is reachable only inside the owner's private network.
+    expect(daemon).toContain("--remote-ws-trusted-carrier");
     expect(daemon).toContain(CMUX_TUI_BINARY_PATH);
     expect(daemon).not.toContain("cmuxd-remote");
   });
@@ -63,6 +65,9 @@ describe("Freestyle Cloud VM daemon repair", () => {
     const start = freestyleStartDaemonCommand();
     expect(start).toContain("cmux-tui-daemon.service");
     expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337");
+    // Machines healed in place get trusted mode through the same drop-in; the
+    // daemon reads the env, so the baked launch line need not carry the flag.
+    expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1");
     expect(start).toContain("systemctl daemon-reload");
     expect(start).toContain("systemctl restart cmux-tui-daemon");
     expect(start).toContain("--remote-ws [::]:1337");

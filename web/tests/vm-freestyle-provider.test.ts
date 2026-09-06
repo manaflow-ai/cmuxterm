@@ -396,8 +396,10 @@ describe("Freestyle platform contract", () => {
     expect(freestyleDaemonHealthyCommand()).toContain(":0539 ");
     const start = freestyleStartDaemonCommand();
     expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337");
+    expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1");
     expect(start).toContain("systemctl restart cmux-tui-daemon");
     expect(start).toContain("--remote-ws [::]:1337"); // non-systemd fallback
+    expect(start).toContain("--remote-ws-trusted-carrier");
   });
 
   test("pin check trusts the pin recorded at bake time, falling back to the live pin on older images", () => {

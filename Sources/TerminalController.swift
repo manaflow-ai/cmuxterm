@@ -3023,7 +3023,6 @@ class TerminalController {
             "vm.open_port",
             "vm.attach_info",
             "vm.cmux_remote_info",
-            "vm.cmux_remote_approve",
             "vm.ssh_info",
             "vm.sessions",
             "vm.session_attach_info",
