@@ -7328,6 +7328,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     }
 
     nonisolated static let remotePTYSessionEnvironmentKey = "CMUX_REMOTE_PTY_SESSION_ID"
+    nonisolated static let remoteInitialWorkingDirectoryEnvironmentKey = "CMUX_REMOTE_INITIAL_CWD"
 
     nonisolated static func parsedDefaultSSHPTYSessionID(_ value: String) -> (workspaceId: UUID, panelId: UUID)? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -8146,22 +8147,43 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
     }
 
+    private func normalizedTerminalStartupWorkingDirectory(
+        _ workingDirectory: String?,
+        preserveExact: Bool = false
+    ) -> String? {
+        guard let workingDirectory else { return nil }
+        if preserveExact {
+            return workingDirectory.isEmpty ? nil : workingDirectory
+        }
+        return TerminalWorkingDirectoryResolver.normalized(workingDirectory)
+    }
+
     private func resolvedTerminalStartupWorkingDirectory(
         requestedWorkingDirectory: String?,
-        sourcePanelId: UUID?
+        sourcePanelId: UUID?,
+        preserveExact: Bool = false
     ) -> String? {
-        if let requested = TerminalWorkingDirectoryResolver.normalized(requestedWorkingDirectory) {
+        if let requested = normalizedTerminalStartupWorkingDirectory(
+            requestedWorkingDirectory,
+            preserveExact: preserveExact
+        ) {
             return requested
         }
         if let sourcePanelId,
            let rescued = resumedAgentPaneWorkingDirectoryRescue(panelId: sourcePanelId) {
             return rescued
         }
-        return TerminalWorkingDirectoryResolver.firstAvailable([
+        let candidates = [
             sourcePanelId.flatMap { panelDirectories[$0] },
             sourcePanelId.flatMap { terminalPanel(for: $0)?.requestedWorkingDirectory },
             currentDirectory,
-        ])
+        ]
+        if preserveExact {
+            return candidates.lazy.compactMap {
+                normalizedTerminalStartupWorkingDirectory($0, preserveExact: true)
+            }.first
+        }
+        return TerminalWorkingDirectoryResolver.firstAvailable(candidates)
     }
 
     /// The foreground-process cwd read consulted by
@@ -8722,7 +8744,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         if let effectiveRemotePTYSessionID {
             startupEnvironmentWithRemoteSession[Self.remotePTYSessionEnvironmentKey] = effectiveRemotePTYSessionID
         }
-        let effectiveStartupEnvironment = terminalStartupEnvironment(
+        var effectiveStartupEnvironment = terminalStartupEnvironment(
             base: startupEnvironmentWithRemoteSession,
             remoteStartupCommand: remoteStartupCommandForEnvironment
         )
@@ -8748,8 +8770,18 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         // startup cwd, then workspace currentDirectory.
         let splitWorkingDirectory = resolvedTerminalStartupWorkingDirectory(
             requestedWorkingDirectory: workingDirectory,
-            sourcePanelId: panelId
+            sourcePanelId: panelId,
+            preserveExact: remoteStartupCommandForEnvironment != nil
         )
+        let localWorkingDirectory: String?
+        if remoteStartupCommandForEnvironment != nil {
+            localWorkingDirectory = nil
+            if let splitWorkingDirectory {
+                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = splitWorkingDirectory
+            }
+        } else {
+            localWorkingDirectory = splitWorkingDirectory
+        }
 #if DEBUG
         cmuxDebugLog(
             "split.cwd panelId=\(panelId.uuidString.prefix(5)) panelDir=\(panelDirectories[panelId] ?? "nil") requestedDir=\(terminalPanel(for: panelId)?.requestedWorkingDirectory ?? "nil") currentDir=\(currentDirectory) resolved=\(splitWorkingDirectory ?? "nil")"
@@ -8762,7 +8794,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             workspaceId: id,
             context: GHOSTTY_SURFACE_CONTEXT_SPLIT,
             configTemplate: inheritedConfig,
-            workingDirectory: splitWorkingDirectory,
+            workingDirectory: localWorkingDirectory,
             portOrdinal: portOrdinal,
             initialCommand: startupCommand,
             tmuxStartCommand: tmuxStartCommand,
@@ -9043,7 +9075,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         if let effectiveRemotePTYSessionID {
             startupEnvironmentWithRemoteSession[Self.remotePTYSessionEnvironmentKey] = effectiveRemotePTYSessionID
         }
-        let effectiveStartupEnvironment = terminalStartupEnvironment(
+        var effectiveStartupEnvironment = terminalStartupEnvironment(
             base: startupEnvironmentWithRemoteSession,
             remoteStartupCommand: remoteStartupCommandForEnvironment
         )
@@ -9060,9 +9092,23 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let requestedWorkingDirectory = inheritWorkingDirectoryFallback && startupCommand == nil
             ? resolvedTerminalStartupWorkingDirectory(
                 requestedWorkingDirectory: workingDirectory,
-                sourcePanelId: fallbackSourcePanelId
+                sourcePanelId: fallbackSourcePanelId,
+                preserveExact: false
             )
             : workingDirectory
+        let localWorkingDirectory: String?
+        if remoteStartupCommandForEnvironment != nil {
+            localWorkingDirectory = nil
+            if let remoteInitialWorkingDirectory = resolvedTerminalStartupWorkingDirectory(
+                requestedWorkingDirectory: workingDirectory,
+                sourcePanelId: fallbackSourcePanelId,
+                preserveExact: true
+            ) {
+                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = remoteInitialWorkingDirectory
+            }
+        } else {
+            localWorkingDirectory = requestedWorkingDirectory
+        }
 
         // Create new terminal panel. A restored panel reuses its persisted
         // surface id (the panel/surface id IS the ghostty surface id, a
@@ -9073,7 +9119,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             workspaceId: id,
             context: GHOSTTY_SURFACE_CONTEXT_SPLIT,
             configTemplate: inheritedConfig,
-            workingDirectory: requestedWorkingDirectory,
+            workingDirectory: localWorkingDirectory,
             portOrdinal: portOrdinal,
             initialCommand: startupCommand,
             tmuxStartCommand: tmuxStartCommand,
