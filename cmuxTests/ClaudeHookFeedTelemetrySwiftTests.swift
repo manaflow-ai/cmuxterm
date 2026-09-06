@@ -93,6 +93,333 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         #expect(result.stdout == "{}\n")
     }
+
+    @Test func copilotFeedExpandsRealToolCallBatchesWithNativeIdentity() throws {
+        let context = try FeedTelemetryTestContext(name: "copilot-identity")
+        defer { _ = context }
+
+        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let surfaceID = "22222222-2222-2222-2222-222222222222"
+        let feedSeen = DispatchSemaphore(value: 0)
+        startServer(
+            listenerFD: context.listenerFD,
+            state: context.state,
+            workspaceID: workspaceID,
+            focusedSurfaceID: surfaceID,
+            ttyName: "ttys-copilot-identity",
+            resolvedSurfaceID: surfaceID,
+            feedSeen: feedSeen
+        )
+
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "feed", "--source", "copilot", "--event", "preToolUse"],
+            environment: context.environment(
+                workspaceID: workspaceID,
+                surfaceID: surfaceID,
+                ttyName: "ttys-copilot-identity"
+            ).merging([
+                "TRACEPARENT": "00-8327fe24c2bef682bc9aca2509a55783-c9e6580dd8fe7ea7-01"
+            ]) { _, override in override },
+            standardInput: """
+            {"sessionId":"copilot-session","cwd":"\(context.root.path)","toolCalls":[{"id":"tool-9","name":"shell","args":{"command":"pwd"}},{"id":"tool-10","name":"view","args":"{\\"path\\":\\"README.md\\"}"}]}
+            """,
+            timeout: 5
+        )
+
+        #expect(result.timedOut == false, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n")
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let events = context.state.feedEventsSnapshot()
+        #expect(events.count == 2)
+        #expect(events.map { $0["tool_name"] as? String } == ["shell", "view"])
+        #expect(events.map { $0["_action_request_id"] as? String } == ["tool-9", "tool-10"])
+        #expect(events.map { $0["_opencode_request_id"] as? String } == ["tool-9", "tool-10"])
+        #expect(events.map { $0["_source_event_id"] as? String } == ["tool-9", "tool-10"])
+        #expect(events.allSatisfy { $0["_source_revision"] == nil })
+        #expect(events.allSatisfy {
+            ($0["_causal_chain_id"] as? String) == "8327fe24c2bef682bc9aca2509a55783"
+        })
+        let firstInput = try #require(events[0]["tool_input"] as? [String: Any])
+        let secondInput = try #require(events[1]["tool_input"] as? [String: Any])
+        #expect(firstInput["command"] as? String == "pwd")
+        #expect(secondInput["path"] as? String == "README.md")
+    }
+
+    @Test func copilotStopCarriesBoundedTranscriptEvidenceWithoutInventingAnEventId() throws {
+        let context = try FeedTelemetryTestContext(name: "copilot-stop-evidence")
+        defer { _ = context }
+
+        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let surfaceID = "22222222-2222-2222-2222-222222222222"
+        let feedSeen = DispatchSemaphore(value: 0)
+        startServer(
+            listenerFD: context.listenerFD,
+            state: context.state,
+            workspaceID: workspaceID,
+            focusedSurfaceID: surfaceID,
+            ttyName: "ttys-copilot-stop-evidence",
+            resolvedSurfaceID: surfaceID,
+            feedSeen: feedSeen
+        )
+        let transcriptDirectory = context.root.appendingPathComponent("copilot-session", isDirectory: true)
+        try FileManager.default.createDirectory(at: transcriptDirectory, withIntermediateDirectories: true)
+        let transcriptURL = transcriptDirectory.appendingPathComponent("events.jsonl")
+        let transcript = [
+            #"{"type":"assistant.message","data":{"content":"Stale response.","turnId":"turn-0","interactionId":"interaction-0"}}"#,
+            #"{"type":"assistant.turn_end","data":{"turnId":"turn-0"}}"#,
+            #"{"type":"assistant.turn_start","data":{"turnId":"turn-1","interactionId":"interaction-1"}}"#,
+            #"{"type":"user.message","data":{"content":"What changed?","turnId":"turn-1","interactionId":"interaction-1"}}"#,
+            #"{"type":"hook.start","data":{"hookType":"agentStop","input":{"sessionId":"copilot-session","traceparent":"00-8327fe24c2bef682bc9aca2509a55783-c9e6580dd8fe7ea7-01"}}}"#,
+            #"{"type":"assistant.message","agentId":"subagent-1","data":{"content":"Wrong subagent response.","turnId":"turn-9"}}"#,
+            #"{"type":"assistant.turn_end","agentId":"subagent-1","data":{"turnId":"turn-9"}}"#,
+        ].joined(separator: "\n") + "\n"
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            let final = [
+                #"{"type":"assistant.message","data":{"content":"The bounded final response.","interactionId":"interaction-1"}}"#,
+                #"{"type":"assistant.turn_end","data":{"turnId":"turn-1"}}"#,
+            ].joined(separator: "\n") + "\n"
+            guard let handle = try? FileHandle(forWritingTo: transcriptURL) else { return }
+            defer { try? handle.close() }
+            try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(final.utf8))
+        }
+
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "stop"],
+            environment: context.environment(
+                workspaceID: workspaceID,
+                surfaceID: surfaceID,
+                ttyName: "ttys-copilot-stop-evidence"
+            ),
+            standardInput: """
+            {"sessionId":"copilot-session","timestamp":7,"cwd":"\(context.root.path)","transcriptPath":"\(transcriptURL.path)","traceparent":"00-8327fe24c2bef682bc9aca2509a55783-c9e6580dd8fe7ea7-01","stopReason":"end_turn","stop_hook_active":false}
+            """,
+            timeout: 5
+        )
+
+        #expect(result.timedOut == false, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n")
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let event = try #require(
+            context.state.feedEventsSnapshot().last { $0["hook_event_name"] as? String == "Stop" }
+        )
+        #expect(event["_source_event_id"] == nil)
+        #expect(event["_source_revision"] as? String == "7")
+        #expect(event["_causal_chain_id"] as? String == "8327fe24c2bef682bc9aca2509a55783")
+        #expect(event["transcript_path"] as? String == transcriptURL.path)
+        let evidence = try #require(event["context"] as? [String: Any])
+        #expect(evidence["lastUserMessage"] as? String == "What changed?")
+        #expect(evidence["assistantPreamble"] as? String == "The bounded final response.")
+    }
+
+    @Test func copilotErrorHookPreservesFailureDetailsAsTelemetry() throws {
+        let context = try FeedTelemetryTestContext(name: "copilot-error")
+        defer { _ = context }
+
+        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let surfaceID = "22222222-2222-2222-2222-222222222222"
+        let feedSeen = DispatchSemaphore(value: 0)
+        startServer(
+            listenerFD: context.listenerFD,
+            state: context.state,
+            workspaceID: workspaceID,
+            focusedSurfaceID: surfaceID,
+            ttyName: "ttys-copilot-error",
+            resolvedSurfaceID: surfaceID,
+            feedSeen: feedSeen
+        )
+
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "notification"],
+            environment: context.environment(
+                workspaceID: workspaceID,
+                surfaceID: surfaceID,
+                ttyName: "ttys-copilot-error"
+            ),
+            standardInput: """
+            {"sessionId":"copilot-session","timestamp":9,"cwd":"\(context.root.path)","error":{"message":"provider unavailable","name":"ProviderError","stack":"private stack"},"errorContext":"model_call","recoverable":true}
+            """,
+            timeout: 5
+        )
+
+        #expect(result.timedOut == false, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(result.stdout == "{}\n")
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let event = try #require(
+            context.state.feedEventsSnapshot().last { $0["hook_event_name"] as? String == "Notification" }
+        )
+        #expect(event["is_error"] as? Bool == true)
+        #expect(event["_source_revision"] as? String == "9")
+        let payload = try #require(event["tool_input"] as? [String: Any])
+        #expect(payload["error_context"] as? String == "model_call")
+        #expect(payload["recoverable"] as? Bool == true)
+        #expect((payload["error"] as? String)?.contains("provider unavailable") == true)
+        #expect((payload["error"] as? String)?.contains("private stack") == false)
+    }
+
+    @Test func copilotChildAndAsynchronousHooksStayTelemetryOnly() throws {
+        let context = try FeedTelemetryTestContext(name: "copilot-child")
+        defer { _ = context }
+
+        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let surfaceID = "22222222-2222-2222-2222-222222222222"
+        let feedSeen = DispatchSemaphore(value: 0)
+        startServer(
+            listenerFD: context.listenerFD,
+            state: context.state,
+            workspaceID: workspaceID,
+            focusedSurfaceID: surfaceID,
+            ttyName: "ttys-copilot-child",
+            resolvedSurfaceID: surfaceID,
+            feedSeen: feedSeen
+        )
+        let environment = context.environment(
+            workspaceID: workspaceID,
+            surfaceID: surfaceID,
+            ttyName: "ttys-copilot-child"
+        ).merging([
+            "CMUX_AGENT_LAUNCH_KIND": "copilot",
+            "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
+            "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
+        ]) { _, override in override }
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+
+        let rootStart = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "session-start"],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"root-session","timestamp":1,"cwd":"\(context.root.path)","source":"new"}
+            """,
+            timeout: 5
+        )
+        #expect(rootStart.status == 0, Comment(rawValue: rootStart.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let baselineCount = context.state.commandsSnapshot().count
+
+        let childPrompt = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "prompt-submit"],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"child-session","timestamp":2,"cwd":"\(context.root.path)","prompt":"child task"}
+            """,
+            timeout: 5
+        )
+        #expect(childPrompt.status == 0, Comment(rawValue: childPrompt.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+
+        let shellCompleted = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "notification"],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"root-session","timestamp":3,"cwd":"\(context.root.path)","hook_event_name":"Notification","message":"Shell completed","notification_type":"shell_completed"}
+            """,
+            timeout: 5
+        )
+        #expect(shellCompleted.status == 0, Comment(rawValue: shellCompleted.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+
+        let newCommands = Array(context.state.commandsSnapshot().dropFirst(baselineCount))
+        #expect(!newCommands.contains { $0.contains("set_status copilot") })
+        #expect(!newCommands.contains { $0.contains("set_agent_pid copilot.") })
+        let events = context.state.feedEventsSnapshot()
+        #expect(events.contains { ($0["session_id"] as? String) == "copilot-child-session" })
+        #expect(events.contains {
+            ($0["hook_event_name"] as? String) == "Notification"
+                && (($0["tool_input"] as? [String: Any])?["notification_type"] as? String) == "shell_completed"
+        })
+    }
+
+    @Test func deadCopilotRootDoesNotBlockAReplacementSession() throws {
+        let context = try FeedTelemetryTestContext(name: "copilot-dead-root")
+        defer { _ = context }
+
+        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let surfaceID = "22222222-2222-2222-2222-222222222222"
+        let feedSeen = DispatchSemaphore(value: 0)
+        startServer(
+            listenerFD: context.listenerFD,
+            state: context.state,
+            workspaceID: workspaceID,
+            focusedSurfaceID: surfaceID,
+            ttyName: "ttys-copilot-dead-root",
+            resolvedSurfaceID: surfaceID,
+            feedSeen: feedSeen
+        )
+        let liveEnvironment = context.environment(
+            workspaceID: workspaceID,
+            surfaceID: surfaceID,
+            ttyName: "ttys-copilot-dead-root"
+        ).merging([
+            "CMUX_AGENT_LAUNCH_KIND": "copilot",
+            "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
+            "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
+            "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS": "0",
+            "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
+        ]) { _, override in override }
+        let deadRootEnvironment = liveEnvironment.merging([
+            "CMUX_COPILOT_PID": "2147483647"
+        ]) { _, override in override }
+        let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
+
+        let first = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "session-start"],
+            environment: deadRootEnvironment,
+            standardInput: """
+            {"sessionId":"dead-root","timestamp":1,"cwd":"\(context.root.path)","source":"new"}
+            """,
+            timeout: 5
+        )
+        #expect(first.status == 0, Comment(rawValue: first.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let stateURL = context.root.appendingPathComponent("copilot-hook-sessions.json")
+        let firstStateData = try Data(contentsOf: stateURL)
+        let firstState = try #require(
+            JSONSerialization.jsonObject(with: firstStateData) as? [String: Any]
+        )
+        let firstSessions = try #require(firstState["sessions"] as? [String: Any])
+        let deadRoot = try #require(firstSessions["dead-root"] as? [String: Any])
+        #expect(deadRoot["pid"] as? Int == 2_147_483_647)
+        #expect(deadRoot["runtimeStatus"] as? String == "running")
+        let baselineCount = context.state.commandsSnapshot().count
+
+        let replacement = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "copilot", "session-start"],
+            environment: liveEnvironment,
+            standardInput: """
+            {"sessionId":"replacement-root","timestamp":2,"cwd":"\(context.root.path)","source":"new"}
+            """,
+            timeout: 5
+        )
+        #expect(replacement.status == 0, Comment(rawValue: replacement.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let replacementStateData = try Data(contentsOf: stateURL)
+        let replacementState = try #require(
+            JSONSerialization.jsonObject(with: replacementStateData) as? [String: Any]
+        )
+        let replacementSessions = try #require(replacementState["sessions"] as? [String: Any])
+        #expect(replacementSessions["replacement-root"] != nil)
+        let newCommands = Array(context.state.commandsSnapshot().dropFirst(baselineCount))
+        #expect(
+            newCommands.contains { $0.contains("set_agent_pid copilot.replacement-root") },
+            Comment(rawValue: newCommands.joined(separator: "\n"))
+        )
+    }
 }
 
 private final class FeedTelemetryTestContext {
