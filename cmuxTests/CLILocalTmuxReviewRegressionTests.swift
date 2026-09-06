@@ -62,6 +62,49 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(result.stderr.contains("only supports attach"), result.stderr)
     }
 
+    func testLocalTmuxAttachCommandRunsThroughGhosttyLoginShellWrapper() throws {
+        let root = makeLocalTmuxTestRoot("ghostty-attach-wrapper")
+        let fakeTmuxURL = root.appendingPathComponent("fake-tmux", isDirectory: false)
+        let outputURL = root.appendingPathComponent("invocation", isDirectory: false)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fakeTmux = """
+        #!/bin/sh
+        printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+          "$TMUX" "$CMUX_LOCAL_TMUX" "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" \
+          > "$CMUX_TEST_OUTPUT"
+        """
+        try Data(fakeTmux.utf8).write(to: fakeTmuxURL)
+        XCTAssertEqual(chmod(fakeTmuxURL.path, 0o755), 0)
+
+        let sessionID = try XCTUnwrap(LocalTmuxSessionIdentity("$7"))
+        let binding = LocalTmuxSessionBinding(
+            sessionID: sessionID,
+            serverID: UUID(uuidString: "cccccccc-cccc-cccc-cccc-cccccccccccc")!,
+            sessionCreated: 42
+        )
+        let command = LocalTmuxCommandBuilder(
+            tmuxPath: fakeTmuxURL.path,
+            socketPath: root.appendingPathComponent("server.sock").path
+        ).attachCommand(binding: binding)
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_OUTPUT"] = outputURL.path
+        let result = runProcess(
+            executablePath: "/bin/bash",
+            arguments: ["--noprofile", "--norc", "-c", "exec -l \(command)"],
+            environment: environment,
+            timeout: 10
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let invocation = try String(contentsOf: outputURL, encoding: .utf8)
+        XCTAssertTrue(invocation.hasPrefix("|1|-S|"), invocation)
+        XCTAssertTrue(invocation.contains("attach-session -t $7"), invocation)
+    }
+
     func testLocalTmuxDirectoryOverrideIsRejectedAsMissingExecutable() throws {
         let cliPath = try bundledCLIPath()
         let root = makeLocalTmuxTestRoot("directory-bin")
