@@ -53,7 +53,7 @@ All 12 families remain incomplete:
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
-| topology | partial | window inspection and basic window actions are ported; handle normalization, tree, tab, and exact topology output remain |
+| topology | partial | window inspection, basic window actions, workspace and pane/surface inspection output are ported; handle normalization, tree, tab, and exact mutation output remain |
 | terminal-and-notifications | partial | terminal reads, selection, sends, panel aliases, and basic notification create/list/dismiss/read/open actions are ported; capture, feed, advanced targeting, and logs remain |
 | browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press aliases are ported; profiles, storage, selector normalization, and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |

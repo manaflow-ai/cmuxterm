@@ -1140,10 +1140,83 @@ fn run_socket_v2_command(
         println!("{}", result.get("focused").and_then(Value::as_bool).unwrap_or(false));
     } else if (command == "read-screen" || command == "read-selection") && !json_output {
         println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
+    } else if !json_output && command == "list-workspaces" {
+        print_workspace_list(&result);
+    } else if !json_output && command == "list-panes" {
+        print_pane_list(&result);
+    } else if !json_output && (command == "list-pane-surfaces" || command == "list-panels") {
+        print_surface_list(&result);
     } else {
         print_result(&result, json_output);
     }
     Ok(())
+}
+
+fn object_handle(value: &Value, kind: &str) -> String {
+    [format!("{kind}_ref"), "ref".into(), format!("{kind}_id"), "id".into()]
+        .iter()
+        .find_map(|key| value.get(key).and_then(Value::as_str))
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn print_workspace_list(result: &Value) {
+    let Some(workspaces) = result.get("workspaces").and_then(Value::as_array) else {
+        print_result(result, false);
+        return;
+    };
+    if workspaces.is_empty() {
+        println!("No workspaces");
+        return;
+    }
+    for workspace in workspaces {
+        let selected = workspace.get("selected").and_then(Value::as_bool).unwrap_or(false);
+        let handle = object_handle(workspace, "workspace");
+        let title = workspace.get("title").and_then(Value::as_str).unwrap_or_default();
+        let prefix = if selected { "* " } else { "  " };
+        let title = if title.is_empty() { String::new() } else { format!("  {title}") };
+        let selected = if selected { "  [selected]" } else { "" };
+        println!("{prefix}{handle}{title}{selected}");
+    }
+}
+
+fn print_pane_list(result: &Value) {
+    let Some(panes) = result.get("panes").and_then(Value::as_array) else {
+        print_result(result, false);
+        return;
+    };
+    if panes.is_empty() {
+        println!("No panes");
+        return;
+    }
+    for pane in panes {
+        let focused = pane.get("focused").and_then(Value::as_bool).unwrap_or(false);
+        let handle = object_handle(pane, "pane");
+        let count = pane.get("surface_count").and_then(Value::as_u64).unwrap_or(0);
+        let plural = if count == 1 { "surface" } else { "surfaces" };
+        let prefix = if focused { "* " } else { "  " };
+        let focus = if focused { "  [focused]" } else { "" };
+        println!("{prefix}{handle}  [{count} {plural}]{focus}");
+    }
+}
+
+fn print_surface_list(result: &Value) {
+    let Some(surfaces) = result.get("surfaces").and_then(Value::as_array) else {
+        print_result(result, false);
+        return;
+    };
+    if surfaces.is_empty() {
+        println!("No surfaces in pane");
+        return;
+    }
+    for surface in surfaces {
+        let selected = surface.get("selected").and_then(Value::as_bool).unwrap_or(false);
+        let handle = object_handle(surface, "surface");
+        let title = surface.get("title").and_then(Value::as_str).unwrap_or_default();
+        let prefix = if selected { "* " } else { "  " };
+        let selected = if selected { "  [selected]" } else { "" };
+        println!("{prefix}{handle}  {title}{selected}");
+    }
 }
 
 /// Execute the high-value browser namespace commands. The Swift CLI has a
@@ -2283,6 +2356,10 @@ mod tests {
         assert_eq!(parse_bool("true", "--focus").unwrap(), Value::Bool(true));
         assert_eq!(parse_bool("0", "--focus").unwrap(), Value::Bool(false));
         assert!(parse_bool("maybe", "--focus").is_err());
+        assert_eq!(
+            object_handle(&json!({"workspace_ref": "workspace:2"}), "workspace"),
+            "workspace:2"
+        );
     }
 
     #[test]
