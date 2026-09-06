@@ -16,6 +16,13 @@ on:
       - tests/test_hermes_wrapper_hooks.py
       - tests/test_ci_change_areas.py
       - .github/workflows/ci.yml
+      - cmuxTests/**
+      - Sources/**
+      - CLI/**
+      - Packages/**
+      - vendor/**
+      - Resources/**
+      - cmux.xcodeproj/**
   workflow_dispatch:
 
 permissions:
@@ -707,6 +714,20 @@ jobs:
             echo "Package resolution failed on attempt $attempt, retrying..."
             sleep $((attempt * 5))
           done
+
+      - name: Compile cmuxTests target
+        if: ${{ matrix.shard == 1 }}
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project cmux.xcodeproj \
+            -scheme cmux-unit \
+            -configuration Debug \
+            -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
+            -clonedSourcePackagesDirPath "$PWD/.ci-source-packages" \
+            -disableAutomaticPackageResolution \
+            -destination "platform=macOS" \
+            build-for-testing
 
       - name: Run Ghostty split-theme appearance regression
         if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}

@@ -14,6 +14,13 @@ on:
       - tests/test_ci_ghosttykit_release_check.sh
       - tests/test_ci_change_areas.py
       - .github/workflows/ci.yml
+      - cmuxTests/**
+      - Sources/**
+      - CLI/**
+      - Packages/**
+      - vendor/**
+      - Resources/**
+      - cmux.xcodeproj/**
     types: [opened, edited, reopened, synchronize, ready_for_review]
   workflow_dispatch: {}
 
