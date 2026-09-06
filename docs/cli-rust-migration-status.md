@@ -68,9 +68,10 @@ artifacts. Keeping Swift in production while the gate is red adds about
 2.62 MiB. Removing Swift before the gate passes would risk breaking commands,
 so that temporary size increase is accepted until cutover.
 
-Known implementation gap: Rust auth resolution currently supports an explicit
-password, `CMUX_SOCKET_PASSWORD`, and the shared password file. macOS Keychain
-fallback still needs an implementation and a conformance test.
+Known verification gap: Rust auth resolution now supports an explicit password,
+`CMUX_SOCKET_PASSWORD`, the shared password file, and the scoped legacy macOS
+Keychain entries. The macOS Security framework path still needs a macOS build
+and a live Keychain conformance test.
 
 Known verification gap: the full Xcode release build and installed end-user
 test have not run in this environment. The local build guard requires more
@@ -86,6 +87,7 @@ The following checks passed for the current slice:
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
+- Password source precedence tests, including the final Keychain fallback.
 - Universal arm64 and x86_64 Rust builds.
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.

@@ -373,13 +373,16 @@ fn print_capabilities() {
 }
 
 fn print_context(options: &GlobalOptions) {
-    let socket = socket_path(options).map(|path| path.display().to_string());
+    let socket_path = socket_path(options);
+    let socket = socket_path.as_ref().map(|path| path.display().to_string());
     let socket_password_source = if options.password.is_some() {
         Some("argument")
     } else if env::var_os("CMUX_SOCKET_PASSWORD").is_some() {
         Some("environment")
     } else if socket_password_file().is_some() {
         Some("file")
+    } else if socket_password_keychain(socket_path.as_deref()).is_some() {
+        Some("keychain")
     } else {
         None
     };
@@ -959,7 +962,7 @@ impl SocketClient {
             })?;
             stream.set_read_timeout(Some(DEFAULT_TIMEOUT)).ok();
             stream.set_write_timeout(Some(DEFAULT_TIMEOUT)).ok();
-            Ok(Self { stream, password: resolve_socket_password(password) })
+            Ok(Self { stream, password: resolve_socket_password(password, &path) })
         }
         #[cfg(not(unix))]
         {
@@ -1027,11 +1030,89 @@ fn authenticate_stream(
     Ok(())
 }
 
-fn resolve_socket_password(explicit: Option<String>) -> Option<String> {
+fn resolve_socket_password(explicit: Option<String>, socket_path: &Path) -> Option<String> {
+    resolve_socket_password_from_sources(
+        explicit,
+        env::var("CMUX_SOCKET_PASSWORD").ok(),
+        socket_password_file(),
+        socket_password_keychain(Some(socket_path)),
+    )
+}
+
+fn resolve_socket_password_from_sources(
+    explicit: Option<String>,
+    environment: Option<String>,
+    file: Option<String>,
+    keychain: Option<String>,
+) -> Option<String> {
     explicit
         .and_then(normalize_socket_password)
-        .or_else(|| env::var("CMUX_SOCKET_PASSWORD").ok().and_then(normalize_socket_password))
-        .or_else(socket_password_file)
+        .or_else(|| environment.and_then(normalize_socket_password))
+        .or_else(|| file.and_then(normalize_socket_password))
+        .or_else(|| keychain.and_then(normalize_socket_password))
+}
+
+/// Reads the legacy password entry that older cmux versions stored in the
+/// macOS login keychain. The password file remains authoritative when it
+/// exists; this is only the final compatibility fallback.
+fn socket_password_keychain(socket_path: Option<&Path>) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        for service in keychain_services(socket_path) {
+            if let Some(password) = security_framework::passwords::get_generic_password(
+                &service,
+                "local-socket-password",
+            )
+            .ok()
+            .and_then(|value| String::from_utf8(value).ok())
+            .and_then(normalize_socket_password)
+            {
+                return Some(password);
+            }
+        }
+        None
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = socket_path;
+        None
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn keychain_services(socket_path: Option<&Path>) -> Vec<String> {
+    const BASE: &str = "com.cmuxterm.app.socket-control";
+    let scope =
+        env::var("CMUX_TAG").ok().and_then(|value| sanitize_keychain_scope(&value)).or_else(|| {
+            let name = socket_path?.file_name()?.to_str()?;
+            ["cmux-debug-", "cmux-"].iter().find_map(|prefix| {
+                name.strip_prefix(prefix)
+                    .and_then(|value| value.strip_suffix(".sock"))
+                    .and_then(sanitize_keychain_scope)
+            })
+        });
+    scope.map_or_else(
+        || vec![BASE.to_string()],
+        |scope| vec![format!("{BASE}.{scope}"), BASE.to_string()],
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn sanitize_keychain_scope(value: &str) -> Option<String> {
+    let mut result = String::new();
+    let mut previous_dot = false;
+    for character in value.chars().flat_map(char::to_lowercase) {
+        let allowed = character.is_ascii_alphanumeric() || matches!(character, '.' | '-');
+        if allowed {
+            result.push(character);
+            previous_dot = false;
+        } else if !previous_dot {
+            result.push('.');
+            previous_dot = true;
+        }
+    }
+    let trimmed = result.trim_matches('.').to_string();
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 fn normalize_socket_password(value: String) -> Option<String> {
@@ -1267,6 +1348,32 @@ mod tests {
         assert_eq!(
             socket_password_file_for_home(Some(home.path().as_os_str().to_os_string())),
             Some("  secret-value  ".into())
+        );
+    }
+
+    #[test]
+    fn socket_password_source_order_matches_swift_with_keychain_last() {
+        assert_eq!(
+            resolve_socket_password_from_sources(None, None, None, Some("legacy-keychain".into())),
+            Some("legacy-keychain".into())
+        );
+        assert_eq!(
+            resolve_socket_password_from_sources(
+                Some(" explicit ".into()),
+                Some("environment".into()),
+                Some("file".into()),
+                Some("keychain".into())
+            ),
+            Some(" explicit ".into())
+        );
+        assert_eq!(
+            resolve_socket_password_from_sources(
+                None,
+                Some("\n".into()),
+                Some(" file ".into()),
+                Some("keychain".into())
+            ),
+            Some(" file ".into())
         );
     }
 }
