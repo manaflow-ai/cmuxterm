@@ -2445,13 +2445,17 @@ class TerminalController {
                     descriptor: descriptor
                 )
             }
+            let preparedRegistration = preparedDiffViewerRegistration(for: request)
             return SocketCommandProcessingResult(
                 response: mainThreadSocketCommandWatchdog.monitor(
                     descriptor: descriptor,
                     startNs: DispatchTime.now().uptimeNanoseconds
                 ) {
                     CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
-                        processParsedV2Command(request)
+                        processParsedV2Command(
+                            request,
+                            diffViewerRegistration: preparedRegistration
+                        )
                     }
                 },
                 descriptor: descriptor
@@ -2747,7 +2751,10 @@ class TerminalController {
             return CmuxAutomationInvocationContext.$eventOrigin.withValue(
                 CmuxAutomationInvocationContext.eventOrigin
             ) {
-                processParsedV2Command(request)
+                processParsedV2Command(
+                    request,
+                    diffViewerRegistration: preparedDiffViewerRegistration(for: request)
+                )
             }
         }
     }
@@ -2766,7 +2773,10 @@ class TerminalController {
     /// for in-process callers). Policy checks and response encoding stay on
     /// the calling thread; only the command body crosses to the main actor,
     /// via a single `v2MainSync` hop.
-    private nonisolated func processParsedV2Command(_ request: ControlRequest) -> String {
+    private nonisolated func processParsedV2Command(
+        _ request: ControlRequest,
+        diffViewerRegistration: DiffViewerSessionPreparation = .notNeeded
+    ) -> String {
         if let focusError = Self.focusSuppressionResponse(
             method: request.method,
             id: request.id.map(\.foundationObject),
@@ -2792,16 +2802,6 @@ class TerminalController {
                 return v2Result(id: id, workspaceParamError)
             }
 
-            // `browser.open_split` remains one main-actor UI action, but custom
-            // diff-viewer registration performs its bounded manifest/file/lease
-            // work here on the socket worker before the single main hop.
-            let diffViewerRegistration: DiffViewerSessionPreparation
-            if method == "browser.open_split" {
-                diffViewerRegistration = v2PrepareDiffViewerRegistration(params: params)
-            } else {
-                diffViewerRegistration = .notNeeded
-            }
-
             let outcome = v2MainSync {
                 self.v2MainActorResponse(
                     request: request,
@@ -2818,6 +2818,15 @@ class TerminalController {
                 return response
             }
         }
+    }
+
+    private nonisolated func preparedDiffViewerRegistration(
+        for request: ControlRequest
+    ) -> DiffViewerSessionPreparation {
+        guard request.method == "browser.open_split" else { return .notNeeded }
+        return v2PrepareDiffViewerRegistration(
+            params: request.params.mapValues(\.foundationObject)
+        )
     }
 
     /// The main-actor body of one main-lane v2 command: the known-ref
