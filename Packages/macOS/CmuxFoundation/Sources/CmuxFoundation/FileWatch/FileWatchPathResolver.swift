@@ -1,7 +1,7 @@
 public import Foundation
 
 /// Resolves the nearest safe existing directory for a watched path.
-public struct FileWatchPathResolver: Sendable {
+public struct FileWatchPathResolver {
     private let fileManager: FileManager
 
     /// Creates a resolver with an injectable filesystem provider.
