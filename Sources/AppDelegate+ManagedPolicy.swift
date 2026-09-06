@@ -1,8 +1,9 @@
 import Foundation
+import CmuxSettings
 
 /// Runtime enforcement for MDM managed policies (`DisableEmbeddedBrowser`,
-/// `DisableRemoteControl`): installs the transition observer and closes live
-/// browser panes when the browser policy activates mid-session.
+/// `DisableRemoteControl`, and `DisableCloud`): installs the transition observer
+/// and tears down live resources when a policy activates mid-session.
 extension AppDelegate {
     /// Installs the managed-policy transition observer once at startup.
     func installManagedPolicyEnforcement() {
@@ -19,8 +20,24 @@ extension AppDelegate {
                 // policy (including live connections) and re-arms it when
                 // the policy lifts.
                 MobileHostService.shared.syncToSettings()
+            },
+            enforceCloudPolicy: { [weak self] in
+                guard let self, ManagedDevicePolicy().isEnforced(.disableCloud) else { return }
+                Task { @MainActor in
+                    await CmuxTuiSurfaceProviderRegistry.shared.accessDidEnd()
+                    self.closeWorkspacesForDisabledCloud()
+                }
             }
         )
+    }
+
+    /// A managed Cloud disable tears down providers and existing managed Cloud
+    /// workspaces so a policy push cannot leave an active session usable.
+    func closeWorkspacesForDisabledCloud() {
+        for manager in allTabManagersForManagedPolicyEnforcement() {
+            let workspaces = manager.tabs.filter(\.isManagedCloudVMWorkspace)
+            for workspace in workspaces { manager.closeTab(workspace) }
+        }
     }
 
     /// Closes every live browser pane — main area and Docks, across all
