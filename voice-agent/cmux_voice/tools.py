@@ -1052,6 +1052,31 @@ class VoiceTools:
                 say += " Claude Code is open there."
         return await self._done(say, workspace_id=res.get("workspace_id"), path=path, branch=name)
 
+    async def quit_agent(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Leave the agent CLI in the terminal (types its /exit and presses enter; falls back to ctrl-d)."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        if not await self._agent_box_visible(s.id):
+            return {"ok": True, "say": "No agent is open in this terminal.", "already_closed": True}
+        try:
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "ctrl-u"})
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": "/exit"})
+            await asyncio.sleep(0.4)
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't quit the agent: {e}")
+        for _ in range(12):
+            await asyncio.sleep(0.5)
+            if not await self._agent_box_visible(s.id):
+                self._last_typed_surface = None
+                return await self._done("Closed the agent; you're back at the shell.", flash_surface=s.id)
+        try:
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "ctrl-d"})
+        except CmuxError:
+            pass
+        return await self._done("Asked the agent to exit.", flash_surface=s.id)
+
     # ------------------------------------------------------------ tools: browser
 
     async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -1142,6 +1167,7 @@ class VoiceTools:
             ToolSpec("rename_tab", "Name a split tab (the focused one by default), e.g. 'call this tab server'.", {"title": {"type": "string"}, "target": target_prop}, self.rename_tab, required=["title"]),
             ToolSpec("git_action", "Run a common git operation from lazy intent; the exact command is composed for you. Actions: status, switch (checkout), create_branch, merge, commit (needs message), push, pull, fetch, stash, stash_pop, log, diff, branches, delete_branch.", {"action": {"type": "string"}, "branch": {"type": "string", "description": "Branch name when the action needs one."}, "message": {"type": "string", "description": "Commit message for commit."}, "target": target_prop}, self.git_action, required=["action"]),
             ToolSpec("create_worktree", "Create a git worktree for a new (or existing) branch in the current repo, open it in a new named workspace, and optionally start Claude Code there.", {"branch": {"type": "string"}, "base": {"type": "string", "description": "Optional base branch or commit."}, "open_claude": {"type": "boolean", "description": "Also open Claude Code in the new workspace."}, "target": target_prop}, self.create_worktree, required=["branch"]),
+            ToolSpec("quit_agent", "Quit the agent CLI (Claude Code, Codex, ...) running in the terminal and return to the shell. Use for 'quit Claude', 'exit Claude Code', 'close Codex'.", {"target": target_prop}, self.quit_agent),
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),

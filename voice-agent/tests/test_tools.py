@@ -270,7 +270,7 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "browser_navigate", "browser_history", "confirm", "end_session",
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
         "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent", "close_pane",
-        "create_workspace_group", "rename_workspace_group", "focus_workspace_group", "create_workspace_in_group", "rename_tab", "git_action", "create_worktree",
+        "create_workspace_group", "rename_workspace_group", "focus_workspace_group", "create_workspace_in_group", "rename_tab", "git_action", "create_worktree", "quit_agent",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
     assert confirming == {"close_workspace", "close_tab", "close_pane", "run_command", "run_shell"}

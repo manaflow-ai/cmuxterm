@@ -70,7 +70,7 @@ class CompletionFlow:
                 self.focused_surface_id = sid
             if frame.get("workspace_id"):
                 self.focused_workspace_id = frame.get("workspace_id")
-            pending = self.summarizer.take_pending(sid)
+            pending = self.summarizer.take_pending(sid, frame.get("workspace_id"))
             if pending is not None:
                 await asyncio.sleep(self.settle_s)  # let the switch render before reading the screen
                 await self._recap(pending)

@@ -69,6 +69,11 @@ SCENARIO='[{"say":"split right","check":"in_claude"}]' .venv/bin/python scenario
 It needs `~/Local-Projects/voice-scratch` (a throwaway git repo) and a
 focused terminal at least 60 columns wide.
 
+Ready-made scenarios live in `scenarios/`: `ui_terminal.json` (groups, naming,
+switching, lazy folders, git, worktree), `claude_flow.json` (prompting Claude
+Code, recap), `elsewhere.json` (agent finishes in another workspace).
+Run one with `SCENARIO="$(cat scenarios/ui_terminal.json)" .venv/bin/python scenario.py`.
+
 ## Tests
 
 ```bash

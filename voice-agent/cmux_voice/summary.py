@@ -53,10 +53,16 @@ class CompletionSummarizer:
         if completion.surface_id:
             self.pending[completion.surface_id] = completion
 
-    def take_pending(self, surface_id: Optional[str]) -> Optional[AgentCompletion]:
-        if not surface_id:
-            return None
-        return self.pending.pop(surface_id, None)
+    def take_pending(self, surface_id: Optional[str] = None, workspace_id: Optional[str] = None) -> Optional[AgentCompletion]:
+        """Pop the deferred completion the user just arrived at: by surface, or,
+        when a workspace switch carries no surface id, by workspace."""
+        if surface_id and surface_id in self.pending:
+            return self.pending.pop(surface_id)
+        if workspace_id:
+            for sid, completion in list(self.pending.items()):
+                if completion.workspace_id == workspace_id:
+                    return self.pending.pop(sid)
+        return None
 
     async def callout_for(self, completion: AgentCompletion) -> str:
         """One spoken sentence: which agent finished, and where."""
@@ -146,11 +152,27 @@ _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 _SPINNER = re.compile(r"^[\s\u2800-\u28ff·•●○◐◑◒◓▪▫■□|/\\\-─━═│┃╭╮╰╯┏┓┗┛┌┐└┘]*$")
 
 
+_AGENT_LAUNCH = re.compile(r"(^|\s%\s|\$\s)(claude|codex|opencode|gemini)(\s|$)")
+
+
+def focus_on_last_turn(text: str) -> str:
+    """Keep only what follows the agent's most recent launch line, so a recap
+    describes the latest turn rather than the whole scrollback."""
+    lines = text.splitlines()
+    for i in range(len(lines) - 1, -1, -1):
+        if _AGENT_LAUNCH.search(lines[i]):
+            tail = lines[i:]
+            if len([l for l in tail if l.strip()]) >= 2:
+                return "\n".join(tail)
+            break
+    return text
+
+
 def condense(text: str, limit: int = MAX_SCREEN_CHARS) -> str:
-    """Strip ANSI, drop blank/spinner/rule-only lines, collapse repeats, keep the tail."""
+    """Strip ANSI, keep the latest agent turn, drop blank/spinner/rule-only lines, collapse repeats."""
     out: List[str] = []
     prev = None
-    for raw in _ANSI.sub("", text).splitlines():
+    for raw in focus_on_last_turn(_ANSI.sub("", text)).splitlines():
         line = raw.rstrip()
         stripped = line.strip()
         if not stripped or _SPINNER.match(stripped):

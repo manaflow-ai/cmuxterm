@@ -1,0 +1,18 @@
+[
+ {"say":"create a new group called Voice Test","check":"group_exists","value":"Voice Test","wait":10},
+ {"say":"new workspace called Alpha","check":"workspace_is","value":"Alpha","wait":10},
+ {"say":"call this tab main shell","check":"tab_is","value":"main shell","wait":9},
+ {"say":"split down and call it logs","check":"tab_is","value":"logs","wait":12},
+ {"say":"switch to the main shell tab","check":"tab_is","value":"main shell","wait":9},
+ {"say":"switch to staff portal","check":"workspace_is","value":"Staff Portal","wait":9},
+ {"say":"go to alpha","check":"workspace_is","value":"Alpha","wait":9},
+ {"say":"go to the voice scratch folder","check":"cwd_endswith","value":"voice-scratch","wait":11},
+ {"say":"check out develop","check":"branch_is","value":"develop","wait":11},
+ {"say":"make a branch called voice-quick","check":"branch_is","value":"voice-quick","wait":11},
+ {"say":"type echo quick action test","check":"screen_contains","value":"echo quick action test","wait":9},
+ {"say":"enter","check":"screen_contains","value":"quick action test","wait":8},
+ {"say":"commit this as quick action test","check":"screen_contains","value":"quick action test","wait":12},
+ {"say":"go back to main","check":"branch_is","value":"main","wait":11},
+ {"say":"go to the cmux folder inside dmux","check":"cwd_endswith","value":"dmux/cmux","wait":11},
+ {"say":"create a worktree called wt-voice","check":"dir_exists","value":"~/Local-Projects/dmux/cmux/.claude/worktrees/wt-voice","wait":14}
+]

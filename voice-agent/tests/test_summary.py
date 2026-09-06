@@ -133,3 +133,12 @@ async def test_manual_recap_ignores_debounce_and_disabled(fake: FakeCmux):
     b = await s.briefing_for_surface("S-B2")
     assert a and b and "12 passing" in a and "Requested by the user" in a
     assert {"method": "surface.read_text", "params": {"lines": 120, "surface_id": "S-B2"}} in fake.requests
+
+
+def test_condense_starts_from_the_latest_agent_launch():
+    raw = "user@host proj % git status\nOn branch main\nuser@host proj % claude -p \"say ok\"\nELSEWHERE OK\nuser@host proj % "
+    out = condense(raw)
+    assert out.splitlines()[0].endswith('claude -p "say ok"')
+    assert "On branch main" not in out and "ELSEWHERE OK" in out
+    # No launch line: everything is kept.
+    assert condense("a\nb\nc").splitlines() == ["a", "b", "c"]

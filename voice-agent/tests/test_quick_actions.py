@@ -292,3 +292,61 @@ async def test_completion_flow_refreshes_name_cache_on_structure_events(fake: Fa
     assert tools.state is not None
     assert fake.methods().count("system.tree") == 1
     client.close()
+
+
+async def test_quit_agent_types_exit_and_waits_for_the_shell(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    import cmux_voice.tools as t
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
+    frames = ["────\n❯ \n────\n", "────\n❯ \n────\n", "bye\nuser@host proj % "]
+    reads = {"n": 0}
+    base = fake.responder
+
+    def responder(m, p):
+        if m == "surface.read_text":
+            reads["n"] += 1
+            return {"text": frames[min(reads["n"] - 1, len(frames) - 1)]}
+        return base(m, p)
+
+    fake.responder = responder
+    res = await tools.quit_agent()
+    assert res["ok"] and "back at the shell" in res["say"]
+    sent = [(r["params"].get("key") or r["params"].get("text")) for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert sent == ["ctrl-u", "/exit", "enter"]
+
+
+async def test_quit_agent_when_none_open(tools: VoiceTools, fake: FakeCmux):
+    base = fake.responder
+    fake.responder = lambda m, p: {"text": "user@host proj % "} if m == "surface.read_text" else base(m, p)
+    res = await tools.quit_agent()
+    assert res["ok"] and res["already_closed"]
+
+
+async def test_deferred_recap_plays_on_workspace_switch_without_surface_id(fake: FakeCmux):
+    base = fake.responder
+
+    def responder(m, p):
+        if m == "system.identify":
+            return {"focused": {"surface_id": "S-A1", "workspace_id": "WS-A"}}
+        if m == "surface.read_text":
+            return {"text": "$ claude\ncreated three files\n$ "}
+        return base(m, p)
+
+    fake.responder = responder
+    from cmux_voice.completion_flow import CompletionFlow
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    tools = VoiceTools(client, ConfirmationPolicy())
+    spoken = []
+
+    async def speak(t): spoken.append(t)
+
+    flow = CompletionFlow(tools, CompletionSummarizer(CmuxClient(fake.path)), speak, settle_s=0)
+    await flow.on_agent_completion(_stop("S-B1", seq=9))  # finished in WS-B while the user is in WS-A
+    assert flow.spoken == ["callout"]
+    # cmux's workspace.selected carries the workspace id but no surface id.
+    await flow.on_ui_event({"name": "workspace.selected", "category": "workspace", "workspace_id": "WS-B", "surface_id": None})
+    assert flow.spoken == ["callout", "recap"] and "created three files" in spoken[-1]
+    client.close()
