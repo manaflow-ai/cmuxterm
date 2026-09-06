@@ -286,6 +286,18 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         #expect(sessions["root-session"] != nil)
         #expect(sessions["child-session"] == nil)
 
+        let childTool = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "feed", "--source", "copilot", "--event", "preToolUse"],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"child-session","cwd":"\(context.root.path)","toolCalls":[{"id":"child-tool-1","name":"shell","args":{"command":"pwd"}}]}
+            """,
+            timeout: 5
+        )
+        #expect(childTool.status == 0, Comment(rawValue: childTool.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+
         let shellCompleted = runProcess(
             executablePath: cliPath,
             arguments: [
@@ -313,6 +325,10 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             }
             return identity.agentID == "copilot"
                 && identity.sessionID == "child-session"
+                && ($0["_telemetry_only"] as? Bool) == true
+        })
+        #expect(events.contains {
+            ($0["_action_request_id"] as? String) == "child-tool-1"
                 && ($0["_telemetry_only"] as? Bool) == true
         })
         #expect(events.contains {
