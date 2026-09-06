@@ -268646,6 +268646,23 @@
         }
       }
     },
+    "textSelection.copyText": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Text"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テキストをコピー"
+          }
+        }
+      }
+    },
     "taskManager.windowTitle": {
       "extractionState": "manual",
       "localizations": {
