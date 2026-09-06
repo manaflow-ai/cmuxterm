@@ -884,6 +884,13 @@ extension CMUXCLI {
         Workspace ids come from `cmux vm tree`. Add --json for the raw result.
         """
 
+    static let vmTabUsage = """
+        Usage:
+          cmux vm tab rename <machine> <tab-id> <name>
+                                                              Set or clear exactly one daemon tab placement (use "" to clear).
+                                                              Use the tab id from `cmux vm tree --json`.
+        """
+
     static let vmTerminalUsage = """
         Usage:
           cmux vm terminal send <machine> <terminal-id> [text] [--keys <k1,k2,…>]
@@ -1085,6 +1092,33 @@ extension CMUXCLI {
             }
         default:
             throw CLIError(message: "vm terminal: unknown verb '\(verb)'\n\n\(Self.vmTerminalUsage)")
+        }
+    }
+
+    /// Renames one tab placement without changing sibling views of the same terminal.
+    func runVMTabCommand(rest: [String], client: SocketClient, jsonOutput: Bool) throws {
+        if rest.contains("--help") || rest.contains("-h") || rest.isEmpty {
+            print(Self.vmTabUsage)
+            return
+        }
+        let args = rest.filter { $0 != "--json" }
+        guard args.count == 4, args[0] == "rename", !args[1].isEmpty, !args[2].isEmpty else {
+            throw CLIError(message: Self.vmTabUsage)
+        }
+        let machine = args[1]
+        let tabID = args[2]
+        let name = args[3].trimmingCharacters(in: .whitespacesAndNewlines)
+        let response = try client.sendV2(
+            method: "vm.tab_rename",
+            params: ["id": machine, "tab_id": tabID, "name": name],
+            responseTimeout: 120
+        )
+        if jsonOutput {
+            print(jsonString(response))
+        } else {
+            print(name.isEmpty
+                ? "OK cleared tab \(tabID) label on \(machine)"
+                : "OK renamed tab \(tabID) to \"\(name)\" on \(machine)")
         }
     }
 
