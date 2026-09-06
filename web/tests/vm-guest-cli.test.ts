@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+
+// Every shim run spawns dozens of processes (sh + jq per step); give the suites room.
+setDefaultTimeout(60_000);
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -322,5 +325,790 @@ describe("in-VM cmux shim", () => {
     const encoded = command.match(/printf '%s' '([A-Za-z0-9+/=]+)'/);
     expect(encoded).not.toBeNull();
     expect(Buffer.from(encoded![1], "base64").toString("utf8")).toBe(GUEST_CMUX_SHIM);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agent primitives shared with the Mac CLI: layout export/apply, env, the
+// Mac-flavoured terminal verbs, and their peer forms. A stateful fake
+// cmux-tui logs every argv (one call per `--END--`-terminated block) and
+// answers creation verbs with CreatedTerminalPath / CreatedBrowserPath results
+// whose ids embed the call number, so the exact op sequence is assertable.
+// ---------------------------------------------------------------------------
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+
+const STATEFUL_FAKE_TUI = `#!/bin/sh
+{ printf '%s\\n' "$@"; printf '%s\\n' "--END--"; } >> "$FAKE_LOG"
+n=$(cat "$FAKE_STATE" 2>/dev/null || echo 0); n=$((n + 1)); printf '%s' "$n" > "$FAKE_STATE"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --session|--socket) shift 2 ;;
+    --json|--quiet|--jsonl) shift ;;
+    *) break ;;
+  esac
+done
+a="\${1:-}"; b="\${2:-}"; c="\${3:-}"; d="\${4:-}"
+if [ "$a" = session ] && [ "$c" = snapshot ]; then cat "$FAKE_SNAPSHOT"; exit 0; fi
+if [ "$a" = workspace ] && [ "$b" = create ]; then
+  case "$*" in
+    *--empty*)
+      if [ "\${FAKE_NO_EMPTY:-0}" = 1 ]; then printf '{"error":{"code":"usage.invalid","message":"unknown flag --empty"}}\\n'; exit 2; fi
+      printf '{"value":{"kind":"workspace","workspace_id":"ws_new%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$n" "$n" ;;
+    *) printf '{"value":{"kind":"terminal","workspace_id":"ws_new%s","screen_id":"screen_%s","pane_id":"pane_%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$n" "$n" "$n" "$n" "$n" "$n" ;;
+  esac
+  exit 0
+fi
+if [ "$a" = workspace ] && [ "$b" = current ] && [ "$c" = get ]; then [ "\${FAKE_NO_CURRENT:-0}" = 1 ] && exit 1; printf '{"id":"ws_cur"}\\n'; exit 0; fi
+if [ "$a" = workspace ] && [ "$c" = run ]; then printf '{"value":{"kind":"terminal","workspace_id":"%s","screen_id":"screen_%s","pane_id":"pane_%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" "$n" "$n" "$n" "$n"; exit 0; fi
+if [ "$a" = pane ] && [ "$c" = split ]; then printf '{"value":{"kind":"terminal","workspace_id":"ws_x","screen_id":"screen_1","pane_id":"pane_%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$n" "$n" "$n" "$n"; exit 0; fi
+if [ "$a" = pane ] && [ "$c" = run ]; then printf '{"value":{"kind":"terminal","workspace_id":"ws_x","screen_id":"screen_1","pane_id":"%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" "$n" "$n"; exit 0; fi
+if [ "$a" = pane ] && [ "$c" = tab ] && [ "$d" = create ]; then
+  if [ "\${FAKE_NO_BROWSER:-0}" = 1 ]; then printf '{"error":{"code":"browser.unavailable","message":"no browser runtime"}}\\n'; exit 1; fi
+  printf '{"value":{"kind":"browser","workspace_id":"ws_x","screen_id":"screen_1","pane_id":"%s","tab_id":"tab_%s","browser_id":"browser_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" "$n" "$n"; exit 0
+fi
+if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = wait ]; then
+  case "$*" in
+    *CMUX-ENV-\\(OK*) printf '{"matched":true,"text":"CMUX-ENV-READY\\\\nCMUX-ENV-OK keys=2 path=/root/.config/cmux/env\\\\n"}\\n'; exit 0 ;;
+    *CMUX-ENV-READY*) printf '{"matched":%s,"text":"CMUX-ENV-READY\\\\n"}\\n' "\${FAKE_MATCHED:-true}"; exit 0 ;;
+  esac
+  printf '{"matched":%s,"text":"λ "}\\n' "\${FAKE_MATCHED:-true}"; exit 0
+fi
+if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = read ]; then printf '{"cols":80,"rows":24,"text":"hello screen"}\\n'; exit 0; fi
+printf '{}\\n'
+`;
+
+/** A daemon snapshot: ws_main is a 0.6 horizontal split whose right half is a 0.3 vertical split over a 2-pane stack. */
+const SNAPSHOT_FIXTURE = {
+  workspaces: [
+    { id: "ws_main", name: "main", index: 0, focused: true },
+    { id: "ws_api", name: "api", index: 1, focused: false },
+    { id: "ws_empty", name: "empty", index: 2, focused: false },
+    { id: "ws_dup1", name: "dup", index: 3, focused: false },
+    { id: "ws_dup2", name: "dup", index: 4, focused: false },
+  ],
+  screens: [
+    {
+      id: "screen_1",
+      workspace_id: "ws_main",
+      name: null,
+      index: 0,
+      focused: true,
+      layout: {
+        version: 1,
+        screen_id: "screen_1",
+        active_pane_id: "pane_1",
+        zoomed_pane_id: null,
+        root: {
+          kind: "split",
+          split_id: "split_1",
+          direction: "horizontal",
+          ratio: 0.6,
+          first: { kind: "leaf", pane_id: "pane_1", tab_ids: ["tab_1", "tab_2"], active_tab_id: "tab_1" },
+          second: {
+            kind: "split",
+            split_id: "split_2",
+            direction: "vertical",
+            ratio: 0.3,
+            first: { kind: "leaf", pane_id: "pane_2", tab_ids: ["tab_3"] },
+            second: { kind: "stack", pane_ids: ["pane_3", "pane_4"], expanded_pane_id: "pane_3" },
+          },
+        },
+      },
+    },
+    {
+      id: "screen_2",
+      workspace_id: "ws_api",
+      name: null,
+      index: 0,
+      focused: true,
+      layout: { version: 1, screen_id: "screen_2", active_pane_id: "pane_5", zoomed_pane_id: null, root: { kind: "leaf", pane_id: "pane_5", tab_ids: ["tab_5"] } },
+    },
+  ],
+  panes: [
+    { id: "pane_1", screen_id: "screen_1", name: null, focused: true, zoomed: false },
+    { id: "pane_2", screen_id: "screen_1", name: null, focused: false, zoomed: false },
+    { id: "pane_3", screen_id: "screen_1", name: null, focused: false, zoomed: false },
+    { id: "pane_4", screen_id: "screen_1", name: null, focused: false, zoomed: false },
+    { id: "pane_5", screen_id: "screen_2", name: null, focused: true, zoomed: false },
+  ],
+  // tab_2 is listed before tab_1 on purpose: export must order tabs by index, not wire order.
+  tabs: [
+    { id: "tab_2", pane_id: "pane_1", name: null, index: 1, focused: false, content_kind: "browser", content_id: "browser_1" },
+    { id: "tab_1", pane_id: "pane_1", name: "agent", index: 0, focused: true, content_kind: "terminal", content_id: "term_agent" },
+    { id: "tab_3", pane_id: "pane_2", name: "tests", index: 0, focused: true, content_kind: "terminal", content_id: "term_tests" },
+    { id: "tab_4a", pane_id: "pane_3", name: null, index: 0, focused: true, content_kind: "terminal", content_id: "term_logs" },
+    { id: "tab_4b", pane_id: "pane_4", name: null, index: 0, focused: true, content_kind: "terminal", content_id: "term_shell" },
+    { id: "tab_5", pane_id: "pane_5", name: null, index: 0, focused: true, content_kind: "terminal", content_id: "term_api" },
+  ],
+  terminals: [
+    { id: "term_agent", tab_id: "tab_1", tab_ids: ["tab_1"], title: "claude", cwd: "/root/work/app", cols: 80, rows: 24, running: true, lifecycle: "running" },
+    { id: "term_tests", tab_id: "tab_3", tab_ids: ["tab_3"], title: "bun", cwd: "/root/work/app", cols: 80, rows: 24, running: true, lifecycle: "running" },
+    { id: "term_logs", tab_id: "tab_4a", tab_ids: ["tab_4a"], title: "tail", cwd: "/var/log", cols: 80, rows: 24, running: true, lifecycle: "running" },
+    { id: "term_shell", tab_id: "tab_4b", tab_ids: ["tab_4b"], title: "bash", cols: 80, rows: 24, running: true, lifecycle: "running" },
+    { id: "term_api", tab_id: "tab_5", tab_ids: ["tab_5"], title: "bash", cwd: "/root/work/api", cols: 80, rows: 24, running: true, lifecycle: "running" },
+  ],
+  browsers: [{ id: "browser_1", tab_id: "tab_2", url: "http://localhost:3000", title: "app", status: "ready" }],
+  agents: [],
+};
+
+const LAYOUT_DOC = {
+  name: "dev",
+  cwd: "work/app",
+  env: { NODE_ENV: "development" },
+  layout: {
+    direction: "horizontal",
+    split: 0.6,
+    children: [
+      { pane: { surfaces: [{ type: "terminal", name: "agent", command: "claude" }, { type: "browser", url: "http://localhost:3000", name: "app" }] } },
+      {
+        direction: "vertical",
+        split: 0.3,
+        children: [
+          { pane: { surfaces: [{ type: "terminal", name: "tests", command: "bun test --watch", env: { CI: "1" } }] } },
+          { pane: { surfaces: [{ type: "terminal", cwd: "/var/log", focus: true }] } },
+        ],
+      },
+    ],
+  },
+};
+
+const PROMPT_WAIT = ["screen", "wait", "--pattern", "λ|\\$ $|# $", "--timeout-ms", "8000"];
+
+type StatefulRun = { calls: string[][]; status: number | null; stdout: string; stderr: string; home: string };
+
+function makeStatefulDir(): string {
+  const dir = mkdtempSync(join(tmpdir(), "cmux-guest-prims-"));
+  writeFileSync(join(dir, "cmux"), GUEST_CMUX_SHIM);
+  chmodSync(join(dir, "cmux"), 0o755);
+  writeFileSync(join(dir, "cmux-tui"), STATEFUL_FAKE_TUI);
+  chmodSync(join(dir, "cmux-tui"), 0o755);
+  writeFileSync(join(dir, "snapshot.json"), JSON.stringify(SNAPSHOT_FIXTURE));
+  return dir;
+}
+
+/** Runs the shim in `dir` (HOME) against the stateful fake and returns every daemon call. */
+function runStateful(dir: string, args: string[], env: Record<string, string | undefined> = {}, input?: string, shell = "sh"): StatefulRun {
+  const log = join(dir, "calls.log");
+  writeFileSync(log, "");
+  writeFileSync(join(dir, "state"), "");
+  const result = spawnSync(shell, [join(dir, "cmux"), ...args], {
+    encoding: "utf8",
+    timeout: 20_000,
+    input,
+    env: {
+      NODE_ENV: "test",
+      HOME: dir,
+      CMUX_TUI_BIN: join(dir, "cmux-tui"),
+      FAKE_LOG: log,
+      FAKE_STATE: join(dir, "state"),
+      FAKE_SNAPSHOT: join(dir, "snapshot.json"),
+      PATH: `${dir}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+      ...env,
+    },
+  });
+  const calls: string[][] = [];
+  let current: string[] = [];
+  for (const line of readFileSync(log, "utf8").split("\n")) {
+    if (line === "--END--") {
+      calls.push(current);
+      current = [];
+    } else if (line !== "" || current.length > 0) {
+      current.push(line);
+    }
+  }
+  return { calls, status: result.status, stdout: result.stdout, stderr: result.stderr, home: dir };
+}
+
+/** Argv with the routing prefix (`--session cloud` / `--socket …`) removed. */
+const stripRoute = (call: string[]) => call.slice(2);
+
+describe("in-VM cmux shim: agent primitives", () => {
+  test("is valid for dash too when it is installed (the image's /bin/sh is dash)", () => {
+    if (!existsSync("/bin/dash")) return;
+    const result = spawnSync("/bin/dash", ["-n"], { input: GUEST_CMUX_SHIM, encoding: "utf8" });
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+  });
+
+  test("help lists the layout, env, terminal, and peer verbs", () => {
+    const run = runShim(["--help"]);
+    expect(run.status).toBe(0);
+    for (const line of [
+      "cmux layout export [--workspace <ws>] [--raw]",
+      "cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]",
+      "cmux env set|ls|rm|path",
+      "cmux send [--terminal <id>] <text>",
+      "cmux send-key [--terminal <id>] <key> [key...]",
+      "cmux read-screen [--terminal <id>] [--json]",
+      "cmux terminal send|read|wait|close <id>",
+      "cmux vm terminal send|read|wait|close <peer> <term>",
+      "cmux vm workspace new|rename|close|rm <peer>",
+      "cmux vm agent <peer> --agent <claude|codex|opencode|pi>",
+      "cmux vm layout export|apply <peer>",
+      "cmux env set|ls|rm|path",
+    ]) {
+      expect(run.stdout).toContain(line);
+    }
+    const envHelp = runShim(["env", "help"]);
+    for (const line of ["cmux env receive [--stdin]", "CMUX-ENV-READY / CMUX-ENV-OK / CMUX-ENV-ERR", "cmux env set -"]) {
+      expect(envHelp.stdout).toContain(line);
+    }
+    for (const line of [
+      "cmux env set|ls|rm|path",
+    ]) {
+      expect(run.stdout).toContain(line);
+    }
+    const vmHelp = runShim(["vm", "help"]);
+    expect(vmHelp.stdout).toContain("cmux vm agent <machine> --agent");
+    expect(vmHelp.stdout).toContain("cmux vm env set|ls|rm|path <machine>");
+  });
+
+  describe("local Mac-flavoured verbs", () => {
+    test("send defaults to the caller's terminal, --terminal overrides, nothing else is an error", () => {
+      const dir = makeStatefulDir();
+      const mine = runStateful(dir, ["send", "hi", "there"], { CMUX_TUI_TERMINAL_ID: TERMINAL_ID });
+      expect(mine.status).toBe(0);
+      expect(mine.calls).toEqual([["--session", "cloud", "terminal", TERMINAL_ID, "write", "--text", "hi there"]]);
+
+      const other = runStateful(dir, ["send", "--terminal", "term_other", "ls -la"], { CMUX_TUI_TERMINAL_ID: TERMINAL_ID });
+      expect(other.calls).toEqual([["--session", "cloud", "terminal", "term_other", "write", "--text", "ls -la"]]);
+
+      const none = runStateful(dir, ["send", "hi"], { CMUX_TUI_TERMINAL_ID: undefined });
+      expect(none.status).toBe(2);
+      expect(none.stderr).toContain("--terminal <term_id>");
+      expect(none.calls).toEqual([]);
+    });
+
+    test("send-key and read-screen map to keys and screen read", () => {
+      const dir = makeStatefulDir();
+      const keys = runStateful(dir, ["send-key", "ctrl+c", "enter"], { CMUX_TUI_TERMINAL_ID: TERMINAL_ID });
+      expect(keys.calls).toEqual([["--session", "cloud", "terminal", TERMINAL_ID, "keys", "ctrl+c", "enter"]]);
+      const screen = runStateful(dir, ["read-screen", "--terminal", "term_2", "--json"]);
+      expect(screen.status).toBe(0);
+      expect(screen.calls).toEqual([["--session", "cloud", "--json", "terminal", "term_2", "screen", "read"]]);
+      expect(JSON.parse(screen.stdout).text).toBe("hello screen");
+    });
+
+    test("terminal send types text first, then the comma-separated keys; `--` makes the rest literal", () => {
+      const dir = makeStatefulDir();
+      const run = runStateful(dir, ["terminal", "send", "term_1", "bun", "test", "--keys", "enter,ctrl+c", "--", "--json"]);
+      expect(run.status).toBe(0);
+      expect(run.calls.map(stripRoute)).toEqual([
+        ["terminal", "term_1", "write", "--text", "bun test --json"],
+        ["terminal", "term_1", "keys", "enter", "ctrl+c"],
+      ]);
+      const keysOnly = runStateful(dir, ["terminal", "send", "term_1", "--keys", "enter"]);
+      expect(keysOnly.calls.map(stripRoute)).toEqual([["terminal", "term_1", "keys", "enter"]]);
+      const nothing = runStateful(dir, ["terminal", "send", "term_1"]);
+      expect(nothing.status).toBe(2);
+      expect(nothing.calls).toEqual([]);
+    });
+
+    test("terminal read/wait/close; wait converts seconds to ms and exits 1 when the screen never matches", () => {
+      const dir = makeStatefulDir();
+      const read = runStateful(dir, ["terminal", "read", "term_9"]);
+      expect(read.calls.map(stripRoute)).toEqual([["terminal", "term_9", "screen", "read"]]);
+      const wait = runStateful(dir, ["terminal", "wait", "term_1", "--pattern", "pass|fail", "--timeout", "2.5"]);
+      expect(wait.status).toBe(0);
+      expect(wait.stdout).toContain("OK matched /pass|fail/ on term_1");
+      expect(wait.calls).toEqual([["--session", "cloud", "--json", "terminal", "term_1", "screen", "wait", "--pattern", "pass|fail", "--timeout-ms", "2500"]]);
+      const missed = runStateful(dir, ["terminal", "wait", "term_1", "--pattern", "pass"], { FAKE_MATCHED: "false" });
+      expect(missed.status).toBe(1);
+      expect(missed.stderr).toContain("timed out after 30s");
+      expect(missed.calls[0]).toContain("30000");
+      const noPattern = runStateful(dir, ["terminal", "wait", "term_1"]);
+      expect(noPattern.status).toBe(2);
+      const close = runStateful(dir, ["terminal", "close", "term_1"]);
+      expect(close.calls.map(stripRoute)).toEqual([["terminal", "term_1", "close"]]);
+    });
+
+    test("cmux-tui's own id-first terminal grammar still passes through untouched", () => {
+      const dir = makeStatefulDir();
+      expect(runStateful(dir, ["terminal", "term_x", "keys", "enter"]).calls).toEqual([["--session", "cloud", "terminal", "term_x", "keys", "enter"]]);
+      expect(runStateful(dir, ["terminal", "list"]).calls).toEqual([["--session", "cloud", "terminal", "list"]]);
+    });
+
+    test("new-workspace, tree, and new-split (from the caller's pane, else the focused pane; right/down only)", () => {
+      const dir = makeStatefulDir();
+      expect(runStateful(dir, ["new-workspace", "--name", "t"]).calls).toEqual([["--session", "cloud", "workspace", "create", "--name", "t"]]);
+      expect(runStateful(dir, ["new-workspace"]).calls).toEqual([["--session", "cloud", "workspace", "create"]]);
+      const tree = runStateful(dir, ["tree", "--json"]);
+      expect(tree.calls).toEqual([["--session", "cloud", "--json", "session", "current", "snapshot"]]);
+      expect(JSON.parse(tree.stdout).workspaces[0].id).toBe("ws_main");
+
+      const fromCaller = runStateful(dir, ["new-split", "down"], { CMUX_TUI_TERMINAL_ID: "term_logs" });
+      expect(fromCaller.status).toBe(0);
+      expect(fromCaller.calls.map(stripRoute)).toEqual([["--json", "session", "current", "snapshot"], ["pane", "pane_3", "split", "--down"]]);
+      const focused = runStateful(dir, ["new-split", "right"], { CMUX_TUI_TERMINAL_ID: undefined });
+      expect(focused.status).toBe(0);
+      expect(focused.calls.at(-1)).toEqual(["--session", "cloud", "pane", "pane_1", "split", "--right"]);
+      const explicit = runStateful(dir, ["new-split", "right", "--pane", "pane_9"]);
+      expect(explicit.calls).toEqual([["--session", "cloud", "pane", "pane_9", "split", "--right"]]);
+      const left = runStateful(dir, ["new-split", "left"]);
+      expect(left.status).toBe(2);
+      expect(left.stderr).toContain("right or down");
+    });
+  });
+
+  describe("layout export", () => {
+    test("turns the focused workspace's LayoutDocument into the declarative document (tabs by index, stack → vertical splits)", () => {
+      const dir = makeStatefulDir();
+      const run = runStateful(dir, ["layout", "export"]);
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      expect(run.calls).toEqual([["--session", "cloud", "--json", "session", "current", "snapshot"]]);
+      expect(JSON.parse(run.stdout)).toEqual({
+        name: "main",
+        cwd: dir,
+        layout: {
+          direction: "horizontal",
+          split: 0.6,
+          children: [
+            { pane: { surfaces: [{ type: "terminal", name: "agent", cwd: "/root/work/app" }, { type: "browser", url: "http://localhost:3000" }] } },
+            {
+              direction: "vertical",
+              split: 0.3,
+              children: [
+                { pane: { surfaces: [{ type: "terminal", name: "tests", cwd: "/root/work/app" }] } },
+                {
+                  direction: "vertical",
+                  split: 0.5,
+                  children: [{ pane: { surfaces: [{ type: "terminal", cwd: "/var/log" }] } }, { pane: { surfaces: [{ type: "terminal" }] } }],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    test("selects by id or unique name, refuses ambiguous names, and --raw prints the daemon document", () => {
+      const dir = makeStatefulDir();
+      const api = runStateful(dir, ["layout", "export", "--workspace", "api"]);
+      expect(api.status).toBe(0);
+      expect(JSON.parse(api.stdout)).toEqual({ name: "api", cwd: dir, layout: { pane: { surfaces: [{ type: "terminal", cwd: "/root/work/api" }] } } });
+      const byId = runStateful(dir, ["layout", "export", "--workspace", "ws_api"]);
+      expect(JSON.parse(byId.stdout).name).toBe("api");
+      const dup = runStateful(dir, ["layout", "export", "--workspace", "dup"]);
+      expect(dup.status).toBe(2);
+      expect(dup.stderr).toContain("ws_dup1 ws_dup2");
+      const missing = runStateful(dir, ["layout", "export", "--workspace", "nope"]);
+      expect(missing.status).toBe(2);
+      expect(missing.stderr).toContain("no workspace 'nope'");
+      const empty = runStateful(dir, ["layout", "export", "--workspace", "ws_empty"]);
+      expect(empty.status).toBe(1);
+      expect(empty.stderr).toContain("no layout yet");
+      const raw = runStateful(dir, ["layout", "export", "--raw"]);
+      expect(JSON.parse(raw.stdout).root.kind).toBe("split");
+      expect(JSON.parse(raw.stdout).screen_id).toBe("screen_1");
+    });
+  });
+
+  describe("layout apply", () => {
+    test("builds a 3-pane document with the exact op sequence and reports every surface", () => {
+      const dir = makeStatefulDir();
+      writeFileSync(join(dir, "dev.json"), JSON.stringify(LAYOUT_DOC));
+      const run = runStateful(dir, ["layout", "apply", "--json", join(dir, "dev.json")]);
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      const base = `${dir}/work/app`;
+      expect(run.calls.map(stripRoute)).toEqual([
+        ["--json", "workspace", "create", "--empty", "--name", "dev"],
+        // slot 0: the root pane is the first leaf's first terminal itself (exact argv, no placeholder).
+        ["--json", "workspace", "ws_new1", "run", "--on-exit", "keep", "--cwd", base, "--name", "agent", "--", "env", "NODE_ENV=development", "bash", "-l"],
+        // split before either half is filled; the new pane starts in the second child's first cwd.
+        ["--json", "pane", "pane_2", "split", "--right", "--ratio", "0.6", "--cwd", base],
+        ["--json", "terminal", "term_2", ...PROMPT_WAIT],
+        ["--json", "terminal", "term_2", "write", "--text", "claude"],
+        ["--json", "terminal", "term_2", "keys", "enter"],
+        ["--json", "pane", "pane_2", "tab", "create", "browser", "--url", "http://localhost:3000", "--name", "app"],
+        ["--json", "pane", "pane_3", "split", "--down", "--ratio", "0.3", "--cwd", "/var/log"],
+        // a split-created pane: real terminal first (workspace env + surface env), then its placeholder dies.
+        ["--json", "pane", "pane_3", "run", "--on-exit", "keep", "--cwd", base, "--name", "tests", "--", "env", "NODE_ENV=development", "CI=1", "bash", "-l"],
+        ["--json", "terminal", "term_3", "close"],
+        ["--json", "terminal", "term_9", ...PROMPT_WAIT],
+        ["--json", "terminal", "term_9", "write", "--text", "bun test --watch"],
+        ["--json", "terminal", "term_9", "keys", "enter"],
+        ["--json", "pane", "pane_8", "run", "--on-exit", "keep", "--cwd", "/var/log", "--", "env", "NODE_ENV=development", "bash", "-l"],
+        ["--json", "terminal", "term_8", "close"],
+        ["--json", "pane", "pane_8", "focus"],
+      ]);
+      expect(JSON.parse(run.stdout)).toEqual({
+        workspace_id: "ws_new1",
+        workspace_name: "dev",
+        panes: [
+          {
+            pane_id: "pane_2",
+            surfaces: [
+              { type: "terminal", name: "agent", terminal_id: "term_2", tab_id: "tab_2" },
+              { type: "browser", name: "app", browser_id: "browser_7", tab_id: "tab_7" },
+            ],
+          },
+          { pane_id: "pane_3", surfaces: [{ type: "terminal", name: "tests", terminal_id: "term_9", tab_id: "tab_9" }] },
+          { pane_id: "pane_8", surfaces: [{ type: "terminal", terminal_id: "term_14", tab_id: "tab_14" }] },
+        ],
+        warnings: [],
+      });
+      const human = runStateful(dir, ["layout", "apply", join(dir, "dev.json")]);
+      expect(human.stdout.trim()).toBe("OK workspace=ws_new1 name=dev panes=3 surfaces=4");
+    });
+
+    test("--workspace builds inside an EMPTY existing workspace and refuses one that already has panes", () => {
+      const dir = makeStatefulDir();
+      writeFileSync(join(dir, "dev.json"), JSON.stringify(LAYOUT_DOC));
+      const busy = runStateful(dir, ["layout", "apply", "--workspace", "ws_main", join(dir, "dev.json")]);
+      expect(busy.status).toBe(1);
+      expect(busy.stderr).toContain("ws_main already has a layout (4 panes)");
+      expect(busy.calls.map(stripRoute)).toEqual([["--json", "session", "current", "snapshot"]]);
+      const empty = runStateful(dir, ["layout", "apply", "--workspace", "empty", join(dir, "dev.json")]);
+      expect(empty.status).toBe(0);
+      expect(empty.stdout.trim()).toBe("OK workspace=ws_empty name=empty panes=3 surfaces=4");
+      expect(empty.calls.map(stripRoute)[1].slice(0, 4)).toEqual(["--json", "workspace", "ws_empty", "run"]);
+      expect(empty.calls.some((call) => stripRoute(call).slice(0, 3).join(" ") === "--json workspace create")).toBe(false);
+      const both = runStateful(dir, ["layout", "apply", "--workspace", "x", "--name", "y", join(dir, "dev.json")]);
+      expect(both.status).toBe(2);
+      expect(both.calls).toEqual([]);
+    });
+
+    test("an older daemon without --empty: the starter terminal is the root placeholder and is replaced", () => {
+      const dir = makeStatefulDir();
+      const doc = { pane: { surfaces: [{ type: "terminal", name: "shell" }] } };
+      const run = runStateful(dir, ["layout", "apply", "--json", "-"], { FAKE_NO_EMPTY: "1" }, JSON.stringify(doc));
+      expect(run.status).toBe(0);
+      expect(run.calls.map(stripRoute)).toEqual([
+        ["--json", "workspace", "create", "--empty", "--name", "layout"],
+        ["--json", "workspace", "create", "--name", "layout"],
+        ["--json", "pane", "pane_2", "run", "--on-exit", "keep", "--cwd", dir, "--name", "shell", "--", "bash", "-l"],
+        ["--json", "terminal", "term_2", "close"],
+        ["--json", "pane", "pane_2", "focus"],
+      ]);
+      expect(JSON.parse(run.stdout).panes).toEqual([{ pane_id: "pane_2", surfaces: [{ type: "terminal", name: "shell", terminal_id: "term_3", tab_id: "tab_3" }] }]);
+    });
+
+    test("a browser surface the daemon cannot open becomes a warning and the pane keeps its shell", () => {
+      const dir = makeStatefulDir();
+      const doc = {
+        direction: "vertical",
+        children: [{ pane: { surfaces: [{ type: "terminal" }] } }, { pane: { surfaces: [{ type: "browser", url: "http://localhost:8080" }, { type: "project", cwd: "x" }] } }],
+      };
+      const run = runStateful(dir, ["layout", "apply", "--json", "--name", "web", "-"], { FAKE_NO_BROWSER: "1" }, JSON.stringify(doc));
+      expect(run.status).toBe(0);
+      const ops = run.calls.map(stripRoute);
+      expect(ops).toContainEqual(["--json", "pane", "pane_3", "tab", "create", "browser", "--url", "http://localhost:8080"]);
+      // The placeholder shell (term_3) stays: nothing closes it.
+      expect(ops.some((call) => call[1] === "terminal" && call[3] === "close")).toBe(false);
+      const summary = JSON.parse(run.stdout);
+      expect(summary.workspace_name).toBe("web");
+      expect(summary.panes).toEqual([{ pane_id: "pane_2", surfaces: [{ type: "terminal", terminal_id: "term_2", tab_id: "tab_2" }] }]);
+      expect(summary.warnings.length).toBe(2);
+      expect(summary.warnings[0]).toContain("http://localhost:8080");
+      expect(summary.warnings[1]).toContain("Mac-only");
+      expect(run.stderr).toContain("warning");
+    });
+
+    test("accepts a saved layout wrapper and a bare node; rejects malformed documents with the JSON path", () => {
+      const dir = makeStatefulDir();
+      const saved = { name: "dev", description: "x", workspace: { name: "from-saved", cwd: "~/src", layout: { pane: { surfaces: [{ type: "terminal", cwd: "app" }] } } } };
+      const savedRun = runStateful(dir, ["layout", "apply", "-"], {}, JSON.stringify(saved));
+      expect(savedRun.status).toBe(0);
+      expect(savedRun.calls.map(stripRoute)[0]).toEqual(["--json", "workspace", "create", "--empty", "--name", "from-saved"]);
+      expect(savedRun.calls.map(stripRoute)[1]).toEqual(["--json", "workspace", "ws_new1", "run", "--on-exit", "keep", "--cwd", `${dir}/src/app`, "--", "bash", "-l"]);
+
+      const bare = runStateful(dir, ["layout", "apply", "-"], {}, JSON.stringify({ pane: { surfaces: [{ type: "terminal" }] } }));
+      expect(bare.status).toBe(0);
+      expect(bare.stdout).toContain("name=layout");
+
+      const cases: Array<[unknown, string]> = [
+        [{ direction: "horizontal", children: [{ pane: { surfaces: [] } }] }, "$.children: split needs exactly 2 children"],
+        [{ pane: { surfaces: [{ type: "widget" }] } }, "$.pane.surfaces[0].type: must be terminal, browser, or project"],
+        [{ layout: { direction: "diagonal", children: [{ pane: { surfaces: [{ type: "terminal" }] } }, { pane: { surfaces: [{ type: "terminal" }] } }] } }, "$.layout.direction: must be horizontal or vertical"],
+        [{ direction: "vertical", children: [{ pane: { surfaces: [{ type: "terminal" }] } }, { pane: { surfaces: [{ type: "browser" }] } }] }, "$.children[1].pane.surfaces[0].url: browser surface needs url"],
+        [{ workspace: { layout: { pane: { surfaces: [] } } } }, "$.workspace.layout.pane.surfaces: needs at least one surface"],
+        [{ name: "nothing here" }, "$: no layout found"],
+      ];
+      for (const [doc, message] of cases) {
+        const run = runStateful(dir, ["layout", "apply", "-"], {}, JSON.stringify(doc));
+        expect(run.status).toBe(2);
+        expect(run.stderr).toContain(message);
+        expect(run.calls).toEqual([]);
+      }
+      const notJson = runStateful(dir, ["layout", "apply", "-"], {}, "not json");
+      expect(notJson.status).toBe(2);
+      expect(notJson.stderr).toContain("not valid JSON");
+    });
+  });
+
+  describe("env", () => {
+    test("set writes sorted, quoted exports with mode 0600 and installs the shell hook exactly once", () => {
+      const dir = makeStatefulDir();
+      const run = runStateful(dir, ["env", "set", "FOO=bar", "BAZ=it's here", "ZED=1"]);
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      expect(run.stdout).toContain("OK set 3 variables");
+      const file = join(dir, ".config", "cmux", "env");
+      expect(readFileSync(file, "utf8")).toBe(
+        "# managed by cmux env; KEY='value' lines; edit with cmux env set/rm\nexport BAZ='it'\\''s here'\nexport FOO='bar'\nexport ZED='1'\n",
+      );
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+      const hook = '[ -f "$HOME/.config/cmux/env" ] && . "$HOME/.config/cmux/env" # cmux-env-hook';
+      runStateful(dir, ["env", "set", "FOO=again"]);
+      for (const rc of [".profile", ".bashrc"]) {
+        const text = readFileSync(join(dir, rc), "utf8");
+        expect(text.split(hook).length - 1).toBe(1);
+      }
+      expect(existsSync(join(dir, ".bash_profile"))).toBe(false);
+      // The file is real shell: sourcing it yields the values, quotes and all.
+      const sourced = spawnSync("sh", ["-c", `. "${file}"; printf '%s|%s|%s' "$FOO" "$BAZ" "$ZED"`], { encoding: "utf8" });
+      expect(sourced.stdout).toBe("again|it's here|1");
+    });
+
+    test("--from-file and stdin understand dotenv comments, export prefixes, and quotes; later keys win", () => {
+      const dir = makeStatefulDir();
+      writeFileSync(join(dir, "dot.env"), "# comment\nexport API_KEY=\"abc def\"\nDB_URL='postgres://x'\n\nPLAIN=1\r\nPLAIN=2\n");
+      const fromFile = runStateful(dir, ["env", "set", "--from-file", join(dir, "dot.env")]);
+      expect(fromFile.status).toBe(0);
+      const fromStdin = runStateful(dir, ["env", "set", "-"], {}, "X=1\nexport  Y = spaced\n");
+      expect(fromStdin.status).toBe(0);
+      const shown = runStateful(dir, ["env", "ls", "--show"]);
+      expect(shown.stdout).toBe("API_KEY=abc def\nDB_URL=postgres://x\nPLAIN=2\nX=1\nY=spaced\n");
+      const names = runStateful(dir, ["env", "ls"]);
+      expect(names.stdout).toBe("API_KEY\nDB_URL\nPLAIN\nX\nY\n");
+      const json = runStateful(dir, ["env", "ls", "--json", "--show"]);
+      expect(JSON.parse(json.stdout)).toEqual({
+        path: join(dir, ".config", "cmux", "env"),
+        keys: ["API_KEY", "DB_URL", "PLAIN", "X", "Y"],
+        values: { API_KEY: "abc def", DB_URL: "postgres://x", PLAIN: "2", X: "1", Y: "spaced" },
+      });
+      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json"]).stdout)).toEqual({ path: join(dir, ".config", "cmux", "env"), keys: ["API_KEY", "DB_URL", "PLAIN", "X", "Y"] });
+    });
+
+    test("rm removes only the named keys; invalid keys and empty sets are usage errors; path prints the file", () => {
+      const dir = makeStatefulDir();
+      runStateful(dir, ["env", "set", "A=1", "B=2", "C=3"]);
+      const rm = runStateful(dir, ["env", "rm", "A", "C"]);
+      expect(rm.status).toBe(0);
+      expect(runStateful(dir, ["env", "ls"]).stdout).toBe("B\n");
+      expect(runStateful(dir, ["env", "set", "1BAD=x"]).status).toBe(2);
+      expect(runStateful(dir, ["env", "set", "BAD-KEY=x"]).status).toBe(2);
+      expect(runStateful(dir, ["env", "set", "novalue"]).status).toBe(2);
+      expect(runStateful(dir, ["env", "set"]).status).toBe(2);
+      expect(runStateful(dir, ["env", "rm"]).status).toBe(2);
+      expect(runStateful(dir, ["env", "path"]).stdout.trim()).toBe(join(dir, ".config", "cmux", "env"));
+      const fresh = makeStatefulDir();
+      expect(runStateful(fresh, ["env", "ls"]).stdout).toContain("no machine env yet");
+      expect(JSON.parse(runStateful(fresh, ["env", "ls", "--json"]).stdout)).toEqual({ path: join(fresh, ".config", "cmux", "env"), keys: [] });
+    });
+
+    test("env receive --stdin: READY first, then OK with the key count; values are byte-literal", () => {
+      const dir = makeStatefulDir();
+      const payload = "FOO=bar\nBAZ=it's  here \nURL=postgres://u:p%40ss@h/db?x=1\n";
+      const b64 = Buffer.from(payload, "utf8").toString("base64").replace(/(.{20})/g, "$1\n");
+      const run = runStateful(dir, ["env", "receive", "--stdin"], {}, `${b64}\n\nCMUX-ENV-END\n`);
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      const file = join(dir, ".config", "cmux", "env");
+      expect(run.stdout).toBe(`CMUX-ENV-READY\nCMUX-ENV-OK keys=3 path=${file}\n`);
+      expect(readFileSync(file, "utf8")).toBe(
+        "# managed by cmux env; KEY='value' lines; edit with cmux env set/rm\nexport BAZ='it'\\''s  here '\nexport FOO='bar'\nexport URL='postgres://u:p%40ss@h/db?x=1'\n",
+      );
+      expect(statSync(file).mode & 0o777).toBe(0o600);
+      expect(readFileSync(join(dir, ".profile"), "utf8")).toContain("cmux-env-hook");
+      expect(run.calls).toEqual([]);
+    });
+
+    test("env receive refuses bad keys, truncated streams, and garbage without writing anything", () => {
+      const dir = makeStatefulDir();
+      const badKey = runStateful(dir, ["env", "receive", "--stdin"], {}, `${Buffer.from("OK=1\n1BAD=x\n").toString("base64")}\nCMUX-ENV-END\n`);
+      expect(badKey.status).toBe(1);
+      expect(badKey.stdout).toBe("CMUX-ENV-READY\nCMUX-ENV-ERR invalid-key 1BAD\n");
+      expect(existsSync(join(dir, ".config", "cmux", "env"))).toBe(false);
+      const noEnd = runStateful(dir, ["env", "receive", "--stdin"], {}, `${Buffer.from("A=1\n").toString("base64")}\n`);
+      expect(noEnd.status).toBe(1);
+      expect(noEnd.stdout).toBe("CMUX-ENV-READY\nCMUX-ENV-ERR eof\n");
+      const garbage = runStateful(dir, ["env", "receive", "--stdin"], {}, "!!!not base64!!!\nCMUX-ENV-END\n");
+      expect(garbage.status).toBe(1);
+      expect(garbage.stdout).toContain("CMUX-ENV-ERR bad-base64");
+      const empty = runStateful(dir, ["env", "receive", "--stdin"], {}, "CMUX-ENV-END\n");
+      expect(empty.status).toBe(1);
+      expect(empty.stdout).toContain("CMUX-ENV-ERR empty");
+      expect(existsSync(join(dir, ".config", "cmux", "env"))).toBe(false);
+    });
+
+    test("agents started through the shim see the machine env", () => {
+      const dir = makeStatefulDir();
+      runStateful(dir, ["env", "set", "CMUX_TEST_TOKEN=from-env"]);
+      const claude = join(dir, "claude");
+      writeFileSync(claude, "#!/bin/sh\nprintf '%s\\n' \"$CMUX_TEST_TOKEN\"\n");
+      chmodSync(claude, 0o755);
+      const run = runStateful(dir, ["agent", "claude", "say hi"]);
+      expect(run.status).toBe(0);
+      expect(run.stdout.trim()).toBe("from-env");
+    });
+  });
+
+  describe("peer forms", () => {
+    // A live link: the shim reuses ~/.cmux/peer-links/<peer>.{pid,sock-path}
+    // when the pid is alive and the socket exists, so the peer verbs can be
+    // exercised without a cmux-remote daemon.
+    let server: ReturnType<typeof Bun.listen> | undefined;
+    let sockPath = "";
+    const peer = "brave-otter";
+
+    function peerDir(): string {
+      const dir = makeStatefulDir();
+      mkdirSync(join(dir, ".cmux", "peers"), { recursive: true });
+      mkdirSync(join(dir, ".cmux", "peer-links"), { recursive: true });
+      writeFileSync(join(dir, ".cmux", "peers", `${peer}.json`), JSON.stringify({ route: "cmux-remote://example" }));
+      writeFileSync(join(dir, ".cmux", "peer-links", `${peer}.pid`), String(process.pid));
+      writeFileSync(join(dir, ".cmux", "peer-links", `${peer}.sock-path`), sockPath);
+      return dir;
+    }
+
+    beforeAll(() => {
+      sockPath = `/tmp/cmux-gs-${process.pid}-${Math.random().toString(36).slice(2, 8)}.sock`;
+      server = Bun.listen({ unix: sockPath, socket: { data() {}, open() {}, close() {} } });
+    });
+    afterAll(() => {
+      server?.stop(true);
+      try {
+        unlinkSync(sockPath);
+      } catch {
+        // already gone
+      }
+    });
+
+    test("terminal verbs ride the peer's link socket with the same flags as locally", () => {
+      const dir = peerDir();
+      const send = runStateful(dir, ["vm", "terminal", "send", peer, "term_x", "bun test", "--keys", "enter"]);
+      expect(send.stderr).toBe("");
+      expect(send.status).toBe(0);
+      expect(send.calls).toEqual([
+        ["--socket", sockPath, "terminal", "term_x", "write", "--text", "bun test"],
+        ["--socket", sockPath, "terminal", "term_x", "keys", "enter"],
+      ]);
+      expect(runStateful(dir, ["vm", "terminal", "read", peer, "term_x"]).calls).toEqual([["--socket", sockPath, "terminal", "term_x", "screen", "read"]]);
+      expect(runStateful(dir, ["vm", "terminal", "wait", peer, "term_x", "--pattern", "ok", "--timeout", "1"]).calls).toEqual([
+        ["--socket", sockPath, "--json", "terminal", "term_x", "screen", "wait", "--pattern", "ok", "--timeout-ms", "1000"],
+      ]);
+      expect(runStateful(dir, ["vm", "terminal", "close", peer, "term_x"]).calls).toEqual([["--socket", sockPath, "terminal", "term_x", "close"]]);
+      expect(runStateful(dir, ["vm", "send", peer, "term_x", "hello", "world"]).calls).toEqual([["--socket", sockPath, "terminal", "term_x", "write", "--text", "hello world"]]);
+      expect(runStateful(dir, ["vm", "send-key", peer, "term_x", "ctrl+c"]).calls).toEqual([["--socket", sockPath, "terminal", "term_x", "keys", "ctrl+c"]]);
+      expect(runStateful(dir, ["vm", "read-screen", peer, "term_x", "--json"]).calls).toEqual([["--socket", sockPath, "--json", "terminal", "term_x", "screen", "read"]]);
+      // cmux-tui's own grammar on the peer is untouched.
+      expect(runStateful(dir, ["vm", "terminal", peer, "list"]).calls).toEqual([["--socket", sockPath, "terminal", "list"]]);
+    });
+
+    test("workspace new/rename/close/rm; rm kills every terminal viewed in the workspace first", () => {
+      const dir = peerDir();
+      expect(runStateful(dir, ["vm", "workspace", "new", peer, "--name", "tests"]).calls).toEqual([["--socket", sockPath, "workspace", "create", "--name", "tests"]]);
+      expect(runStateful(dir, ["vm", "workspace", "rename", peer, "ws_a", "renamed"]).calls).toEqual([["--socket", sockPath, "workspace", "ws_a", "rename", "--name", "renamed"]]);
+      expect(runStateful(dir, ["vm", "workspace", "close", peer, "ws_a"]).calls).toEqual([["--socket", sockPath, "workspace", "ws_a", "close"]]);
+      const rm = runStateful(dir, ["vm", "workspace", "rm", peer, "ws_main"]);
+      expect(rm.status).toBe(0);
+      expect(rm.calls).toEqual([
+        ["--socket", sockPath, "--json", "session", "current", "snapshot"],
+        ["--socket", sockPath, "terminal", "term_agent", "close"],
+        ["--socket", sockPath, "terminal", "term_logs", "close"],
+        ["--socket", sockPath, "terminal", "term_shell", "close"],
+        ["--socket", sockPath, "terminal", "term_tests", "close"],
+        ["--socket", sockPath, "workspace", "ws_main", "close"],
+      ]);
+      expect(rm.stdout).toContain("4 terminals closed");
+      // Passthrough for cmux-tui's own workspace grammar.
+      expect(runStateful(dir, ["vm", "workspace", peer, "list"]).calls).toEqual([["--socket", sockPath, "workspace", "list"]]);
+    });
+
+    test("agent starts a durable terminal on the peer running the peer's own `cmux agent`", () => {
+      const dir = peerDir();
+      const run = runStateful(dir, ["vm", "agent", peer, "--agent", "claude", "--cwd", "/root/work/app", "--", "fix", "the tests"]);
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      expect(run.calls).toEqual([
+        ["--socket", sockPath, "workspace", "current", "get"],
+        ["--socket", sockPath, "--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "claude", "--cwd", "/root/work/app", "--", "cmux", "agent", "claude", "fix", "the tests"],
+      ]);
+      expect(run.stdout).toContain(`OK terminal=term_2 workspace=current machine=${peer} agent=claude`);
+      // No current workspace on the peer yet → `main` is created and used.
+      const fresh = runStateful(dir, ["vm", "agent", peer, "codex", "--name", "docs", "--", "write docs"], { FAKE_NO_CURRENT: "1" });
+      expect(fresh.status).toBe(0);
+      expect(fresh.calls.map((call) => call.slice(2))).toEqual([
+        ["workspace", "current", "get"],
+        ["--json", "workspace", "create", "--name", "main"],
+        ["--json", "workspace", "ws_new2", "run", "--on-exit", "keep", "--name", "docs", "--", "cmux", "agent", "codex", "write docs"],
+      ]);
+      expect(runStateful(dir, ["vm", "agent", peer, "--agent", "emacs", "--", "x"]).status).toBe(2);
+      // `vm agent <peer> list` is still cmux-tui's agent scope on the peer.
+      expect(runStateful(dir, ["vm", "agent", peer, "list"]).calls).toEqual([["--socket", sockPath, "agent", "list"]]);
+    });
+
+    test("vm env set delivers values only inside the typed base64 payload of the receive handshake", () => {
+      const dir = peerDir();
+      const secret = "s3cr3t value with spaces";
+      const run = runStateful(dir, ["vm", "env", "set", peer, `TOKEN=${secret}`, "-"], {}, "OTHER=two\n");
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      const ops = run.calls.map((call) => call.slice(2));
+      expect(ops[0]).toEqual(["workspace", "current", "get"]);
+      expect(ops[1]).toEqual(["--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "cmux env", "--", "cmux", "env", "receive"]);
+      expect(ops[2]).toEqual(["--json", "terminal", "term_2", "screen", "wait", "--pattern", "CMUX-ENV-READY", "--timeout-ms", "15000"]);
+      const writes = ops.filter((call) => call[1] === "terminal" && call[3] === "write");
+      expect(writes.length).toBeGreaterThan(0);
+      for (const write of writes) expect(write.slice(0, 5)).toEqual(["--json", "terminal", "term_2", "write", "--bytes-base64"]);
+      const stream = Buffer.concat(writes.map((write) => Buffer.from(write[5], "base64"))).toString("utf8");
+      const lines = stream.split("\n");
+      expect(lines.at(-1)).toBe("");
+      expect(lines.at(-2)).toBe("CMUX-ENV-END");
+      const inner = lines.slice(0, -2).join("");
+      expect(Buffer.from(inner, "base64").toString("utf8")).toBe(`TOKEN=${secret}\nOTHER=two\n`);
+      expect(ops.at(-2)).toEqual(["--json", "terminal", "term_2", "screen", "wait", "--pattern", "CMUX-ENV-(OK|ERR)", "--timeout-ms", "30000"]);
+      expect(ops.at(-1)).toEqual(["--json", "terminal", "term_2", "close"]);
+      // The secret is nowhere in argv except inside the base64 payload.
+      for (const call of run.calls) {
+        for (const word of call) {
+          if (call[3] === "write") continue;
+          expect(word).not.toContain("s3cr3t");
+        }
+      }
+      expect(run.stdout).toContain(`OK set 2 variables on ${peer}: TOKEN OTHER`);
+      // A receiver that never says READY: the terminal is closed and the command fails.
+      const notReady = runStateful(dir, ["vm", "env", "set", peer, "A=1"], { FAKE_MATCHED: "false" });
+      expect(notReady.status).toBe(1);
+      expect(notReady.stderr).toContain("never became ready");
+      expect(notReady.calls.at(-1)?.slice(2)).toEqual(["--json", "terminal", "term_2", "close"]);
+    });
+
+    test("layout, env, exec, and tree on a peer use the same functions over the link socket", () => {
+      const dir = peerDir();
+      const exported = runStateful(dir, ["vm", "layout", "export", peer, "--workspace", "api"]);
+      expect(exported.status).toBe(0);
+      expect(exported.calls).toEqual([["--socket", sockPath, "--json", "session", "current", "snapshot"]]);
+      expect(JSON.parse(exported.stdout).layout).toEqual({ pane: { surfaces: [{ type: "terminal", cwd: "/root/work/api" }] } });
+      const applied = runStateful(dir, ["vm", "layout", "apply", peer, "--name", "remote", "-"], {}, JSON.stringify({ pane: { surfaces: [{ type: "terminal" }] } }));
+      expect(applied.status).toBe(0);
+      expect(applied.calls[0]).toEqual(["--socket", sockPath, "--json", "workspace", "create", "--empty", "--name", "remote"]);
+      expect(runStateful(dir, ["vm", "env", "ls", peer, "--json"]).calls).toEqual([
+        ["--socket", sockPath, "workspace", "current", "get"],
+        ["--socket", sockPath, "workspace", "current", "run", "--on-exit", "close", "--", "cmux", "env", "ls", "--json"],
+      ]);
+      expect(runStateful(dir, ["vm", "env", "rm", peer, "K"]).calls.at(-1)).toEqual(["--socket", sockPath, "workspace", "current", "run", "--on-exit", "close", "--", "cmux", "env", "rm", "K"]);
+      expect(runStateful(dir, ["vm", "exec", peer, "--", "echo", "hi there"]).calls.at(-1)).toEqual(["--socket", sockPath, "workspace", "current", "run", "--on-exit", "close", "--", "echo", "hi there"]);
+      expect(runStateful(dir, ["vm", "tree", peer]).calls).toEqual([["--socket", sockPath, "--json", "session", "current", "snapshot"]]);
+      const unlinked = runStateful(dir, ["vm", "terminal", "read", "unknown-peer", "term_x"]);
+      expect(unlinked.status).toBe(2);
+      expect(unlinked.stderr).toContain("no link for machine 'unknown-peer'");
+      expect(unlinked.calls).toEqual([]);
+    });
+  });
+
+  test("the whole apply flow also runs under dash (the image's sh)", () => {
+    if (!existsSync("/bin/dash")) return;
+    const dir = makeStatefulDir();
+    const run = runStateful(dir, ["layout", "apply", "--json", "-"], {}, JSON.stringify(LAYOUT_DOC), "/bin/dash");
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(JSON.parse(run.stdout).panes.map((pane: { pane_id: string }) => pane.pane_id)).toEqual(["pane_2", "pane_3", "pane_8"]);
+    const env = runStateful(dir, ["env", "set", "A=x y"], {}, undefined, "/bin/dash");
+    expect(env.status).toBe(0);
+    expect(runStateful(dir, ["env", "ls", "--show"], {}, undefined, "/bin/dash").stdout).toBe("A=x y\n");
   });
 });
