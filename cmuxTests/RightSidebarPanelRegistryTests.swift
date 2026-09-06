@@ -60,6 +60,7 @@ struct RightSidebarPanelRegistryTests {
     @MainActor
     func sourceControlShortcutResolvesWhenAvailable() throws {
         let matcher = RightSidebarModeShortcutMatcher(
+            shortcutProvider: { action in action.defaultShortcut ?? .unbound },
             availability: { $0 == .sourceControl }
         )
         let event = try #require(
