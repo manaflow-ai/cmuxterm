@@ -104,7 +104,7 @@ struct NewMachineSheet: View {
         ScrollView(.vertical) {
             Text(text)
                 .font(.system(size: 11, design: .monospaced))
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
