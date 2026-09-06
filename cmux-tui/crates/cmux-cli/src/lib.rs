@@ -69,6 +69,7 @@ enum CommandLine {
     NewWindow(Vec<String>),
     FocusWindow(Vec<String>),
     CloseWindow(Vec<String>),
+    ListNotifications(Vec<String>),
     LegacyV1 { command: String, arguments: Vec<String> },
     SocketV2 { command: String, arguments: Vec<String> },
     Cr(Vec<String>),
@@ -162,6 +163,7 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             println!("{response}");
             Ok(())
         }
+        CommandLine::ListNotifications(arguments) => run_list_notifications(arguments, options),
         CommandLine::LegacyV1 { command, arguments } => {
             if !arguments.is_empty() {
                 return Err(CliError::Usage(format!(
@@ -297,6 +299,21 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
         (_, Some("new-window")) => CommandLine::NewWindow(args[index + 1..].to_vec()),
         (_, Some("focus-window")) => CommandLine::FocusWindow(args[index + 1..].to_vec()),
         (_, Some("close-window")) => CommandLine::CloseWindow(args[index + 1..].to_vec()),
+        (_, Some("list-notifications")) => {
+            CommandLine::ListNotifications(args[index + 1..].to_vec())
+        }
+        (
+            _,
+            Some(
+                command @ ("notify"
+                | "dismiss-notification"
+                | "mark-notification-read"
+                | "open-notification"
+                | "jump-to-unread"),
+            ),
+        ) => {
+            CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
+        }
         (
             _,
             Some(
@@ -480,6 +497,71 @@ fn run_current_window(arguments: Vec<String>, options: GlobalOptions) -> Result<
     Ok(())
 }
 
+fn run_list_notifications(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let json_output = options.json || arguments.iter().any(|argument| argument == "--json");
+    reject_known_options("list-notifications", &arguments, &["--json"])?;
+    let response = socket(&options)?.send_v1("list_notifications")?;
+    if json_output {
+        println!(
+            "{}",
+            serde_json::to_string(&parse_notifications(&response)).map_err(|error| {
+                CliError::Runtime(format!("Could not encode notifications: {error}"))
+            })?
+        );
+    } else {
+        println!("{response}");
+    }
+    Ok(())
+}
+
+fn run_notification_clear(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let mut command = String::from("clear_notifications");
+    if let Some(workspace) = option_value(&arguments, "--workspace") {
+        command.push_str(" --tab=");
+        command.push_str(&workspace);
+    }
+    if let Some(surface) = option_value(&arguments, "--surface") {
+        command.push_str(" --panel=");
+        command.push_str(&surface);
+    }
+    let response = socket(&options)?.send_v1(&command)?;
+    println!("{response}");
+    Ok(())
+}
+
+fn parse_notifications(response: &str) -> Vec<Value> {
+    if response == "No notifications" {
+        return Vec::new();
+    }
+    response
+        .lines()
+        .filter_map(|line| {
+            let (_, payload) = line.split_once(':')?;
+            let fields = payload.split('|').collect::<Vec<_>>();
+            if fields.len() < 7 {
+                return None;
+            }
+            let mut value = json!({
+                "id": fields[0],
+                "workspace_id": fields[1],
+                "surface_id": if fields[2] == "none" { Value::Null } else { Value::String(fields[2].into()) },
+                "is_read": fields[3] == "read",
+                "title": fields[4],
+                "subtitle": fields[5],
+                "body": fields[6..].join("|"),
+                "created_at": Value::Null,
+                "tab_title": Value::Null,
+            });
+            if fields.len() >= 9 {
+                value["created_at"] = Value::String(fields[fields.len() - 2].into());
+                value["tab_title"] = Value::String(fields[fields.len() - 1].into());
+                value["body"] = Value::String(fields[6..fields.len() - 2].join("|"));
+            }
+            Some(value)
+        })
+        .collect()
+}
+
 fn option_value(arguments: &[String], name: &str) -> Option<String> {
     arguments
         .iter()
@@ -616,6 +698,13 @@ fn run_socket_v2_command(
     arguments: Vec<String>,
     options: GlobalOptions,
 ) -> Result<(), CliError> {
+    let json_output = options.json || arguments.iter().any(|argument| argument == "--json");
+    let id_format = option_value(&arguments, "--id-format")
+        .or_else(|| options.id_format.clone())
+        .unwrap_or_else(|| "refs".into());
+    if !matches!(id_format.as_str(), "refs" | "uuids" | "both") {
+        return Err(CliError::Usage("--id-format requires refs, uuids, or both".into()));
+    }
     let mut params = context_params(&arguments, &options)?;
     let method = match command {
         "list-workspaces" => "workspace.list",
@@ -636,6 +725,79 @@ fn run_socket_v2_command(
             params.insert("key".into(), Value::String(key));
             "surface.send_key"
         }
+        "notify" => {
+            if arguments.iter().any(|argument| argument == "--clear") {
+                return run_notification_clear(arguments, options);
+            }
+            let title =
+                option_value(&arguments, "--title").unwrap_or_else(|| "Notification".into());
+            let subtitle = option_value(&arguments, "--subtitle").unwrap_or_default();
+            let body = option_value(&arguments, "--body").unwrap_or_default();
+            params.insert("title".into(), Value::String(title));
+            params.insert("subtitle".into(), Value::String(subtitle));
+            params.insert("body".into(), Value::String(body));
+            if arguments.iter().any(|argument| argument == "--reply") {
+                params.insert("reply_shape".into(), Value::String("text".into()));
+            }
+            if params.get("surface_id").is_some() || params.get("workspace_id").is_some() {
+                "notification.create"
+            } else {
+                "notification.create_for_caller"
+            }
+        }
+        "dismiss-notification" => {
+            let id = option_value(&arguments, "--id");
+            let all_read = arguments.iter().any(|argument| argument == "--all-read");
+            if id.is_some() == all_read {
+                return Err(CliError::Usage(
+                    "dismiss-notification requires exactly one of --id or --all-read".into(),
+                ));
+            }
+            if let Some(id) = id {
+                params.insert("id".into(), Value::String(id));
+            } else {
+                params.insert("all_read".into(), Value::Bool(true));
+            }
+            "notification.dismiss"
+        }
+        "mark-notification-read" => {
+            let id = option_value(&arguments, "--id");
+            let workspace = option_value(&arguments, "--workspace");
+            let all = arguments.iter().any(|argument| argument == "--all");
+            if [id.is_some(), workspace.is_some(), all].into_iter().filter(|value| *value).count()
+                != 1
+            {
+                return Err(CliError::Usage(
+                    "mark-notification-read requires exactly one selector: --id, --workspace, or --all".into(),
+                ));
+            }
+            params.clear();
+            if let Some(id) = id {
+                params.insert("id".into(), Value::String(id));
+            } else if let Some(workspace) = workspace {
+                params.insert("tab_id".into(), Value::String(workspace));
+                if let Some(surface) = option_value(&arguments, "--surface") {
+                    params.insert("surface_id".into(), Value::String(surface));
+                }
+            } else {
+                params.insert("all".into(), Value::Bool(true));
+            }
+            "notification.mark_read"
+        }
+        "open-notification" => {
+            let id = option_value(&arguments, "--id")
+                .ok_or_else(|| CliError::Usage("open-notification requires --id".into()))?;
+            params.clear();
+            params.insert("id".into(), Value::String(id));
+            "notification.open"
+        }
+        "jump-to-unread" => {
+            if !arguments.is_empty() {
+                return Err(CliError::Usage("jump-to-unread accepts no arguments".into()));
+            }
+            params.clear();
+            "notification.jump_to_unread"
+        }
         _ => unreachable!("parser only creates known socket commands"),
     };
     if command == "read-screen" {
@@ -655,10 +817,11 @@ fn run_socket_v2_command(
         }
     }
     let result = socket(&options)?.send_v2(method, Value::Object(params))?;
-    if command == "read-screen" && !options.json {
+    let result = format_ids(result, &id_format);
+    if command == "read-screen" && !json_output {
         println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
     } else {
-        print_result(&result, options.json);
+        print_result(&result, json_output);
     }
     Ok(())
 }
@@ -683,7 +846,16 @@ fn context_params(
     if let Some(surface) = surface {
         params.insert("surface_id".into(), Value::String(surface));
     }
-    for name in ["--workspace", "--surface", "--panel", "--window", "--scrollback", "--lines"] {
+    for name in [
+        "--workspace",
+        "--surface",
+        "--panel",
+        "--window",
+        "--scrollback",
+        "--lines",
+        "--json",
+        "--id-format",
+    ] {
         reject_option(arguments, name)?;
     }
     Ok(params)
@@ -773,7 +945,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -1358,6 +1530,16 @@ mod tests {
                 arguments: vec!["--surface".into(), "surface:1".into(), "hello".into()]
             }
         );
+        let (_, notify) =
+            parse_args(&["notify".into(), "--title".into(), "Build".into()], Program::Cmux)
+                .unwrap();
+        assert_eq!(
+            notify,
+            CommandLine::SocketV2 {
+                command: "notify".into(),
+                arguments: vec!["--title".into(), "Build".into()]
+            }
+        );
     }
 
     #[test]
@@ -1480,6 +1662,27 @@ mod tests {
             "hello world"
         );
         assert_eq!(unescape_send_text(r"hello\nworld"), "hello\nworld");
+    }
+
+    #[test]
+    fn parses_notification_v1_response_for_json_output() {
+        let notifications = parse_notifications(
+            "0:note_1|ws_1|surface_1|unread|Build|CI|done|2026-09-06T00:00:00Z|Workspace",
+        );
+        assert_eq!(
+            notifications,
+            vec![json!({
+                "id": "note_1",
+                "workspace_id": "ws_1",
+                "surface_id": "surface_1",
+                "is_read": false,
+                "title": "Build",
+                "subtitle": "CI",
+                "body": "done",
+                "created_at": "2026-09-06T00:00:00Z",
+                "tab_title": "Workspace"
+            })]
+        );
     }
 
     #[test]
