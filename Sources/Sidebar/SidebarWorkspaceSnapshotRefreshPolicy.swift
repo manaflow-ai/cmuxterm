@@ -85,7 +85,9 @@ extension SidebarWorkspaceSnapshotBuilder.Snapshot {
             remoteReconnectHelpText: remoteReconnectHelpText,
             loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(
                 count: snapshot.activeCodingAgentCount
-            )
+            ),
+            taskStatusCompactLabel: snapshot.taskStatusCompactLabel,
+            taskStatusTooltip: snapshot.taskStatusTooltip
         )
     }
 }

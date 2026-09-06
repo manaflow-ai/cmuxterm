@@ -16032,6 +16032,8 @@ struct TabItemView: View, Equatable {
                 )
                 if let taskStatus = workspaceSnapshot.taskStatus,
                    let statusMenuModel = workspaceSnapshot.todoStatusMenuModel,
+                   let statusLabel = workspaceSnapshot.taskStatusCompactLabel,
+                   let statusTooltip = workspaceSnapshot.taskStatusTooltip,
                    manualTaskStatusIndicator.showsIndicator {
                     SidebarWorkspaceManualStatusIndicatorMenu(
                         status: taskStatus,
@@ -16042,7 +16044,9 @@ struct TabItemView: View, Equatable {
                         usesMonochrome: usesInvertedActiveForeground,
                         monochromeColor: activeSecondaryColor(0.8),
                         neutralColor: activeSecondaryColor(0.8),
-                        fontScale: fontScale
+                        fontScale: fontScale,
+                        statusLabel: statusLabel,
+                        statusTooltip: statusTooltip
                     )
                     .alignmentGuide(.sidebarTitleFirstLineCenter) { $0[VerticalAlignment.center] }
                     .transition(.opacity)

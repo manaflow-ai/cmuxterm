@@ -100,12 +100,10 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
     let monochromeColor: Color
     let neutralColor: Color
     let fontScale: CGFloat
+    let statusLabel: String
+    let statusTooltip: String
 
     @State private var isStatusPopoverPresented = false
-
-    private var labelText: String {
-        SidebarWorkspaceRowLocalizedStrings.statusCompactLabel(status)
-    }
 
     var body: some View {
         Button {
@@ -117,7 +115,8 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
                 usesMonochrome: usesMonochrome,
                 monochromeColor: monochromeColor,
                 neutralColor: neutralColor,
-                fontScale: fontScale
+                fontScale: fontScale,
+                tooltip: statusTooltip
             )
             .padding(.horizontal, 2)
             .padding(.vertical, 2)
@@ -149,7 +148,7 @@ struct SidebarWorkspaceManualStatusIndicatorMenu: View {
         )
         .fixedSize(horizontal: true, vertical: true)
         .safeHelp(SidebarWorkspaceRowLocalizedStrings.statusCompactTooltip)
-        .accessibilityLabel(labelText)
+        .accessibilityLabel(statusLabel)
         .accessibilityIdentifier("SidebarWorkspaceManualStatusIndicatorMenu")
     }
 }
@@ -174,11 +173,33 @@ struct SidebarWorkspaceTaskStatusGlyph: View {
     /// The secondary color used for the todo outline.
     let neutralColor: Color
     let fontScale: CGFloat
+    let tooltip: String
 
     private static let baseSize: CGFloat = 9
     private static let slotWidth: CGFloat = 11
     private static let strokeWidth: CGFloat = 1
     private static let attentionStrokeWidth: CGFloat = 1.4
+
+    init(
+        status: WorkspaceTaskStatus,
+        hasOverride: Bool,
+        usesMonochrome: Bool,
+        monochromeColor: Color,
+        neutralColor: Color,
+        fontScale: CGFloat,
+        tooltip: String? = nil
+    ) {
+        self.status = status
+        self.hasOverride = hasOverride
+        self.usesMonochrome = usesMonochrome
+        self.monochromeColor = monochromeColor
+        self.neutralColor = neutralColor
+        self.fontScale = fontScale
+        self.tooltip = tooltip ?? SidebarWorkspaceTaskStatusGlyphModel.tooltip(
+            status: status,
+            hasOverride: hasOverride
+        )
+    }
 
     private var model: SidebarWorkspaceTaskStatusGlyphModel {
         SidebarWorkspaceTaskStatusGlyphModel(status: status)
@@ -208,7 +229,6 @@ struct SidebarWorkspaceTaskStatusGlyph: View {
 
     var body: some View {
         let size = Self.baseSize * fontScale
-        let tooltip = SidebarWorkspaceTaskStatusGlyphModel.tooltip(status: status, hasOverride: hasOverride)
         ZStack {
             Circle()
                 .stroke(statusColor, lineWidth: strokeWidth)

@@ -248194,6 +248194,23 @@
         }
       }
     },
+    "sidebar.pullRequest.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ #%2$lld"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ #%2$lld"
+          }
+        }
+      }
+    },
     "sidebar.remote.badge": {
       "extractionState": "manual",
       "localizations": {

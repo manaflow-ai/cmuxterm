@@ -75,5 +75,7 @@ struct SidebarWorkspaceSnapshotBuilder {
         let checklistFirstUncheckedText: String?
         let remoteReconnectHelpText: String
         let loadingTooltip: String
+        let taskStatusCompactLabel: String?
+        let taskStatusTooltip: String?
     }
 }

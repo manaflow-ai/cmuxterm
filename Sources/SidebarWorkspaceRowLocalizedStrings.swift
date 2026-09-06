@@ -47,6 +47,10 @@ enum SidebarWorkspaceRowLocalizedStrings {
         localized: "accessibility.workspacePosition",
         defaultValue: "%1$@, workspace %2$lld of %3$lld"
     )
+    static let pullRequestTitleFormat = String(
+        localized: "sidebar.pullRequest.title",
+        defaultValue: "%1$@ #%2$lld"
+    )
     static let pullRequestOpenTooltipFormat = String(
         localized: "sidebar.pullRequest.openTooltip",
         defaultValue: "Open %1$@ #%2$lld"
@@ -123,6 +127,10 @@ enum SidebarWorkspaceRowLocalizedStrings {
 
     static func pullRequestOpenTooltip(label: String, number: Int) -> String {
         String.localizedStringWithFormat(pullRequestOpenTooltipFormat, label, Int64(number))
+    }
+
+    static func pullRequestTitle(label: String, number: Int) -> String {
+        String.localizedStringWithFormat(pullRequestTitleFormat, label, Int64(number))
     }
 
     static func loadingTooltip(count: Int) -> String {

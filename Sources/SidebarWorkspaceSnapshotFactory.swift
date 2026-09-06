@@ -67,6 +67,17 @@ struct SidebarWorkspaceSnapshotFactory {
         let hasManualTaskStatus = workspaceStatusVisible
             && workspace.todoState.statusOverride != nil
             && taskStatusResolution?.shouldClearOverride == false
+        let taskStatusCompactLabel: String? = {
+            guard hasManualTaskStatus, let effective = taskStatusResolution?.effective else { return nil }
+            return SidebarWorkspaceRowLocalizedStrings.statusCompactLabel(effective)
+        }()
+        let taskStatusTooltip: String? = {
+            guard hasManualTaskStatus, let effective = taskStatusResolution?.effective else { return nil }
+            return SidebarWorkspaceRowLocalizedStrings.statusTooltip(
+                status: effective,
+                hasOverride: true
+            )
+        }()
         let todoStatusMenuModel = inferredTaskStatus.map { inferred in
             SidebarWorkspaceCompactStatusMenuModel.resolve(
                 inferred: inferred,
@@ -120,7 +131,9 @@ struct SidebarWorkspaceSnapshotFactory {
             checklistTotalCount: checklistProgress.totalCount,
             checklistFirstUncheckedText: checklistProgress.firstUncheckedText,
             remoteReconnectHelpText: remoteReconnectHelpText,
-            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(count: activeCodingAgentCount)
+            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(count: activeCodingAgentCount),
+            taskStatusCompactLabel: taskStatusCompactLabel,
+            taskStatusTooltip: taskStatusTooltip
         )
     }
 
@@ -352,7 +365,10 @@ struct SidebarWorkspaceSnapshotFactory {
         orderedPanelIds: [UUID]
     ) -> [SidebarWorkspaceSnapshotBuilder.PullRequestDisplay] {
         workspace.sidebarPullRequestsInDisplayOrder(orderedPanelIds: orderedPanelIds).map {
-            let title = "\($0.label) #\($0.number)"
+            let title = SidebarWorkspaceRowLocalizedStrings.pullRequestTitle(
+                label: $0.label,
+                number: $0.number
+            )
             return SidebarWorkspaceSnapshotBuilder.PullRequestDisplay(
                 id: "\($0.label.lowercased())#\($0.number)|\($0.url.absoluteString)",
                 number: $0.number,
