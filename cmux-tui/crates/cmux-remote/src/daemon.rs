@@ -2114,7 +2114,11 @@ mod tests {
             )
             .await
             .unwrap_or_else(|error| panic!("trusted {peer:?} evidence was rejected: {error}"));
-            assert_eq!(grant.device_id, format!("carrier:{}", public_key_fingerprint(&public_key)));
+            assert_eq!(grant.device_id, format!("network:{}", public_key_fingerprint(&public_key)));
+            // The grant stays current without the daemon-wide carrier policy: the
+            // network, not the device list, is what admits and revokes it.
+            assert!(denied.grant_is_current(&grant).await);
+            assert!(denied.device_is_active(&grant.device_id).await);
         }
         assert!(
             ServerAuthenticator::authorize(

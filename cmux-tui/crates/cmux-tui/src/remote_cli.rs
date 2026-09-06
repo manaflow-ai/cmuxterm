@@ -47,10 +47,9 @@ use crate::remote_runtime::persist_daemon_lifecycle_fence;
 use crate::remote_runtime::{
     ClientRuntimeOptions, DaemonRuntimeOptions, DaemonShutdownStatus, RelayClientOptions,
     ResolvedRouteCandidate, SshBootstrapOptions, acknowledge_failed_shutdown_outcome,
-    acknowledge_legacy_shutdown_state, client_provider_registry,
-    client_provider_registry_with_carrier, complete_verified_daemon_stop,
-    daemon_paths, inactive_daemon_needs_legacy_acknowledgement, load_runtime_info,
-    load_shutdown_outcome, start_client_runtime, start_daemon_runtime,
+    acknowledge_legacy_shutdown_state, client_provider_registry_with_carrier,
+    complete_verified_daemon_stop, daemon_paths, inactive_daemon_needs_legacy_acknowledgement,
+    load_runtime_info, load_shutdown_outcome, start_client_runtime, start_daemon_runtime,
 };
 use crate::session::{RemoteSession, Session};
 
@@ -2873,7 +2872,7 @@ mod tests {
 
     fn test_provider_registry() -> Arc<cmux_remote::provider::ProviderRegistry> {
         Arc::new(
-            client_provider_registry(
+            crate::remote_runtime::client_provider_registry(
                 SshProviderConfig::default(),
                 BTreeMap::new(),
                 IrohPathMode::Auto,
@@ -3163,7 +3162,7 @@ mod tests {
             registry.supported_client_auth("ws").unwrap(),
             cmux_remote::provider::SupportedClientAuthModes::DeviceOrCarrier
         );
-        let registry = client_provider_registry(
+        let registry = crate::remote_runtime::client_provider_registry(
             SshProviderConfig::default(),
             BTreeMap::new(),
             IrohPathMode::Auto,
