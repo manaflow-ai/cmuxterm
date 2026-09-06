@@ -76,6 +76,10 @@ final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
 
         lock.lock()
         isCapturingBacktrace = false
+        guard !didFinish else {
+            lock.unlock()
+            return
+        }
         didFire = true
         isReportingHang = true
         lock.unlock()

@@ -68,6 +68,17 @@ private struct FixedBacktraceCapturer: SocketCommandBacktraceCapturing {
     }
 }
 
+private final class BlockingBacktraceCapturer: SocketCommandBacktraceCapturing, @unchecked Sendable {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+
+    func captureBacktrace() -> [String] {
+        started.signal()
+        release.wait()
+        return ["late"]
+    }
+}
+
 @Suite
 struct MainThreadWatchdogTests {
     private let ms: UInt64 = 1_000_000
@@ -154,6 +165,32 @@ struct MainThreadWatchdogTests {
 
         ticket.finish(nowNs: 250 * ms)
         ticket.fireIfNeeded(nowNs: 2000 * ms)
+
+        #expect(reporter.hangs.isEmpty)
+        #expect(reporter.recoveries.isEmpty)
+    }
+
+    @Test
+    func finishingDuringBacktraceCaptureDoesNotReportLateHang() async {
+        let reporter = RecordingWatchdogReporter()
+        let capturer = BlockingBacktraceCapturer()
+        let ticket = MainThreadSocketCommandWatchdogTicket(
+            descriptor: descriptor(),
+            thresholdMs: 1000,
+            startNs: 0,
+            reporter: reporter,
+            backtraceCapturer: capturer
+        )
+        let thresholdNs = 1000 * ms
+
+        let fireTask = Task.detached {
+            ticket.fireIfNeeded(nowNs: thresholdNs)
+        }
+
+        #expect(capturer.started.wait(timeout: .now() + 1) == .success)
+        ticket.finish(nowNs: 1500 * ms)
+        capturer.release.signal()
+        await fireTask.value
 
         #expect(reporter.hangs.isEmpty)
         #expect(reporter.recoveries.isEmpty)
