@@ -52,14 +52,24 @@ struct GlobalOptions {
     socket: Option<PathBuf>,
     password: Option<String>,
     json: bool,
+    id_format: Option<String>,
+    window: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 enum CommandLine {
     Help,
     Version,
+    Ping(Vec<String>),
     Capabilities(Vec<String>),
     Context(Vec<String>),
+    Identify(Vec<String>),
+    ListWindows(Vec<String>),
+    CurrentWindow(Vec<String>),
+    NewWindow(Vec<String>),
+    FocusWindow(Vec<String>),
+    CloseWindow(Vec<String>),
+    LegacyV1 { command: String, arguments: Vec<String> },
     Cr(Vec<String>),
     CodeRouter(Vec<String>),
     AiAccounts(Vec<String>),
@@ -98,6 +108,12 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             }
             Ok(())
         }
+        CommandLine::Ping(arguments) => {
+            reject_no_arguments("ping", &arguments)?;
+            let response = socket(&options)?.send_v1("ping")?;
+            println!("{response}");
+            Ok(())
+        }
         CommandLine::Capabilities(arguments) => {
             if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
                 println!("Usage: cmux capabilities\n\nPrint server capabilities as JSON.");
@@ -118,6 +134,42 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
         CommandLine::Context(arguments) => {
             reject_no_arguments("context", &arguments)?;
             print_context(&options);
+            Ok(())
+        }
+        CommandLine::Identify(arguments) => run_identify(arguments, options),
+        CommandLine::ListWindows(arguments) => run_list_windows(arguments, options),
+        CommandLine::CurrentWindow(arguments) => run_current_window(arguments, options),
+        CommandLine::NewWindow(arguments) => {
+            reject_no_arguments("new-window", &arguments)?;
+            let response = socket(&options)?.send_v1("new_window")?;
+            println!("{response}");
+            Ok(())
+        }
+        CommandLine::FocusWindow(arguments) => {
+            let window = option_value(&arguments, "--window")
+                .or_else(|| options.window.clone())
+                .ok_or_else(|| CliError::Usage("focus-window requires --window".into()))?;
+            let response = socket(&options)?.send_v1(&format!("focus_window {window}"))?;
+            println!("{response}");
+            Ok(())
+        }
+        CommandLine::CloseWindow(arguments) => {
+            let window = option_value(&arguments, "--window")
+                .or_else(|| options.window.clone())
+                .ok_or_else(|| CliError::Usage("close-window requires --window".into()))?;
+            let response = socket(&options)?.send_v1(&format!("close_window {window}"))?;
+            println!("{response}");
+            Ok(())
+        }
+        CommandLine::LegacyV1 { command, arguments } => {
+            if !arguments.is_empty() {
+                return Err(CliError::Usage(format!(
+                    "{command}: unexpected argument '{}'",
+                    arguments[0]
+                )));
+            }
+            let response = socket(&options)?.send_v1(&command)?;
+            println!("{response}");
             Ok(())
         }
         CommandLine::Cr(arguments) => run_coderouter(arguments, options, program, true),
@@ -172,7 +224,7 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 options.json = true;
                 index += 1;
             }
-            "--socket" | "--password" => {
+            "--socket" | "--password" | "--id-format" | "--window" => {
                 let name = args[index].clone();
                 let value = args
                     .get(index + 1)
@@ -180,10 +232,19 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 if value.starts_with('-') && name == "--socket" {
                     return Err(CliError::Usage(format!("{name} requires a value")));
                 }
-                if name == "--socket" {
-                    options.socket = Some(PathBuf::from(value));
-                } else {
-                    options.password = Some(value.clone());
+                match name.as_str() {
+                    "--socket" => options.socket = Some(PathBuf::from(value)),
+                    "--password" => options.password = Some(value.clone()),
+                    "--id-format" => {
+                        if !matches!(value.as_str(), "refs" | "uuids" | "both") {
+                            return Err(CliError::Usage(
+                                "--id-format requires refs, uuids, or both".into(),
+                            ));
+                        }
+                        options.id_format = Some(value.clone());
+                    }
+                    "--window" => options.window = Some(value.clone()),
+                    _ => unreachable!("handled global option"),
                 }
                 index += 2;
             }
@@ -193,6 +254,20 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
             }
             value if value.starts_with("--password=") => {
                 options.password = Some(value.trim_start_matches("--password=").to_string());
+                index += 1;
+            }
+            value if value.starts_with("--id-format=") => {
+                let format = value.trim_start_matches("--id-format=");
+                if !matches!(format, "refs" | "uuids" | "both") {
+                    return Err(CliError::Usage(
+                        "--id-format requires refs, uuids, or both".into(),
+                    ));
+                }
+                options.id_format = Some(format.to_string());
+                index += 1;
+            }
+            value if value.starts_with("--window=") => {
+                options.window = Some(value.trim_start_matches("--window=").to_string());
                 index += 1;
             }
             _ => break,
@@ -209,8 +284,27 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
             ));
         }
         (_, Some("version")) => CommandLine::Version,
+        (_, Some("ping")) => CommandLine::Ping(args[index + 1..].to_vec()),
         (_, Some("capabilities")) => CommandLine::Capabilities(args[index + 1..].to_vec()),
         (_, Some("context")) => CommandLine::Context(args[index + 1..].to_vec()),
+        (_, Some("identify")) => CommandLine::Identify(args[index + 1..].to_vec()),
+        (_, Some("list-windows")) => CommandLine::ListWindows(args[index + 1..].to_vec()),
+        (_, Some("current-window")) => CommandLine::CurrentWindow(args[index + 1..].to_vec()),
+        (_, Some("new-window")) => CommandLine::NewWindow(args[index + 1..].to_vec()),
+        (_, Some("focus-window")) => CommandLine::FocusWindow(args[index + 1..].to_vec()),
+        (_, Some("close-window")) => CommandLine::CloseWindow(args[index + 1..].to_vec()),
+        (_, Some("__sidebar_footer_icon_balance")) => CommandLine::LegacyV1 {
+            command: "__sidebar_footer_icon_balance".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
+        (_, Some("__internal_flags")) => CommandLine::LegacyV1 {
+            command: "__internal_flags".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
+        (_, Some("iroh-diag")) => CommandLine::LegacyV1 {
+            command: "iroh_diag".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
         (_, Some("cr")) => CommandLine::Cr(args[index + 1..].to_vec()),
         (_, Some("coderouter")) => CommandLine::CodeRouter(args[index + 1..].to_vec()),
         (_, Some("ai-accounts")) => CommandLine::AiAccounts(args[index + 1..].to_vec()),
@@ -303,6 +397,203 @@ fn print_context(options: &GlobalOptions) {
     );
 }
 
+fn run_identify(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let mut params = serde_json::Map::new();
+    let include_caller = !arguments.iter().any(|argument| argument == "--no-caller");
+    if let Some(window) = option_value(&arguments, "--window").or(options.window.clone()) {
+        params.insert("window_id".into(), Value::String(window));
+    }
+    if include_caller {
+        let workspace =
+            option_value(&arguments, "--workspace").or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
+        let surface =
+            option_value(&arguments, "--surface").or_else(|| env::var("CMUX_SURFACE_ID").ok());
+        if workspace.is_some() || surface.is_some() {
+            let mut caller = serde_json::Map::new();
+            if let Some(workspace) = workspace {
+                caller.insert("workspace_id".into(), Value::String(workspace));
+            }
+            if let Some(surface) = surface {
+                caller.insert("surface_id".into(), Value::String(surface));
+            }
+            params.insert("caller".into(), Value::Object(caller));
+        }
+    }
+    reject_known_options(
+        "identify",
+        &arguments,
+        &["--no-caller", "--window", "--workspace", "--surface"],
+    )?;
+    let result = socket(&options)?.send_v2("system.identify", Value::Object(params))?;
+    let result = format_ids(result, options.id_format.as_deref().unwrap_or("refs"));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&result).map_err(|error| CliError::Runtime(format!(
+            "Could not encode identify response: {error}"
+        )))?
+    );
+    Ok(())
+}
+
+fn run_list_windows(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let json_output = options.json || arguments.iter().any(|argument| argument == "--json");
+    reject_known_options("list-windows", &arguments, &["--json"])?;
+    let response = socket(&options)?.send_v1("list_windows")?;
+    if json_output {
+        println!(
+            "{}",
+            serde_json::to_string(&parse_windows(&response))
+                .map_err(|error| CliError::Runtime(format!("Could not encode windows: {error}")))?
+        );
+    } else {
+        println!("{response}");
+    }
+    Ok(())
+}
+
+fn run_current_window(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let json_output = options.json || arguments.iter().any(|argument| argument == "--json");
+    reject_known_options("current-window", &arguments, &["--json"])?;
+    let response = socket(&options)?.send_v1("current_window")?;
+    if json_output {
+        println!("{}", json!({"window_id": response}));
+    } else {
+        println!("{response}");
+    }
+    Ok(())
+}
+
+fn option_value(arguments: &[String], name: &str) -> Option<String> {
+    arguments
+        .iter()
+        .position(|argument| argument == name)
+        .and_then(|index| arguments.get(index + 1))
+        .cloned()
+        .or_else(|| {
+            arguments.iter().find_map(|argument| {
+                argument.strip_prefix(&format!("{name}=")).map(ToOwned::to_owned)
+            })
+        })
+}
+
+fn reject_known_options(
+    command: &str,
+    arguments: &[String],
+    allowed: &[&str],
+) -> Result<(), CliError> {
+    let mut index = 0;
+    while index < arguments.len() {
+        let argument = &arguments[index];
+        if allowed.contains(&argument.as_str()) {
+            if ["--window", "--workspace", "--surface"].contains(&argument.as_str()) {
+                if arguments.get(index + 1).is_none() {
+                    return Err(CliError::Usage(format!("{argument} requires a value")));
+                }
+                index += 2;
+            } else {
+                index += 1;
+            }
+        } else if allowed.iter().any(|name| argument.starts_with(&format!("{name}="))) {
+            index += 1;
+        } else {
+            return Err(CliError::Usage(format!("{command}: unexpected argument '{argument}'")));
+        }
+    }
+    Ok(())
+}
+
+fn parse_windows(response: &str) -> Vec<Value> {
+    if response == "No windows" {
+        return Vec::new();
+    }
+    response
+        .lines()
+        .filter_map(|line| {
+            let key = line.starts_with('*');
+            let cleaned = line.trim_matches(|character| character == '*' || character == ' ');
+            let parts = cleaned.split_whitespace().collect::<Vec<_>>();
+            if parts.len() < 2 {
+                return None;
+            }
+            let index = parts[0].trim_end_matches(':').parse::<u64>().ok()?;
+            let id = parts[1];
+            let selected_workspace_id = parts.iter().find_map(|part| {
+                part.strip_prefix("selected_workspace=").filter(|value| *value != "none")
+            });
+            let workspace_count = parts
+                .iter()
+                .find_map(|part| part.strip_prefix("workspaces=")?.parse::<u64>().ok())
+                .unwrap_or(0);
+            let mut value = json!({
+                "index": index,
+                "id": id,
+                "key": key,
+                "workspace_count": workspace_count,
+            });
+            value["selected_workspace_id"] = selected_workspace_id
+                .map(|value| Value::String(value.to_string()))
+                .unwrap_or(Value::Null);
+            Some(value)
+        })
+        .collect()
+}
+
+fn format_ids(value: Value, mode: &str) -> Value {
+    match value {
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(|value| format_ids(value, mode)).collect())
+        }
+        Value::Object(mut object) => {
+            for value in object.values_mut() {
+                let current = std::mem::take(value);
+                *value = format_ids(current, mode);
+            }
+            match mode {
+                "refs" => {
+                    if object.get("ref").is_some() && object.get("id").is_some() {
+                        object.remove("id");
+                    }
+                    let keys = object.keys().cloned().collect::<Vec<_>>();
+                    for key in keys {
+                        if let Some(prefix) = key.strip_suffix("_id")
+                            && object.contains_key(&format!("{prefix}_ref"))
+                        {
+                            object.remove(&key);
+                        }
+                        if let Some(prefix) = key.strip_suffix("_ids")
+                            && object.contains_key(&format!("{prefix}_refs"))
+                        {
+                            object.remove(&key);
+                        }
+                    }
+                }
+                "uuids" => {
+                    if object.get("ref").is_some() && object.get("id").is_some() {
+                        object.remove("ref");
+                    }
+                    let keys = object.keys().cloned().collect::<Vec<_>>();
+                    for key in keys {
+                        if let Some(prefix) = key.strip_suffix("_ref")
+                            && object.contains_key(&format!("{prefix}_id"))
+                        {
+                            object.remove(&key);
+                        }
+                        if let Some(prefix) = key.strip_suffix("_refs")
+                            && object.contains_key(&format!("{prefix}_ids"))
+                        {
+                            object.remove(&key);
+                        }
+                    }
+                }
+                "both" => {}
+                _ => unreachable!("id format is validated during argument parsing"),
+            }
+            Value::Object(object)
+        }
+        value => value,
+    }
+}
+
 fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
     let method = args
         .first()
@@ -323,7 +614,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -680,13 +971,7 @@ impl SocketClient {
     fn send_v2(&self, method: &str, params: Value) -> Result<Value, CliError> {
         let mut stream =
             self.stream.try_clone().map_err(|error| CliError::Runtime(error.to_string()))?;
-        if let Some(password) = &self.password {
-            write_line(&mut stream, &format!("auth {password}"))?;
-            let auth = read_response(&mut stream)?;
-            if auth.starts_with("ERROR:") && !auth.contains("Unknown command 'auth'") {
-                return Err(CliError::Runtime(auth));
-            }
-        }
+        authenticate_stream(&mut stream, self.password.as_deref())?;
         let request = json!({
             "id": Uuid::new_v4().to_string().to_uppercase(),
             "method": method,
@@ -714,6 +999,32 @@ impl SocketClient {
         }
         Err(CliError::Runtime("v2 request failed".into()))
     }
+
+    fn send_v1(&self, command: &str) -> Result<String, CliError> {
+        let mut stream =
+            self.stream.try_clone().map_err(|error| CliError::Runtime(error.to_string()))?;
+        authenticate_stream(&mut stream, self.password.as_deref())?;
+        write_line(&mut stream, command)?;
+        let response = read_response(&mut stream)?;
+        if response.starts_with("ERROR:") {
+            return Err(CliError::Runtime(response));
+        }
+        Ok(response)
+    }
+}
+
+fn authenticate_stream(
+    stream: &mut std::os::unix::net::UnixStream,
+    password: Option<&str>,
+) -> Result<(), CliError> {
+    if let Some(password) = password {
+        write_line(stream, &format!("auth {password}"))?;
+        let auth = read_response(stream)?;
+        if auth.starts_with("ERROR:") && !auth.contains("Unknown command 'auth'") {
+            return Err(CliError::Runtime(auth));
+        }
+    }
+    Ok(())
 }
 
 fn resolve_socket_password(explicit: Option<String>) -> Option<String> {
@@ -789,6 +1100,18 @@ mod tests {
     }
 
     #[test]
+    fn parses_startup_and_window_commands() {
+        let (_, ping) = parse_args(&["ping".into()], Program::Cmux).unwrap();
+        assert_eq!(ping, CommandLine::Ping(Vec::new()));
+        let (_, identify) =
+            parse_args(&["identify".into(), "--no-caller".into()], Program::Cmux).unwrap();
+        assert_eq!(identify, CommandLine::Identify(vec!["--no-caller".into()]));
+        let (_, list) =
+            parse_args(&["list-windows".into(), "--json".into()], Program::Cmux).unwrap();
+        assert_eq!(list, CommandLine::ListWindows(vec!["--json".into()]));
+    }
+
+    #[test]
     fn standalone_coderouter_preserves_passthrough_arguments() {
         let args = vec!["status".into(), "--json".into()];
         let (_, command) = parse_args(&args, Program::CodeRouter).unwrap();
@@ -823,6 +1146,74 @@ mod tests {
         let result = client.send_v2("aiAccounts.upload", json!({"provider":"codex"})).unwrap();
         assert_eq!(result["id"], "acct_1");
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn native_ping_uses_v1_command() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            assert_eq!(line.trim_end(), "ping");
+            stream.write_all(b"PONG\n").unwrap();
+        });
+        let client = SocketClient::connect(path, None).unwrap();
+        assert_eq!(client.send_v1("ping").unwrap(), "PONG");
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn parses_windows_v1_response_for_json_output() {
+        let windows = parse_windows(
+            "*0: win_1 selected_workspace=ws_1 workspaces=2\n1: win_2 selected_workspace=none workspaces=0",
+        );
+        assert_eq!(
+            windows,
+            vec![
+                json!({
+                    "index": 0,
+                    "id": "win_1",
+                    "key": true,
+                    "workspace_count": 2,
+                    "selected_workspace_id": "ws_1"
+                }),
+                json!({
+                    "index": 1,
+                    "id": "win_2",
+                    "key": false,
+                    "workspace_count": 0,
+                    "selected_workspace_id": null
+                })
+            ]
+        );
+    }
+
+    #[test]
+    fn formats_identifier_pairs_for_refs_and_uuids() {
+        let value = json!({
+            "id": "uuid",
+            "ref": "surface:1",
+            "surface_id": "uuid",
+            "surface_ref": "surface:1"
+        });
+        assert_eq!(
+            format_ids(value.clone(), "refs"),
+            json!({
+                "ref": "surface:1",
+                "surface_ref": "surface:1"
+            })
+        );
+        assert_eq!(
+            format_ids(value.clone(), "uuids"),
+            json!({
+                "id": "uuid",
+                "surface_id": "uuid"
+            })
+        );
+        assert_eq!(format_ids(value, "both")["id"], "uuid");
     }
 
     #[test]

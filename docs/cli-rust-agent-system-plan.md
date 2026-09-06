@@ -1,6 +1,7 @@
 # Agent-first CLI and CodeRouter system plan
 
-Status: migration in progress. The Rust compatibility crate is
+Status: migration in progress. The living completion record is
+[`docs/cli-rust-migration-status.md`](cli-rust-migration-status.md). The Rust compatibility crate is
 `cmux-tui/crates/cmux-cli`. It builds two entry points from one codebase:
 `cmux` and `coderouter`.
 

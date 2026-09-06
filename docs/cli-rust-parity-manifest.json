@@ -45,8 +45,8 @@
     {
       "id": "topology",
       "commands": ["window", "workspace", "new-workspace", "list-workspaces", "pane", "new-pane", "surface", "new-surface", "tree", "tab-action"],
-      "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md"]
+      "status": "partial",
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
     },
     {
       "id": "terminal-and-notifications",

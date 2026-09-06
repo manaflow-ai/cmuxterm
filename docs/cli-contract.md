@@ -32,6 +32,10 @@ localized.
 
 ## Rust migration status
 
+The running goal, completion gate, family status, and verification log are in
+[`docs/cli-rust-migration-status.md`](cli-rust-migration-status.md). Keep that
+living record current while this contract changes.
+
 The Rust implementation is built from `cmux-tui/crates/cmux-cli` with two
 separate binaries. During migration they install as `cmux-rust` and
 `coderouter-rust`; the Swift `cmux` resource and the verified upstream
