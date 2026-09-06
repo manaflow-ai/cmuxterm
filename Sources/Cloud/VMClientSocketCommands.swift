@@ -15,7 +15,10 @@ extension TerminalController {
             return v2Error(
                 id: id,
                 code: "managed_policy",
-                message: "Cloud Machines are disabled by your organization (MDM policy)."
+                message: String(
+                    localized: "socket.cloudVM.managedPolicyDisabled",
+                    defaultValue: "Cloud Machines are disabled by your organization (MDM policy)."
+                )
             )
         }
         switch method {

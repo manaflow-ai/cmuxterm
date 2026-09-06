@@ -23,7 +23,10 @@ extension TerminalController {
                 return v2Error(
                     id: id,
                     code: "managed_policy",
-                    message: "Cloud private-network access is disabled by your organization (MDM policy)."
+                    message: String(
+                        localized: "socket.cloudTunnel.managedPolicyDisabled",
+                        defaultValue: "Cloud private-network access is disabled by your organization (MDM policy)."
+                    )
                 )
             }
         }

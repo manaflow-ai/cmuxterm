@@ -170,7 +170,10 @@ struct RightSidebarPanelView: View {
         RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled
+            machinesEnabled: CloudMachinesFeature.isEnabled(
+                defaults: .standard,
+                remoteEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled
+            )
         )
     }
 
@@ -267,6 +270,9 @@ struct RightSidebarPanelView: View {
         .onChange(of: dockEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onReceive(NotificationCenter.default.publisher(for: RightSidebarTabPreferences.didChangeNotification)) { _ in
+            refreshModeAvailabilityAndFocusIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ManagedDevicePolicy.didChangeNotification)) { _ in
             refreshModeAvailabilityAndFocusIfNeeded()
         }
     }
