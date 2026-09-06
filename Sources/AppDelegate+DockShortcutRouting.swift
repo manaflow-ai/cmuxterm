@@ -241,7 +241,11 @@ extension AppDelegate {
                   preferredWindow: preferredWindow
               ),
               let pane = store.resolvePane(requestedPaneID: nil),
-              let panelId = store.newSurface(kind: kind, inPane: pane, focus: true) else {
+              let panelId = store.newSurfaceFromDockAffordance(
+                  kind: kind,
+                  inPane: pane,
+                  window: preferredWindow
+              ) else {
             return nil
         }
         if focusAddressBar, kind == .browser, let browser = store.browserPanel(for: panelId) {
@@ -310,6 +314,7 @@ extension AppDelegate {
         let sourceBrowser = kind == .browser
             ? sourcePanelId.flatMap { store.browserPanel(for: $0) }
             : nil
+        store.noteKeyboardFocusIntent(window: preferredWindow)
         guard let panelId = store.newSplit(
             kind: kind,
             orientation: direction.orientation,
@@ -326,6 +331,10 @@ extension AppDelegate {
         ) else {
             return false
         }
+        store.focusPanelFromDockInteraction(
+            panelId,
+            window: preferredWindow
+        )
         if kind == .browser,
            let browser = store.browserPanel(for: panelId) {
             _ = focusBrowserAddressBar(in: browser)

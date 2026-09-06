@@ -609,7 +609,10 @@ extension DockSplitStore {
             }
             recordExplicitPanelCreation()
             if focus {
-                focusPanelFromDockInteraction(panel.id, window: nil)
+                focusPanelFromDockInteraction(
+                    panel.id,
+                    window: NSApp.keyWindow ?? NSApp.mainWindow
+                )
             }
         }
         scheduleDockPortalReconcile(reason: reconcileReason)

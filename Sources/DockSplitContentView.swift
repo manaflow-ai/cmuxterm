@@ -18,13 +18,7 @@ struct DockSplitContentView: View {
         BonsplitView(controller: store.bonsplitController) { tab, paneId in
             dockContent(tab: tab, paneId: paneId)
         } emptyPane: { paneId in
-            DockEmptyPaneView(
-                onNewTerminal: { _ = store.newSurface(kind: .terminal, inPane: paneId, focus: true) },
-                onNewBrowser: { _ = store.newSurface(kind: .browser, inPane: paneId, focus: true) }
-            )
-            .onTapGesture {
-                store.focusPaneFromDockInteraction(paneId)
-            }
+            dockEmptyPaneView(paneId: paneId)
         }
     }
 
@@ -49,16 +43,38 @@ struct DockSplitContentView: View {
             panelView(panel: panel, tabID: tab.id, paneID: paneId)
                 .equatable()
                 .onTapGesture {
-                    store.focusPaneFromDockInteraction(paneId)
+                    store.focusPaneFromDockInteraction(
+                        paneId,
+                        window: NSApp.keyWindow ?? NSApp.mainWindow
+                    )
                 }
         } else {
-            DockEmptyPaneView(
-                onNewTerminal: { _ = store.newSurface(kind: .terminal, inPane: paneId, focus: true) },
-                onNewBrowser: { _ = store.newSurface(kind: .browser, inPane: paneId, focus: true) }
-            )
-            .onTapGesture {
-                store.focusPaneFromDockInteraction(paneId)
+            dockEmptyPaneView(paneId: paneId)
+        }
+    }
+
+    private func dockEmptyPaneView(paneId: PaneID) -> some View {
+        DockEmptyPaneView(
+            onNewTerminal: {
+                _ = store.newSurfaceFromDockAffordance(
+                    kind: .terminal,
+                    inPane: paneId,
+                    window: NSApp.keyWindow ?? NSApp.mainWindow
+                )
+            },
+            onNewBrowser: {
+                _ = store.newSurfaceFromDockAffordance(
+                    kind: .browser,
+                    inPane: paneId,
+                    window: NSApp.keyWindow ?? NSApp.mainWindow
+                )
             }
+        )
+        .onTapGesture {
+            store.focusPaneFromDockInteraction(
+                paneId,
+                window: NSApp.keyWindow ?? NSApp.mainWindow
+            )
         }
     }
 }

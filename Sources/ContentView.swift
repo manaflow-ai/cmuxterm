@@ -1995,6 +1995,9 @@ struct ContentView: View {
             onResumeSession: { entry in
                 resumeSession(entry: entry)
             },
+            onOpenSession: { entry in
+                openSession(entry: entry)
+            },
             onOpenFilePreview: { filePath in
                 openFilePreviewFromSidebar(filePath: filePath)
             },
@@ -2404,6 +2407,10 @@ struct ContentView: View {
 
     private func resumeSession(entry: SessionEntry) {
         SessionEntryResumeCoordinator.resume(entry, tabManager: tabManager)
+    }
+
+    private func openSession(entry: SessionEntry) {
+        SessionEntryResumeCoordinator.open(entry, tabManager: tabManager)
     }
 
     func openRightSidebarToolPane(_ mode: RightSidebarMode) {
@@ -8444,6 +8451,10 @@ struct ContentView: View {
                     NSSound.beep()
                     return
                 }
+                dockBrowserStore.focusPanelFromDockInteraction(
+                    panelId,
+                    window: AppDelegate.shared?.mainWindow(for: windowId)
+                )
                 return
             }
             if !executeConfiguredAction(id: CmuxSurfaceTabBarBuiltInAction.newTerminal.configID) {
@@ -8474,8 +8485,9 @@ struct ContentView: View {
                         NSSound.beep()
                         return
                     }
-                    _ = AppDelegate.shared?.focusBrowserAddressBar(
-                        in: browser
+                    dockBrowserStore.focusPanelFromDockInteraction(
+                        panelId,
+                        window: AppDelegate.shared?.mainWindow(for: windowId)
                     )
                 }
                 return
@@ -11712,7 +11724,6 @@ struct VerticalTabsSidebar: View, Equatable {
             workspacesById: workspaceById,
             liveWorkspaceIds: Set(tabIds)
         )
-        let workspaceGroupIdByWorkspaceId = Dictionary(uniqueKeysWithValues: tabs.map { ($0.id, $0.groupId) })
         let orderedSelectedTabs = tabs.filter { selectedTabIds.contains($0.id) }
         let selectedContextTargetIds = orderedSelectedTabs.map(\.id)
         let selectedRemoteContextMenuTargets = orderedSelectedTabs.filter {
@@ -11727,14 +11738,23 @@ struct VerticalTabsSidebar: View, Equatable {
             selectedRemoteContextMenuTargets.allSatisfy { $0.remoteConnectionState == .disconnected }
         let workspaceGroups = isPresented ? tabManager.workspaceGroups : []
         let workspaceGroupById = Dictionary(uniqueKeysWithValues: workspaceGroups.map { ($0.id, $0) })
-        let memberWorkspaceIdsByGroupId = SidebarWorkspaceRenderItem.memberWorkspaceIdsByGroupId(tabs: tabs)
+        let workspaceGroupIdByWorkspaceId = SidebarWorkspaceRenderItem.effectiveGroupIdByWorkspaceId(
+            tabs: tabs,
+            groupsById: workspaceGroupById
+        )
+        let memberWorkspaceIdsByGroupId = SidebarWorkspaceRenderItem.memberWorkspaceIdsByGroupId(
+            tabs: tabs,
+            groupsById: workspaceGroupById,
+            effectiveMembership: workspaceGroupIdByWorkspaceId
+        )
         let workspaceGroupMenuSnapshot = WorkspaceGroupMenuSnapshot(
             items: workspaceGroups.map { WorkspaceGroupMenuSnapshot.Item(id: $0.id, name: $0.name) }
         )
         let workspaceRenderItems = SidebarWorkspaceRenderItem.renderItems(
             tabs: tabs,
             groupsById: workspaceGroupById,
-            orderedGroups: workspaceGroups
+            orderedGroups: workspaceGroups,
+            effectiveMembership: workspaceGroupIdByWorkspaceId
         )
         let numberedWorkspaceIndexById = SidebarWorkspaceRenderItem.numberedWorkspaceIndexById(
             from: workspaceRenderItems
@@ -14951,7 +14971,7 @@ struct VerticalTabsSidebar: View, Equatable {
         }()
         let result = SidebarWorkspaceRowInput(
             workspaceId: tab.id,
-            groupId: tab.groupId,
+            groupId: renderContext.workspaceGroupIdByWorkspaceId[tab.id] ?? nil,
             index: index,
             workspaceCount: renderContext.workspaceCount,
             workspace: workspaceSnapshot,

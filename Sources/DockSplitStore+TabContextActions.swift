@@ -279,7 +279,10 @@ extension DockSplitStore {
         panelId: UUID,
         movement: SurfacePaneMovement
     ) {
-        focusPanel(panelId)
+        focusPanelFromDockInteraction(
+            panelId,
+            window: dockContextMenuWindow
+        )
         _ = performShortcutCommand(
             .moveSurfaceToPane(
                 movement,
@@ -303,11 +306,12 @@ extension DockSplitStore {
         let sourceBrowser = sourcePanelId.flatMap {
             browserPanel(for: $0)
         }
+        noteKeyboardFocusIntent(window: dockContextMenuWindow)
         guard let panelId = newSurface(
             kind: kind,
             inPane: paneId,
             sourcePanelId: sourcePanelId,
-            focus: true,
+            focus: false,
             preferredProfileID: sourceBrowser?.profileID,
             websiteDataStore:
                 sourceBrowser?.explicitEphemeralWebsiteDataStoreForSibling
@@ -318,6 +322,10 @@ extension DockSplitStore {
         _ = bonsplitController.reorderTab(
             newTabId,
             toIndex: anchorIndex + 1
+        )
+        focusPanelFromDockInteraction(
+            panelId,
+            window: dockContextMenuWindow
         )
         if let browser = browserPanel(for: panelId) {
             _ = AppDelegate.shared?.focusBrowserAddressBar(in: browser)

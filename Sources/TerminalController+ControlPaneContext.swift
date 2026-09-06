@@ -102,7 +102,7 @@ extension TerminalController: ControlPaneContext {
                 return .dockUnavailable(message: dockFocusUnavailableMessage())
             }
             dock.cancelDockPointerInteraction()
-            dock.bonsplitController.focusPane(paneId)
+            dock.focusPaneFromDockInteraction(paneId, window: nil)
             return .focused(windowID: dockResultWindowId(for: dock, tabManager: tabManager), workspaceID: dock.workspaceId, paneID: paneId.id)
         }
         guard let ws = resolveWorkspace(routing: routing, tabManager: tabManager) else {
