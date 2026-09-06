@@ -1,4 +1,5 @@
 import CmuxControlSocket
+import CmuxSettings
 import Foundation
 
 extension TerminalController {
@@ -7,6 +8,13 @@ extension TerminalController {
         id: Any?,
         params: [String: Any]
     ) -> String {
+        if ManagedDevicePolicy().isEnforced(.disableCloud) {
+            return v2Error(
+                id: id,
+                code: "cloud_disabled",
+                message: String(localized: "cloud.managed.disabled", defaultValue: "Cloud Machines are disabled by your administrator.")
+            )
+        }
         if let tunnelResponse = socketWorkerCloudTunnelResponse(method: method, id: id, params: params) {
             return tunnelResponse
         }

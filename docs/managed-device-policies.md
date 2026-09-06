@@ -30,11 +30,12 @@ domain wins over the release-domain fallback.
 | --- | --- | --- | --- |
 | `DisableEmbeddedBrowser` | Boolean | `false` | Disables every embedded-browser surface: browser panes and tabs, terminal-link interception, browser creation from automation/CLI, saved and `cmux.json` layouts, and session restore. Live browser panes are closed when the policy activates. Links open in the system default browser instead. WebKit-based local viewers that ride the same gate (the diff viewer, agent-chat pane, in-app upgrade pages) are also unavailable. The Mac stops advertising browser capabilities to the iOS app. |
 | `DisableRemoteControl` | Boolean | `false` | Disables the Mac acting as a remote view/control host for the cmux iOS companion app: the Iroh host runtime (including its local-network advertisement), the legacy TCP pairing listener, connection admission, and device pairing. Live phone connections are closed when the policy activates, and the app reports `pairingEnabled=false` to the pairing trust broker so the backend refuses to mint new pair grants. Outbound-only notification forwarding to an already-provisioned phone, Sparkle updates, the local automation Unix socket, and Mac-as-client SSH remain unaffected. |
+| `DisableCloud` | Boolean | `false` | Disables Cloud Machines discovery and presentation, Cloud VM terminals/desktops/ports, and Cloud VM socket/CLI operations. Existing Cloud providers, private-network links, and managed Cloud workspaces are torn down when the policy activates. |
 | `BrowserURLAllowlist` | Array of strings | unset (allow all web origins) | Restricts every embedded-browser top-level navigation to matching URL patterns. Address-bar loads, links, redirects, `window.open`, automation, deep links, and restored panes are checked. A forced empty array denies all external web origins while cmux-owned internal documents (such as `about:blank` and diff pages) remain available. |
 
 Notes:
 
-- `DisableEmbeddedBrowser` and `DisableRemoteControl` values must be Boolean.
+- `DisableEmbeddedBrowser`, `DisableRemoteControl`, and `DisableCloud` values must be Boolean.
   A Boolean key forced to `false` (or to a non-Boolean value) does not enforce
   the policy, but the key still counts as managed for write-locking purposes.
   `BrowserURLAllowlist` must be an array of strings; a forced empty array is a
