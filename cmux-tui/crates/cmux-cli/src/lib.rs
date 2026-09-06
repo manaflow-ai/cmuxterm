@@ -627,6 +627,33 @@ fn run_generic_command(
         println!("Usage: cmux codex <install-hooks|uninstall-hooks>");
         return Ok(());
     }
+    if matches!(command, "claude-hook" | "codex-hook" | "feed-hook")
+        && env::var_os("CMUX_SURFACE_ID").is_none()
+        && env::var_os("CMUX_WORKSPACE_ID").is_none()
+        && !arguments.iter().any(|value| {
+            value == "--surface"
+                || value == "--workspace"
+                || value.starts_with("--surface=")
+                || value.starts_with("--workspace=")
+        })
+    {
+        println!("{{}}");
+        return Ok(());
+    }
+    if command == "hooks"
+        && env::var_os("CMUX_SURFACE_ID").is_none()
+        && env::var_os("CMUX_WORKSPACE_ID").is_none()
+        && !matches!(arguments.first().map(String::as_str), Some("help" | "--help" | "-h" | "list"))
+        && !arguments.iter().any(|value| {
+            value == "--surface"
+                || value == "--workspace"
+                || value.starts_with("--surface=")
+                || value.starts_with("--workspace=")
+        })
+    {
+        println!("{{}}");
+        return Ok(());
+    }
 
     if command == "automation" {
         return run_automation_command(&arguments, options);
@@ -2549,6 +2576,43 @@ fn run_browser_command(
         "is-webview-focused",
         "profile",
         "profiles",
+        "react-grab",
+        "reactgrab",
+        "devtools",
+        "dev-tools",
+        "focus-mode",
+        "design-mode",
+        "zoom",
+        "history",
+        "import",
+        "title",
+        "inspect",
+        "frame",
+        "dialog",
+        "download",
+        "cookies",
+        "storage",
+        "tab",
+        "console",
+        "errors",
+        "highlight",
+        "state",
+        "addscript",
+        "addinitscript",
+        "addstyle",
+        "viewport",
+        "geolocation",
+        "geo",
+        "offline",
+        "trace",
+        "network",
+        "screencast",
+        "input",
+        "input_mouse",
+        "input_keyboard",
+        "input_touch",
+        "select",
+        "scroll",
     ];
     let mut command_args = arguments;
     let mut positional_surface = if command_args.first().is_some_and(|value| {
@@ -2914,6 +2978,105 @@ fn run_browser_command(
                 "keyup" => "browser.keyup",
                 _ => "browser.press",
             };
+            let _ = send(method, params)?;
+        }
+        "select" => {
+            let surface = surface_required()?;
+            let values =
+                positional_values(&rest, &["--workspace", "--window", "--selector", "--value"]);
+            let selector = option_value(&rest, "--selector")
+                .or_else(|| values.first().cloned())
+                .ok_or_else(|| CliError::Usage("browser select requires a selector".into()))?;
+            let value = option_value(&rest, "--value")
+                .or_else(|| values.get(1).cloned())
+                .ok_or_else(|| CliError::Usage("browser select requires a value".into()))?;
+            params.insert("surface_id".into(), Value::String(surface));
+            params.insert("selector".into(), Value::String(selector));
+            params.insert("value".into(), Value::String(value));
+            let _ = send("browser.select", params)?;
+        }
+        "scroll" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            if let Some(selector) = option_value(&rest, "--selector") {
+                params.insert("selector".into(), Value::String(selector));
+            }
+            if let Some(dx) = option_value(&rest, "--dx") {
+                params.insert("dx".into(), generic_value(&dx));
+            }
+            if let Some(dy) = option_value(&rest, "--dy") {
+                params.insert("dy".into(), generic_value(&dy));
+            }
+            let _ = send("browser.scroll", params)?;
+        }
+        "cookies" | "storage" | "tab" | "console" | "errors" | "network" | "trace"
+        | "screencast" | "input" | "input_mouse" | "input_keyboard" | "input_touch"
+        | "viewport" | "geolocation" | "geo" | "offline" | "highlight" | "state" | "download"
+        | "title" | "inspect" | "frame" | "dialog" | "import" | "react-grab" | "reactgrab"
+        | "devtools" | "dev-tools" | "focus-mode" | "design-mode" | "zoom" | "history"
+        | "addscript" | "addinitscript" | "addstyle" => {
+            let surface = surface_required()?;
+            params.insert("surface_id".into(), Value::String(surface));
+            let nested = rest.first().filter(|value| !value.starts_with('-')).map(String::as_str);
+            let method = match (subcommand.as_str(), nested) {
+                ("cookies", Some("get")) => "browser.cookies.get",
+                ("cookies", Some("set")) => "browser.cookies.set",
+                ("cookies", Some("clear")) => "browser.cookies.clear",
+                ("storage", Some("get")) => "browser.storage.get",
+                ("storage", Some("set")) => "browser.storage.set",
+                ("storage", Some("clear")) => "browser.storage.clear",
+                ("tab", Some("list")) => "browser.tab.list",
+                ("tab", Some("new")) => "browser.tab.new",
+                ("tab", Some("switch")) => "browser.tab.switch",
+                ("tab", Some("close")) => "browser.tab.close",
+                ("console", Some("clear")) => "browser.console.clear",
+                ("console", _) => "browser.console.list",
+                ("errors", _) => "browser.errors.list",
+                ("network", Some("route")) => "browser.network.route",
+                ("network", Some("unroute")) => "browser.network.unroute",
+                ("network", Some("requests")) => "browser.network.requests",
+                ("trace", Some("start")) => "browser.trace.start",
+                ("trace", Some("stop")) => "browser.trace.stop",
+                ("screencast", Some("start")) => "browser.screencast.start",
+                ("screencast", Some("stop")) => "browser.screencast.stop",
+                ("input", Some("mouse")) => "browser.input_mouse",
+                ("input", Some("keyboard")) => "browser.input_keyboard",
+                ("input", Some("touch")) => "browser.input_touch",
+                ("geolocation", _) | ("geo", _) => "browser.geolocation.set",
+                ("offline", _) => "browser.offline.set",
+                ("viewport", _) => "browser.viewport.set",
+                ("react-grab", _) | ("reactgrab", _) => "browser.react_grab.toggle",
+                ("devtools", Some("console")) => "browser.console.show",
+                ("devtools", _) | ("dev-tools", _) => "browser.devtools.toggle",
+                ("focus-mode", _) => "browser.focus_mode.set",
+                ("design-mode", Some("status")) => "browser.design_mode.status",
+                ("design-mode", _) => "browser.design_mode.set",
+                ("zoom", _) => "browser.zoom.set",
+                ("history", _) => "browser.history.clear",
+                ("addstyle", _) => "browser.addstyle",
+                ("addinitscript", _) => "browser.addinitscript",
+                ("addscript", _) => "browser.addscript",
+                ("highlight", _) => "browser.highlight",
+                ("state", Some("save")) => "browser.state.save",
+                ("state", Some("load")) => "browser.state.load",
+                ("download", _) => "browser.download.wait",
+                ("title", _) => "browser.get.title",
+                ("inspect", _) => "browser.inspect",
+                ("frame", _) => "browser.frame.main",
+                ("dialog", _) => "browser.dialog",
+                ("import", _) => "browser.import.dialog",
+                _ => {
+                    return Err(CliError::Usage(format!(
+                        "Unsupported browser subcommand: {subcommand}"
+                    )));
+                }
+            };
+            let (_, extra_params) = generic_method_and_params("browser", &rest, &options)?;
+            for (key, value) in extra_params {
+                if key != "window_id" && key != "workspace_id" && key != "surface_id" {
+                    params.insert(key, value);
+                }
+            }
             let _ = send(method, params)?;
         }
         _ => return Err(CliError::Usage(format!("Unsupported browser subcommand: {subcommand}"))),
@@ -4519,5 +4682,37 @@ mod tests {
         assert!(path.exists());
         run_wait_for_command(&["--timeout".into(), "0".into(), name]).unwrap();
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn browser_cookie_adapter_routes_nested_method() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "browser.cookies.set");
+            assert_eq!(request["params"]["surface_id"], "surface:1");
+            stream.write_all(b"{\"ok\":true,\"result\":{\"ok\":true}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_browser_command(
+            vec![
+                "surface:1".into(),
+                "cookies".into(),
+                "set".into(),
+                "--name".into(),
+                "sid".into(),
+                "--value".into(),
+                "abc".into(),
+            ],
+            options,
+            true,
+        )
+        .unwrap();
+        worker.join().unwrap();
     }
 }

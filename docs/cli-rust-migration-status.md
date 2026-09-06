@@ -60,7 +60,7 @@ All 12 families remain incomplete:
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
 | topology | partial | window/workspace namespaces, basic window actions, workspace and pane/surface inspection output, and common ref/index resolution are ported; tree, tab, full handle normalization, and exact mutation output remain |
 | terminal-and-notifications | partial | terminal reads, selection, sends, panel aliases, sidebar status/progress/log forwarding, and basic notification actions are ported; capture, feed, advanced targeting, and exact metadata output remain |
-| browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press, and profile lifecycle aliases are ported; storage, selector normalization, and exact automation output remain |
+| browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press, profile lifecycle, and nested storage/cookie/tab/network/trace/input aliases are routed; selector normalization and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
 | cloud-and-remotes | pending | VM, cloud, remote, SSH, and remote terminal paths |
 | compatibility | pending | tmux compatibility and hidden agent commands |
@@ -105,7 +105,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (31 tests).
+- `cargo test -p cmux-cli` (32 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -130,6 +130,10 @@ The following checks passed for the current slice:
   `coderouter.claude_upstream.get` through the same cmux session. It does not
   start a second authentication flow.
 - Topology split-off request test and tmux `wait-for` signal file test.
+- Browser nested cookie request test. Browser storage, tab, network, trace,
+  viewport, input, and profile aliases now route through the corresponding
+  v2 methods; their exact output and option validation still need dual-run
+  evidence.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.

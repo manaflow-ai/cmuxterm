@@ -46,7 +46,7 @@
       "id": "topology",
       "commands": ["window", "workspace", "new-workspace", "list-workspaces", "pane", "new-pane", "surface", "new-surface", "tree", "tab-action"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#topology_split_off_matches_swift_v2_request"]
     },
     {
       "id": "terminal-and-notifications",
@@ -58,7 +58,7 @@
       "id": "browser",
       "commands": ["browser", "open-browser", "navigate", "browser snapshot", "browser click", "browser eval"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#browser_cookie_adapter_routes_nested_method"]
     },
     {
       "id": "agents-and-hooks",
