@@ -98,7 +98,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         let context = try makeClaudeHookContext(name: "claude-noflicker-replacement")
         defer { context.cleanup() }
 
-        let now = Date().timeIntervalSince1970
+        let now: TimeInterval = 1_700_000_000
         let oldSessionId = "old-session"
         let newSessionId = "new-session"
         let store: [String: Any] = [
