@@ -41,6 +41,59 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         )
     }
 
+    func testClaudeNoFlickerSessionStartMarksWorkspaceRunning() throws {
+        let context = try makeClaudeHookContext(name: "claude-noflicker-running")
+        defer { context.cleanup() }
+
+        let result = runClaudeHook(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            standardInput: #"{"session_id":"fullscreen-session","source":"startup","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#,
+            extraEnvironment: ["CLAUDE_CODE_NO_FLICKER": "1"]
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertTrue(
+            context.state.commands.contains {
+                $0.hasPrefix("set_status claude_code Running --icon=bolt.fill --color=#4C8DFF --tab=\(context.workspaceId)")
+                    && $0.contains("--panel=\(context.surfaceId)")
+            },
+            "Expected CLAUDE_CODE_NO_FLICKER startup SessionStart to mark Claude running, saw \(context.state.commands)"
+        )
+        XCTAssertFalse(
+            context.state.commands.contains { $0.contains(#""method":"surface.resume.set"#) },
+            "CLAUDE_CODE_NO_FLICKER startup SessionStart must not publish a resume binding before the first prompt, saw \(context.state.commands)"
+        )
+
+        let record = try readClaudeHookSession("fullscreen-session", context: context)
+        XCTAssertEqual(record["isRestorable"] as? Bool, false)
+        XCTAssertEqual(record["agentLifecycle"] as? String, "running")
+    }
+
+    func testClaudeNoFlickerResumeSessionStartStaysVisuallyQuiet() throws {
+        let context = try makeClaudeHookContext(name: "claude-noflicker-resume")
+        defer { context.cleanup() }
+
+        let result = runClaudeHook(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            standardInput: #"{"session_id":"resume-session","source":"resume","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#,
+            extraEnvironment: ["CLAUDE_CODE_NO_FLICKER": "1"]
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertFalse(
+            context.state.commands.contains { $0.hasPrefix("set_status claude_code Running ") },
+            "Resume SessionStart must not mark Claude running before a prompt, saw \(context.state.commands)"
+        )
+        XCTAssertFalse(
+            context.state.commands.contains { $0.contains(#""method":"surface.resume.set"#) },
+            "Resume SessionStart must not publish a resume binding before a prompt, saw \(context.state.commands)"
+        )
+    }
+
     func testClaudeSessionStartRecordIsNotRestorableUntilPrompt() throws {
         let context = try makeClaudeHookContext(name: "claude-session-restorable")
         defer { context.cleanup() }
