@@ -6447,7 +6447,9 @@ class TerminalController {
             )
         }
 
-        NotificationCenter.default.post(name: .workstreamEventReceived, object: event)
+        if !event.telemetryOnly {
+            NotificationCenter.default.post(name: .workstreamEventReceived, object: event)
+        }
         return v2IngestFeedEvent(
             event,
             waitTimeout: waitTimeout,
@@ -6456,7 +6458,8 @@ class TerminalController {
     }
 
     nonisolated func v2ApplyIMessageModeSideEffects(for event: WorkstreamEvent) {
-        guard event.hookEventName == .userPromptSubmit || event.hookEventName == .stop,
+        guard !event.telemetryOnly,
+              (event.hookEventName == .userPromptSubmit || event.hookEventName == .stop),
               let rawWorkspaceId = event.workspaceId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawWorkspaceId.isEmpty
         else { return }

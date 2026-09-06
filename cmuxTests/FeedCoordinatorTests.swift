@@ -10,6 +10,53 @@ import CMUXAgentLaunch
 
 @Suite("Feed coordinator", .serialized)
 struct FeedCoordinatorTests {
+    @Test("Acknowledged lifecycle ingress publishes only owning events")
+    func acknowledgedLifecycleIngressPublishesOwningEvents() async {
+        await MainActor.run {
+            FeedCoordinator.shared.install(store: WorkstreamStore(ringCapacity: 10))
+        }
+        let rootSeen = DispatchSemaphore(value: 0)
+        let telemetrySeen = DispatchSemaphore(value: 0)
+        let token = NotificationCenter.default.addObserver(
+            forName: .workstreamEventReceived,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let event = notification.object as? WorkstreamEvent else { return }
+            if event.sessionId == "copilot-root-stop" {
+                rootSeen.signal()
+            } else if event.sessionId == "copilot-child-stop" {
+                telemetrySeen.signal()
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+
+        _ = await Task.detached {
+            TerminalController.shared.v2IngestAcknowledgedFeedEvents([
+                WorkstreamEvent(
+                    sessionId: "copilot-root-stop",
+                    hookEventName: .stop,
+                    source: "copilot",
+                    sourceEventId: "root-stop-1"
+                )
+            ])
+        }.value
+        #expect(rootSeen.wait(timeout: .now() + 1) == .success)
+
+        _ = await Task.detached {
+            TerminalController.shared.v2IngestAcknowledgedFeedEvents([
+                WorkstreamEvent(
+                    sessionId: "copilot-child-stop",
+                    hookEventName: .stop,
+                    source: "copilot",
+                    sourceEventId: "child-stop-1",
+                    telemetryOnly: true
+                )
+            ])
+        }.value
+        #expect(telemetrySeen.wait(timeout: .now() + 0.1) == .timedOut)
+    }
+
     @Test("Resolved source-event replay returns the original decision and item")
     func resolvedSourceEventReplayReturnsOriginalOutcome() async {
         let store = await MainActor.run {

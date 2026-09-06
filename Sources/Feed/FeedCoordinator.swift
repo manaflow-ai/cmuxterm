@@ -8,7 +8,7 @@ import CmuxSettings
 import CmuxSidebar
 
 private enum FeedEventAcceptance: Sendable {
-    case accepted(event: WorkstreamEvent, itemId: UUID)
+    case accepted(event: WorkstreamEvent, ingestion: WorkstreamIngestResult)
     case notFound
     case unavailable
 }
@@ -134,10 +134,10 @@ final class FeedCoordinator: @unchecked Sendable {
         switch resolveDeliveryTarget(for: [event]) {
         case .accepted(let events):
             guard let revalidatedEvent = events.first,
-                  let itemId = ingestRevalidatedOnMainActor(revalidatedEvent) else {
+                  let ingestion = ingestRevalidatedOnMainActor(revalidatedEvent) else {
                 return .unavailable
             }
-            return .accepted(event: revalidatedEvent, itemId: itemId)
+            return .accepted(event: revalidatedEvent, ingestion: ingestion)
         case .notFound:
             return .notFound
         case .unavailable:
@@ -146,13 +146,13 @@ final class FeedCoordinator: @unchecked Sendable {
     }
 
     @MainActor
-    func ingestRevalidatedOnMainActor(_ event: WorkstreamEvent) -> UUID? {
+    func ingestRevalidatedOnMainActor(_ event: WorkstreamEvent) -> WorkstreamIngestResult? {
         guard let store else { return nil }
-        store.ingest(event)
+        let ingestion = store.ingest(event)
         if let ppid = event.ppid, ppid > 0 {
             armPidWatcher(ppid: ppid)
         }
-        return store.items.last?.id
+        return ingestion
     }
 
     /// Runs synchronous acknowledged ingress on the same ordered lane as zero-wait telemetry.
@@ -226,7 +226,8 @@ final class FeedCoordinator: @unchecked Sendable {
                         }) else {
                             return nil
                         }
-                        guard case .accepted(let acceptedEvent, _) = acceptance else {
+                        guard case .accepted(let acceptedEvent, let ingestion) = acceptance,
+                              ingestion.inserted else {
                             return nil
                         }
                         onAcceptedOnMainActor(acceptedEvent)
@@ -241,9 +242,9 @@ final class FeedCoordinator: @unchecked Sendable {
                 return IngestBlockingOutcome(result: .unavailable, authoritativeEvent: nil)
             }
             switch acceptance {
-            case .accepted(let acceptedEvent, let itemId):
+            case .accepted(let acceptedEvent, let ingestion):
                 return IngestBlockingOutcome(
-                    result: .acknowledged(itemId: itemId),
+                    result: .acknowledged(itemId: ingestion.item.id),
                     authoritativeEvent: acceptedEvent
                 )
             case .notFound:
@@ -275,16 +276,37 @@ final class FeedCoordinator: @unchecked Sendable {
                         guard ContinuousClock.now < deliveryDeadline else {
                             return FeedEventAcceptance.unavailable
                         }
-                        // Register in the commit boundary before the store sees
-                        // the event, so a fast reply cannot slip through.
+                        // Register before the store exposes a fresh actionable
+                        // item. If this proves to be a replay, restore any
+                        // existing waiter and return the durable outcome.
                         FeedCoordinator.shared.waiterLock.lock()
-                        FeedCoordinator.shared.waiters[requestId] = waiter
+                        let displacedWaiter = FeedCoordinator.shared.waiters.updateValue(
+                            waiter,
+                            forKey: requestId
+                        )
                         FeedCoordinator.shared.waiterLock.unlock()
-                        return FeedCoordinator.shared.acceptOnMainActor(event)
+                        let acceptance = FeedCoordinator.shared.acceptOnMainActor(event)
+                        let keepsNewWaiter: Bool
+                        if case .accepted(_, let ingestion) = acceptance {
+                            keepsNewWaiter = ingestion.inserted
+                        } else {
+                            keepsNewWaiter = false
+                        }
+                        if !keepsNewWaiter {
+                            FeedCoordinator.shared.waiterLock.lock()
+                            if let displacedWaiter {
+                                FeedCoordinator.shared.waiters[requestId] = displacedWaiter
+                            } else if FeedCoordinator.shared.waiters[requestId] === waiter {
+                                FeedCoordinator.shared.waiters.removeValue(forKey: requestId)
+                            }
+                            FeedCoordinator.shared.waiterLock.unlock()
+                        }
+                        return acceptance
                     }) else {
                         return nil
                     }
-                    guard case .accepted(let acceptedEvent, _) = acceptance else {
+                    guard case .accepted(let acceptedEvent, let ingestion) = acceptance,
+                          ingestion.inserted else {
                         return nil
                     }
                     // Surface in-app attention (needs-input status + workspace
@@ -353,8 +375,14 @@ final class FeedCoordinator: @unchecked Sendable {
 
         let accepted: (event: WorkstreamEvent, itemId: UUID)
         switch acceptance {
-        case .accepted(let event, let itemId):
-            accepted = (event, itemId)
+        case .accepted(let event, let ingestion):
+            guard ingestion.inserted else {
+                return IngestBlockingOutcome(
+                    result: Self.replayResult(for: ingestion.item),
+                    authoritativeEvent: event
+                )
+            }
+            accepted = (event, ingestion.item.id)
         case .notFound:
             waiterLock.lock()
             waiters.removeValue(forKey: requestId)
@@ -420,7 +448,9 @@ final class FeedCoordinator: @unchecked Sendable {
             let acceptedEvent: WorkstreamEvent? = DispatchQueue.main.sync {
                 MainActor.assumeIsolated {
                     let accept: () -> WorkstreamEvent? = {
-                        guard case .accepted(let event, _) = FeedCoordinator.shared.acceptOnMainActor(event) else {
+                        guard case .accepted(let event, let ingestion) =
+                            FeedCoordinator.shared.acceptOnMainActor(event),
+                            ingestion.inserted else {
                             return nil
                         }
                         return event
@@ -466,6 +496,17 @@ final class FeedCoordinator: @unchecked Sendable {
         let components = ContinuousClock.now.duration(to: deadline).components
         return TimeInterval(components.seconds)
             + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+    }
+
+    private static func replayResult(for item: WorkstreamItem) -> IngestBlockingResult {
+        switch item.status {
+        case .resolved(let decision, _):
+            return .resolved(itemId: item.id, decision: decision)
+        case .expired:
+            return .timedOut(itemId: item.id)
+        case .pending, .telemetry:
+            return .acknowledged(itemId: item.id)
+        }
     }
 
     /// Concludes an attention overlay (if any) on the main actor, hopping if

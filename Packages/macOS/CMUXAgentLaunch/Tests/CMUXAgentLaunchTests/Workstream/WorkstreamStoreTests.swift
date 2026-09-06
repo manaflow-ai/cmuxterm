@@ -77,6 +77,109 @@ struct WorkstreamStoreTests {
         }
     }
 
+    @Test("Source-event replay survives in-process ring eviction")
+    func sourceEventReplaySurvivesRingEviction() {
+        let store = WorkstreamStore(ringCapacity: 2)
+        let first = store.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-1",
+            sourceEventId: "native-event-1"
+        ))
+        store.markResolved(first.item.id, decision: .permission(.once))
+        store.ingest(WorkstreamEvent(
+            sessionId: "other-1",
+            hookEventName: .stop,
+            source: "copilot"
+        ))
+        store.ingest(WorkstreamEvent(
+            sessionId: "other-2",
+            hookEventName: .stop,
+            source: "copilot"
+        ))
+        #expect(!store.items.contains { $0.id == first.item.id })
+
+        let replay = store.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-replay",
+            sourceEventId: "native-event-1"
+        ))
+
+        #expect(!replay.inserted)
+        #expect(replay.item.id == first.item.id)
+        if case .resolved(let decision, _) = replay.item.status {
+            #expect(decision == .permission(.once))
+        } else {
+            Issue.record("ring-evicted replay must retain its resolved decision")
+        }
+        if case .permissionRequest(let requestId, _, _, _) = replay.item.payload {
+            #expect(requestId == "request-1")
+        } else {
+            Issue.record("ring-evicted replay must retain its original request id")
+        }
+    }
+
+    @Test("Resolved source-event replay survives restart outside the initial page")
+    func resolvedSourceEventReplaySurvivesRestart() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-workstream-replay-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let persistence = WorkstreamPersistence(fileURL: tmp)
+        let firstStore = WorkstreamStore(persistence: persistence, ringCapacity: 3)
+        let first = firstStore.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-1",
+            sourceEventId: "native-event-1"
+        ))
+        firstStore.markResolved(first.item.id, decision: .permission(.once))
+        for index in 0..<5 {
+            firstStore.ingest(WorkstreamEvent(
+                sessionId: "other-\(index)",
+                hookEventName: .stop,
+                source: "copilot"
+            ))
+        }
+        await firstStore.flushPersistence()
+
+        let restoredStore = WorkstreamStore(
+            persistence: persistence,
+            ringCapacity: 10,
+            initialLoadLimit: 2
+        )
+        await restoredStore.start()
+        #expect(!restoredStore.items.contains { $0.id == first.item.id })
+
+        let replay = restoredStore.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-replay",
+            sourceEventId: "native-event-1"
+        ))
+
+        #expect(!replay.inserted)
+        #expect(replay.item.id == first.item.id)
+        if case .resolved(let decision, _) = replay.item.status {
+            #expect(decision == .permission(.once))
+        } else {
+            Issue.record("restored replay must retain its resolved decision")
+        }
+        if case .permissionRequest(let requestId, _, _, _) = replay.item.payload {
+            #expect(requestId == "request-1")
+        } else {
+            Issue.record("restored replay must retain its original request id")
+        }
+    }
+
     @Test("Source event identity remains scoped to producer and workstream")
     func sourceEventIdentityIncludesProducerAndWorkstream() {
         let store = WorkstreamStore(ringCapacity: 10)

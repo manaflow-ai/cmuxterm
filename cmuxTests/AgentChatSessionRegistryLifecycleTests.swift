@@ -26,7 +26,7 @@ struct AgentChatSessionRegistryLifecycleTests {
         ))
 
         #expect(record.sessionID == sessionID)
-        #expect(record.hookStoreSessionID == sessionID)
+        #expect(record.hookStoreLookupSessionID == sessionID)
     }
 
     @MainActor

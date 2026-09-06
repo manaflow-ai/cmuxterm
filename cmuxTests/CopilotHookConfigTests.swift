@@ -40,7 +40,7 @@ struct CopilotHookConfigTests {
         ]))
         #expect(command(in: hooks, event: "agentStop").contains("hooks copilot stop"))
         #expect(command(in: hooks, event: "notification").contains("hooks copilot notification"))
-        #expect(command(in: hooks, event: "errorOccurred").contains("hooks copilot notification"))
+        #expect(command(in: hooks, event: "errorOccurred").contains("hooks copilot error"))
         #expect(command(in: hooks, event: "preToolUse").contains("hooks feed --source copilot --event preToolUse"))
         #expect(!FileManager.default.fileExists(
             atPath: fixture.home.appendingPathComponent(".copilot/config.json").path

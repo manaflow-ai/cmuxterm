@@ -1,6 +1,89 @@
 import CmuxSettings
 import Foundation
 
+enum CopilotHookContract {
+    static let lifecycleEvents: [(agentEvent: String, cmuxSubcommand: String)] = [
+        ("sessionStart", "session-start"),
+        ("userPromptSubmitted", "prompt-submit"),
+        ("agentStop", "stop"),
+        ("notification", "notification"),
+        ("errorOccurred", "error"),
+        ("sessionEnd", "session-end"),
+    ]
+    static let feedHookEvents = ["preToolUse"]
+}
+
+struct FeedSourceIdentity: Equatable {
+    let sourceEventId: String?
+    let sourceRevision: String?
+    let causalChainId: String?
+    let actionRequestId: String?
+
+    init(payload: [String: Any]) {
+        sourceEventId = Self.firstValue(in: payload, keys: ["event_id", "eventId", "eventID"])
+        sourceRevision = Self.firstValue(
+            in: payload,
+            keys: ["source_revision", "sourceRevision", "event_revision", "eventRevision", "revision", "timestamp"]
+        )
+        causalChainId = Self.firstValue(
+            in: payload,
+            keys: ["causal_chain_id", "causalChainId", "turn_id", "turnId"]
+        ) ?? Self.traceId(from: Self.firstValue(in: payload, keys: ["traceparent"]))
+        actionRequestId = Self.firstValue(
+            in: payload,
+            keys: [
+                "action_request_id", "actionRequestId",
+                "tool_use_id", "toolUseID",
+                "tool_call_id", "toolCallId",
+                "call_id", "callId",
+            ]
+        )
+    }
+
+    func apply(to event: inout [String: Any]) {
+        if let sourceEventId { event["_source_event_id"] = sourceEventId }
+        if let sourceRevision { event["_source_revision"] = sourceRevision }
+        if let causalChainId { event["_causal_chain_id"] = causalChainId }
+        if let actionRequestId { event["_action_request_id"] = actionRequestId }
+    }
+
+    private static func firstValue(in payload: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            let value: String?
+            switch payload[key] {
+            case let string as String:
+                value = string
+            case let number as NSNumber:
+                value = number.stringValue
+            default:
+                value = nil
+            }
+            if let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !normalized.isEmpty {
+                return String(normalized.prefix(256))
+            }
+        }
+        return nil
+    }
+
+    private static func traceId(from traceparent: String?) -> String? {
+        guard let traceparent else { return nil }
+        let parts = traceparent.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 4,
+              parts[0].count == 2,
+              parts[1].count == 32,
+              parts[2].count == 16,
+              parts[3].count == 2,
+              parts.allSatisfy({ $0.allSatisfy(\.isHexDigit) }),
+              parts[0].lowercased() != "ff",
+              parts[1].contains(where: { $0 != "0" }),
+              parts[2].contains(where: { $0 != "0" }) else {
+            return nil
+        }
+        return parts[1].lowercased()
+    }
+}
+
 /// Classifies a raw agent hook event into our wire `hook_event_name` plus an
 /// `isActionable` flag.
 ///
@@ -322,6 +405,9 @@ struct FeedEventClassifier {
             "on_session_reset": .sessionStart,
             "on_session_end": .sessionEnd,
             "on_session_finalize": .sessionEnd,
+        ],
+        "copilot": [
+            "preToolUse": .toolStart,
         ],
         // Gemini CLI consumes the generic PreToolUse decision schema and has
         // no separate approval event, so it deliberately opts in to blocking.

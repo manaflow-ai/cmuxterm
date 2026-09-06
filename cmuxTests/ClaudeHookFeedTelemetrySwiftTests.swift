@@ -171,7 +171,7 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         let result = runProcess(
             executablePath: cliPath,
             arguments: [
-                "hooks", "copilot", "notification",
+                "hooks", "copilot", "error",
                 "--workspace", workspaceID,
                 "--surface", surfaceID,
             ],
@@ -184,8 +184,6 @@ struct ClaudeHookFeedTelemetrySwiftTests {
                 "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
                 "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
                 "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
-                "CMUX_CLAUDE_HOOK_STATE_PATH": context.root
-                    .appendingPathComponent("copilot-hook-sessions.json").path,
                 "CMUX_COPILOT_PID": String(getpid()),
             ]) { _, override in override },
             standardInput: """
@@ -204,6 +202,9 @@ struct ClaudeHookFeedTelemetrySwiftTests {
                 .first { ($0["method"] as? String) == "feed.push" }
         )
         #expect(feedRequest["id"] is String)
+        #expect(context.state.commandsSnapshot().contains {
+            $0.contains("agent_journal_append") && $0.contains("agent.error.reported")
+        })
         let event = try #require(
             context.state.feedEventsSnapshot().last { $0["hook_event_name"] as? String == "Notification" }
         )
@@ -244,7 +245,6 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             "CMUX_COPILOT_PID": String(getpid()),
             "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS": "0",
             "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
-            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path,
         ]) { _, override in override }
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
 
@@ -298,6 +298,22 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         #expect(childTool.status == 0, Comment(rawValue: childTool.stderr))
         #expect(feedSeen.wait(timeout: .now() + 5) == .success)
 
+        let childEnd = runProcess(
+            executablePath: cliPath,
+            arguments: [
+                "hooks", "copilot", "session-end",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"child-session","timestamp":2.5,"cwd":"\(context.root.path)"}
+            """,
+            timeout: 5
+        )
+        #expect(childEnd.status == 0, Comment(rawValue: childEnd.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+
         let shellCompleted = runProcess(
             executablePath: cliPath,
             arguments: [
@@ -332,9 +348,37 @@ struct ClaudeHookFeedTelemetrySwiftTests {
                 && ($0["_telemetry_only"] as? Bool) == true
         })
         #expect(events.contains {
+            guard ($0["hook_event_name"] as? String) == "SessionEnd",
+                  let rawValue = $0["session_id"] as? String,
+                  let identity = FeedWorkstreamIdentifier(rawValue: rawValue) else {
+                return false
+            }
+            return identity.sessionID == "child-session"
+                && ($0["_telemetry_only"] as? Bool) == true
+        })
+        #expect(events.contains {
             ($0["hook_event_name"] as? String) == "Notification"
                 && (($0["tool_input"] as? [String: Any])?["notification_type"] as? String) == "shell_completed"
                 && ($0["_telemetry_only"] as? Bool) == true
+        })
+
+        let permissionPrompt = runProcess(
+            executablePath: cliPath,
+            arguments: [
+                "hooks", "copilot", "notification",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
+            environment: environment,
+            standardInput: """
+            {"sessionId":"root-session","timestamp":4,"cwd":"\(context.root.path)","hook_event_name":"Notification","message":"Permission required","notification_type":"permission_prompt"}
+            """,
+            timeout: 5
+        )
+        #expect(permissionPrompt.status == 0, Comment(rawValue: permissionPrompt.stderr))
+        #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        #expect(context.state.commandsSnapshot().contains {
+            $0.contains("agent_journal_append") && $0.contains("agent.approval.requested")
         })
     }
 
@@ -366,7 +410,6 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             "CMUX_COPILOT_PID": String(getpid()),
             "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS": "0",
             "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
-            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path,
         ]) { _, override in override }
         let deadRootEnvironment = liveEnvironment.merging([
             "CMUX_COPILOT_PID": "2147483647"

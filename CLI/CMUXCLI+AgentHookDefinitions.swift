@@ -8,6 +8,7 @@ extension CMUXCLI {
     static let feedHookProcessTimeoutMilliseconds = 120_000
     static let feedHookClientDeadlineSeconds = Double(feedHookProcessTimeoutMilliseconds) / 1_000 - 2
     static let feedHookDecisionWaitSeconds = feedHookClientDeadlineSeconds - 3
+    static let feedTelemetryAcknowledgementTimeoutSeconds: TimeInterval = 5
     /// Configuration for a hook-based agent integration.
     struct AgentHookDef {
         let name: String            // CLI name: "cursor", "gemini", etc.
@@ -172,6 +173,7 @@ extension CMUXCLI {
         "stop": .stop,
         "notification": .notification,
         "notify": .notification,
+        "error": .notification,
         "agent-response": .stop,
         "approval-response": .approvalResponse,
         "subagent-start": .codexSubagentStart,
