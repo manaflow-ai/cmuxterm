@@ -72,6 +72,7 @@ struct cmuxApp: App {
     @AppStorage(SocketControlSettings.appStorageKey) private var socketControlMode = SocketControlSettings.defaultMode.rawValue
     @AppStorage(BrowserToolbarAccessorySpacingDebugSettings.key) private var browserToolbarAccessorySpacingRaw = BrowserToolbarAccessorySpacingDebugSettings.defaultSpacing
     @State private var browserFocusModeMenuRevision = 0
+    @State private var dockMenuInvalidator: DockMenuInvalidator
     @State var historyMenuCoordinator: HistoryMenuCoordinator
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private var browserToolbarAccessorySpacing: Int {
@@ -271,10 +272,12 @@ struct cmuxApp: App {
                 }
             )
         )
+        let dockMenuInvalidator = DockMenuInvalidator()
         _tabManager = StateObject(wrappedValue: tabManager)
         _notificationStore = StateObject(wrappedValue: notificationStore)
         _closedItemHistoryStore = StateObject(wrappedValue: closedItemHistoryStore)
         _sidebarState = StateObject(wrappedValue: sidebarState)
+        _dockMenuInvalidator = State(initialValue: dockMenuInvalidator)
         let automationEngine = AutomationEngine(
             workspaceTagsResolver: { workspaceID in
                 // Resolve through the app delegate's live window-context index;
@@ -522,7 +525,7 @@ struct cmuxApp: App {
             // Rebuild menu capability snapshots when a Dock focus/topology
             // mutation publishes an update. The Commands body itself only
             // reads the bounded snapshot, never the Dock's tab collections.
-            let _ = focusHistoryMenuInvalidator.revision
+            let _ = dockMenuInvalidator.revision
             let activeDockMenuTarget = activeDockForMenu
             CommandGroup(replacing: .appSettings) {
                 splitCommandButton(title: String(localized: "menu.app.settings", defaultValue: "Settings…"), shortcut: menuShortcut(for: .openSettings)) {
@@ -1371,7 +1374,7 @@ struct cmuxApp: App {
         // well as the scene-level Commands read. Switching key windows can
         // change the resolved Dock without changing either Dock's capability
         // snapshot.
-        let _ = focusHistoryMenuInvalidator.revision
+        let _ = dockMenuInvalidator.revision
         return appDelegate.focusedDockStoreForMenu(
             preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
         )

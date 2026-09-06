@@ -1,5 +1,6 @@
 import AppKit
 import Bonsplit
+import Observation
 
 extension Notification.Name {
     static let dockMenuCapabilitiesDidChange = Notification.Name(
@@ -11,6 +12,45 @@ extension Notification.Name {
     static let terminalSelectionDidChange = Notification.Name(
         "cmux.terminalSelectionDidChange"
     )
+}
+
+/// Invalidates the SwiftUI Commands projection when the focused Dock changes
+/// capability or visibility. History-menu state has its own coordinator; this
+/// bridge is deliberately scoped to Dock notifications so menu refreshes do
+/// not rebuild the history graph on unrelated focus changes.
+@MainActor
+@Observable
+final class DockMenuInvalidator {
+    private(set) var revision: UInt64 = 0
+
+    @ObservationIgnored
+    private let center: NotificationCenter
+    @ObservationIgnored
+    private var observers: [NSObjectProtocol] = []
+
+    init(center: NotificationCenter = .default) {
+        self.center = center
+        for name in [
+            Notification.Name.dockMenuCapabilitiesDidChange,
+            .dockVisibilityDidChange,
+        ] {
+            observers.append(center.addObserver(
+                forName: name,
+                object: nil,
+                queue: nil
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.revision &+= 1
+                }
+            })
+        }
+    }
+
+    deinit {
+        for observer in observers {
+            center.removeObserver(observer)
+        }
+    }
 }
 
 enum DockPointerHitTarget: Equatable {
