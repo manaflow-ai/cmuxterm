@@ -86,6 +86,17 @@ import Testing
         #expect(created.currentDirectory == "/tmp")
     }
 
+    @Test func sidebarParameterCoercionPreservesBracketPrefixedTextAndKnownArrays() throws {
+        let typed = cmuxSidebarTypedParameters([
+            "text": "[1]",
+            "image_paths": #"["/tmp/image.png"]"#,
+        ])
+
+        #expect(typed["text"] as? String == "[1]")
+        #expect(typed["text"] is String)
+        #expect(typed["image_paths"] as? [String] == ["/tmp/image.png"])
+    }
+
     @Test func mobileValidationReceivesRawRelativeCwdBeforeCanonicalization() async throws {
         let manager = TabManager()
         let initialWorkspaceIDs = Set(manager.tabs.map(\.id))
