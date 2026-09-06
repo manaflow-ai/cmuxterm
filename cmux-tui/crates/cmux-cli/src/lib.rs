@@ -309,7 +309,15 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 | "dismiss-notification"
                 | "mark-notification-read"
                 | "open-notification"
-                | "jump-to-unread"),
+                | "jump-to-unread"
+                | "open-browser"
+                | "navigate"
+                | "browser-back"
+                | "browser-forward"
+                | "browser-reload"
+                | "get-url"
+                | "focus-webview"
+                | "is-webview-focused"),
             ),
         ) => {
             CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
@@ -798,6 +806,22 @@ fn run_socket_v2_command(
             params.clear();
             "notification.jump_to_unread"
         }
+        "open-browser" => {
+            let url = trailing_text(&arguments, "open-browser")?;
+            params.insert("url".into(), Value::String(url));
+            "browser.open_split"
+        }
+        "navigate" => {
+            let url = trailing_text(&arguments, "navigate")?;
+            params.insert("url".into(), Value::String(url));
+            "browser.navigate"
+        }
+        "browser-back" => "browser.back",
+        "browser-forward" => "browser.forward",
+        "browser-reload" => "browser.reload",
+        "get-url" => "browser.url.get",
+        "focus-webview" => "browser.focus_webview",
+        "is-webview-focused" => "browser.is_webview_focused",
         _ => unreachable!("parser only creates known socket commands"),
     };
     if command == "read-screen" {
@@ -818,7 +842,11 @@ fn run_socket_v2_command(
     }
     let result = socket(&options)?.send_v2(method, Value::Object(params))?;
     let result = format_ids(result, &id_format);
-    if command == "read-screen" && !json_output {
+    if command == "get-url" && !json_output {
+        println!("{}", result.get("url").and_then(Value::as_str).unwrap_or_default());
+    } else if command == "is-webview-focused" && !json_output {
+        println!("{}", result.get("focused").and_then(Value::as_bool).unwrap_or(false));
+    } else if command == "read-screen" && !json_output {
         println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
     } else {
         print_result(&result, json_output);
@@ -945,7 +973,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -1538,6 +1566,27 @@ mod tests {
             CommandLine::SocketV2 {
                 command: "notify".into(),
                 arguments: vec!["--title".into(), "Build".into()]
+            }
+        );
+        let (_, navigate) = parse_args(
+            &[
+                "navigate".into(),
+                "--surface".into(),
+                "surface:1".into(),
+                "https://example.com".into(),
+            ],
+            Program::Cmux,
+        )
+        .unwrap();
+        assert_eq!(
+            navigate,
+            CommandLine::SocketV2 {
+                command: "navigate".into(),
+                arguments: vec![
+                    "--surface".into(),
+                    "surface:1".into(),
+                    "https://example.com".into()
+                ]
             }
         );
     }

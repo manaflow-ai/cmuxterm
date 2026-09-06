@@ -57,8 +57,8 @@
     {
       "id": "browser",
       "commands": ["browser", "open-browser", "navigate", "browser snapshot", "browser click", "browser eval"],
-      "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md"]
+      "status": "partial",
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
     },
     {
       "id": "agents-and-hooks",

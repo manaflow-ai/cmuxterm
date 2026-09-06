@@ -55,7 +55,7 @@ All 12 families remain incomplete:
 | app-and-settings | pending | docs, settings, config, themes, auth, open, feedback |
 | topology | partial | window inspection and basic window actions are ported; workspace, pane, surface, tree, and tab actions remain |
 | terminal-and-notifications | partial | terminal reads/sends and basic notification create/list/dismiss/read/open actions are ported; selection, capture, feed, advanced targeting, and logs remain |
-| browser | pending | browser commands, snapshots, actions, storage, profiles |
+| browser | partial | open, navigate, back, forward, reload, URL, and webview focus aliases are ported; snapshots, selectors, eval, profiles, storage, and browser namespace parsing remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
 | cloud-and-remotes | pending | VM, cloud, remote, SSH, and remote terminal paths |
 | compatibility | pending | tmux compatibility and hidden agent commands |
@@ -63,7 +63,8 @@ All 12 families remain incomplete:
 The Rust candidate currently provides the migration slice for capabilities,
 context, RPC, ping, identify, window inspection and basic window actions,
 workspace and pane inspection, terminal text reads and sends, basic notification
-actions, limited AI accounts, `cr add codex`, and CodeRouter delegation.
+actions, common browser navigation aliases, limited AI accounts, `cr add codex`,
+and CodeRouter delegation.
 The Rust candidate binaries are about 1.375 MiB each as universal Mach-O
 artifacts. Keeping Swift in production while the gate is red adds about
 2.62 MiB. Removing Swift before the gate passes would risk breaking commands,
@@ -91,6 +92,7 @@ The following checks passed for the current slice:
 - Password source precedence tests, including the final Keychain fallback.
 - V2 request construction tests for workspace, pane, and terminal context.
 - Notification list parsing and notification command parsing tests.
+- Browser navigation alias parsing tests.
 - Universal arm64 and x86_64 Rust builds.
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.
