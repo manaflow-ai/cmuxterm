@@ -40,10 +40,11 @@ The first terminal use creates the terminal peer through `POST /api/vm/tunnel`.
 The completed WireGuard configuration stays on the Mac with mode 0600. Later
 app launches reuse it and make no Freestyle tunnel call.
 
-The first cmux-tui connection to one VM still needs one device invitation. The
-control plane creates and approves that invitation. The invitation is sent
-through the private WireGuard link. Later connections use the saved cmux-tui
-device key and private route, with no connection ticket and no Freestyle call.
+cmux-tui connections need no device invitation and no approval. The VM's
+daemon serves a trusted-carrier listener that is reachable only inside the
+private network, so the Mac dials `remote connect <route> --carrier` and is
+admitted by the network itself. Every connection uses the private route, with
+no connection ticket and no Freestyle call.
 
 ## Browser path
 
@@ -94,12 +95,12 @@ Freestyle calls required by this design are:
 5. Create, delete, start, stop, resize, or inspect a VM when the user requests
    that management operation.
 
-The first cmux-tui device invitation per Mac and VM uses one control-plane
-approval request and one Freestyle VM command. The command waits for the claim
-on the VM's local daemon socket. The Mac does not poll Vercel or Freestyle. This
-flow is not part of normal reconnect traffic. Machine list refresh can use the
-Cloud API, but live workspace, terminal, pane, display, and agent metadata comes
-from cmux-tui through the terminal WireGuard link.
+The first attach to a machine whose daemon predates the trusted listener costs
+one control-plane request that brings the daemon to the pinned build and
+restarts it with the trusted drop-in. Nothing is approved and the Mac does not
+poll Vercel or Freestyle. Machine list refresh can use the Cloud API, but live
+workspace, terminal, pane, display, and agent metadata comes from cmux-tui
+through the terminal WireGuard link.
 
 ## WireGuard implementation
 
