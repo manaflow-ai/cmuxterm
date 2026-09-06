@@ -51,6 +51,10 @@ bool ghostty_surface_set_font_size_action_callback(
 void ghostty_surface_config_new(void);
 void ghostty_surface_free(void *surface);
 void ghostty_surface_free_text(void);
+bool ghostty_surface_read_selection_clipboard_text(
+    void *surface,
+    uintptr_t max_bytes,
+    void *selection);
 float ghostty_surface_font_size(void *surface);
 bool ghostty_surface_font_size_adjusted(void *surface);
 uint64_t ghostty_surface_foreground_pid(void *surface);
@@ -111,6 +115,7 @@ uint32_t cmux_test_ghostty_renderer_rebuild_call_count(void);
 bool cmux_test_ghostty_renderer_realized_call_value(uint32_t index);
 void cmux_test_ghostty_renderer_realized_set_result(bool result);
 bool cmux_test_ghostty_renderer_release_was_occluded(void);
+bool cmux_test_ghostty_renderer_occlusion_visible(void);
 bool cmux_test_ghostty_surface_was_updated(void *surface);
 void cmux_test_ghostty_font_state_begin(
     void *surface,

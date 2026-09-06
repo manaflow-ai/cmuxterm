@@ -194,6 +194,10 @@ void cmux_test_ghostty_renderer_realized_reset(void) {
     cmux_test_renderer_release_was_occluded = false;
 }
 
+bool cmux_test_ghostty_renderer_occlusion_visible(void) {
+    return cmux_test_renderer_occlusion_visible;
+}
+
 void cmux_test_ghostty_runtime_stubs_set_close_state(bool needs_confirm, uint64_t foreground_pid, const char* tty_name) {
     cmux_test_needs_confirm_quit = needs_confirm;
     cmux_test_foreground_pid = foreground_pid;
@@ -390,6 +394,15 @@ void ghostty_surface_free(void *surface) {
     }
 }
 void ghostty_surface_free_text(void) {}
+bool ghostty_surface_read_selection_clipboard_text(
+    void *surface,
+    uintptr_t max_bytes,
+    void *selection) {
+    (void)surface;
+    (void)max_bytes;
+    (void)selection;
+    return false;
+}
 float ghostty_surface_font_size(void *surface) {
     return surface == cmux_test_font_surface
         ? cmux_test_font_runtime_points

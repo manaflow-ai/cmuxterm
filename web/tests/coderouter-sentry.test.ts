@@ -30,6 +30,34 @@ describe("coderouter Sentry privacy", () => {
     ).toBe(false);
   });
 
+  test("cloud VM operator-fault reports pass the filter", () => {
+    expect(
+      shouldSendCoderouterSentryEvent({
+        contexts: { cmux: { subsystem: "cloud_vm_api", code: "vm_image_config_error" } },
+      }),
+    ).toBe(true);
+    expect(
+      shouldSendCoderouterSentryEvent({
+        contexts: { cmux: { subsystem: "cloud_vm_alerts" } },
+      }),
+    ).toBe(true);
+    // Other cmux-context reports (billing reconcile etc.) stay isolated until
+    // deliberately allowlisted.
+    expect(
+      shouldSendCoderouterSentryEvent({
+        contexts: { cmux: { subsystem: "billing" } },
+      }),
+    ).toBe(false);
+  });
+
+  test("rate-limit rule reports pass the shared operational filter", () => {
+    expect(
+      shouldSendCoderouterSentryEvent({
+        contexts: { cmux: { subsystem: "rate_limit", route: "/api/feedback" } },
+      }),
+    ).toBe(true);
+  });
+
   test("removes request bodies, auth headers, route tokens, JWTs, and PII", () => {
     const event = scrubSentryEvent({
       message:

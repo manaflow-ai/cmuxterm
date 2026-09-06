@@ -69,7 +69,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
     }
 
-    func testVMNewDefaultCreatesPinnedSSHDWorkspaceOverFreestyleSSH() throws {
+    func testVMNewDefaultCreatesPinnedWorkspaceOverPrivateCmuxRemote() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-new-sshd")
         let listenerFD = try bindUnixSocket(at: socketPath)
@@ -94,9 +94,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
             switch method {
             case "vm.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["provider"] as? String, "freestyle")
-                XCTAssertEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
-                XCTAssertNil(params["image"])
+                // Bare `vm new` now lets the backend choose the provider and
+                // requests the desktop image by default.
+                XCTAssertNil(params["provider"])
+                XCTAssertNotEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["image"] as? String, "sandbox/cmux-devbox:latest")
                 return self.v2Response(
                     id: id,
                     ok: true,
@@ -106,35 +108,20 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "image": "snapshot-default",
                     ]
                 )
-            case "vm.ssh_info", "vm.attach_info":
-                let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["id"] as? String, vmID)
+            case "vm.cmux_remote_info":
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "transport": "ssh",
-                        "host": "vm-ssh.freestyle.sh",
-                        "port": 22,
-                        "username": "\(vmID)+cmux",
-                        "credential": [
-                            "kind": "password",
-                            "value": "lease-token",
-                        ],
+                        "route": "ws://10.40.0.10:1337/v1/link",
+                        "session": "cloud",
+                        "wireguard_hub_socket": "/tmp/cmux-wg-test.sock",
                     ]
                 )
-            case "workspace.list":
-                return self.v2Response(id: id, ok: true, result: ["workspaces": []])
             case "workspace.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                let initialCommand = params["initial_command"] as? String ?? ""
-                let decodedInitialCommand = self.decodedReusableShellStartupCommand(initialCommand)
-                XCTAssertTrue(decodedInitialCommand.contains("vm-pty-attach"), decodedInitialCommand)
-                XCTAssertTrue(decodedInitialCommand.contains("--default-freestyle-sshd"), decodedInitialCommand)
-                XCTAssertTrue(decodedInitialCommand.contains("CMUX_CLOUD_RECONNECT_ATTEMPT"), decodedInitialCommand)
-                XCTAssertFalse(decodedInitialCommand.contains("[cmux] ssh exited with status"), decodedInitialCommand)
-                XCTAssertFalse(decodedInitialCommand.contains("lease-token"), decodedInitialCommand)
-                XCTAssertFalse(decodedInitialCommand.contains("bGVhc2UtdG9rZW4="), decodedInitialCommand)
+                XCTAssertEqual(params["initial_command"] as? String, "sleep 60")
+                XCTAssertEqual(params["title"] as? String, "vm:\(vmID)")
                 return self.v2Response(
                     id: id,
                     ok: true,
@@ -144,10 +131,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "window_id": windowID,
                     ]
                 )
-            case "workspace.rename":
+            case "workspace.cloud_vm_bind":
                 let params = payload["params"] as? [String: Any] ?? [:]
                 XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
-                XCTAssertEqual(params["title"] as? String, "sshd")
+                XCTAssertEqual(params["vm_id"] as? String, vmID)
+                XCTAssertEqual(params["base"] as? Bool, true)
                 return self.v2Response(id: id, ok: true, result: ["workspace_id": workspaceID])
             case "workspace.action":
                 let params = payload["params"] as? [String: Any] ?? [:]
@@ -156,35 +144,18 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 let action = params["action"] as? String
                 XCTAssertTrue(action == "pin" || action == "move_top")
                 return self.v2Response(id: id, ok: true, result: ["workspace_id": workspaceID, "action": action ?? ""])
-            case "workspace.remote.configure":
+            case "surface.new_terminal":
                 let params = payload["params"] as? [String: Any] ?? [:]
                 XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
-                XCTAssertEqual(params["destination"] as? String, "\(vmID)+cmux@vm-ssh.freestyle.sh")
-                XCTAssertEqual(params["managed_cloud_vm_id"] as? String, vmID)
-                XCTAssertEqual(params["skip_daemon_bootstrap"] as? Bool, true)
-                let terminalStartupCommand = params["terminal_startup_command"] as? String ?? ""
-                let decodedStartupCommand = self.decodedReusableShellStartupCommand(terminalStartupCommand)
-                XCTAssertFalse(terminalStartupCommand.isEmpty, "\(params)")
-                XCTAssertTrue(decodedStartupCommand.contains("vm-pty-attach"), decodedStartupCommand)
-                XCTAssertTrue(decodedStartupCommand.contains("--default-freestyle-sshd"), decodedStartupCommand)
-                XCTAssertTrue(decodedStartupCommand.contains("CMUX_CLOUD_RECONNECT_ATTEMPT"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("Cloud VM reconnecting"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("cmux_freestyle_notify_reconnect"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("[cmux] ssh exited with status"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("lease-token"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("bGVhc2UtdG9rZW4="), decodedStartupCommand)
-                XCTAssertEqual(params["preserve_after_terminal_exit"] as? Bool, true)
-                XCTAssertEqual(params["persistent_daemon_slot"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["machine"] as? String, vmID)
+                XCTAssertEqual(params["open"] as? Bool, true)
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "workspace_id": workspaceID,
-                        "workspace_ref": workspaceRef,
-                        "remote": [
-                            "enabled": true,
-                            "state": "connecting",
-                        ],
+                        "surface_id": "surface-cloud-shell",
+                        "terminal_id": "term_cloud_shell",
+                        "remote_workspace_id": "ws_cloud",
                     ]
                 )
             case "workspace.select":
@@ -214,19 +185,18 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
         XCTAssertTrue(result.stdout.contains("Created Cloud VM \(vmID)"), result.stdout)
-        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) target=cloud VM state=connecting"), result.stdout)
+        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) transport=cmux-remote terminal=term_cloud_shell"), result.stdout)
         XCTAssertTrue(result.stderr.isEmpty, result.stderr)
         XCTAssertEqual(
             state.commands.compactMap { self.jsonObject($0)?["method"] as? String },
             [
                 "vm.create",
-                "vm.attach_info",
-                "workspace.list",
+                "vm.cmux_remote_info",
                 "workspace.create",
-                "workspace.rename",
+                "workspace.cloud_vm_bind",
                 "workspace.action",
                 "workspace.action",
-                "workspace.remote.configure",
+                "surface.new_terminal",
                 "workspace.select",
             ]
         )
@@ -257,7 +227,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             case "vm.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
                 XCTAssertEqual(params["provider"] as? String, "freestyle")
-                XCTAssertNil(params["image"])
+                XCTAssertEqual(params["image"] as? String, "sandbox/cmux-devbox:latest")
                 XCTAssertNotEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
                 return self.v2Response(
                     id: id,
@@ -471,15 +441,14 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
     }
 
-    func testVMNewDefaultReusesPinnedSSHDWorkspaceOverFreestyleSSH() throws {
+    func testVMNewDefaultCreatesSeparatePrivateCmuxRemoteWorkspace() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-new-sshd-reuse")
         let listenerFD = try bindUnixSocket(at: socketPath)
         let state = MockSocketServerState()
         let vmID = "vm-persistent-freestyle"
-        let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let createdWorkspaceID = "44444444-4444-4444-4444-444444444444"
         let workspaceRef = "workspace:sshd"
-        let surfaceID = "33333333-3333-3333-3333-333333333333"
         let windowID = "22222222-2222-2222-2222-222222222222"
 
         defer {
@@ -497,9 +466,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
             switch method {
             case "vm.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["provider"] as? String, "freestyle")
-                XCTAssertEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
-                XCTAssertNil(params["image"])
+                // A fresh machine is distinct from the legacy Base slot: the
+                // backend chooses the provider and the CLI requests a desktop.
+                XCTAssertNil(params["provider"])
+                XCTAssertNotEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["image"] as? String, "sandbox/cmux-devbox:latest")
                 return self.v2Response(
                     id: id,
                     ok: true,
@@ -509,113 +480,56 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "image": "snapshot-default",
                     ]
                 )
-            case "vm.ssh_info", "vm.attach_info":
+            case "vm.cmux_remote_info":
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "transport": "ssh",
-                        "host": "vm-ssh.freestyle.sh",
-                        "port": 22,
-                        "username": "\(vmID)+cmux",
-                        "credential": [
-                            "kind": "password",
-                            "value": "lease-token",
-                        ],
+                        "route": "ws://10.40.0.10:1337/v1/link",
+                        "session": "cloud",
+                        "wireguard_hub_socket": "/tmp/cmux-wg-test.sock",
                     ]
                 )
-            case "workspace.list":
+            case "workspace.create":
+                let params = payload["params"] as? [String: Any] ?? [:]
+                XCTAssertEqual(params["initial_command"] as? String, "sleep 60")
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "workspaces": [
-                            [
-                                "id": workspaceID,
-                                "workspace_ref": workspaceRef,
-                                "window_id": windowID,
-                                "title": "sshd",
-                                "pinned": true,
-                                "remote": [
-                                    "managed_cloud_vm_id": vmID,
-                                    "persistent_daemon_slot": "cmux-default-freestyle-sshd-v1",
-                                ],
-                            ],
-                        ],
+                        "workspace_id": createdWorkspaceID,
+                        "workspace_ref": workspaceRef,
+                        "window_id": windowID,
                     ]
                 )
+            case "workspace.cloud_vm_bind":
+                let params = payload["params"] as? [String: Any] ?? [:]
+                XCTAssertEqual(params["workspace_id"] as? String, createdWorkspaceID)
+                XCTAssertEqual(params["vm_id"] as? String, vmID)
+                XCTAssertEqual(params["base"] as? Bool, true)
+                return self.v2Response(id: id, ok: true, result: ["workspace_id": createdWorkspaceID])
             case "workspace.action":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
+                XCTAssertEqual(params["workspace_id"] as? String, createdWorkspaceID)
                 XCTAssertEqual(params["window_id"] as? String, windowID)
                 let action = params["action"] as? String
                 XCTAssertTrue(action == "pin" || action == "move_top")
-                return self.v2Response(id: id, ok: true, result: ["workspace_id": workspaceID, "action": action ?? ""])
-            case "workspace.remote.configure":
+                return self.v2Response(id: id, ok: true, result: ["workspace_id": createdWorkspaceID, "action": action ?? ""])
+            case "surface.new_terminal":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
-                XCTAssertEqual(params["destination"] as? String, "\(vmID)+cmux@vm-ssh.freestyle.sh")
-                XCTAssertEqual(params["managed_cloud_vm_id"] as? String, vmID)
-                XCTAssertEqual(params["skip_daemon_bootstrap"] as? Bool, true)
-                let terminalStartupCommand = params["terminal_startup_command"] as? String ?? ""
-                let decodedStartupCommand = self.decodedReusableShellStartupCommand(terminalStartupCommand)
-                XCTAssertFalse(terminalStartupCommand.isEmpty, "\(params)")
-                XCTAssertTrue(decodedStartupCommand.contains("vm-pty-attach"), decodedStartupCommand)
-                XCTAssertTrue(decodedStartupCommand.contains("--default-freestyle-sshd"), decodedStartupCommand)
-                XCTAssertTrue(decodedStartupCommand.contains("CMUX_CLOUD_RECONNECT_ATTEMPT"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("Cloud VM reconnecting"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("cmux_freestyle_notify_reconnect"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains("[cmux] ssh exited with status"), decodedStartupCommand)
-                XCTAssertFalse(decodedStartupCommand.contains(":lease-token@"), decodedStartupCommand)
-                XCTAssertEqual(params["preserve_after_terminal_exit"] as? Bool, true)
-                XCTAssertEqual(params["persistent_daemon_slot"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["workspace_id"] as? String, createdWorkspaceID)
+                XCTAssertEqual(params["machine"] as? String, vmID)
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "workspace_id": workspaceID,
-                        "workspace_ref": workspaceRef,
-                        "remote": [
-                            "enabled": true,
-                            "state": "connecting",
-                        ],
+                        "surface_id": "surface-cloud-shell",
+                        "terminal_id": "term_cloud_shell",
+                        "remote_workspace_id": "ws_cloud",
                     ]
                 )
             case "workspace.select":
-                return self.v2Response(id: id, ok: true, result: ["workspace_id": workspaceID])
-            case "surface.list":
-                let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
-                return self.v2Response(
-                    id: id,
-                    ok: true,
-                    result: [
-                        "surfaces": [
-                            [
-                                "id": surfaceID,
-                                "ref": "surface:sshd",
-                                "index": 0,
-                                "focused": true,
-                                "initial_command": NSNull(),
-                                "title": "lawrence@lawrences-MacBook-Pro-2:~/fun",
-                            ],
-                        ],
-                    ]
-                )
-            case "workspace.remote.reconnect":
-                let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["workspace_id"] as? String, workspaceID)
-                XCTAssertEqual(params["surface_id"] as? String, surfaceID)
-                XCTAssertNil(params["command"])
-                XCTAssertNil(params["tmux_start_command"])
-                return self.v2Response(
-                    id: id,
-                    ok: true,
-                    result: [
-                        "workspace_id": workspaceID,
-                        "surface_id": surfaceID,
-                    ]
-                )
+                return self.v2Response(id: id, ok: true, result: ["workspace_id": createdWorkspaceID])
             default:
                 return self.v2Response(
                     id: id,
@@ -640,31 +554,29 @@ extension CLINotifyProcessIntegrationRegressionTests {
         wait(for: [serverHandled], timeout: 5)
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) target=cloud VM state=connecting"), result.stdout)
+        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) transport=cmux-remote terminal=term_cloud_shell"), result.stdout)
         XCTAssertTrue(result.stderr.isEmpty, result.stderr)
         XCTAssertEqual(
             state.commands.compactMap { self.jsonObject($0)?["method"] as? String },
             [
                 "vm.create",
-                "vm.attach_info",
-                "workspace.list",
+                "vm.cmux_remote_info",
+                "workspace.create",
+                "workspace.cloud_vm_bind",
                 "workspace.action",
                 "workspace.action",
-                "workspace.remote.configure",
+                "surface.new_terminal",
                 "workspace.select",
-                "surface.list",
-                "workspace.remote.reconnect",
             ]
         )
     }
 
-    func testVMNewDefaultDoesNotReuseTitleOnlySSHDWorkspace() throws {
+    func testVMNewDefaultCreatesPrivateCmuxRemoteWorkspace() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-new-sshd-title-collision")
         let listenerFD = try bindUnixSocket(at: socketPath)
         let state = MockSocketServerState()
         let vmID = "vm-persistent-freestyle"
-        let localWorkspaceID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
         let createdWorkspaceID = "11111111-1111-1111-1111-111111111111"
         let workspaceRef = "workspace:sshd"
         let windowID = "22222222-2222-2222-2222-222222222222"
@@ -684,9 +596,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
             switch method {
             case "vm.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                XCTAssertEqual(params["provider"] as? String, "freestyle")
-                XCTAssertEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
-                XCTAssertNil(params["image"])
+                // A fresh bare machine lets the backend choose its provider,
+                // requests the desktop image, and uses a per-create key rather
+                // than the legacy shared Base-slot idempotency key.
+                XCTAssertNil(params["provider"])
+                XCTAssertNotEqual(params["idempotency_key"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["image"] as? String, "sandbox/cmux-devbox:latest")
                 return self.v2Response(
                     id: id,
                     ok: true,
@@ -696,45 +611,19 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "image": "snapshot-default",
                     ]
                 )
-            case "vm.ssh_info", "vm.attach_info":
+            case "vm.cmux_remote_info":
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "transport": "ssh",
-                        "host": "vm-ssh.freestyle.sh",
-                        "port": 22,
-                        "username": "\(vmID)+cmux",
-                        "credential": [
-                            "kind": "password",
-                            "value": "lease-token",
-                        ],
-                    ]
-                )
-            case "workspace.list":
-                return self.v2Response(
-                    id: id,
-                    ok: true,
-                    result: [
-                        "workspaces": [
-                            [
-                                "id": localWorkspaceID,
-                                "window_id": windowID,
-                                "title": "sshd",
-                                "pinned": true,
-                                "remote": [
-                                    "enabled": false,
-                                    "managed_cloud_vm_id": NSNull(),
-                                    "persistent_daemon_slot": NSNull(),
-                                ],
-                            ],
-                        ],
+                        "route": "ws://10.40.0.10:1337/v1/link",
+                        "session": "cloud",
+                        "wireguard_hub_socket": "/tmp/cmux-wg-test.sock",
                     ]
                 )
             case "workspace.create":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                let initialCommand = params["initial_command"] as? String ?? ""
-                XCTAssertTrue(self.decodedReusableShellStartupCommand(initialCommand).contains("vm-pty-attach"))
+                XCTAssertEqual(params["initial_command"] as? String, "sleep 60")
                 return self.v2Response(
                     id: id,
                     ok: true,
@@ -744,10 +633,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "window_id": windowID,
                     ]
                 )
-            case "workspace.rename":
+            case "workspace.cloud_vm_bind":
                 let params = payload["params"] as? [String: Any] ?? [:]
                 XCTAssertEqual(params["workspace_id"] as? String, createdWorkspaceID)
-                XCTAssertEqual(params["title"] as? String, "sshd")
+                XCTAssertEqual(params["vm_id"] as? String, vmID)
+                XCTAssertEqual(params["base"] as? Bool, true)
                 return self.v2Response(id: id, ok: true, result: ["workspace_id": createdWorkspaceID])
             case "workspace.action":
                 let params = payload["params"] as? [String: Any] ?? [:]
@@ -756,21 +646,17 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 let action = params["action"] as? String
                 XCTAssertTrue(action == "pin" || action == "move_top")
                 return self.v2Response(id: id, ok: true, result: ["workspace_id": createdWorkspaceID, "action": action ?? ""])
-            case "workspace.remote.configure":
+            case "surface.new_terminal":
                 let params = payload["params"] as? [String: Any] ?? [:]
                 XCTAssertEqual(params["workspace_id"] as? String, createdWorkspaceID)
-                XCTAssertEqual(params["managed_cloud_vm_id"] as? String, vmID)
-                XCTAssertEqual(params["persistent_daemon_slot"] as? String, "cmux-default-freestyle-sshd-v1")
+                XCTAssertEqual(params["machine"] as? String, vmID)
                 return self.v2Response(
                     id: id,
                     ok: true,
                     result: [
-                        "workspace_id": createdWorkspaceID,
-                        "workspace_ref": workspaceRef,
-                        "remote": [
-                            "enabled": true,
-                            "state": "connecting",
-                        ],
+                        "surface_id": "surface-cloud-shell",
+                        "terminal_id": "term_cloud_shell",
+                        "remote_workspace_id": "ws_cloud",
                     ]
                 )
             case "workspace.select":
@@ -799,19 +685,18 @@ extension CLINotifyProcessIntegrationRegressionTests {
         wait(for: [serverHandled], timeout: 5)
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) target=cloud VM state=connecting"), result.stdout)
+        XCTAssertTrue(result.stdout.contains("OK workspace=\(workspaceRef) transport=cmux-remote terminal=term_cloud_shell"), result.stdout)
         XCTAssertTrue(result.stderr.isEmpty, result.stderr)
         XCTAssertEqual(
             state.commands.compactMap { self.jsonObject($0)?["method"] as? String },
             [
                 "vm.create",
-                "vm.attach_info",
-                "workspace.list",
+                "vm.cmux_remote_info",
                 "workspace.create",
-                "workspace.rename",
+                "workspace.cloud_vm_bind",
                 "workspace.action",
                 "workspace.action",
-                "workspace.remote.configure",
+                "surface.new_terminal",
                 "workspace.select",
             ]
         )
@@ -827,7 +712,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let surfaceID = "33333333-3333-3333-3333-333333333333"
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("cmux-fake-ssh-\(UUID().uuidString)", isDirectory: true)
-        let fakeSSHPath = tempDirectory.appendingPathComponent("ssh").path
+        let fakeExpectPath = tempDirectory.appendingPathComponent("expect").path
         let capturedArgsPath = tempDirectory.appendingPathComponent("ssh-args").path
 
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
@@ -838,8 +723,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
           printf '%s\\n' "$arg" >> "$CMUX_FAKE_SSH_ARGS"
         done
         exit 0
-        """.write(toFile: fakeSSHPath, atomically: true, encoding: .utf8)
-        chmod(fakeSSHPath, 0o755)
+        """.write(toFile: fakeExpectPath, atomically: true, encoding: .utf8)
+        chmod(fakeExpectPath, 0o755)
 
         defer {
             Darwin.close(listenerFD)
@@ -903,8 +788,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
 
         wait(for: [serverHandled], timeout: 5)
-        XCTAssertFalse(result.timedOut, result.stdout)
-        XCTAssertEqual(result.status, 0, result.stdout)
+        XCTAssertFalse(result.timedOut, result.stdout + result.stderr)
+        XCTAssertEqual(result.status, 0, result.stdout + result.stderr)
 
         let capturedArgs = try String(contentsOfFile: capturedArgsPath, encoding: .utf8)
         let decodedRemoteBootstrap = try XCTUnwrap(decodedFirstEmbeddedStartupScript(capturedArgs), capturedArgs)

@@ -129,7 +129,16 @@ extension MobileShellComposite {
     }
 
     func requestColdAttachTerminalReplay(surfaceID: String) {
-        guard remoteClient != nil else {
+        // Demonstration terminals replay locally, with or without a live
+        // remote client, and never park in the barrier-upgrade set (that set
+        // fires real replay RPCs when a Mac later connects).
+        if demonstrationOwnsSurface(surfaceID) {
+            deliverDemonstrationTerminalReplay(surfaceID: surfaceID)
+            return
+        }
+        guard remoteClient != nil,
+              runtime?.supportsServerPushEvents == false
+                || terminalEventSubscriptionIsValidated else {
             terminalColdReplayNeedsBarrierUpgradeSurfaceIDs.insert(surfaceID)
             return
         }

@@ -13,6 +13,7 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
     case customSidebars
     case betaFeatures
     case automation
+    case computerUse
     case browser
     case browserImport
     case globalHotkey
@@ -38,7 +39,7 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
         case .mobile:
             return String(localized: "settings.section.mobile", defaultValue: "Mobile")
         case .cloudMachines:
-            return String(localized: "settings.section.cloudMachines", defaultValue: "Cloud Machines")
+            return String(localized: "settings.section.cloudMachines", defaultValue: "Cloud")
         case .networking:
             return String(localized: "settings.section.networking", defaultValue: "Networking")
         case .workspaceColors:
@@ -51,6 +52,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return String(localized: "settings.section.betaFeatures", defaultValue: "Beta Features")
         case .automation:
             return String(localized: "settings.section.automation", defaultValue: "Automation")
+        case .computerUse:
+            return String(localized: "settings.section.computerUse", defaultValue: "Computer Use")
         case .browser:
             return String(localized: "settings.section.browser", defaultValue: "Browser")
         case .browserImport:
@@ -81,7 +84,7 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
         case .mobile:
             return "iphone"
         case .cloudMachines:
-            return "server.rack"
+            return "cloud"
         case .networking:
             return "network"
         case .workspaceColors:
@@ -94,6 +97,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return "exclamationmark.triangle"
         case .automation:
             return "wand.and.sparkles"
+        case .computerUse:
+            return "cursorarrow.rays"
         case .browser:
             return "globe"
         case .browserImport:
@@ -137,6 +142,8 @@ enum SettingsNavigationTarget: String, CaseIterable, Identifiable {
             return "\(title) beta experimental unstable feed dock right sidebar"
         case .automation:
             return "\(title) socket integrations hooks ports claude cursor gemini kiro naming auto naming workspace tabs"
+        case .computerUse:
+            return "\(title) computer use cua accessibility screen recording permissions cursor mcp agents driver menu bar onboarding"
         case .browser:
             return "\(title) search engine links history theme"
         case .browserImport:
@@ -355,7 +362,12 @@ enum SettingsSearchIndex {
         setting(.app, "markdown-font-size", String(localized: "settings.app.markdownFontSize", defaultValue: "Markdown Viewer Font Size"), "md markdown viewer font size points zoom scale text bigger smaller"),
         setting(.app, "markdown-font-family", String(localized: "settings.app.markdownFontFamily", defaultValue: "Markdown Viewer Font"), "markdown.fontFamily md markdown viewer font font-family family typeface system stack custom"),
         setting(.app, "markdown-max-width", String(localized: "settings.app.markdownMaxWidth", defaultValue: "Markdown Viewer Max Width"), "markdown.maxWidth md markdown viewer width column reading line length pixels px"),
-        setting(.app, "file-editor-word-wrap", String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), "fileEditor.wordWrap file editor word wrap soft wrap reflow lines text horizontal scroll preview"),
+        setting(.app, "file-editor-word-wrap", String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), "fileEditor.wordWrap " + String(localized: "settings.search.fileEditor.wordWrap", defaultValue: "file editor word wrap soft wrap reflow lines text horizontal scroll preview")),
+        setting(.app, "file-editor-syntax-highlighting", String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting"), "fileEditor.syntaxHighlighting " + String(localized: "settings.search.fileEditor.syntaxHighlighting", defaultValue: "syntax highlight colors tokens code")),
+        setting(.app, "file-editor-line-numbers", String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers"), "fileEditor.lineNumbers " + String(localized: "settings.search.fileEditor.lineNumbers", defaultValue: "gutter line numbers")),
+        setting(.app, "file-editor-indent-guides", String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides"), "fileEditor.indentGuides " + String(localized: "settings.search.fileEditor.indentGuides", defaultValue: "indent guides columns")),
+        setting(.app, "file-editor-current-line-highlight", String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight"), "fileEditor.currentLineHighlight " + String(localized: "settings.search.fileEditor.currentLineHighlight", defaultValue: "current line caret highlight")),
+        setting(.app, "file-editor-tab-width", String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width"), "fileEditor.tabWidth " + String(localized: "settings.search.fileEditor.tabWidth", defaultValue: "tab width indent columns")),
         setting(.app, "imessage-mode", String(localized: "settings.app.iMessageMode", defaultValue: "iMessage Mode"), "message messages imessage chat prompt prompts submitted message send agent workspace reorder move top"),
         setting(.app, "reorder-notification", String(localized: "settings.app.reorderOnNotification", defaultValue: "Reorder on Notification"), "workspace notification order"),
         setting(.app, "dock-badge", String(localized: "settings.app.dockBadge", defaultValue: "Dock Badge"), "unread count app icon"),
@@ -365,6 +377,15 @@ enum SettingsSearchIndex {
         setting(.app, "pane-flash", String(localized: "settings.notifications.paneFlash.title", defaultValue: "Pane Flash"), "notification flash highlight"),
         setting(.app, "desktop-notifications", String(localized: "settings.notifications.desktop", defaultValue: "Desktop Notifications"), "permission alerts test notification"),
         setting(.app, "notification-sound", String(localized: "settings.notifications.sound.title", defaultValue: "Notification Sound"), "custom sound alert audio"),
+        setting(
+            .app,
+            "notification-sound-overrides",
+            String(localized: "settings.notifications.soundOverrides.title", defaultValue: "Per-Agent Notification Sounds"),
+            String(
+                localized: "settings.search.alias.setting.app.notification-sound-overrides",
+                defaultValue: "notifications.soundOverrides per-agent agent sound turn done needs input permission error stalled custom file"
+            )
+        ),
         setting(.app, "notification-command", String(localized: "settings.notifications.command", defaultValue: "Notification Command"), "shell command environment variables"),
         setting(.app, "telemetry", String(localized: "settings.app.telemetry", defaultValue: "Send anonymous telemetry"), "analytics crash usage"),
         setting(.app, "default-terminal", String(localized: "settings.app.defaultTerminal", defaultValue: "Default Terminal"), "ssh links command tool unix executable launch services handler registration system default"),
@@ -432,10 +453,12 @@ enum SettingsSearchIndex {
         setting(.sidebarAppearance, "notification-badge-position", String(localized: "settings.app.notificationBadgePosition", defaultValue: "Notification Badge Position"), "sidebar.notificationBadgePosition notification unread badge position left right leading trailing side"),
         setting(.sidebarAppearance, "show-metadata", String(localized: "settings.app.showMetadata", defaultValue: "Show Custom Metadata in Sidebar"), "report meta status block"),
         setting(.sidebarAppearance, "right-max-width", String(localized: "settings.sidebar.rightMaxWidth", defaultValue: "Dock Max Width"), "dock right sidebar max width terminal reservation cap logs lazygit"),
+        setting(.sidebarAppearance, "right-sidebar-tabs", String(localized: "settings.sidebar.rightTabs", defaultValue: "Right Sidebar Tabs"), "right sidebar tabs show hide reorder order files find vault feed dock cloud mode switcher customize"),
         setting(.customSidebars, "enabled", String(localized: "settings.customSidebars.enabled", defaultValue: "Show Custom Sidebars"), "custom sidebars enable show vibe swift json interpreted picker"),
         setting(.customSidebars, "renderer", String(localized: "settings.customSidebars.renderer", defaultValue: "Renderer"), "renderer in-process in app remote worker isolated process hover focus typing input"),
         setting(.betaFeatures, "feed", String(localized: "settings.betaFeatures.feed", defaultValue: "Feed"), "feed right sidebar agent decisions permissions questions"),
         setting(.betaFeatures, "dock", String(localized: "settings.betaFeatures.dock", defaultValue: "Dock"), "dock right sidebar terminal controls tui"),
+        setting(.betaFeatures, "cloudMachines", String(localized: "settings.betaFeatures.cloudMachines", defaultValue: "Cloud Machines"), "cloud machines vm right sidebar beta virtual machine persistent computer"),
         setting(.betaFeatures, "workspace-todo-controls", String(localized: "settings.betaFeatures.workspaceTodoControls", defaultValue: "Workspace Todo Controls"), "workspace todo todos task status checklist add item controls beta"),
         setting(.betaFeatures, "workspace-todos-checklist-style", String(localized: "settings.betaFeatures.workspaceTodosChecklistStyle", defaultValue: "Checklist Style"), "workspace todo todos task status checklist popover inline presentation style beta"),
         setting(.automation, "socket-mode", String(localized: "settings.automation.socketMode", defaultValue: "Socket Control Mode"), "unix socket api access password auth"),
@@ -522,6 +545,11 @@ enum SettingsSearchIndex {
         "markdown.fontFamily": settingID(for: .app, idSuffix: "markdown-font-family"),
         "markdown.maxWidth": settingID(for: .app, idSuffix: "markdown-max-width"),
         "fileEditor.wordWrap": settingID(for: .app, idSuffix: "file-editor-word-wrap"),
+        "fileEditor.syntaxHighlighting": settingID(for: .app, idSuffix: "file-editor-syntax-highlighting"),
+        "fileEditor.lineNumbers": settingID(for: .app, idSuffix: "file-editor-line-numbers"),
+        "fileEditor.indentGuides": settingID(for: .app, idSuffix: "file-editor-indent-guides"),
+        "fileEditor.currentLineHighlight": settingID(for: .app, idSuffix: "file-editor-current-line-highlight"),
+        "fileEditor.tabWidth": settingID(for: .app, idSuffix: "file-editor-tab-width"),
         "app.iMessageMode": settingID(for: .app, idSuffix: "imessage-mode"),
         "app.reorderOnNotification": settingID(for: .app, idSuffix: "reorder-notification"),
         "notifications.dockBadge": settingID(for: .app, idSuffix: "dock-badge"),
@@ -531,6 +559,7 @@ enum SettingsSearchIndex {
         "notifications.paneFlash": settingID(for: .app, idSuffix: "pane-flash"),
         "notifications.sound": settingID(for: .app, idSuffix: "notification-sound"),
         "notifications.customSoundFilePath": settingID(for: .app, idSuffix: "notification-sound"),
+        "notifications.soundOverrides": settingID(for: .app, idSuffix: "notification-sound-overrides"),
         "notifications.command": settingID(for: .app, idSuffix: "notification-command"),
         "app.sendAnonymousTelemetry": settingID(for: .app, idSuffix: "telemetry"),
         "app.defaultTerminal": settingID(for: .app, idSuffix: "default-terminal"),

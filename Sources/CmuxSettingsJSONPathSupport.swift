@@ -379,7 +379,7 @@ enum BrowserSettingsFileMapping {
         ),
         .init(
             jsonKey: "urlsToAlwaysOpenExternally",
-            defaultsKey: BrowserLinkOpenSettings.browserExternalOpenPatternsKey,
+            defaultsKey: BrowserExternalURLPolicy.userDefaultsKey,
             invalidPath: "browser.urlsToAlwaysOpenExternally"
         ),
         .init(
@@ -453,6 +453,7 @@ extension CmuxSettingsFileStore {
         "notifications.paneFlashColor",
         "notifications.sound",
         "notifications.customSoundFilePath",
+        "notifications.soundOverrides",
         "notifications.command",
         "notifications.hooks",
         "notifications.hooksMode",
@@ -535,6 +536,11 @@ extension CmuxSettingsFileStore {
         "canvas.paneGap",
         "canvas.snappingEnabled",
         "fileEditor.wordWrap",
+        "fileEditor.syntaxHighlighting",
+        "fileEditor.lineNumbers",
+        "fileEditor.indentGuides",
+        "fileEditor.currentLineHighlight",
+        "fileEditor.tabWidth",
         "fileExplorer.doubleClickAction",
         "shortcuts.bindings",
     ]

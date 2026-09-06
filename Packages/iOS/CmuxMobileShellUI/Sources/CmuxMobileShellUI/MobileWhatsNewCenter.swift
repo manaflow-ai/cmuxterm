@@ -1,4 +1,5 @@
 #if os(iOS)
+import CmuxMobileShellModel
 import Foundation
 import Observation
 
@@ -26,11 +27,14 @@ public final class MobileWhatsNewCenter {
     static let acknowledgedAnnouncementsKey = "dev.cmux.mobile.whatsNew.acknowledgedAnnouncementIds"
     static let cacheKey = "dev.cmux.mobile.whatsNew.remoteList.v1"
     static let requestPath = "/api/whats-new"
-    /// In-app What's New webpages may load cmux-owned hosts only.
-    static let staticAllowedWebHosts: Set<String> = ["cmux.com", "www.cmux.com"]
 
     private let requestURL: URL?
     private let appVersion: String
+    /// The running distribution channel, gating every page through
+    /// ``MobileWhatsNewChannelPolicy``: official (`.prod`) and demo builds
+    /// see a page only when it explicitly lists their channel token, so the
+    /// App Store app shows no What's New surface by default (Guideline 2.2).
+    private let buildType: MobileBuildType
     private let defaults: UserDefaults
     private let loader: Loader
 
@@ -45,6 +49,7 @@ public final class MobileWhatsNewCenter {
     public init(
         apiBaseURL: String?,
         appVersion: String? = nil,
+        buildType: MobileBuildType = .current(),
         defaults: UserDefaults = .standard,
         loader: Loader? = nil
     ) {
@@ -56,8 +61,9 @@ public final class MobileWhatsNewCenter {
         self.appVersion = appVersion
             ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
             ?? "0"
+        self.buildType = buildType
         self.defaults = defaults
-        self.loader = loader ?? Self.urlSessionLoader
+        self.loader = loader ?? mobileRemoteJSONLoader
         if let cached = defaults.data(forKey: environmentCacheKey),
            let list = try? JSONDecoder().decode(MobileWhatsNewRemoteList.self, from: cached) {
             remoteList = list
@@ -108,9 +114,11 @@ public final class MobileWhatsNewCenter {
 
     /// Hosts an in-app What's New webpage may load: the cmux-owned production
     /// hosts plus this build's configured API host (so dev and staging pages
-    /// render against their own web app).
+    /// render against their own web app). One shared derivation
+    /// (`MobileWebPageHosts`) with the web app session broker, so navigation
+    /// and credential policy agree.
     var allowedWebHosts: Set<String> {
-        var hosts = Self.staticAllowedWebHosts
+        var hosts = MobileWebPageHosts.cmuxOwned
         if let apiHost = requestURL?.host?.lowercased() {
             hosts.insert(apiHost)
         }
@@ -118,11 +126,23 @@ public final class MobileWhatsNewCenter {
     }
 
     /// Binary catalog entries the remote list allows, in catalog order
-    /// (newest first). Never-fetched devices show the full catalog.
+    /// (newest first), restricted to this build's channel. The effective
+    /// channel list per entry is the remote override (`entryChannels[id]`)
+    /// when present, else the compiled-in declaration, else the team-lanes
+    /// default; official builds therefore show nothing unless an entry
+    /// explicitly lists "prod". Never-fetched devices show the full catalog
+    /// (fail-open to binary truth) still under the compiled-in channel gate,
+    /// so a never-fetched official build shows nothing.
     var visibleBinaryEntries: [MobileWhatsNewPage] {
-        guard let remoteList else { return MobileWhatsNewCatalog.entries }
+        let channelAllowed = MobileWhatsNewCatalog.entries.filter { page in
+            MobileWhatsNewChannelPolicy.isVisible(
+                channelTokens: remoteList?.entryChannels?[page.id] ?? page.channels,
+                buildType: buildType
+            )
+        }
+        guard let remoteList else { return channelAllowed }
         let visible = Set(remoteList.visibleEntryIds)
-        return MobileWhatsNewCatalog.entries.filter { visible.contains($0.id) }
+        return channelAllowed.filter { visible.contains($0.id) }
     }
 
     /// Cached announcements targeted at this app version, resolved to
@@ -133,6 +153,12 @@ public final class MobileWhatsNewCenter {
         guard let remoteList else { return [] }
         let visibleBinaryIDs = Set(visibleBinaryEntries.map(\.id))
         return remoteList.announcements.compactMap { announcement in
+            // Channel gate first: an announcement with no channel list is
+            // team-lanes only and never reaches the official App Store app.
+            guard MobileWhatsNewChannelPolicy.isVisible(
+                channelTokens: announcement.channels,
+                buildType: buildType
+            ) else { return nil }
             guard MobileAppVersionCompare.version(
                 appVersion,
                 isWithinMin: announcement.minVersion,
@@ -242,30 +268,16 @@ public final class MobileWhatsNewCenter {
         return nil
     }
 
-    /// A webpage URL is renderable only under the shared What's New web
-    /// policy (`whatsNewWebURLAllowed`): https on an allowlisted cmux-owned
+    /// A webpage URL is renderable only under the shared in-app web policy
+    /// (`mobileWebPageURLAllowed`): https on an allowlisted cmux-owned
     /// host, or http solely for a loopback development host. The webview
     /// applies the same policy to every subsequent navigation.
     private func allowlistedWebURL(_ string: String?) -> URL? {
         guard let string,
               let url = URL(string: string),
-              whatsNewWebURLAllowed(url, allowedHosts: allowedWebHosts) else { return nil }
+              mobileWebPageURLAllowed(url, allowedHosts: allowedWebHosts) else { return nil }
         return url
     }
 
-    private static let urlSessionLoader: Loader = { url in
-        var request = URLRequest(
-            url: url,
-            cachePolicy: .reloadRevalidatingCacheData,
-            timeoutInterval: 10
-        )
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        return data
-    }
 }
 #endif

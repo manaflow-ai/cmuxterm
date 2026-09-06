@@ -17,6 +17,24 @@ enum KeyboardShortcutSettings {
     static var shortcutLookupObserver: ((Action) -> Void)?
     #endif
 
+    /// Default binding for one right-sidebar mode-switch action: `ctrl+N`
+    /// where N is the mode's 1-based position among the *visible* tabs
+    /// (`RightSidebarMode.visibleModes`), so the digits always match the mode
+    /// bar the user sees, whatever they hid or reordered. A hidden or
+    /// unavailable tab (and any position past 9) defaults to unbound; an
+    /// explicit user binding still wins over this default.
+    /// `RightSidebarTabPreferences` posts `didChangeNotification` on every
+    /// mutation so matcher and hint caches pick up the new positions.
+    nonisolated static func rightSidebarPositionalDefaultShortcut(
+        for mode: RightSidebarMode,
+        defaults: UserDefaults = .standard
+    ) -> StoredShortcut {
+        guard let digit = RightSidebarMode.positionalDigit(for: mode, defaults: defaults) else {
+            return .unbound
+        }
+        return StoredShortcut(key: String(digit), command: false, shift: false, option: false, control: true)
+    }
+
     static var publicShortcutActions: [Action] {
         Action.allCases.filter(\.isPublicShortcutAction)
     }
@@ -88,6 +106,8 @@ enum KeyboardShortcutSettings {
         case jumpToUnread
         case toggleUnread
         case markOldestUnreadAndJumpNext
+        case markAllNotificationsRead
+        case clearAllNotifications
         case focusRightSidebar
         case switchRightSidebarToFiles
         case switchRightSidebarToFind
@@ -236,6 +256,10 @@ enum KeyboardShortcutSettings {
             case .toggleUnread: return String(localized: "shortcut.toggleUnread.label", defaultValue: "Toggle Unread")
             case .markOldestUnreadAndJumpNext:
                 return String(localized: "shortcut.markOldestUnreadAndJumpNext.label", defaultValue: "Mark as Oldest Unread and Jump to Next Latest Unread")
+            case .markAllNotificationsRead:
+                return String(localized: "shortcut.markAllNotificationsRead.label", defaultValue: "Mark All Notifications Read")
+            case .clearAllNotifications:
+                return String(localized: "shortcut.clearAllNotifications.label", defaultValue: "Clear All Notifications")
             case .focusRightSidebar: return String(localized: "shortcut.focusRightSidebar.label", defaultValue: "Toggle Right Sidebar Focus")
             case .switchRightSidebarToFiles: return String(localized: "shortcut.switchRightSidebarToFiles.label", defaultValue: "Show Sidebar Files")
             case .switchRightSidebarToFind: return String(localized: "shortcut.switchRightSidebarToFind.label", defaultValue: "Show Sidebar Find")
@@ -427,20 +451,24 @@ enum KeyboardShortcutSettings {
                 return StoredShortcut(key: "u", command: true, shift: false, option: true, control: false)
             case .markOldestUnreadAndJumpNext:
                 return StoredShortcut(key: "u", command: true, shift: false, option: false, control: true)
+            case .markAllNotificationsRead, .clearAllNotifications:
+                // Bulk notification mutations are intentionally opt-in because both actions
+                // affect every notification at once (and Clear All is destructive).
+                return .unbound
             case .focusRightSidebar:
                 return StoredShortcut(key: "e", command: true, shift: true, option: false, control: false)
             case .switchRightSidebarToFiles:
-                return StoredShortcut(key: "1", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .files)
             case .switchRightSidebarToFind:
-                return StoredShortcut(key: "2", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .find)
             case .switchRightSidebarToSessions:
-                return StoredShortcut(key: "3", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .sessions)
             case .switchRightSidebarToFeed:
-                return StoredShortcut(key: "4", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .feed)
             case .switchRightSidebarToDock:
-                return StoredShortcut(key: "5", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .dock)
             case .switchRightSidebarToMachines:
-                return StoredShortcut(key: "6", command: false, shift: false, option: false, control: true)
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .machines)
             case .triggerFlash:
                 return StoredShortcut(key: "h", command: true, shift: true, option: false, control: false)
             case .nextSidebarTab:

@@ -47,7 +47,37 @@ extension Array where Element == CuratedSettingEntry {
             .init(section: .app, id: "preferred-editor", title: "Open Files With", synonyms: "app.preferredEditor editor open file code vscode visual studio zed sublime subl cursor"),
             .init(section: .app, id: "supported-file-previews", title: "Open Supported Files in cmux", synonyms: "app.openSupportedFilesInCmux cmd click file preview pdf image video audio quicklook quick look editor external"),
             .init(section: .app, id: "markdown-viewer", title: "Open Markdown in cmux Viewer", synonyms: "app.openMarkdownInCmuxViewer md markdown mdx viewer preview readme"),
-            .init(section: .app, id: "file-editor-word-wrap", title: "File Editor Word Wrap", synonyms: "fileEditor.wordWrap file editor word wrap soft wrap reflow lines text horizontal scroll preview"),
+            .init(section: .app, id: "file-editor-word-wrap", title: String(localized: "settings.app.fileEditorWordWrap", defaultValue: "File Editor Word Wrap"), synonyms: "fileEditor.wordWrap " + String(localized: "settings.search.fileEditor.wordWrap", defaultValue: "file editor word wrap soft wrap reflow lines text horizontal scroll preview")),
+            .init(
+                section: .app,
+                id: "file-editor-syntax-highlighting",
+                title: String(localized: "settings.app.fileEditorSyntaxHighlighting", defaultValue: "File Editor Syntax Highlighting"),
+                synonyms: "fileEditor.syntaxHighlighting " + String(localized: "settings.search.fileEditor.syntaxHighlighting", defaultValue: "syntax highlight colors tokens code")
+            ),
+            .init(
+                section: .app,
+                id: "file-editor-line-numbers",
+                title: String(localized: "settings.app.fileEditorLineNumbers", defaultValue: "File Editor Line Numbers"),
+                synonyms: "fileEditor.lineNumbers " + String(localized: "settings.search.fileEditor.lineNumbers", defaultValue: "gutter line numbers")
+            ),
+            .init(
+                section: .app,
+                id: "file-editor-indent-guides",
+                title: String(localized: "settings.app.fileEditorIndentGuides", defaultValue: "File Editor Indent Guides"),
+                synonyms: "fileEditor.indentGuides " + String(localized: "settings.search.fileEditor.indentGuides", defaultValue: "indent guides columns")
+            ),
+            .init(
+                section: .app,
+                id: "file-editor-current-line-highlight",
+                title: String(localized: "settings.app.fileEditorCurrentLineHighlight", defaultValue: "File Editor Current Line Highlight"),
+                synonyms: "fileEditor.currentLineHighlight " + String(localized: "settings.search.fileEditor.currentLineHighlight", defaultValue: "current line caret highlight")
+            ),
+            .init(
+                section: .app,
+                id: "file-editor-tab-width",
+                title: String(localized: "settings.app.fileEditorTabWidth", defaultValue: "File Editor Tab Width"),
+                synonyms: "fileEditor.tabWidth " + String(localized: "settings.search.fileEditor.tabWidth", defaultValue: "tab width indent columns")
+            ),
             .init(section: .app, id: "terminal-config", title: "Terminal Config", synonyms: "ghostty config merged generated preview terminal configuration window open config macos-option-as-alt option as alt left option right option alt key meta"),
             .init(section: .app, id: "global-font-magnification", title: String(localized: "settings.app.globalFontMagnification", defaultValue: "Global Font Magnification"), synonyms: "app.globalFontMagnification global font magnification scale text zoom terminals tabs chrome bigger smaller accessibility"),
             .init(section: .app, id: "imessage-mode", title: "iMessage Mode", synonyms: "app.iMessageMode imessage message messages chat prompt prompts submitted texting reorder move workspace top agent send"),
@@ -97,6 +127,15 @@ extension Array where Element == CuratedSettingEntry {
                 synonyms: "notifications.agentIdleReminder agent waiting input idle reminder nag notify claude"
             ),
             .init(section: .app, id: "notification-sound", title: "Notification Sound", synonyms: "notifications.sound sound audio alert chime beep custom file wav mp3 caf aiff"),
+            .init(
+                section: .app,
+                id: "notification-sound-overrides",
+                title: String(localized: "settings.notifications.soundOverrides.title", defaultValue: "Per-Agent Notification Sounds"),
+                synonyms: String(
+                    localized: "settings.search.alias.setting.app.notification-sound-overrides",
+                    defaultValue: "notifications.soundOverrides per-agent agent sound turn done needs input permission error stalled custom file"
+                )
+            ),
             .init(section: .app, id: "notification-command", title: "Notification Command", synonyms: "notifications.command shell command hook script env environment variable variables done agent"),
             .init(section: .app, id: "desktop-notifications", title: "Desktop Notifications", synonyms: "desktop notifications permission authorize enable alerts banners send test notification center"),
 
@@ -296,6 +335,17 @@ extension Array where Element == CuratedSettingEntry {
             // Beta
             .init(section: .betaFeatures, id: "feed", title: "Feed", synonyms: "feed right sidebar agent decisions permissions questions approval beta unstable"),
             .init(section: .betaFeatures, id: "dock", title: "Dock", synonyms: "dock right sidebar terminal controls tui beta unstable"),
+            .init(
+                section: .betaFeatures,
+                id: "cloudMachines",
+                title: String(localized: "settings.betaFeatures.cloudMachines", defaultValue: "Cloud Machines"),
+                detailText: [
+                    String(localized: "settings.betaFeatures.cloudMachines.subtitleOn", defaultValue: "Shows Cloud in the right sidebar plus the Cloud Machines settings, palette commands, and new-workspace entries."),
+                    String(localized: "settings.betaFeatures.cloudMachines.subtitleOff", defaultValue: "Hides every Cloud Machines surface unless remote rollout enables it."),
+                ].joined(separator: " "),
+                paths: ["cloud.beta.machines.enabled"],
+                synonyms: "cloud machines vm virtual machine right sidebar persistent computer beta unstable"
+            ),
             .init(section: .betaFeatures, id: "customSidebars", title: "Custom Sidebars", synonyms: "custom sidebars swift json interpreted vibe beta unstable"),
             .init(section: .betaFeatures, id: "remoteTmux", title: "Remote tmux", synonyms: "remote tmux ssh control mode -CC mirror session window pane sidebar workspace beta unstable"),
             .init(
@@ -346,6 +396,27 @@ extension Array where Element == CuratedSettingEntry {
             .init(section: .automation, id: "port-base", title: "Port Base", synonyms: "automation.portBase cmux_port start first base env environment variable"),
             .init(section: .automation, id: "port-range", title: "Port Range Size", synonyms: "automation.portRange cmux_port_end range size count env ports"),
 
+            // Computer Use
+            .init(
+                section: .computerUse,
+                id: "enabled",
+                title: String(localized: "settings.computerUse.enabled", defaultValue: "Enable Computer Use"),
+                paths: ["computerUse.enabled"],
+                synonyms: String(localized: "settings.search.alias.setting.computerUse.enabled", defaultValue: "computerUse.enabled enable disable computer use cua mcp agent sessions")
+            ),
+            .init(
+                section: .computerUse,
+                id: "permissions",
+                title: String(localized: "settings.computerUse.permissions", defaultValue: "Permissions"),
+                synonyms: String(localized: "settings.search.alias.setting.computerUse.permissions", defaultValue: "accessibility screen recording capture permissions privacy system settings grant")
+            ),
+            .init(
+                section: .computerUse,
+                id: "show-in-menu-bar",
+                title: String(localized: "settings.computerUse.showInMenuBar", defaultValue: "Show Computer Use in Menu Bar"),
+                paths: ["computerUse.showInMenuBar"],
+                synonyms: String(localized: "settings.search.alias.setting.computerUse.showInMenuBar", defaultValue: "computerUse.showInMenuBar menu bar menubar status item cursor agents")
+            ),
             // Browser
             .init(section: .browser, id: "enable-browser", title: "Enable cmux Browser", synonyms: "browser.disabled enable disable webview embedded browser tabs links"),
             .init(section: .browser, id: "search-engine", title: "Default Search Engine", synonyms: "browser.defaultSearchEngine omnibar address bar google duckduckgo bing kagi brave startpage perplexity exa yahoo ecosia qwant mojeek wikipedia github baidu yandex custom search provider engine name url template"),

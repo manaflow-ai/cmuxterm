@@ -4,8 +4,10 @@ import {
   RelayAuthenticationError,
   RelayConfigurationError,
   RelayRateLimitError,
+  type RelayRateLimitSource,
   type RelayServiceError,
 } from "./errors";
+import { reportMissingRateLimitRule } from "../rateLimitObservability";
 
 export type RelayRateLimitCheck = (
   id: string,
@@ -46,7 +48,9 @@ export function enforceRelayRateLimit(input: {
   if (!ruleId) {
     // No configured rule means the operator wants no rate limiting. Failing
     // here would turn a deliberately-unset env var into a relay outage.
-    return Effect.void;
+    return Effect.sync(() => {
+      void reportMissingRateLimitRule({ route: "relay", reason: "unset" });
+    });
   }
   return Effect.tryPromise({
     try: () => input.check(ruleId, {
@@ -63,9 +67,16 @@ export function enforceRelayRateLimit(input: {
   }).pipe(
     Effect.flatMap(({ rateLimited, error }) => {
       if (rateLimited || error === "blocked") {
+        const source: RelayRateLimitSource = input.rateLimitKey === null
+          ? "ingress_ip"
+          : input.devicePartition
+            ? "device_budget"
+            : "account_budget";
+        console.warn("relay.rate_limited", { source });
         const retryAfterSeconds = input.retryAfterSeconds;
         return Effect.fail(new RelayRateLimitError({
           code: "rate_limited",
+          source,
           ...(retryAfterSeconds !== undefined &&
           Number.isSafeInteger(retryAfterSeconds) &&
           retryAfterSeconds >= 1 &&
@@ -79,8 +90,9 @@ export function enforceRelayRateLimit(input: {
         // means the operator deleted the limit, so treat it as "no limit" and
         // fail open rather than 503-ing every request. Genuine unavailability
         // (a thrown check or an unexpected status) still fails closed below.
-        console.warn("relay rate-limit rule not found; failing open");
-        return Effect.void;
+        return Effect.sync(() => {
+          void reportMissingRateLimitRule({ route: "relay", reason: "not-found" });
+        });
       }
       if (error) {
         return Effect.fail(
@@ -97,9 +109,10 @@ export function relayErrorResponse(error: unknown): Response {
   if (tag === "RelayAuthenticationError") {
     const typed = error as RelayAuthenticationError;
     const rateLimited = typed.code === "rate_limited";
+    const source = rateLimited ? { source: "auth_provider" } : {};
     console.error("relay.auth.unavailable", { reason: typed.code });
     return jsonResponse(
-      { error: rateLimited ? "rate_limited" : "authentication_unavailable" },
+      { error: rateLimited ? "rate_limited" : "authentication_unavailable", ...source },
       rateLimited ? 429 : 503,
       typed.retryAfterSeconds === undefined
         ? undefined
@@ -108,8 +121,9 @@ export function relayErrorResponse(error: unknown): Response {
   }
   if (tag === "RelayRateLimitError") {
     const code = (error as RelayRateLimitError).code;
+    const limitSource = (error as RelayRateLimitError).source;
     return jsonResponse(
-      { error: code },
+      { error: code, ...(limitSource ? { source: limitSource } : {}) },
       code === "rate_limited" ? 429 : 503,
       code === "rate_limited" &&
       (error as RelayRateLimitError).retryAfterSeconds !== undefined

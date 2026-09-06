@@ -3,7 +3,12 @@ import { NextRequest } from "next/server";
 import { redirect } from "next/navigation";
 import { getStackServerApp, isStackConfigured } from "../lib/stack";
 import { validatedNativeCallbackScheme } from "../lib/native-callback";
-import { FREE_PLAN_ID, resolveProPlanStatus } from "../../services/billing/pro";
+import {
+  FREE_PLAN_ID,
+  isDevelopmentProAccessEnabled,
+  PRO_PLAN_ID,
+  resolveProPlanStatus,
+} from "../../services/billing/pro";
 import enMessages from "../../messages/en.json";
 import {
   appPricingCheckoutURL,
@@ -21,7 +26,6 @@ import {
   FeatureList,
   PlanCard,
   PricingCompareTable,
-  PricingSizeTable,
   PrimaryLink,
   SecondaryLink,
   visibleCompareRows,
@@ -29,7 +33,6 @@ import {
   visibleProFeatures,
   type CompareRow,
   type FaqItem,
-  type SizeRow,
 } from "../components/pricing-shared";
 import {
   PricingCheckoutButton,
@@ -59,6 +62,7 @@ export default async function AppPricingPage({
   if (firstParam(params.cmux_app) !== "1") redirect("/pricing");
 
   const snapshot = await currentPlanSnapshot();
+  const canManageBilling = snapshot.billingManagement === "stripe";
   const headersList = await headers();
   const requestOrigin = appPricingRequestOrigin(headersList);
   const cmuxScheme = validatedNativeCallbackScheme(
@@ -92,7 +96,6 @@ export default async function AppPricingPage({
     pricing.compare.rows as CompareRow[],
     featureVisibility,
   );
-  const sizeRows = pricing.sizes.rows as SizeRow[];
   const faqItems = visibleFaqItems(
     pricing.faq.items as FaqItem[],
     featureVisibility,
@@ -172,7 +175,7 @@ export default async function AppPricingPage({
                 name={pricing.pro.name}
                 price={
                   <PricingIntervalValue
-                    monthly={pricing.pro.price}
+                    monthly={`$${PRO_PRICING_USD.month.billedAmount}`}
                     annual={`$${PRO_PRICING_USD.year.monthlyEquivalent}`}
                   />
                 }
@@ -191,14 +194,18 @@ export default async function AppPricingPage({
                 {snapshot.isPro ? (
                   <div className="space-y-2">
                     <DisabledButton>{pricing.currentPlan}</DisabledButton>
-                    {appStorePaymentGated ? null : (
+                    {snapshot.billingManagement === "stripe" && !appStorePaymentGated ? (
                       <SecondaryLink href="/api/billing/portal">
                         {pricing.manageBilling}
                       </SecondaryLink>
-                    )}
+                    ) : null}
                   </div>
                 ) : appStorePaymentGated ? (
                   <DisabledButton>{pricing.billingUnavailable}</DisabledButton>
+                ) : canManageBilling ? (
+                  <SecondaryLink href="/api/billing/portal">
+                    {pricing.manageBilling}
+                  </SecondaryLink>
                 ) : (
                   <PricingCheckoutButton
                     hrefs={proCheckoutHrefs}
@@ -217,7 +224,7 @@ export default async function AppPricingPage({
                 name={pricing.team.name}
                 price={
                   <PricingIntervalValue
-                    monthly={pricing.team.price}
+                    monthly={`$${TEAM_PRICING_USD.month.billedAmount}`}
                     annual={`$${TEAM_PRICING_USD.year.monthlyEquivalent}`}
                   />
                 }
@@ -280,7 +287,7 @@ export default async function AppPricingPage({
                 free: pricing.free.price,
                 pro: (
                   <PricingIntervalValue
-                    monthly={`${pricing.pro.price} ${pricing.perMonth}`}
+                    monthly={`$${PRO_PRICING_USD.month.billedAmount} ${pricing.perMonth}`}
                     annual={annualComparePrice}
                   />
                 ),
@@ -295,15 +302,6 @@ export default async function AppPricingPage({
             />
           </section>
           </PricingIntervalProvider>
-
-          <PricingSizeTable
-            rows={sizeRows}
-            title={pricing.sizes.title}
-            body={pricing.sizes.body}
-            colSize={pricing.sizes.colSize}
-            colUse={pricing.sizes.colUse}
-            colRate={pricing.sizes.colRate}
-          />
 
           <section className="mt-16 border-t border-border pt-10">
             <h2 className="mb-3 text-xs font-medium tracking-tight text-muted">
@@ -326,6 +324,7 @@ export default async function AppPricingPage({
 
 type AppPlanSnapshot = {
   authenticated: boolean;
+  developmentPro: boolean;
   planId: string;
   isPro: boolean;
   billingManagement: "stripe" | "none";
@@ -336,6 +335,7 @@ async function currentPlanSnapshot(): Promise<AppPlanSnapshot> {
   if (!isStackConfigured()) {
     return {
       authenticated: false,
+      developmentPro: false,
       planId: FREE_PLAN_ID,
       isPro: false,
       billingManagement: "none",
@@ -345,10 +345,24 @@ async function currentPlanSnapshot(): Promise<AppPlanSnapshot> {
 
   const user = await getStackServerApp().getUser({ or: ANONYMOUS_IF_EXISTS });
   if (!user) {
+    const developmentPro = isDevelopmentProAccessEnabled();
     return {
       authenticated: false,
-      planId: FREE_PLAN_ID,
-      isPro: false,
+      developmentPro,
+      planId: developmentPro ? PRO_PLAN_ID : FREE_PLAN_ID,
+      isPro: developmentPro,
+      billingManagement: "none",
+      email: null,
+    };
+  }
+
+  const developmentPro = user.isAnonymous && isDevelopmentProAccessEnabled();
+  if (developmentPro) {
+    return {
+      authenticated: false,
+      developmentPro: true,
+      planId: PRO_PLAN_ID,
+      isPro: true,
       billingManagement: "none",
       email: null,
     };
@@ -357,6 +371,7 @@ async function currentPlanSnapshot(): Promise<AppPlanSnapshot> {
   const status = await resolveProPlanStatus(user);
   return {
     authenticated: !user.isAnonymous,
+    developmentPro: false,
     planId: status.planId,
     isPro: status.isPro,
     billingManagement: status.billingManagement,
@@ -424,6 +439,9 @@ function appPricingBanner(
   }
   if (billing === "invalid_relay") {
     return { message: pricing.billingInvalidRelay };
+  }
+  if (snapshot.developmentPro) {
+    return null;
   }
   if (!snapshot.authenticated) {
     return {

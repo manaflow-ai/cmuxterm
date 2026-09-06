@@ -29,6 +29,9 @@
          location = "group:CmuxIrohTransport">
       </FileRef>
       <FileRef
+         location = "group:CmuxIrxTransport">
+      </FileRef>
+      <FileRef
          location = "group:CMUXMobileCore">
       </FileRef>
       <FileRef
@@ -39,6 +42,9 @@
       </FileRef>
       <FileRef
          location = "group:CmuxSyncStore">
+      </FileRef>
+      <FileRef
+         location = "group:CmuxSyntaxHighlighting">
       </FileRef>
    </Group>
    <Group
@@ -118,6 +124,9 @@
          location = "group:CMUXAgentLaunch">
       </FileRef>
       <FileRef
+         location = "group:CmuxAgentSessionStore">
+      </FileRef>
+      <FileRef
          location = "group:CmuxAppKitSupportUI">
       </FileRef>
       <FileRef
@@ -149,6 +158,9 @@
       </FileRef>
       <FileRef
          location = "group:CmuxFeedback">
+      </FileRef>
+      <FileRef
+         location = "group:CmuxFilePreviewCore">
       </FileRef>
       <FileRef
          location = "group:CmuxFoundation">
