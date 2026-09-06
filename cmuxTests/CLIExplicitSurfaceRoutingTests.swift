@@ -1283,25 +1283,32 @@ struct CLIExplicitSurfaceRoutingTests {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        let exitSignal = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            exitSignal.signal()
+        }
         do {
             try process.run()
         } catch {
             return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
         }
 
-        let exitSignal = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            process.waitUntilExit()
-            exitSignal.signal()
-        }
-
-        let timedOut = exitSignal.wait(timeout: .now() + timeout) == .timedOut
+        // Process.terminationHandler is the authoritative exit edge. A
+        // background waitUntilExit task can fail to signal on macOS when the
+        // child has already reaped itself, falsely turning a successful CLI
+        // response into a timeout.
+        let waitTimedOut = exitSignal.wait(timeout: .now() + timeout) == .timedOut
+        let timedOut = waitTimedOut && process.isRunning
         if timedOut {
             process.terminate()
             if exitSignal.wait(timeout: .now() + 1) == .timedOut {
                 kill(process.processIdentifier, SIGKILL)
                 _ = exitSignal.wait(timeout: .now() + 1)
             }
+        } else if waitTimedOut {
+            // The process exited while the termination callback was still
+            // being delivered; do not report a timeout for that race.
+            _ = exitSignal.wait(timeout: .now() + 1)
         }
 
         let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Regression test for the nightly macOS track: one universal build, thinned into per-architecture DMGs.
+# Regression test for the normal nightly macOS track and its fast arm64 dogfood path.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 WORKFLOW_FILE="$ROOT_DIR/.github/workflows/nightly.yml"
 
 if ! awk '
-  /^      - name: Build universal nightly app \(Release\)/ { in_universal=1; next }
+  /^      - name: Build (universal nightly app|nightly app) \(Release\)/ { in_universal=1; next }
   in_universal && /^      - name:/ { in_universal=0 }
   in_universal && /-destination '\''generic\/platform=macOS'\''/ { saw_universal_destination=1 }
-  in_universal && /ARCHS="arm64 x86_64"/ { saw_universal_archs=1 }
-  in_universal && /ONLY_ACTIVE_ARCH=NO/ { saw_universal_only_active_arch=1 }
+  in_universal && (/ARCHS="arm64 x86_64"/ || /archs="arm64 x86_64"/) { saw_universal_archs=1 }
+  in_universal && (/ONLY_ACTIVE_ARCH=NO/ || /only_active="NO"/) { saw_universal_only_active_arch=1 }
   in_universal && /-quiet/ { saw_quiet=1 }
   in_universal && /COMPILATION_CACHE_ENABLE_CACHING=YES/ { saw_compilation_cache=1 }
   in_universal && /COMPILER_INDEX_STORE_ENABLE=NO/ { saw_index_disabled=1 }
@@ -160,11 +160,13 @@ if ! awk '
   /^  build-nightly-app:/ { job="app"; next }
   /^  build-sign-notarize-nightly:/ { job="publish"; next }
   /^  [a-zA-Z0-9_-]+:/ { job="" }
-  job == "helper" && /runs-on: \$\{\{ vars\.MACOS_RUNNER_15/ { saw_helper_runner=1 }
+  # Fast branch dogfood pins Blacksmith. Normal Nightly uses the repository
+  # override. Both must retain the macOS 15 helper lane.
+  job == "helper" && /runs-on: \$\{\{ .*vars\.MACOS_RUNNER_15/ { saw_helper_runner=1 }
   job == "helper" && /build-ghostty-cli-helper\.sh --universal/ { saw_build=1 }
   job == "helper" && /lipo .* -verify_arch arm64 x86_64/ { saw_arch_assert=1 }
   job == "helper" && /name: cmux-nightly-ghostty-cli-helper/ { saw_helper_artifact=1 }
-  job == "app" && /runs-on: \$\{\{ vars\.MACOS_RUNNER_26_NIGHTLY_BUILD \|\| '\''blacksmith-12vcpu-macos-26'\'' \}\}/ { saw_app_runner=1 }
+  job == "app" && /runs-on: \$\{\{ .*vars\.MACOS_RUNNER_26_NIGHTLY_BUILD/ { saw_app_runner=1 }
   job == "app" && /CMUX_CI_XCODE_APP_MACOS_26/ { saw_app_xcode=1 }
   job == "app" && /select-ci-xcode\.sh/ { saw_app_selection=1 }
   job == "app" && /name: cmux-nightly-unsigned-app/ { saw_app_artifact=1 }
@@ -270,16 +272,130 @@ if ! awk '
   /^      - name: Assemble legacy nightly names/ { in_legacy=1; next }
   in_legacy && /^      - name:/ { in_legacy=0 }
   in_legacy && /cp cmux-nightly-macos-universal\.dmg cmux-nightly-macos\.dmg/ { saw_universal_legacy=1 }
-  in_legacy && /cp cmux-nightly-macos-x86_64\.dmg cmux-nightly-macos\.dmg/ { saw_intel_legacy=1 }
-  in_legacy && /cp appcast-x86_64\.xml appcast\.xml/ { saw_intel_feed=1 }
-  END { exit !(saw_universal_legacy && saw_intel_legacy && saw_intel_feed) }
+  in_legacy && /cmux-nightly-macos-x86_64\.dmg cmux-nightly-macos\.dmg/ { saw_intel_legacy=1 }
+  END { exit !(saw_universal_legacy && !saw_intel_legacy) }
 ' "$WORKFLOW_FILE"; then
-  echo "FAIL: the legacy nightly DMG and feed must serve the universal build during the transition and the x86_64 build afterwards"
+  echo "FAIL: the legacy nightly DMG and feed must stay universal: browsers cannot pick an architecture, the app can"
   exit 1
 fi
 
-if ! grep -Fq 'NIGHTLY_LEGACY_UNIVERSAL_UNTIL: "20' "$WORKFLOW_FILE"; then
-  echo "FAIL: the universal legacy build must have a dated retirement"
+if ! grep -Fq "const variants = fastBuild ? ['arm64'] : ['arm64', 'x86_64', 'universal'];" "$WORKFLOW_FILE"; then
+  echo "FAIL: nightly must always build the universal download alongside the thin update tracks"
+  exit 1
+fi
+
+if ! grep -Fq 'description: Build one arm64 dogfood DMG without Intel or Sparkle delta work' "$WORKFLOW_FILE"; then
+  echo "FAIL: workflow dispatch must expose the fast arm64 dogfood build"
+  exit 1
+fi
+
+if ! awk '
+  /^      - name: Strip unsigned nightly app before transfer/ { strip_line=NR }
+  /^      - name: Verify Cloud tunnel engine before transfer/ { verify_line=NR }
+  END { exit !(strip_line && verify_line && strip_line < verify_line) }
+' "$WORKFLOW_FILE"; then
+  echo "FAIL: nightly must reject a stub Cloud tunnel engine before the slow signing and notarization matrix"
+  exit 1
+fi
+
+if ! awk '
+  /^      - name: Codesign apps/ { sign_line=NR }
+  /^      - name: Smoke launch signed app before notarization/ { smoke_line=NR }
+  /^      - name: Notarize app ticket through final DMG/ { notarize_line=NR }
+  END { exit !(sign_line && smoke_line && notarize_line && sign_line < smoke_line && smoke_line < notarize_line) }
+' "$WORKFLOW_FILE"; then
+  echo "FAIL: nightly must smoke-launch the signed app before paying the Apple notarization wait"
+  exit 1
+fi
+
+RELEASE_WORKFLOW_FILE="$ROOT_DIR/.github/workflows/release.yml"
+if ! awk '
+  /^      - name: Strip release binaries/ { strip_line=NR }
+  /^      - name: Verify Cloud tunnel engine before signing/ { verify_line=NR }
+  END { exit !(strip_line && verify_line && strip_line < verify_line) }
+' "$RELEASE_WORKFLOW_FILE"; then
+  echo "FAIL: release must reject a stub Cloud tunnel engine before signing and notarization"
+  exit 1
+fi
+
+for workflow in "$WORKFLOW_FILE" "$RELEASE_WORKFLOW_FILE"; do
+  if ! grep -Fq 'cmux_tui_commit="$(./scripts/ci/resolve-cmux-tui-client-commit.sh' "$workflow"; then
+    echo "FAIL: $(basename "$workflow") must resolve the cmux-tui client commit through scripts/ci/resolve-cmux-tui-client-commit.sh"
+    exit 1
+  fi
+  if grep -Fq 'git log -1 --format=%H -- cmux-tui' "$workflow"; then
+    echo "FAIL: $(basename "$workflow") must not pick the cmux-tui commit with a bare git log: actions/checkout is depth 1 there, so it always answers HEAD"
+    exit 1
+  fi
+  if ! grep -Fq 'https://files.cmux.com/cmux-tui/${cmux_tui_commit}/manifest.json' "$workflow"; then
+    echo "FAIL: $(basename "$workflow") must install the immutable cmux-tui manifest"
+    exit 1
+  fi
+  if ! grep -Fq -- '--expected-commit "$cmux_tui_commit"' "$workflow" ||
+     ! grep -Fq -- '--require-capability wireguard-hub' "$workflow"; then
+    echo "FAIL: $(basename "$workflow") must reject a stale cmux-tui client without WireGuard hub support"
+    exit 1
+  fi
+done
+
+for workflow in "$WORKFLOW_FILE" "$RELEASE_WORKFLOW_FILE"; do
+  if grep -Fq 'signing will use the wg-quick fallback' "$workflow"; then
+    echo "FAIL: $(basename "$workflow") must not ship without the Network Extension"
+    exit 1
+  fi
+done
+
+INSTALL_TUI_SCRIPT="$ROOT_DIR/scripts/install-cmux-tui-client.sh"
+for expected in '--expected-commit' '--require-capability' 'required cmux-tui capability is missing'; do
+  if ! grep -Fq -- "$expected" "$INSTALL_TUI_SCRIPT"; then
+    echo "FAIL: cmux-tui installer must enforce $expected"
+    exit 1
+  fi
+done
+
+if ! grep -A8 -F 'cmux_tui_install_args=(' "$ROOT_DIR/scripts/reload.sh" |
+   grep -Fq -- '--require-capability wireguard-hub'; then
+  echo "FAIL: tagged reloads must reject a cmux-tui client without WireGuard hub support"
+  exit 1
+fi
+
+if ! awk '
+  /^      - name: Codesign app/ { sign_line=NR }
+  /^      - name: Smoke launch signed app before notarization/ { smoke_line=NR }
+  /^      - name: Notarize app/ { notarize_line=NR }
+  END { exit !(sign_line && smoke_line && notarize_line && sign_line < smoke_line && smoke_line < notarize_line) }
+' "$RELEASE_WORKFLOW_FILE"; then
+  echo "FAIL: release must smoke-launch the signed app before paying the Apple notarization wait"
+  exit 1
+fi
+
+if ! grep -Fq 'github.event.inputs.fast == '\''true'\'' && '\''fast'\'' || '\''full'\''' "$WORKFLOW_FILE"; then
+  echo "FAIL: fast branch builds must not queue behind a full build on the same branch"
+  exit 1
+fi
+
+for expected in \
+  'if: needs.decide.outputs.fast_build != '\''true'\''' \
+  'if: needs.decide.outputs.fast_build == '\''true'\''' \
+  'name: cmux-nightly-fast-${{ needs.decide.outputs.short_sha }}'; do
+  if ! grep -Fq "$expected" "$WORKFLOW_FILE"; then
+    echo "FAIL: fast build workflow is missing: $expected"
+    exit 1
+  fi
+done
+
+if ! awk '
+  /^  report-nightly-failure:/ { job="report"; next }
+  /^  close-nightly-failure-issue:/ { job="close"; next }
+  /^  [a-zA-Z0-9_-]+:/ { job="" }
+  job == "report" && /contains\(needs\.\*\.result, .failure.\)/ { saw_report_gate=1 }
+  job == "report" && /issues: write/ { saw_report_perm=1 }
+  job == "report" && /nightly-failure/ { saw_report_label=1 }
+  job == "close" && /needs\.publish-nightly\.result == .success./ { saw_close_gate=1 }
+  job == "close" && /state: .closed./ { saw_close=1 }
+  END { exit !(saw_report_gate && saw_report_perm && saw_report_label && saw_close_gate && saw_close) }
+' "$WORKFLOW_FILE"; then
+  echo "FAIL: a failing main nightly must open a nightly-failure issue and a successful publish must close it"
   exit 1
 fi
 
