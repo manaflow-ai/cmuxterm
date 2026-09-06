@@ -77,6 +77,10 @@ struct SessionIndexView: View {
         !trimmedSearchText.isEmpty
     }
 
+    private var showsDetails: Bool {
+        !isCompactView
+    }
+
     /// Search results use the same section builder as the unfiltered list.
     /// Keeping this projection in the parent view means table rows continue
     /// to receive immutable snapshots and the AppKit controller can preserve
