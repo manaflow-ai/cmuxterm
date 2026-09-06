@@ -349,7 +349,7 @@ private struct CmuxTaskManagerMessageView: View {
                 .cmuxFont(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: detail)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
