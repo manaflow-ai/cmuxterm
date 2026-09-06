@@ -3520,6 +3520,20 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         return false
     }
 
+    private nonisolated static func resolvedPaneBorderHex(
+        configuredHex: String?,
+        splitDividerColor: NSColor?,
+        defaultBorderHex: String
+    ) -> String {
+        let splitDividerHex = splitDividerColor.map { color in
+            color.hexString(includeAlpha: color.alphaComponent < 0.999)
+        }
+        return PaneChromeSettings.resolvedPaneBorderHex(
+            configuredHex: configuredHex,
+            fallback: splitDividerHex ?? defaultBorderHex
+        )
+    }
+
     /// Resolves Bonsplit colors while keeping terminal backdrop ownership explicit.
     nonisolated static func bonsplitChromeColors(
         backgroundColor: NSColor,
@@ -3546,12 +3560,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                     )
             )
             .hexString(includeAlpha: true)
-        let splitDividerHex = splitDividerColor.map { color in
-            color.hexString(includeAlpha: color.alphaComponent < 0.999)
-        }
-        let borderHex = PaneChromeSettings.resolvedPaneBorderHex(
+        let borderHex = resolvedPaneBorderHex(
             configuredHex: paneBorderColorHex,
-            fallback: splitDividerHex ?? defaultBorderHex
+            splitDividerColor: splitDividerColor,
+            defaultBorderHex: defaultBorderHex
         )
 
         // Keep this decision on the same owner plan used by terminal surfaces.
@@ -3613,12 +3625,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let defaultBorderHex = WindowChromeColorResolver()
             .separatorColor(forChromeBackground: backgroundColor)
             .hexString(includeAlpha: true)
-        let splitDividerHex = splitDividerColor.map { color in
-            color.hexString(includeAlpha: color.alphaComponent < 0.999)
-        }
-        let borderHex = PaneChromeSettings.resolvedPaneBorderHex(
+        let borderHex = resolvedPaneBorderHex(
             configuredHex: paneBorderColorHex,
-            fallback: splitDividerHex ?? defaultBorderHex
+            splitDividerColor: splitDividerColor,
+            defaultBorderHex: defaultBorderHex
         )
 
         if sharesWindowBackdrop {
