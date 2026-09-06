@@ -20,7 +20,11 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
     // Direct-draw badge (shared with workspace rows): NSTextField's
     // intrinsic insets shift single digits off the circle's optical center.
     private let unreadBadgeView = SidebarRowUnreadBadgeView()
-    private var unreadBadgeFont: NSFont = CmuxFontResolver.appKitFont(size: 10, weight: .semibold)
+    private var unreadBadgeFont: NSFont = CmuxFontResolver.appKitFont(
+        family: nil,
+        size: 10,
+        weight: .semibold
+    )
     private let plusButton = SidebarHeaderGlyphButton()
     private let topDropIndicator = NSView()
     private let bottomDropIndicator = NSView()
