@@ -43,7 +43,11 @@ public struct CodexNativeTitleStore: Sendable {
 
         let transient = unsafeBitCast(OpaquePointer(bitPattern: -1), to: sqlite3_destructor_type.self)
         sqlite3_bind_text(statement, 1, normalizedSessionId, -1, transient)
-        guard sqlite3_step(statement) == SQLITE_ROW,
+        var stepResult = sqlite3_step(statement)
+        for _ in 0..<3 where stepResult == SQLITE_BUSY {
+            stepResult = sqlite3_step(statement)
+        }
+        guard stepResult == SQLITE_ROW,
               let titleBytes = sqlite3_column_text(statement, 0) else {
             return nil
         }
