@@ -2019,3 +2019,81 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(legacy.placements.first?.remoteWorkspaceID == "ws_api")
     }
 }
+
+/// Regression coverage for the snapshot row ordering helper. In
+/// 0.64.22-nightly.3400956733901 the app trapped (EXC_BREAKPOINT in
+/// `orderedSnapshotRows`) the first time a machine reported any workspace,
+/// screen, pane, or tab: the helper returned `enumerated().sorted` through a
+/// tuple type with reordered labels, which Swift compiles into a runtime array
+/// cast that fails for every non-empty array. Empty snapshots never reach the
+/// cast, so the crash only appeared once a machine actually connected.
+@Suite struct CmuxTuiSnapshotRowOrderingRegressionTests {
+    static let machine = SurfaceMachineID.cloud("gentle-ochre-dingo")
+
+    @Test func workspacesFromANonEmptySnapshotSurviveAndFollowTheirIndexes() {
+        let snapshot: [String: Any] = [
+            "workspaces": [
+                ["id": "ws_second", "name": "second", "index": 1, "focused": false],
+                ["id": "ws_first", "name": "first", "index": 0, "focused": true],
+                ["id": "ws_legacy", "name": "legacy"],
+            ],
+        ]
+        let workspaces = CmuxTuiSnapshotParser.workspaces(fromSnapshot: snapshot)
+        #expect(
+            workspaces.map(\.id) == ["ws_first", "ws_second", "ws_legacy"],
+            "explicit indexes win; a row without one keeps its transport order after them"
+        )
+        #expect(workspaces.map(\.index) == [0, 1, 2])
+        #expect(workspaces.first?.focused == true)
+    }
+
+    @Test func terminalProjectionTargetFromANonEmptySnapshotPrefersFocusedRowsThenIndexes() throws {
+        let snapshot: [String: Any] = [
+            "workspaces": [
+                ["id": "ws_bg", "index": 0, "focused": false],
+                ["id": "ws_fg", "index": 1, "focused": true],
+            ],
+            "screens": [
+                ["id": "screen_bg", "workspace_id": "ws_bg", "focused": true],
+                ["id": "screen_fg_2", "workspace_id": "ws_fg", "index": 1],
+                ["id": "screen_fg_1", "workspace_id": "ws_fg", "index": 0],
+            ],
+            "panes": [
+                ["id": "pane_fg_1", "screen_id": "screen_fg_1"],
+                ["id": "pane_bg", "screen_id": "screen_bg"],
+            ],
+            "tabs": [
+                ["id": "tab_1", "pane_id": "pane_fg_1", "content_kind": "terminal", "content_id": "term_1"],
+            ],
+            "terminals": [
+                ["id": "term_1", "tab_id": "tab_1", "title": "shell", "lifecycle": "running"],
+            ],
+            "browsers": [],
+            "agents": [],
+        ]
+        let target = try #require(CmuxTuiSnapshotParser.terminalProjectionTarget(from: snapshot))
+        #expect(target.workspaceID == "ws_fg", "the focused workspace wins over a lower index")
+        #expect(target.screenID == "screen_fg_1", "within it, the lowest explicit index wins")
+        #expect(target.paneID == "pane_fg_1")
+        #expect(target.index == 1, "the new tab lands after the pane's existing tab")
+    }
+
+    @Test func terminalsFromANonEmptySnapshotOrderTheirViewsByTabIndex() throws {
+        let snapshot: [String: Any] = [
+            "workspaces": [["id": "ws_main", "name": "main", "focused": true]],
+            "screens": [["id": "screen_1", "workspace_id": "ws_main"]],
+            "panes": [["id": "pane_1", "screen_id": "screen_1"]],
+            "tabs": [
+                ["id": "tab_b", "pane_id": "pane_1", "index": 1, "content_kind": "terminal", "content_id": "term_b"],
+                ["id": "tab_a", "pane_id": "pane_1", "index": 0, "content_kind": "terminal", "content_id": "term_a"],
+            ],
+            "terminals": [
+                ["id": "term_b", "tab_id": "tab_b", "title": "b", "lifecycle": "running"],
+                ["id": "term_a", "tab_id": "tab_a", "title": "a", "lifecycle": "running"],
+            ],
+        ]
+        let resources = CmuxTuiSnapshotParser.terminals(fromSnapshot: snapshot, machine: Self.machine)
+        #expect(resources.map { $0.id.key } == ["term_a", "term_b"], "tab index, not transport order, decides the view order")
+        #expect(resources.compactMap { $0.remoteViews?.first?.index } == [0, 1])
+    }
+}
