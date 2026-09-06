@@ -18,7 +18,10 @@ extension CMUXCLI {
         let path: String
 
         var errorDescription: String? {
-            "Claude NODE_OPTIONS restore module \(reason): \(path)"
+            String(
+                localized: "cli.claude.nodeOptionsRestoreError",
+                defaultValue: "Claude integration could not prepare its runtime environment."
+            )
         }
     }
 

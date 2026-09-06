@@ -293012,5 +293012,22 @@
     "cloudTree.link.tunnelFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"This Mac's tunnel to your Cloud VM network could not start: %@"}},"ja":{"stringUnit":{"state":"translated","value":"この Mac からクラウド VM ネットワークへのトンネルを開始できませんでした: %@"}}}},
     "cloudTree.link.tunnelOffAppManaged": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"This Mac's tunnel to your Cloud VM network is down; reopen the machine to start it."}},"ja":{"stringUnit":{"state":"translated","value":"この Mac からクラウド VM ネットワークへのトンネルは切断されています。マシンを再度開くと開始されます。"}}}},
     "cloudTunnel.error.configurationNotInstalled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The VPN configuration was not saved before the tunnel was started."}},"ja":{"stringUnit":{"state":"translated","value":"トンネルの開始前に VPN 構成が保存されていませんでした。"}}}},
+    "cli.claude.nodeOptionsRestoreError": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude integration could not prepare its runtime environment."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude 連携の実行環境を準備できませんでした。"
+          }
+        }
+      }
+    },
   "version": "1.0"
 }
