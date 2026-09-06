@@ -1755,6 +1755,7 @@ extension Workspace {
             // closed tab" / Fork Conversation availability. Local commands
             // claim at the CLI's pre-exec boundary; direct remote launches
             // retain the in-app claim below.
+            var remoteRestoreClaim: AgentResumeLaunchGuard.Claim?
             let agentSessionAlreadyActive: Bool = {
                 guard shouldAutoResumeAgent, restorableAgentCanAutoResume,
                       restoredHibernation == nil, restoredBindingLaunch == nil,
@@ -1797,10 +1798,11 @@ extension Workspace {
                 if !restoresRemoteWorkspaceTerminalSnapshot {
                     return false
                 }
-                return !AgentResumeLaunchGuard.shared.claimResumeLaunch(
+                remoteRestoreClaim = AgentResumeLaunchGuard.shared.claimResumeLaunchWithToken(
                     kind: restorableAgent.kind.rawValue,
                     sessionId: restorableAgent.sessionId
                 )
+                return remoteRestoreClaim == nil
             }()
             let restoredAgentResumeLaunch: SurfaceResumeStartupLaunch? =
                 if shouldAutoResumeAgent && restorableAgentCanAutoResume,
@@ -1820,6 +1822,16 @@ extension Workspace {
                 } else {
                     nil
                 }
+            if restoredAgentResumeLaunch == nil,
+               let remoteRestoreClaim,
+               let restorableAgent {
+                _ = AgentResumeLaunchGuard.shared.releaseResumeLaunch(
+                    kind: restorableAgent.kind.rawValue,
+                    sessionId: restorableAgent.sessionId,
+                    claim: remoteRestoreClaim
+                )
+                remoteRestoreClaim = nil
+            }
             let liveOwnerNoticeInput = liveSessionOwner.map {
                 AgentRestoreLiveOwnerNotice(processID: $0.processID).startupInput(
                     dialect: restoresRemoteWorkspaceTerminalSnapshot
@@ -2000,10 +2012,18 @@ extension Workspace {
                 if restoredAgentResumeLaunch != nil,
                    restoresRemoteWorkspaceTerminalSnapshot,
                    let restorableAgent {
-                    AgentResumeLaunchGuard.shared.releaseResumeLaunch(
-                        kind: restorableAgent.kind.rawValue,
-                        sessionId: restorableAgent.sessionId
-                    )
+                    if let remoteRestoreClaim {
+                        _ = AgentResumeLaunchGuard.shared.releaseResumeLaunch(
+                            kind: restorableAgent.kind.rawValue,
+                            sessionId: restorableAgent.sessionId,
+                            claim: remoteRestoreClaim
+                        )
+                    } else {
+                        AgentResumeLaunchGuard.shared.releaseResumeLaunch(
+                            kind: restorableAgent.kind.rawValue,
+                            sessionId: restorableAgent.sessionId
+                        )
+                    }
                 }
                 return nil
             }

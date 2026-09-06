@@ -58,6 +58,12 @@ struct LiveAgentSessionOwnerIndex: Sendable {
                     // restore proceed instead.
                     return processPresenceProvider?(owner.processID) != .absent
                 }
+                // Process identity and argv are separate observations. Recheck
+                // the generation after argv inspection so PID reuse between the
+                // two reads cannot bind a new process to the old owner.
+                guard processIdentityProvider(owner.processID) == owner.processIdentity else {
+                    return false
+                }
                 return CachedAgentProcessIdentityValidator().currentProcess(
                     process,
                     matches: owner.validationSnapshot,

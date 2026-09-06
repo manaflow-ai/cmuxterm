@@ -46,7 +46,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         guard currentProcessExecutable(process.arguments, environment: process.environment, matches: snapshot) else {
             return false
         }
-        return currentProcessSession(process.arguments, matches: snapshot)
+        return currentProcessSession(process, matches: snapshot)
     }
 
     private func currentProcessExecutable(
@@ -90,9 +90,13 @@ struct CachedAgentProcessIdentityValidator: Sendable {
     }
 
     private func currentProcessSession(
-        _ arguments: [String],
+        _ process: CmuxTopProcessArguments,
         matches snapshot: SessionRestorableAgentSnapshot
     ) -> Bool {
+        let arguments = process.arguments
+        let authoritativeEnvironmentSessionID = normalizedProcessValue(
+            process.environment["CMUX_AGENT_SESSION_ID"]
+        )
         if let registration = snapshot.registration {
             let observedSessionID: String?
             switch registration.sessionIdSource {
@@ -113,17 +117,24 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                 observedSessionID = firstValue(
                     after: ["--session", "--resume", "-r"],
                     in: arguments
-                )
+                ) ?? authoritativeEnvironmentSessionID
             case .grokSessionDirectory:
                 observedSessionID = firstValue(
                     after: ["--session-id", "--session", "--resume", "-r"],
                     in: arguments
-                )
+                ) ?? authoritativeEnvironmentSessionID
             case .persistedStore:
                 // Hermes is validated in the dedicated branch above.
                 observedSessionID = nil
             }
-            guard let observedSessionID else { return true }
+            guard let observedSessionID else {
+                if case .cmuxHookStore = registration.sessionIdSource {
+                    // The hook store is the authoritative session identity for
+                    // this registration; argv is intentionally irrelevant.
+                    return true
+                }
+                return ifCaseCustom(snapshot.kind)
+            }
             return ManagedAgentSessionIdentity.sessionIDsMatch(
                 kind: snapshot.kind.rawValue,
                 lhs: observedSessionID,
@@ -136,22 +147,27 @@ struct CachedAgentProcessIdentityValidator: Sendable {
             observedSessionID = firstValue(
                 after: ["--session-id", "--resume", "-r"],
                 in: arguments
-            )
+            ) ?? authoritativeEnvironmentSessionID
         case .codex:
             observedSessionID = firstValue(
                 after: ["--session-id", "--session", "--resume", "-r"],
                 orSubcommand: "resume",
                 in: arguments
-            )
+            ) ?? authoritativeEnvironmentSessionID
         default:
-            observedSessionID = nil
+            observedSessionID = authoritativeEnvironmentSessionID
         }
-        guard let observedSessionID else { return true }
+        guard let observedSessionID else { return ifCaseCustom(snapshot.kind) }
         return ManagedAgentSessionIdentity.sessionIDsMatch(
             kind: snapshot.kind.rawValue,
             lhs: observedSessionID,
             rhs: snapshot.sessionId
         )
+    }
+
+    private func ifCaseCustom(_ kind: RestorableAgentKind) -> Bool {
+        if case .custom = kind { return true }
+        return false
     }
 
     private func firstValue(
