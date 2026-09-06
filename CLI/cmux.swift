@@ -5057,6 +5057,17 @@ struct CMUXCLI {
 
     func run() throws {
         let processEnv = ProcessInfo.processInfo.environment
+        func runAsyncBlocking<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) throws -> T {
+            let semaphore = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var output: Result<T, Error>!
+            Task {
+                do { output = .success(try await work()) }
+                catch { output = .failure(error) }
+                semaphore.signal()
+            }
+            semaphore.wait()
+            return try output.get()
+        }
         let cliBundleIdentifier = CLISocketPathResolver.currentAppBundleIdentifier()
         var explicitSocketPath: String? = nil
         var jsonOutput = false
@@ -7216,11 +7227,13 @@ struct CMUXCLI {
             )
 
         case "restore":
-            try runRestoreCommand(
-                commandArgs: commandArgs,
-                client: client,
-                processEnvironment: processEnv
-            )
+            try runAsyncBlocking {
+                try await runRestoreCommand(
+                    commandArgs: commandArgs,
+                    client: client,
+                    processEnvironment: processEnv
+                )
+            }
 
         case "surface-resume":
             try runSurfaceResumeCommand(
@@ -35188,6 +35201,11 @@ export default CMUXSessionRestore;
         }
 
         switch action {
+        case .titleUpdate:
+            // Title updates are optional metadata; older session stores do not
+            // persist a title field, so consume the event without affecting
+            // lifecycle state or notification delivery.
+            break
         case .codexSubagentStart, .codexSubagentStop:
             guard def.name == "codex", let codexLifecycle else {
                 break
