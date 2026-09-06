@@ -36,5 +36,5 @@ struct SidebarWorkspaceRowSnapshot: Equatable {
     let checklistAddFieldActivationToken: Int
     let isChecklistPopoverPresented: Bool
     let contextMenu: SidebarWorkspaceContextMenuSnapshot
-    let accessibilityTitle: String = ""
+    let accessibilityTitle: String
 }
