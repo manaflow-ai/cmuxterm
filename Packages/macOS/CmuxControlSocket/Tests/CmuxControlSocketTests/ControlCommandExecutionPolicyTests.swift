@@ -272,7 +272,7 @@ struct ControlCommandExecutionPolicyTests {
         for method in [
             "notification.create", "notification.create_for_surface",
             "notification.create_for_target", "notification.create_for_caller",
-            "workspace.set_auto_title",
+            "workspace.set_auto_title", "surface.sync_codex_native_title",
         ] {
             let policy = ControlCommandExecutionPolicy(forMethod: method)
             #expect(policy == .socketWorker(mainThreadCallable: true), "\(method)")

@@ -77,6 +77,81 @@ extension CMUXCLI {
         }
     }
 
+    /// Resolves Codex's own thread title in a detached process and sends the
+    /// plain title to the app. The stop hook must stay short and the app socket
+    /// handler must not perform Codex database I/O on the main actor.
+    func runCodexNativeTitleSyncHook(
+        commandArgs: [String],
+        environment: [String: String],
+        client: SocketClient,
+        telemetry: CLISocketSentryTelemetry
+    ) {
+        guard let sessionId = optionValue(commandArgs, name: "--session"),
+              let workspaceId = optionValue(commandArgs, name: "--workspace"),
+              let surfaceId = optionValue(commandArgs, name: "--surface"),
+              !sessionId.isEmpty, !workspaceId.isEmpty, !surfaceId.isEmpty else {
+            telemetry.breadcrumb("codex-hook.native-title-sync.invalid-target")
+            return
+        }
+        guard let title = CodexNativeTitleStore.title(
+            forSessionId: sessionId,
+            codexHome: normalizedHookValue(environment["CODEX_HOME"])
+        ) else {
+            telemetry.breadcrumb("codex-hook.native-title-sync.no-title")
+            return
+        }
+        _ = try? client.sendV2(method: "surface.sync_codex_native_title", params: [
+            "workspace_id": workspaceId,
+            "panel_id": surfaceId,
+            "title": title
+        ])
+        telemetry.breadcrumb("codex-hook.native-title-sync.sent")
+    }
+
+    /// Starts the title lookup after the synchronous Codex Stop hook returns.
+    /// The title is already authoritative in Codex's state database, so this
+    /// path does not invoke a summarizer or depend on Workspace Auto-Naming.
+    func spawnDetachedCodexNativeTitleSync(
+        sessionId: String,
+        workspaceId: String,
+        surfaceId: String,
+        environment: [String: String],
+        telemetry: CLISocketSentryTelemetry
+    ) {
+        guard !sessionId.isEmpty, !workspaceId.isEmpty, !surfaceId.isEmpty else { return }
+        let selfPath: String = {
+            if let first = ProcessInfo.processInfo.arguments.first,
+               first.hasPrefix("/"),
+               FileManager.default.isExecutableFile(atPath: first) {
+                return first
+            }
+            if let bundled = normalizedHookValue(environment["CMUX_BUNDLED_CLI_PATH"]),
+               FileManager.default.isExecutableFile(atPath: bundled) {
+                return bundled
+            }
+            return "cmux"
+        }()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            "nohup \"$0\" hooks codex sync-native-title --session \"$1\" --workspace \"$2\" --surface \"$3\" </dev/null >/dev/null 2>&1 &",
+            selfPath,
+            sessionId,
+            workspaceId,
+            surfaceId
+        ]
+        process.environment = environment
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            telemetry.breadcrumb("codex-hook.native-title-sync.spawn-failed")
+        }
+    }
+
     /// Emit, NUL-separated to stdout, the exact codex arg list the wrapper must
     /// splice ahead of the user's args to enable cmux hooks for one Codex
     /// invocation without rewriting the user's Codex configuration. Returns
