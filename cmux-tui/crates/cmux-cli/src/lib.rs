@@ -320,6 +320,7 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
             _,
             Some(
                 command @ ("notify"
+                | "clear-notifications"
                 | "dismiss-notification"
                 | "mark-notification-read"
                 | "open-notification"
@@ -351,7 +352,8 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
             Some(
                 command @ ("list-workspaces" | "current-workspace" | "list-panes"
                 | "list-pane-surfaces" | "list-panels" | "focus-pane" | "focus-panel"
-                | "read-screen" | "send" | "send-key"),
+                | "read-selection" | "read-screen" | "send" | "send-key" | "send-panel"
+                | "send-key-panel"),
             ),
         ) => {
             CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
@@ -782,14 +784,31 @@ fn run_socket_v2_command(
         "list-panels" => "surface.list",
         "focus-pane" => "pane.focus",
         "focus-panel" => "surface.focus",
+        "read-selection" => "surface.read_selection",
         "read-screen" => "surface.read_text",
         "send" => {
             let text = trailing_text(&arguments, "send")?;
             params.insert("text".into(), Value::String(unescape_send_text(&text)));
             "surface.send_text"
         }
+        "send-panel" => {
+            if option_value(&arguments, "--panel").is_none() {
+                return Err(CliError::Usage("send-panel requires --panel".into()));
+            }
+            let text = trailing_text(&arguments, "send-panel")?;
+            params.insert("text".into(), Value::String(unescape_send_text(&text)));
+            "surface.send_text"
+        }
         "send-key" => {
             let key = trailing_key(&arguments, "send-key")?;
+            params.insert("key".into(), Value::String(key));
+            "surface.send_key"
+        }
+        "send-key-panel" => {
+            if option_value(&arguments, "--panel").is_none() {
+                return Err(CliError::Usage("send-key-panel requires --panel".into()));
+            }
+            let key = trailing_key(&arguments, "send-key-panel")?;
             params.insert("key".into(), Value::String(key));
             "surface.send_key"
         }
@@ -813,6 +832,7 @@ fn run_socket_v2_command(
                 "notification.create_for_caller"
             }
         }
+        "clear-notifications" => return run_notification_clear(arguments, options),
         "dismiss-notification" => {
             let id = option_value(&arguments, "--id");
             let all_read = arguments.iter().any(|argument| argument == "--all-read");
@@ -1118,7 +1138,7 @@ fn run_socket_v2_command(
         println!("{}", result.get("url").and_then(Value::as_str).unwrap_or_default());
     } else if command == "is-webview-focused" && !json_output {
         println!("{}", result.get("focused").and_then(Value::as_bool).unwrap_or(false));
-    } else if command == "read-screen" && !json_output {
+    } else if (command == "read-screen" || command == "read-selection") && !json_output {
         println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
     } else {
         print_result(&result, json_output);
@@ -2220,6 +2240,18 @@ mod tests {
             CommandLine::SocketV2 {
                 command: "browser".into(),
                 arguments: vec!["surface:1".into(), "snapshot".into(), "--interactive".into()]
+            }
+        );
+        let (_, selection) = parse_args(
+            &["read-selection".into(), "--surface".into(), "surface:1".into()],
+            Program::Cmux,
+        )
+        .unwrap();
+        assert_eq!(
+            selection,
+            CommandLine::SocketV2 {
+                command: "read-selection".into(),
+                arguments: vec!["--surface".into(), "surface:1".into()]
             }
         );
     }
