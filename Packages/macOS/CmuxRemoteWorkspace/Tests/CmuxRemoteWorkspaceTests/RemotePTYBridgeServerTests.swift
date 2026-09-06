@@ -389,7 +389,8 @@ struct RemotePTYBridgeServerTests {
         defer { client.cancel() }
         client.send(Data("{\"token\":\"\(endpoint.token)\",\"cols\":120,\"rows\":40}\n".utf8))
         #expect(client.waitForReceived { data, _ in
-            String(decoding: data, as: UTF8.self).contains("\"attachment_token\":\"attach-token-1\"")
+            guard let status = String(bytes: data, encoding: .utf8) else { return false }
+            return status.contains("\"attachment_token\":\"attach-token-1\"")
         })
 
         rpc.emit(.codedError(

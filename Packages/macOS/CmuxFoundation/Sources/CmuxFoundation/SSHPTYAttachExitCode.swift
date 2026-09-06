@@ -263,7 +263,7 @@ public enum SSHPTYAttachExitCode: Int32 {
         code: String?,
         message: String
     ) -> SSHPTYAttachExitCode {
-        let normalizedCode = RemotePTYErrorCode.normalized(code)?.lowercased()
+        let normalizedCode = RemotePTYErrorCode.normalized(code)
         guard let normalizedCode else {
             // A code-less transport failure predates the v2 taxonomy, so retain
             // the narrow legacy message fallback for older daemon/app pairs.
