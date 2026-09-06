@@ -1,5 +1,5 @@
 import Testing
-@testable import CmuxAgentJournal
+@testable import CmuxAgentHooks
 
 @Suite("Agent hook abnormal-stop classifier")
 struct AgentHookAbnormalStopClassifierTests {
@@ -40,6 +40,13 @@ struct AgentHookAbnormalStopClassifierTests {
             signal: "Stop",
             message: "Selected model is at capacity; interrupted by user (Ctrl+C)"
         ) == nil)
+    }
+
+    @Test func recognizesStructuredUserRequestedReasonWithEventName() {
+        #expect(classifier.isUserInitiatedStop(
+            signal: "Stop user_requested task_complete",
+            message: "Selected model is at capacity"
+        ))
     }
 
     @Test func embeddedStatusCodesAndSensitiveDetailsFailClosed() {

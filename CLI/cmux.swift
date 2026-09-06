@@ -30047,7 +30047,10 @@ struct CMUXCLI {
                     in: payload,
                     keys: ["reason", "stop_reason", "stopReason", "terminationReason", "termination_reason"]
                 )
-                terminalStopSignal = ["Stop", eventType, terminalReason]
+                // Keep structured stop reasons adjacent to the stop marker so
+                // cancellation aliases (for example `user_requested`) remain
+                // recognizable even when the event name is also present.
+                terminalStopSignal = ["Stop", terminalReason, eventType]
                     .compactMap { $0 }
                     .joined(separator: " ")
                 // Codex persists fatal turn failures inside task_complete.error. Standalone
@@ -30111,7 +30114,7 @@ struct CMUXCLI {
                 sawRelevantTurn = true
                 sawTerminalTurn = true
                 let reason = firstString(in: payload, keys: ["reason", "stop_reason", "stopReason", "terminationReason", "termination_reason", "message", "error"])
-                terminalStopSignal = ["Stop", "turn_aborted", reason].compactMap { $0 }.joined(separator: " ")
+                terminalStopSignal = ["Stop", reason, "turn_aborted"].compactMap { $0 }.joined(separator: " ")
                 terminalBoundaryMessage = reason ?? codexHookStringValue(payload["error"])
                 if let failure = codexHookFailureCandidate(
                     from: payload,
@@ -36363,7 +36366,7 @@ export default CMUXSessionRestore;
                                   lastNotificationStatus: (def.name == "codex" && codexHasActiveBackgroundWork) ? nil : stopNotificationStatus,
                                   updateLastNotificationStatus: true,
                                   runtimeStatus: (hasActiveBackgroundWork && stopNotificationStatus == .idle) ? .running : runtimeStatus(for: stopNotificationStatus),
-                                   updateRuntimeStatus: true)
+                                  updateRuntimeStatus: true)
                 if def.name == "codex", codexHasActiveBackgroundWork {
                     try? store.clearNotificationSummary(sessionId: sessionId)
                 }
