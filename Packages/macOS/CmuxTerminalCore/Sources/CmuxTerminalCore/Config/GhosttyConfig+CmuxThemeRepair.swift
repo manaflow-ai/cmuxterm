@@ -1,10 +1,11 @@
 import Foundation
 
 extension GhosttyConfig {
-    /// Returns the last raw theme directive inside the cmux-managed block.
+    /// Returns the final raw theme directive when the file ends in a managed block.
     static func lastCmuxManagedThemeDirective(in contents: String) -> String? {
         var insideManagedBlock = false
         var rawThemeValue: String?
+        var lastThemeWasManaged = false
 
         for line in contents.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(
@@ -16,7 +17,6 @@ extension GhosttyConfig {
             case "# cmux themes end":
                 insideManagedBlock = false
             default:
-                guard insideManagedBlock else { continue }
                 let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
                 guard parts.count == 2,
                       parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == "theme" else {
@@ -28,10 +28,11 @@ extension GhosttyConfig {
                 if !value.isEmpty {
                     rawThemeValue = value
                 }
+                lastThemeWasManaged = insideManagedBlock
             }
         }
 
-        return rawThemeValue
+        return lastThemeWasManaged ? rawThemeValue : nil
     }
 
     // Shared by the primary config parser and this repair extension. It stays

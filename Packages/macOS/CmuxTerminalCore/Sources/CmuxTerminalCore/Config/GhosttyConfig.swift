@@ -797,9 +797,7 @@ public struct GhosttyConfig {
         // the managed block. Ghostty rejects that form, so mirror the in-memory
         // repair used by the embedded config loader before later includes are
         // processed. Unmarked user config keeps its native one-sided semantics.
-        if let managedThemeValue = lastCmuxManagedThemeDirective(in: contents),
-           config.theme == managedThemeValue,
-           let repairedThemeValue = normalizedCmuxManagedThemeValue(in: contents) {
+        if let repairedThemeValue = normalizedCmuxManagedThemeValue(in: contents) {
             config.parse(
                 "theme = \(repairedThemeValue)",
                 loadingThemesImmediatelyFor: preferredColorScheme
