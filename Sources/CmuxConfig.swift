@@ -2062,7 +2062,8 @@ final class CmuxConfigStore: ObservableObject {
             .builtIn(.newTerminal),
             .builtIn(.newBrowser),
             .builtIn(.splitRight),
-            .builtIn(.splitDown)
+            .builtIn(.splitDown),
+            .builtIn(.voiceRecap)
         ]
         let resolvedButtons = resolvedSurfaceTabBarButtons(
             configuredButtons,
