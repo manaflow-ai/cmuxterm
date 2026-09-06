@@ -52,3 +52,11 @@ def test_every_client_tool_declares_the_max_timeout():
     selected = _S()._to_selected_tools(schema)
     assert selected[0]["temporaryTool"]["timeout"] == TOOL_TIMEOUT == "40s"
     assert selected[0]["temporaryTool"]["client"] == {}
+
+
+def test_call_failures_are_explained():
+    from cmux_voice.ultravox_service import _describe_call_failure
+
+    assert "allowance is used up" in _describe_call_failure(Exception('Ultravox API error 402: {"detail":"Set up your subscription to make more calls."}'))
+    assert "rejected the API key" in _describe_call_failure(Exception("Ultravox API error 401: unauthorized"))
+    assert "TLS" in _describe_call_failure(Exception("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))

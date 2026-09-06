@@ -54,7 +54,11 @@ function describeError(msg: unknown): string {
     return null;
   };
   const text = walk(msg);
-  if (text) return text;
+  if (text) {
+    // Pipecat wraps service errors as "Service#0 exception (/path/file.py:123): <cause>"; keep the cause.
+    const m = text.match(/exception \([^)]*\):\s*(.+)$/s);
+    return m ? m[1].trim() : text;
+  }
   try {
     return JSON.stringify(msg);
   } catch {
@@ -65,6 +69,46 @@ function describeError(msg: unknown): string {
 let client: PipecatClient | null = null;
 let botSpeaking = false;
 let muted = false;
+
+// The SmallWebRTC transport hands us the bot's audio track but does not play
+// it; the app is expected to attach it to an element. Without this the whole
+// pipeline runs (transcripts, tool calls) and the user hears nothing.
+let botAudio: HTMLAudioElement | null = null;
+
+function playBotTrack(track: MediaStreamTrack): void {
+  if (track.kind !== "audio") return;
+  if (!botAudio) {
+    botAudio = document.createElement("audio");
+    botAudio.autoplay = true;
+    (botAudio as any).playsInline = true;
+    botAudio.setAttribute("playsinline", "true");
+    document.body.appendChild(botAudio);
+  }
+  botAudio.srcObject = new MediaStream([track]);
+  botAudio.muted = false;
+  botAudio.volume = 1.0;
+  const attempt = () =>
+    botAudio!.play().then(
+      () => post({ type: "status", status: "audio-playing" }),
+      (e: any) => {
+        post({ type: "error", message: `Speaker playback blocked: ${describeError(e)}` });
+        // Retry shortly; WebKit sometimes rejects the first play() right after srcObject is set.
+        setTimeout(() => void botAudio!.play().catch(() => undefined), 500);
+      },
+    );
+  void attempt();
+}
+
+function stopBotTrack(): void {
+  if (botAudio) {
+    try {
+      botAudio.pause();
+      botAudio.srcObject = null;
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 function mapTransportState(state: TransportState): string | null {
   switch (state) {
@@ -118,10 +162,17 @@ async function start(): Promise<void> {
         post({ type: "tool", name: data.function_name, phase: "started", args: (data as any).args }),
       onLLMFunctionCallStopped: (data) =>
         post({ type: "tool", name: data.function_name, phase: "finished", result: (data as any).result }),
+      onTrackStarted: (track, participant) => {
+        if (!participant || !(participant as any).local) playBotTrack(track);
+      },
+      onTrackStopped: (track, participant) => {
+        if (!participant || !(participant as any).local) stopBotTrack();
+      },
       onServerMessage: (data) => post({ type: "server", data }),
       onDeviceError: (err) => post({ type: "error", message: `Microphone error: ${describeError(err)}` }),
       onError: (msg) => post({ type: "error", message: describeError(msg) }),
       onDisconnected: () => {
+        stopBotTrack();
         post({ type: "status", status: "disconnected" });
         client = null;
       },

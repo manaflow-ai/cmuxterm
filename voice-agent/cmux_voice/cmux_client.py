@@ -103,6 +103,8 @@ class CmuxClient:
         self._recv_buffer = ""
         self._next_id = 1
         self._lock = threading.Lock()
+        self._pace_lock = threading.Lock()
+        self._last_call_at: Dict[str, float] = {}
 
     # ------------------------------------------------------------ connection
 
@@ -190,12 +192,36 @@ class CmuxClient:
             line = f"{CAPABILITY_WIRE_PREFIX} {self.capability} {line}"
         return (line + "\n").encode("utf-8")
 
+    # cmux rate-limits screen reads per connection (surface.read_text: one per
+    # 100 ms). Several tools poll the screen; pace them here so no caller ever
+    # sees "Polling rate limited", and retry once if the server says so.
+    _MIN_INTERVAL_S = {"surface.read_text": 0.12}
+
     def call(self, method: str, params: Optional[Dict[str, Any]] = None, timeout_s: Optional[float] = None) -> Any:
         """Blocking RPC. Raises CmuxError on transport failure or `ok: false`."""
         if self.allowed_methods is not None and method not in self.allowed_methods:
             raise CmuxError(f"Method not allowed for the voice agent: {method}", code="method_not_allowed")
         params = params or {}
         timeout = timeout_s or self.call_timeout_s
+        min_interval = self._MIN_INTERVAL_S.get(method)
+        for attempt in range(3):
+            if min_interval:
+                with self._pace_lock:
+                    wait = self._last_call_at.get(method, 0.0) + min_interval - time.monotonic()
+                    if wait > 0:
+                        time.sleep(wait)
+                    self._last_call_at[method] = time.monotonic()
+            try:
+                return self._call_once(method, params, timeout)
+            except CmuxError as e:
+                retry_ms = (e.data or {}).get("retry_after_ms") if isinstance(e.data, dict) else None
+                if e.code == "rate_limited" and attempt < 2:
+                    time.sleep((retry_ms or 150) / 1000.0 + 0.02)
+                    continue
+                raise
+        raise CmuxError("Rate limited", code="rate_limited")
+
+    def _call_once(self, method: str, params: Dict[str, Any], timeout: float) -> Any:
         with self._lock:
             for attempt in (1, 2):
                 try:

@@ -620,3 +620,26 @@ async def test_open_agent_is_idempotent_when_already_open(fake: FakeCmux):
     sent = [r for r in fake.requests if r["method"] == "surface.send_text"]
     assert sent == [{"method": "surface.send_text", "params": {"surface_id": "S-B1", "text": "Summarize this repo."}}]
     client.close()
+
+
+def test_client_paces_read_text_and_retries_rate_limit(fake: FakeCmux):
+    import time as _t
+    calls = {"n": 0}
+    base = fake.responder
+
+    def responder(m, p):
+        if m == "surface.read_text":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise ValueError("Polling rate limited for this connection")
+            return {"text": "ok"}
+        return base(m, p)
+
+    fake.responder = responder
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    # First call: server says rate limited -> client retries and succeeds.
+    assert client.call("surface.read_text", {"lines": 1})["text"] == "ok"
+    # Back-to-back reads are spaced at least 120 ms apart.
+    t0 = _t.monotonic(); client.call("surface.read_text", {"lines": 1}); client.call("surface.read_text", {"lines": 1})
+    assert _t.monotonic() - t0 >= 0.1
+    client.close()

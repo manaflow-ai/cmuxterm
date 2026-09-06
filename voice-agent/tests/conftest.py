@@ -164,7 +164,11 @@ class FakeCmux:
                         result = self.responder(method, params)
                         resp = {"id": req["id"], "ok": True, "result": result}
                     except Exception as e:  # noqa: BLE001
-                        resp = {"id": req["id"], "ok": False, "error": {"code": "error", "message": str(e)}}
+                        msg = str(e)
+                        if "rate limited" in msg.lower():
+                            resp = {"id": req["id"], "ok": False, "error": {"code": "rate_limited", "message": msg, "data": {"retry_after_ms": 50}}}
+                        else:
+                            resp = {"id": req["id"], "ok": False, "error": {"code": "error", "message": msg}}
                     conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
 
     def methods(self) -> List[str]:
