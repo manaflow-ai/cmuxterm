@@ -26,10 +26,8 @@ export const galleryOptions: Record<string, SessionOption[]> = {
     { id: "thinking", label: "Thinking budget", role: "thinking-budget", kind: "select", value: "16k", choices: [{ value: "off", label: "Off" }, { value: "4k", label: "4k" }, { value: "16k", label: "16k" }, { value: "32k", label: "32k" }] },
   ],
   codex: [
-    { id: "model", label: "Model", kind: "select", value: "gpt-5.4-codex", choices: [
-      { value: "gpt-5.5", label: "GPT-5.5", description: "Frontier model", efforts: ["low", "medium", "high", "xhigh"].map((value) => ({ value, label: value })), defaultEffort: "medium" },
-      { value: "gpt-5.4-codex", label: "GPT-5.4 Codex", description: "Best coding model", efforts: ["medium", "high", "xhigh"].map((value) => ({ value, label: value })), defaultEffort: "medium" },
-      { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", description: "Fast and cheap", efforts: ["low", "medium"].map((value) => ({ value, label: value })), defaultEffort: "low" },
+    { id: "model", label: "Model", kind: "select", value: "gpt-6-astra", choices: [
+      { value: "gpt-6-astra", label: "GPT-6 Astra", description: "Frontier model", efforts: ["low", "medium", "high", "xhigh"].map((value) => ({ value, label: value })), defaultEffort: "medium" },
       { value: "o4-preview", label: "O4 Preview", disabled: true, disabledReason: "Unavailable for this account" },
     ] },
     { id: "effort", label: "Effort", kind: "select", role: "effort", value: "medium", choices: ["low", "medium", "high", "xhigh"].map((v) => ({ value: v, label: v === "xhigh" ? "Extra high" : v[0].toUpperCase() + v.slice(1) })) },
@@ -49,15 +47,15 @@ export const galleryOptions: Record<string, SessionOption[]> = {
   opencode: [
     { id: "model", label: "Model", kind: "select", value: "anthropic/claude-sonnet-5", choices: [
       { value: "anthropic/claude-sonnet-5", label: "Anthropic / Claude Sonnet 5" },
-      { value: "openai/gpt-5.4", label: "OpenAI / GPT-5.4" },
+      { value: "openai/gpt-6-astra", label: "OpenAI / GPT-6 Astra" },
       { value: "google/gemini-3-pro-preview", label: "Google / Gemini 3 Pro Preview" },
     ] },
     { id: "mode", label: "Mode", kind: "select", value: "build", choices: [{ value: "build", label: "Build" }, { value: "plan", label: "Plan" }] },
     { id: "autoApprove", label: "Auto-approve", kind: "toggle", role: "approval", value: true },
   ],
   pi: [
-    { id: "model", label: "Model", kind: "select", value: "openai/gpt-5.4", choices: [
-      { value: "openai/gpt-5.4", label: "OpenAI / GPT-5.4", efforts: ["minimal", "low", "medium", "high"].map((value) => ({ value, label: value })), defaultEffort: "medium" },
+    { id: "model", label: "Model", kind: "select", value: "openai/gpt-6-astra", choices: [
+      { value: "openai/gpt-6-astra", label: "OpenAI / GPT-6 Astra", efforts: ["minimal", "low", "medium", "high"].map((value) => ({ value, label: value })), defaultEffort: "medium" },
       { value: "anthropic/claude-sonnet-5", label: "Anthropic / Claude Sonnet 5" },
       { value: "google/gemini-3-flash-preview", label: "Google / Gemini 3 Flash Preview" },
     ] },

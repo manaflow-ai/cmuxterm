@@ -104,20 +104,20 @@ export const agentModelCatalog = {
       ],
     },
     codex: {
-      defaultModel: "gpt-5.5",
+      defaultModel: "gpt-6-astra",
       models: [
         {
-          id: "gpt-5.5",
-          label: "GPT-5.5",
+          id: "gpt-6-astra",
+          label: "GPT-6 Astra",
           description: "Frontier model for complex coding, computer use, knowledge work, and research workflows in Codex.",
           contextWindow: 1050000,
           supportsOneMillion: true,
           isDefault: true,
         },
         {
-          id: "gpt-5.5-pro",
-          label: "GPT-5.5 Pro",
-          description: "Higher-capability GPT-5.5 model for difficult professional work.",
+          id: "gpt-6-astra-pro",
+          label: "GPT-6 Astra Pro",
+          description: "Higher-capability GPT-6 Astra model for difficult professional work.",
           contextWindow: 1050000,
           supportsOneMillion: true,
         },
@@ -128,7 +128,7 @@ export const agentModelCatalog = {
       models: [
         { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet 5" },
         { id: "anthropic/claude-opus-4-8", label: "Claude Opus 4.8" },
-        { id: "openai/gpt-5.5", label: "GPT-5.5" },
+        { id: "openai/gpt-6-astra", label: "GPT-6 Astra" },
       ],
     },
     gemini: {
