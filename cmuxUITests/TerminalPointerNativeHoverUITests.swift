@@ -5,6 +5,20 @@ import XCTest
 /// Exercises WindowServer cursor tracking with native XCUITest hover events.
 /// Background computer-use clicks do not establish the same mouse-move state.
 final class TerminalPointerNativeHoverUITests: XCTestCase {
+    private struct CursorReference {
+        let hotspot: NSPoint
+        let size: NSSize
+        let image: Data
+    }
+
+    private struct CursorReferences {
+        let arrow: CursorReference
+        let iBeam: CursorReference
+        let dragCopy: CursorReference
+        let pointingHand: CursorReference
+        let resizeLeftRight: CursorReference
+    }
+
     @MainActor
     func testPointerBatchAndNativePaneFocusRestoration() throws {
         let app = XCUIApplication.cmuxTestApplication()
@@ -18,6 +32,7 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
             try? FileManager.default.removeItem(at: directory)
         }
 
+        let cursorReferences = try captureCursorReferences()
         app.launch()
         let window = app.windows.firstMatch
         guard window.waitForExistence(timeout: 20) else {
@@ -27,32 +42,32 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
         let framePoint = window.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: 18, dy: 15))
         framePoint.hover()
-        let frameCursor = try expectCursor(.arrow, app: app, label: "Window frame reference")
+        let frameCursor = try expectCursor(cursorReferences.arrow, app: app, label: "Window frame reference")
         let initial = window.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.4))
         initial.click()
 
         try emit(["text"], app: app, marker: directory.appendingPathComponent("text-ready"))
         framePoint.hover()
         initial.hover()
-        try expectCursor(.iBeam, app: app, label: "Before OSC 22")
+        try expectCursor(cursorReferences.iBeam, app: app, label: "Before OSC 22")
 
         try emit(["copy"], app: app, marker: directory.appendingPathComponent("copy-ready"))
         framePoint.hover()
         initial.hover()
-        let copy = try expectCursor(.dragCopy, app: app, label: "Explicit copy", forbiddenImage: frameCursor)
+        let copy = try expectCursor(cursorReferences.dragCopy, app: app, label: "Explicit copy", forbiddenImage: frameCursor)
 
         // The last unsupported shape must preserve copy, not the earlier crosshair.
         try emit(["crosshair", "copy", "wait"], app: app,
                  marker: directory.appendingPathComponent("batch-ready"))
         framePoint.hover()
         initial.hover()
-        try expectCursor(.dragCopy, app: app, label: "After coalesced batch", expectedImage: copy)
+        try expectCursor(cursorReferences.dragCopy, app: app, label: "After coalesced batch", expectedImage: copy)
 
         // Establish the independent focus-restoration fixture before creating another pane.
         try emit(["pointer"], app: app, marker: directory.appendingPathComponent("pointer-ready"))
         framePoint.hover()
         initial.hover()
-        try expectCursor(.pointingHand, app: app, label: "Pointer before split")
+        try expectCursor(cursorReferences.pointingHand, app: app, label: "Pointer before split")
 
         app.typeKey("d", modifierFlags: .command)
         try emit(["text"], app: app, marker: directory.appendingPathComponent("right-ready"))
@@ -69,25 +84,25 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
         let right = panes[1].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
         right.hover()
         right.click()
-        try expectCursor(.iBeam, app: app, label: "Untouched right pane")
+        try expectCursor(cursorReferences.iBeam, app: app, label: "Untouched right pane")
         left.hover()
         left.click()
-        try expectCursor(.pointingHand, app: app, label: "Original pane after native focus")
+        try expectCursor(cursorReferences.pointingHand, app: app, label: "Original pane after native focus")
         right.hover()
         right.click()
-        try expectCursor(.iBeam, app: app, label: "Right pane remains isolated")
+        try expectCursor(cursorReferences.iBeam, app: app, label: "Right pane remains isolated")
         left.hover()
         left.click()
-        try expectCursor(.pointingHand, app: app, label: "Repeated native focus restoration")
+        try expectCursor(cursorReferences.pointingHand, app: app, label: "Repeated native focus restoration")
 
         let divider = window.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
             dx: (panes[0].frame.maxX + panes[1].frame.minX) / 2 - window.frame.minX,
             dy: panes[0].frame.midY - window.frame.minY
         ))
         divider.hover()
-        try expectCursor(.resizeLeftRight, app: app, label: "Divider cursor overrides OSC 22")
+        try expectCursor(cursorReferences.resizeLeftRight, app: app, label: "Divider cursor overrides OSC 22")
         left.hover()
-        try expectCursor(.pointingHand, app: app, label: "Pointer restored after divider hover")
+        try expectCursor(cursorReferences.pointingHand, app: app, label: "Pointer restored after divider hover")
     }
 
     @MainActor
@@ -108,14 +123,15 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
     @MainActor
     @discardableResult
     private func expectCursor(
-        _ expected: NSCursor, app: XCUIApplication, label: String,
+        _ expected: CursorReference, app: XCUIApplication, label: String,
         expectedImage: Data? = nil, forbiddenImage: Data? = nil
     ) throws -> Data {
         // Never compare factory object identity. Copy and arrow share geometry,
         // so copy additionally excludes the captured frame cursor and the batch
-        // must match the live copy reference's PNG bytes.
-        let hotspot = expected.hotSpot
-        let size = expected.image.size
+        // must match the live copy reference's PNG bytes. References are captured
+        // before launch because factory images can be empty in the UI-test runner.
+        let hotspot = expected.hotspot
+        let size = expected.size
         let capture: @Sendable () -> Data? = {
             guard let tiff = NSCursor.currentSystem?.image.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
@@ -126,6 +142,7 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
                 guard let cursor = NSCursor.currentSystem,
                       cursor.hotSpot == hotspot, cursor.image.size == size,
                       let data = capture() else { return false }
+                guard data == expected.image else { return false }
                 if let expectedImage, data != expectedImage { return false }
                 if let forbiddenImage, data == forbiddenImage { return false }
                 return true
@@ -148,6 +165,41 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
             throw failure("\(label): expected hotspot=\(hotspot), size=\(size); actual \(actual)")
         }
         return try XCTUnwrap(capture(), "System cursor became unavailable")
+    }
+
+    @MainActor
+    private func captureCursorReferences() throws -> CursorReferences {
+        guard let current = NSCursor.currentSystem else {
+            throw failure("Cannot calibrate standard cursors without a system cursor")
+        }
+        defer { current.set() }
+        let cursors: [NSCursor] = [.arrow, .iBeam, .dragCopy, .pointingHand, .resizeLeftRight]
+        let references = try cursors.map { cursor in
+            // Capture the OS-rendered reference before launching the app. Cursor
+            // setters never run between native hover events and their assertions.
+            cursor.set()
+            guard let active = NSCursor.currentSystem,
+                  let tiff = active.image.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiff),
+                  let image = bitmap.representation(using: .png, properties: [:]) else {
+                throw failure("System cursor did not materialize after setting a standard cursor")
+            }
+            let geometry = CursorReference(hotspot: active.hotSpot, size: active.image.size, image: image)
+            guard geometry.size.width > 0, geometry.size.height > 0 else {
+                throw failure("Standard cursor did not materialize: \(geometry.size)")
+            }
+            return geometry
+        }
+        guard Set(references.map(\.image)).count == references.count else {
+            throw failure("Standard cursor calibration produced duplicate cursor images")
+        }
+        return CursorReferences(
+            arrow: references[0],
+            iBeam: references[1],
+            dragCopy: references[2],
+            pointingHand: references[3],
+            resizeLeftRight: references[4]
+        )
     }
 
     private func failure(_ message: String) -> NSError {
