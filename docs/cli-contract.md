@@ -149,6 +149,7 @@ Environment:
 | `send` | Send text to a terminal surface. |
 | `send-key` | Send one key to a terminal surface. |
 | `rpc surface.scroll` | Scroll a terminal viewport: `{"direction": "up\|down\|top\|bottom", "pages": n}` plus the usual surface selectors. Runs Ghostty's page-scroll bindings; not focus-intent. |
+| `rpc surface.rename` | Set a surface's custom title: `{"surface_id"?: id, "title": text}` (empty title clears it; default: the focused surface). |
 | `rpc surface.focus_input` | Focus a surface (default: the focused one) and give it keyboard focus; returns `input_focused`. Focus-intent. |
 | `send-panel` | Send text to a panel/surface. |
 | `send-key-panel` | Send one key to a panel/surface. |

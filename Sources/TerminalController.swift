@@ -3154,6 +3154,7 @@ class TerminalController {
             "surface.send_key",
             "surface.scroll",
             "surface.focus_input",
+            "surface.rename",
             "surface.report_tty",
             "surface.report_pwd",
             "surface.report_git_branch",

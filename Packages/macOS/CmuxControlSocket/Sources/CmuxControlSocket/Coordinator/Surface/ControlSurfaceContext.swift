@@ -264,6 +264,15 @@ public protocol ControlSurfaceContext: AnyObject {
         surfaceID: UUID?
     ) -> (resolution: ControlSurfaceFocusResolution, inputFocused: Bool)
 
+    /// Sets (or clears, with an empty title) a surface's user-facing custom
+    /// title, for `surface.rename`. A nil `surfaceID` targets the focused
+    /// surface of the resolved workspace.
+    func controlSurfaceRename(
+        routing: ControlRoutingSelectors,
+        surfaceID: UUID?,
+        title: String
+    ) -> ControlSurfaceFocusResolution
+
     // `surface.read_text` has no witness here: it runs on the socket-worker lane
     // (issue #5757) so its full-scrollback formatting stays off the main actor,
     // which the @MainActor coordinator seam cannot host. The app dispatches it

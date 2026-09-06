@@ -128,4 +128,35 @@ extension TerminalController {
         let inputFocused = context?.keyboardFocusCoordinator.focusTerminal() ?? false
         return (resolution, inputFocused)
     }
+
+    func controlSurfaceRename(
+        routing: ControlRoutingSelectors,
+        surfaceID: UUID?,
+        title: String
+    ) -> ControlSurfaceFocusResolution {
+        guard let tabManager = resolveTabManager(routing: routing) else {
+            return .tabManagerUnavailable
+        }
+        guard let ws = resolveSurfaceWorkspace(routing: routing, tabManager: tabManager) else {
+            return .workspaceNotFound
+        }
+        let targetID: UUID
+        if let surfaceID {
+            targetID = surfaceID
+        } else if let focused = ws.focusedPanelId {
+            targetID = focused
+        } else {
+            return .surfaceNotFound(UUID())
+        }
+        guard ws.panels[targetID] != nil else {
+            return .surfaceNotFound(targetID)
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = ws.setPanelCustomTitle(panelId: targetID, title: trimmed.isEmpty ? nil : trimmed, source: .user)
+        return .focused(
+            windowID: v2ResolveWindowId(tabManager: tabManager),
+            workspaceID: ws.id,
+            surfaceID: targetID
+        )
+    }
 }

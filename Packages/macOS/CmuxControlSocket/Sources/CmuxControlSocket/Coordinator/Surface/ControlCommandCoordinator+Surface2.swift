@@ -304,6 +304,45 @@ extension ControlCommandCoordinator {
         return surfaceSendResult(resolution, refs: refs, context: context)
     }
 
+    /// `surface.rename` — set a surface's custom title (empty title clears it).
+    func surfaceRename(_ params: [String: JSONValue]) -> ControlCallResult {
+        let routing = routingSelectors(params)
+        guard context?.controlSurfaceRoutingResolvesTabManager(routing: routing) ?? false else {
+            return .err(code: "unavailable", message: "TabManager not available", data: nil)
+        }
+        if params["surface_id"] != nil, uuid(params, "surface_id") == nil {
+            return .err(code: "invalid_params", message: "Missing or invalid surface_id", data: nil)
+        }
+        guard let title = rawString(params, "title") else {
+            return .err(code: "invalid_params", message: "Missing title", data: nil)
+        }
+        let resolution = context?.controlSurfaceRename(
+            routing: routing,
+            surfaceID: uuid(params, "surface_id"),
+            title: title
+        ) ?? .tabManagerUnavailable
+        switch resolution {
+        case .tabManagerUnavailable:
+            return .err(code: "unavailable", message: "TabManager not available", data: nil)
+        case .workspaceNotFound:
+            return .err(code: "not_found", message: "Workspace not found", data: nil)
+        case .surfaceNotFound(let id):
+            return .err(code: "not_found", message: "Surface not found", data: .object(["surface_id": .string(id.uuidString)]))
+        case .dockUnavailable(let message):
+            return .err(code: "unavailable", message: message, data: nil)
+        case .focused(let windowID, let workspaceID, let surfaceID):
+            return .ok(.object([
+                "workspace_id": .string(workspaceID.uuidString),
+                "workspace_ref": ref(.workspace, workspaceID),
+                "surface_id": .string(surfaceID.uuidString),
+                "surface_ref": ref(.surface, surfaceID),
+                "window_id": orNull(windowID?.uuidString),
+                "window_ref": ref(.window, windowID),
+                "title": .string(title.trimmingCharacters(in: .whitespacesAndNewlines)),
+            ]))
+        }
+    }
+
     /// `surface.focus_input` — focus a surface and give it keyboard focus.
     /// Focus-intent by definition (the caller asked for the cursor).
     func surfaceFocusInput(_ params: [String: JSONValue]) -> ControlCallResult {
