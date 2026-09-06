@@ -575,6 +575,19 @@ fn run_generic_command(
         alias => alias,
     };
 
+    if command == "automation" {
+        return run_automation_command(&arguments, options);
+    }
+    if command == "remotes" {
+        return run_remotes_command(&arguments, options);
+    }
+    if command == "mobile" {
+        return run_mobile_command(&arguments, options);
+    }
+    if command == "vm" {
+        return run_vm_command(&arguments, options);
+    }
+
     // These commands are deliberately v1 in Swift. Preserve the exact wire
     // token and let the server own compatibility validation.
     if matches!(
@@ -605,6 +618,9 @@ fn run_generic_command(
     if command == "capture-pane" {
         return run_socket_v2_command("read-screen", arguments, options);
     }
+    if command == "resize-pane" {
+        return run_resize_pane_command(&arguments, options);
+    }
 
     let (method, mut params) = generic_method_and_params(command, &arguments, &options)?;
     let timeout = match command {
@@ -618,6 +634,400 @@ fn run_generic_command(
         timeout,
     )?;
     print_result(&format_ids(result, options.id_format.as_deref().unwrap_or("refs")), options.json);
+    Ok(())
+}
+
+fn run_automation_command(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("list");
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!("Usage: cmux automation <list|show|test|enable|disable|logs|reload> [args]");
+        return Ok(());
+    }
+    let rest = &arguments[1..];
+    let mut params = serde_json::Map::new();
+    let method = match sub {
+        "list" => "automation.list",
+        "show" | "enable" | "disable" => {
+            let id = rest.first().filter(|value| !value.starts_with('-')).ok_or_else(|| {
+                CliError::Usage("Usage: cmux automation <show|enable|disable> <id>".into())
+            })?;
+            params.insert("id".into(), Value::String(id.clone()));
+            match sub {
+                "show" => "automation.show",
+                "enable" => "automation.enable",
+                _ => "automation.disable",
+            }
+        }
+        "test" => {
+            let id = rest.first().filter(|value| !value.starts_with('-')).ok_or_else(|| {
+                CliError::Usage("Usage: cmux automation test <id> --event <json>".into())
+            })?;
+            let marker =
+                rest.iter().position(|value| value == "--event" || value.starts_with("--event="));
+            let Some(marker) = marker else {
+                return Err(CliError::Usage("automation test requires --event <json>".into()));
+            };
+            let raw = rest[marker]
+                .strip_prefix("--event=")
+                .map(ToOwned::to_owned)
+                .or_else(|| rest.get(marker + 1).cloned())
+                .ok_or_else(|| CliError::Usage("automation test requires --event <json>".into()))?;
+            let event = if let Some(path) = raw.strip_prefix('@') {
+                let contents = std::fs::read_to_string(path).map_err(|error| {
+                    CliError::Usage(format!("automation test event must be a JSON object: {error}"))
+                })?;
+                serde_json::from_str::<Value>(&contents)
+            } else {
+                serde_json::from_str::<Value>(&raw)
+            }
+            .map_err(|_| CliError::Usage("automation test event must be a JSON object".into()))?;
+            if !event.is_object() {
+                return Err(CliError::Usage("automation test event must be a JSON object".into()));
+            }
+            params.insert("id".into(), Value::String(id.clone()));
+            params.insert("event".into(), event);
+            "automation.test"
+        }
+        "logs" => {
+            if let Some(limit) = option_value(rest, "--limit") {
+                params.insert(
+                    "limit".into(),
+                    Value::Number(
+                        limit
+                            .parse::<u64>()
+                            .map_err(|_| {
+                                CliError::Usage("automation logs --limit must be an integer".into())
+                            })?
+                            .into(),
+                    ),
+                );
+            }
+            "automation.logs"
+        }
+        "reload" => "automation.reload",
+        _ => {
+            return Err(CliError::Usage(
+                "Usage: cmux automation <list|show|test|enable|disable|logs|reload> [args]".into(),
+            ));
+        }
+    };
+    let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+    if options.json || matches!(sub, "show" | "test" | "logs") {
+        print_result(&result, true);
+    } else if sub == "list" {
+        let rules = result.get("rules").and_then(Value::as_array).cloned().unwrap_or_default();
+        if rules.is_empty() {
+            println!("No automation rules");
+        } else {
+            for rule in rules {
+                let id = rule.get("id").and_then(Value::as_str).unwrap_or("?");
+                let state = if rule.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
+                    "enabled"
+                } else {
+                    "disabled"
+                };
+                let event = rule
+                    .get("event")
+                    .or_else(|| rule.get("category"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("*");
+                println!("{id} [{state}] when {event}");
+            }
+        }
+    } else if sub == "reload" {
+        println!("Automation configuration reload requested");
+    } else {
+        let id = result.get("id").and_then(Value::as_str).unwrap_or("?");
+        let enabled = result.get("enabled").and_then(Value::as_bool).unwrap_or(false);
+        println!("{} {id}", if enabled { "Enabled" } else { "Disabled" });
+    }
+    Ok(())
+}
+
+fn run_remotes_command(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("list");
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!("Usage: cmux remotes <list|add|remove> [options]");
+        return Ok(());
+    }
+    let rest = &arguments[1..];
+    let mut params = serde_json::Map::new();
+    let method = match sub {
+        "list" | "ls" => "remotes.list",
+        "add" => {
+            let name = rest
+                .iter()
+                .find(|value| !value.starts_with('-'))
+                .cloned()
+                .ok_or_else(|| CliError::Usage("remotes add requires a name".into()))?;
+            let mut routes = Vec::new();
+            let mut index = 0;
+            while index < rest.len() {
+                if rest[index] == "--route" {
+                    let route = rest.get(index + 1).ok_or_else(|| {
+                        CliError::Usage("remotes add requires --route host:port".into())
+                    })?;
+                    routes.push(route.clone());
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
+            if routes.is_empty() {
+                return Err(CliError::Usage(
+                    "remotes add requires at least one --route host:port".into(),
+                ));
+            }
+            params.insert("name".into(), Value::String(name));
+            params.insert(
+                "routes".into(),
+                Value::Array(routes.into_iter().map(Value::String).collect()),
+            );
+            if let Some(tag) = option_value(rest, "--tag") {
+                params.insert("tag".into(), Value::String(tag));
+            }
+            "remotes.add"
+        }
+        "remove" | "rm" | "delete" => {
+            let target =
+                rest.iter().find(|value| !value.starts_with('-')).cloned().ok_or_else(|| {
+                    CliError::Usage("remotes remove requires a name or deviceId".into())
+                })?;
+            params.insert("target".into(), Value::String(target));
+            "remotes.remove"
+        }
+        _ => return Err(CliError::Usage("Usage: cmux remotes <list|add|remove> [options]".into())),
+    };
+    let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+    if options.json {
+        print_result(&result, true);
+    } else if sub == "list" || sub == "ls" {
+        let remotes = result.get("remotes").and_then(Value::as_array).cloned().unwrap_or_default();
+        if remotes.is_empty() {
+            println!("No remotes. Add one: cmux remotes add <name> --route <host:port>");
+        } else {
+            for remote in remotes {
+                println!(
+                    "{}  {}",
+                    remote.get("name").and_then(Value::as_str).unwrap_or("?"),
+                    remote
+                        .get("deviceId")
+                        .or_else(|| remote.get("device_id"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("?")
+                );
+            }
+        }
+    } else if sub == "add" {
+        println!("OK");
+    } else {
+        println!("OK removed");
+    }
+    Ok(())
+}
+
+fn run_mobile_command(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("help");
+    let rest = &arguments[1..];
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!(
+            "Usage: cmux mobile set-font <points> [--surface <id>] [--workspace <id>]\n       cmux mobile compatible-tags <list|set|add|remove|clear>"
+        );
+        return Ok(());
+    }
+    let (method, mut params) = match sub {
+        "set-font" => {
+            let size = rest
+                .iter()
+                .find(|value| !value.starts_with('-'))
+                .ok_or_else(|| CliError::Usage("Usage: cmux mobile set-font <points>".into()))?;
+            let size = size.parse::<f64>().map_err(|_| {
+                CliError::Usage("mobile set-font requires a positive number".into())
+            })?;
+            if !size.is_finite() || size <= 0.0 {
+                return Err(CliError::Usage("mobile set-font requires a positive number".into()));
+            }
+            (
+                "mobile.terminal.set_font",
+                serde_json::Map::from_iter([("font_size".into(), Value::from(size))]),
+            )
+        }
+        "compatible-tags" => {
+            let action = rest.first().map(String::as_str).unwrap_or("list");
+            let tags = rest
+                .iter()
+                .skip(1)
+                .flat_map(|value| value.split(','))
+                .filter(|value| !value.is_empty())
+                .map(|value| Value::String(value.to_ascii_lowercase()))
+                .collect::<Vec<_>>();
+            if action == "list" {
+                ("mobile.compatible_tags.get", serde_json::Map::new())
+            } else {
+                (
+                    "mobile.compatible_tags.set",
+                    serde_json::Map::from_iter([("tags".into(), Value::Array(tags))]),
+                )
+            }
+        }
+        _ => return Err(CliError::Usage("Usage: cmux mobile set-font|compatible-tags".into())),
+    };
+    if let Some(surface) = option_value(rest, "--surface") {
+        params.insert("surface_id".into(), Value::String(surface));
+    }
+    if let Some(workspace) = option_value(rest, "--workspace") {
+        params.insert("workspace_id".into(), Value::String(workspace));
+    }
+    let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+    if options.json {
+        print_result(&result, true);
+    } else {
+        print_result(&result, false);
+    }
+    Ok(())
+}
+
+fn run_vm_command(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("list");
+    let rest = &arguments[1..];
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!("Usage: cmux vm <ls|new|status|stats|snapshot|fork|restore|exec|ssh|rm>");
+        return Ok(());
+    }
+    let mut params = serde_json::Map::new();
+    let method = match sub {
+        "ls" | "list" => "vm.list",
+        "status" | "info" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.status"
+        }
+        "stats" | "top" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.stats"
+        }
+        "snapshot" => {
+            insert_first_value(&mut params, rest, "id")?;
+            if let Some(name) = option_value(rest, "--name") {
+                params.insert("name".into(), Value::String(name));
+            }
+            "vm.snapshot"
+        }
+        "fork" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.fork"
+        }
+        "restore" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.restore"
+        }
+        "rename" => {
+            insert_first_value(&mut params, rest, "id")?;
+            if let Some(name) = option_value(rest, "--name") {
+                params.insert("name".into(), Value::String(name));
+            }
+            "vm.rename"
+        }
+        "rm" | "remove" | "delete" | "destroy" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.destroy"
+        }
+        "ssh" => {
+            insert_first_value(&mut params, rest, "id")?;
+            "vm.ssh_info"
+        }
+        "exec" => {
+            insert_first_value(&mut params, rest, "id")?;
+            let separator = rest.iter().position(|value| value == "--");
+            let command = separator.map(|index| rest[index + 1..].join(" ")).unwrap_or_else(|| {
+                rest.iter()
+                    .skip(1)
+                    .filter(|value| !value.starts_with('-'))
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            });
+            if command.is_empty() {
+                return Err(CliError::Usage("vm exec requires a command".into()));
+            }
+            params.insert("command".into(), Value::String(command));
+            params.insert("timeout_ms".into(), Value::Number(30_000_u64.into()));
+            "vm.exec"
+        }
+        "new" | "create" => {
+            for (flag, key) in [
+                ("--image", "image"),
+                ("--provider", "provider"),
+                ("--name", "name"),
+                ("--workspace", "workspace_id"),
+            ] {
+                if let Some(value) = option_value(rest, flag) {
+                    params.insert(key.into(), Value::String(value));
+                }
+            }
+            if let Some(size) = option_value(rest, "--size") {
+                params.insert("size".into(), Value::String(size));
+            }
+            "vm.create"
+        }
+        "prompt" | "skill" => "vm.cloud_prompt",
+        _ => {
+            for value in rest.iter().filter(|value| !value.starts_with('-')).take(1) {
+                params.insert("id".into(), Value::String(value.clone()));
+            }
+            return Err(CliError::Usage(format!("Unsupported vm subcommand: {sub}")));
+        }
+    };
+    let result = socket(&options)?.send_v2_with_timeout(
+        method,
+        Value::Object(params),
+        Duration::from_secs(120),
+    )?;
+    print_result(&result, options.json);
+    Ok(())
+}
+
+fn insert_first_value(
+    params: &mut serde_json::Map<String, Value>,
+    arguments: &[String],
+    key: &str,
+) -> Result<(), CliError> {
+    let value = arguments
+        .iter()
+        .find(|value| !value.starts_with('-'))
+        .cloned()
+        .ok_or_else(|| CliError::Usage(format!("{key} is required")))?;
+    params.insert(key.into(), Value::String(value));
+    Ok(())
+}
+
+fn run_resize_pane_command(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let direction = if arguments.iter().any(|value| value == "-L") {
+        "left"
+    } else if arguments.iter().any(|value| value == "-U") {
+        "up"
+    } else if arguments.iter().any(|value| value == "-D") {
+        "down"
+    } else {
+        "right"
+    };
+    let amount = option_value(arguments, "--amount")
+        .unwrap_or_else(|| "1".into())
+        .parse::<u64>()
+        .map_err(|_| CliError::Usage("--amount must be greater than 0".into()))?;
+    if amount == 0 {
+        return Err(CliError::Usage("--amount must be greater than 0".into()));
+    }
+    let (_, mut params) = generic_method_and_params("resize-pane", arguments, &options)?;
+    params.remove("args");
+    params.remove("amount");
+    params.remove("L");
+    params.remove("R");
+    params.remove("U");
+    params.remove("D");
+    params.insert("direction".into(), Value::String(direction.into()));
+    params.insert("amount".into(), Value::Number(amount.into()));
+    let result = socket(&options)?.send_v2("pane.resize", Value::Object(params))?;
+    print_result(&result, options.json);
     Ok(())
 }
 
@@ -3507,5 +3917,86 @@ mod tests {
         assert_eq!(generic_method_name("move-surface", &params), "surface.move");
         assert_eq!(generic_method_name("tree", &params), "system.tree");
         assert_eq!(generic_method_name("capture-pane", &params), "capture-pane");
+    }
+
+    #[test]
+    fn automation_show_matches_swift_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "automation.show");
+            assert_eq!(request["params"]["id"], "rule-1");
+            stream.write_all(b"{\"ok\":true,\"result\":{\"id\":\"rule-1\"}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_automation_command(&["show".into(), "rule-1".into()], options).unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn remotes_add_matches_swift_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "remotes.add");
+            assert_eq!(request["params"]["name"], "studio");
+            assert_eq!(request["params"]["routes"][0], "100.64.1.2:51001");
+            stream.write_all(b"{\"ok\":true,\"result\":{\"deviceId\":\"dev-1\"}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_remotes_command(
+            &["add".into(), "studio".into(), "--route".into(), "100.64.1.2:51001".into()],
+            options,
+        )
+        .unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn mobile_set_font_matches_swift_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "mobile.terminal.set_font");
+            assert_eq!(request["params"]["font_size"], 13.0);
+            stream.write_all(b"{\"ok\":true,\"result\":{\"delivered\":true}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_mobile_command(&["set-font".into(), "13".into()], options).unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn vm_status_matches_swift_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "vm.status");
+            assert_eq!(request["params"]["id"], "vm-1");
+            stream.write_all(b"{\"ok\":true,\"result\":{\"id\":\"vm-1\"}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_vm_command(&["status".into(), "vm-1".into()], options).unwrap();
+        worker.join().unwrap();
     }
 }

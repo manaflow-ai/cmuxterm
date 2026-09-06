@@ -64,7 +64,7 @@
       "id": "agents-and-hooks",
       "commands": ["hooks", "codex", "claude-hook", "claude-teams", "codex-teams", "omo", "omx", "omc"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
+      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#source_inventory_labels_are_parseable_by_rust"]
     },
     {
       "id": "cloud-and-remotes",

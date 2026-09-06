@@ -74,9 +74,11 @@ socket refresh/debug controls, limited AI accounts, `cr add codex`, and
 CodeRouter delegation. All 126 source-derived dispatch labels now parse in
 Rust, including aliases. Commands without a dedicated Rust adapter pass
 through a typed generic socket adapter so they no longer fail as unknown
-commands. The generic adapter preserves command, subcommand, context, and
-flag fields, but it does not prove Swift-compatible validation, output, or
-side effects. The new topology and browser commands still need
+commands. Automation, remotes, mobile font/tags, and common VM status,
+snapshot, exec, and lifecycle verbs now have command-specific method and
+parameter adapters. The generic adapter preserves command, subcommand,
+context, and flag fields, but it does not prove Swift-compatible validation,
+output, or side effects. The new topology and browser commands still need
 Swift-compatible handle normalization, help text, output formatting, and
 side-effect conformance.
 The latest stripped Rust candidate binaries from the packaging script are
@@ -103,7 +105,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (22 tests).
+- `cargo test -p cmux-cli` (28 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -121,6 +123,9 @@ The following checks passed for the current slice:
   cloud/remotes/mobile, topology mutations, tmux compatibility aliases, and
   agent hook labels. This is parser and request-shape coverage only; it is not
   family completion evidence.
+- Command-specific request tests for automation show, remotes add, mobile
+  terminal font, and VM status. These tests verify the Swift method and
+  parameter shape through a fake Unix socket.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
