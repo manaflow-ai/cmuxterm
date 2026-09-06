@@ -1368,6 +1368,8 @@ fn run_browser_command(
         "get-url",
         "focus-webview",
         "is-webview-focused",
+        "profile",
+        "profiles",
     ];
     let mut command_args = arguments;
     let mut positional_surface = if command_args.first().is_some_and(|value| {
@@ -1437,6 +1439,74 @@ fn run_browser_command(
     };
 
     match subcommand.as_str() {
+        "profile" | "profiles" => {
+            let values = positional_values(&rest, &["--name", "--profile"]);
+            let profile_command = values.first().map(String::as_str).unwrap_or("list");
+            let profile_command = match profile_command {
+                "ls" => "list",
+                "add" | "new" => "create",
+                "rm" | "remove" => "delete",
+                value => value,
+            };
+            let mut profile_params = serde_json::Map::new();
+            let method = match profile_command {
+                "list" => "browser.profiles.list",
+                "create" => {
+                    let name = option_value(&rest, "--name")
+                        .or_else(|| (values.len() > 1).then(|| values[1..].join(" ")));
+                    let name = name.filter(|value| !value.trim().is_empty()).ok_or_else(|| {
+                        CliError::Usage("browser profiles create requires a name".into())
+                    })?;
+                    profile_params.insert("name".into(), Value::String(name));
+                    "browser.profiles.create"
+                }
+                "rename" => {
+                    let profile = option_value(&rest, "--profile")
+                        .or_else(|| values.get(1).cloned())
+                        .ok_or_else(|| {
+                            CliError::Usage("browser profiles rename requires a profile".into())
+                        })?;
+                    let name = option_value(&rest, "--name")
+                        .or_else(|| (values.len() > 2).then(|| values[2..].join(" ")))
+                        .ok_or_else(|| {
+                            CliError::Usage("browser profiles rename requires a new name".into())
+                        })?;
+                    profile_params.insert("profile".into(), Value::String(profile));
+                    profile_params.insert("new_name".into(), Value::String(name));
+                    "browser.profiles.rename"
+                }
+                "clear" => {
+                    if has_flag("--all") {
+                        profile_params.insert("all".into(), Value::Bool(true));
+                    } else if let Some(profile) =
+                        option_value(&rest, "--profile").or_else(|| values.get(1).cloned())
+                    {
+                        profile_params.insert("profile".into(), Value::String(profile));
+                    } else {
+                        return Err(CliError::Usage(
+                            "browser profiles clear requires a profile or --all".into(),
+                        ));
+                    }
+                    profile_params.insert("force".into(), Value::Bool(has_flag("--force")));
+                    "browser.profiles.clear"
+                }
+                "delete" => {
+                    let profile = option_value(&rest, "--profile")
+                        .or_else(|| values.get(1).cloned())
+                        .ok_or_else(|| {
+                            CliError::Usage("browser profiles delete requires a profile".into())
+                        })?;
+                    profile_params.insert("profile".into(), Value::String(profile));
+                    "browser.profiles.delete"
+                }
+                other => {
+                    return Err(CliError::Usage(format!(
+                        "Unsupported browser profiles subcommand: {other}"
+                    )));
+                }
+            };
+            let _ = send(method, profile_params)?;
+        }
         "open" | "open-split" | "new" => {
             let url =
                 positional_values(&rest, &["--workspace", "--window", "--focus", "--profile"])

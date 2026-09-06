@@ -55,7 +55,7 @@ All 12 families remain incomplete:
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
 | topology | partial | window inspection, basic window actions, workspace and pane/surface inspection output are ported; handle normalization, tree, tab, and exact mutation output remain |
 | terminal-and-notifications | partial | terminal reads, selection, sends, panel aliases, sidebar status/progress/log forwarding, and basic notification actions are ported; capture, feed, advanced targeting, and exact metadata output remain |
-| browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press aliases are ported; profiles, storage, selector normalization, and exact automation output remain |
+| browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press, and profile lifecycle aliases are ported; storage, selector normalization, and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
 | cloud-and-remotes | pending | VM, cloud, remote, SSH, and remote terminal paths |
 | compatibility | pending | tmux compatibility and hidden agent commands |
@@ -64,7 +64,7 @@ The Rust candidate currently provides the migration slice for capabilities,
 context, RPC, ping, identify, window inspection and basic window actions,
 workspace and pane inspection and creation, workspace close/select/rename,
 surface creation, terminal text reads and sends, basic notification actions,
-common browser navigation and automation aliases, auth status/sign-in/sign-out,
+common browser navigation, automation, and profile aliases, auth status/sign-in/sign-out,
 socket refresh/debug controls, limited AI accounts, `cr add codex`, and
 CodeRouter delegation. The new topology and browser commands still need
 Swift-compatible handle normalization, help text, output formatting, and
@@ -102,6 +102,7 @@ The following checks passed for the current slice:
 - Browser navigation alias parsing tests.
 - Browser namespace parsing coverage for the supported automation verbs.
 - Browser snapshot socket conformance test (method and surface context).
+- Browser profile lifecycle request routing.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace and surface creation command parsing and boolean flag tests.
