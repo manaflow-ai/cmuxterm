@@ -638,16 +638,18 @@ const BUNDLE_MARKERS = { probe: "__CMUX_PROBE__", devices: "__CMUX_DEVICES__", t
 /**
  * Prints `1` when the daemon process that owns the cloud session serves the
  * trusted-carrier listener: it was started with the flag or the env, AND the
- * binary it runs knows the flag (its `--help` names it). An older binary
- * ignores the env, so the env alone proves nothing; asking the running binary
- * itself also keeps the answer honest while the pinned manifest and the
- * machine's install disagree. Anything else prints `0`.
+ * binary it runs parses the flag (`--remote-ws-trusted-carrier --version`
+ * exits 0; an older binary rejects the unknown argument with exit 2 before
+ * it reaches `--version`). An older binary ignores the env, so the env alone
+ * proves nothing; asking the running binary itself also keeps the answer
+ * honest while the pinned manifest and the machine's install disagree.
+ * Anything else prints `0`.
  */
 export function cmuxTuiTrustedListenerProbe(): string {
   return (
     "p=$(pgrep -f 'cmux-tui server [s]tart' | head -n1); " +
     `if [ -n "$p" ] && { tr '\\0' '\\n' < "/proc/$p/environ" 2>/dev/null | grep -qx ${shellQuote(`${CMUX_TUI_TRUSTED_CARRIER_ENV}=1`)} || tr '\\0' '\\n' < "/proc/$p/cmdline" 2>/dev/null | grep -qx -- ${shellQuote(CMUX_TUI_TRUSTED_CARRIER_FLAG)}; }` +
-    ` && "/proc/$p/exe" --help 2>/dev/null | grep -q -- ${shellQuote(CMUX_TUI_TRUSTED_CARRIER_FLAG)}; then echo 1; else echo 0; fi`
+    ` && "/proc/$p/exe" ${CMUX_TUI_TRUSTED_CARRIER_FLAG} --version >/dev/null 2>&1; then echo 1; else echo 0; fi`
   );
 }
 

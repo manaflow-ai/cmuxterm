@@ -843,8 +843,9 @@ describe("cmux-tui attach bundle", () => {
     expect(probe).toContain("'CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1'");
     expect(probe).toContain("/proc/$p/cmdline");
     expect(probe).toContain("'--remote-ws-trusted-carrier'");
-    // The running binary answers for itself, so a stale install never reads as trusted.
-    expect(probe).toContain("\"/proc/$p/exe\" --help");
+    // The running binary answers for itself, so a stale install never reads as
+    // trusted: an old parser rejects the flag before it reaches --version.
+    expect(probe).toContain("\"/proc/$p/exe\" --remote-ws-trusted-carrier --version >/dev/null 2>&1");
     expect(probe).not.toContain("sha256sum");
   });
 
