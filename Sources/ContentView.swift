@@ -16026,9 +16026,9 @@ struct TabItemView: View, Equatable {
                 if workspaceSnapshot.splitPaneCount > 1 {
                     HStack(spacing: 3) {
                         Image(systemName: "rectangle.split.2x1")
-                            .font(.system(size: scaledFontSize(9), weight: .semibold))
+                            .font(magnifiedFont(scaledFontSize(9), weight: .semibold))
                         Text(verbatim: "\(workspaceSnapshot.splitPaneCount)")
-                            .font(.system(size: scaledFontSize(9), weight: .semibold))
+                            .font(magnifiedFont(scaledFontSize(9), weight: .semibold))
                     }
                     .foregroundColor(activeSecondaryColor(0.78))
                     .frame(minWidth: 27, minHeight: 15)

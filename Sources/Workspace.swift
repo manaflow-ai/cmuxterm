@@ -3129,6 +3129,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         set { restoredAgentLifecycle.invalidatedFingerprintsByPanelId = newValue }
     }
     private var pendingTerminalInputObserversByPanelId: [UUID: [WorkspacePendingTerminalInputObserver]] = [:]
+    // WorkspaceSidebarObservation already aggregates, debounces, and bridges
+    // Combine publishers into the sidebar's async observation tasks. Keep this
+    // topology-only signal on that existing Combine boundary instead of adding
+    // a parallel async event path for one layout invalidation.
     private let sidebarLayoutObservationSubject = PassthroughSubject<Void, Never>()
     var sidebarLayoutObservationPublisher: AnyPublisher<Void, Never> {
         sidebarLayoutObservationSubject.eraseToAnyPublisher()
