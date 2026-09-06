@@ -4444,7 +4444,8 @@ class TerminalController {
     /// by OSC terminal-title updates. The detached CLI hook owns the database
     /// read; this app-side handler only resolves the panel and mutates
     /// in-memory workspace state.
-    private func v2SurfaceSyncCodexNativeTitle(params: [String: Any]) -> V2CallResult {
+    /// Applies the title on the main actor for the asynchronous socket bridge.
+    func v2SurfaceSyncCodexNativeTitle(params: [String: Any]) -> V2CallResult {
         guard let title = v2String(params, "title")?.trimmingCharacters(in: .whitespacesAndNewlines),
               !title.isEmpty else {
             return .err(
