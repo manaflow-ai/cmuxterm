@@ -1,6 +1,18 @@
 import AppKit
 import Bonsplit
 
+extension Notification.Name {
+    static let dockMenuCapabilitiesDidChange = Notification.Name(
+        "cmux.dockMenuCapabilitiesDidChange"
+    )
+    static let dockVisibilityDidChange = Notification.Name(
+        "cmux.dockVisibilityDidChange"
+    )
+    static let terminalSelectionDidChange = Notification.Name(
+        "cmux.terminalSelectionDidChange"
+    )
+}
+
 enum DockPointerHitTarget: Equatable {
     case tabItem
     case panel
