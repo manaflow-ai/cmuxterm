@@ -33,6 +33,7 @@ import {
   type VMPrivateNetworking,
   type VMProvider,
   type VMResizeOptions,
+  type VMStats,
   type VMStatus,
 } from "./types";
 import {
@@ -1202,6 +1203,32 @@ export class FreestyleProvider implements VMProvider {
           return { exitCode, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
         } catch (err) {
           throw new ProviderError("freestyle", `exec(${vmId})`, err);
+        }
+      },
+    );
+  }
+
+  /** Read provisioned dimensions without waking the guest or inventing usage gauges. */
+  async getStats(vmId: string): Promise<VMStats> {
+    return withVmSpan(
+      "cmux.vm.provider.get_stats",
+      spanAttributes(vmId, "getStats"),
+      async () => {
+        try {
+          const data = await this.deps.client().vms.get(vmId);
+          return {
+            state: data.state === "running"
+              ? "awake"
+              : data.state === "paused" || data.state === "pausing" || data.state === "stopped"
+                ? "asleep"
+                : "unknown",
+            sampledAt: Date.now(),
+            cpus: data.resources.cpu,
+            memoryTotalMb: data.resources.memory,
+            diskTotalMb: data.resources.storage,
+          };
+        } catch (err) {
+          throw new ProviderError("freestyle", `getStats(${vmId})`, err);
         }
       },
     );
