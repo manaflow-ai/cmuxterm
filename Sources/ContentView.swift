@@ -12183,6 +12183,7 @@ struct VerticalTabsSidebar: View, Equatable {
             setBonsplitDropIndicator: { indicator in
                 dragState.setDropIndicator(indicator)
             },
+            sidebarFontFamily: renderContext.tabItemSettings.sidebarFontFamily,
             nativeWorkspaceDragLifecycle: SidebarWorkspaceTableActions.NativeWorkspaceDragLifecycle(
                 currentSessionId: { dragState.currentWorkspaceDragSessionId },
                 finish: { sessionId, capabilityValue in
