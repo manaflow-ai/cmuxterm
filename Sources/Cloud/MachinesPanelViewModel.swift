@@ -583,11 +583,13 @@ final class MachinesPanelViewModel: ObservableObject {
         refreshTree(force: forceTree)
     }
 
-    /// Samples every machine's CPU/memory/disk. Sleeping machines report
+    /// Samples every desktop machine's CPU/memory/disk. Sleeping machines report
     /// `asleep` without being woken, so polling never costs the user anything.
+    /// Shell-only (`base`) machines serve no stats endpoint (501 on every poll),
+    /// so they are left out rather than asked every cycle.
     func refreshStats() {
         statsTask?.cancel()
-        let ids = machines.map(\.id)
+        let ids = machines.filter(\.isDesktop).map(\.id)
         guard !ids.isEmpty else { return }
         statsTask = Task { [weak self] in
             await withTaskGroup(of: (String, VMStats?).self) { group in
