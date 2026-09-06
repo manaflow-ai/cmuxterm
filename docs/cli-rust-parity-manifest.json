@@ -16,19 +16,19 @@
       "id": "socket-transport",
       "commands": ["rpc", "--socket", "--password", "CMUX_SOCKET_PATH", "CMUX_SOCKET", "CMUX_SOCKET_PASSWORD"],
       "status": "partial",
-      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs"]
+      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "cmux-tui/crates/cmux-cli/src/lib.rs#source_inventory_labels_are_parseable_by_rust"]
     },
     {
       "id": "coderouter-native",
       "commands": ["cr add codex", "ai-accounts upload codex"],
       "status": "partial",
-      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "Sources/Cloud/VMClientSocketCommands.swift"]
+      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "Sources/Cloud/VMClientSocketCommands.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "coderouter-delegated",
       "commands": ["coderouter", "cr", "coderouter login", "coderouter logout", "coderouter capabilities"],
       "status": "partial",
-      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "scripts/install-coderouter-cli.sh"]
+      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "scripts/install-coderouter-cli.sh", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "coderouter-team",
@@ -40,19 +40,19 @@
       "id": "app-and-settings",
       "commands": ["welcome", "docs", "settings", "config", "shortcuts", "themes", "auth", "open", "feedback"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "topology",
       "commands": ["window", "workspace", "new-workspace", "list-workspaces", "pane", "new-pane", "surface", "new-surface", "tree", "tab-action"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "terminal-and-notifications",
       "commands": ["send", "send-key", "read-screen", "read-selection", "capture-pane", "notify", "feed", "log"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "browser",
@@ -64,19 +64,19 @@
       "id": "agents-and-hooks",
       "commands": ["hooks", "codex", "claude-hook", "claude-teams", "codex-teams", "omo", "omx", "omc"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift"]
+      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "cloud-and-remotes",
       "commands": ["vm", "cloud", "remote", "remotes", "ssh", "surface open", "surface new-terminal"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cloud-cmux-tui-daemon.md"]
+      "evidence": ["CLI/cmux.swift", "docs/cloud-cmux-tui-daemon.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     },
     {
       "id": "compatibility",
       "commands": ["__tmux-compat", "restore", "fork", "restore-session", "hidden agent commands"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md"]
+      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
     }
   ]
 }

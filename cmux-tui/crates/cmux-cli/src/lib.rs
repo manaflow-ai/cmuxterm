@@ -79,12 +79,29 @@ enum CommandLine {
     FocusWindow(Vec<String>),
     CloseWindow(Vec<String>),
     ListNotifications(Vec<String>),
-    LegacyV1 { command: String, arguments: Vec<String> },
-    SocketV2 { command: String, arguments: Vec<String> },
+    LegacyV1 {
+        command: String,
+        arguments: Vec<String>,
+    },
+    SocketV2 {
+        command: String,
+        arguments: Vec<String>,
+    },
     Cr(Vec<String>),
     CodeRouter(Vec<String>),
     AiAccounts(Vec<String>),
-    Rpc { method: String, params: Value },
+    Rpc {
+        method: String,
+        params: Value,
+    },
+    /// Commands whose Swift implementation has a socket-backed dispatch arm,
+    /// but which do not yet need a dedicated Rust presentation function. Keep
+    /// the original argv so the generic adapter can preserve aliases and
+    /// positional arguments while the family is brought to conformance.
+    Generic {
+        command: String,
+        arguments: Vec<String>,
+    },
 }
 
 /// Run one CLI invocation. The return value is the process exit status.
@@ -232,6 +249,9 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             let result = socket(&options)?.send_v2(&method, params)?;
             print_result(&result, options.json);
             Ok(())
+        }
+        CommandLine::Generic { command, arguments } => {
+            run_generic_command(&command, arguments, options)
         }
     }
 }
@@ -421,6 +441,10 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
         (_, Some("ai-accounts")) => CommandLine::AiAccounts(args[index + 1..].to_vec()),
         (_, Some("rpc")) => parse_rpc(&args[index + 1..])?,
         (_, Some("help")) => CommandLine::Help,
+        (_, Some(command)) if is_generic_command(command) => CommandLine::Generic {
+            command: command.to_string(),
+            arguments: args[index + 1..].to_vec(),
+        },
         (_, Some(unknown)) => {
             return Err(CliError::Usage(format!(
                 "Unknown command '{unknown}'. Run 'cmux --help' for the full command list."
@@ -430,6 +454,99 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
     Ok((options, command))
 }
 
+/// Return true for every source-derived dispatch label which does not have a
+/// dedicated parser above. This list intentionally includes aliases from the
+/// Swift switch. A command must reach a typed adapter before its family can be
+/// marked complete in the parity manifest.
+fn is_generic_command(command: &str) -> bool {
+    matches!(
+        command,
+        "automation"
+            | "agent-hibernation"
+            | "vpn"
+            | "vm"
+            | "cloud"
+            | "remotes"
+            | "remote"
+            | "mobile"
+            | "move-workspace-to-window"
+            | "move-surface"
+            | "split-off"
+            | "reorder-surface"
+            | "reorder-workspace"
+            | "reorder-workspaces"
+            | "simulate-sidebar-drag"
+            | "workspace-action"
+            | "tab-action"
+            | "move-tab-to-new-workspace"
+            | "detach-tab"
+            | "rename-tab"
+            | "workspace-group"
+            | "canvas"
+            | "simulator"
+            | "ios"
+            | "todo"
+            | "comments"
+            | "layout"
+            | "vault"
+            | "rename-window"
+            | "ssh"
+            | "mosh"
+            | "mosh-tmux"
+            | "ssh-tmux"
+            | "ssh-pty-attach"
+            | "ssh-session-list"
+            | "ssh-session-attach"
+            | "ssh-session-cleanup"
+            | "ssh-session-end"
+            | "vm-pty-attach"
+            | "vm-tui-connect"
+            | "vm-tui-approve"
+            | "vm-ssh-attach"
+            | "new-split"
+            | "tree"
+            | "top"
+            | "memory"
+            | "surface"
+            | "restore"
+            | "fork"
+            | "surface-resume"
+            | "drag-surface-to-split"
+            | "sidebar"
+            | "claude-hook"
+            | "codex-hook"
+            | "feed-hook"
+            | "hooks"
+            | "__tmux-compat"
+            | "__codex-teams-watch"
+            | "capture-pane"
+            | "resize-pane"
+            | "pipe-pane"
+            | "wait-for"
+            | "swap-pane"
+            | "break-pane"
+            | "join-pane"
+            | "last-window"
+            | "last-pane"
+            | "next-window"
+            | "previous-window"
+            | "find-window"
+            | "clear-history"
+            | "set-hook"
+            | "popup"
+            | "bind-key"
+            | "unbind-key"
+            | "copy-mode"
+            | "set-buffer"
+            | "paste-buffer"
+            | "list-buffers"
+            | "respawn-pane"
+            | "display-message"
+            | "project"
+            | "markdown"
+    )
+}
+
 fn reject_no_arguments(command: &str, arguments: &[String]) -> Result<(), CliError> {
     let allowed_json = arguments.iter().all(|argument| argument == "--json");
     if !arguments.is_empty() && !allowed_json {
@@ -437,6 +554,269 @@ fn reject_no_arguments(command: &str, arguments: &[String]) -> Result<(), CliErr
         return Err(CliError::Usage(format!("{command}: unexpected argument '{argument}'")));
     }
     Ok(())
+}
+
+/// Dispatch the source-derived commands which share the app's generic v2
+/// request shape. The Swift CLI has command-specific presentation helpers;
+/// this adapter keeps the method names, context fields, aliases, and exit
+/// behavior stable while those helpers move to Rust one family at a time.
+fn run_generic_command(
+    command: &str,
+    arguments: Vec<String>,
+    options: GlobalOptions,
+) -> Result<(), CliError> {
+    let command = match command {
+        "cloud" => "vm",
+        "remote" => "remotes",
+        "mosh" => "ssh",
+        "detach-tab" => "move-tab-to-new-workspace",
+        "rename-window" => "rename-workspace",
+        "fork" => "restore",
+        alias => alias,
+    };
+
+    // These commands are deliberately v1 in Swift. Preserve the exact wire
+    // token and let the server own compatibility validation.
+    if matches!(
+        command,
+        "__sidebar_footer_icon_balance" | "__internal_flags" | "ping" | "iroh-diag"
+    ) {
+        let wire = if command == "iroh-diag" { "iroh_diag" } else { command };
+        let response = socket(&options)?.send_v1(wire)?;
+        println!("{response}");
+        return Ok(());
+    }
+    if command == "agent-hibernation" {
+        let sub = arguments.first().map(String::as_str).unwrap_or("status");
+        let wire = match sub {
+            "on" | "enable" => "agent_hibernation on",
+            "off" | "disable" => "agent_hibernation off",
+            _ => return Err(CliError::Usage("Usage: cmux agent-hibernation <on|off>".into())),
+        };
+        let response = socket(&options)?.send_v1(wire)?;
+        if options.json {
+            println!("{}", json!({"ok": response == "OK", "message": response}));
+        } else {
+            println!("{response}");
+        }
+        return Ok(());
+    }
+
+    if command == "capture-pane" {
+        return run_socket_v2_command("read-screen", arguments, options);
+    }
+
+    let (method, mut params) = generic_method_and_params(command, &arguments, &options)?;
+    let timeout = match command {
+        "vm" | "remotes" | "mobile" | "ssh" | "ssh-tmux" | "ssh-pty-attach" | "vm-pty-attach"
+        | "vm-tui-connect" | "vm-tui-approve" | "vm-ssh-attach" => Duration::from_secs(120),
+        _ => default_timeout(),
+    };
+    let result = socket(&options)?.send_v2_with_timeout(
+        &method,
+        Value::Object(std::mem::take(&mut params)),
+        timeout,
+    )?;
+    print_result(&format_ids(result, options.id_format.as_deref().unwrap_or("refs")), options.json);
+    Ok(())
+}
+
+fn generic_method_and_params(
+    command: &str,
+    arguments: &[String],
+    options: &GlobalOptions,
+) -> Result<(String, serde_json::Map<String, Value>), CliError> {
+    let mut values = Vec::new();
+    let mut params = serde_json::Map::new();
+    let mut index = 0;
+    while index < arguments.len() {
+        let argument = &arguments[index];
+        if argument == "--json" || argument == "--id-format" {
+            index += if argument == "--id-format" { 2 } else { 1 };
+            continue;
+        }
+        if argument == "--" {
+            values.extend(arguments[index + 1..].iter().cloned());
+            break;
+        }
+        if let Some(flag) = argument.strip_prefix("--") {
+            let (name, inline) = flag.split_once('=').map_or((flag, None), |(a, b)| (a, Some(b)));
+            let key = name.replace('-', "_");
+            if let Some(value) = inline {
+                params.insert(key, generic_value(value));
+                index += 1;
+            } else if let Some(next) =
+                arguments.get(index + 1).filter(|value| !value.starts_with('-'))
+            {
+                params.insert(key, generic_value(next));
+                index += 2;
+            } else {
+                params.insert(key, Value::Bool(true));
+                index += 1;
+            }
+        } else if argument.starts_with('-') && argument.len() == 2 {
+            let key = argument.trim_start_matches('-').to_string();
+            params.insert(key, Value::Bool(true));
+            index += 1;
+        } else {
+            values.push(argument.clone());
+            index += 1;
+        }
+    }
+
+    // The server expects canonical context keys. Keep UUIDs and refs as
+    // supplied for generic commands; dedicated commands resolve refs through
+    // list calls before sending their request.
+    for (flag, key) in [
+        ("workspace", "workspace_id"),
+        ("surface", "surface_id"),
+        ("panel", "surface_id"),
+        ("window", "window_id"),
+        ("pane", "pane_id"),
+    ] {
+        if let Some(value) = params.remove(flag) {
+            params.insert(key.into(), value);
+        }
+    }
+    if !values.is_empty() {
+        params.insert(
+            "args".into(),
+            Value::Array(values.iter().map(|value| Value::String(value.clone())).collect()),
+        );
+        if values.len() == 1 {
+            params.entry("id").or_insert_with(|| Value::String(values[0].clone()));
+        }
+    }
+    if let Some(window) = options.window.clone() {
+        params.entry("window_id").or_insert(Value::String(window));
+    }
+    let method = generic_method_name(command, &params);
+    Ok((method, params))
+}
+
+fn generic_value(value: &str) -> Value {
+    match value {
+        "true" | "yes" | "on" => Value::Bool(true),
+        "false" | "no" | "off" => Value::Bool(false),
+        _ => value.parse::<i64>().map_or_else(|_| Value::String(value.into()), Value::from),
+    }
+}
+
+fn generic_method_name(command: &str, params: &serde_json::Map<String, Value>) -> String {
+    match command {
+        "automation" => format!(
+            "automation.{}",
+            params
+                .get("args")
+                .and_then(Value::as_array)
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .unwrap_or("list")
+        ),
+        "vpn" => format!(
+            "vm.tunnel_{}",
+            params
+                .get("args")
+                .and_then(Value::as_array)
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .unwrap_or("status")
+        ),
+        "vm" => {
+            let sub = params
+                .get("args")
+                .and_then(Value::as_array)
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .unwrap_or("list");
+            format!("vm.{sub}")
+        }
+        "remotes" => {
+            let sub = params
+                .get("args")
+                .and_then(Value::as_array)
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .unwrap_or("list");
+            format!("remotes.{sub}")
+        }
+        "mobile" => {
+            let sub = params
+                .get("args")
+                .and_then(Value::as_array)
+                .and_then(|v| v.first())
+                .and_then(Value::as_str)
+                .unwrap_or("status");
+            format!("mobile.{sub}")
+        }
+        "ssh"
+        | "ssh-tmux"
+        | "ssh-pty-attach"
+        | "ssh-session-list"
+        | "ssh-session-attach"
+        | "ssh-session-cleanup"
+        | "ssh-session-end"
+        | "vm-pty-attach"
+        | "vm-tui-connect"
+        | "vm-tui-approve"
+        | "vm-ssh-attach" => format!("workspace.remote.{command}"),
+        "move-workspace-to-window" => "workspace.move_to_window".into(),
+        "move-surface" => "surface.move".into(),
+        "split-off" => "surface.split_off".into(),
+        "reorder-surface" => "surface.reorder".into(),
+        "reorder-workspace" => "workspace.reorder".into(),
+        "reorder-workspaces" => "workspace.reorder_many".into(),
+        "simulate-sidebar-drag" => "debug.sidebar.simulate_drag".into(),
+        "workspace-action" => "workspace.action".into(),
+        "tab-action" => "tab.action".into(),
+        "move-tab-to-new-workspace" => "workspace.move_tab_to_new_workspace".into(),
+        "rename-tab" => "tab.rename".into(),
+        "workspace-group" => "workspace.group.action".into(),
+        "tree" => "system.tree".into(),
+        "top" => "system.top".into(),
+        "memory" => "system.memory".into(),
+        "new-split" => "surface.split".into(),
+        "surface" => "surface.catalog".into(),
+        "surface-resume" => "surface.resume".into(),
+        "restore" => "session.restore_previous".into(),
+        "drag-surface-to-split" => "surface.drag_to_split".into(),
+        "sidebar" => "sidebar.state".into(),
+        "hooks" | "claude-hook" | "codex-hook" | "feed-hook" => "hooks.dispatch".into(),
+        "__tmux-compat" => "tmux.compat".into(),
+        "__codex-teams-watch" => "codex.teams.watch".into(),
+        "resize-pane" => "pane.resize".into(),
+        "pipe-pane" => "surface.read_text".into(),
+        "wait-for" => "tmux.wait_for".into(),
+        "swap-pane" => "pane.swap".into(),
+        "break-pane" => "pane.break".into(),
+        "join-pane" => "pane.join".into(),
+        "last-window" => "workspace.last".into(),
+        "last-pane" => "pane.last".into(),
+        "next-window" => "workspace.next".into(),
+        "previous-window" => "workspace.previous".into(),
+        "find-window" => "workspace.find".into(),
+        "clear-history" => "surface.clear_history".into(),
+        "set-hook" => "tmux.hook".into(),
+        "popup" => "tmux.popup".into(),
+        "bind-key" => "tmux.bind_key".into(),
+        "unbind-key" => "tmux.unbind_key".into(),
+        "copy-mode" => "tmux.copy_mode".into(),
+        "set-buffer" => "tmux.set_buffer".into(),
+        "paste-buffer" => "tmux.paste_buffer".into(),
+        "list-buffers" => "tmux.list_buffers".into(),
+        "respawn-pane" => "surface.respawn".into(),
+        "display-message" => "tmux.display_message".into(),
+        "project" => "project.open".into(),
+        "markdown" => "markdown.open".into(),
+        "canvas" => "canvas.action".into(),
+        "simulator" => "simulator.action".into(),
+        "ios" => "mobile.action".into(),
+        "todo" => "todo.action".into(),
+        "comments" => "comments.action".into(),
+        "layout" => "layout.action".into(),
+        "vault" => "vault.action".into(),
+        other => other.to_string(),
+    }
 }
 
 fn print_capabilities() {
@@ -3090,5 +3470,42 @@ mod tests {
             ),
             Some(" file ".into())
         );
+    }
+
+    #[test]
+    fn source_inventory_labels_are_parseable_by_rust() {
+        let inventory: Value =
+            serde_json::from_str(include_str!("../../../../docs/cli-rust-command-inventory.json"))
+                .expect("inventory JSON");
+        for entry in inventory["commands"].as_array().expect("commands") {
+            let mut labels = vec![entry["command"].as_str().expect("command")];
+            labels.extend(
+                entry["aliases"].as_array().into_iter().flatten().filter_map(Value::as_str),
+            );
+            for label in labels {
+                let args = if label == "rpc" {
+                    vec![label.to_string(), "system.capabilities".into()]
+                } else {
+                    vec![label.to_string()]
+                };
+                let result = parse_args(&args, Program::Cmux);
+                assert!(result.is_ok(), "inventory command did not parse: {label}");
+            }
+        }
+    }
+
+    #[test]
+    fn generic_command_mapping_preserves_socket_methods() {
+        let (_, params) = generic_method_and_params(
+            "move-surface",
+            &["--surface".into(), "surface:2".into(), "--focus".into(), "true".into()],
+            &GlobalOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(params["surface_id"], "surface:2");
+        assert_eq!(params["focus"], true);
+        assert_eq!(generic_method_name("move-surface", &params), "surface.move");
+        assert_eq!(generic_method_name("tree", &params), "system.tree");
+        assert_eq!(generic_method_name("capture-pane", &params), "capture-pane");
     }
 }

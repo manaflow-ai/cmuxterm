@@ -71,7 +71,12 @@ workspace and pane inspection and creation, workspace close/select/rename,
 surface creation, terminal text reads and sends, basic notification actions,
 common browser navigation, automation, and profile aliases, auth status/sign-in/sign-out,
 socket refresh/debug controls, limited AI accounts, `cr add codex`, and
-CodeRouter delegation. The new topology and browser commands still need
+CodeRouter delegation. All 126 source-derived dispatch labels now parse in
+Rust, including aliases. Commands without a dedicated Rust adapter pass
+through a typed generic socket adapter so they no longer fail as unknown
+commands. The generic adapter preserves command, subcommand, context, and
+flag fields, but it does not prove Swift-compatible validation, output, or
+side effects. The new topology and browser commands still need
 Swift-compatible handle normalization, help text, output formatting, and
 side-effect conformance.
 The latest stripped Rust candidate binaries from the packaging script are
@@ -110,6 +115,12 @@ The following checks passed for the current slice:
 - Browser snapshot socket conformance test (method and surface context).
 - Browser automation response timeout selection for navigation snapshots and waits.
 - Browser profile lifecycle request routing.
+- Source inventory parser coverage: all 126 dispatch arms and 156 labels are
+  accepted by Rust parsing tests; `rpc` is tested with its required method.
+- Generic dispatch routing for the remaining inventory commands, including
+  cloud/remotes/mobile, topology mutations, tmux compatibility aliases, and
+  agent hook labels. This is parser and request-shape coverage only; it is not
+  family completion evidence.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
@@ -142,14 +153,16 @@ the manifest is valid, but all 12 families remain incomplete.
 
 ## Work sequence
 
-1. Finish socket transport and authentication parity, including Keychain.
-2. Finish CodeRouter native, delegated, and team commands.
-3. Port app/settings and topology families with source-derived fixtures.
-4. Port terminal, notifications, browser, agent, cloud, remote, and
+1. Replace generic dispatch with command-specific adapters and dual-run
+   fixtures. Do not mark a family complete from parser coverage.
+2. Finish socket transport and authentication parity, including Keychain.
+3. Finish CodeRouter native, delegated, and team commands.
+4. Port app/settings and topology families with source-derived fixtures.
+5. Port terminal, notifications, browser, agent, cloud, remote, and
    compatibility families.
-5. Add dual-run conformance tests and close every manifest item.
-6. Run full release packaging and installed end-user tests.
-7. Remove Swift, rebuild, measure, and update this document with the final
+6. Add dual-run conformance tests and close every manifest item.
+7. Run full release packaging and installed end-user tests.
+8. Remove Swift, rebuild, measure, and update this document with the final
    artifact sizes.
 
 ## Decision record
