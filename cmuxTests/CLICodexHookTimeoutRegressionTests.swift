@@ -186,9 +186,11 @@ struct CLICodexHookTimeoutRegressionTests {
                 eventName: event.eventName,
                 output: emit.stdout
             )
+            #expect(command.contains("/.cmux/hooks/"))
+            #expect(command.contains("-\(event.subcommand).sh"))
             let run = runCodexHookProcess(
                 executablePath: "/bin/sh",
-                arguments: ["-c", command],
+                arguments: ["-lc", command],
                 environment: environment,
                 standardInput: #"{"session_id":"codex-path-space","hook_event_name":"\#(event.eventName)"}"#,
                 timeout: 5

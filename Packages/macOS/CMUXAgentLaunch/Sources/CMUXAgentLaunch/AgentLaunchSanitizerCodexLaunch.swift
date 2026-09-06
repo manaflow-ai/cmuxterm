@@ -260,14 +260,15 @@ private func cmuxCodexHookScriptFilename(from command: String) -> String? {
     }
 
     let url = URL(fileURLWithPath: scriptPath, isDirectory: false).standardizedFileURL
-    // A generated command is the complete executable path. Interior spaces in
-    // a path component are valid, while URL normalization changes embedded URL
-    // arguments and token separators leave boundary whitespace on a component.
-    guard url.path == scriptPath,
-          url.pathComponents.allSatisfy({
-              $0 == $0.trimmingCharacters(in: .whitespaces)
-          })
-    else {
+    // A generated command is the complete executable path. Canonical shell
+    // quoting already proves that boundary whitespace belongs to the path; the
+    // legacy bare form still needs the conservative component check because it
+    // cannot distinguish a complete path token from a malformed command.
+    guard url.path == scriptPath else { return nil }
+    if !command.hasPrefix("'"),
+       !url.pathComponents.allSatisfy({
+           $0 == $0.trimmingCharacters(in: .whitespaces)
+       }) {
         return nil
     }
     let directoryComponents = url.deletingLastPathComponent().pathComponents
