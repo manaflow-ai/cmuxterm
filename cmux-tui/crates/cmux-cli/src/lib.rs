@@ -601,14 +601,40 @@ fn socket_password_file_for_home(home: Option<std::ffi::OsString>) -> Option<Str
 }
 
 fn socket_path(options: &GlobalOptions) -> Option<PathBuf> {
-    socket_path_from_environment(
-        options,
-        env::var_os("CMUX_SOCKET_PATH"),
-        env::var_os("CMUX_SOCKET"),
-        env::var_os("HOME"),
-    )
+    if let Some(path) = options.socket.clone() {
+        return Some(path);
+    }
+    if let Some(path) = env::var_os("CMUX_SOCKET_PATH").map(PathBuf::from) {
+        return Some(path);
+    }
+    if let Some(path) = env::var_os("CMUX_SOCKET").map(PathBuf::from) {
+        return Some(path);
+    }
+    let home = env::var_os("HOME").map(PathBuf::from);
+    let state_directory = home.as_ref().map(|home| home.join(".local/state/cmux"));
+    if let Some(path) = socket_marker_path(state_directory.as_deref()) {
+        return Some(path);
+    }
+    state_directory
+        .map(|path| path.join("cmux.sock"))
+        .or_else(|| Some(PathBuf::from("/tmp/cmux.sock")))
 }
 
+fn socket_marker_path(state_directory: Option<&Path>) -> Option<PathBuf> {
+    [
+        state_directory.map(|path| path.join("last-socket-path")),
+        Some(PathBuf::from("/tmp/cmux-last-socket-path")),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|marker| {
+        let value = std::fs::read_to_string(marker).ok()?;
+        let value = value.trim_matches(|character| character == '\r' || character == '\n');
+        (!value.trim().is_empty()).then(|| PathBuf::from(value))
+    })
+}
+
+#[cfg(test)]
 fn socket_path_from_environment(
     options: &GlobalOptions,
     socket_path: Option<std::ffi::OsString>,
@@ -809,6 +835,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(path, PathBuf::from("/tmp/cmux-home/.local/state/cmux/cmux.sock"));
+    }
+
+    #[test]
+    fn socket_marker_overrides_the_default_path() {
+        let home = tempfile::tempdir().unwrap();
+        let state = home.path().join(".local/state/cmux");
+        std::fs::create_dir_all(&state).unwrap();
+        std::fs::write(state.join("last-socket-path"), "/tmp/cmux-marked.sock\n").unwrap();
+        assert_eq!(socket_marker_path(Some(&state)), Some("/tmp/cmux-marked.sock".into()));
     }
 
     #[test]
