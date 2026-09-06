@@ -31,4 +31,32 @@ struct CodexWriterRecoveryTests {
             ).classification == .ownedAppServer
         )
     }
+
+    @Test("parses recovery and resume thread IDs without mistaking remote arguments")
+    func parsesThreadIDsAndRemoteProvider() {
+        let threadID = "01234567-89ab-cdef-0123-456789abcdef"
+
+        #expect(
+            CodexWriterRecovery.resumeSessionID(arguments: ["codex", "resume", threadID]) == threadID
+        )
+        #expect(
+            CodexWriterRecovery.resumeSessionID(arguments: ["recover", threadID, "--yes"]) == threadID
+        )
+        #expect(
+            CodexWriterRecovery.usesRemoteProvider(arguments: ["codex", "resume", threadID, "--remote", "ws://127.0.0.1:1"])
+        )
+        #expect(
+            !CodexWriterRecovery.usesRemoteProvider(arguments: ["codex", "resume", threadID, "--", "--remote"])
+        )
+    }
+
+    @Test("recognizes the Codex active-writer failure")
+    func recognizesWriterConflict() {
+        #expect(
+            CodexWriterRecovery.isWriterConflict(
+                errorText: "thread/resume failed: thread 123 already has an active writer (code -32600)"
+            )
+        )
+        #expect(!CodexWriterRecovery.isWriterConflict(errorText: "thread not found"))
+    }
 }

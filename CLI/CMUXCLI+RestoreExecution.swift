@@ -48,6 +48,11 @@ extension CMUXCLI {
         if let appliedWorkingDirectory {
             invocationEnvironment["PWD"] = appliedWorkingDirectory
         }
+        try guardCodexWriterBeforeResume(
+            arguments: invocation.arguments,
+            environment: invocationEnvironment,
+            workingDirectory: appliedWorkingDirectory ?? FileManager.default.currentDirectoryPath
+        )
         guard let first = invocation.arguments.first,
               let executable = resolveRestoreExecutable(
                   first,
