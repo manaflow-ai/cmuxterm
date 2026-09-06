@@ -567,7 +567,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Owns the one process-local Vault drag capability registry.
     let sessionDragRegistry = SessionDragRegistry()
     /// Owns process-local native drag capabilities and pane-target cleanup.
-    let nativeDragCoordinator = Self.nativeDragCoordinator
+    let nativeDragCoordinator = AppDelegate.nativeDragCoordinator
     var tabDragTransferRegistry: TabDragTransferRegistry {
         nativeDragCoordinator.tabDragTransferRegistry
     }
