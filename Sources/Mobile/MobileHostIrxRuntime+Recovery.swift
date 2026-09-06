@@ -428,6 +428,7 @@ extension MobileHostIrxRuntime {
             await controlPlane.stop()
         }
         controlPlane = nil
+        await lanPublisher.stop()
         // The in-memory directory is generation-scoped. The persisted lease
         // remains available for the next same-account activation unless the
         // auth transition explicitly clears it.

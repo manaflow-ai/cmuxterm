@@ -217,7 +217,7 @@ struct cmuxApp: App {
             mobileRootScene
             #endif
         }
-        .environment(\.irohSettingsController, Self.root.iroh)
+        .environment(\.irohSettingsController, Self.root.irohSettingsController)
         .environment(\.irxAuthenticationStatusProvider, Self.root.irx)
         .environment(\.mobileKeyboardFrameTracker, Self.root.keyboardFrameTracker)
         .environment(

@@ -338,7 +338,10 @@ extension MobileHostIrxRuntime {
         }
     }
 
-    /// Resolves the redacted path shown by Settings for the irx endpoint.
+    /// Resolves the redacted path shown by Settings for the irx endpoint. The
+    /// status remains relay-attributed until Iroh reports a selected direct
+    /// path; direct candidates are still advertised and attempted by the
+    /// transport in automatic mode.
     nonisolated static func settingsSelectedPath(
         phase: SettingsPhase,
         endpointOnline: Bool,

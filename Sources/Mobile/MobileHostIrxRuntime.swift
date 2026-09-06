@@ -140,6 +140,10 @@ final class MobileHostIrxRuntime {
     /// Durable home of the lease (Keychain in Release, dev file store in
     /// DEBUG), loaded at activation so admission works offline.
     var deviceListStore: IrxDeviceListStore?
+    /// Authenticated Bonjour publisher for the IRX endpoint. Iroh's native
+    /// candidate discovery handles public paths, while this publisher makes
+    /// same-account LAN candidates available to the client-side fallback.
+    let lanPublisher = CmxIrohLANHostPublisher()
 
     func configure(auth: AuthCoordinator) {
         self.auth = auth
@@ -491,11 +495,15 @@ final class MobileHostIrxRuntime {
             // Advertise the relay the endpoint ACTUALLY homes on, then
             // refresh the binding so registry consumers see it too.
             let homeRelay = await supervisor.homeRelayURL() ?? credentials.first?.relayURL
+            let directAddresses = await supervisor.localDirectAddresses()
+            let directPorts = CmxIrohDirectPorts(localDirectAddresses: directAddresses)
             activationOperation = .hintRefresh
             do {
                 try await broker.registerHintIfNeeded(
                     pairingEnabled: true,
-                    relayURLHint: homeRelay
+                    relayURLHint: homeRelay,
+                    directAddresses: directAddresses,
+                    directPorts: directPorts
                 )
                 if let control, let homeRelay {
                     await control.publishHint(homeRelayURL: homeRelay)
@@ -515,11 +523,23 @@ final class MobileHostIrxRuntime {
                     throw CancellationError()
                 }
                 let relay = await supervisor.homeRelayURL()
+                let directAddresses = await supervisor.localDirectAddresses()
+                let directPorts = CmxIrohDirectPorts(localDirectAddresses: directAddresses)
                 try await broker.registerHintIfNeeded(
-                    pairingEnabled: true, relayURLHint: relay)
+                    pairingEnabled: true,
+                    relayURLHint: relay,
+                    directAddresses: directAddresses,
+                    directPorts: directPorts
+                )
                 if let relay, let control {
                     await control.publishHint(homeRelayURL: relay)
                 }
+                await self?.lanPublisher.refresh()
+                await self?.publishRoute(
+                    identity: identity,
+                    relayURL: relay,
+                    directAddresses: directAddresses
+                )
                 // Credential rotation (and any home-relay move it reveals)
                 // changes the Settings snapshot's policy expiry and relay
                 // selection; push it to live subscribers.
@@ -555,7 +575,35 @@ final class MobileHostIrxRuntime {
                     failure, accountID: accountID, token: token)
                 return
             }
-            publishRoute(identity: identity, relayURL: homeRelay)
+            if !Self.forceRelayOnly,
+               MobileHostService.isListeningEnabled,
+               let liveDiscovery = try? await broker.discover(maximumAge: 0),
+               let discoveredBinding = liveDiscovery.bindings.first(where: {
+                   $0.endpointID.endpointID == identity.endpointIDHex
+               }),
+               let bindingMetadata = try? CmxIrohBrokerBindingMetadata(
+                   bindingID: discoveredBinding.bindingID,
+                   deviceID: discoveredBinding.deviceID,
+                   appInstanceID: discoveredBinding.appInstanceID,
+                   clientNamespace: discoveredBinding.clientNamespace,
+                   tag: discoveredBinding.tag,
+                   platform: discoveredBinding.platform,
+                   endpointID: discoveredBinding.endpointID,
+                   identityGeneration: discoveredBinding.identityGeneration,
+                   pathHints: discoveredBinding.pathHints
+               )
+            {
+                await lanPublisher.activate(
+                    rendezvous: liveDiscovery.lanRendezvous,
+                    binding: bindingMetadata,
+                    directAddresses: { await supervisor.localDirectAddresses() }
+                )
+            }
+            publishRoute(
+                identity: identity,
+                relayURL: homeRelay,
+                directAddresses: directAddresses
+            )
             Self.journal.record(
                 "host-runtime", "active",
                 [
@@ -696,7 +744,11 @@ final class MobileHostIrxRuntime {
     /// status, and presence all advertise it, so phones dial irx. v1 hints
     /// carry the relay URL only (relay-first; private hints require network
     /// profiles the irx runtime deliberately does not synthesize yet).
-    private func publishRoute(identity: IrxIdentity, relayURL: String?) {
+    private func publishRoute(
+        identity: IrxIdentity,
+        relayURL: String?,
+        directAddresses: [String] = []
+    ) {
         guard let peerIdentity = try? CmxIrohPeerIdentity(endpointID: identity.endpointIDHex)
         else { return }
         var hints: [CmxIrohPathHint] = []
@@ -713,6 +765,21 @@ final class MobileHostIrxRuntime {
         {
             hints.append(hint)
         }
+        if !Self.forceRelayOnly {
+            for address in directAddresses {
+                guard hints.count < 16,
+                    let hint = try? CmxIrohPathHint(
+                        kind: .directAddress,
+                        value: address,
+                        source: .native,
+                        privacyScope: .publicInternet,
+                        observedAt: now,
+                        expiresAt: now.addingTimeInterval(30 * 60)
+                    )
+                else { continue }
+                if !hints.contains(hint) { hints.append(hint) }
+            }
+        }
         MobileHostPublicStatusCache.update(
             irohIdentity: peerIdentity,
             owner: .irx,
@@ -720,7 +787,11 @@ final class MobileHostIrxRuntime {
         )
         Self.journal.record(
             "host-runtime", "route-published",
-            ["hints": String(hints.count), "relay": relayURL ?? "-"]
+            [
+                "hints": String(hints.count),
+                "direct": String(hints.count { $0.kind == .directAddress }),
+                "relay": relayURL ?? "-",
+            ]
         )
     }
 

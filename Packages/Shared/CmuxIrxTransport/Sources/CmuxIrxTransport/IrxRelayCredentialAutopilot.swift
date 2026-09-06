@@ -29,6 +29,11 @@ public actor IrxRelayCredentialAutopilot {
     private let retryPolicy: IrxHostActivationPolicy
     private let credentialPolicy = IrxRelayCredentialPolicy()
     private var loop: Task<Void, Never>?
+    private let rotationGate = IrxRelayCredentialRotationGate()
+    /// A cancelled refresh task can still return from an in-flight broker
+    /// request. The generation prevents that old task from rotating relay
+    /// credentials or invoking registration after a newer foreground loop
+    /// owns the lifecycle.
     private var loopGeneration: UInt64 = 0
     /// Independent hint recovery never waits for the next credential mint.
     private var hintRetryTask: Task<Void, Never>?
@@ -91,17 +96,25 @@ public actor IrxRelayCredentialAutopilot {
     }
 
     /// Starts the refresh loop. Idempotent; cancelled by `stop()`.
-    public func start() {
+    public func start() async {
         guard loop == nil else { return }
         loopGeneration &+= 1
         let generation = loopGeneration
-        loop = Task { await self.run(generation: generation) }
+        let rotationGeneration = await rotationGate.begin()
+        guard generation == loopGeneration else { return }
+        loop = Task {
+            await self.run(
+                generation: generation,
+                rotationGeneration: rotationGeneration
+            )
+        }
         journal.record("credential-autopilot", "started")
     }
 
     /// Stops the refresh loop and cancels any in-flight wait.
-    public func stop() {
+    public func stop() async {
         loopGeneration &+= 1
+        await rotationGate.invalidate()
         loop?.cancel()
         loop = nil
         cancelHintRetry()
@@ -111,24 +124,35 @@ public actor IrxRelayCredentialAutopilot {
     /// Foreground/resume kick: restart the loop so a suspension can never
     /// leave a stale sleep deadline in charge of renewal. Credential freshness
     /// is re-evaluated before minting, so foregrounding does not churn tokens.
-    public func kick() {
+    public func kick() async {
         loopGeneration &+= 1
         let generation = loopGeneration
+        await rotationGate.invalidate()
+        let rotationGeneration = await rotationGate.begin()
+        guard generation == loopGeneration else { return }
         loop?.cancel()
         cancelHintRetry()
-        loop = Task { await self.run(generation: generation) }
+        loop = Task {
+            await self.run(
+                generation: generation,
+                rotationGeneration: rotationGeneration
+            )
+        }
         journal.record("credential-autopilot", "kicked")
     }
 
     /// Retries a known pending hint registration without minting a new relay
     /// credential. Used by a host immediately after deferred activation.
-    public func kickHintRefresh() {
+    public func kickHintRefresh() async {
         // A foreground/deferred kick supersedes any scheduled hint retry. Reset
         // its generation and ladder before starting so an old task cannot
         // publish after this probe or bias its backoff.
         cancelHintRetry()
         loopGeneration &+= 1
         let generation = loopGeneration
+        await rotationGate.invalidate()
+        let rotationGeneration = await rotationGate.begin()
+        guard generation == loopGeneration else { return }
         loop?.cancel()
         loop = Task {
             defer { self.clearLoopIfCurrent(generation: generation) }
@@ -142,7 +166,11 @@ public actor IrxRelayCredentialAutopilot {
             guard !Task.isCancelled else { return }
             // The outer kick task owns the `loop` handle; the nested run must
             // not clear it while this task is still executing.
-            await self.run(generation: generation, clearsLoop: false)
+            await self.run(
+                generation: generation,
+                rotationGeneration: rotationGeneration,
+                clearsLoop: false
+            )
         }
         journal.record("credential-autopilot", "hint-refresh-kicked")
     }
@@ -150,6 +178,7 @@ public actor IrxRelayCredentialAutopilot {
     private func run(
         bypassRefreshDeadlineOnce: Bool = false,
         generation: UInt64,
+        rotationGeneration: UInt64,
         clearsLoop: Bool = true
     ) async {
         defer {
@@ -179,9 +208,15 @@ public actor IrxRelayCredentialAutopilot {
             bypassRefreshDeadlineOnce = false
             do {
                 let minted = try await broker.mintRelayCredentials()
-                guard !Task.isCancelled else { return }
-                await endpoint.rotateCredentials(minted)
-                guard !Task.isCancelled else { return }
+                guard generation == loopGeneration, !Task.isCancelled else { return }
+                // The ownership check lives inside the endpoint actor too:
+                // cancellation can race an in-flight broker request.
+                await endpoint.rotateCredentialsIfCurrent(
+                    minted,
+                    rotationGeneration: rotationGeneration,
+                    gate: rotationGate
+                )
+                guard generation == loopGeneration, !Task.isCancelled else { return }
                 await onCredentialRotation?()
                 let hintOutcome = await refreshHint()
                 if hintOutcome == .exhausted {

@@ -1,6 +1,37 @@
 import CmuxAuthRuntime
 import Foundation
 
+extension URLError.Code {
+    /// Whether URLSession failed before receiving a usable Cloud response.
+    /// Keep client-configuration errors (for example `badURL`) visible as
+    /// service errors; only connection, DNS, and TLS failures are folded into
+    /// the actionable backend-unreachable message below.
+    nonisolated var isCloudBackendTransportFailure: Bool {
+        switch self {
+        case .cannotConnectToHost,
+             .cannotFindHost,
+             .timedOut,
+             .networkConnectionLost,
+             .notConnectedToInternet,
+             .dnsLookupFailed,
+             .secureConnectionFailed,
+             .serverCertificateHasBadDate,
+             .serverCertificateHasUnknownRoot,
+             .serverCertificateNotYetValid,
+             .serverCertificateUntrusted,
+             .clientCertificateRejected,
+             .clientCertificateRequired,
+             .appTransportSecurityRequiresSecureConnection,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 enum VMClientError: Error, CustomStringConvertible {
     case notSignedIn
     case sessionRefreshFailed
@@ -482,6 +513,9 @@ struct VMPublication: Equatable, Sendable {
             "domainKind": domainKind,
             "vmId": vmID,
             "port": port,
+            "targetPort": port,
+            "publicPort": 443,
+            "protocol": "https",
             "accessMode": accessMode.rawValue,
             "teamId": teamID.map { $0 as Any } ?? NSNull(),
             "state": state,
@@ -599,17 +633,23 @@ struct VMWebSocketDaemonEndpoint {
 /// cmuxd-remote → cmux-tui migration). The route carries the ingress token; the
 /// invitation is present only when this device is not yet enrolled with the daemon.
 struct VMCmuxRemoteEndpoint {
-    struct Invitation {
-        let uri: String
-        let invitationId: String
-        let expiresAtUnix: Int64
-    }
-
     let route: String
     let token: String
     let expiresAtUnix: Int64
     let session: String
-    let invitation: Invitation?
+    /// The machine's daemon serves the trusted-carrier listener: dial `--carrier`,
+    /// no enrollment. False only for a daemon the control plane left on an older
+    /// build because this Mac is already enrolled there.
+    let trustedCarrier: Bool
+    /// The machine's private addresses, when the provider returned them. Keep
+    /// this metadata on the client boundary so agents and diagnostics can see
+    /// the same route state the backend used, without reconstructing it.
+    struct NetworkAddresses {
+        let ipv4: String?
+        let ipv6: String?
+    }
+
+    let networkAddresses: NetworkAddresses?
     /// The machine daemon's build identity, for naming a protocol mismatch.
     struct DaemonBuild {
         let commit: String?
@@ -618,12 +658,6 @@ struct VMCmuxRemoteEndpoint {
     }
 
     let daemonBuild: DaemonBuild?
-}
-
-struct VMCmuxRemoteApproval {
-    let approved: Bool
-    let state: String
-    let deviceFingerprint: String?
 }
 
 enum VMAttachEndpoint {
@@ -636,9 +670,11 @@ enum VMAttachEndpoint {
 /// whose `PrivateKey` line is blank — the private key never leaves this Mac,
 /// so the caller fills it in from local state before use.
 struct VMTunnelEndpoint {
+    let accessGrantId: String
     let tunnelId: String
     let provider: String
     let deviceFingerprint: String
+    let tunnelPurpose: String
     let clientConfig: String
     let clientPublicKey: String
     let serverPublicKey: String
@@ -664,10 +700,14 @@ actor VMClient {
     @MainActor private(set) static var shared: VMClient!
 
     /// Build the shared client with its injected auth dependency. Call once at
-    /// the composition root.
+    /// the composition root. `privateNetwork` is used only for Cloud webviews.
     @MainActor
-    static func bootstrap(auth: AuthCoordinator, session: URLSession = .shared) {
-        shared = VMClient(session: session, auth: auth)
+    static func bootstrap(
+        auth: AuthCoordinator,
+        session: URLSession = .shared,
+        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
+    ) {
+        shared = VMClient(session: session, auth: auth, privateNetwork: privateNetwork)
     }
 
     /// Revoke endpoint credentials issued by the Cloud VM service during sign-out.
@@ -686,17 +726,49 @@ actor VMClient {
         )
     }
 
+    /// Revoke every Freestyle peer for this Mac during native sign-out.
+    @MainActor
+    static func revokeCloudAccess(
+        deviceID: String,
+        accessToken: String?,
+        refreshToken: String?
+    ) async {
+        guard let shared else { return }
+        await shared.revokeCloudAccess(
+            deviceID: deviceID,
+            accessToken: accessToken,
+            refreshToken: refreshToken
+        )
+    }
+
     private static let createTimeoutSeconds: TimeInterval = 16 * 60
     private static let attachTimeoutSeconds: TimeInterval = 16 * 60
 
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
+    /// The browser-only private-network gate. Terminal and metadata traffic
+    /// uses the separate user-space WireGuard hub.
+    private let privateNetwork: any CloudPrivateNetworkGate
 
-    init(session: URLSession = .shared, auth: AuthCoordinator, telemetry: VMClientTelemetry = .shared) {
+    init(
+        session: URLSession = .shared,
+        auth: AuthCoordinator,
+        telemetry: VMClientTelemetry = .shared,
+        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
+    ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
+        self.privateNetwork = privateNetwork
+    }
+
+    /// Do not let a Cloud webview navigate until the browser tunnel is ready.
+    /// Direct private URLs call this without a control-plane request.
+    func requireCloudBrowserAccess(machineID: String) async throws {
+        try await privateNetwork.requirePrivateNetworkUse(
+            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort)
+        )
     }
 
     func list() async throws -> [VMSummary] {
@@ -807,14 +879,18 @@ actor VMClient {
         vmID: String,
         port: Int,
         hostname: String?,
-        accessMode: VMPublicationAccessMode,
-        teamID: String?
+        accessMode: VMPublicationAccessMode?,
+        teamID: String?,
+        organizationSlug: String? = nil,
+        confirmPublic: Bool = false
     ) async throws -> VMPublication {
         var body: [String: Any] = [
             "vmId": vmID,
             "port": port,
-            "accessMode": accessMode.rawValue,
+            "confirmPublic": confirmPublic,
         ]
+        if let accessMode { body["accessMode"] = accessMode.rawValue }
+        if let organizationSlug { body["organizationSlug"] = organizationSlug }
         if let hostname, !hostname.isEmpty { body["hostname"] = hostname }
         if let teamID, !teamID.isEmpty { body["teamId"] = teamID }
         let (data, http) = try await request(
@@ -839,11 +915,13 @@ actor VMClient {
     func updatePublicationAccess(
         id: String,
         accessMode: VMPublicationAccessMode,
-        teamID: String?
+        teamID: String?,
+        confirmPublic: Bool = false
     ) async throws -> VMPublication {
         let encodedID = try pathSegment(id, fieldName: "publication id")
         let body: [String: Any] = [
             "accessMode": accessMode.rawValue,
+            "confirmPublic": confirmPublic,
             // An explicit null clears a team left over from a previous team publication.
             "teamId": teamID.map { $0 as Any } ?? NSNull(),
         ]
@@ -854,6 +932,16 @@ actor VMClient {
         )
         try ensureOK(http, data: data)
         return try Self.decodePublicationMutation(try decodeJSONObject(data))
+    }
+
+    func publicationGrants(id: String, method: String, email: String?, expiresAt: String?) async throws -> Data {
+        let encodedID = try pathSegment(id, fieldName: "publication id")
+        var body: [String: Any] = [:]
+        if let email { body["email"] = email }
+        if let expiresAt { body["expiresAt"] = expiresAt }
+        let (data, http) = try await request(method, path: "/api/vm/publications/\(encodedID)/grants", jsonBody: method == "GET" ? nil : body)
+        try ensureOK(http, data: data)
+        return data
     }
 
     func deletePublication(id: String) async throws {
@@ -1328,7 +1416,8 @@ actor VMClient {
             "POST",
             path: "/api/vm/\(encodedID)/attach-endpoint",
             jsonBody: body,
-            timeoutSeconds: Self.attachTimeoutSeconds
+            timeoutSeconds: Self.attachTimeoutSeconds,
+            retryTransientServiceUnavailable: true
         )
         try ensureOK(http, data: data)
         let obj = try decodeJSONObject(data)
@@ -1366,14 +1455,19 @@ actor VMClient {
         if !capabilities.isEmpty {
             body["clientCapabilities"] = capabilities
         }
-        let (data, http) = try await request(
-            "POST",
-            path: "/api/vm/\(encodedID)/attach-endpoint",
-            jsonBody: body,
-            timeoutSeconds: Self.attachTimeoutSeconds
-        )
-        try ensureOK(http, data: data)
-        let obj = try decodeJSONObject(data)
+        // Terminal and metadata traffic uses the user-space WireGuard hub.
+        // Do not start or require the browser Network Extension here.
+        let obj = try await {
+            let (data, http) = try await request(
+                "POST",
+                path: "/api/vm/\(encodedID)/attach-endpoint",
+                jsonBody: body,
+                timeoutSeconds: Self.attachTimeoutSeconds,
+                retryTransientServiceUnavailable: true
+            )
+            try ensureOK(http, data: data)
+            return try decodeJSONObject(data)
+        }()
         guard (obj["transport"] as? String) == "cmux-remote",
               let route = obj["route"] as? String, !route.isEmpty,
               let token = obj["token"] as? String,
@@ -1381,13 +1475,9 @@ actor VMClient {
             throw VMClientError.malformedResponse("Cloud VM cmux-remote attach response was missing required fields.")
         }
         let expiresAtUnix = (obj["expiresAtUnix"] as? Int64) ?? Int64((obj["expiresAtUnix"] as? Double) ?? 0)
-        var invitation: VMCmuxRemoteEndpoint.Invitation?
-        if let raw = obj["invitation"] as? [String: Any],
-           let uri = raw["uri"] as? String, !uri.isEmpty,
-           let invitationId = raw["invitationId"] as? String, !invitationId.isEmpty {
-            let invitationExpires = (raw["expiresAtUnix"] as? Int64) ?? Int64((raw["expiresAtUnix"] as? Double) ?? 0)
-            invitation = .init(uri: uri, invitationId: invitationId, expiresAtUnix: invitationExpires)
-        }
+        // Absent on a control plane older than the trusted listener: such a
+        // daemon would still expect enrollment, which this build no longer does.
+        let trustedCarrier = (obj["trustedCarrier"] as? Bool) ?? false
         var daemonBuild: VMCmuxRemoteEndpoint.DaemonBuild?
         if let raw = obj["daemonBuild"] as? [String: Any] {
             daemonBuild = .init(
@@ -1396,31 +1486,25 @@ actor VMClient {
                 version: raw["version"] as? String
             )
         }
+        var networkAddresses: VMCmuxRemoteEndpoint.NetworkAddresses?
+        // The HTTP API uses camelCase. The local control socket uses the
+        // snake_case wire contract. Accept both at this boundary so a proxy
+        // or an older app cannot silently drop the address metadata.
+        if let raw = (obj["network_addresses"] ?? obj["networkAddresses"]) as? [String: Any] {
+            let ipv4 = raw["ipv4"] as? String
+            let ipv6 = raw["ipv6"] as? String
+            if ipv4 != nil || ipv6 != nil {
+                networkAddresses = .init(ipv4: ipv4, ipv6: ipv6)
+            }
+        }
         return VMCmuxRemoteEndpoint(
             route: route,
             token: token,
             expiresAtUnix: expiresAtUnix,
             session: session,
-            invitation: invitation,
+            trustedCarrier: trustedCarrier,
+            networkAddresses: networkAddresses,
             daemonBuild: daemonBuild
-        )
-    }
-
-    func approveCmuxRemoteEnrollment(id: String, invitationId: String) async throws -> VMCmuxRemoteApproval {
-        let encodedID = try pathSegment(id, fieldName: "vm id")
-        let (data, http) = try await request(
-            "POST",
-            path: "/api/vm/\(encodedID)/cmux-remote/approve",
-            jsonBody: ["invitationId": invitationId],
-            timeoutSeconds: 60
-        )
-        try ensureOK(http, data: data)
-        let obj = try decodeJSONObject(data)
-        let state = (obj["state"] as? String) ?? "pending"
-        return VMCmuxRemoteApproval(
-            approved: (obj["approved"] as? Bool) ?? false,
-            state: state,
-            deviceFingerprint: obj["deviceFingerprint"] as? String
         )
     }
 
@@ -1429,34 +1513,71 @@ actor VMClient {
     /// The server never sees a private key — only `clientPublicKey` travels.
     func enrollTunnel(
         clientPublicKey: String,
+        deviceID: String,
         deviceFingerprint: String,
-        deviceName: String? = nil
+        tunnelPurpose: String,
+        deviceName: String? = nil,
+        modelIdentifier: String? = nil,
+        osVersion: String? = nil,
+        architecture: String? = nil,
+        cmuxVersion: String? = nil,
+        cmuxBuild: String? = nil,
+        cmuxChannel: String? = nil
     ) async throws -> VMTunnelEndpoint {
         var body: [String: Any] = [
             "clientPublicKey": clientPublicKey,
+            "deviceId": deviceID,
             "deviceFingerprint": deviceFingerprint,
+            "tunnelPurpose": tunnelPurpose,
         ]
         if let deviceName, !deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             body["deviceName"] = deviceName
         }
+        for (key, value) in [
+            ("modelIdentifier", modelIdentifier),
+            ("osVersion", osVersion),
+            ("architecture", architecture),
+            ("cmuxVersion", cmuxVersion),
+            ("cmuxBuild", cmuxBuild),
+            ("cmuxChannel", cmuxChannel),
+        ] where value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            body[key] = value
+        }
         let (data, http) = try await request("POST", path: "/api/vm/tunnel", jsonBody: body)
         try ensureOK(http, data: data)
-        return try Self.decodeTunnelEndpoint(decodeJSONObject(data))
+        return try Self.decodeTunnelEndpoint(
+            decodeJSONObject(data),
+            fallbackPurpose: tunnelPurpose
+        )
     }
 
     /// Unenroll this Mac. The server deletes the provider-side tunnel, so any
     /// config still on disk stops working immediately.
-    func revokeTunnel(deviceFingerprint: String) async throws {
-        guard var components = URLComponents(string: "/api/vm/tunnel") else {
-            throw VMClientError.malformedResponse("could not build tunnel revoke path")
-        }
-        components.queryItems = [URLQueryItem(name: "deviceFingerprint", value: deviceFingerprint)]
-        let path = components.string ?? "/api/vm/tunnel"
-        let (data, http) = try await request("DELETE", path: path)
+    func revokeCloudAccess(deviceID: String) async throws {
+        let revocation = Self.cloudAccessRevocationRequest(deviceID: deviceID)
+        let (data, http) = try await request(
+            "DELETE",
+            path: revocation.path,
+            jsonBody: revocation.body
+        )
         try ensureOK(http, data: data)
     }
 
-    private nonisolated static func decodeTunnelEndpoint(_ obj: [String: Any]) throws -> VMTunnelEndpoint {
+    struct CloudAccessRevocationRequest: Sendable {
+        let path: String
+        let deviceID: String
+
+        var body: [String: Any] { ["deviceId": deviceID] }
+    }
+
+    nonisolated static func cloudAccessRevocationRequest(deviceID: String) -> CloudAccessRevocationRequest {
+        CloudAccessRevocationRequest(path: "/api/vm/tunnel", deviceID: deviceID)
+    }
+
+    nonisolated static func decodeTunnelEndpoint(
+        _ obj: [String: Any],
+        fallbackPurpose: String = "browser"
+    ) throws -> VMTunnelEndpoint {
         guard let tunnelId = obj["tunnelId"] as? String,
               let provider = obj["provider"] as? String,
               let deviceFingerprint = obj["deviceFingerprint"] as? String,
@@ -1467,12 +1588,20 @@ actor VMClient {
         else {
             throw VMClientError.malformedResponse("Cloud VM tunnel response was missing required fields.")
         }
+        // The access-grant API is additive. During rollout, production may
+        // still return the older tunnel shape. The provider tunnel id is a
+        // safe local stand-in for the new grant id, and the requested role is
+        // already bound to this request. Neither value grants access.
+        let accessGrantId = (obj["accessGrantId"] as? String) ?? tunnelId
+        let tunnelPurpose = (obj["tunnelPurpose"] as? String) ?? fallbackPurpose
         let address = obj["address"] as? [String: Any]
         let network = obj["network"] as? [String: Any]
         return VMTunnelEndpoint(
+            accessGrantId: accessGrantId,
             tunnelId: tunnelId,
             provider: provider,
             deviceFingerprint: deviceFingerprint,
+            tunnelPurpose: tunnelPurpose,
             clientConfig: clientConfig,
             clientPublicKey: clientPublicKey,
             serverPublicKey: serverPublicKey,
@@ -1666,6 +1795,7 @@ actor VMClient {
 
     func openPort(id: String, port: Int) async throws -> VMOpenPortEndpoint {
         let encodedID = try pathSegment(id, fieldName: "vm id")
+        try await requireCloudBrowserAccess(machineID: id)
         let (data, http) = try await request(
             "POST",
             path: "/api/vm/\(encodedID)/open-port",
@@ -1715,6 +1845,34 @@ actor VMClient {
         }
     }
 
+    private func revokeCloudAccess(
+        deviceID: String,
+        accessToken: String?,
+        refreshToken: String?
+    ) async {
+        guard let accessToken = accessToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !accessToken.isEmpty,
+              let refreshToken = refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !refreshToken.isEmpty,
+              var url = URLComponents(url: AuthEnvironment.vmAPIBaseURL, resolvingAgainstBaseURL: false) else {
+            return
+        }
+        url.path = (url.path.hasSuffix("/") ? String(url.path.dropLast()) : url.path) + "/api/vm/tunnel"
+        url.queryItems = [URLQueryItem(name: "deviceId", value: deviceID)]
+        guard let resolved = url.url else { return }
+        var request = URLRequest(url: resolved)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 8
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(refreshToken, forHTTPHeaderField: "X-Stack-Refresh-Token")
+        do {
+            _ = try await session.data(for: request)
+        } catch {
+            // Local key deletion still ends access from this Mac. A remote
+            // revoke remains available on cmux.com if the provider is offline.
+        }
+    }
+
     // MARK: - HTTP
 
     /// Every Cloud VM API call goes through here. Mints the trace context,
@@ -1726,7 +1884,8 @@ actor VMClient {
         path: String,
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
-        timeoutSeconds: TimeInterval? = nil
+        timeoutSeconds: TimeInterval? = nil,
+        retryTransientServiceUnavailable: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
@@ -1755,6 +1914,7 @@ actor VMClient {
                 jsonBody: jsonBody,
                 extraHeaders: headers,
                 timeoutSeconds: timeoutSeconds,
+                retryTransientServiceUnavailable: retryTransientServiceUnavailable,
                 onRetry: { retryCount += 1 }
             )
             record(.response(
@@ -1827,6 +1987,7 @@ actor VMClient {
         jsonBody: [String: Any]?,
         extraHeaders: [String: String],
         timeoutSeconds: TimeInterval?,
+        retryTransientServiceUnavailable: Bool,
         onRetry: () -> Void
     ) async throws -> (Data, HTTPURLResponse) {
         // Bind every control-plane request to the currently published auth
@@ -1887,13 +2048,11 @@ actor VMClient {
             } catch let error as URLError {
                 // Surface unreachable-backend errors as a human-readable message with recovery steps
                 // instead of the verbose NSURLErrorDomain payload.
-                switch error.code {
-                case .cannotConnectToHost, .cannotFindHost, .timedOut, .networkConnectionLost, .notConnectedToInternet:
+                if error.code.isCloudBackendTransportFailure {
                     let base = "\(AuthEnvironment.vmAPIBaseURL.scheme ?? "http")://\(AuthEnvironment.vmAPIBaseURL.host ?? "?"):\(AuthEnvironment.vmAPIBaseURL.port ?? -1)"
                     throw VMClientError.backendUnreachable(url: base, detail: error.localizedDescription)
-                default:
-                    throw error
                 }
+                throw error
             }
             guard let http = response as? HTTPURLResponse else {
                 throw VMClientError.malformedResponse("non-HTTP response")
@@ -1904,6 +2063,14 @@ actor VMClient {
                 let retryAfterSeconds = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
                 let delaySeconds = min(max(retryAfterSeconds ?? 2, 1), 10)
                 try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                continue
+            }
+            if retryTransientServiceUnavailable,
+               retriesLeft > 0,
+               let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
+                retriesLeft -= 1
+                onRetry()
+                try await ContinuousClock().sleep(for: delaySeconds)
                 continue
             }
             if let sessionIdentity {
@@ -1920,6 +2087,21 @@ actor VMClient {
             }
             return (data, http)
         }
+    }
+
+    /// Returns a bounded delay only for the VM API's explicitly retryable service failures.
+    /// Attach endpoint creation is idempotent for a machine/device pair, so repeating it
+    /// avoids surfacing a transient provider 502 as a dead Cloud sidebar row.
+    private static func transientVMRetryDelay(http: HTTPURLResponse, data: Data) -> Duration? {
+        guard (502...504).contains(http.statusCode),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let retryable = object["retryable"] as? Bool ?? false
+        let error = object["error"] as? String
+        guard retryable || error == "vm_cloud_service_unavailable" else { return nil }
+        let requested = cloudVMInt(object["retryAfterSeconds"]) ?? 2
+        return .seconds(min(max(requested, 1), 10))
     }
 
     private func decodeWebSocketDaemonEndpoint(_ value: Any?) throws -> VMWebSocketDaemonEndpoint? {
@@ -2248,23 +2430,16 @@ actor MachineUsageClient {
         return nil
     }
 
-    private nonisolated static let iso8601WithFractions: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private nonisolated static let iso8601: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
     /// `null`/absent is nil; an unparseable string is nil too, since the date
     /// only labels the readout and must never fail the whole payload.
     private nonisolated static func dateValue(_ raw: Any?) -> Date? {
         guard let text = raw as? String, !text.isEmpty else { return nil }
-        return iso8601WithFractions.date(from: text) ?? iso8601.date(from: text)
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: text) { return date }
+        let wholeSeconds = ISO8601DateFormatter()
+        wholeSeconds.formatOptions = [.withInternetDateTime]
+        return wholeSeconds.date(from: text)
     }
 
     private func request(
