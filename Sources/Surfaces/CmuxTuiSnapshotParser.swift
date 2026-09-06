@@ -27,6 +27,21 @@ struct CloudVMStateDeltaApplication: Sendable {
 }
 
 struct CmuxTuiSnapshotParser: Sendable {
+    /// JSONSerialization can bridge an array of heterogeneous dictionaries as a
+    /// Foundation collection whose conditional cast to `[[String: Any]]` may
+    /// trap on some Swift runtimes. Convert each row independently instead.
+    /// The optional form lets strict snapshot boundaries reject malformed rows,
+    /// while compatibility projections can safely drop them.
+    private static func rowArray(_ raw: Any?) -> [[String: Any]]? {
+        guard let array = raw as? [Any] else { return nil }
+        guard array.allSatisfy({ $0 is [String: Any] }) else { return nil }
+        return array.compactMap { $0 as? [String: Any] }
+    }
+
+    private static func rows(_ raw: Any?) -> [[String: Any]] {
+        rowArray(raw) ?? []
+    }
+
     /// Chooses a stable destination for projecting a terminal that currently has no remote
     /// tab view. The session snapshot lists structural records separately, so selection walks
     /// the focused workspace, focused screen, and focused pane in that order, using explicit
@@ -34,10 +49,10 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// appended to the chosen pane.
     static func terminalProjectionTarget(from snapshot: [String: Any]) -> CloudTuiTerminalProjectionTarget? {
         guard requiredGraphCollectionsArePresent(in: snapshot) else { return nil }
-        let workspaces = snapshot["workspaces"] as? [[String: Any]] ?? []
-        let screens = snapshot["screens"] as? [[String: Any]] ?? []
-        let panes = snapshot["panes"] as? [[String: Any]] ?? []
-        let tabs = snapshot["tabs"] as? [[String: Any]] ?? []
+        let workspaces = rows(snapshot["workspaces"])
+        let screens = rows(snapshot["screens"])
+        let panes = rows(snapshot["panes"])
+        let tabs = rows(snapshot["tabs"])
         var tabCountByPane: [String: Int] = [:]
         for tab in tabs {
             if let paneID = tab["pane_id"] as? String, !paneID.isEmpty {
@@ -118,7 +133,7 @@ struct CmuxTuiSnapshotParser: Sendable {
         let document = CloudVMStateDocument(snapshot: snapshot)
         guard let rawSnapshot = document.data() else { return nil }
 
-        let workspaces = ((snapshot["workspaces"] as? [[String: Any]]) ?? []).enumerated().compactMap { index, raw -> CloudVMWorkspaceState? in
+        let workspaces = rows(snapshot["workspaces"]).enumerated().compactMap { index, raw -> CloudVMWorkspaceState? in
             guard let id = nonEmptyString(raw["id"]) else { return nil }
             return CloudVMWorkspaceState(
                 id: id,
@@ -127,7 +142,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 focused: raw["focused"] as? Bool ?? false
             )
         }
-        let screens = ((snapshot["screens"] as? [[String: Any]]) ?? []).enumerated().compactMap { index, raw -> CloudVMScreenState? in
+        let screens = rows(snapshot["screens"]).enumerated().compactMap { index, raw -> CloudVMScreenState? in
             guard let id = nonEmptyString(raw["id"]), let workspaceID = nonEmptyString(raw["workspace_id"]) else { return nil }
             return CloudVMScreenState(
                 id: id,
@@ -138,7 +153,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 layout: raw["layout"].flatMap(canonicalJSONData)
             )
         }
-        let tabs = ((snapshot["tabs"] as? [[String: Any]]) ?? []).enumerated().compactMap { index, raw -> CloudVMTabState? in
+        let tabs = rows(snapshot["tabs"]).enumerated().compactMap { index, raw -> CloudVMTabState? in
             guard let id = nonEmptyString(raw["id"]), let paneID = nonEmptyString(raw["pane_id"]) else { return nil }
             guard let contentKind = nonEmptyString(raw["content_kind"]), let contentID = nonEmptyString(raw["content_id"]) else { return nil }
             let name = nonEmptyString(raw["name"])
@@ -164,7 +179,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 tabIDsByTerminal[tab.contentID, default: []].append(tab.id)
             }
         }
-        let panes = ((snapshot["panes"] as? [[String: Any]]) ?? []).compactMap { raw -> CloudVMPaneState? in
+        let panes = rows(snapshot["panes"]).compactMap { raw -> CloudVMPaneState? in
             guard let id = nonEmptyString(raw["id"]), let screenID = nonEmptyString(raw["screen_id"]) else { return nil }
             return CloudVMPaneState(
                 id: id,
@@ -175,7 +190,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 tabIDs: tabIDsByPane[id] ?? []
             )
         }
-        let terminals = ((snapshot["terminals"] as? [[String: Any]]) ?? []).compactMap { raw -> CloudVMTerminalState? in
+        let terminals = rows(snapshot["terminals"]).compactMap { raw -> CloudVMTerminalState? in
             guard let id = nonEmptyString(raw["id"]) else { return nil }
             let declaredTabIDs = uniquePreservingOrder((raw["tab_ids"] as? [String]) ?? [])
                 + (nonEmptyString(raw["tab_id"]).map { [$0] } ?? [])
@@ -194,7 +209,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 running: raw["running"] as? Bool
             )
         }
-        let browsers = ((snapshot["browsers"] as? [[String: Any]]) ?? []).compactMap { raw -> CloudVMBrowserState? in
+        let browsers = rows(snapshot["browsers"]).compactMap { raw -> CloudVMBrowserState? in
             guard let id = nonEmptyString(raw["id"]), let tabID = nonEmptyString(raw["tab_id"]) else { return nil }
             return CloudVMBrowserState(
                 id: id,
@@ -204,7 +219,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 status: (raw["status"] as? String) ?? ""
             )
         }
-        let agents = ((snapshot["agents"] as? [[String: Any]]) ?? []).compactMap { raw -> CloudVMAgentState? in
+        let agents = rows(snapshot["agents"]).compactMap { raw -> CloudVMAgentState? in
             guard let terminalID = nonEmptyString(raw["terminal_id"]), let state = nonEmptyString(raw["state"]) else { return nil }
             return CloudVMAgentState(id: nonEmptyString(raw["id"]), terminalID: terminalID, state: state, source: nonEmptyString(raw["source"]))
         }
@@ -236,7 +251,7 @@ struct CmuxTuiSnapshotParser: Sendable {
         var agentTerminalIDs = Set<String>()
         for key in ["workspaces", "screens", "panes", "tabs", "terminals", "browsers", "agents"] {
             guard let raw = snapshot[key] else { continue }
-            guard let rows = raw as? [[String: Any]] else { return false }
+            guard let rows = Self.rowArray(raw) else { return false }
             var ids = Set<String>()
             for row in rows {
                 // Agent ids were added after the first public snapshot schema. Their stable
@@ -296,7 +311,7 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// canonical document for forward compatibility.
     private static func requiredGraphCollectionsArePresent(in snapshot: [String: Any]) -> Bool {
         ["workspaces", "screens", "panes", "tabs", "terminals", "browsers", "agents"]
-            .allSatisfy { snapshot[$0] is [[String: Any]] }
+            .allSatisfy { Self.rowArray(snapshot[$0]) != nil }
     }
 
     /// Verifies the foreign-key edges that determine a remote placement. A
@@ -309,12 +324,12 @@ struct CmuxTuiSnapshotParser: Sendable {
         in snapshot: [String: Any],
         allowIncompleteTabMetadata: Bool = false
     ) -> Bool {
-        let workspaces = (snapshot["workspaces"] as? [[String: Any]]) ?? []
-        let screens = (snapshot["screens"] as? [[String: Any]]) ?? []
-        let panes = (snapshot["panes"] as? [[String: Any]]) ?? []
-        let tabs = (snapshot["tabs"] as? [[String: Any]]) ?? []
-        let terminals = (snapshot["terminals"] as? [[String: Any]]) ?? []
-        let browsers = (snapshot["browsers"] as? [[String: Any]]) ?? []
+        let workspaces = rows(snapshot["workspaces"])
+        let screens = rows(snapshot["screens"])
+        let panes = rows(snapshot["panes"])
+        let tabs = rows(snapshot["tabs"])
+        let terminals = rows(snapshot["terminals"])
+        let browsers = rows(snapshot["browsers"])
 
         let workspaceIDs = Set(workspaces.compactMap { nonEmptyString($0["id"]) })
         let screenIDs = Set(screens.compactMap { nonEmptyString($0["id"]) })
@@ -579,7 +594,8 @@ struct CmuxTuiSnapshotParser: Sendable {
     ) -> CloudVMStateDeltaApplication? {
         guard let currentCursor = state.cursor,
               let delta = try? JSONSerialization.jsonObject(with: deltaPayload) as? [String: Any],
-              let changes = delta["changes"] as? [[String: Any]],
+              let changesRaw = delta["changes"],
+              let changes = Self.rowArray(changesRaw),
               currentCursor.generation == cursor.generation,
               currentCursor.revision < UInt64.max,
               cursor.revision == currentCursor.revision + 1,
@@ -1319,12 +1335,12 @@ struct CmuxTuiSnapshotParser: Sendable {
               snapshotRelationshipsAreConsistent(in: snapshot, allowIncompleteTabMetadata: true)
         else { return [] }
 
-        let screensRaw = (snapshot["screens"] as? [[String: Any]]) ?? []
-        let panesRaw = (snapshot["panes"] as? [[String: Any]]) ?? []
-        let tabsRaw = (snapshot["tabs"] as? [[String: Any]]) ?? []
+        let screensRaw = rows(snapshot["screens"])
+        let panesRaw = rows(snapshot["panes"])
+        let tabsRaw = rows(snapshot["tabs"])
         let orderedTabsRaw = orderedSnapshotRows(tabsRaw).map(\.element)
-        let terminalsRaw = (snapshot["terminals"] as? [[String: Any]]) ?? []
-        let agentsRaw = (snapshot["agents"] as? [[String: Any]]) ?? []
+        let terminalsRaw = rows(snapshot["terminals"])
+        let agentsRaw = rows(snapshot["agents"])
 
         var workspaceOfScreen: [String: String] = [:]
         for screen in screensRaw {
@@ -1416,7 +1432,7 @@ struct CmuxTuiSnapshotParser: Sendable {
         // Daemon browsers are workspace tab content just like terminals
         // (`browsers[{id,tab_id,url,title,status}]`) — a workspace holds more than
         // terminals, and the tree shows a browser inside the workspace that views it.
-        for raw in (snapshot["browsers"] as? [[String: Any]]) ?? [] {
+        for raw in rows(snapshot["browsers"]) {
             guard let id = nonEmptyString(raw["id"]) else { continue }
             let resourceID = SurfaceResourceID(machine: machine, kind: .browser, key: id)
             if let resourceIDs, !resourceIDs.contains(resourceID) { continue }
@@ -1509,19 +1525,19 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// so an exited terminal can still be closed when its own selector is gone.
     static func tabByTerminal(fromSnapshot snapshot: [String: Any]) -> [String: String] {
         var result: [String: String] = [:]
-        for tab in (snapshot["tabs"] as? [[String: Any]]) ?? [] {
+        for tab in rows(snapshot["tabs"]) {
             guard nonEmptyString(tab["content_kind"]) == "terminal",
                   let terminalID = nonEmptyString(tab["content_id"]),
                   let tabID = nonEmptyString(tab["id"]) else { continue }
             result[terminalID] = result[terminalID] ?? tabID
         }
-        for raw in (snapshot["terminals"] as? [[String: Any]]) ?? [] {
+        for raw in rows(snapshot["terminals"]) {
             guard let id = raw["id"] as? String, !id.isEmpty else { continue }
             let tabIDs = ((raw["tab_ids"] as? [String]) ?? []) + [(raw["tab_id"] as? String) ?? ""]
             if let tab = tabIDs.first(where: { !$0.isEmpty }) { result[id] = result[id] ?? tab }
         }
         // A display pointer has no process to end: closing it means closing its tab.
-        for tab in (snapshot["tabs"] as? [[String: Any]]) ?? [] {
+        for tab in rows(snapshot["tabs"]) {
             guard ["display", "screen"].contains(tab["content_kind"] as? String),
                   let contentID = tab["content_id"] as? String, !contentID.isEmpty,
                   let tabID = tab["id"] as? String, !tabID.isEmpty, result[contentID] == nil else { continue }
@@ -1535,7 +1551,7 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// daemon's unnamed state with an empty value.
     static func tabNames(fromSnapshot snapshot: [String: Any]) -> [String: String] {
         var result: [String: String] = [:]
-        for tab in (snapshot["tabs"] as? [[String: Any]]) ?? [] {
+        for tab in rows(snapshot["tabs"]) {
             guard let id = tab["id"] as? String, !id.isEmpty,
                   let name = tab["name"] as? String else { continue }
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1555,7 +1571,7 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// The daemon's workspaces, in its order — including empty ones, which have no
     /// terminal to derive them from.
     static func workspaces(fromSnapshot snapshot: [String: Any]) -> [SurfaceRemoteWorkspace] {
-        let workspacesRaw = (snapshot["workspaces"] as? [[String: Any]]) ?? []
+        let workspacesRaw = rows(snapshot["workspaces"])
         return orderedSnapshotRows(workspacesRaw).compactMap { entry in
             let raw = entry.element
             guard let id = raw["id"] as? String, !id.isEmpty else { return nil }
