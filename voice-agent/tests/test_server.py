@@ -104,3 +104,12 @@ def test_greeting_reaches_ultravox_call_request(monkeypatch):
     tools = VoiceTools(CmuxClient("/nonexistent.sock", allowed_methods=ALLOWED_METHODS), ConfirmationPolicy())
     llm = bot.build_llm(tools, output_medium="voice", ui_summary="")
     assert llm._params.extra["firstSpeakerSettings"]["agent"]["prompt"].startswith("Greet the user")
+
+
+def test_prompt_guards_composition_and_git_context():
+    from cmux_voice.prompt import build_system_prompt
+
+    prompt = build_system_prompt()
+    assert "do not add ideas" in prompt
+    assert "not a git repository" in prompt
+    assert "go_to_directory" in prompt and "run_shell" in prompt and "compose_and_type" in prompt
