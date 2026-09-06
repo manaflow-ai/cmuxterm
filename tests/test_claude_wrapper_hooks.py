@@ -434,6 +434,9 @@ exit 0
                 test_socket.bind(socket_path)
 
             env = os.environ.copy()
+            sandbox_home = tmp / "home"
+            sandbox_home.mkdir()
+            env["HOME"] = str(sandbox_home)
             env["PATH"] = f"{wrapper_dir}:{real_dir}:{env.get('PATH', '/usr/bin:/bin')}"
             env.update(fingerprint_env)
             env["FAKE_REAL_ENV_LOG"] = str(env_log)
@@ -553,6 +556,9 @@ exit 0
                 test_socket.bind(socket_path)
 
             env = os.environ.copy()
+            sandbox_home = tmp / "home"
+            sandbox_home.mkdir()
+            env["HOME"] = str(sandbox_home)
             for ambient_cmux_key in [k for k in env if k.startswith("CMUX_")]:
                 env.pop(ambient_cmux_key, None)
             for ambient_aws_key in [k for k in env if k.startswith("AWS_")]:
