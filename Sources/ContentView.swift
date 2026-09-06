@@ -16006,7 +16006,7 @@ struct TabItemView: View, Equatable {
                 if workspaceSnapshot.isPinned {
                     CmuxSystemSymbolImage(magnified: "pin.fill", pointSize: scaledFontSize(9), weight: .semibold)
                         .foregroundColor(activeSecondaryColor(0.8))
-                        .safeHelp(protectedWorkspaceTooltip)
+                        .safeHelp(SidebarWorkspaceRowLocalizedStrings.pinnedWorkspaceProtectedTooltip)
                 }
 
                 if workspaceSnapshot.isMuted {
