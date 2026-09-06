@@ -165,12 +165,26 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
         }
         CommandLine::ListNotifications(arguments) => run_list_notifications(arguments, options),
         CommandLine::LegacyV1 { command, arguments } => {
-            if !arguments.is_empty() {
-                return Err(CliError::Usage(format!(
-                    "{command}: unexpected argument '{}'",
-                    arguments[0]
-                )));
-            }
+            let command = if command == "set_app_focus" {
+                let value = arguments
+                    .first()
+                    .ok_or_else(|| CliError::Usage("set-app-focus requires a value".into()))?;
+                if arguments.len() > 1 {
+                    return Err(CliError::Usage(format!(
+                        "set-app-focus: unexpected argument '{}'",
+                        arguments[1]
+                    )));
+                }
+                format!("set_app_focus {value}")
+            } else {
+                if !arguments.is_empty() {
+                    return Err(CliError::Usage(format!(
+                        "{command}: unexpected argument '{}'",
+                        arguments[0]
+                    )));
+                }
+                command
+            };
             let response = socket(&options)?.send_v1(&command)?;
             println!("{response}");
             Ok(())
@@ -332,6 +346,31 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
         ) => {
             CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
         }
+        (
+            _,
+            Some(
+                command
+                @ ("close-surface" | "surface-health" | "debug-terminals" | "trigger-flash"),
+            ),
+        ) => {
+            CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
+        }
+        (_, Some("refresh-surfaces")) => CommandLine::LegacyV1 {
+            command: "refresh_surfaces".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
+        (_, Some("reload-config")) => CommandLine::LegacyV1 {
+            command: "reload_config".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
+        (_, Some("simulate-app-active")) => CommandLine::LegacyV1 {
+            command: "simulate_app_active".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
+        (_, Some("set-app-focus")) => CommandLine::LegacyV1 {
+            command: "set_app_focus".into(),
+            arguments: args[index + 1..].to_vec(),
+        },
         (_, Some("__sidebar_footer_icon_balance")) => CommandLine::LegacyV1 {
             command: "__sidebar_footer_icon_balance".into(),
             arguments: args[index + 1..].to_vec(),
@@ -822,6 +861,10 @@ fn run_socket_v2_command(
         "get-url" => "browser.url.get",
         "focus-webview" => "browser.focus_webview",
         "is-webview-focused" => "browser.is_webview_focused",
+        "close-surface" => "surface.close",
+        "surface-health" => "surface.health",
+        "debug-terminals" => "debug.terminals",
+        "trigger-flash" => "surface.trigger_flash",
         _ => unreachable!("parser only creates known socket commands"),
     };
     if command == "read-screen" {
@@ -973,7 +1016,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  close-surface --surface <id>\n  surface-health [--surface <id>]\n  debug-terminals\n  trigger-flash [--surface <id>]\n  refresh-surfaces\n  reload-config\n  set-app-focus <true|false>\n  simulate-app-active\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -1587,6 +1630,15 @@ mod tests {
                     "surface:1".into(),
                     "https://example.com".into()
                 ]
+            }
+        );
+        let (_, focus) =
+            parse_args(&["set-app-focus".into(), "true".into()], Program::Cmux).unwrap();
+        assert_eq!(
+            focus,
+            CommandLine::LegacyV1 {
+                command: "set_app_focus".into(),
+                arguments: vec!["true".into()]
             }
         );
     }
