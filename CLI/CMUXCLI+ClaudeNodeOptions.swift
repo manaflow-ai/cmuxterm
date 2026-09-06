@@ -44,6 +44,57 @@ extension CMUXCLI {
         return String(path.dropFirst().dropLast())
     }
 
+    private static func nodeOptionsTokens(_ existing: String) -> [String]? {
+        var tokens: [String] = []
+        var current = ""
+        var quote: Character?
+        var escaped = false
+        var tokenStarted = false
+
+        for character in existing {
+            if escaped {
+                current.append(character)
+                escaped = false
+                tokenStarted = true
+                continue
+            }
+            if character == "\\" && quote != "'" {
+                current.append(character)
+                escaped = true
+                tokenStarted = true
+                continue
+            }
+            if let activeQuote = quote {
+                current.append(character)
+                if character == activeQuote {
+                    quote = nil
+                }
+                tokenStarted = true
+                continue
+            }
+            if character == "'" || character == "\"" {
+                quote = character
+                current.append(character)
+                tokenStarted = true
+            } else if character.isWhitespace {
+                if tokenStarted {
+                    tokens.append(current)
+                    current = ""
+                    tokenStarted = false
+                }
+            } else {
+                current.append(character)
+                tokenStarted = true
+            }
+        }
+
+        guard !escaped, quote == nil else { return nil }
+        if tokenStarted {
+            tokens.append(current)
+        }
+        return tokens
+    }
+
     private static func cachePathState(at url: URL) throws -> CachePathState? {
         var statValue = stat()
         guard lstat(url.path, &statValue) == 0 else {
@@ -90,7 +141,7 @@ extension CMUXCLI {
     }
 
     private func nodeOptionsRequirePaths(_ existing: String) -> [String] {
-        let tokens = existing.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let tokens = Self.nodeOptionsTokens(existing) else { return [] }
         var paths: [String] = []
         var index = 0
         while index < tokens.count {
@@ -168,7 +219,7 @@ extension CMUXCLI {
     }
 
     private func cleanedNodeOptions(_ existing: String?) -> String {
-        let tokens = (existing ?? "").split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let tokens = Self.nodeOptionsTokens(existing ?? "") else { return existing ?? "" }
         guard !tokens.isEmpty else { return "" }
 
         var filtered: [String] = []
@@ -190,7 +241,7 @@ extension CMUXCLI {
     }
 
     func normalizedNodeOptionsForRestore(_ existing: String) -> String {
-        let tokens = existing.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let tokens = Self.nodeOptionsTokens(existing) else { return existing }
         guard !tokens.isEmpty else { return "" }
 
         var normalized: [String] = []

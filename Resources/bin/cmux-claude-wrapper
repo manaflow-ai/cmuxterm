@@ -913,6 +913,67 @@ cmux_claude_wrapper_unquote_node_options_path() {
     printf '%s' "$path"
 }
 
+cmux_claude_wrapper_tokenize_node_options() {
+    local input="$1"
+    local current=""
+    local char
+    local index=0
+    local quote=""
+    local escaped=0
+    local token_started=0
+    CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS=()
+
+    while (( index < ${#input} )); do
+        char="${input:$index:1}"
+        if (( escaped )); then
+            current+="$char"
+            escaped=0
+            index=$((index + 1))
+            continue
+        fi
+        if [[ "$char" == "\\" && "$quote" != "'" ]]; then
+            current+="$char"
+            escaped=1
+            token_started=1
+            index=$((index + 1))
+            continue
+        fi
+        if [[ -n "$quote" ]]; then
+            current+="$char"
+            if [[ "$char" == "$quote" ]]; then
+                quote=""
+            fi
+            token_started=1
+            index=$((index + 1))
+            continue
+        fi
+        case "$char" in
+            "'"|\")
+                quote="$char"
+                current+="$char"
+                token_started=1
+                ;;
+            [[:space:]])
+                if (( token_started )); then
+                    CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS+=("$current")
+                    current=""
+                    token_started=0
+                fi
+                ;;
+            *)
+                current+="$char"
+                token_started=1
+                ;;
+        esac
+        index=$((index + 1))
+    done
+
+    [[ "$escaped" == 0 && -z "$quote" ]] || return 1
+    if (( token_started )); then
+        CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS+=("$current")
+    fi
+}
+
 cmux_claude_wrapper_recreate_legacy_node_options_modules() {
     local existing="${NODE_OPTIONS:-}"
     local -a tokens=()
@@ -923,7 +984,8 @@ cmux_claude_wrapper_recreate_legacy_node_options_modules() {
     local temp_path
 
     [[ -n "$existing" ]] || return 0
-    read -r -a tokens <<<"$existing"
+    cmux_claude_wrapper_tokenize_node_options "$existing" || return 0
+    tokens=("${CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS[@]}")
     local index=0
     while (( index < ${#tokens[@]} )); do
         token="${tokens[$index]}"
@@ -947,6 +1009,10 @@ cmux_claude_wrapper_recreate_legacy_node_options_modules() {
             index=$((index + 1))
             continue
         fi
+        cmux_claude_wrapper_node_options_path_is_safe "$path" || {
+            index=$((index + 1))
+            continue
+        }
         legacy_path="$path"
         legacy_dir="${legacy_path%/*}"
         if [[ "$legacy_path" != "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" &&
@@ -985,7 +1051,11 @@ merge_node_options() {
         return 0
     fi
 
-    read -r -a tokens <<<"$existing"
+    if cmux_claude_wrapper_tokenize_node_options "$existing"; then
+        tokens=("${CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS[@]}")
+    else
+        read -r -a tokens <<<"$existing"
+    fi
     for token in "${tokens[@]}"; do
         if (( skip_next )); then
             skip_next=0
@@ -1016,7 +1086,11 @@ normalize_node_options_for_restore() {
     local token
     local index=0
 
-    read -r -a tokens <<<"$existing"
+    if cmux_claude_wrapper_tokenize_node_options "$existing"; then
+        tokens=("${CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS[@]}")
+    else
+        read -r -a tokens <<<"$existing"
+    fi
     while (( index < ${#tokens[@]} )); do
         token="${tokens[$index]}"
         if [[ "$token" == "--max-old-space-size" && $((index + 1)) -lt ${#tokens[@]} ]]; then
