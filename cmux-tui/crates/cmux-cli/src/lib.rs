@@ -1735,20 +1735,30 @@ fn context_params(
     options: &GlobalOptions,
 ) -> Result<serde_json::Map<String, Value>, CliError> {
     let mut params = serde_json::Map::new();
-    let workspace =
+    let workspace_raw =
         option_value(arguments, "--workspace").or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
-    let surface = option_value(arguments, "--surface")
+    let surface_raw = option_value(arguments, "--surface")
         .or_else(|| option_value(arguments, "--panel"))
         .or_else(|| env::var("CMUX_SURFACE_ID").ok());
     let window = option_value(arguments, "--window").or_else(|| options.window.clone());
-    if let Some(window) = window {
-        params.insert("window_id".into(), Value::String(window));
+    let window =
+        window.map(|value| resolve_handle(&value, "window", options, None, None)).transpose()?;
+    if let Some(window) = window.as_deref() {
+        params.insert("window_id".into(), Value::String(window.to_string()));
     }
-    if let Some(workspace) = workspace {
-        params.insert("workspace_id".into(), Value::String(workspace));
+    let workspace = workspace_raw
+        .map(|value| resolve_handle(&value, "workspace", options, window.as_deref(), None))
+        .transpose()?;
+    if let Some(workspace) = workspace.as_deref() {
+        params.insert("workspace_id".into(), Value::String(workspace.to_string()));
     }
-    if let Some(surface) = surface {
-        params.insert("surface_id".into(), Value::String(surface));
+    let surface = surface_raw
+        .map(|value| {
+            resolve_handle(&value, "surface", options, window.as_deref(), workspace.as_deref())
+        })
+        .transpose()?;
+    if let Some(surface) = surface.as_deref() {
+        params.insert("surface_id".into(), Value::String(surface.to_string()));
     }
     for name in [
         "--workspace",
@@ -1763,6 +1773,66 @@ fn context_params(
         reject_option(arguments, name)?;
     }
     Ok(params)
+}
+
+fn resolve_handle(
+    raw: &str,
+    kind: &str,
+    options: &GlobalOptions,
+    window_id: Option<&str>,
+    workspace_id: Option<&str>,
+) -> Result<String, CliError> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(CliError::Usage(format!("{kind} handle cannot be empty")));
+    }
+    if Uuid::parse_str(raw).is_ok() {
+        return Ok(raw.to_string());
+    }
+    let mut list_params = serde_json::Map::new();
+    if let Some(window_id) = window_id {
+        list_params.insert("window_id".into(), Value::String(window_id.into()));
+    }
+    if let Some(workspace_id) = workspace_id {
+        list_params.insert("workspace_id".into(), Value::String(workspace_id.into()));
+    }
+    let method = match kind {
+        "window" => "window.list",
+        "workspace" => "workspace.list",
+        "surface" => "surface.list",
+        "pane" => "pane.list",
+        _ => return Ok(raw.to_string()),
+    };
+    let collection = match kind {
+        "window" => "windows",
+        "workspace" => "workspaces",
+        "surface" => "surfaces",
+        "pane" => "panes",
+        _ => unreachable!(),
+    };
+    let result = socket(options)?.send_v2(method, Value::Object(list_params))?;
+    let items = result
+        .get(collection)
+        .and_then(Value::as_array)
+        .ok_or_else(|| CliError::Runtime(format!("{method} returned no {collection}")))?;
+    let index = raw.parse::<u64>().ok();
+    for item in items {
+        let matches_raw = [format!("{kind}_ref"), "ref".into(), format!("{kind}_id"), "id".into()]
+            .iter()
+            .any(|key| item.get(key).and_then(Value::as_str) == Some(raw));
+        let matches_index =
+            index.is_some_and(|index| item.get("index").and_then(Value::as_u64) == Some(index));
+        if matches_raw || matches_index {
+            for key in [format!("{kind}_id"), "id".into(), format!("{kind}_ref"), "ref".into()] {
+                if let Some(value) = item.get(&key).and_then(Value::as_str)
+                    && Uuid::parse_str(value).is_ok()
+                {
+                    return Ok(value.to_string());
+                }
+            }
+        }
+    }
+    Err(CliError::Usage(format!("Could not resolve {kind} handle '{raw}'")))
 }
 
 fn reject_option(arguments: &[String], name: &str) -> Result<(), CliError> {
@@ -2661,6 +2731,28 @@ mod tests {
     }
 
     #[test]
+    fn resolves_workspace_ref_before_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "workspace.list");
+            stream
+                .write_all(b"{\"ok\":true,\"result\":{\"workspaces\":[{\"workspace_id\":\"33333333-3333-4333-8333-333333333333\",\"workspace_ref\":\"workspace:1\",\"index\":0}]}}\n")
+                .unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), ..GlobalOptions::default() };
+        let params =
+            context_params(&["--workspace".into(), "workspace:1".into()], &options).unwrap();
+        assert_eq!(params["workspace_id"], "33333333-3333-4333-8333-333333333333");
+        worker.join().unwrap();
+    }
+
+    #[test]
     fn parses_windows_v1_response_for_json_output() {
         let windows = parse_windows(
             "*0: win_1 selected_workspace=ws_1 workspaces=2\n1: win_2 selected_workspace=none workspaces=0",
@@ -2715,12 +2807,17 @@ mod tests {
     fn builds_surface_text_request_without_losing_context() {
         let options = GlobalOptions { json: true, ..GlobalOptions::default() };
         let params = context_params(
-            &["--surface".into(), "surface:1".into(), "--workspace".into(), "workspace:1".into()],
+            &[
+                "--surface".into(),
+                "11111111-1111-4111-8111-111111111111".into(),
+                "--workspace".into(),
+                "22222222-2222-4222-8222-222222222222".into(),
+            ],
             &options,
         )
         .unwrap();
-        assert_eq!(params["surface_id"], "surface:1");
-        assert_eq!(params["workspace_id"], "workspace:1");
+        assert_eq!(params["surface_id"], "11111111-1111-4111-8111-111111111111");
+        assert_eq!(params["workspace_id"], "22222222-2222-4222-8222-222222222222");
         assert_eq!(
             trailing_text(&["hello".into(), "world".into()], "send").unwrap(),
             "hello world"

@@ -53,7 +53,7 @@ All 12 families remain incomplete:
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
-| topology | partial | window inspection, basic window actions, workspace and pane/surface inspection output are ported; handle normalization, tree, tab, and exact mutation output remain |
+| topology | partial | window inspection, basic window actions, workspace and pane/surface inspection output, and common ref/index resolution are ported; tree, tab, full handle normalization, and exact mutation output remain |
 | terminal-and-notifications | partial | terminal reads, selection, sends, panel aliases, sidebar status/progress/log forwarding, and basic notification actions are ported; capture, feed, advanced targeting, and exact metadata output remain |
 | browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press, and profile lifecycle aliases are ported; storage, selector normalization, and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
@@ -106,6 +106,7 @@ The following checks passed for the current slice:
 - Browser profile lifecycle request routing.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
+- Workspace ref resolution test before a v2 request.
 - Workspace and surface creation command parsing and boolean flag tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
