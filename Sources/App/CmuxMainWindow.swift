@@ -120,17 +120,16 @@ final class CmuxMainWindow: NSWindow {
         if inLiveResize {
             zoomIntent = .userSized
         }
-        let capped: NSRect
-        if styleMask.contains(.fullScreen) {
-            capped = frameRect
-        } else {
-            capped = Self.frameByCappingOversizedDimensions(
-                frameRect,
-                displayFrames: NSScreen.screens.map {
-                    (frame: $0.frame, visibleFrame: $0.visibleFrame)
-                }
-            )
+        guard !styleMask.contains(.fullScreen) else {
+            super.setFrame(frameRect, display: flag)
+            return
         }
+        let capped = Self.frameByCappingOversizedDimensions(
+            frameRect,
+            displayFrames: NSScreen.screens.map {
+                (frame: $0.frame, visibleFrame: $0.visibleFrame)
+            }
+        )
         super.setFrame(
             Self.frameByRaisingUndersizedDimensions(
                 capped,
