@@ -406,7 +406,7 @@ struct PanelFilePathHeader<TrailingContent: View>: View {
                 .foregroundStyle(Color(nsColor: foregroundColor).opacity(0.68))
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: filePath)
             Spacer(minLength: 8)
             trailingContent()
         }

@@ -4841,7 +4841,7 @@ private struct StartupAppearanceDebugView: View {
                         ScrollView {
                             Text(selectedConfigText)
                                 .cmuxFont(.caption, design: .monospaced)
-                                .textSelection(.enabled)
+                                .copyOnlyTextSelection(for: selectedConfigText)
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
                                 .padding(8)
                         }
