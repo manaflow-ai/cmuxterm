@@ -2841,6 +2841,7 @@
 		B88358000000000000000003 /* TerminalPastePreparationWorkerResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88358000000000000000004 /* TerminalPastePreparationWorkerResponse.swift */; };
 		B88359000000000000000001 /* TerminalPastePreparationWorkerSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88359000000000000000002 /* TerminalPastePreparationWorkerSupervisor.swift */; };
 		2681A216F02BEE5AD12CE00D /* TerminalPastePreparationWorkerTextPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85403EFC95DBB4FA4AE9CE7 /* TerminalPastePreparationWorkerTextPayload.swift */; };
+		C13519000000000000000013 /* TerminalPathEnvironmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C13519000000000000000014 /* TerminalPathEnvironmentTests.swift */; };
 		F87910110000000000000001 /* TerminalPendingConfigurationReload.swift in Sources */ = {isa = PBXBuildFile; fileRef = F87910110000000000000002 /* TerminalPendingConfigurationReload.swift */; };
 		A93620010000000000000001 /* TerminalPointerIngressRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93620010000000000000002 /* TerminalPointerIngressRegressionTests.swift */; };
 		A93620030000000000000001 /* TerminalPointerNativeHoverUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93620030000000000000002 /* TerminalPointerNativeHoverUITests.swift */; };
@@ -6058,6 +6059,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		B88358000000000000000004 /* TerminalPastePreparationWorkerResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPastePreparationWorkerResponse.swift; sourceTree = "<group>"; };
 		B88359000000000000000002 /* TerminalPastePreparationWorkerSupervisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPastePreparationWorkerSupervisor.swift; sourceTree = "<group>"; };
 		B85403EFC95DBB4FA4AE9CE7 /* TerminalPastePreparationWorkerTextPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPastePreparationWorkerTextPayload.swift; sourceTree = "<group>"; };
+		C13519000000000000000014 /* TerminalPathEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPathEnvironmentTests.swift; sourceTree = "<group>"; };
 		F87910110000000000000002 /* TerminalPendingConfigurationReload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPendingConfigurationReload.swift; sourceTree = "<group>"; };
 		A93620010000000000000002 /* TerminalPointerIngressRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPointerIngressRegressionTests.swift; sourceTree = "<group>"; };
 		A93620030000000000000002 /* TerminalPointerNativeHoverUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalPointerNativeHoverUITests.swift; sourceTree = "<group>"; };
@@ -9035,6 +9037,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C2035A060000000000000002 /* BrowserSSLTrustBypassStateTests.swift */,
 				A11EB0000000000000000001 /* GhosttyConfigPathResolverTests.swift */,
 				C13519000000000000000004 /* GhosttyTerminalStartupEnvironmentTests.swift */,
+				C13519000000000000000014 /* TerminalPathEnvironmentTests.swift */,
 				C13519000000000000000008 /* ClaudeConfigDirectoryPathTests.swift */,
 				C65930010000000000000001 /* CrashDiagnosticSessionPolicyTests.swift */,
 				DEBDADADADADADADAD000004 /* DebugDogfoodCredentialResolverTests.swift */,
@@ -13450,6 +13453,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A5E380700000000000000001 /* TerminalNotificationSocketActionTests.swift in Sources */,
 				11189010A1B2C3D4E5F60718 /* TerminalNotificationSocketAttributionTests.swift in Sources */,
 				596100000000000000000007 /* TerminalNotificationStore+NativeNotificationDeliveryTesting.swift in Sources */,
+				C13519000000000000000013 /* TerminalPathEnvironmentTests.swift in Sources */,
 				A93620010000000000000001 /* TerminalPointerIngressRegressionTests.swift in Sources */,
 				873900010000000000000001 /* TerminalPointerStyleViewTests.swift in Sources */,
 				D5671101D5671101D5671101 /* TerminalScrollSpeedSettingsFileStoreTests.swift in Sources */,
