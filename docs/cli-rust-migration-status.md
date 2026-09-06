@@ -42,6 +42,11 @@ protocol request that looks similar is not proof of observable parity.
 
 **Status: in progress. Cutover blocked.**
 
+The internal goal record is still marked paused. The goal service does not
+provide a resume operation and rejects a second goal while this one is
+unfinished. This document is the active execution record until that service
+can accept the completed goal.
+
 The gate currently reports 126 Swift dispatch arms and 156 command labels.
 All 12 families remain incomplete:
 
