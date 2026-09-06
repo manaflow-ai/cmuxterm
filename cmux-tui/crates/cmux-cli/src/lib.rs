@@ -871,7 +871,28 @@ fn run_socket_v2_command(
     if !matches!(id_format.as_str(), "refs" | "uuids" | "both") {
         return Err(CliError::Usage("--id-format requires refs, uuids, or both".into()));
     }
-    let mut params = context_params(&arguments, &options)?;
+    let mut params = if matches!(
+        command,
+        "new-workspace"
+            | "auth"
+            | "login"
+            | "logout"
+            | "clear-notifications"
+            | "set-status"
+            | "clear-status"
+            | "list-status"
+            | "set-progress"
+            | "clear-progress"
+            | "log"
+            | "clear-log"
+            | "list-log"
+            | "sidebar-state"
+            | "right-sidebar"
+    ) {
+        serde_json::Map::new()
+    } else {
+        context_params(&arguments, &options)?
+    };
     let method = match command {
         "list-workspaces" => "workspace.list",
         "current-workspace" => "workspace.current",
