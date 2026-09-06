@@ -5491,7 +5491,7 @@ struct WebViewRepresentable: NSViewRepresentable {
     let isPanelFocused: Bool
     let portalZPriority: Int
     let paneDropZone: DropZone?
-    let paneDropTargetRegistry: PaneDropTargetRegistry? = nil
+    let paneDropTargetRegistry: PaneDropTargetRegistry?
     /// Explicit pane-ownership for hosts (the Dock) whose panels are not in the
     /// main `Workspace` tree, so the portal-visibility gate can resolve ownership
     /// without `Workspace.paneId(forPanelId:)`. `nil` keeps the main-area path.
