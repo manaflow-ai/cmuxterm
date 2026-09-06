@@ -119,6 +119,10 @@ nonisolated private func v2RemotePTYUserFacingErrorMessage(_ message: String) ->
 @MainActor
 class TerminalController {
     static let shared = TerminalController()
+    /// The app-managed Cloud tunnel, set by the AppDelegate composition root
+    /// next to `VMClient.bootstrap`. Nil only before startup finishes; the
+    /// `vm.tunnel_*` socket verbs report browser access as unavailable until then.
+    var cloudTunnel: CloudTunnelCoordinator?
 #if DEBUG
     nonisolated let windowScreenshotCaptureCoordinator =
         WindowScreenshotCaptureCoordinator()
@@ -2999,6 +3003,9 @@ class TerminalController {
             "vm.publication_verify",
             "vm.publication_update",
             "vm.publication_delete",
+            "vm.publication_grants",
+            "vm.publication_grant",
+            "vm.publication_ungrant",
             "vm.domain_list",
             "vm.domain_verify",
             "vm.create",
@@ -3023,6 +3030,8 @@ class TerminalController {
             "vm.tree",
             "vm.terminal_open",
             "vm.terminal_new",
+            "vm.terminal_rename",
+            "vm.tab_rename",
             "vm.workspace_new",
             "vm.workspace_open",
             "vm.workspace_close",
@@ -3037,6 +3046,12 @@ class TerminalController {
             "vm.link_socket",
             "vm.cloud_agent_open",
             "vm.cloud_prompt",
+            "vm.tunnel_config",
+            "vm.tunnel_status",
+            "vm.tunnel_revoke",
+            "vm.tunnel_up",
+            "vm.tunnel_down",
+            "vm.tunnel_wait",
             "surface.catalog",
             "surface.project",
             "surface.new_terminal",
@@ -4109,22 +4124,22 @@ class TerminalController {
         }
     }
 
-    /// Backend error code passthrough (`error.data.backend_code`) so the CLI
-    /// can make idempotency decisions structurally instead of parsing the
-    /// formatted display text.
+    /// Backend error metadata passthrough so the CLI can make compatibility
+    /// decisions structurally instead of parsing formatted display text.
     private nonisolated static func cloudVMBackendErrorData(_ error: Error) -> [String: Any]? {
-        guard case let VMClientError.httpStatus(status, body) = error,
-              let data = body.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-              let code = object["error"] as? String,
-              !code.isEmpty else {
+        guard case let VMClientError.httpStatus(status, body) = error else {
             return nil
         }
-        var payload: [String: Any] = ["backend_code": code, "http_status": status]
+        var payload: [String: Any] = ["http_status": status]
+        let object = body.data(using: .utf8)
+            .flatMap { try? JSONSerialization.jsonObject(with: $0, options: []) as? [String: Any] }
+        if let code = object?["error"] as? String, !code.isEmpty {
+            payload["backend_code"] = code
+        }
         // The server trace id (support reference) travels with the structured
         // error so the CLI and scripts can log it without parsing display text.
-        if let traceId = object["traceId"] as? String, !traceId.isEmpty {
-            payload["trace_id"] = traceId
+        if let traceID = object?["traceId"] as? String, !traceID.isEmpty {
+            payload["trace_id"] = traceID
         }
         return payload
     }
@@ -10980,17 +10995,19 @@ class TerminalController {
                     return
                 }
 
+                dock.noteKeyboardFocusIntent(window: nil)
                 guard let panelId = dock.newSurface(
                     kind: .browser,
                     inPane: pane,
                     url: url,
-                    focus: true,
+                    focus: false,
                     preloadInitialNavigationInBackground: true
                 ),
                     let panel = dock.browserPanel(for: panelId) else {
                     result = .err(code: "internal_error", message: "Failed to create browser tab", data: nil)
                     return
                 }
+                dock.focusPanelFromDockInteraction(panelId, window: nil)
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
                     "workspace_ref": v2Ref(kind: .workspace, uuid: dock.workspaceId),
@@ -11085,7 +11102,7 @@ class TerminalController {
                         )
                     )
                 } else {
-                    dock.focusPanel(targetId)
+                    dock.focusPanelFromDockInteraction(targetId, window: nil)
                 }
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
