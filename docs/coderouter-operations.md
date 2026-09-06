@@ -1,5 +1,30 @@
 # coderouter operations
 
+## One session, two entry points
+
+The supported user contract has one authentication authority: the cmux session.
+The short alias below is native to cmux and does not start a second CodeRouter
+login:
+
+```bash
+cmux auth login
+cmux cr add codex
+```
+
+The app reads `~/.codex/auth.json` and performs the authenticated account upload
+through the existing socket worker. The CLI does not read or echo the OAuth
+tokens. The Rust migration exposes the same operation in the `cmux` binary and
+ships `coderouter` as a separate binary for users who need the full upstream
+CLI. Advanced CodeRouter commands use a short-lived broker directory issued by
+cmux; it is removed after the child exits. `coderouter logout` points back to
+`cmux auth logout` because the two commands must not create separate auth state.
+
+The standalone binary remains useful when cmux is not running. It can execute a
+verified adjacent `coderouter-bin` or a user-installed CodeRouter executable.
+It must report a structured missing-runtime error and exit 127 when no verified
+runtime exists. It must never silently create an unrelated account or token
+store.
+
 This is the private-beta runbook for billing convergence, webhook replay,
 latency evidence, and privacy-safe observability. Never paste route tokens,
 OAuth credentials, request bodies, email addresses, provider credentials, or

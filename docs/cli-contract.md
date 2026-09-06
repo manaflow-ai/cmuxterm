@@ -1,12 +1,15 @@
 # cmux CLI Contract
 
 This document is the compatibility contract for migrating `CLI/cmux.swift` to
-Swift ArgumentParser. The migration should preserve command names, aliases,
-global flags, exit behavior, socket routing, and no-socket help behavior unless
-a PR explicitly calls out an intentional contract change.
+the Rust CLI in `cmux-tui/crates/cmux-cli`. The migration must preserve command
+names, aliases, global flags, exit behavior, socket routing, and no-socket help
+behavior unless a PR explicitly calls out an intentional contract change.
 
-The current implementation is a hand-rolled parser. This spec is deliberately
-written around user-visible behavior so the implementation can change behind it.
+The current production implementation is Swift and the migration implementation
+is Rust. This spec is deliberately written around user-visible behavior so the
+implementation can change behind it. See
+[`cli-rust-agent-system-plan.md`](cli-rust-agent-system-plan.md) for the
+capability registry, CodeRouter auth model, conformance gates, and size policy.
 The migration contract is intentionally English-only; runtime UI strings remain
 localized.
 
@@ -24,6 +27,21 @@ localized.
 - Keep text output stable for scripting commands unless a command already
   documents JSON as the scripting interface.
 - Keep hidden/internal commands available until their callers have migrated.
+- Keep machine-readable capability discovery and structured errors additive. A
+  Rust implementation must not force agents to parse human help or prose errors.
+
+## Rust migration status
+
+The Rust implementation is built from `cmux-tui/crates/cmux-cli` with two
+separate binaries. During migration they install as `cmux-rust` and
+`coderouter-rust`; the Swift `cmux` resource and the verified upstream
+`coderouter` resource remain active until the parity manifest allows cutover.
+Run `python3 scripts/check-cli-rust-parity.py` before changing that policy.
+
+The first Rust slice covers no-socket help/version, v2 `rpc`, the default
+socket path, and the cmux-native `cr add codex` upload. The complete command
+surface is still pending. The required behavior contract is in
+[`cli-rust-agent-system-plan.md`](cli-rust-agent-system-plan.md).
 
 ## Global Invocation
 
@@ -89,7 +107,7 @@ Environment:
 | `automation` | Manage config-backed event rules: `list`, `show <id>`, dry-run `test <id> --event <json>`, `enable`, `disable`, `logs`, and `reload`. Rules live in `~/.cmuxterm/automations.json`; actions are dispatched by the running app. |
 | `sessions [list]` | List saved agent session records without requiring a running cmux socket. Filters: `--agent <name>`, `--session <id>`, `--workspace <id>`, `--surface <id>`, `--cwd <text>`. Overrides: `--state-dir <path>`, `--codex-home <path>`. Text output defaults to 100 results; `--limit <n>` takes a positive integer and `--all` removes the limit. Supports `--json`. |
 | `auth` | Manage auth status, login, and logout through the app. |
-| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the CodeRouter CLI shipped in the app; a `coderouter` or `cr` on PATH is used as a fallback. When the app is signed in, the bundled CLI receives a short-lived broker config from the same cmux session, so `cmux cr add codex` does not need a second CodeRouter login. If the bundled cmux helper cannot provide a session, it asks you to run `cmux auth login` instead of starting a second CodeRouter login. Provider authorization is still required. They exit 127 only when both copies are missing. |
+| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all `cmux cr ...` use the bundled CodeRouter executable; a `coderouter` or `cr` on PATH is a compatibility fallback. `cmux cr add codex` is a cmux-native capability: it sends only provider/options through the socket, and the app reads `~/.codex/auth.json` with the existing cmux session. It does not start a second login. `coderouter` is also shipped as a standalone executable built from the Rust CLI crate. |
 | `vm`, `cloud` | Manage cloud VMs. `cloud` is an alias for `vm`. |
 | `remotes`, `remote` | Manage remote Macs in the team device registry so they appear in the iOS app's device list. `remote` is an alias for `remotes`. |
 | `rpc` | Call a raw v2 socket method with optional JSON params. |
