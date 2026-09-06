@@ -7,7 +7,7 @@ import Foundation
 /// or the account signs out.
 ///
 /// The private route comes from the machine list. For a device this machine
-/// has not seen, the control plane creates one invitation and approves it.
+/// has not seen, the control plane proves the machine's trusted listener first.
 /// Later links use only the saved device key and private route.
 actor CloudMachineLinkManager {
     struct LinkStatus: Sendable, Equatable {
@@ -53,16 +53,10 @@ actor CloudMachineLinkManager {
     /// A failed link is not retried for this long, so a polling sidebar does not hammer
     /// a machine whose route is broken.
     private let retryBackoff: TimeInterval = 15
-    /// How long a link may take to report its socket when this Mac is already
-    /// enrolled: the daemon accepts the session immediately, so anything slower
-    /// than this is a broken route rather than a slow one.
+    /// How long a link may take to report its socket: the daemon accepts a
+    /// carrier or enrolled session immediately, so anything slower than this is
+    /// a broken route rather than a slow one.
     private let connectTimeout: Duration = .seconds(60)
-    /// The budget for a *first* link to a machine, which must also cover
-    /// enrollment. Enrollment cannot be done up front — the control plane can
-    /// only approve an invitation the client has already claimed. The one
-    /// approval request waits for that claim inside the VM, so the connection
-    /// and approval still share one larger first-use window.
-    private let enrollingConnectTimeout: Duration = .seconds(240)
     /// This Mac's resolved Ghostty default colors ("#rrggbb"), pushed to each machine as
     /// its cmux-tui session defaults (`set-default-colors`) so remote panes render with
     /// the local theme. Injected so tests need no Ghostty runtime.
@@ -139,12 +133,17 @@ actor CloudMachineLinkManager {
             let capabilities = Self.clientCapabilities(clientURL: clientURL)
             let knownFingerprint = paths.deviceFingerprint(for: machineID)
             var session = "cmux"
-            var invitation: VMCmuxRemoteEndpoint.Invitation?
-            var client: VMClient?
-            // First use is a control-plane enrollment. Later connections use
-            // only the stored device identity and the private route.
-            if knownFingerprint == nil {
-                client = await MainActor.run { VMClient.shared }
+            // The machine's daemon serves a trusted listener inside the private
+            // network, so a link needs no enrollment: the first use asks the
+            // control plane once (it also brings an older daemon to the trusted
+            // build), later uses dial `--carrier` from the stored marker with no
+            // control-plane call. A real stored fingerprint is a machine this Mac
+            // enrolled with before trusted listeners; it keeps its stored key.
+            let carrier: Bool
+            if let knownFingerprint {
+                carrier = knownFingerprint == CloudTuiClientPaths.carrierDeviceMarker
+            } else {
+                let client = await MainActor.run { VMClient.shared }
                 guard let client else {
                     throw VMClientError.malformedResponse("Cloud VM client is not available (not signed in).")
                 }
@@ -154,19 +153,14 @@ actor CloudMachineLinkManager {
                     clientCapabilities: capabilities
                 )
                 session = endpoint.session
-                invitation = endpoint.invitation
-            }
-            var approval: Task<Void, Error>?
-            if let invitation, let client {
-                approval = Task {
-                    try await self.approveEnrollment(
-                        machineID: machineID,
-                        invitationID: invitation.invitationId,
-                        client: client
-                    )
+                guard endpoint.trustedCarrier else {
+                    throw ManagerError.retryLater(String(
+                        localized: "cloud.link.trustedListenerPending",
+                        defaultValue: "The Cloud machine is still preparing remote access. Try again shortly."
+                    ))
                 }
+                carrier = true
             }
-            defer { approval?.cancel() }
             guard capabilities.contains(CloudTuiCommandLine.wireGuardHubCapability) else {
                 throw ManagerError.wireGuardHubUnsupported
             }
@@ -191,18 +185,18 @@ actor CloudMachineLinkManager {
                 try await link.connect(
                     route: privateRoute,
                     session: session,
-                    invitationURI: invitation?.uri,
-                    // Enrollment rides this same window (see enrollingConnectTimeout).
-                    timeout: invitation == nil ? connectTimeout : enrollingConnectTimeout,
+                    carrier: carrier,
+                    timeout: connectTimeout,
                     wireguardHubSocket: claim.ready.socketPath,
                     releaseHubLease: releaseLease
                 )
             }
             do {
-                if let approval {
-                    try await approval.value
+                let connected = try await connect.value
+                if carrier, knownFingerprint == nil {
+                    paths.saveDeviceFingerprint(CloudTuiClientPaths.carrierDeviceMarker, for: machineID)
                 }
-                return try await connect.value
+                return connected
             } catch {
                 connect.cancel()
                 await link.disconnect()
@@ -343,18 +337,6 @@ actor CloudMachineLinkManager {
 
     private func store(link: CloudMachineLink, for machineID: String) {
         links[machineID] = link
-    }
-
-    /// The control plane minted the invitation for this signed-in user. One request
-    /// waits for its claim inside the VM, approves it, and returns the device identity.
-    private func approveEnrollment(machineID: String, invitationID: String, client: VMClient) async throws {
-        let approval = try await client.approveCmuxRemoteEnrollment(id: machineID, invitationId: invitationID)
-        guard approval.state == "approved" else {
-            throw ManagerError.retryLater("The Cloud machine did not approve this Mac.")
-        }
-        if let fingerprint = approval.deviceFingerprint, !fingerprint.isEmpty {
-            paths.saveDeviceFingerprint(fingerprint, for: machineID)
-        }
     }
 
     /// `remote-probe --json` → `capabilities`; the control plane picks the machine host by
