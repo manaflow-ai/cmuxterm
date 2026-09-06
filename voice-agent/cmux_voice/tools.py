@@ -753,7 +753,7 @@ class VoiceTools:
         tail = [l.strip() for l in (res.get("text") or "").rstrip().splitlines()[-10:]]
         return any(_is_bare_agent_prompt(l) or l.startswith("❯") for l in tail) and not any(_looks_like_shell_prompt(l) for l in tail[-1:])
 
-    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 20.0) -> bool:
+    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 25.0) -> bool:
         """Poll the terminal until an agent CLI input box is empty and ready.
 
         Claude Code draws its box with placeholder text ("❯ Try ...") about a

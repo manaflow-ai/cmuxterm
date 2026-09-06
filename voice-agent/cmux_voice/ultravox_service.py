@@ -25,7 +25,22 @@ from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.ultravox.llm import UltravoxRealtimeLLMService
 
 
+# Ultravox gives a client tool 2.5 s by default and abandons the call's turn when
+# it is exceeded; several of ours legitimately take longer (directory search,
+# waiting for Claude Code's input box, reading command output). 40 s is the
+# documented maximum.
+TOOL_TIMEOUT = "40s"
+
+
 class CmuxUltravoxService(UltravoxRealtimeLLMService):
+    def _to_selected_tools(self, tool):  # type: ignore[override]
+        selected = super()._to_selected_tools(tool)
+        for entry in selected:
+            temp = entry.get("temporaryTool")
+            if isinstance(temp, dict):
+                temp["timeout"] = TOOL_TIMEOUT
+        return selected
+
     async def push_frame(self, frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):  # type: ignore[override]
         # The result callback broadcasts a FunctionCallResultFrame through this
         # service. Deliver it to Ultravox immediately instead of waiting for the

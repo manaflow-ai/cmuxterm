@@ -37,3 +37,18 @@ async def test_async_tools_and_intermediate_results_are_left_to_stock_path():
     svc = _Stub(async_tools={"slow"})
     await svc._deliver_result_now(FunctionCallResultFrame(function_name="slow", tool_call_id="t2", arguments={}, result="x"))
     assert svc.sent == []
+
+
+def test_every_client_tool_declares_the_max_timeout():
+    from pipecat.adapters.schemas.function_schema import FunctionSchema
+    from pipecat.adapters.schemas.tools_schema import ToolsSchema
+    from cmux_voice.ultravox_service import TOOL_TIMEOUT
+
+    class _S(CmuxUltravoxService):
+        def __init__(self):  # bypass the real constructor
+            pass
+
+    schema = ToolsSchema(standard_tools=[FunctionSchema(name="split", description="d", properties={"direction": {"type": "string"}}, required=["direction"])])
+    selected = _S()._to_selected_tools(schema)
+    assert selected[0]["temporaryTool"]["timeout"] == TOOL_TIMEOUT == "40s"
+    assert selected[0]["temporaryTool"]["client"] == {}
