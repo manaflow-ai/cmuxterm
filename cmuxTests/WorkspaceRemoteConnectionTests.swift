@@ -286,21 +286,6 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
             exec "$executable" "$@"
             """
         )
-        let persistentPTYExecHelper = bin.appendingPathComponent("persistent-pty-exec-helper")
-        try writeExecutableShellFile(
-            at: persistentPTYExecHelper,
-            body: """
-            #!/bin/sh
-            [ "${1:-}" = "--internal-persistent-pty-exec" ] || exit 2
-            shift
-            executable="${1:-}"
-            [ -n "$executable" ] || exit 2
-            shift
-            [ "${1:-}" = "$executable" ] || exit 2
-            shift
-            exec "$executable" "$@"
-            """
-        )
 
         let script = RemoteInteractiveShellBootstrapBuilder.script(
             remoteRelayPort: 0,
@@ -392,6 +377,21 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
               . "$rcfile"
             fi
             printf '%s\\n' "$PWD" > "$CMUX_CAPTURE_PWD"
+            """
+        )
+        let persistentPTYExecHelper = bin.appendingPathComponent("persistent-pty-exec-helper")
+        try writeExecutableShellFile(
+            at: persistentPTYExecHelper,
+            body: """
+            #!/bin/sh
+            [ "${1:-}" = "--internal-persistent-pty-exec" ] || exit 2
+            shift
+            executable="${1:-}"
+            [ -n "$executable" ] || exit 2
+            shift
+            [ "${1:-}" = "$executable" ] || exit 2
+            shift
+            exec "$executable" "$@"
             """
         )
 
@@ -2491,6 +2491,39 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
             splitPanel.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"),
             selectedPanelDirectory
         )
+    }
+
+    @MainActor
+    func testRemoteTerminalSplitOmitsUntrustedWorkspaceWorkingDirectory() throws {
+        let workspace = Workspace()
+        let config = WorkspaceRemoteConfiguration(
+            destination: "cmux-macmini",
+            port: nil,
+            identityFile: nil,
+            sshOptions: [],
+            localProxyPort: nil,
+            relayPort: 64017,
+            relayID: String(repeating: "a", count: 16),
+            relayToken: String(repeating: "b", count: 64),
+            localSocketPath: "/tmp/cmux-debug-test.sock",
+            terminalStartupCommand: "ssh-pty-attach",
+            preserveAfterTerminalExit: true
+        )
+        workspace.configureRemoteConnection(config, autoConnect: false)
+
+        let sourcePanelID = try XCTUnwrap(workspace.focusedTerminalPanel?.id)
+        workspace.currentDirectory = "/srv/cmux/untrusted-workspace-directory"
+
+        let splitPanel = try XCTUnwrap(
+            workspace.newTerminalSplit(
+                from: sourcePanelID,
+                orientation: .vertical,
+                focus: false
+            )
+        )
+
+        XCTAssertNil(splitPanel.requestedWorkingDirectory)
+        XCTAssertNil(splitPanel.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"))
     }
 
     @MainActor

@@ -8173,11 +8173,13 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
            let rescued = resumedAgentPaneWorkingDirectoryRescue(panelId: sourcePanelId) {
             return rescued
         }
-        let candidates = [
+        var candidates: [String?] = [
             sourcePanelId.flatMap { panelDirectories[$0] },
             sourcePanelId.flatMap { terminalPanel(for: $0)?.requestedWorkingDirectory },
-            currentDirectory,
         ]
+        if !preserveExact {
+            candidates.append(currentDirectory)
+        }
         if preserveExact {
             return candidates.lazy.compactMap {
                 self.normalizedTerminalStartupWorkingDirectory($0, preserveExact: true)
