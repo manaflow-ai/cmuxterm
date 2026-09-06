@@ -101,7 +101,7 @@ extension TerminalController: ControlPaneContext {
             guard focusAndRevealWindowDock(for: dock, fallback: tabManager) else {
                 return .dockUnavailable(message: dockFocusUnavailableMessage())
             }
-            dock.bonsplitController.focusPane(paneId)
+            dock.focusPaneFromDockInteraction(paneId, window: nil)
             return .focused(windowID: dockResultWindowId(for: dock, tabManager: tabManager), workspaceID: dock.workspaceId, paneID: paneId.id)
         }
         guard let ws = resolveWorkspace(routing: routing, tabManager: tabManager) else {
@@ -329,7 +329,6 @@ extension TerminalController: ControlPaneContext {
                 preferredProfileID: preferredBrowserProfileID,
                 focus: focus,
                 creationPolicy: .automationPreload,
-                engine: inputs.engine,
                 initialDividerPosition: initialDividerPosition.map { CGFloat($0) }
             )?.id
         } else if panelType == .simulator {
