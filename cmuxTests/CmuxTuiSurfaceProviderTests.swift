@@ -236,7 +236,11 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         ]
         #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [duplicate]]) == .ambiguous)
 
-        #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [["machine": "vivid-newt", "kind": "terminal", "key": "term_build", "remote_views": NSNull()]]]) == .unavailable)
+        let nullViews: [String: Any] = [
+            "machine": "vivid-newt", "kind": "terminal", "key": "term_build",
+            "remote_views": NSNull(), "remote_workspace": ["id": "ws_main"],
+        ]
+        #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [nullViews]]) == .unavailable)
 
         let legacy = [
             "id": "vivid-newt/terminal/term_legacy",
@@ -1070,7 +1074,10 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         let readyFD = Darwin.open(pidFile.path, O_RDWR | O_NONBLOCK)
         try #require(readyFD >= 0)
         let readyHandle = FileHandle(fileDescriptor: readyFD, closeOnDealloc: true)
-        defer { try? readyHandle.close() }
+        defer {
+            readyHandle.readabilityHandler = nil
+            try? readyHandle.close()
+        }
         var readyLines = CloudLinkPipe.lines(from: readyHandle).makeAsyncIterator()
         let client = root.appendingPathComponent("fake-cmux-tui")
         try """

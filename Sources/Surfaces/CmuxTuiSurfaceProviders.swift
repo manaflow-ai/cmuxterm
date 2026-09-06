@@ -1834,10 +1834,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     nonisolated static func privateBrowserURL(_ raw: String, privateAddress: String) -> String? {
         guard var parts = URLComponents(string: raw),
               let host = parts.host?.lowercased(),
-              host == "localhost" || host == "127.0.0.1" || host == "::1" else {
+              host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "[::1]" else {
             return nil
         }
-        parts.host = privateAddress
+        parts.host = CmuxInternalHostnames.urlHost(privateAddress: privateAddress)
         return parts.url?.absoluteString
     }
 
