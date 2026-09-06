@@ -275,13 +275,28 @@ enum SidebarRemoteErrorCopySupport {
 
 func sidebarSelectedWorkspaceBackgroundNSColor(
     for colorScheme: ColorScheme,
-    sidebarSelectionColorHex: String? = UserDefaults.standard.string(forKey: "sidebarSelectionColorHex")
+    sidebarSelectionColorHex: String? = UserDefaults.standard.string(forKey: "sidebarSelectionColorHex"),
+    accent: SidebarSelectionAccent = .blue
 ) -> NSColor {
     if let hex = sidebarSelectionColorHex,
        let parsed = NSColor(hex: hex) {
         return parsed
     }
-    return cmuxAccentNSColor(for: colorScheme)
+    switch accent {
+    case .blue:
+        return cmuxAccentNSColor(for: colorScheme)
+    case .glass:
+        return sidebarGlassPillNSColor(for: colorScheme).withAlphaComponent(colorScheme == .dark ? 0.24 : 0.14)
+    }
+}
+
+/// The glass accent's base hue: a slate grey, not white, so the pill reads as
+/// grey glass over the pane rather than a bright patch. Alpha is applied by
+/// the caller; the rim and sheen reuse the hue at their own strengths.
+func sidebarGlassPillNSColor(for colorScheme: ColorScheme) -> NSColor {
+    colorScheme == .dark
+        ? NSColor(srgbRed: 0.58, green: 0.62, blue: 0.68, alpha: 1)
+        : NSColor(srgbRed: 0.22, green: 0.24, blue: 0.28, alpha: 1)
 }
 
 func sidebarSelectedWorkspaceForegroundNSColor(opacity: CGFloat) -> NSColor {
@@ -296,6 +311,13 @@ func sidebarSelectedWorkspaceForegroundNSColor(
     opacity: CGFloat
 ) -> NSColor {
     let clampedOpacity = max(0, min(opacity, 1))
+    // A translucent pill (the glass accent) is a tint on the pane, not a
+    // surface: text keeps the pane's own label colour, which the pill's
+    // hue encodes (white pill on dark glass, black pill on light).
+    if backgroundColor.alphaComponent < 0.5 {
+        let brightness = backgroundColor.usingColorSpace(.deviceRGB)?.brightnessComponent ?? 1
+        return (brightness > 0.5 ? NSColor.white : NSColor.black).withAlphaComponent(clampedOpacity)
+    }
     let whiteContrast = cmuxContrastRatio(foreground: .white, background: backgroundColor)
     guard whiteContrast < 2.75 else {
         return NSColor.white.withAlphaComponent(clampedOpacity)
@@ -332,11 +354,13 @@ func sidebarWorkspaceRowBackgroundStyle(
     isMultiSelected: Bool,
     customColorHex: String?,
     colorScheme: ColorScheme,
-    sidebarSelectionColorHex: String?
+    sidebarSelectionColorHex: String?,
+    selectionAccent: SidebarSelectionAccent = .blue
 ) -> SidebarWorkspaceRowBackgroundStyle {
     let selectedBackground = sidebarSelectedWorkspaceBackgroundNSColor(
         for: colorScheme,
-        sidebarSelectionColorHex: sidebarSelectionColorHex
+        sidebarSelectionColorHex: sidebarSelectionColorHex,
+        accent: selectionAccent
     )
     let accentBackground = cmuxAccentNSColor(for: colorScheme)
     let customBackground = customColorHex.flatMap {

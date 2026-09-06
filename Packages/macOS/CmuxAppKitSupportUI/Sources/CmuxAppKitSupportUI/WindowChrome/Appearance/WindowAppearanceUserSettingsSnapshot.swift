@@ -46,6 +46,12 @@ public struct WindowAppearanceUserSettingsSnapshot {
     /// Background glass tint opacity.
     public let bgGlassTintOpacity: Double
 
+    /// Whether the sidebar glass uses the compositor blur path.
+    public let sidebarCompositorGlass: Bool
+
+    /// Sidebar compositor blur radius in points.
+    public let sidebarGlassBlurRadius: Double
+
     /// Creates a user settings snapshot for window appearance.
     public init(
         unifySurfaceBackdrops: Bool,
@@ -61,8 +67,12 @@ public struct WindowAppearanceUserSettingsSnapshot {
         sidebarBlurOpacity: Double,
         bgGlassEnabled: Bool,
         bgGlassTintHex: String,
-        bgGlassTintOpacity: Double
+        bgGlassTintOpacity: Double,
+        sidebarCompositorGlass: Bool = true,
+        sidebarGlassBlurRadius: Double = SidebarBackdropSettingsSnapshot.compositorBlurRadiusRange.lowerBound
     ) {
+        self.sidebarCompositorGlass = sidebarCompositorGlass
+        self.sidebarGlassBlurRadius = sidebarGlassBlurRadius
         self.unifySurfaceBackdrops = unifySurfaceBackdrops
         self.colorScheme = colorScheme
         self.sidebarMaterial = sidebarMaterial

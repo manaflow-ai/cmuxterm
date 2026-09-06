@@ -63,10 +63,25 @@ public struct WindowAppearanceSnapshot {
             tintOpacity: sidebarSettings.tintOpacity,
             cornerRadius: sidebarSettings.cornerRadius,
             blurOpacity: sidebarSettings.blurOpacity,
-            colorScheme: resolvedScheme
+            colorScheme: resolvedScheme,
+            compositorGlass: sidebarSettings.compositorGlass,
+            compositorBlurRadius: sidebarSettings.compositorBlurRadius
         )
         self.windowGlassSettings = windowGlassSettings
         self.resolvedColorScheme = resolvedScheme
+    }
+
+    /// Whether the window ground is clear glass blurred by the compositor.
+    ///
+    /// The workspace card paints its own opaque terminal colour, so the ground
+    /// can go clear under it. A translucent terminal already has Ghostty's own
+    /// blur path and keeps the legacy plan. This one answer drives the ground,
+    /// the sidebar layer, and the window plan, so they can never disagree.
+    public var usesCompositorGlass: Bool {
+        sidebarSettings.compositorGlass
+            && !unifySurfaceBackdrops
+            && terminalBackgroundOpacity >= 0.999
+            && !terminalBackgroundBlur.isMacOSGlassStyle
     }
 
     /// Clamps opacity into the visible `0...1` range.
@@ -214,14 +229,35 @@ public struct WindowAppearanceSnapshot {
     public func policy(for role: WindowBackdropRole) -> WindowBackdropPolicy {
         switch role {
         case .windowRoot:
+            // Clear glass ground: the compositor blurs the desktop behind the
+            // transparent window and the sidebar layer paints the tint over
+            // it; the workspace card stays the one opaque surface.
+            if usesCompositorGlass {
+                return .clear
+            }
             return terminalBackdropPolicy()
         case .terminalCanvas, .bonsplitChrome, .titlebar, .browserSurface:
             return .clear
-        case .leftSidebar, .rightSidebar:
+        case .leftSidebar:
             if unifySurfaceBackdrops {
                 return .clear
             }
+            if usesCompositorGlass {
+                return .sidebarMaterial(sidebarSettings.tintOnlyMaterialPolicy)
+            }
             return .sidebarMaterial(sidebarSettings.materialPolicy)
+        case .rightSidebar:
+            if unifySurfaceBackdrops {
+                return .clear
+            }
+            // The tools sidebar (files, find, vault) is a work surface, not
+            // chrome: it always sits on a solid terminal-coloured ground and
+            // never follows the workspace sidebar's glass.
+            return .ghosttyTerminalBackdrop(
+                color: terminalBackgroundColor,
+                opacity: 1.0,
+                renderingMode: terminalRenderingMode
+            )
         }
     }
 
@@ -254,6 +290,17 @@ public struct WindowAppearanceSnapshot {
         windowBackgroundPolicy: WindowBackgroundPolicy
     ) -> WindowBackdropPlan {
         let rootPolicy = terminalBackdropPolicy()
+        if usesCompositorGlass {
+            return WindowBackdropPlan(
+                hostingPhase: .transparentRootBackdrop,
+                windowBackgroundColor: windowBackgroundPolicy.transparentWindowBaseColor,
+                windowIsOpaque: false,
+                rootPolicy: .clear,
+                glass: nil,
+                shouldApplyGhosttyCompositorBlur: false,
+                compositorBlurRadius: sidebarSettings.effectiveCompositorBlurRadius
+            )
+        }
         if windowGlassSettings.shouldApply(
             glassEffectAvailable: glassEffectAvailable,
             windowBackgroundPolicy: windowBackgroundPolicy

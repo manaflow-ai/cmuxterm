@@ -216,6 +216,13 @@ extension Array where Element == CuratedSettingEntry {
 
             // Sidebar appearance + sidebar workspace row details
             .init(section: .sidebarAppearance, id: "match-terminal", title: "Match Terminal Background", synonyms: "sidebarAppearance.matchTerminalBackground transparent background material terminal background sync"),
+            .init(section: .sidebarAppearance, id: "sidebar-selection-accent", title: "Sidebar Accent", synonyms: "sidebar.selectionAccent sidebarSelectionAccent accent selected workspace highlight pill blue glass grey gray selection colour color"),
+            .init(section: .sidebarAppearance, id: "sidebar-glass-blur", title: "Sidebar Blur", synonyms: "sidebarAppearance.glassBlurRadius sidebarGlassBlurRadius blur radius glass frosted clear see-through transparency backdrop compositor"),
+            .init(section: .sidebarAppearance, id: "sidebar-glass-tint", title: "Sidebar Tint", synonyms: "sidebarAppearance.tintOpacity sidebarTintOpacity glass glassmorphism tint opacity transparency blur floating docked panel peek clear frosted opaque"),
+            .init(section: .sidebarAppearance, id: "sidebar-peek-reveal", title: "Sidebar Peek Reveal Speed", synonyms: "sidebar.peekReveal peek hover reveal edge dwell instant quick relaxed sensitivity floating sidebar"),
+            .init(section: .sidebarAppearance, id: "sidebar-peek-disabled", title: "Disable Sidebar Peek", synonyms: "sidebar.peekDisabled peek hover reveal disable never auto hide floating sidebar edge"),
+            .init(section: .sidebarAppearance, id: "sidebar-row-density", title: "Row Density", synonyms: "sidebar.rowDensity density compact cozy spacious row height padding workspace list"),
+            .init(section: .sidebarAppearance, id: "sidebar-drag-switch", title: "Disable Switch on Drag", synonyms: "sidebar.dragSwitchDisabled drag reorder switch selection workspace pick up"),
             .init(section: .sidebarAppearance, id: "hide-sidebar-details", title: "Hide All Sidebar Details", synonyms: "sidebar.hideAllDetails compact sidebar hide details only title minimal left rail"),
             .init(section: .sidebarAppearance, id: "wrap-workspace-titles", title: "Wrap Workspace Titles in Sidebar", synonyms: "sidebar.wrapWorkspaceTitles workspace title wrap multiline pr pull request"),
             .init(section: .sidebarAppearance, id: "show-workspace-description", title: "Show Workspace Description in Sidebar", synonyms: "sidebar.showWorkspaceDescription workspace description notes markdown sidebar"),

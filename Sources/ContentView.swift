@@ -901,9 +901,26 @@ struct ContentView: View {
     /// consume the width, never this body. All reads/writes outside view
     /// bodies go through `sidebarLayout.width` directly; the computed
     /// `sidebarWidth` alias keeps call sites readable.
-    @State private var sidebarLayout = SidebarLayoutModel(
+    /// Owns the hover-reveal timers for this window. A StateObject (not an
+    /// environment object) because peek is per-window: two windows can be in
+    /// different peek phases at once.
+    // Not `private`: `ContentView+SidebarPeek` builds the edge strip from it.
+    @StateObject var sidebarPeek = SidebarPeekController()
+    /// Sweeps the real layout width on toggle (a synthetic divider drag), so
+    /// the sidebar and terminal live-resize together through the same path
+    /// the manual divider uses.
+    @StateObject private var sidebarToggleAnimator = SidebarToggleAnimator()
+    // Not `private`: `ContentView+SidebarPeek` reads the width for the
+    // floating panel window's geometry.
+    @State var sidebarLayout = SidebarLayoutModel(
         width: CGFloat(SessionPersistencePolicy.defaultSidebarWidth)
     )
+    // The floating peek panel lives in its own child window, whose hosting
+    // view does not inherit this window's SwiftUI environment. These readers
+    // let the peek card re-inject exactly what AppDelegate injects here.
+    @Environment(\.sessionDragRegistry) var sessionDragRegistryEnv
+    @Environment(\.tabDragTransferRegistry) var tabDragTransferRegistryEnv
+    @Environment(\.settingsRuntime) var settingsRuntimeEnv
     @State private var sidebarFocusBoundary = SidebarFocusBoundaryReference()
     private var sidebarWidth: CGFloat {
         get { sidebarLayout.width }
@@ -1737,22 +1754,49 @@ struct ContentView: View {
         )
     }
 
-    private var sidebarView: some View {
+    // Not `private`: the peek panel card builds a second instance of this
+    // subtree inside its own child window. `isPresented` gates the AppKit
+    // table's suspension, and each host passes its own presentation truth:
+    // the in-layout instance is presented only while the sidebar occupies
+    // layout width; the panel instance stays presented so reveal and
+    // dismissal animate real rows instead of a blank card.
+    //
+    // Only one instance may claim the focus boundary: it is last-write-wins
+    // and window-scoped, so the panel instance (in its own child window)
+    // must not shadow the in-layout instance's claim.
+    func sidebarView(
+        isPresented: Bool,
+        attachesFocusBoundary: Bool = true,
+        usesCompactTopInset: Bool = false
+    ) -> some View {
         let sidebar = VerticalTabsSidebar(
             updateViewModel: updateViewModel,
             fileExplorerState: fileExplorerState,
             featureFlags: featureFlags,
-            isPresented: sidebarState.isVisible,
+            isPresented: isPresented,
             sidebarUnread: sidebarUnread,
             titlebarControlsLayoutModel: titlebarControlsLayoutModel,
             windowId: windowId,
             onSendFeedback: presentFeedbackComposer,
             onToggleSidebar: { sidebarState.toggle() },
             onNewTab: {
+                SidebarNavigationTimings.begin("create")
                 AppDelegate.shared?.performNewWorkspaceAction(
                     tabManager: tabManager,
                     debugSource: "titlebar.hiddenNewWorkspace"
                 )
+            },
+            presentationMode: sidebarState.presentationMode,
+            usesCompactTopInset: usesCompactTopInset,
+            onTogglePresentationMode: {
+                withAnimation(SidebarPeekMotion.modeChange) {
+                    sidebarState.togglePresentationMode()
+                }
+                if sidebarState.presentationMode == .docked {
+                    sidebarPeek.sidebarDocked()
+                } else {
+                    sidebarPeek.sidebarCollapsed()
+                }
             },
             observedWindowReference: observedWindowReference,
             chromeBackgroundColor: windowAppearanceSnapshot.resolvedChromeBackgroundColor,
@@ -1773,7 +1817,7 @@ struct ContentView: View {
         .modifier(SidebarWidthFrameModifier(layout: sidebarLayout))
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(SidebarPointerEventHost(
-            { sidebarFocusBoundary.attach($0) },
+            { if attachesFocusBoundary { sidebarFocusBoundary.attach($0) } },
             onDismantle: { sidebarFocusBoundary.detach($0) }
         ))
     }
@@ -1896,11 +1940,21 @@ struct ContentView: View {
             .allowsHitTesting(sidebarSelectionState.selection == .tabs)
             .accessibilityHidden(sidebarSelectionState.selection != .tabs)
         }
+        // Inner insets: panes sit inside the workspace card, clear of its
+        // rounded border.
+        .padding(.top, WorkspaceCardMetrics.bandGap)
+        .padding(.leading, WorkspaceCardMetrics.paneInset)
+        .padding(.trailing, WorkspaceCardMetrics.paneInset)
+        .padding(.bottom, WorkspaceCardMetrics.paneInset)
+        // Reserves the titlebar band's height inside the card, so the band
+        // (drawn by the window-level overlay at the same fixed position)
+        // reads as the card's header.
         .modifier(WorkspacePresentationModeContentTopPaddingModifier(
             isFullScreen: isFullScreen,
             titlebarPadding: titlebarPadding,
             hostingSafeAreaTop: hostingSafeAreaTop
         ))
+        .background(WorkspaceCardBackground(fill: appearance.terminalBackgroundColor))
     }
 
     private func terminalContentWithSidebarDropOverlay(appearance: WindowAppearanceSnapshot) -> some View {
@@ -1945,10 +1999,17 @@ struct ContentView: View {
         alignment: Alignment,
         role: WindowBackdropRole,
         appearance: WindowAppearanceSnapshot,
+        hidesBackdrop: Bool = false,
         @ViewBuilder content: () -> Content
     ) -> some View {
         ZStack(alignment: alignment) {
+            // Faded rather than removed when the panel floats: swapping the
+            // branch would give the subtree a new identity and cold-start the
+            // retained AppKit table. The backdrop blurs whatever is behind it
+            // in the window, which against a floating card is live terminal
+            // text; the peek chrome owns the card's surface instead.
             sidebarBackdropLayer(width: width, role: role, appearance: appearance)
+                .opacity(hidesBackdrop ? 0 : 1)
             content()
                 .environment(\.colorScheme, appearance.sidebarContentColorScheme)
         }
@@ -1961,8 +2022,17 @@ struct ContentView: View {
 
     private func sidebarPanelWithBackdrop(appearance: WindowAppearanceSnapshot) -> some View {
         SidebarWidthReader(layout: sidebarLayout) { width in
-            sidebarPanelContainer(width: width, alignment: .leading, role: .leftSidebar, appearance: appearance) {
-                sidebarView
+            sidebarPanelContainer(
+                width: width,
+                alignment: .leading,
+                role: .leftSidebar,
+                appearance: appearance,
+                // Always: the window ground now paints the sidebar material
+                // across the whole window, so a second copy here would double
+                // the tint inside the sidebar column.
+                hidesBackdrop: true
+            ) {
+                sidebarView(isPresented: sidebarState.occupiesLayout)
             }
         }
     }
@@ -2042,24 +2112,44 @@ struct ContentView: View {
         }
     }
 
-    @AppStorage("sidebarBlendMode") private var sidebarBlendMode = SidebarBlendModeOption.withinWindow.rawValue
+    // behindWindow by default: the window ground is desktop glass and the
+    // sidebar lives directly on it, with the workspace card as the one
+    // opaque surface on top (the Aside model).
+    @AppStorage("sidebarBlendMode") private var sidebarBlendMode = SidebarBlendModeOption.behindWindow.rawValue
     @AppStorage("sidebarMatchTerminalBackground") private var sidebarMatchTerminalBackground = false
     @AppStorage("sidebarTintOpacity") private var sidebarTintOpacity = SidebarTintDefaults().opacity
     @AppStorage("sidebarTintHex") private var sidebarTintHex = SidebarTintDefaults().hex
     @AppStorage("sidebarTintHexLight") private var sidebarTintHexLight: String?
     @AppStorage("sidebarTintHexDark") private var sidebarTintHexDark: String?
-    @AppStorage("sidebarMaterial") private var sidebarMaterial = SidebarMaterialOption.sidebar.rawValue
-    @AppStorage("sidebarState") private var sidebarStateSetting = SidebarStateOption.followWindow.rawValue
+    @AppStorage("sidebarMaterial") private var sidebarMaterial = SidebarMaterialOption.hudWindow.rawValue
+    @AppStorage("sidebarState") private var sidebarStateSetting = SidebarStateOption.active.rawValue
     @AppStorage("sidebarCornerRadius") private var sidebarCornerRadius = 0.0
     @AppStorage("sidebarBlurOpacity") private var sidebarBlurOpacity = 1.0
+    // Fork glass: clear window ground + compositor blur, so the blur radius is
+    // a real slider instead of whatever an AppKit material bakes in.
+    @AppStorage("sidebarCompositorGlass") private var sidebarCompositorGlass = true
+    @AppStorage("sidebarGlassBlurRadius") private var sidebarGlassBlurRadius = SidebarAppearanceCatalogSection.glassBlurRadiusRange.lowerBound
 
     // Background glass settings
     @AppStorage("bgGlassTintHex") private var bgGlassTintHex = "#000000"
     @AppStorage("bgGlassTintOpacity") private var bgGlassTintOpacity = 0.03
-    @AppStorage("bgGlassEnabled") private var bgGlassEnabled = false
+    // Fork default: window glass on. With behindWindow blending this keeps
+    // the window transparent so the sidebar's vibrancy samples the actual
+    // desktop (an opaque window kills behind-window sampling and leaves only
+    // the material's flat frost).
+    @AppStorage("bgGlassEnabled") private var bgGlassEnabled = true
     @State private var titlebarLeadingInset: CGFloat = 12
+    /// Toggle-hover pre-reveals are ignored until this instant. Set when the
+    /// sidebar hides: the toggle button re-fires its hover as it re-renders
+    /// under the stationary pointer, which would pop the peek card over the
+    /// closing pane. A time window rather than a wait-for-exit latch, because
+    /// SwiftUI's onHover can drop the exit event across that re-render and a
+    /// latch would then never clear.
+    @State private var sidebarToggleHoverSuppressedUntil: Date?
     private var windowIdentifier: String { "cmux.main.\(windowId.uuidString)" }
-    private var windowAppearanceSnapshot: WindowAppearanceSnapshot {
+    // Not `private`: the peek panel card in `ContentView+SidebarPeek` derives
+    // its content colour scheme from the same snapshot the docked sidebar uses.
+    var windowAppearanceSnapshot: WindowAppearanceSnapshot {
         _ = titlebarThemeGeneration
         return windowChrome.appearanceSnapshot(
             settings: WindowAppearanceUserSettingsSnapshot(
@@ -2076,7 +2166,9 @@ struct ContentView: View {
                 sidebarBlurOpacity: sidebarBlurOpacity,
                 bgGlassEnabled: bgGlassEnabled,
                 bgGlassTintHex: bgGlassTintHex,
-                bgGlassTintOpacity: bgGlassTintOpacity
+                bgGlassTintOpacity: bgGlassTintOpacity,
+                sidebarCompositorGlass: sidebarCompositorGlass,
+                sidebarGlassBlurRadius: sidebarGlassBlurRadius
             )
         )
     }
@@ -2590,18 +2682,18 @@ struct ContentView: View {
             layout = AnyView(
                 ZStack(alignment: .leading) {
                     terminalContentWithRightSidebarPanel(appearance: appearance)
+                        // `occupiesLayout`, not `isVisible`: a floating sidebar
+                        // is visible but does not push the terminal aside.
                         .modifier(SidebarWidthLeadingPaddingModifier(
                             layout: sidebarLayout,
-                            enabled: sidebarState.isVisible
+                            enabled: sidebarState.occupiesLayout
                         ))
                     SidebarWidthReader(layout: sidebarLayout) { width in
                         sidebarPanelWithBackdrop(appearance: appearance)
-                            .frame(width: sidebarState.isVisible ? width : 0, alignment: .leading)
-                            .clipped()
-                            .allowsHitTesting(sidebarState.isVisible)
-                            .accessibilityHidden(!sidebarState.isVisible)
+                            .modifier(sidebarPeekPresentationModifier(width: width))
                     }
                 }
+                .animation(SidebarPeekMotion.modeChange, value: sidebarState.presentationMode)
             )
         } else if useWithinWindow {
             // Overlay mode keeps the left sidebar on top, but the right
@@ -2613,31 +2705,118 @@ struct ContentView: View {
                         terminalContentWithSidebarDropOverlay(appearance: appearance)
                             .modifier(SidebarWidthLeadingPaddingModifier(
                                 layout: sidebarLayout,
-                                enabled: sidebarState.isVisible
+                                enabled: sidebarState.occupiesLayout
                             ))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .layoutPriority(1)
                         rightSidebarPanelWithBackdrop(appearance: appearance)
                     }
-                    if sidebarState.isVisible {
-                        sidebarPanelWithBackdrop(appearance: appearance)
+                    if sidebarState.occupiesLayout {
+                        SidebarWidthReader(layout: sidebarLayout) { width in
+                            sidebarPanelWithBackdrop(appearance: appearance)
+                                .modifier(sidebarPeekPresentationModifier(width: width))
+                        }
                     }
                 }
+                .animation(SidebarPeekMotion.modeChange, value: sidebarState.presentationMode)
             )
         } else {
             // Standard HStack mode for behindWindow blur
+            // A peeked sidebar cannot sit in the HStack: it must float over the
+            // terminal rather than push it aside, so the reveal overlays and
+            // only a docked sidebar takes a slot in the stack.
             layout = AnyView(
-                HStack(spacing: 0) {
-                    if sidebarState.isVisible {
-                        sidebarPanelWithBackdrop(appearance: appearance)
+                ZStack(alignment: .leading) {
+                    HStack(spacing: 0) {
+                        if sidebarState.occupiesLayout {
+                            SidebarWidthReader(layout: sidebarLayout) { width in
+                                sidebarPanelWithBackdrop(appearance: appearance)
+                                    .modifier(sidebarPeekPresentationModifier(width: width))
+                            }
+                        }
+                        terminalContentWithRightSidebarPanel(appearance: appearance)
                     }
-                    terminalContentWithRightSidebarPanel(appearance: appearance)
                 }
+                .animation(SidebarPeekMotion.modeChange, value: sidebarState.presentationMode)
             )
         }
 
         return AnyView(
             layout
+                .onAppear {
+                    sidebarToggleAnimator.install(
+                        sidebarState: sidebarState,
+                        layout: sidebarLayout,
+                        isPeekPresenting: { sidebarPeek.presentsPanel }
+                    )
+                    sidebarPeek.setPolicy(SidebarCustomizationSettings.peekPolicy())
+                }
+                .onReceive(
+                    NotificationCenter.default
+                        .publisher(for: UserDefaults.didChangeNotification)
+                        .receive(on: RunLoop.main)
+                ) { _ in
+                    // Settings-window edits land here. The equality guard
+                    // keeps the frequent defaults churn from rebuilding the
+                    // peek machine when nothing it cares about changed.
+                    let policy = SidebarCustomizationSettings.peekPolicy()
+                    if policy != sidebarPeek.policy {
+                        sidebarPeek.setPolicy(policy)
+                    }
+                }
+                .onChange(of: sidebarState.occupiesLayout) { occupies in
+                    if occupies {
+                        // Docking retires any active peek: the card handed
+                        // its place to the fixed pane.
+                        sidebarPeek.sidebarDocked()
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .cmuxSidebarToggleHoverChanged)) { note in
+                    // Aside behaviour: hovering the titlebar's sidebar toggle
+                    // pre-reveals the peek card, so the click lands on a
+                    // sidebar that is already gliding in. Routed through the
+                    // peek machine's edge events, so dwell, grace, and
+                    // dismissal all behave exactly like the screen-edge peek.
+                    guard let hovering = note.userInfo?["hovering"] as? Bool else { return }
+                    guard observedWindow?.isKeyWindow == true else { return }
+                    guard !sidebarState.isVisible, sidebarPeek.policy.isEnabled else { return }
+                    if hovering {
+                        // A hover re-fired by the hide click itself is not a
+                        // request to show; only an arrival after the window
+                        // pre-reveals.
+                        if let until = sidebarToggleHoverSuppressedUntil, Date() < until {
+                            return
+                        }
+                        sidebarPeek.pointerEnteredActivationControl()
+                    } else {
+                        sidebarPeek.pointerExitedEdge()
+                    }
+                }
+                .onChange(of: sidebarState.isVisible) { visible in
+                    guard !visible else { return }
+                    // Hiding retires any peek in flight and opens the hover
+                    // suppression window, so the card cannot flash over the
+                    // closing pane. The show direction is untouched.
+                    sidebarPeek.sidebarCollapsed()
+                    sidebarToggleHoverSuppressedUntil = Date().addingTimeInterval(0.3)
+                }
+                .background(
+                    // Zero-sized anchor that owns the floating card's child
+                    // window. The card cannot live in this tree: the portal
+                    // hosts every terminal surface above the window's SwiftUI
+                    // hosting view, so an in-tree card draws underneath the
+                    // terminal no matter its zIndex.
+                    sidebarPeekPanelHost
+                )
+                .overlay(alignment: .leading) {
+                    // Same slot and layering as the resizer overlay, which is
+                    // the proven way in this codebase to receive pointer
+                    // events over the portal-hosted terminal. A strip placed
+                    // inside the layout stack can end up beneath the terminal's
+                    // AppKit view and never see the pointer at all.
+                    sidebarPeekEdgeStrip
+                        .zIndex(999)
+                }
                 .overlay(alignment: .leading) {
                     if sidebarState.isVisible {
                         sidebarResizerOverlay
@@ -2687,6 +2866,17 @@ struct ContentView: View {
         var view = AnyView(
             ZStack(alignment: .topLeading) {
                 WindowBackdropLayer(role: .windowRoot, snapshot: appearance)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+
+                // The window ground is the sidebar's material, applied
+                // window-wide: the root policy above paints the terminal's
+                // own colour, which made the workspace card's rounded
+                // corners invisible (card-coloured card on a card-coloured
+                // ground). The card covers this everywhere but the sidebar
+                // column, the corner reveals, and the pane gaps, which is
+                // exactly where the glass should show.
+                WindowBackdropLayer(role: .leftSidebar, snapshot: appearance)
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
 
@@ -3516,6 +3706,13 @@ struct ContentView: View {
             isCycleHot: isCycleHot,
             maxMounted: maxMounted
         ).mountedWorkspaceIds
+        if let selectedId = effectiveSelectedId,
+           !previousMountedIds.contains(selectedId),
+           mountedWorkspaceIds.contains(selectedId) {
+            // The switch target was not mounted: the pending interval, if
+            // any, is a cold switch.
+            SidebarNavigationTimings.reclassify("switch.warm", as: "switch.cold")
+        }
         let removedIds = previousMountedIds.filter { !mountedWorkspaceIds.contains($0) }
         let portalRenderingChanges = WorkspacePortalRenderingPlan(
             previousStatesByWorkspaceId: lastReconciledPortalRenderingStatesByWorkspaceId,
@@ -10887,6 +11084,7 @@ struct VerticalTabsSidebar: View, Equatable {
             && lhs.sidebarUnread === rhs.sidebarUnread
             && lhs.titlebarControlsLayoutModel === rhs.titlebarControlsLayoutModel
             && lhs.isPresented == rhs.isPresented
+            && lhs.presentationMode == rhs.presentationMode
             && lhs.chromeBackgroundColor.isEqual(rhs.chromeBackgroundColor)
     }
 
@@ -10900,6 +11098,14 @@ struct VerticalTabsSidebar: View, Equatable {
     let onSendFeedback: () -> Void
     let onToggleSidebar: () -> Void
     let onNewTab: () -> Void
+    /// Docked or floating. Part of `==`: the toggle's own glyph flips on it,
+    /// so a change here has to defeat the equality gate.
+    var presentationMode: SidebarPresentationMode = .docked
+    /// The floating panel's instance takes compact top metrics: its window
+    /// already sits below the titlebar, so the docked pane's reserved band
+    /// is dead space there.
+    var usesCompactTopInset: Bool = false
+    let onTogglePresentationMode: () -> Void
     let observedWindowReference: WeakWindowReference
     let chromeBackgroundColor: NSColor
     var observedWindow: NSWindow? { observedWindowReference.window }
@@ -10913,6 +11119,8 @@ struct VerticalTabsSidebar: View, Equatable {
     @Binding var lastSidebarSelectionIndex: Int?
     @Binding var sidebarRenderWorkerClient: RenderWorkerClient?
     @State var modifierKeyMonitor = WindowScopedShortcutHintModifierMonitor(activation: .commandOnly)
+    @State var isHoveringTopStrip = false
+    @Environment(\.colorScheme) var sidebarChromeColorScheme
     @State var pointerInteractionMonitor = SidebarPointerInteractionMonitor()
     @StateObject var dragAutoScrollController = SidebarDragAutoScrollController()
     @StateObject private var tabItemSettingsStore = SidebarTabItemSettingsStore(
@@ -11200,7 +11408,9 @@ struct VerticalTabsSidebar: View, Equatable {
     }
 
     private var sidebarTopScrimHeight: CGFloat {
-        SidebarWorkspaceListMetrics.topScrimHeight
+        usesCompactTopInset
+            ? SidebarWorkspaceListMetrics.compactTopScrimHeight
+            : SidebarWorkspaceListMetrics.topScrimHeight
     }
 
     private var sidebarBottomScrimHeight: CGFloat {
@@ -11493,12 +11703,6 @@ struct VerticalTabsSidebar: View, Equatable {
         }
         .accessibilityIdentifier("Sidebar")
         .ignoresSafeArea()
-        .overlay(alignment: .trailing) {
-            WindowChromeBorder(
-                orientation: .vertical,
-                backgroundColor: chromeBackgroundColor
-            )
-        }
         .background(
             WindowAccessor(refreshID: showModifierHoldHints) { window in
                 modifierKeyMonitor.setHostWindow(showModifierHoldHints ? window : nil)
@@ -11646,7 +11850,8 @@ struct VerticalTabsSidebar: View, Equatable {
         renderContext: WorkspaceListRenderContext,
         unreadSnapshot: SidebarUnreadSnapshot
     ) -> some View {
-        let scrollInsets = SidebarWorkspaceScrollInsets.workspaceList
+        let scrollInsets: SidebarWorkspaceScrollInsets =
+            usesCompactTopInset ? .floatingPanel : .workspaceList
         return GeometryReader { viewport in
             // Keep viewport geometry as a downward-only layout input. Writing
             // this value into @State from onGeometryChange feeds an
@@ -11695,6 +11900,11 @@ struct VerticalTabsSidebar: View, Equatable {
             }
             .overlay(alignment: .topLeading) {
                 minimalModeSidebarTitlebarControlsOverlay()
+            }
+            .overlay(alignment: .topTrailing) {
+                // Layered after the drag handle so the button wins the click:
+                // the strip is draggable everywhere except this control.
+                sidebarPresentationToggleOverlay
             }
             .overlay(alignment: .top) {
                 workspaceReorderDropOverlay(
@@ -11878,6 +12088,7 @@ struct VerticalTabsSidebar: View, Equatable {
             selectedWorkspaceId: selectedWorkspaceId,
             selectedScrollTargetWorkspaceId: selectedScrollTargetWorkspaceId,
             isPresented: isPresented,
+            usesCompactTopInset: usesCompactTopInset,
             unreadSource: sidebarUnread,
             onDeferredClickAwaitingApply: { appKitTableApplyRequestToken &+= 1 }
         )
@@ -12043,6 +12254,7 @@ struct VerticalTabsSidebar: View, Equatable {
                 dragAutoScrollController.attach(scrollView: scrollView)
             },
             closeWorkspace: { workspaceId in
+                SidebarNavigationTimings.begin("close")
                 guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else { return }
 #if DEBUG
                 cmuxDebugLog("sidebar.close workspace=\(workspaceId.uuidString.prefix(5)) method=middleClick")
@@ -15498,7 +15710,8 @@ struct TabItemView: View, Equatable {
     private var selectedWorkspaceBackgroundNSColor: NSColor {
         sidebarSelectedWorkspaceBackgroundNSColor(
             for: colorScheme,
-            sidebarSelectionColorHex: sidebarSelectionColorHex
+            sidebarSelectionColorHex: sidebarSelectionColorHex,
+            accent: settings.selectionAccent
         )
     }
 

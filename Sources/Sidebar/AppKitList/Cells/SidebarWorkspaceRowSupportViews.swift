@@ -15,7 +15,8 @@ struct SidebarRowPalette {
     var selectedBackground: NSColor {
         sidebarSelectedWorkspaceBackgroundNSColor(
             for: colorScheme,
-            sidebarSelectionColorHex: model.settings.selectionColorHex
+            sidebarSelectionColorHex: model.settings.selectionColorHex,
+            accent: model.settings.selectionAccent
         )
     }
 

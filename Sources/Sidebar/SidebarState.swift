@@ -1,3 +1,4 @@
+import CmuxSidebar
 import CmuxWorkspaces
 import Combine
 import CoreGraphics
@@ -6,11 +7,36 @@ import Foundation
 final class SidebarState: ObservableObject {
     @Published var isVisible: Bool
     @Published var persistedWidth: CGFloat
+    /// Whether the sidebar takes layout width or floats over the content.
+    ///
+    /// Window-scoped rather than global: a user can dock the rail in the window
+    /// they are reading a long list in and leave it floating everywhere else.
+    /// The last chosen mode is persisted separately as the default for new
+    /// windows.
+    @Published var presentationMode: SidebarPresentationMode
+
+    /// Whether the sidebar currently consumes layout width from the content.
+    ///
+    /// The distinction the whole floating mode rests on: a floating sidebar is
+    /// still "visible", it simply does not push the terminal aside.
+    var occupiesLayout: Bool {
+        isVisible && presentationMode == .docked
+    }
     private var visibilityWillChangeOwnerId: UUID?
     private var visibilityWillChange: ((Bool) -> Void)?
+    /// When installed, visibility changes defer to this orchestrator (the
+    /// toggle animator's width sweep), which applies the final value itself
+    /// through ``applyVisibilityBypassingOrchestrator(_:)``. Returning false
+    /// hands the change back to the instant default path.
+    var animatedVisibilityOrchestrator: ((Bool) -> Bool)?
 
-    init(isVisible: Bool = true, persistedWidth: CGFloat = CGFloat(SessionPersistencePolicy.defaultSidebarWidth)) {
+    init(
+        isVisible: Bool = true,
+        persistedWidth: CGFloat = CGFloat(SessionPersistencePolicy.defaultSidebarWidth),
+        presentationMode: SidebarPresentationMode = .docked
+    ) {
         self.isVisible = isVisible
+        self.presentationMode = presentationMode
         let sanitized = SessionPersistencePolicy.sanitizedSidebarWidth(Double(persistedWidth))
         self.persistedWidth = CGFloat(sanitized)
     }
@@ -19,7 +45,23 @@ final class SidebarState: ObservableObject {
         setVisible(!isVisible)
     }
 
+    /// Switches between docked and floating.
+    func togglePresentationMode() {
+        presentationMode = presentationMode.toggled
+    }
+
     func setVisible(_ nextValue: Bool) {
+        guard nextValue != isVisible else { return }
+        if let animatedVisibilityOrchestrator, animatedVisibilityOrchestrator(nextValue) {
+            return
+        }
+        visibilityWillChange?(nextValue)
+        isVisible = nextValue
+    }
+
+    /// The orchestrator's commit path: applies visibility without consulting
+    /// the orchestrator again.
+    func applyVisibilityBypassingOrchestrator(_ nextValue: Bool) {
         guard nextValue != isVisible else { return }
         visibilityWillChange?(nextValue)
         isVisible = nextValue

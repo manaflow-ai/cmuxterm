@@ -194,5 +194,41 @@ public struct SidebarCatalogSection: SettingCatalogSection {
         userDefaultsKey: "sidebarNotificationBadgeColorHex"
     )
 
+    public let peekReveal = DefaultsKey<SidebarPeekRevealPreset>(
+        id: "sidebar.peekReveal",
+        defaultValue: .quick,
+        userDefaultsKey: "sidebarPeekReveal"
+    )
+
+    /// When true the hidden sidebar never hover-reveals; only the toggle
+    /// shortcut brings it back.
+    public let peekDisabled = DefaultsKey<Bool>(
+        id: "sidebar.peekDisabled",
+        defaultValue: false,
+        userDefaultsKey: "sidebarPeekDisabled"
+    )
+
+    public let rowDensity = DefaultsKey<SidebarRowDensity>(
+        id: "sidebar.rowDensity",
+        defaultValue: .cozy,
+        userDefaultsKey: "sidebarRowDensity"
+    )
+
+    /// When true, starting a drag on an unselected workspace no longer
+    /// switches to it first.
+    public let dragSwitchDisabled = DefaultsKey<Bool>(
+        id: "sidebar.dragSwitchDisabled",
+        defaultValue: false,
+        userDefaultsKey: "sidebarDragSwitchDisabled"
+    )
+
+    /// Highlight style for the selected workspace row. A custom selection
+    /// colour (`workspaceColors.selectionColor`) still wins when set.
+    public let selectionAccent = DefaultsKey<SidebarSelectionAccent>(
+        id: "sidebar.selectionAccent",
+        defaultValue: .blue,
+        userDefaultsKey: "sidebarSelectionAccent"
+    )
+
     public init() {}
 }
