@@ -42,6 +42,12 @@ struct VoiceAgentSidebarView: View {
             Text(String(localized: "voiceAgent.panel.title", defaultValue: "Voice"))
                 .font(.headline)
             Spacer()
+            if state.isLive, !state.isAudioPlaying {
+                Image(systemName: "speaker.slash")
+                    .foregroundStyle(.orange)
+                    .help(String(localized: "voiceAgent.audio.notPlaying", defaultValue: "No audio is playing yet"))
+                    .accessibilityIdentifier("VoiceAgentAudioMutedIndicator")
+            }
             Text(phaseLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)

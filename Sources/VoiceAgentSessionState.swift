@@ -54,6 +54,8 @@ final class VoiceAgentSessionState {
     var recentActions: [ActionChip] = []
     var uiSummary = ""
     var sidecar: VoiceAgentSidecarSession?
+    /// True once the hidden page reports the bot's audio track is playing.
+    var isAudioPlaying = false
     /// A recap the user asked for before the session was live; sent once it is.
     var pendingRecapSurfaceID: String??
     /// True while the audio page should be mounted (from start until stop).
@@ -97,6 +99,7 @@ final class VoiceAgentSessionState {
 
     func reset() {
         phase = .off
+        isAudioPlaying = false
         isSessionRequested = false
         isMuted = false
         finalizeOpenTranscriptLines()
@@ -142,6 +145,8 @@ final class VoiceAgentSessionState {
         switch status {
         case "connecting":
             if isSessionRequested { phase = .connecting }
+        case "audio-playing":
+            isAudioPlaying = true
         case "ready", "listening":
             if isSessionRequested {
                 let wasLive = isLive

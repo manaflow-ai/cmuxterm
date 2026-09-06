@@ -293028,5 +293028,6 @@
     "voiceAgent.transcript.empty": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Try: “What do I have open?”, “Go to workspace two”, “Split right”, “Run ls”."}}}},
     "voiceAgent.transcript.you": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"You"}}}},
     "command.voiceRecap.title": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Speak a Recap of This Terminal"}},"ja":{"stringUnit":{"state":"translated","value":"このターミナルの要約を読み上げ"}}}},
+    "voiceAgent.audio.notPlaying": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No audio is playing yet"}}}},
   "version": "1.0"
 }

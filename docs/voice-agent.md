@@ -121,6 +121,21 @@ optional `CMUX_VOICE_GREETING` (fixed opening line, or `off` to let the user spe
 The agent greets you as soon as the call connects, naming the current
 workspace and inviting a command; you can interrupt it at any time.
 
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Panel shows Listening but you hear nothing; a speaker-off icon sits next to the phase | The page's audio element has not started | Click the mic off and on. If it persists, check the Mac's output device; the hidden page plays through the default output |
+| "Ultravox refused to start a call: the account's call allowance is used up" | Ultravox 402 | Add billing at ultravox.ai |
+| "Ultravox rejected the API key" | Wrong or revoked key | Settings › Beta Features › Voice Agent |
+| "This pane is only N columns wide" when asking to split | The pane cannot hold two usable terminals | Say "split down", or "close this pane" first |
+| Claude Code opens but ignores the first prompt | Its first-run "trust this folder" dialog | Handled automatically; if it still shows, say "option two" then "confirm" |
+| No recap after a Claude turn | The agent ran outside a cmux terminal, or hooks are off | Run agents inside cmux; Codex/OpenCode need `cmux hooks setup` once |
+
+The sidecar log is at `~/Library/Logs/cmux/voice-agent-<bundle-id>.log`.
+Every voice session is one Ultravox call; end the session when you are not
+using it to avoid billing for idle minutes.
+
 ## Privacy
 
 Audio and transcripts go to Ultravox for the duration of a session. Terminal
