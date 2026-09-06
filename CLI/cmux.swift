@@ -27952,6 +27952,27 @@ struct CMUXCLI {
                 cwd: parsedInput.cwd
             )
             let isClearSessionStart = isClaudeClearSessionStart(parsedInput)
+            let isNoFlickerStartupSessionStart = isClaudeNoFlickerStartupSessionStart(
+                parsedInput,
+                env: ProcessInfo.processInfo.environment
+            )
+            let visibleMutationApplies = shouldApplyClaudeHookVisibleMutation(
+                sessionStore: sessionStore,
+                parsedInput: parsedInput,
+                workspaceId: workspaceId,
+                surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
+                telemetry: telemetry
+            )
+            let canReplaceStoppedSession = shouldReplaceStoppedClaudeSession(
+                sessionStore: sessionStore,
+                parsedInput: parsedInput,
+                workspaceId: workspaceId,
+                surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
+                telemetry: telemetry
+            )
+            let shouldPromoteNoFlickerSessionStart = isNoFlickerStartupSessionStart
+                && (visibleMutationApplies || canReplaceStoppedSession)
+            let shouldPublishSessionStartResumeBinding = isClearSessionStart || canReplaceStoppedSession
             let sessionStartSource = parsedInput.object?["source"] as? String
             let acceptedSessionId: String? = parsedInput.sessionId.flatMap { sessionId in
                 let accepted = (try? sessionStore.upsertAuthoritativeClaudeSessionStart(
@@ -27973,17 +27994,19 @@ struct CMUXCLI {
                 printClaudeHookAck()
                 return
             }
-            publishAgentSurfaceResumeBinding(
-                client: client,
-                workspaceId: workspaceId,
-                surfaceId: surfaceId,
-                kind: "claude",
-                displayName: String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code"),
-                sessionId: acceptedSessionId,
-                cwd: parsedInput.cwd,
-                launchCommand: launchCommand,
-                observedPermissionMode: observedHookPermissionMode
-            )
+            if shouldPublishSessionStartResumeBinding {
+                publishAgentSurfaceResumeBinding(
+                    client: client,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    kind: "claude",
+                    displayName: String(localized: "cli.claude-hook.notification.title", defaultValue: "Claude Code"),
+                    sessionId: acceptedSessionId,
+                    cwd: parsedInput.cwd,
+                    launchCommand: launchCommand,
+                    observedPermissionMode: observedHookPermissionMode
+                )
+            }
             emitAgentJournalEvent(
                 client: client,
                 kind: .sessionStarted,
@@ -28007,7 +28030,7 @@ struct CMUXCLI {
                     client: client
                 )
             }
-            if isClearSessionStart, !suppressVisibleMutations {
+            if (isClearSessionStart || shouldPromoteNoFlickerSessionStart), !suppressVisibleMutations {
                 _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
                 try setClaudeStatus(
                     client: client,
@@ -29198,6 +29221,19 @@ struct CMUXCLI {
             return false
         }
         return source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "clear"
+    }
+
+    private func isClaudeNoFlickerStartupSessionStart(
+        _ parsedInput: ClaudeHookParsedInput,
+        env: [String: String]
+    ) -> Bool {
+        guard let raw = normalizedHookValue(env["CLAUDE_CODE_NO_FLICKER"]),
+              Self.parseHookBoolean(raw) == true,
+              let source = parsedInput.object?["source"] as? String,
+              let normalizedSource = normalizedHookValue(source)?.lowercased() else {
+            return false
+        }
+        return normalizedSource == "startup"
     }
 
     func socketPanelOption(_ surfaceId: String?) -> String {
