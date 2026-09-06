@@ -27,7 +27,7 @@ if ! awk '
   /^  refresh-compilation-cache:/ { job="refresh"; next }
   /^  build-nightly-app:/ { job="build"; next }
   /^  [a-zA-Z0-9_-]+:/ { job="" }
-  job && /^      - name: Cache Xcode compilation results/ { in_cache=1; next }
+  job && /^      - name: Restore Xcode compilation cache/ { in_cache=1; next }
   in_cache && /^      - name:/ { in_cache=0 }
   in_cache && /path: build-universal\/CompilationCache\.noindex/ { saw_path[job]=1 }
   in_cache && /key: xcode-compilation-release-/ { saw_key[job]=1 }
@@ -82,15 +82,15 @@ if ! awk '
   in_refresh && /runs-on: \$\{\{ vars\.MACOS_RUNNER_26_RELEASE/ { saw_release_runner=1 }
   in_refresh && /CMUX_CI_XCODE_APP_MACOS_26/ { saw_release_xcode=1 }
   in_refresh && /select-ci-xcode\.sh/ { saw_xcode_selection=1 }
-  in_refresh && /^      - name: Look up Xcode compilation cache/ { saw_lookup=1 }
+  in_refresh && /^      - name: Restore Xcode compilation cache/ { saw_lookup=1 }
   in_refresh && /uses: actions\/cache\/restore@/ { saw_restore_action=1 }
-  in_refresh && /lookup-only: true/ { saw_lookup_only=1 }
-  in_refresh && /^      - name: Cache Xcode compilation results/ { saw_cache=1 }
+  in_refresh && /id: compilation-cache-restore/ { saw_restore_id=1 }
+  in_refresh && /^      - name: Save Xcode compilation cache/ { saw_cache=1 }
   in_refresh && /^      - name: Refresh universal nightly compilation cache/ { saw_refresh=1 }
-  in_refresh && /if: steps\.compilation-cache-lookup\.outputs\.cache-hit != '\''true'\''/ { saw_change_gate=1 }
+  in_refresh && /if: steps\.compilation-cache-restore\.outputs\.cache-hit != '\''true'\''/ { saw_change_gate=1 }
   in_refresh && /-showBuildTimingSummary/ { saw_timing_summary=1 }
   in_refresh && /-quiet/ { saw_quiet=1 }
-  END { exit !(saw_cold_build_timeout && saw_schedule_gate && saw_release_runner && saw_release_xcode && saw_xcode_selection && saw_lookup && saw_restore_action && saw_lookup_only && saw_cache && saw_refresh && saw_change_gate && saw_timing_summary && !saw_quiet) }
+  END { exit !(saw_cold_build_timeout && saw_schedule_gate && saw_release_runner && saw_release_xcode && saw_xcode_selection && saw_lookup && saw_restore_action && saw_restore_id && saw_cache && saw_refresh && saw_change_gate && saw_timing_summary && !saw_quiet) }
 ' "$WORKFLOW_FILE"; then
   echo "FAIL: the six-hour schedule must allow 45 minutes for a cold cache build and use the matching runner, Xcode, and visible timing output"
   exit 1
@@ -366,6 +366,27 @@ if ! awk '
   END { exit !(sign_line && smoke_line && notarize_line && sign_line < smoke_line && smoke_line < notarize_line) }
 ' "$RELEASE_WORKFLOW_FILE"; then
   echo "FAIL: release must smoke-launch the signed app before paying the Apple notarization wait"
+  exit 1
+fi
+
+if ! grep -Fq 'XCODE_COMPILATION_CACHE_SCHEMA: v2' "$WORKFLOW_FILE"; then
+  echo "FAIL: Xcode compilation cache invalidation must be explicit"
+  exit 1
+fi
+
+if ! awk '
+  /^  refresh-compilation-cache:/ { job="refresh"; next }
+  /^  build-nightly-app:/ { job="app"; next }
+  /^  [a-zA-Z0-9_-]+:/ { job="" }
+  job && /^      - name: Bound Xcode compilation cache size/ { bound[job]=NR }
+  job && /^      - name: Save Xcode compilation cache/ { save[job]=NR }
+  job && /actions\/cache\/save@/ { save_action[job]=1 }
+  job && /steps\.compilation-cache-restore\.outputs\.cache-hit != '\''true'\''/ { miss_gate[job]=1 }
+  job && /hashFiles/ && /CompilationCache/ { nonempty_gate[job]=1 }
+  END { exit !(bound["refresh"] && save["refresh"] > bound["refresh"] && save_action["refresh"] && miss_gate["refresh"] && nonempty_gate["refresh"] &&
+               bound["app"] && save["app"] > bound["app"] && save_action["app"] && miss_gate["app"] && nonempty_gate["app"]) }
+' "$WORKFLOW_FILE"; then
+  echo "FAIL: nightly cache writes must happen explicitly after the bounded build and only for non-empty cache misses"
   exit 1
 fi
 
