@@ -2097,8 +2097,10 @@ extension Workspace {
                 }
             }
             terminalPanel.restoreSessionTextBoxDraft(snapshot.terminal?.textBoxDraft)
-            terminalPanel.restoreSessionBlueprint(snapshot.terminal?.blueprint)
             applySessionPanelMetadata(snapshot, toPanelId: terminalPanel.id)
+            // After the metadata pass: the blueprint document is keyed by the
+            // persisted stable surface id that pass adopts.
+            terminalPanel.restoreSessionBlueprint(snapshot.terminal?.blueprint)
             armRestoredPanelTitleBoundary(
                 panelId: terminalPanel.id,
                 internallySeededInput: restoredStartupInput

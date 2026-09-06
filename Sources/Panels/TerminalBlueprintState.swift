@@ -324,6 +324,7 @@ final class TerminalBlueprintState {
         case .ready:
             isWebViewReady = true
             errorMessage = nil
+            loadDocumentIfNeeded()
             pushSceneToWebViewIfNeeded()
             resolveReadyWaiters(with: .success(()))
         case .sceneChanged(let sceneJSON, let elementCount, let digest):
@@ -703,6 +704,10 @@ final class TerminalBlueprintState {
 
     // MARK: - Persistence
 
+    /// Loads the stored document for the current surface id once. A load that
+    /// finds nothing does not count: session restore can run before the panel
+    /// adopts its persisted stable id, so the next read or page `ready`
+    /// retries under the final id (a cheap file check while no scene exists).
     func loadDocumentIfNeeded() {
         guard !didLoadDocument, loadTask == nil, let store else { return }
         let surfaceID = surfaceID
@@ -710,12 +715,14 @@ final class TerminalBlueprintState {
             defer { self?.loadTask = nil }
             let document = try? await store.load(surfaceID: surfaceID)
             guard let self, !self.didLoadDocument else { return }
+            guard let document else { return }
             self.didLoadDocument = true
-            guard let document, self.sceneJSON == nil else { return }
+            guard self.sceneJSON == nil else { return }
             self.sceneJSON = document.sceneJSON
             self.mermaidSource = document.mermaidSource
             self.revision = max(self.revision, document.revision)
             self.updatedBy = document.lastAuthor
+            self.elementCount = TerminalBlueprintScene.liveElementCount(inSceneJSON: document.sceneJSON)
             self.pushSceneToWebViewIfNeeded()
         }
     }
