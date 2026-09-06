@@ -1195,6 +1195,8 @@
 		11295000000000000000000E /* ControlSurfaceResumeTarget+ContinuationRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11295000000000000000000D /* ControlSurfaceResumeTarget+ContinuationRecord.swift */; };
 		D8684000000000000000000F /* ControlSurfaceResumeTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D86840000000000000000010 /* ControlSurfaceResumeTarget.swift */; };
 		93300005A1B2C3D4E5F60718 /* ControlTerminalSocketBindingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93300006A1B2C3D4E5F60718 /* ControlTerminalSocketBindingState.swift */; };
+		C11538000000000000000003 /* CopyOnlyTextSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11538000000000000000004 /* CopyOnlyTextSelection.swift */; };
+		C11538000000000000000001 /* CopyOnlyTextSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11538000000000000000002 /* CopyOnlyTextSelectionTests.swift */; };
 		C65930010000000000000002 /* CrashDiagnosticSessionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C65930010000000000000001 /* CrashDiagnosticSessionPolicyTests.swift */; };
 		C57B00080000000000000001 /* CustomSidebarPaneDataContextCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57B00080000000000000002 /* CustomSidebarPaneDataContextCache.swift */; };
 		C57B00010000000000000001 /* CustomSidebarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57B00010000000000000002 /* CustomSidebarPanel.swift */; };
@@ -4455,6 +4457,8 @@
 		11295000000000000000000D /* ControlSurfaceResumeTarget+ContinuationRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ControlSurfaceResumeTarget+ContinuationRecord.swift"; sourceTree = "<group>"; };
 		D86840000000000000000010 /* ControlSurfaceResumeTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlSurfaceResumeTarget.swift; sourceTree = "<group>"; };
 		93300006A1B2C3D4E5F60718 /* ControlTerminalSocketBindingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlTerminalSocketBindingState.swift; sourceTree = "<group>"; };
+		C11538000000000000000004 /* CopyOnlyTextSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyOnlyTextSelection.swift; sourceTree = "<group>"; };
+		C11538000000000000000002 /* CopyOnlyTextSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyOnlyTextSelectionTests.swift; sourceTree = "<group>"; };
 		C65930010000000000000001 /* CrashDiagnosticSessionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashDiagnosticSessionPolicyTests.swift; sourceTree = "<group>"; };
 		C57B00080000000000000002 /* CustomSidebarPaneDataContextCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CustomSidebarPaneDataContextCache.swift; sourceTree = "<group>"; };
 		C57B00010000000000000002 /* CustomSidebarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CustomSidebarPanel.swift; sourceTree = "<group>"; };
@@ -7721,6 +7725,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D0B10005A1B2C3D4E5F60001 /* WorkspacePortalPaneDrop.swift */,
 				B1809FE5A313368FC39E0B19 /* WorkspaceSurfaceResourceDrop.swift */,
 				C0DE32470000000000000004 /* WorkspaceSurfaceIdentifierClipboardText.swift */,
+				C11538000000000000000004 /* CopyOnlyTextSelection.swift */,
 				F90070010000000000000002 /* WorkspaceSurfaceOwnershipTarget.swift */,
 				A5001417 /* WorkspaceContentView.swift */,
 				5C0728FF0C3B4FF2925CA071 /* AppDelegate+ManagedPolicy.swift */,
@@ -9528,6 +9533,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				8175A0010000000000000002 /* SidebarGitProcessCompositionTests.swift */,
 				C0DE31390000000000000104 /* FilePreviewReviewFeedbackTests.swift */,
 				C0DEFC100000000000000002 /* FilePreviewTextEditorTextKitTests.swift */,
+				C11538000000000000000002 /* CopyOnlyTextSelectionTests.swift */,
 				C01E00070000000000000002 /* FilePreviewCodeViewTests.swift */,
 				C01E00090000000000000002 /* FilePreviewSyntaxTestSupport.swift */,
 				D7AB00000000000000000010 /* AppDelegateMoveTabToNewWorkspaceTests.swift */,
@@ -11138,6 +11144,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				11295000000000000000000E /* ControlSurfaceResumeTarget+ContinuationRecord.swift in Sources */,
 				D8684000000000000000000F /* ControlSurfaceResumeTarget.swift in Sources */,
 				93300005A1B2C3D4E5F60718 /* ControlTerminalSocketBindingState.swift in Sources */,
+				C11538000000000000000003 /* CopyOnlyTextSelection.swift in Sources */,
 				C57B00080000000000000001 /* CustomSidebarPaneDataContextCache.swift in Sources */,
 				C57B00010000000000000001 /* CustomSidebarPanel.swift in Sources */,
 				C57B00090000000000000001 /* CustomSidebarPanelView.swift in Sources */,
@@ -13138,6 +13145,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0A710120000000000000002 /* ComputerUseUXTests.swift in Sources */,
 				B88356000000000000000003 /* ControlledPastePreparationDeadlines.swift in Sources */,
 				B88356000000000000000001 /* ControlledPastePreparationOperation.swift in Sources */,
+				C11538000000000000000001 /* CopyOnlyTextSelectionTests.swift in Sources */,
 				C65930010000000000000002 /* CrashDiagnosticSessionPolicyTests.swift in Sources */,
 				DEBDADADADADADADAD000003 /* DebugDogfoodCredentialResolverTests.swift in Sources */,
 				C0DE31410000000000000103 /* DebugEventLogSerializedAppendTests.swift in Sources */,
