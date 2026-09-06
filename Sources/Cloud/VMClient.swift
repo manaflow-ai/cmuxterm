@@ -2067,10 +2067,10 @@ actor VMClient {
             }
             if retryTransientServiceUnavailable,
                retriesLeft > 0,
-               let delay = Self.transientVMRetryDelay(http: http, data: data) {
+               let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
                 retriesLeft -= 1
                 onRetry()
-                try await Task.sleep(for: delay)
+                try await ContinuousClock().sleep(for: delaySeconds)
                 continue
             }
             if let sessionIdentity {
