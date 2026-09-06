@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "docs/cli-rust-parity-manifest.json"
+INVENTORY = ROOT / "docs/cli-rust-command-inventory.json"
+SOURCE = ROOT / "CLI/cmux.swift"
 ALLOWED = {"pending", "partial", "complete"}
 
 
@@ -19,6 +22,36 @@ def main() -> int:
     except (OSError, json.JSONDecodeError) as error:
         print(f"error: cannot read {MANIFEST}: {error}", file=sys.stderr)
         return 2
+
+    try:
+        inventory = json.loads(INVENTORY.read_text())
+        source_hash = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"error: cannot read source inventory: {error}", file=sys.stderr)
+        return 2
+
+    if inventory.get("source_sha256") != source_hash:
+        print(
+            "error: source-derived CLI inventory is stale; run "
+            "scripts/generate-cli-rust-command-inventory.py",
+            file=sys.stderr,
+        )
+        return 1
+    inventory_commands = inventory.get("commands")
+    if not isinstance(inventory_commands, list) or not inventory_commands:
+        print("error: source inventory has no dispatch commands", file=sys.stderr)
+        return 1
+    inventory_labels = [
+        label
+        for entry in inventory_commands
+        for label in [entry.get("command"), *(entry.get("aliases") or [])]
+    ]
+    if any(not isinstance(label, str) or not label.strip() for label in inventory_labels):
+        print("error: source inventory contains an invalid command label", file=sys.stderr)
+        return 1
+    if len(inventory_labels) != len(set(inventory_labels)):
+        print("error: source inventory contains duplicate command labels", file=sys.stderr)
+        return 1
 
     families = document.get("families")
     if not isinstance(families, list) or not families:
@@ -51,7 +84,11 @@ def main() -> int:
         return 1
 
     incomplete = [family["id"] for family in families if family["status"] != "complete"]
-    print(f"Rust CLI parity manifest valid: {len(families)} families")
+    print(
+        f"Rust CLI parity manifest valid: {len(families)} families; "
+        f"{len(inventory_commands)} Swift dispatch arms; "
+        f"{len(inventory_labels)} command labels"
+    )
     if incomplete:
         print(f"cutover blocked: {len(incomplete)} families incomplete ({', '.join(incomplete)})")
         return 3

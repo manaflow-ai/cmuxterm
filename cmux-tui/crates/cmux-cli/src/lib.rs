@@ -58,6 +58,8 @@ struct GlobalOptions {
 enum CommandLine {
     Help,
     Version,
+    Capabilities(Vec<String>),
+    Context(Vec<String>),
     Cr(Vec<String>),
     CodeRouter(Vec<String>),
     AiAccounts(Vec<String>),
@@ -94,6 +96,28 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             } else {
                 println!("cmux {VERSION} ({BUILD}) [{COMMIT}]");
             }
+            Ok(())
+        }
+        CommandLine::Capabilities(arguments) => {
+            if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
+                println!("Usage: cmux capabilities\n\nPrint server capabilities as JSON.");
+                return Ok(());
+            }
+            let offline = arguments.iter().any(|argument| argument == "--offline");
+            if arguments.iter().any(|argument| argument != "--json" && argument != "--offline") {
+                reject_no_arguments("capabilities", &arguments)?;
+            }
+            if offline {
+                print_capabilities();
+            } else {
+                let result = socket(&options)?.send_v2("system.capabilities", json!({}))?;
+                print_result(&result, true);
+            }
+            Ok(())
+        }
+        CommandLine::Context(arguments) => {
+            reject_no_arguments("context", &arguments)?;
+            print_context(&options);
             Ok(())
         }
         CommandLine::Cr(arguments) => run_coderouter(arguments, options, program, true),
@@ -178,12 +202,15 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
     let command = args.get(index).map(String::as_str);
     let command = match (program, command) {
         (Program::CodeRouter, None) => CommandLine::CodeRouter(Vec::new()),
+        (Program::CodeRouter, Some(_)) => CommandLine::CodeRouter(args[index..].to_vec()),
         (_, None) => {
             return Err(CliError::Usage(
                 "Missing command. Usage: cmux <path>|<command> [options]. Run 'cmux --help' for the full command list.".into(),
             ));
         }
         (_, Some("version")) => CommandLine::Version,
+        (_, Some("capabilities")) => CommandLine::Capabilities(args[index + 1..].to_vec()),
+        (_, Some("context")) => CommandLine::Context(args[index + 1..].to_vec()),
         (_, Some("cr")) => CommandLine::Cr(args[index + 1..].to_vec()),
         (_, Some("coderouter")) => CommandLine::CodeRouter(args[index + 1..].to_vec()),
         (_, Some("ai-accounts")) => CommandLine::AiAccounts(args[index + 1..].to_vec()),
@@ -196,6 +223,84 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
         }
     };
     Ok((options, command))
+}
+
+fn reject_no_arguments(command: &str, arguments: &[String]) -> Result<(), CliError> {
+    let allowed_json = arguments.iter().all(|argument| argument == "--json");
+    if !arguments.is_empty() && !allowed_json {
+        let argument = &arguments[0];
+        return Err(CliError::Usage(format!("{command}: unexpected argument '{argument}'")));
+    }
+    Ok(())
+}
+
+fn print_capabilities() {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "schema": 1,
+            "implementation": "cmux-cli-rust",
+            "production": false,
+            "capabilities": [
+                {
+                    "id": "cmux.rpc",
+                    "status": "experimental",
+                    "aliases": ["rpc"],
+                    "lifecycle": "instant",
+                    "permissions": ["socket.control"],
+                    "input": {"method": "string", "params": "object"},
+                    "output": "json.result",
+                    "verification": "response.ok == true"
+                },
+                {
+                    "id": "coderouter.account.add",
+                    "status": "experimental",
+                    "aliases": ["cr add codex", "ai-accounts upload codex"],
+                    "lifecycle": "instant",
+                    "permissions": ["socket.control", "account.write"],
+                    "input": {"provider": "codex", "label": "string?", "teamId": "string?", "validate": "boolean?"},
+                    "output": "ai_account",
+                    "verification": "account.id exists"
+                },
+                {
+                    "id": "coderouter.exec",
+                    "status": "delegated",
+                    "aliases": ["coderouter", "cr"],
+                    "lifecycle": "detached",
+                    "permissions": ["process.exec", "network.coderouter"],
+                    "input": {"argv": "string[]"},
+                    "output": "child.exit",
+                    "verification": "child.exit == 0"
+                }
+            ]
+        }))
+        .expect("capability catalog is valid JSON")
+    );
+}
+
+fn print_context(options: &GlobalOptions) {
+    let socket = socket_path(options).map(|path| path.display().to_string());
+    let socket_password_source = if options.password.is_some() {
+        Some("argument")
+    } else if env::var_os("CMUX_SOCKET_PASSWORD").is_some() {
+        Some("environment")
+    } else if socket_password_file().is_some() {
+        Some("file")
+    } else {
+        None
+    };
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "workspace_id": env::var("CMUX_WORKSPACE_ID").ok(),
+            "surface_id": env::var("CMUX_SURFACE_ID").ok(),
+            "tab_id": env::var("CMUX_TAB_ID").ok(),
+            "socket": socket,
+            "socket_password_source": socket_password_source,
+            "coderouter_data_dir_configured": env::var_os("CODEROUTER_DATA_DIR").is_some()
+        }))
+        .expect("context is valid JSON")
+    );
 }
 
 fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
@@ -218,7 +323,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -306,11 +411,10 @@ fn exec_real_coderouter(
         .ok_or_else(|| {
             CliError::Exit(127, "Required CLI not found. Install the command and retry.".into())
         })?;
-    let broker_dir = if use_cmux_broker && env::var_os("CODEROUTER_DATA_DIR").is_none() {
-        Some(issue_broker_directory(options)?)
-    } else {
-        None
-    };
+    let broker_available = socket_path(options).is_some_and(|path| path.exists());
+    let should_try_broker =
+        env::var_os("CODEROUTER_DATA_DIR").is_none() && (use_cmux_broker || broker_available);
+    let broker_dir = if should_try_broker { Some(issue_broker_directory(options)?) } else { None };
     let mut command = Command::new(&path);
     command.args(args).env_clear().envs(
         env::vars().filter(|(key, _)| !key.starts_with("CMUX_") && !key.starts_with("CMUXD_")),
@@ -322,13 +426,13 @@ fn exec_real_coderouter(
         Ok(status) => status,
         Err(error) => {
             if let Some(directory) = broker_dir {
-                let _ = std::fs::remove_dir_all(directory);
+                cleanup_broker_directory(directory)?;
             }
             return Err(CliError::Exit(127, format!("Could not start the required CLI: {error}")));
         }
     };
     if let Some(directory) = broker_dir {
-        let _ = std::fs::remove_dir_all(directory);
+        cleanup_broker_directory(directory)?;
     }
     let code = exit_code(status);
     if code == 0 { Ok(()) } else { Err(CliError::Exit(code, String::new())) }
@@ -345,7 +449,9 @@ fn issue_broker_directory(options: &GlobalOptions) -> Result<PathBuf, CliError> 
             CliError::Exit(127, "CodeRouter broker returned no temporary data directory.".into())
         })?;
     let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-    if !name.starts_with("cmux-coderouter-broker-")
+    let expected_parent = env::temp_dir();
+    if path.parent() != Some(expected_parent.as_path())
+        || !name.starts_with("cmux-coderouter-broker-")
         || !path.join("coderouter/config.json").is_file()
     {
         return Err(CliError::Exit(
@@ -354,6 +460,18 @@ fn issue_broker_directory(options: &GlobalOptions) -> Result<PathBuf, CliError> 
         ));
     }
     Ok(path)
+}
+
+fn cleanup_broker_directory(path: PathBuf) -> Result<(), CliError> {
+    if !path.exists() {
+        return Ok(());
+    }
+    std::fs::remove_dir_all(&path).map_err(|error| {
+        CliError::Runtime(format!(
+            "Could not remove temporary CodeRouter broker directory {}: {error}",
+            path.display()
+        ))
+    })
 }
 
 fn find_in_path(name: &str) -> Option<PathBuf> {
@@ -409,15 +527,22 @@ fn print_upload_result(response: &Value, fallback_provider: &str) {
         .or_else(|| account.get("provider"))
         .and_then(Value::as_str)
         .unwrap_or(fallback_provider);
-    println!("OK uploaded {kind}");
+    println!("OK uploaded {}", sanitize_terminal(kind));
     if let Some(id) = account.get("id").and_then(Value::as_str) {
-        println!("  id:    {id}");
+        println!("  id:    {}", sanitize_terminal(id));
     }
     if let Some(label) =
         account.get("label").and_then(Value::as_str).filter(|value| !value.is_empty())
     {
-        println!("  label: {label}");
+        println!("  label: {}", sanitize_terminal(label));
     }
+}
+
+fn sanitize_terminal(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| if character.is_control() { '\u{FFFD}' } else { character })
+        .collect()
 }
 
 fn apply_common_options(params: &mut Value, args: &[String]) -> Result<(), CliError> {
@@ -463,6 +588,18 @@ fn socket(options: &GlobalOptions) -> Result<SocketClient, CliError> {
     SocketClient::connect(path, options.password.clone())
 }
 
+fn socket_password_file() -> Option<String> {
+    socket_password_file_for_home(env::var_os("HOME"))
+}
+
+fn socket_password_file_for_home(home: Option<std::ffi::OsString>) -> Option<String> {
+    let home = home?;
+    let path = PathBuf::from(home).join(".local/state/cmux/socket-control-password");
+    let value = std::fs::read_to_string(path).ok()?;
+    let value = value.trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
 fn socket_path(options: &GlobalOptions) -> Option<PathBuf> {
     socket_path_from_environment(
         options,
@@ -505,10 +642,7 @@ impl SocketClient {
             })?;
             stream.set_read_timeout(Some(DEFAULT_TIMEOUT)).ok();
             stream.set_write_timeout(Some(DEFAULT_TIMEOUT)).ok();
-            Ok(Self {
-                stream,
-                password: password.or_else(|| env::var("CMUX_SOCKET_PASSWORD").ok()),
-            })
+            Ok(Self { stream, password: resolve_socket_password(password) })
         }
         #[cfg(not(unix))]
         {
@@ -554,6 +688,17 @@ impl SocketClient {
         }
         Err(CliError::Runtime("v2 request failed".into()))
     }
+}
+
+fn resolve_socket_password(explicit: Option<String>) -> Option<String> {
+    explicit
+        .and_then(|value| (!value.trim().is_empty()).then_some(value))
+        .or_else(|| {
+            env::var("CMUX_SOCKET_PASSWORD")
+                .ok()
+                .and_then(|value| (!value.trim().is_empty()).then_some(value))
+        })
+        .or_else(socket_password_file)
 }
 
 fn write_line(stream: &mut std::os::unix::net::UnixStream, line: &str) -> Result<(), CliError> {
@@ -617,6 +762,13 @@ mod tests {
     }
 
     #[test]
+    fn standalone_coderouter_preserves_passthrough_arguments() {
+        let args = vec!["status".into(), "--json".into()];
+        let (_, command) = parse_args(&args, Program::CodeRouter).unwrap();
+        assert_eq!(command, CommandLine::CodeRouter(args));
+    }
+
+    #[test]
     fn builds_codex_upload_request_without_credentials_in_argv() {
         let mut params = json!({"provider":"codex"});
         apply_coderouter_codex_options(&mut params, &["--label".into(), "work".into()], false)
@@ -639,7 +791,8 @@ mod tests {
             assert_eq!(request["params"]["provider"], "codex");
             stream.write_all(b"{\"ok\":true,\"result\":{\"id\":\"acct_1\"}}\n").unwrap();
         });
-        let client = SocketClient::connect(path, None).unwrap();
+        let stream = std::os::unix::net::UnixStream::connect(path).unwrap();
+        let client = SocketClient { stream, password: None };
         let result = client.send_v2("aiAccounts.upload", json!({"provider":"codex"})).unwrap();
         assert_eq!(result["id"], "acct_1");
         worker.join().unwrap();
@@ -655,5 +808,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(path, PathBuf::from("/tmp/cmux-home/.local/state/cmux/cmux.sock"));
+    }
+
+    #[test]
+    fn capabilities_and_context_accept_json_suffix() {
+        let (_, capabilities) =
+            parse_args(&["capabilities".into(), "--json".into()], Program::Cmux).unwrap();
+        assert_eq!(capabilities, CommandLine::Capabilities(vec!["--json".into()]));
+        let (_, context) = parse_args(&["context".into(), "--json".into()], Program::Cmux).unwrap();
+        assert_eq!(context, CommandLine::Context(vec!["--json".into()]));
+    }
+
+    #[test]
+    fn capability_commands_reject_unknown_arguments() {
+        let error = reject_no_arguments("capabilities", &["--bad".into()]).unwrap_err();
+        assert_eq!(error.code(), 2);
+        assert!(error.message().contains("unexpected argument"));
+    }
+
+    #[test]
+    fn human_account_output_replaces_terminal_controls() {
+        assert_eq!(sanitize_terminal("safe\u{1b}[31m"), "safe�[31m");
+    }
+
+    #[test]
+    fn shared_socket_password_file_is_trimmed_without_exposing_contents() {
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".local/state/cmux/socket-control-password");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "  secret-value  \n").unwrap();
+        assert_eq!(
+            socket_password_file_for_home(Some(home.path().as_os_str().to_os_string())),
+            Some("secret-value".into())
+        );
     }
 }

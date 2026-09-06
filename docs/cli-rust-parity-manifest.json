@@ -1,13 +1,14 @@
 {
   "schema": 1,
   "source_of_truth": "docs/cli-contract.md",
+  "source_dispatch_inventory": "docs/cli-rust-command-inventory.json",
   "implementation": "cmux-tui/crates/cmux-cli",
   "production_entry_point": "swift",
   "cutover_policy": "all commands in every family must be complete with conformance evidence",
   "families": [
     {
       "id": "startup",
-      "commands": ["--help", "help", "--version", "version"],
+      "commands": ["--help", "help", "--version", "version", "capabilities", "context"],
       "status": "partial",
       "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "cmux-tui/crates/cmux-cli/src/bin/cmux.rs"]
     },

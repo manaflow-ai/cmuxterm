@@ -23,7 +23,7 @@ An agent should need one discoverable control surface:
 
 ```text
 cmux capabilities --json
-  -> capability ids, schemas, permissions, context, lifecycle, errors
+  -> app-authoritative capability ids, schemas, permissions, context, lifecycle, errors
 cmux capability.invoke <id> --json <input>
   -> one structured result, operation id, and verification hints
 ```
@@ -42,6 +42,22 @@ engine remains a separately verified upstream executable until its source is
 available as a stable embeddable Rust crate. The wrapper and the native cmux
 capabilities do not create a second login or a second persistent credential
 store.
+
+## System invariants and expert review gates
+
+These invariants connect the app, socket, CLI, CodeRouter process, and release
+artifact into one control plane:
+
+| Invariant | Expert rejection of the tempting shortcut | Required evidence |
+| --- | --- | --- |
+| The running app owns capabilities and credentials | A static CLI registry or a second login can drift from server state and split identity | `system.capabilities` response, one `aiAccounts.upload` request with no token fields, and auth-source reporting |
+| A broker is valid only inside the app's temporary directory and lifetime | Checking only a filename allows a path from another directory or a stale response to become an auth boundary | Parent-directory check, required config file, cleanup result, and fail-closed malformed-response test |
+| Swift remains the observable oracle until every source dispatch label is covered | A cheaper line-by-line rewrite can compile while changing aliases, output, errors, or side effects | Source hash inventory, normalized dual-run transcript, and family status at `complete` |
+| The small CLI stays separate from the TUI dependency graph | Reusing the large Rust binary is easy but makes the bundle and startup cost depend on PTY, browser, and remote code | Per-slice Mach-O sizes and dependency audit |
+
+Every migration decision must record the expert objection, the evidence that
+answers it, and the remaining limitation. A convenience shortcut without that
+record is not a cutover candidate.
 
 ## Core primitives
 
@@ -74,6 +90,11 @@ An agent can request a context snapshot before mutation:
 ```text
 cmux context --json
 ```
+
+`capabilities --json` asks the running app for `system.capabilities`, which
+keeps the server registry authoritative. `capabilities --offline` exposes only
+the Rust migration catalog and marks those entries experimental. An agent must
+not treat the offline catalog as proof that a command is production-ready.
 
 ### Operation
 
@@ -113,15 +134,19 @@ session, and uploads the credential. The CLI does not print, persist, or place
 OAuth tokens in argv, logs, or a long-lived environment variable.
 
 The advanced CodeRouter CLI receives a short-lived broker configuration from
-the cmux app. The configuration is removed after the child exits. The broker
-contains the same Stack token pair and team selection already held by cmux.
-`coderouter logout` therefore reports that the cmux session owns sign-out.
+the cmux app whenever a live cmux socket is available. The configuration is
+removed after the child exits. The broker contains the same Stack token pair
+and team selection already held by cmux. `coderouter logout` therefore reports
+that the cmux session owns sign-out. When cmux is not installed or not running,
+the standalone binary can use the upstream CLI's own mode; a malformed broker
+response fails closed instead of silently switching auth authorities.
 
 The broker is a process boundary, not an authentication boundary. The local
 socket remains same-user trusted and keeps its password/keychain policy. The
-Rust client must match the Swift resolution order: explicit password, then
-`CMUX_SOCKET_PASSWORD`, then the shared password file/keychain where the
-platform integration supports it.
+Rust client matches the explicit password, `CMUX_SOCKET_PASSWORD`, and shared
+password-file order. macOS keychain fallback is still a parity item; the Rust
+candidate reports only the source it can prove (`argument`, `environment`, or
+`file`) and never exposes the password value.
 
 ## Rust module boundary
 
@@ -153,9 +178,12 @@ small crate, but UI and daemon dependencies do not.
 
 ## Migration and conformance
 
-1. **Inventory.** Generate a command manifest from Swift dispatch, help text,
-   socket method, side effects, and tests. Mark every command as `native`,
-   `delegated`, `local-file`, or `pending`.
+1. **Inventory.** Generate the source-derived dispatch inventory with
+   `scripts/generate-cli-rust-command-inventory.py`. It currently records 126
+   Swift dispatch arms and 156 command labels, with a SHA-256 fingerprint of
+   the source region. Join every label to help text, socket method, side
+   effects, and tests. Mark every command as `native`, `delegated`,
+   `local-file`, or `pending`.
 2. **Transport.** Match v2 request shape, newline framing, auth handshake,
    response timeouts, multiline responses, structured errors, and socket
    selection. Test with a deterministic Unix-socket fixture.
@@ -173,14 +201,18 @@ small crate, but UI and daemon dependencies do not.
    `pending` rows and release, hook, remote, and app-launch tests pass.
 
 The current Rust slice proves the transport fixture, native `cr add codex`
-request, default socket path, and two binary targets. It is not full parity.
+request, default socket path, capability/context discovery, and two binary
+targets. It is not full parity. The source-derived inventory check fails when
+the Swift dispatch changes without regeneration.
 The Swift binary remains the production CLI until the manifest and conformance
 suite prove complete coverage.
 
 ## Agent ergonomics
 
-- `capabilities --json` is the discovery root. It returns schemas and
-  permission requirements, not prose-only help.
+- `capabilities --json` is the discovery root when cmux is running. It returns
+  the app's schemas and permission requirements, not prose-only help.
+- `capabilities --offline` is a development fallback. Its entries are
+  explicitly marked experimental and cannot authorize a production action.
 - `--json` returns one object with `ok`, `operation_id`, `result`, or
   `error:{code,message,details,retryable,action}`.
 - Errors use stable codes. Human text may be localized; codes are not.
@@ -221,10 +253,11 @@ CodeRouter artifact and required metadata, is below the Swift baseline. The
 arm64 and x86_64 sizes must be reported separately because static Rust
 dependencies can change the split.
 
-The first small Rust slice measured 1,306,800 bytes (1.25 MiB) universal for
-`cmux` and 1,306,864 bytes for `coderouter`, before signing. This is a useful
-signal that a dependency-light Rust CLI can save bundle space, but it is not a
-full parity measurement. The full command migration must be measured again
+The current dependency-light Rust slice measures 1,358,592 bytes universal
+for `cmux` and 1,358,672 bytes for `coderouter`, before signing. Earlier
+slices measured 1,341,568/1,341,648 and 1,306,800/1,306,864 bytes. These are
+useful signals that a small Rust CLI can save bundle space, but they are not
+full parity measurements. The full command migration must be measured again
 after each family is added.
 
 Release CI must record:

@@ -16,8 +16,10 @@ through the existing socket worker. The CLI does not read or echo the OAuth
 tokens. The Rust migration exposes the same operation in the `cmux` binary and
 ships `coderouter` as a separate binary for users who need the full upstream
 CLI. Advanced CodeRouter commands use a short-lived broker directory issued by
-cmux; it is removed after the child exits. `coderouter logout` points back to
-`cmux auth logout` because the two commands must not create separate auth state.
+cmux whenever a live cmux socket is available; it is removed after the child
+exits. An invalid broker response fails closed. `coderouter logout` points back
+to `cmux auth logout` because the two commands must not create separate auth
+state.
 
 The standalone binary remains useful when cmux is not running. It can execute a
 verified adjacent `coderouter-bin` or a user-installed CodeRouter executable.

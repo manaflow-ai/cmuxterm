@@ -40,8 +40,16 @@ Run `python3 scripts/check-cli-rust-parity.py` before changing that policy.
 
 The first Rust slice covers no-socket help/version, v2 `rpc`, the default
 socket path, and the cmux-native `cr add codex` upload. The complete command
-surface is still pending. The required behavior contract is in
+surface is still pending. The source-derived dispatch inventory is generated
+by `scripts/generate-cli-rust-command-inventory.py` and checked by
+`scripts/check-cli-rust-parity.py`; a changed Swift dispatch makes the check
+fail until the inventory is regenerated. The required behavior contract is in
 [`cli-rust-agent-system-plan.md`](cli-rust-agent-system-plan.md).
+
+`cmux capabilities --json` is app-authoritative and sends
+`system.capabilities` through the socket. `cmux capabilities --offline` is a
+Rust migration catalog for development only; its entries are marked
+experimental and do not prove production parity.
 
 ## Global Invocation
 
@@ -103,6 +111,7 @@ Environment:
 | `codex` | Compatibility alias for installing or uninstalling Codex hooks. |
 | `ping` | Check socket connectivity. |
 | `capabilities` | Print server capabilities as JSON. |
+| `context` | Print the caller's non-secret workspace, surface, tab, socket, and authentication-source context as JSON. Rust migration builds may expose this before full command cutover. |
 | `events` | Stream reconnectable cmux events as newline-delimited JSON. |
 | `automation` | Manage config-backed event rules: `list`, `show <id>`, dry-run `test <id> --event <json>`, `enable`, `disable`, `logs`, and `reload`. Rules live in `~/.cmuxterm/automations.json`; actions are dispatched by the running app. |
 | `sessions [list]` | List saved agent session records without requiring a running cmux socket. Filters: `--agent <name>`, `--session <id>`, `--workspace <id>`, `--surface <id>`, `--cwd <text>`. Overrides: `--state-dir <path>`, `--codex-home <path>`. Text output defaults to 100 results; `--limit <n>` takes a positive integer and `--all` removes the limit. Supports `--json`. |

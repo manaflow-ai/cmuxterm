@@ -1,0 +1,933 @@
+{
+  "schema": 1,
+  "generated_by": "scripts/generate-cli-rust-command-inventory.py",
+  "source_file": "CLI/cmux.swift",
+  "source_sha256": "dc280d34088bc891ff24f1d49aae3b15a674a11ba9d667c01edecab349489dda",
+  "dispatch_anchor": {
+    "start_line": 5673,
+    "end_line": 8201,
+    "marker": "switch command -> unknownCommandError(command)"
+  },
+  "commands": [
+    {
+      "command": "automation",
+      "aliases": [],
+      "source_line": 5674,
+      "source_case": "\"automation\":",
+      "status": "pending"
+    },
+    {
+      "command": "__sidebar_footer_icon_balance",
+      "aliases": [],
+      "source_line": 5677,
+      "source_case": "\"__sidebar_footer_icon_balance\":",
+      "status": "pending"
+    },
+    {
+      "command": "__internal_flags",
+      "aliases": [],
+      "source_line": 5681,
+      "source_case": "\"__internal_flags\":",
+      "status": "pending"
+    },
+    {
+      "command": "ping",
+      "aliases": [],
+      "source_line": 5685,
+      "source_case": "\"ping\":",
+      "status": "pending"
+    },
+    {
+      "command": "iroh-diag",
+      "aliases": [],
+      "source_line": 5689,
+      "source_case": "\"iroh-diag\":",
+      "status": "pending"
+    },
+    {
+      "command": "capabilities",
+      "aliases": [],
+      "source_line": 5693,
+      "source_case": "\"capabilities\":",
+      "status": "pending"
+    },
+    {
+      "command": "agent-hibernation",
+      "aliases": [],
+      "source_line": 5697,
+      "source_case": "\"agent-hibernation\":",
+      "status": "pending"
+    },
+    {
+      "command": "vpn",
+      "aliases": [],
+      "source_line": 5700,
+      "source_case": "\"vpn\":",
+      "status": "pending"
+    },
+    {
+      "command": "auth",
+      "aliases": [
+        "login",
+        "logout"
+      ],
+      "source_line": 5703,
+      "source_case": "\"auth\", \"login\", \"logout\":",
+      "status": "pending"
+    },
+    {
+      "command": "vm",
+      "aliases": [
+        "cloud"
+      ],
+      "source_line": 5776,
+      "source_case": "\"vm\", \"cloud\":",
+      "status": "pending"
+    },
+    {
+      "command": "remotes",
+      "aliases": [
+        "remote"
+      ],
+      "source_line": 6705,
+      "source_case": "\"remotes\", \"remote\":",
+      "status": "pending"
+    },
+    {
+      "command": "ai-accounts",
+      "aliases": [],
+      "source_line": 6708,
+      "source_case": "\"ai-accounts\":",
+      "status": "pending"
+    },
+    {
+      "command": "coderouter",
+      "aliases": [],
+      "source_line": 6711,
+      "source_case": "\"coderouter\":",
+      "status": "pending"
+    },
+    {
+      "command": "mobile",
+      "aliases": [],
+      "source_line": 6714,
+      "source_case": "\"mobile\":",
+      "status": "pending"
+    },
+    {
+      "command": "rpc",
+      "aliases": [],
+      "source_line": 6827,
+      "source_case": "\"rpc\":",
+      "status": "pending"
+    },
+    {
+      "command": "identify",
+      "aliases": [],
+      "source_line": 6844,
+      "source_case": "\"identify\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-windows",
+      "aliases": [],
+      "source_line": 6900,
+      "source_case": "\"list-windows\":",
+      "status": "pending"
+    },
+    {
+      "command": "current-window",
+      "aliases": [],
+      "source_line": 6919,
+      "source_case": "\"current-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "new-window",
+      "aliases": [],
+      "source_line": 6927,
+      "source_case": "\"new-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "focus-window",
+      "aliases": [],
+      "source_line": 6931,
+      "source_case": "\"focus-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "close-window",
+      "aliases": [],
+      "source_line": 6938,
+      "source_case": "\"close-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "move-workspace-to-window",
+      "aliases": [],
+      "source_line": 6945,
+      "source_case": "\"move-workspace-to-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "move-surface",
+      "aliases": [],
+      "source_line": 6960,
+      "source_case": "\"move-surface\":",
+      "status": "pending"
+    },
+    {
+      "command": "split-off",
+      "aliases": [],
+      "source_line": 6963,
+      "source_case": "\"split-off\":",
+      "status": "pending"
+    },
+    {
+      "command": "reorder-surface",
+      "aliases": [],
+      "source_line": 6966,
+      "source_case": "\"reorder-surface\":",
+      "status": "pending"
+    },
+    {
+      "command": "reorder-workspace",
+      "aliases": [],
+      "source_line": 6969,
+      "source_case": "\"reorder-workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "reorder-workspaces",
+      "aliases": [],
+      "source_line": 6972,
+      "source_case": "\"reorder-workspaces\":",
+      "status": "pending"
+    },
+    {
+      "command": "simulate-sidebar-drag",
+      "aliases": [],
+      "source_line": 6975,
+      "source_case": "\"simulate-sidebar-drag\":",
+      "status": "pending"
+    },
+    {
+      "command": "workspace-action",
+      "aliases": [],
+      "source_line": 6978,
+      "source_case": "\"workspace-action\":",
+      "status": "pending"
+    },
+    {
+      "command": "tab-action",
+      "aliases": [],
+      "source_line": 6980,
+      "source_case": "\"tab-action\":",
+      "status": "pending"
+    },
+    {
+      "command": "move-tab-to-new-workspace",
+      "aliases": [
+        "detach-tab"
+      ],
+      "source_line": 6982,
+      "source_case": "\"move-tab-to-new-workspace\", \"detach-tab\":",
+      "status": "pending"
+    },
+    {
+      "command": "rename-tab",
+      "aliases": [],
+      "source_line": 6984,
+      "source_case": "\"rename-tab\":",
+      "status": "pending"
+    },
+    {
+      "command": "workspace-group",
+      "aliases": [],
+      "source_line": 6987,
+      "source_case": "\"workspace-group\":",
+      "status": "pending"
+    },
+    {
+      "command": "window",
+      "aliases": [],
+      "source_line": 6996,
+      "source_case": "\"window\":",
+      "status": "pending"
+    },
+    {
+      "command": "canvas",
+      "aliases": [],
+      "source_line": 7005,
+      "source_case": "\"canvas\":",
+      "status": "pending"
+    },
+    {
+      "command": "simulator",
+      "aliases": [],
+      "source_line": 7013,
+      "source_case": "\"simulator\":",
+      "status": "pending"
+    },
+    {
+      "command": "ios",
+      "aliases": [],
+      "source_line": 7015,
+      "source_case": "\"ios\":",
+      "status": "pending"
+    },
+    {
+      "command": "workspace",
+      "aliases": [],
+      "source_line": 7017,
+      "source_case": "\"workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "todo",
+      "aliases": [],
+      "source_line": 7027,
+      "source_case": "\"todo\":",
+      "status": "pending"
+    },
+    {
+      "command": "comments",
+      "aliases": [],
+      "source_line": 7036,
+      "source_case": "\"comments\":",
+      "status": "pending"
+    },
+    {
+      "command": "layout",
+      "aliases": [],
+      "source_line": 7044,
+      "source_case": "\"layout\": try runLayoutNamespace(commandArgs: commandArgs, client: client, jsonOutput: jsonOutput, idFormat: idFormat, windowOverride: windowId)",
+      "status": "pending"
+    },
+    {
+      "command": "vault",
+      "aliases": [],
+      "source_line": 7046,
+      "source_case": "\"vault\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-workspaces",
+      "aliases": [],
+      "source_line": 7053,
+      "source_case": "\"list-workspaces\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh",
+      "aliases": [
+        "mosh"
+      ],
+      "source_line": 7064,
+      "source_case": "\"ssh\", \"mosh\":",
+      "status": "pending"
+    },
+    {
+      "command": "mosh-tmux",
+      "aliases": [],
+      "source_line": 7073,
+      "source_case": "\"mosh-tmux\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-tmux",
+      "aliases": [],
+      "source_line": 7081,
+      "source_case": "\"ssh-tmux\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-pty-attach",
+      "aliases": [],
+      "source_line": 7087,
+      "source_case": "\"ssh-pty-attach\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-session-list",
+      "aliases": [],
+      "source_line": 7120,
+      "source_case": "\"ssh-session-list\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-session-attach",
+      "aliases": [],
+      "source_line": 7122,
+      "source_case": "\"ssh-session-attach\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-session-cleanup",
+      "aliases": [],
+      "source_line": 7124,
+      "source_case": "\"ssh-session-cleanup\":",
+      "status": "pending"
+    },
+    {
+      "command": "ssh-session-end",
+      "aliases": [],
+      "source_line": 7126,
+      "source_case": "\"ssh-session-end\":",
+      "status": "pending"
+    },
+    {
+      "command": "vm-pty-attach",
+      "aliases": [],
+      "source_line": 7128,
+      "source_case": "\"vm-pty-attach\":",
+      "status": "pending"
+    },
+    {
+      "command": "vm-tui-connect",
+      "aliases": [],
+      "source_line": 7130,
+      "source_case": "\"vm-tui-connect\":",
+      "status": "pending"
+    },
+    {
+      "command": "vm-tui-approve",
+      "aliases": [],
+      "source_line": 7132,
+      "source_case": "\"vm-tui-approve\":",
+      "status": "pending"
+    },
+    {
+      "command": "vm-ssh-attach",
+      "aliases": [],
+      "source_line": 7134,
+      "source_case": "\"vm-ssh-attach\":",
+      "status": "pending"
+    },
+    {
+      "command": "new-workspace",
+      "aliases": [],
+      "source_line": 7139,
+      "source_case": "\"new-workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "new-split",
+      "aliases": [],
+      "source_line": 7151,
+      "source_case": "\"new-split\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-panes",
+      "aliases": [],
+      "source_line": 7175,
+      "source_case": "\"list-panes\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-pane-surfaces",
+      "aliases": [],
+      "source_line": 7202,
+      "source_case": "\"list-pane-surfaces\":",
+      "status": "pending"
+    },
+    {
+      "command": "tree",
+      "aliases": [],
+      "source_line": 7232,
+      "source_case": "\"tree\":",
+      "status": "pending"
+    },
+    {
+      "command": "top",
+      "aliases": [],
+      "source_line": 7235,
+      "source_case": "\"top\":",
+      "status": "pending"
+    },
+    {
+      "command": "memory",
+      "aliases": [],
+      "source_line": 7238,
+      "source_case": "\"memory\":",
+      "status": "pending"
+    },
+    {
+      "command": "focus-pane",
+      "aliases": [],
+      "source_line": 7241,
+      "source_case": "\"focus-pane\":",
+      "status": "pending"
+    },
+    {
+      "command": "new-pane",
+      "aliases": [],
+      "source_line": 7256,
+      "source_case": "\"new-pane\":",
+      "status": "pending"
+    },
+    {
+      "command": "new-surface",
+      "aliases": [],
+      "source_line": 7284,
+      "source_case": "\"new-surface\":",
+      "status": "pending"
+    },
+    {
+      "command": "surface",
+      "aliases": [],
+      "source_line": 7315,
+      "source_case": "\"surface\":",
+      "status": "pending"
+    },
+    {
+      "command": "restore",
+      "aliases": [
+        "fork"
+      ],
+      "source_line": 7324,
+      "source_case": "\"restore\", \"fork\":",
+      "status": "pending"
+    },
+    {
+      "command": "surface-resume",
+      "aliases": [],
+      "source_line": 7332,
+      "source_case": "\"surface-resume\":",
+      "status": "pending"
+    },
+    {
+      "command": "close-surface",
+      "aliases": [],
+      "source_line": 7341,
+      "source_case": "\"close-surface\":",
+      "status": "pending"
+    },
+    {
+      "command": "drag-surface-to-split",
+      "aliases": [],
+      "source_line": 7386,
+      "source_case": "\"drag-surface-to-split\":",
+      "status": "pending"
+    },
+    {
+      "command": "refresh-surfaces",
+      "aliases": [],
+      "source_line": 7389,
+      "source_case": "\"refresh-surfaces\":",
+      "status": "pending"
+    },
+    {
+      "command": "reload-config",
+      "aliases": [],
+      "source_line": 7392,
+      "source_case": "\"reload-config\":",
+      "status": "pending"
+    },
+    {
+      "command": "surface-health",
+      "aliases": [],
+      "source_line": 7399,
+      "source_case": "\"surface-health\":",
+      "status": "pending"
+    },
+    {
+      "command": "debug-terminals",
+      "aliases": [],
+      "source_line": 7431,
+      "source_case": "\"debug-terminals\":",
+      "status": "pending"
+    },
+    {
+      "command": "trigger-flash",
+      "aliases": [],
+      "source_line": 7443,
+      "source_case": "\"trigger-flash\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-panels",
+      "aliases": [],
+      "source_line": 7487,
+      "source_case": "\"list-panels\":",
+      "status": "pending"
+    },
+    {
+      "command": "focus-panel",
+      "aliases": [],
+      "source_line": 7516,
+      "source_case": "\"focus-panel\":",
+      "status": "pending"
+    },
+    {
+      "command": "close-workspace",
+      "aliases": [],
+      "source_line": 7531,
+      "source_case": "\"close-workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "select-workspace",
+      "aliases": [],
+      "source_line": 7543,
+      "source_case": "\"select-workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "rename-workspace",
+      "aliases": [
+        "rename-window"
+      ],
+      "source_line": 7555,
+      "source_case": "\"rename-workspace\", \"rename-window\":",
+      "status": "pending"
+    },
+    {
+      "command": "current-workspace",
+      "aliases": [],
+      "source_line": 7569,
+      "source_case": "\"current-workspace\":",
+      "status": "pending"
+    },
+    {
+      "command": "read-selection",
+      "aliases": [],
+      "source_line": 7586,
+      "source_case": "\"read-selection\":",
+      "status": "pending"
+    },
+    {
+      "command": "read-screen",
+      "aliases": [],
+      "source_line": 7596,
+      "source_case": "\"read-screen\":",
+      "status": "pending"
+    },
+    {
+      "command": "send",
+      "aliases": [],
+      "source_line": 7660,
+      "source_case": "\"send\":",
+      "status": "pending"
+    },
+    {
+      "command": "send-key",
+      "aliases": [],
+      "source_line": 7680,
+      "source_case": "\"send-key\":",
+      "status": "pending"
+    },
+    {
+      "command": "send-panel",
+      "aliases": [],
+      "source_line": 7699,
+      "source_case": "\"send-panel\":",
+      "status": "pending"
+    },
+    {
+      "command": "send-key-panel",
+      "aliases": [],
+      "source_line": 7721,
+      "source_case": "\"send-key-panel\":",
+      "status": "pending"
+    },
+    {
+      "command": "notify",
+      "aliases": [],
+      "source_line": 7743,
+      "source_case": "\"notify\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-notifications",
+      "aliases": [],
+      "source_line": 7860,
+      "source_case": "\"list-notifications\":",
+      "status": "pending"
+    },
+    {
+      "command": "dismiss-notification",
+      "aliases": [],
+      "source_line": 7883,
+      "source_case": "\"dismiss-notification\":",
+      "status": "pending"
+    },
+    {
+      "command": "mark-notification-read",
+      "aliases": [],
+      "source_line": 7898,
+      "source_case": "\"mark-notification-read\":",
+      "status": "pending"
+    },
+    {
+      "command": "open-notification",
+      "aliases": [],
+      "source_line": 7928,
+      "source_case": "\"open-notification\":",
+      "status": "pending"
+    },
+    {
+      "command": "jump-to-unread",
+      "aliases": [],
+      "source_line": 7935,
+      "source_case": "\"jump-to-unread\":",
+      "status": "pending"
+    },
+    {
+      "command": "clear-notifications",
+      "aliases": [],
+      "source_line": 7939,
+      "source_case": "\"clear-notifications\":",
+      "status": "pending"
+    },
+    {
+      "command": "set-status",
+      "aliases": [],
+      "source_line": 7980,
+      "source_case": "\"set-status\":",
+      "status": "pending"
+    },
+    {
+      "command": "clear-status",
+      "aliases": [],
+      "source_line": 7989,
+      "source_case": "\"clear-status\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-status",
+      "aliases": [],
+      "source_line": 7998,
+      "source_case": "\"list-status\":",
+      "status": "pending"
+    },
+    {
+      "command": "set-progress",
+      "aliases": [],
+      "source_line": 8007,
+      "source_case": "\"set-progress\":",
+      "status": "pending"
+    },
+    {
+      "command": "clear-progress",
+      "aliases": [],
+      "source_line": 8016,
+      "source_case": "\"clear-progress\":",
+      "status": "pending"
+    },
+    {
+      "command": "log",
+      "aliases": [],
+      "source_line": 8025,
+      "source_case": "\"log\":",
+      "status": "pending"
+    },
+    {
+      "command": "clear-log",
+      "aliases": [],
+      "source_line": 8034,
+      "source_case": "\"clear-log\":",
+      "status": "pending"
+    },
+    {
+      "command": "list-log",
+      "aliases": [],
+      "source_line": 8043,
+      "source_case": "\"list-log\":",
+      "status": "pending"
+    },
+    {
+      "command": "sidebar-state",
+      "aliases": [],
+      "source_line": 8052,
+      "source_case": "\"sidebar-state\":",
+      "status": "pending"
+    },
+    {
+      "command": "right-sidebar",
+      "aliases": [],
+      "source_line": 8061,
+      "source_case": "\"right-sidebar\":",
+      "status": "pending"
+    },
+    {
+      "command": "sidebar",
+      "aliases": [],
+      "source_line": 8068,
+      "source_case": "\"sidebar\":",
+      "status": "pending"
+    },
+    {
+      "command": "claude-hook",
+      "aliases": [],
+      "source_line": 8076,
+      "source_case": "\"claude-hook\":",
+      "status": "pending"
+    },
+    {
+      "command": "codex-hook",
+      "aliases": [],
+      "source_line": 8086,
+      "source_case": "\"codex-hook\": // Backwards compatibility for older installed Codex hooks. Hidden from help.",
+      "status": "pending"
+    },
+    {
+      "command": "feed-hook",
+      "aliases": [],
+      "source_line": 8089,
+      "source_case": "\"feed-hook\": // Backwards compatibility for older installed Feed hooks. Hidden from help.",
+      "status": "pending"
+    },
+    {
+      "command": "hooks",
+      "aliases": [],
+      "source_line": 8091,
+      "source_case": "\"hooks\":",
+      "status": "pending"
+    },
+    {
+      "command": "set-app-focus",
+      "aliases": [],
+      "source_line": 8100,
+      "source_case": "\"set-app-focus\":",
+      "status": "pending"
+    },
+    {
+      "command": "simulate-app-active",
+      "aliases": [],
+      "source_line": 8105,
+      "source_case": "\"simulate-app-active\":",
+      "status": "pending"
+    },
+    {
+      "command": "__tmux-compat",
+      "aliases": [],
+      "source_line": 8109,
+      "source_case": "\"__tmux-compat\":",
+      "status": "pending"
+    },
+    {
+      "command": "__codex-teams-watch",
+      "aliases": [],
+      "source_line": 8118,
+      "source_case": "\"__codex-teams-watch\":",
+      "status": "pending"
+    },
+    {
+      "command": "capture-pane",
+      "aliases": [
+        "resize-pane",
+        "pipe-pane",
+        "wait-for",
+        "swap-pane",
+        "break-pane",
+        "join-pane",
+        "last-window",
+        "last-pane",
+        "next-window",
+        "previous-window",
+        "find-window",
+        "clear-history",
+        "set-hook",
+        "popup",
+        "bind-key",
+        "unbind-key",
+        "copy-mode",
+        "set-buffer",
+        "paste-buffer",
+        "list-buffers",
+        "respawn-pane",
+        "display-message"
+      ],
+      "source_line": 8121,
+      "source_case": "\"capture-pane\", \"resize-pane\", \"pipe-pane\", \"wait-for\", \"swap-pane\", \"break-pane\", \"join-pane\", \"last-window\", \"last-pane\", \"next-window\", \"previous-window\", \"find-window\", \"clear-history\", \"set-hook\", \"popup\", \"bind-key\", \"unbind-key\", \"copy-mode\", \"set-buffer\", \"paste-buffer\", \"list-buffers\", \"respawn-pane\", \"display-message\":",
+      "status": "pending"
+    },
+    {
+      "command": "help",
+      "aliases": [],
+      "source_line": 8153,
+      "source_case": "\"help\":",
+      "status": "pending"
+    },
+    {
+      "command": "browser",
+      "aliases": [],
+      "source_line": 8157,
+      "source_case": "\"browser\":",
+      "status": "pending"
+    },
+    {
+      "command": "project",
+      "aliases": [],
+      "source_line": 8161,
+      "source_case": "\"project\":",
+      "status": "pending"
+    },
+    {
+      "command": "open-browser",
+      "aliases": [],
+      "source_line": 8165,
+      "source_case": "\"open-browser\":",
+      "status": "pending"
+    },
+    {
+      "command": "navigate",
+      "aliases": [],
+      "source_line": 8168,
+      "source_case": "\"navigate\":",
+      "status": "pending"
+    },
+    {
+      "command": "browser-back",
+      "aliases": [],
+      "source_line": 8172,
+      "source_case": "\"browser-back\":",
+      "status": "pending"
+    },
+    {
+      "command": "browser-forward",
+      "aliases": [],
+      "source_line": 8176,
+      "source_case": "\"browser-forward\":",
+      "status": "pending"
+    },
+    {
+      "command": "browser-reload",
+      "aliases": [],
+      "source_line": 8180,
+      "source_case": "\"browser-reload\":",
+      "status": "pending"
+    },
+    {
+      "command": "get-url",
+      "aliases": [],
+      "source_line": 8184,
+      "source_case": "\"get-url\":",
+      "status": "pending"
+    },
+    {
+      "command": "focus-webview",
+      "aliases": [],
+      "source_line": 8188,
+      "source_case": "\"focus-webview\":",
+      "status": "pending"
+    },
+    {
+      "command": "is-webview-focused",
+      "aliases": [],
+      "source_line": 8192,
+      "source_case": "\"is-webview-focused\":",
+      "status": "pending"
+    },
+    {
+      "command": "markdown",
+      "aliases": [],
+      "source_line": 8197,
+      "source_case": "\"markdown\":",
+      "status": "pending"
+    }
+  ]
+}

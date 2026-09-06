@@ -62,6 +62,8 @@ done
   exit 2
 }
 command -v cargo >/dev/null 2>&1 || { echo "error: cargo is required" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "error: python3 is required for the Swift dispatch inventory check" >&2; exit 1; }
+python3 "$ROOT/scripts/generate-cli-rust-command-inventory.py" --check
 
 if [[ -z "$ARCHS_RAW" ]]; then
   case "$(uname -m)" in
