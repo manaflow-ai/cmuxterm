@@ -134,6 +134,9 @@ The following checks passed for the current slice:
   viewport, input, and profile aliases now route through the corresponding
   v2 methods; their exact output and option validation still need dual-run
   evidence.
+- Generic command help now exits before socket resolution. Hook compatibility
+  aliases return `{}` outside a cmux terminal, matching Swift's no-target hook
+  behavior.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.

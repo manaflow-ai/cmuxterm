@@ -216,6 +216,12 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             Ok(())
         }
         CommandLine::SocketV2 { command, arguments } => {
+            if arguments.iter().any(|argument| argument == "--help" || argument == "-h")
+                && command != "browser"
+            {
+                println!("{}", command_usage(&command));
+                return Ok(());
+            }
             run_socket_v2_command(&command, arguments, options)
         }
         CommandLine::Cr(arguments) => run_coderouter(arguments, options, program, true),
@@ -590,6 +596,29 @@ fn reject_no_arguments(command: &str, arguments: &[String]) -> Result<(), CliErr
     Ok(())
 }
 
+fn command_usage(command: &str) -> String {
+    match command {
+        "workspace" => "Usage: cmux workspace <create|list|current|select|close|rename> [options]".into(),
+        "window" => "Usage: cmux window <list|current|create|focus|close> [options]".into(),
+        "new-workspace" => "Usage: cmux new-workspace [--cwd <path>] [--name <title>] [--command <text>]".into(),
+        "new-pane" => "Usage: cmux new-pane [--type <type>] [--direction <left|right|up|down>]".into(),
+        "new-surface" => "Usage: cmux new-surface [--type <type>] [--url <url>]".into(),
+        "send" => "Usage: cmux send [context-options] [--] <text>".into(),
+        "send-key" => "Usage: cmux send-key [context-options] <key>".into(),
+        "read-screen" | "capture-pane" => "Usage: cmux read-screen [--scrollback] [--lines <n>]".into(),
+        "notify" => "Usage: cmux notify --title <title> [--subtitle <text>] [--body <text>]".into(),
+        "browser" => "Usage: cmux browser [surface] <open|navigate|snapshot|eval|wait|click|fill|type|press|cookies|storage|tab|network> [options]".into(),
+        "automation" => "Usage: cmux automation <list|show|test|enable|disable|logs|reload> [args]".into(),
+        "vm" | "cloud" => "Usage: cmux vm <ls|new|status|stats|snapshot|fork|restore|exec|ssh|rm> [options]".into(),
+        "remotes" | "remote" => "Usage: cmux remotes <list|add|remove> [options]".into(),
+        "mobile" => "Usage: cmux mobile set-font <points> | compatible-tags <list|set|add|remove|clear>".into(),
+        "coderouter" => "Usage: cmux coderouter <status|machines|claude> [options]".into(),
+        "hooks" => "Usage: cmux hooks <agent> <event> [payload]".into(),
+        "__tmux-compat" => "Usage: cmux __tmux-compat <tmux-compatible command> [options]".into(),
+        _ => format!("Usage: cmux {command} [options]"),
+    }
+}
+
 /// Dispatch the source-derived commands which share the app's generic v2
 /// request shape. The Swift CLI has command-specific presentation helpers;
 /// this adapter keeps the method names, context fields, aliases, and exit
@@ -608,6 +637,12 @@ fn run_generic_command(
         "fork" => "restore",
         alias => alias,
     };
+    if arguments.iter().any(|argument| argument == "--help" || argument == "-h")
+        && !matches!(command, "automation" | "vm" | "remotes" | "mobile")
+    {
+        println!("{}", command_usage(command));
+        return Ok(());
+    }
 
     if matches!(command, "welcome" | "docs" | "setup-hooks" | "uninstall-hooks") {
         match command {
@@ -2544,6 +2579,10 @@ fn run_browser_command(
     options: GlobalOptions,
     json_output: bool,
 ) -> Result<(), CliError> {
+    if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
+        println!("{}", command_usage("browser"));
+        return Ok(());
+    }
     let verbs_without_surface = [
         "open",
         "open-split",
@@ -3279,7 +3318,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  workspace <create|list|current|select|close|rename>\n  window <list|current|create|focus|close>\n  new-workspace [options]       Create a workspace\n  close-workspace --workspace <id>\n  select-workspace --workspace <id>\n  rename-workspace [options]    Rename a workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  new-pane [options]            Create a pane\n  new-surface [options]         Create a surface\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  browser <surface> <command>   Browser automation namespace\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  close-surface --surface <id>\n  surface-health [--surface <id>]\n  debug-terminals\n  trigger-flash [--surface <id>]\n  refresh-surfaces\n  reload-config\n  set-app-focus <true|false>\n  simulate-app-active\n  auth [status|login|logout]\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  automation <list|show|test|enable|disable|logs|reload>\n  vm|cloud <command>             Manage cloud VMs and sessions\n  remotes|remote <list|add|remove>\n  mobile <set-font|compatible-tags>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  workspace <create|list|current|select|close|rename>\n  window <list|current|create|focus|close>\n  new-workspace [options]       Create a workspace\n  close-workspace --workspace <id>\n  select-workspace --workspace <id>\n  rename-workspace [options]    Rename a workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  new-pane [options]            Create a pane\n  new-surface [options]         Create a surface\n  new-split [options]            Split a surface\n  move-surface [options]         Move a surface\n  split-off [options]            Split a surface into a new pane\n  reorder-surface/workspace(s)\n  workspace-action/tab-action\n  rename-tab [options]\n  tree [options]                 Print the workspace tree\n  top [options]                  Print process diagnostics\n  memory [options]               Print memory diagnostics\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  notify [options]               Create or clear a notification\n  list-notifications [--json]    List notifications\n  dismiss-notification [options]\n  mark-notification-read [options]\n  open-notification --id <id>\n  jump-to-unread\n  open-browser <url>            Open a browser surface\n  browser <surface> <command>   Browser automation namespace\n  navigate --surface <id> <url> Navigate a browser surface\n  browser-back --surface <id>\n  browser-forward --surface <id>\n  browser-reload --surface <id>\n  get-url --surface <id>     Read a browser URL\n  focus-webview --surface <id>\n  is-webview-focused --surface <id>\n  close-surface --surface <id>\n  surface-health [--surface <id>]\n  debug-terminals\n  trigger-flash [--surface <id>]\n  capture-pane [options]         tmux-compatible terminal capture\n  resize-pane [options]\n  wait-for [-S] <name>\n  hooks <agent> <event>\n  feed <clear|tui>\n  project <path>\n  markdown <path>\n  settings|config|shortcuts|themes\n  refresh-surfaces\n  reload-config\n  set-app-focus <true|false>\n  simulate-app-active\n  auth [status|login|logout]\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
