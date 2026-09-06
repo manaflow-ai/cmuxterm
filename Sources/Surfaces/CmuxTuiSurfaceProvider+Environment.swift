@@ -11,11 +11,14 @@ extension CmuxTuiSurfaceProvider {
         let wire = CloudEnvDelivery.wire(payload)
         // A terminal in the machine's session, exactly like `surface new-terminal`: it
         // shows in the tree as "cmux env" for the second it lives and is closed below.
+        // `--on-exit keep`: the verdict is the receiver's last screen line, which the
+        // daemon's default (`close`) would detach before the sender can read it.
         let receiver = try await createTerminal(
             command: CloudEnvDelivery.receiverCommand,
             cwd: nil,
             name: CloudEnvDelivery.receiverTitle,
-            remoteWorkspaceID: nil
+            remoteWorkspaceID: nil,
+            onExit: "keep"
         )
         let terminalID = receiver.id.key
         do {

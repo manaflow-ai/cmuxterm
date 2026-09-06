@@ -85,6 +85,23 @@ import Testing
         #expect(!CloudEnvDelivery.looksLikeOutdatedShim("CMUX-ENV-READY"))
     }
 
+    @Test func senderArgvKeepsTheReceiverScreenAndWritesRawBytes() {
+        // The receiver's verdict is its last screen line: the run must keep the tab
+        // after exit, and the payload rides `--bytes-base64`, never `--text`/argv text.
+        #expect(
+            CloudTuiCommandLine.runArguments(socketPath: "/tmp/l.sock", workspaceID: "ws_1", command: CloudEnvDelivery.receiverCommand, onExit: "keep")
+                == ["--socket", "/tmp/l.sock", "--json", "workspace", "ws_1", "run", "--on-exit", "keep", "--", "/usr/local/bin/cmux", "env", "receive"]
+        )
+        #expect(
+            CloudTuiCommandLine.runArguments(socketPath: "/tmp/l.sock", workspaceID: "ws_1", command: ["bash", "-l"])
+                == ["--socket", "/tmp/l.sock", "--json", "workspace", "ws_1", "run", "--", "bash", "-l"]
+        )
+        #expect(
+            CloudTuiCommandLine.writeBytesArguments(socketPath: "/tmp/l.sock", terminalID: "term_1", base64: "QUJD")
+                == ["--socket", "/tmp/l.sock", "--json", "terminal", "term_1", "write", "--bytes-base64", "QUJD"]
+        )
+    }
+
     @Test func receiverIsStartedByAbsolutePathWithNoValueInArgv() {
         #expect(CloudEnvDelivery.receiverCommand == ["/usr/local/bin/cmux", "env", "receive"])
         #expect(CloudEnvDelivery.readyTimeoutMs < CloudEnvDelivery.resultTimeoutMs)
