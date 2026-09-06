@@ -39,6 +39,156 @@ struct WorkstreamStoreTests {
         #expect(store.items.last?.workstreamId == "s4")
     }
 
+    @Test("Exact source event replay updates one item without reopening a resolved decision")
+    func exactSourceEventReplayDeduplicates() {
+        let store = WorkstreamStore(ringCapacity: 10)
+        store.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-1",
+            sourceEventId: "native-event-1",
+            sourceRevision: "1"
+        ))
+        let itemId = store.items[0].id
+        store.markResolved(itemId, decision: .permission(.once))
+
+        store.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .permissionRequest,
+            source: "copilot",
+            toolName: "shell",
+            requestId: "request-2",
+            sourceEventId: "native-event-1",
+            sourceRevision: "2"
+        ))
+
+        #expect(store.items.count == 1)
+        #expect(store.items[0].id == itemId)
+        #expect(store.items[0].sourceRevision == "2")
+        if case .permissionRequest(let requestId, _, _, _) = store.items[0].payload {
+            #expect(requestId == "request-1")
+        } else {
+            Issue.record("expected permission payload")
+        }
+        if case .resolved = store.items[0].status {} else {
+            Issue.record("exact replay must not reopen a resolved item")
+        }
+    }
+
+    @Test("Source event identity remains scoped to producer and workstream")
+    func sourceEventIdentityIncludesProducerAndWorkstream() {
+        let store = WorkstreamStore(ringCapacity: 10)
+        for sessionId in ["one", "two"] {
+            store.ingest(WorkstreamEvent(
+                sessionId: sessionId,
+                hookEventName: .stop,
+                source: "copilot",
+                sourceEventId: "native-event-1"
+            ))
+        }
+        store.ingest(WorkstreamEvent(
+            sessionId: "one",
+            hookEventName: .stop,
+            source: "codex",
+            sourceEventId: "native-event-1"
+        ))
+
+        #expect(store.items.count == 3)
+    }
+
+    @Test("Events without source identity are never heuristically merged")
+    func missingSourceIdentityDoesNotDeduplicate() {
+        let store = WorkstreamStore(ringCapacity: 10)
+        for sourceEventId in [nil, nil, " ", " "] as [String?] {
+            store.ingest(WorkstreamEvent(
+                sessionId: "same-session",
+                hookEventName: .stop,
+                source: "copilot",
+                sourceEventId: sourceEventId
+            ))
+        }
+
+        #expect(store.items.count == 4)
+    }
+
+    @Test("Error notifications preserve failure semantics")
+    func errorNotificationPreservesFailure() {
+        let store = WorkstreamStore(ringCapacity: 10)
+        store.ingest(WorkstreamEvent(
+            sessionId: "copilot-session",
+            hookEventName: .notification,
+            source: "copilot",
+            toolInputJSON: #"{"error":"provider unavailable","errorContext":"model_call"}"#,
+            isError: true
+        ))
+
+        guard case .toolResult(let toolName, let resultJSON, let isError) = store.items[0].payload else {
+            Issue.record("expected tool-result payload")
+            return
+        }
+        #expect(toolName == "notification")
+        #expect(resultJSON.contains("provider unavailable"))
+        #expect(isError)
+    }
+
+    @Test("Persisted source-event updates collapse to the latest row")
+    func persistedSourceEventUpdatesCollapse() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-workstream-dedupe-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let persistence = WorkstreamPersistence(fileURL: tmp)
+        let latestItemId = UUID()
+        let middleItemId = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1)
+        try await persistence.append(WorkstreamItem(
+            id: UUID(),
+            workstreamId: "copilot-session",
+            source: .copilot,
+            kind: .stop,
+            createdAt: createdAt,
+            updatedAt: Date(timeIntervalSince1970: 2),
+            payload: .stop(reason: "first"),
+            sourceEventId: "native-event-1",
+            sourceRevision: "1"
+        ))
+        try await persistence.append(WorkstreamItem(
+            id: middleItemId,
+            workstreamId: "other-session",
+            source: .copilot,
+            kind: .stop,
+            createdAt: Date(timeIntervalSince1970: 2),
+            updatedAt: Date(timeIntervalSince1970: 2),
+            payload: .stop(reason: "middle"),
+            sourceEventId: "native-event-2",
+            sourceRevision: "1"
+        ))
+        try await persistence.append(WorkstreamItem(
+            id: latestItemId,
+            workstreamId: "copilot-session",
+            source: .copilot,
+            kind: .stop,
+            createdAt: createdAt,
+            updatedAt: Date(timeIntervalSince1970: 3),
+            payload: .stop(reason: "second"),
+            sourceEventId: "native-event-1",
+            sourceRevision: "2"
+        ))
+
+        let store = WorkstreamStore(persistence: persistence, ringCapacity: 10)
+        await store.start()
+
+        #expect(store.items.count == 2)
+        #expect(store.items.map(\.id) == [latestItemId, middleItemId])
+        #expect(store.items[0].sourceRevision == "2")
+        if case .stop(let reason) = store.items[0].payload {
+            #expect(reason == "second")
+        } else {
+            Issue.record("expected latest persisted stop payload")
+        }
+    }
+
     @Test("start loads a small recent slice and pages older persisted rows on demand")
     func lazyLoadPersistedHistory() async throws {
         let tmp = FileManager.default.temporaryDirectory

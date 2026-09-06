@@ -169,12 +169,24 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
         let result = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "notification"],
+            arguments: [
+                "hooks", "copilot", "notification",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: context.environment(
                 workspaceID: workspaceID,
                 surfaceID: surfaceID,
                 ttyName: "ttys-copilot-error"
-            ),
+            ).merging([
+                "CMUX_AGENT_LAUNCH_KIND": "copilot",
+                "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
+                "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
+                "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
+                "CMUX_CLAUDE_HOOK_STATE_PATH": context.root
+                    .appendingPathComponent("copilot-hook-sessions.json").path,
+                "CMUX_COPILOT_PID": String(getpid()),
+            ]) { _, override in override },
             standardInput: """
             {"sessionId":"copilot-session","timestamp":9,"cwd":"\(context.root.path)","error":{"message":"provider unavailable","name":"ProviderError","stack":"private stack"},"errorContext":"model_call","recoverable":true}
             """,
@@ -185,6 +197,12 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         #expect(result.stdout == "{}\n")
         #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let feedRequest = try #require(
+            context.state.commandsSnapshot()
+                .compactMap(jsonObject)
+                .first { ($0["method"] as? String) == "feed.push" }
+        )
+        #expect(feedRequest["id"] is String)
         let event = try #require(
             context.state.feedEventsSnapshot().last { $0["hook_event_name"] as? String == "Notification" }
         )
@@ -213,6 +231,7 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             resolvedSurfaceID: surfaceID,
             feedSeen: feedSeen
         )
+        let stateURL = context.root.appendingPathComponent("copilot-hook-sessions.json")
         let environment = context.environment(
             workspaceID: workspaceID,
             surfaceID: surfaceID,
@@ -221,12 +240,20 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             "CMUX_AGENT_LAUNCH_KIND": "copilot",
             "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
             "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
+            "CMUX_COPILOT_PID": String(getpid()),
+            "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS": "0",
+            "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
+            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path,
         ]) { _, override in override }
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
 
         let rootStart = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "session-start"],
+            arguments: [
+                "hooks", "copilot", "session-start",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: environment,
             standardInput: """
             {"sessionId":"root-session","timestamp":1,"cwd":"\(context.root.path)","source":"new"}
@@ -239,7 +266,11 @@ struct ClaudeHookFeedTelemetrySwiftTests {
 
         let childPrompt = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "prompt-submit"],
+            arguments: [
+                "hooks", "copilot", "prompt-submit",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: environment,
             standardInput: """
             {"sessionId":"child-session","timestamp":2,"cwd":"\(context.root.path)","prompt":"child task"}
@@ -248,10 +279,19 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         )
         #expect(childPrompt.status == 0, Comment(rawValue: childPrompt.stderr))
         #expect(feedSeen.wait(timeout: .now() + 5) == .success)
+        let stateData = try Data(contentsOf: stateURL)
+        let state = try #require(JSONSerialization.jsonObject(with: stateData) as? [String: Any])
+        let sessions = try #require(state["sessions"] as? [String: Any])
+        #expect(sessions["root-session"] != nil)
+        #expect(sessions["child-session"] == nil)
 
         let shellCompleted = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "notification"],
+            arguments: [
+                "hooks", "copilot", "notification",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: environment,
             standardInput: """
             {"sessionId":"root-session","timestamp":3,"cwd":"\(context.root.path)","hook_event_name":"Notification","message":"Shell completed","notification_type":"shell_completed"}
@@ -265,7 +305,13 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         #expect(!newCommands.contains { $0.contains("set_status copilot") })
         #expect(!newCommands.contains { $0.contains("set_agent_pid copilot.") })
         let events = context.state.feedEventsSnapshot()
-        #expect(events.contains { ($0["session_id"] as? String) == "copilot-child-session" })
+        #expect(events.contains {
+            guard let rawValue = $0["session_id"] as? String,
+                  let identity = FeedWorkstreamIdentifier(rawValue: rawValue) else {
+                return false
+            }
+            return identity.agentID == "copilot" && identity.sessionID == "child-session"
+        })
         #expect(events.contains {
             ($0["hook_event_name"] as? String) == "Notification"
                 && (($0["tool_input"] as? [String: Any])?["notification_type"] as? String) == "shell_completed"
@@ -288,6 +334,7 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             resolvedSurfaceID: surfaceID,
             feedSeen: feedSeen
         )
+        let stateURL = context.root.appendingPathComponent("copilot-hook-sessions.json")
         let liveEnvironment = context.environment(
             workspaceID: workspaceID,
             surfaceID: surfaceID,
@@ -296,8 +343,10 @@ struct ClaudeHookFeedTelemetrySwiftTests {
             "CMUX_AGENT_LAUNCH_KIND": "copilot",
             "CMUX_AGENT_LAUNCH_EXECUTABLE": "/usr/local/bin/copilot",
             "CMUX_AGENT_LAUNCH_ARGV_B64": base64NULSeparated(["/usr/local/bin/copilot"]),
+            "CMUX_COPILOT_PID": String(getpid()),
             "CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS": "0",
             "CMUX_AGENT_HOOK_STATE_DIR": context.root.path,
+            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path,
         ]) { _, override in override }
         let deadRootEnvironment = liveEnvironment.merging([
             "CMUX_COPILOT_PID": "2147483647"
@@ -306,7 +355,11 @@ struct ClaudeHookFeedTelemetrySwiftTests {
 
         let first = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "session-start"],
+            arguments: [
+                "hooks", "copilot", "session-start",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: deadRootEnvironment,
             standardInput: """
             {"sessionId":"dead-root","timestamp":1,"cwd":"\(context.root.path)","source":"new"}
@@ -315,7 +368,6 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         )
         #expect(first.status == 0, Comment(rawValue: first.stderr))
         #expect(feedSeen.wait(timeout: .now() + 5) == .success)
-        let stateURL = context.root.appendingPathComponent("copilot-hook-sessions.json")
         let firstStateData = try Data(contentsOf: stateURL)
         let firstState = try #require(
             JSONSerialization.jsonObject(with: firstStateData) as? [String: Any]
@@ -328,7 +380,11 @@ struct ClaudeHookFeedTelemetrySwiftTests {
 
         let replacement = runProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "copilot", "session-start"],
+            arguments: [
+                "hooks", "copilot", "session-start",
+                "--workspace", workspaceID,
+                "--surface", surfaceID,
+            ],
             environment: liveEnvironment,
             standardInput: """
             {"sessionId":"replacement-root","timestamp":2,"cwd":"\(context.root.path)","source":"new"}

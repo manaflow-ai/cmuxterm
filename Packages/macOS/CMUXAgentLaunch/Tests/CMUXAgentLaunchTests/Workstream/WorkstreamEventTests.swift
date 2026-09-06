@@ -17,6 +17,10 @@ struct WorkstreamEventTests {
           "tool_input": {"file_path": "/etc/passwd", "content": "x"},
           "context": {"lastUserMessage": "write a file", "permissionMode": "plan"},
           "_opencode_request_id": "req-1",
+          "_source_event_id": "event-1",
+          "_source_revision": "revision-7",
+          "_causal_chain_id": "turn-3",
+          "_action_request_id": "action-9",
           "_ppid": 1234
         }
         """.data(using: .utf8)!
@@ -29,6 +33,10 @@ struct WorkstreamEventTests {
         #expect(event.context?.lastUserMessage == "write a file")
         #expect(event.context?.permissionMode == "plan")
         #expect(event.requestId == "req-1")
+        #expect(event.sourceEventId == "event-1")
+        #expect(event.sourceRevision == "revision-7")
+        #expect(event.causalChainId == "turn-3")
+        #expect(event.actionRequestId == "action-9")
         #expect(event.ppid == 1234)
         // `toolInputJSON` round-trips through JSONSerialization which may
         // escape forward slashes; parse it back rather than substring-match.
@@ -59,6 +67,10 @@ struct WorkstreamEventTests {
                 permissionMode: "plan"
             ),
             requestId: "plan-1",
+            sourceEventId: "event-2",
+            sourceRevision: "revision-8",
+            causalChainId: "turn-4",
+            actionRequestId: "action-10",
             ppid: 999
         )
         let data = try JSONEncoder().encode(event)
@@ -67,6 +79,10 @@ struct WorkstreamEventTests {
         #expect(back.hookEventName == event.hookEventName)
         #expect(back.workspaceId == event.workspaceId)
         #expect(back.requestId == event.requestId)
+        #expect(back.sourceEventId == event.sourceEventId)
+        #expect(back.sourceRevision == event.sourceRevision)
+        #expect(back.causalChainId == event.causalChainId)
+        #expect(back.actionRequestId == event.actionRequestId)
         let rawPlan = try #require(back.toolInputJSON?.data(using: .utf8))
         let planDict = try #require(
             try JSONSerialization.jsonObject(with: rawPlan) as? [String: Any]
@@ -90,6 +106,10 @@ struct WorkstreamEventTests {
         #expect(event.context == nil)
         #expect(event.workspaceId == nil)
         #expect(event.requestId == nil)
+        #expect(event.sourceEventId == nil)
+        #expect(event.sourceRevision == nil)
+        #expect(event.causalChainId == nil)
+        #expect(event.actionRequestId == nil)
         #expect(event.ppid == nil)
     }
 
