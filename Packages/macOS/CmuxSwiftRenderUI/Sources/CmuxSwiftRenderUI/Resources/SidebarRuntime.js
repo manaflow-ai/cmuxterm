@@ -17,9 +17,6 @@
 //   __mount(fn)                  - internal: run the sidebar program
 
 (function () {
-  // ---------------------------------------------------------------------
-  // Reactive core
-  // ---------------------------------------------------------------------
   let currentEffect = null;
   let currentScope = null;
   const pendingEffects = new Set();
@@ -468,9 +465,6 @@
   g.openURL = (url) => __host_action(JSON.stringify({ kind: "openURL", url: String(url) }));
   g.log = (message) => __host_action(JSON.stringify({ kind: "log", message: String(message) }));
 
-  // ---------------------------------------------------------------------
-  // Host entry points
-  // ---------------------------------------------------------------------
   g.__setData = (key, json) => {
     dataSignal(key)[1](JSON.parse(json));
     runPending();
