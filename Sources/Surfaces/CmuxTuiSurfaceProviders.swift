@@ -26,7 +26,7 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// Same cadence as the Machines panel's list refresh.
     private let pollInterval: Duration = .seconds(45)
 
-    init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
+    init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub? = nil) {
         self.links = links
         self.wireGuardHub = wireGuardHub
     }
@@ -195,6 +195,21 @@ final class CmuxTuiSurfaceProviderRegistry {
 /// session, so a local pane closing never touches them (`projectionDidEnd` is a no-op).
 @MainActor
 final class CmuxTuiSurfaceProvider: SurfaceProvider {
+    /// Selects the workspace used by a new terminal when the caller did not
+    /// provide an explicit workspace. Focus wins; otherwise daemon order is
+    /// stable and independent of the order in which catalog rows arrived.
+    static func preferredWorkspace(_ workspaces: [SurfaceRemoteWorkspace]) -> SurfaceRemoteWorkspace? {
+        workspaces.sorted {
+            if $0.focused != $1.focused { return $0.focused && !$1.focused }
+            if $0.index != $1.index { return $0.index < $1.index }
+            return $0.id < $1.id
+        }.first
+    }
+
+    /// Name used when a machine has no workspace and the first terminal needs
+    /// to create one.
+    static let firstWorkspaceName = "main"
+
     enum ProviderError: Error, LocalizedError {
         case notSignedIn
         case machineAsleep(String)
@@ -1282,10 +1297,15 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         let workspaceID: String
         if let remoteWorkspaceID = remoteWorkspaceID?.trimmingCharacters(in: .whitespacesAndNewlines), !remoteWorkspaceID.isEmpty {
             workspaceID = remoteWorkspaceID
-        } else if let existing = catalog.snapshot.resources(on: machine).compactMap(\.remoteWorkspace).sorted(by: { ($0.focused ? 0 : 1, $0.index) < ($1.focused ? 0 : 1, $1.index) }).first {
+        } else if let existing = Self.preferredWorkspace(
+            catalog.snapshot.resources(on: machine).compactMap(\.remoteWorkspace)
+        ) {
             workspaceID = existing.id
         } else {
-            let created = try await link.run(arguments: CloudTuiCommandLine.createWorkspaceArguments(socketPath: connected.socketPath, name: name ?? "main"))
+            let created = try await link.run(arguments: CloudTuiCommandLine.createWorkspaceArguments(
+                socketPath: connected.socketPath,
+                name: name ?? Self.firstWorkspaceName
+            ))
             guard let object = try JSONSerialization.jsonObject(with: created) as? [String: Any],
                   let id = CmuxTuiSnapshotParser.createdWorkspace(fromResult: object) else {
                 throw ProviderError.noWorkspaceOnMachine(machineID)

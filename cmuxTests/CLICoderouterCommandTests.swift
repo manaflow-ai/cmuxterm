@@ -9,6 +9,10 @@ import Testing
 @testable import cmux
 #endif
 
+// The CLI executable's CMUXCLI type is not part of the app test target. The
+// provider-first alias is a pure routing helper shared with the app instead.
+typealias CMUXCLI = CmuxTuiRemoteRouting
+
 // `cmux coderouter <status|machines|claude>` drives the app's `coderouter.*`
 // socket methods; every other `cmux coderouter` verb still execs the installed
 // CodeRouter CLI. These run the bundled CLI against a mock socket server and
