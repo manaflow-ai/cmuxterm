@@ -1827,7 +1827,7 @@ export const vmRepositoryLiveShape: VmRepositoryShape = {
           };
         });
       },
-      catch: (cause) => isVmCreateInProgressError(cause) || isVmCreateDisabledError(cause) || isVmAccountDeletionInProgressError(cause) || isVmLimitExceededError(cause)
+      catch: (cause) => isVmCreateDisabledError(cause) || isVmAccountDeletionInProgressError(cause) || isVmLimitExceededError(cause) || isVmCreateInProgressError(cause)
         ? cause
         : new VmDatabaseError({ operation: "beginBaseReset", cause }),
     }),

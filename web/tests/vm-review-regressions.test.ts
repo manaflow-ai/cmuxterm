@@ -58,7 +58,9 @@ describe("VM review regressions", () => {
 
   const fourSeatAllowance = maxActiveVmsForPlan("team", {}, { seats: 4 });
   for (const operation of ["resize", "exec", "cmux-remote", "attach", "port", "session", "fork"] as const) {
-    for (const allowance of [fourSeatAllowance, null, 50]) {
+    for (const allowance of [fourSeatAllowance, null, 50, undefined]) {
+      // Fork creates a new machine and always requires an explicit allowance.
+      if (operation === "fork" && allowance === undefined) continue;
       dbTest(`${operation} resumes a paused Team VM using allowance ${allowance}`, () => withTeam(async team => {
         expect(fourSeatAllowance).toBe(200);
         await sql`
@@ -118,20 +120,23 @@ describe("VM review regressions", () => {
           attach: () => openAttachEndpoint(input).pipe(Effect.asVoid),
           port: () => openVmPort(input).pipe(Effect.asVoid),
           session: () => openVmSession(input).pipe(Effect.asVoid),
-          fork: () => forkVm(input).pipe(Effect.asVoid),
+          fork: () => {
+            if (allowance === undefined) throw new Error("fork requires an explicit allowance");
+            return forkVm({ ...input, maxActiveVms: allowance }).pipe(Effect.asVoid);
+          },
         };
         const program = programs[operation]();
         const result = await Effect.runPromise(program.pipe(
           Effect.either,
           Effect.provide(Layer.mergeAll(VmRepositoryLive, Layer.succeed(VmProviderGateway, provider), Layer.succeed(VmBillingGateway, noOpVmBillingGateway()))),
         ));
-        if (allowance === 50) {
+        if (allowance === 50 || allowance === undefined) {
           expect(result._tag).toBe("Left");
           if (result._tag === "Left") expect(result.left).toMatchObject({ _tag: "VmLimitExceededError", limit: 50 });
           expect(resumes).toBe(0);
           expect(operations).toBe(0);
         } else {
-          expect(result._tag).toBe("Right");
+          expect(result).toMatchObject({ _tag: "Right" });
           expect(resumes).toBe(1);
           expect(operations).toBe(1);
         }
