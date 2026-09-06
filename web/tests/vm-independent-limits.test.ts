@@ -5,7 +5,8 @@ import { closeCloudDbForTests } from "../db/client";
 import { maxActiveVmsForPlan } from "../services/vms/entitlements";
 import { VmRepository, VmRepositoryLive, type VmRepositoryShape } from "../services/vms/repository";
 
-const dbTest = process.env.CMUX_DB_TEST === "1" ? test.serial : test.skip;
+const serialTest = (test as typeof test & { serial: typeof test }).serial;
+const dbTest = process.env.CMUX_DB_TEST === "1" ? serialTest : test.skip;
 let sql: Sql;
 beforeAll(() => {
   if (process.env.CMUX_DB_TEST === "1") {
@@ -53,6 +54,31 @@ describe("independent Cloud VM limits", () => {
     expect(failure).toMatchObject({ _tag: "VmLimitExceededError", limit: 50 });
     const retry = await runRepo(repo => repo.beginCreate({ ...input, idempotencyKey: "independent-0" }));
     expect(retry.inserted).toBe(false);
+    await sql`delete from cloud_vms where billing_team_id = ${team}`;
+  });
+
+  dbTest("Base open and reset work beside machines exceeding every former pool", async () => {
+    const team = "team-independent-base";
+    const input = {
+      userId: "user-independent-base", billingTeamId: team, billingPlanId: "pro",
+      billingCustomerType: "team" as const, provider: "freestyle" as const,
+      image: "snapshot-test", maxActiveVms: 50,
+      resourceReservation: { vcpus: 16, memoryMb: 65536, diskMb: 262144 },
+    };
+    await sql`delete from cloud_vm_bases where scope_id = ${team}`;
+    await sql`delete from cloud_vms where billing_team_id = ${team}`;
+    await runRepo(repo => repo.beginCreate(input));
+    const opened = await runRepo(repo => repo.beginBaseOpen(input));
+    expect(opened.kind).toBe("create");
+    await runRepo(repo => repo.markBaseCreateRunning({
+      baseId: opened.base.id, generation: opened.generation.generation,
+      vmId: opened.vm.id, providerVmId: "independent-base-provider",
+      image: input.image, userId: input.userId,
+    }));
+    const reset = await runRepo(repo => repo.beginBaseReset(input));
+    expect(reset.kind).toBe("create");
+    expect(reset.vm.id).not.toBe(opened.vm.id);
+    await sql`delete from cloud_vm_bases where scope_id = ${team}`;
     await sql`delete from cloud_vms where billing_team_id = ${team}`;
   });
 });
