@@ -31,6 +31,7 @@ struct SidebarGroupHeaderRowModel: Equatable, Hashable {
     let shortcutHintXOffset: Double
     let shortcutHintYOffset: Double
     let fontScale: CGFloat
+    let sidebarFontFamily: String?
     let globalFontMagnificationPercent: Int
     let cwdContextMenuItems: [CmuxResolvedConfigContextMenuItem]
     let rowSpacing: CGFloat

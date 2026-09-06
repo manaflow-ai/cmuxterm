@@ -15534,14 +15534,13 @@ struct TabItemView: View, Equatable {
         design: Font.Design = .default,
         monospacedDigit: Bool = false
     ) -> Font {
-        var font = Font.system(
+        var font = CmuxFontResolver.swiftUIFont(
+            family: settings.sidebarFontFamily,
             size: GlobalFontMagnification.scaledSize(baseSize, percent: globalFontMagnificationPercent),
             weight: weight,
-            design: design
+            design: design,
+            monospacedDigit: monospacedDigit
         )
-        if monospacedDigit {
-            font = font.monospacedDigit()
-        }
         return font
     }
 
@@ -15797,7 +15796,9 @@ struct TabItemView: View, Equatable {
                 if isEditing {
                     SidebarInlineRenameField(
                         initialText: renameDraft,
-                        fontSize: GlobalFontMagnification.scaledSize(scaledFontSize(12.5), percent: globalFontMagnificationPercent), textColor: selectedWorkspaceForegroundNSColor(opacity: 1.0),
+                        fontSize: GlobalFontMagnification.scaledSize(scaledFontSize(12.5), percent: globalFontMagnificationPercent),
+                        fontFamily: settings.sidebarFontFamily,
+                        textColor: selectedWorkspaceForegroundNSColor(opacity: 1.0),
                         accessibilityLabel: String(
                             localized: "sidebar.workspace.rename.field.accessibilityLabel",
                             defaultValue: "Rename workspace"
@@ -15845,7 +15846,8 @@ struct TabItemView: View, Equatable {
                     markdown: description,
                     isActive: usesInvertedActiveForeground,
                     activeForegroundColor: activeSecondaryColor(0.84),
-                    fontScale: fontScale
+                    fontScale: fontScale,
+                    fontFamily: settings.sidebarFontFamily
                 )
             }
 
@@ -15877,6 +15879,7 @@ struct TabItemView: View, Equatable {
                         activeForegroundColor: activeSecondaryColor(0.95),
                         activeSecondaryForegroundColor: activeSecondaryColor(0.65),
                         fontScale: fontScale,
+                        fontFamily: settings.sidebarFontFamily,
                         onFocus: { updateSelection() }
                     )
                     .transition(.opacity)
@@ -15888,6 +15891,7 @@ struct TabItemView: View, Equatable {
                         activeForegroundColor: activeSecondaryColor(0.8),
                         activeSecondaryForegroundColor: activeSecondaryColor(0.65),
                         fontScale: fontScale,
+                        fontFamily: settings.sidebarFontFamily,
                         onFocus: { updateSelection() }
                     )
                     .transition(.opacity)
@@ -15953,7 +15957,8 @@ struct TabItemView: View, Equatable {
                                             SidebarDirectoryText(
                                                 candidates: line.directoryCandidates,
                                                 color: activeSecondaryColor(0.75),
-                                                fontScale: fontScale
+                                                fontScale: fontScale,
+                                                fontFamily: settings.sidebarFontFamily
                                             )
                                         }
                                     } else {
@@ -15974,7 +15979,8 @@ struct TabItemView: View, Equatable {
                                                 SidebarDirectoryText(
                                                     candidates: line.directoryCandidates,
                                                     color: activeSecondaryColor(0.75),
-                                                    fontScale: fontScale
+                                                    fontScale: fontScale,
+                                                    fontFamily: settings.sidebarFontFamily
                                                 )
                                             }
                                         }
@@ -16003,7 +16009,8 @@ struct TabItemView: View, Equatable {
                                 SidebarDirectoryText(
                                     candidates: workspaceSnapshot.compactDirectoryCandidates,
                                     color: activeSecondaryColor(0.75),
-                                    fontScale: fontScale
+                                    fontScale: fontScale,
+                                    fontFamily: settings.sidebarFontFamily
                                 )
                             }
                         }
@@ -16017,7 +16024,8 @@ struct TabItemView: View, Equatable {
                         SidebarDirectoryText(
                             candidates: workspaceSnapshot.compactBranchDirectoryCandidates,
                             color: activeSecondaryColor(0.75),
-                            fontScale: fontScale
+                            fontScale: fontScale,
+                            fontFamily: settings.sidebarFontFamily
                         )
                     }
                 }
@@ -16556,6 +16564,7 @@ private struct SidebarMetadataRows: View {
     let activeForegroundColor: Color
     let activeSecondaryForegroundColor: Color
     let fontScale: CGFloat
+    let fontFamily: String?
     let onFocus: () -> Void
 
     @State private var isExpanded: Bool = false
@@ -16569,6 +16578,7 @@ private struct SidebarMetadataRows: View {
                     isActive: isActive,
                     activeForegroundColor: activeForegroundColor,
                     fontScale: fontScale,
+                    fontFamily: fontFamily,
                     onFocus: onFocus
                 )
             }
@@ -16581,7 +16591,7 @@ private struct SidebarMetadataRows: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .cmuxFont(size: 10 * fontScale, weight: .semibold)
+                .cmuxFont(size: 10 * fontScale, weight: .semibold, family: fontFamily)
                 .foregroundColor(isActive ? activeSecondaryForegroundColor : .secondary.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -16609,6 +16619,7 @@ private struct SidebarMetadataEntryRow: View {
     let isActive: Bool
     let activeForegroundColor: Color
     let fontScale: CGFloat
+    let fontFamily: String?
     let onFocus: () -> Void
 
     var body: some View {
@@ -16642,7 +16653,7 @@ private struct SidebarMetadataEntryRow: View {
                 .truncationMode(.tail)
             Spacer(minLength: 0)
         }
-        .cmuxFont(size: 10 * fontScale)
+        .cmuxFont(size: 10 * fontScale, family: fontFamily)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -16666,12 +16677,12 @@ private struct SidebarMetadataEntryRow: View {
         if iconRaw.hasPrefix("emoji:") {
             let value = String(iconRaw.dropFirst("emoji:".count))
             guard !value.isEmpty else { return nil }
-            return AnyView(Text(value).cmuxFont(size: 9 * fontScale))
+            return AnyView(Text(value).cmuxFont(size: 9 * fontScale, family: fontFamily))
         }
         if iconRaw.hasPrefix("text:") {
             let value = String(iconRaw.dropFirst("text:".count))
             guard !value.isEmpty else { return nil }
-            return AnyView(Text(value).cmuxFont(size: 8 * fontScale, weight: .semibold))
+            return AnyView(Text(value).cmuxFont(size: 8 * fontScale, weight: .semibold, family: fontFamily))
         }
         let symbolName: String
         if iconRaw.hasPrefix("sf:") {
@@ -16711,6 +16722,7 @@ private struct SidebarMetadataMarkdownBlocks: View {
     let activeForegroundColor: Color
     let activeSecondaryForegroundColor: Color
     let fontScale: CGFloat
+    let fontFamily: String?
     let onFocus: () -> Void
 
     @State private var isExpanded: Bool = false
@@ -16724,6 +16736,7 @@ private struct SidebarMetadataMarkdownBlocks: View {
                     isActive: isActive,
                     activeForegroundColor: activeForegroundColor,
                     fontScale: fontScale,
+                    fontFamily: fontFamily,
                     onFocus: onFocus
                 )
             }
@@ -16736,7 +16749,7 @@ private struct SidebarMetadataMarkdownBlocks: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .cmuxFont(size: 10 * fontScale, weight: .semibold)
+                .cmuxFont(size: 10 * fontScale, weight: .semibold, family: fontFamily)
                 .foregroundColor(isActive ? activeSecondaryForegroundColor : .secondary.opacity(0.9))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -16758,6 +16771,7 @@ private struct SidebarMetadataMarkdownBlockRow: View {
     let isActive: Bool
     let activeForegroundColor: Color
     let fontScale: CGFloat
+    let fontFamily: String?
     let onFocus: () -> Void
     private static let maxDisplayedLines = 12
     private static let maxDisplayedCharacters = 4096
@@ -16781,7 +16795,7 @@ private struct SidebarMetadataMarkdownBlockRow: View {
                     .foregroundColor(foregroundColor)
             }
         }
-        .cmuxFont(size: 10 * fontScale)
+        .cmuxFont(size: 10 * fontScale, family: fontFamily)
         .multilineTextAlignment(.leading)
         .lineLimit(Self.maxDisplayedLines)
         .truncationMode(.tail)

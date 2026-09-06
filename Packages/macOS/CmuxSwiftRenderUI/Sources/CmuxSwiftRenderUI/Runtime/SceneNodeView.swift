@@ -267,14 +267,15 @@ private struct SceneNodeContent: View {
 
     private var fontSpec: DSLFontSpec? {
         let weight = dslFontWeight(node.string("weight"))
+        let family = node.string("family")
         if let size = node.props["font"]?.doubleValue {
-            return dslFontSpec(named: nil, size: size, weight: weight)
+            return dslFontSpec(named: nil, size: size, weight: weight, family: family)
         }
         if let named = node.string("font") {
-            return dslFontSpec(named: named, size: nil, weight: weight)
+            return dslFontSpec(named: named, size: nil, weight: weight, family: family)
         }
         if weight != nil {
-            return dslFontSpec(named: "body", size: nil, weight: weight)
+            return dslFontSpec(named: "body", size: nil, weight: weight, family: family)
         }
         return nil
     }

@@ -9,6 +9,7 @@ struct SidebarWorkspaceDescriptionText: View {
     let isActive: Bool
     let activeForegroundColor: Color
     let fontScale: CGFloat
+    let fontFamily: String?
     private static let maxDisplayedLines = 12
     private static let maxDisplayedCharacters = 4096
 
@@ -35,7 +36,7 @@ struct SidebarWorkspaceDescriptionText: View {
             text = Text(content.displayMarkdown)
         }
         return text
-            .cmuxFont(size: 10.5 * fontScale)
+            .cmuxFont(size: 10.5 * fontScale, family: fontFamily)
             .foregroundColor(foregroundColor)
             .multilineTextAlignment(.leading)
             .lineLimit(Self.maxDisplayedLines)

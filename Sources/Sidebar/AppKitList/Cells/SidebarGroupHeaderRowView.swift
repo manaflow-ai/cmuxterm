@@ -20,7 +20,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
     // Direct-draw badge (shared with workspace rows): NSTextField's
     // intrinsic insets shift single digits off the circle's optical center.
     private let unreadBadgeView = SidebarRowUnreadBadgeView()
-    private var unreadBadgeFont: NSFont = .systemFont(ofSize: 10, weight: .semibold)
+    private var unreadBadgeFont: NSFont = CmuxFontResolver.appKitFont(size: 10, weight: .semibold)
     private let plusButton = SidebarHeaderGlyphButton()
     private let topDropIndicator = NSView()
     private let bottomDropIndicator = NSView()
@@ -177,8 +177,9 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
             ?? colorResolver.resolvedColor(.secondaryLabelColor, for: colorScheme)
 
         nameField.stringValue = model.name
-        nameField.font = .systemFont(
-            ofSize: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
+        nameField.font = CmuxFontResolver.appKitFont(
+            family: model.sidebarFontFamily,
+            size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
             weight: .semibold
         )
         nameField.textColor = model.isAnchorActive
@@ -188,8 +189,9 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
         let showsBadge = model.anchorUnreadCount > 0
         unreadBadgeView.isHidden = !showsBadge
         if showsBadge {
-            unreadBadgeFont = .systemFont(
-                ofSize: GlobalFontMagnification.scaledSize(metrics.unreadFontSize, percent: percent),
+            unreadBadgeFont = CmuxFontResolver.appKitFont(
+                family: model.sidebarFontFamily,
+                size: GlobalFontMagnification.scaledSize(metrics.unreadFontSize, percent: percent),
                 weight: .semibold
             )
             unreadBadgeView.configure(
@@ -230,6 +232,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
             text: model.shortcutHintText,
             fontSize: GlobalFontMagnification.scaledSize(9, percent: percent),
             emphasis: model.isAnchorActive ? 1.0 : 0.9,
+            fontFamily: model.sidebarFontFamily,
             representedIdentity: model.groupId
         )
 
@@ -363,8 +366,9 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
     static func preferredHeight(model: SidebarGroupHeaderRowModel) -> CGFloat {
         let metrics = SidebarWorkspaceGroupHeaderMetrics(fontScale: model.fontScale)
         let percent = model.globalFontMagnificationPercent
-        let nameFont = NSFont.systemFont(
-            ofSize: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
+        let nameFont = CmuxFontResolver.appKitFont(
+            family: model.sidebarFontFamily,
+            size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
             weight: .semibold
         )
         let nameLineHeight = ceil(nameFont.ascender - nameFont.descender + nameFont.leading)
@@ -731,6 +735,7 @@ final class SidebarShortcutHintPillView: NSView {
         text: String?,
         fontSize: CGFloat,
         emphasis: Double,
+        fontFamily: String? = nil,
         representedIdentity: UUID? = nil
     ) {
         let identityChanged = self.representedIdentity != representedIdentity
@@ -741,7 +746,12 @@ final class SidebarShortcutHintPillView: NSView {
         }
         self.emphasis = emphasis
         label.stringValue = text
-        label.font = .monospacedDigitSystemFont(ofSize: fontSize, weight: .semibold)
+        label.font = CmuxFontResolver.appKitFont(
+            family: fontFamily,
+            size: fontSize,
+            weight: .semibold,
+            monospacedDigits: true
+        )
         label.textColor = .labelColor
         materialView.layer?.borderColor = NSColor.white.withAlphaComponent(0.30 * emphasis).cgColor
         layer?.shadowColor = NSColor.black.withAlphaComponent(0.22 * emphasis).cgColor

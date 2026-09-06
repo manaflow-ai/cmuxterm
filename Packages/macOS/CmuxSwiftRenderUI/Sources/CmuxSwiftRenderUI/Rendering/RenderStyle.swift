@@ -53,21 +53,36 @@ func dslColor(_ token: String?) -> Color? {
 }
 
 /// Resolves a font token (or explicit size) to a magnification-aware font spec.
-func dslFontSpec(named token: String?, size: Double?, weight: Font.Weight? = nil, design: Font.Design = .default) -> DSLFontSpec? {
-    if let size { return DSLFontSpec(baseSize: CGFloat(size), weight: weight, design: design) }
+func dslFontSpec(
+    named token: String?,
+    size: Double?,
+    weight: Font.Weight? = nil,
+    design: Font.Design = .default,
+    family: String? = nil
+) -> DSLFontSpec? {
+    let normalizedFamily = CmuxFontFamily.normalizedName(family)
+    func make(_ baseSize: CGFloat, defaultWeight: Font.Weight? = nil) -> DSLFontSpec {
+        DSLFontSpec(
+            baseSize: baseSize,
+            weight: weight ?? defaultWeight,
+            design: design,
+            family: normalizedFamily
+        )
+    }
+    if let size { return make(CGFloat(size)) }
     guard let token else { return nil }
     switch token.lowercased() {
-    case "largetitle": return DSLFontSpec(baseSize: 26, weight: weight, design: design)
-    case "title": return DSLFontSpec(baseSize: 22, weight: weight, design: design)
-    case "title2": return DSLFontSpec(baseSize: 17, weight: weight, design: design)
-    case "title3": return DSLFontSpec(baseSize: 15, weight: weight, design: design)
-    case "headline": return DSLFontSpec(baseSize: 13, weight: weight ?? .semibold, design: design)
-    case "subheadline": return DSLFontSpec(baseSize: 11, weight: weight, design: design)
-    case "body": return DSLFontSpec(baseSize: 13, weight: weight, design: design)
-    case "callout": return DSLFontSpec(baseSize: 12, weight: weight, design: design)
-    case "footnote": return DSLFontSpec(baseSize: 10, weight: weight, design: design)
-    case "caption": return DSLFontSpec(baseSize: 10, weight: weight, design: design)
-    case "caption2": return DSLFontSpec(baseSize: 9, weight: weight, design: design)
+    case "largetitle": return make(26)
+    case "title": return make(22)
+    case "title2": return make(17)
+    case "title3": return make(15)
+    case "headline": return make(13, defaultWeight: .semibold)
+    case "subheadline": return make(11)
+    case "body": return make(13)
+    case "callout": return make(12)
+    case "footnote": return make(10)
+    case "caption": return make(10)
+    case "caption2": return make(9)
     default: return nil
     }
 }

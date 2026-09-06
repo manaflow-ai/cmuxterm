@@ -102,6 +102,7 @@ extension VerticalTabsSidebar {
             shortcutHintXOffset: settings.sidebarShortcutHintXOffset,
             shortcutHintYOffset: settings.sidebarShortcutHintYOffset,
             fontScale: settings.sidebarFontScale,
+            sidebarFontFamily: settings.sidebarFontFamily,
             globalFontMagnificationPercent: renderContext.environment.globalFontMagnificationPercent,
             cwdContextMenuItems: cwdContextMenuItems,
             rowSpacing: tabRowSpacing,

@@ -132,7 +132,7 @@ Rules of the runtime:
   `Button` `Spacer` `Divider` `Circle` `Capsule` `Rectangle`
   `RoundedRectangle` `ProgressView` `ForEach` `Reorderable`. Containers take
   `(props, children)` or just `(children)`.
-- Chainable props: `.font(name|size)` `.weight` `.bold()` `.italic()`
+- Chainable props: `.font(name|size|{ family, size })` `.weight` `.bold()` `.italic()`
   `.monospaced()` `.color` `.secondary()` `.lineLimit` `.truncation`
   `.padding` `.paddingHorizontal` `.paddingVertical` `.background`
   `.hoverBackground` (host-side hover wash, no JS round trip)
@@ -238,7 +238,7 @@ normal pane tab that can live in a right-side split.
 
     cat > ~/.config/cmux/sidebars/mine.swift <<'SWIFT'
     VStack(alignment: .leading, spacing: 8) {
-        Text("My sidebar").font(.title3).bold()
+        Text("My sidebar").font(.custom("MonoLisaText", size: 15)).bold()
         Text(clock.time).font(.caption).foregroundColor(.secondary)
         Divider()
         ForEach(workspaces) { w in
@@ -318,6 +318,7 @@ Reorder: `Reorderable(data, move: "workspace.reorder") { item in <row> }` (see b
 ## Modifiers
 
 Text/typography: `.font(.title2|.headline|.caption|.system(size:design:)...)`,
+`.font(.custom("Family Name", size: 13))` or, in JS, `.font({ family: "Family Name", size: 13 })`,
 `.bold()`, `.italic()`, `.fontWeight(.semibold)`, `.fontDesign(.monospaced)`,
 `.monospaced()`, `.monospacedDigit()`, `.lineLimit(1)`, `.truncationMode(.tail)`,
 `.multilineTextAlignment(.center)`, `.textCase(.uppercase)`, `.strikethrough()`,
