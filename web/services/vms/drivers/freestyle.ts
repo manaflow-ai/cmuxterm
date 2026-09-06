@@ -1324,7 +1324,7 @@ export class FreestyleProvider implements VMProvider {
           const route = freestyleCmuxRemoteRoute(data, vmId);
           const fingerprint = options?.deviceFingerprint;
           const source = await resolveCmuxTuiSource("freestyle");
-          let { bundle, healed } = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint, source);
+          let { bundle, healed } = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
           // A daemon from a bake that predates the trusted listener is brought to
           // the pinned build and restarted with the drop-in — but never under a
           // device that is already enrolled there, whose sessions the restart
@@ -1332,7 +1332,7 @@ export class FreestyleProvider implements VMProvider {
           if (!bundle.trustedCarrier && !bundle.enrolled) {
             healed = true;
             await this.installTrustedCmuxTui(vm, vmId, source);
-            const retried = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint, source);
+            const retried = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
             bundle = retried.bundle;
           }
           span.setAttribute("cmux.vm.cmux_remote.healed", healed);
@@ -1363,9 +1363,8 @@ export class FreestyleProvider implements VMProvider {
     vm: Vm,
     vmId: string,
     fingerprint: string | undefined,
-    source: CmuxTuiSource,
   ) {
-    const bundleOptions = { deviceFingerprint: fingerprint, pinnedSha256: source.sha256 };
+    const bundleOptions = { deviceFingerprint: fingerprint };
     let result = await this.execResult(
       vm,
       cmuxTuiAttachBundleCommand({ readyGate: freestyleDaemonSettledCommand(), ...bundleOptions }),

@@ -832,22 +832,20 @@ describe("cmux-tui attach bundle", () => {
     expect(bundle.enrolled).toBe(true);
   });
 
-  test("rejects a malformed device fingerprint or pin", () => {
+  test("rejects a malformed device fingerprint", () => {
     expect(() => cmuxTuiAttachBundleCommand({ deviceFingerprint: "bad fp; rm -rf /" })).toThrow("unexpected shape");
-    expect(() => cmuxTuiAttachBundleCommand({ pinnedSha256: "nope" })).toThrow("unexpected shape");
   });
 
-  test("the trusted probe requires the env or flag on the live daemon and, when pinned, the pinned binary", () => {
-    const probe = cmuxTuiTrustedListenerProbe("a".repeat(64));
+  test("the trusted probe requires the env or flag on the live daemon and a binary that knows the flag", () => {
+    const probe = cmuxTuiTrustedListenerProbe();
     expect(probe).toContain("pgrep -f 'cmux-tui server [s]tart'");
     expect(probe).toContain("/proc/$p/environ");
     expect(probe).toContain("'CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1'");
     expect(probe).toContain("/proc/$p/cmdline");
     expect(probe).toContain("'--remote-ws-trusted-carrier'");
-    expect(probe).toContain(`'${"a".repeat(64)}'`);
-    expect(probe).toContain("/proc/$p/exe");
-    expect(probe).toContain("sha256sum -c");
-    expect(cmuxTuiTrustedListenerProbe()).not.toContain("sha256sum");
+    // The running binary answers for itself, so a stale install never reads as trusted.
+    expect(probe).toContain("\"/proc/$p/exe\" --help");
+    expect(probe).not.toContain("sha256sum");
   });
 
   test("parses build, enrollment, and the trusted flag from the fenced output; a missing flag is untrusted", () => {

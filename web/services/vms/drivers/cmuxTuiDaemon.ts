@@ -637,20 +637,17 @@ const BUNDLE_MARKERS = { probe: "__CMUX_PROBE__", devices: "__CMUX_DEVICES__", t
 
 /**
  * Prints `1` when the daemon process that owns the cloud session serves the
- * trusted-carrier listener: it was started with the flag or the env, AND its
- * binary is the pinned build (an older binary ignores both, so the env alone
- * proves nothing). Anything else prints `0`.
+ * trusted-carrier listener: it was started with the flag or the env, AND the
+ * binary it runs knows the flag (its `--help` names it). An older binary
+ * ignores the env, so the env alone proves nothing; asking the running binary
+ * itself also keeps the answer honest while the pinned manifest and the
+ * machine's install disagree. Anything else prints `0`.
  */
-export function cmuxTuiTrustedListenerProbe(pinnedSha256?: string): string {
-  if (pinnedSha256 !== undefined && !/^[0-9a-f]{64}$/.test(pinnedSha256)) {
-    throw new Error("pinned sha256 has an unexpected shape");
-  }
-  const binaryMatches = pinnedSha256
-    ? ` && printf '%s  %s\\n' ${shellQuote(pinnedSha256)} "/proc/$p/exe" | sha256sum -c >/dev/null 2>&1`
-    : "";
+export function cmuxTuiTrustedListenerProbe(): string {
   return (
     "p=$(pgrep -f 'cmux-tui server [s]tart' | head -n1); " +
-    `if [ -n "$p" ] && { tr '\\0' '\\n' < "/proc/$p/environ" 2>/dev/null | grep -qx ${shellQuote(`${CMUX_TUI_TRUSTED_CARRIER_ENV}=1`)} || tr '\\0' '\\n' < "/proc/$p/cmdline" 2>/dev/null | grep -qx -- ${shellQuote(CMUX_TUI_TRUSTED_CARRIER_FLAG)}; }${binaryMatches}; then echo 1; else echo 0; fi`
+    `if [ -n "$p" ] && { tr '\\0' '\\n' < "/proc/$p/environ" 2>/dev/null | grep -qx ${shellQuote(`${CMUX_TUI_TRUSTED_CARRIER_ENV}=1`)} || tr '\\0' '\\n' < "/proc/$p/cmdline" 2>/dev/null | grep -qx -- ${shellQuote(CMUX_TUI_TRUSTED_CARRIER_FLAG)}; }` +
+    ` && "/proc/$p/exe" --help 2>/dev/null | grep -q -- ${shellQuote(CMUX_TUI_TRUSTED_CARRIER_FLAG)}; then echo 1; else echo 0; fi`
   );
 }
 
@@ -658,8 +655,6 @@ export function cmuxTuiAttachBundleCommand(options: {
   readonly readyGate?: string;
   readonly deviceFingerprint?: string;
   readonly binary?: string;
-  /** The manifest's sha256; the trusted probe reports `1` only for a daemon running this build. */
-  readonly pinnedSha256?: string;
 }): string {
   const bin = options.binary ?? CMUX_TUI_BINARY_PATH;
   const run = `env HOME=/root ${bin}`;
@@ -677,7 +672,7 @@ export function cmuxTuiAttachBundleCommand(options: {
     `echo ${BUNDLE_MARKERS.devices}`,
     `${run} remote enroll devices --session ${CMUX_TUI_SESSION} --json; echo`,
     `echo ${BUNDLE_MARKERS.trusted}`,
-    cmuxTuiTrustedListenerProbe(options.pinnedSha256),
+    cmuxTuiTrustedListenerProbe(),
     `echo ${BUNDLE_MARKERS.end}`,
   ].join("; ");
 }
