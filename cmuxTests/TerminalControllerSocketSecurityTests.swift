@@ -1324,10 +1324,16 @@ final class TerminalControllerSocketSecurityTests: XCTestCase {
     func testV2SurfaceCloseCommandsRecordRecentlyClosedHistory() throws {
         ClosedItemHistoryStore.shared.removeAll()
         let defaults = UserDefaults.standard
+        let previousBrowserEngine = defaults.object(forKey: BrowserEngineSettings.engineKey)
         let previousBrowserDisabled = defaults.object(forKey: BrowserAvailabilitySettings.disabledKey)
         BrowserAvailabilitySettings.setDisabled(true)
         defer {
             ClosedItemHistoryStore.shared.removeAll()
+            if let previousBrowserEngine {
+                defaults.set(previousBrowserEngine, forKey: BrowserEngineSettings.engineKey)
+            } else {
+                defaults.removeObject(forKey: BrowserEngineSettings.engineKey)
+            }
             if let previousBrowserDisabled {
                 defaults.set(previousBrowserDisabled, forKey: BrowserAvailabilitySettings.disabledKey)
             } else {
@@ -1377,9 +1383,15 @@ final class TerminalControllerSocketSecurityTests: XCTestCase {
 
     func testBrowserOpenSplitDoesNotExternallyOpenDiffViewerWhenBrowserDisabled() throws {
         let defaults = UserDefaults.standard
+        let previousBrowserEngine = defaults.object(forKey: BrowserEngineSettings.engineKey)
         let previousBrowserDisabled = defaults.object(forKey: BrowserAvailabilitySettings.disabledKey)
         BrowserAvailabilitySettings.setDisabled(true)
         defer {
+            if let previousBrowserEngine {
+                defaults.set(previousBrowserEngine, forKey: BrowserEngineSettings.engineKey)
+            } else {
+                defaults.removeObject(forKey: BrowserEngineSettings.engineKey)
+            }
             if let previousBrowserDisabled {
                 defaults.set(previousBrowserDisabled, forKey: BrowserAvailabilitySettings.disabledKey)
             } else {

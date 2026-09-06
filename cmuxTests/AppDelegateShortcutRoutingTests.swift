@@ -422,10 +422,19 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         let hadBrowserDisabledOverride =
             UserDefaults.standard.object(forKey: BrowserAvailabilitySettings.disabledKey) != nil
         let originalBrowserDisabled = UserDefaults.standard.bool(forKey: BrowserAvailabilitySettings.disabledKey)
+        let originalBrowserEngine = UserDefaults.standard.object(forKey: BrowserEngineSettings.engineKey)
+        UserDefaults.standard.removeObject(forKey: BrowserEngineSettings.engineKey)
         UserDefaults.standard.removeObject(forKey: BrowserAvailabilitySettings.disabledKey)
         defer {
+            if let originalBrowserEngine {
+                UserDefaults.standard.set(originalBrowserEngine, forKey: BrowserEngineSettings.engineKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: BrowserEngineSettings.engineKey)
+            }
             if hadBrowserDisabledOverride {
                 UserDefaults.standard.set(originalBrowserDisabled, forKey: BrowserAvailabilitySettings.disabledKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: BrowserAvailabilitySettings.disabledKey)
             }
         }
 
@@ -489,8 +498,14 @@ final class AppDelegateShortcutRoutingTests: XCTestCase {
         let hadBrowserDisabledOverride =
             UserDefaults.standard.object(forKey: BrowserAvailabilitySettings.disabledKey) != nil
         let originalBrowserDisabled = UserDefaults.standard.bool(forKey: BrowserAvailabilitySettings.disabledKey)
-        UserDefaults.standard.set(true, forKey: BrowserAvailabilitySettings.disabledKey)
+        let originalBrowserEngine = UserDefaults.standard.object(forKey: BrowserEngineSettings.engineKey)
+        BrowserAvailabilitySettings.setDisabled(true)
         defer {
+            if let originalBrowserEngine {
+                UserDefaults.standard.set(originalBrowserEngine, forKey: BrowserEngineSettings.engineKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: BrowserEngineSettings.engineKey)
+            }
             if hadBrowserDisabledOverride {
                 UserDefaults.standard.set(originalBrowserDisabled, forKey: BrowserAvailabilitySettings.disabledKey)
             } else {

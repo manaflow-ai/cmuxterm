@@ -87,7 +87,7 @@ final class CommandPaletteSettingsToggleTests: XCTestCase {
                     commandId: "palette.toggleSetting.interceptTerminalOpenCommandInCmuxBrowser"
                 )
             )
-            defaults.set(true, forKey: BrowserAvailabilitySettings.disabledKey)
+            BrowserAvailabilitySettings.setDisabled(true, defaults: defaults)
             defaults.set(true, forKey: BrowserLinkOpenSettings.interceptTerminalOpenCommandInCmuxBrowserKey)
 
             XCTAssertTrue(descriptor.isOn(defaults))

@@ -93,18 +93,26 @@ public struct RemoteSessionProcessRunner: RemoteSessionProcessRunning {
         process.terminationHandler = { _ in
             exitSemaphore.signal()
         }
-        // Snapshot the descriptors on the calling thread, while the handles
-        // are guaranteed open, and drain the raw descriptors. The contract
-        // (pinned by the capture-survives-teardown test) is that closing the
-        // read handles mid-run must not break the run: a closed FileHandle's
-        // `fileDescriptor` accessor raises an uncatchable ObjC exception,
-        // whereas `read(2)` on a closed descriptor fails cleanly with EBADF
-        // and lands in the captured readError, exactly like any other
-        // mid-drain read failure. Keep the handles strongly referenced until
-        // `finishCapture` completes on every exit path; do not close them
-        // there because the test hook may already have closed them.
-        let stdoutDescriptor = stdoutHandle.fileDescriptor
-        let stderrDescriptor = stderrHandle.fileDescriptor
+        // Snapshot and duplicate the descriptors while the handles are
+        // guaranteed open. The duplicate descriptors keep the readers
+        // independent if the owning handles are closed mid-run.
+        let stdoutDescriptor = Darwin.dup(stdoutHandle.fileDescriptor)
+        let stderrDescriptor = Darwin.dup(stderrHandle.fileDescriptor)
+        guard stdoutDescriptor >= 0, stderrDescriptor >= 0 else {
+            if stdoutDescriptor >= 0 {
+                _ = Darwin.close(stdoutDescriptor)
+            }
+            if stderrDescriptor >= 0 {
+                _ = Darwin.close(stderrDescriptor)
+            }
+            throw NSError(domain: "cmux.remote.process", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to duplicate remote process output handles",
+            ])
+        }
+        defer {
+            _ = Darwin.close(stdoutDescriptor)
+            _ = Darwin.close(stderrDescriptor)
+        }
         captureGroup.enter()
         DispatchQueue.global(qos: .utility).async {
             defer { captureGroup.leave() }
