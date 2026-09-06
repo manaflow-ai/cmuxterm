@@ -105,6 +105,14 @@ final class TerminalCmdClickUITests: XCTestCase {
         )
     }
 
+    func testBackgroundAppIsNotReadyForInteraction() {
+        XCTAssertFalse(
+            Self.isReadyForInteraction(.runningBackground),
+            "A backgrounded app can still have windows; readiness requires runningForeground."
+        )
+        XCTAssertTrue(Self.isReadyForInteraction(.runningForeground))
+    }
+
     func testCmdClickEscapedPathWithSpacesOpensResolvedFile() throws {
         let app = launchApp(
             displayMode: .escaped,
@@ -1022,6 +1030,7 @@ final class TerminalCmdClickUITests: XCTestCase {
         return object
     }
 
+    /// Launches the app and fails unless it reaches the foreground before UI input begins.
     private func launchAndEnsureForeground(_ app: XCUIApplication, timeout: TimeInterval = 12.0) {
         // Activation is required before this suite drives keyboard and pointer
         // input. Do not mask launch failures with XCTExpectFailure: with
@@ -1036,12 +1045,16 @@ final class TerminalCmdClickUITests: XCTestCase {
 
         app.activate()
         let foregrounded = waitForCondition(timeout: timeout) {
-            app.state == .runningForeground || app.windows.firstMatch.exists
+            Self.isReadyForInteraction(app.state)
         }
         XCTAssertTrue(
             foregrounded,
             "Expected app activation before driving cmd-key harness. state=\(app.state.rawValue)"
         )
+    }
+
+    private static func isReadyForInteraction(_ state: XCUIApplication.State) -> Bool {
+        state == .runningForeground
     }
 
     private func waitForCondition(
