@@ -1,3 +1,4 @@
+# Keep CI change-area routing exercised when guard policy files change.
 #!/usr/bin/env python3
 """Behavioral tests for CI routing and its macOS compile gate."""
 
