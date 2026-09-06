@@ -1387,6 +1387,7 @@ export class FreestyleProvider implements VMProvider {
     );
   }
 
+  /** Repair the public client before returning a bundle, preserving the healthy single-exec path. */
   private async loadCmuxRemoteBundle(
     vm: Vm,
     vmId: string,
@@ -1395,7 +1396,8 @@ export class FreestyleProvider implements VMProvider {
     let result = await this.execResult(
       vm,
       cmuxTuiAttachBundleCommand({
-        readyGate: `${freestyleDaemonSettledCommand()} && ${cmuxTuiPublicClientCommand()}`,
+        // The settled gate uses exit; contain it so success continues to publication.
+        readyGate: `( ${freestyleDaemonSettledCommand()} ) && ${cmuxTuiPublicClientCommand()}`,
         deviceFingerprint: fingerprint,
       }),
       DAEMON_SETTLE_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS + EXEC_DEFAULT_TIMEOUT_MS,

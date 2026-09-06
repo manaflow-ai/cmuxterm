@@ -73,7 +73,8 @@ for (const publicationFails of [false, true]) {
         providerMetadata: { networkIpv4: "10.0.0.5" },
       });
       if (publicationFails) {
-        await expect(attach).rejects.toThrow("publication-denied");
+        await expect(attach).rejects.toThrow("openCmuxRemote(vm-test) failed");
+        expect(execCount).toBe(3);
         expect(lstatSync(publicPath).isSymbolicLink()).toBe(true);
       } else {
         expect((await attach).route).toBe("ws://10.0.0.5:1337/v1/link");
