@@ -8704,18 +8704,19 @@ struct ContentView: View {
                 let paneId = dockSurfacePanelId.flatMap {
                     dockSurfaceStore.paneId(forPanelId: $0)
                 } ?? dockSurfaceStore.resolvePane(requestedPaneID: nil)
-                guard let paneId, dockSurfaceStore.newSurface(
+                guard let paneId,
+                      let panelId = dockSurfaceStore.newSurface(
                     kind: .terminal,
                     inPane: paneId,
                     sourcePanelId: dockSurfacePanelId,
-                    focus: true
-                ) != nil else {
+                    focus: false
+                ) else {
                     NSSound.beep()
                     return
                 }
-                dockBrowserStore.focusPanelFromDockInteraction(
+                dockSurfaceStore.focusPanelFromDockInteraction(
                     panelId,
-                    window: AppDelegate.shared?.mainWindow(for: windowId)
+                    window: dockOwnerWindow()
                 )
                 return
             }
@@ -8735,21 +8736,18 @@ struct ContentView: View {
                         dockSurfaceStore.paneId(forPanelId: $0)
                     } ?? dockSurfaceStore.resolvePane(requestedPaneID: nil)
                     guard let paneId,
-                    let panelId = dockSurfaceStore.newSurface(
+                          let panelId = dockSurfaceStore.newSurface(
                         kind: .browser,
                         inPane: paneId,
                         sourcePanelId: dockSurfacePanelId,
-                        focus: true
-                    ),
-                    let browser = dockSurfaceStore.browserPanel(
-                        for: panelId
+                        focus: false
                     ) else {
                         NSSound.beep()
                         return
                     }
-                    dockBrowserStore.focusPanelFromDockInteraction(
+                    dockSurfaceStore.focusPanelFromDockInteraction(
                         panelId,
-                        window: AppDelegate.shared?.mainWindow(for: windowId)
+                        window: dockOwnerWindow()
                     )
                 }
                 return
