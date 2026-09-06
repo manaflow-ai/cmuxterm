@@ -42,6 +42,8 @@ strip_if_macho() {
 
 strip_if_macho "$APP_PATH/Contents/MacOS/cmux"
 strip_if_macho "$APP_PATH/Contents/Resources/bin/cmux"
+strip_if_macho "$APP_PATH/Contents/Resources/bin/cmux-rust"
+strip_if_macho "$APP_PATH/Contents/Resources/bin/coderouter-rust"
 strip_if_macho "$APP_PATH/Contents/Resources/bin/cmux-tui"
 strip_if_macho "$APP_PATH/Contents/Resources/bin/cmux-diff-sidecar"
 
