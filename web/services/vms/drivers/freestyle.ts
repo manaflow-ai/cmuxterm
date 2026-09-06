@@ -584,15 +584,19 @@ const REMOTE_WS_BIND_OVERRIDE =
  * Without systemd (or the unit), fall back to a direct daemon launch with the
  * dual-stack bind.
  */
-export function freestyleStartDaemonCommand(): string {
+export function freestyleStartDaemonCommand(options?: { replaceExisting?: boolean }): string {
+  const replaceExisting = options?.replaceExisting === true;
+  const fallback = replaceExisting
+    ? `pkill -f 'cmux-tui server [s]tart' >/dev/null 2>&1; sleep 1; (setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &);`
+    : `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || (setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &);`;
   return [
     "if [ -d /run/systemd/system ] && [ -f /etc/systemd/system/cmux-tui-daemon.service ]; then",
     `mkdir -p ${REMOTE_WS_BIND_OVERRIDE.replace(/\/[^/]+$/, "")};`,
-    `printf '[Service]\\nEnvironment=CMUX_TUI_REMOTE_WS_BIND=${FREESTYLE_REMOTE_WS_BIND}\\n' > ${REMOTE_WS_BIND_OVERRIDE};`,
+    `printf '[Service]\\nEnvironment=CMUX_TUI_REMOTE_WS_BIND=${FREESTYLE_REMOTE_WS_BIND}\\nEnvironment=CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1\\n' > ${REMOTE_WS_BIND_OVERRIDE};`,
     "systemctl daemon-reload;",
     "systemctl restart cmux-tui-daemon;",
     "else",
-    `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || (setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &);`,
+    fallback,
     "fi",
   ].join(" ");
 }
@@ -863,7 +867,8 @@ export class FreestyleProvider implements VMProvider {
   readonly attachTransports: readonly AttachTransport[] = ["cmux-remote"];
 
   /** ``create`` honors requested memory through the grow-only size ladder. */
-  readonly capabilities = { sizing: true } as const;
+  /// Freestyle exposes live resource statistics and grow-only resizing.
+  readonly capabilities = { stats: true, sizing: true } as const;
 
   readonly privateNetworking: VMPrivateNetworking;
 
@@ -1283,12 +1288,35 @@ export class FreestyleProvider implements VMProvider {
               `cmux-tui attach bundle in ${vmId} failed (exit ${bundleResult?.exitCode ?? "n/a"}): ${(bundleResult?.stderr || bundleResult?.stdout || "").slice(0, 500)}`,
             );
           }
-          const bundle = parseCmuxTuiAttachBundle(bundleResult.stdout, "freestyle", vmId, fingerprint);
+          let bundle = parseCmuxTuiAttachBundle(bundleResult.stdout, "freestyle", vmId, fingerprint);
+          if (!bundle.trustedCarrier) {
+            // A healthy daemon from an older image can still lack the trusted
+            // listener. Install/restart the pinned daemon before retrying.
+            const source = await this.deps.resolveDaemonSource("freestyle");
+            const pinned = await this.execResult(vm, freestylePinCheckCommand(source));
+            if (pinned?.exitCode !== 0) {
+              await this.execOrThrow(vm, vmId, cmuxTuiInstallCommand(source), CMUX_TUI_INSTALL_TIMEOUT_MS);
+            }
+            await this.execOrThrow(vm, vmId, freestyleStartDaemonCommand({ replaceExisting: true }), 60_000);
+            await waitForCmuxTuiReady(this.cmuxTuiInvoke(vm), "freestyle", vmId);
+            bundleResult = await this.execResult(vm, cmuxTuiAttachBundleCommand({ deviceFingerprint: fingerprint }));
+            if (!bundleResult || bundleResult.exitCode !== 0) {
+              throw new ProviderError("freestyle", `cmux-tui attach bundle retry in ${vmId} failed`);
+            }
+            bundle = parseCmuxTuiAttachBundle(bundleResult.stdout, "freestyle", vmId, fingerprint);
+            if (!bundle.trustedCarrier) {
+              throw new ProviderError(
+                "freestyle",
+                `cmux-tui daemon in ${vmId} still refuses the trusted listener after the pinned build was installed and restarted`,
+              );
+            }
+            healed = true;
+          }
           span.setAttribute("cmux.vm.cmux_remote.healed", healed);
           const invoke = this.cmuxTuiInvoke(vm);
           const enrolled = bundle.enrolled;
           let invitation: CmuxRemoteEndpoint["invitation"] = bundle.invitation ?? undefined;
-          if (!enrolled && !invitation) {
+          if (!bundle.trustedCarrier && !enrolled && !invitation) {
             // The shell's substring check and the JSON parse disagreed (a
             // revoked device with the same fingerprint): mint separately.
             invitation = await mintCmuxTuiInvitation(invoke, "freestyle", vmId);
@@ -1306,6 +1334,7 @@ export class FreestyleProvider implements VMProvider {
             token,
             expiresAtUnix,
             session: CMUX_TUI_SESSION,
+            trustedCarrier: bundle.trustedCarrier,
             ...(daemonBuild ? { daemonBuild } : {}),
             ...(invitation ? { invitation } : {}),
             ...(Object.keys(networkAddresses).length ? { networkAddresses } : {}),
