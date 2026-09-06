@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -12,6 +12,9 @@ import {
   cmuxTuiPersistentMountWait,
   parseCmuxTuiManifest,
   parseEnrollmentInvitationUri,
+  cmuxTuiAttachBundleCommand,
+  cmuxTuiApproveWaitCommand,
+  parseCmuxTuiAttachBundle,
 } from "../services/vms/drivers/cmuxTuiDaemon";
 
 const SHA = "c7a3155341a85a2f10a873d69a041bdf1855ec059a802e58e0779a7a6bdec607";
@@ -373,7 +376,9 @@ describe("cmux-tui install and daemon commands", () => {
       "#!/bin/sh",
       "trap ': > \"$CMUX_TEST_STATE/daemon-term\"; exit 0' TERM INT HUP",
       ": > \"$CMUX_TEST_STATE/daemon-ready\"",
-      "while :; do :; done",
+      // Keep the fake daemon alive without monopolizing a CPU while Bun runs
+      // other isolated test files concurrently on the small CI runner.
+      "while :; do sleep 0.05; done",
       "",
     ].join("\n"));
     chmodSync(daemonBinary, 0o755);
@@ -482,7 +487,7 @@ describe("cmux-tui install and daemon commands", () => {
       ": > \"$CMUX_TEST_STATE/daemon-ready\"",
       // Keep the fake daemon in shell code so its TERM trap runs reliably when
       // the supervisor switches away from the lost view.
-      "while :; do :; done",
+      "while :; do sleep 0.05; done",
       "",
     ].join("\n"));
     chmodSync(daemonBinary, 0o755);
@@ -504,7 +509,7 @@ describe("cmux-tui install and daemon commands", () => {
         const timer = setTimeout(() => {
           child?.kill("SIGKILL");
           reject(new Error("mount-loss supervisor test timed out"));
-        }, 5_000);
+        }, 8_000);
         child?.once("error", (error) => {
           clearTimeout(timer);
           reject(error);
@@ -557,7 +562,7 @@ describe("cmux-tui install and daemon commands", () => {
       "#!/bin/sh",
       "trap ':' TERM INT HUP",
       ": > \"$CMUX_TEST_STATE/daemon-ready\"",
-      "while :; do :; done",
+      "while :; do sleep 0.05; done",
       "",
     ].join("\n"));
     chmodSync(daemonBinary, 0o755);
@@ -578,7 +583,7 @@ describe("cmux-tui install and daemon commands", () => {
         const timer = setTimeout(() => {
           child?.kill("SIGKILL");
           reject(new Error("unresponsive daemon shutdown timed out"));
-        }, 5_000);
+        }, 8_000);
         child?.once("error", (error) => {
           clearTimeout(timer);
           reject(error);
@@ -631,7 +636,7 @@ describe("cmux-tui install and daemon commands", () => {
       "#!/bin/sh",
       "trap ': > \"$CMUX_TEST_STATE/daemon-term\"; exit 0' TERM INT HUP",
       ": > \"$CMUX_TEST_STATE/daemon-ready\"",
-      "while :; do :; done",
+      "while :; do sleep 0.05; done",
       "",
     ].join("\n"));
     chmodSync(daemonBinary, 0o755);
@@ -652,7 +657,7 @@ describe("cmux-tui install and daemon commands", () => {
         const timer = setTimeout(() => {
           child?.kill("SIGKILL");
           reject(new Error("backing-loss supervisor test timed out"));
-        }, 5_000);
+        }, 8_000);
         child?.once("error", (error) => {
           clearTimeout(timer);
           reject(error);
@@ -688,7 +693,7 @@ describe("cmux-tui install and daemon commands", () => {
     writeExecutable("mountpoint", [
       "#!/bin/sh",
       "path=\"$2\"",
-      "if [ \"$path\" = \"$CMUX_TEST_BACKING\" ]; then [ ! -e \"$CMUX_TEST_STATE/backing-unmounted\" ]; exit $?; fi",
+      "if [ \"$path\" = \"$CMUX_TEST_BACKING\" ]; then if [ -e \"$CMUX_TEST_STATE/daemon-ready\" ]; then : > \"$CMUX_TEST_STATE/fallback-watch-ready\"; fi; [ ! -e \"$CMUX_TEST_STATE/backing-unmounted\" ]; exit $?; fi",
       "exit 1",
       "",
     ].join("\n"));
@@ -699,7 +704,7 @@ describe("cmux-tui install and daemon commands", () => {
       "#!/bin/sh",
       "trap ': > \"$CMUX_TEST_STATE/daemon-term\"; exit 0' TERM INT HUP",
       ": > \"$CMUX_TEST_STATE/daemon-ready\"",
-      "while :; do :; done",
+      "while :; do sleep 0.05; done",
       "",
     ].join("\n"));
     chmodSync(daemonBinary, 0o755);
@@ -721,7 +726,11 @@ describe("cmux-tui install and daemon commands", () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       expect(existsSync(join(state, "daemon-ready"))).toBe(true);
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      const watcherDeadline = Date.now() + 2_000;
+      while (!existsSync(join(state, "fallback-watch-ready")) && Date.now() < watcherDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(existsSync(join(state, "fallback-watch-ready"))).toBe(true);
       // Missing findmnt must select a bounded direct mount check, not signal the
       // supervisor before the daemon has a chance to serve the mounted home.
       expect(child.exitCode).toBeNull();
@@ -760,6 +769,46 @@ describe("cmux-tui install and daemon commands", () => {
 });
 
 describe("enrollment invitation parsing", () => {
+  test("one provider command waits locally for the claim and approves it", () => {
+    const command = cmuxTuiApproveWaitCommand("inv_abc-123");
+    expect(command).toContain("while [ \"$cmux_approve_attempt\" -lt 120 ]");
+    expect(command).toContain("remote enroll approve 'inv_abc-123' --session cloud --json");
+    expect(command).toContain("sleep 0.25");
+    expect(() => cmuxTuiApproveWaitCommand("bad; rm -rf /")).toThrow(/unexpected shape/);
+  });
+
+  test("the one provider command retries only inside the VM", () => {
+    const root = mkdtempSync(join(tmpdir(), "cmux-approve-wait-"));
+    const binary = join(root, "cmux-tui");
+    const count = join(root, "count");
+    try {
+      writeFileSync(binary, [
+        "#!/bin/sh",
+        "n=$(cat \"$CMUX_APPROVE_COUNT\" 2>/dev/null || printf 0)",
+        "n=$((n + 1))",
+        "printf '%s' \"$n\" > \"$CMUX_APPROVE_COUNT\"",
+        "[ \"$n\" -ge 3 ] || exit 1",
+        "printf '%s\\n' '{\"fingerprint\":\"fp-approved\"}'",
+        "",
+      ].join("\n"));
+      chmodSync(binary, 0o755);
+      const command = cmuxTuiApproveWaitCommand("inv-abc", {
+        binaryPath: binary,
+        attempts: 4,
+        delaySeconds: 0.01,
+      });
+      const result = spawnSync("/bin/sh", ["-c", command], {
+        env: { ...process.env, CMUX_APPROVE_COUNT: count },
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout.trim()).toBe('{"fingerprint":"fp-approved"}');
+      expect(readFileSync(count, "utf8")).toBe("3");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("extracts the id and expiry the approve flow needs", () => {
     const payload = {
       version: 1,
@@ -786,5 +835,113 @@ describe("enrollment invitation parsing", () => {
     expect(() => parseEnrollmentInvitationUri("cmux://enroll/!!!")).toThrow(/undecodable|id or expiry/);
     const missing = `cmux://enroll/${Buffer.from(JSON.stringify({ version: 1 })).toString("base64url")}`;
     expect(() => parseEnrollmentInvitationUri(missing)).toThrow(/id or expiry/);
+  });
+});
+
+describe("cmux-tui attach bundle", () => {
+  const stdoutFor = (probe: string, devices: string, invite: string) =>
+    ["__CMUX_PROBE__", probe, "__CMUX_DEVICES__", devices, "__CMUX_INVITE__", invite, "__CMUX_END__", ""].join("\n");
+  const invitation = `cmux://enroll/${Buffer.from(JSON.stringify({ id: "inv-abc", expires_at_unix: 1900000000 })).toString("base64url")}`;
+
+  const runBundle = (readyGate: string, deviceFingerprint?: string) => {
+    const root = mkdtempSync(join(tmpdir(), "cmux-tui-attach-bundle-"));
+    const binary = join(root, "cmux-tui");
+    const callsPath = join(root, "calls");
+    writeFileSync(binary, [
+      "#!/bin/sh",
+      "printf '%s\\n' \"$*\" >> \"$CMUX_TEST_CALLS\"",
+      "case \"$*\" in",
+      `  'remote-probe --json') printf '%s\\n' '{"build_identity":"abc123","remote_protocol":12,"version":"0.13.0"}' ;;`,
+      `  'remote enroll devices --session cloud --json') printf '%s\\n' '[{"fingerprint":"fp-1","revoked_at_unix":null}]' ;;`,
+      `  'remote enroll create --session cloud --ttl 300 --json') printf '%s\\n' '${JSON.stringify({ uri: invitation })}' ;;`,
+      "  *) exit 64 ;;",
+      "esac",
+      "",
+    ].join("\n"));
+    chmodSync(binary, 0o755);
+    try {
+      const result = spawnSync("/bin/sh", ["-c", cmuxTuiAttachBundleCommand({ readyGate, deviceFingerprint, binary })], {
+        encoding: "utf8",
+        env: { ...process.env, CMUX_TEST_CALLS: callsPath },
+        timeout: 5_000,
+      });
+      expect(result.error).toBeUndefined();
+      return {
+        status: result.status,
+        stdout: result.stdout,
+        calls: existsSync(callsPath) ? readFileSync(callsPath, "utf8").trim().split("\n") : [],
+      };
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  test("a successful readiness exit continues with the complete attach bundle", () => {
+    const result = runBundle("exit 0", "fp-new");
+    expect(result.status).toBe(0);
+    expect(result.calls).toEqual([
+      "remote-probe --json",
+      "remote enroll devices --session cloud --json",
+      "remote enroll create --session cloud --ttl 300 --json",
+    ]);
+    const bundle = parseCmuxTuiAttachBundle(result.stdout, "freestyle", "vm-1", "fp-new");
+    expect(bundle.daemonBuild).toEqual({ commit: "abc123", remoteProtocol: 12, version: "0.13.0" });
+    expect(bundle.enrolled).toBe(false);
+    expect(bundle.invitation?.invitationId).toBe("inv-abc");
+  });
+
+  test("a failed readiness exit returns the repair signal without calling the daemon", () => {
+    const result = runBundle("exit 1");
+    expect(result.status).toBe(3);
+    expect(result.calls).toEqual([]);
+    expect(result.stdout).toBe("");
+  });
+
+  test("an enrolled device passes the readiness exit without minting an invitation", () => {
+    const result = runBundle("exit 0", "fp-1");
+    expect(result.status).toBe(0);
+    expect(result.calls).toEqual([
+      "remote-probe --json",
+      "remote enroll devices --session cloud --json",
+    ]);
+    const bundle = parseCmuxTuiAttachBundle(result.stdout, "freestyle", "vm-1", "fp-1");
+    expect(bundle.enrolled).toBe(true);
+    expect(bundle.invitation).toBeNull();
+  });
+
+  test("rejects a malformed device fingerprint", () => {
+    expect(() => cmuxTuiAttachBundleCommand({ deviceFingerprint: "bad fp; rm -rf /" })).toThrow("unexpected shape");
+  });
+
+  test("parses build, enrollment, and invitation from the fenced output", () => {
+    const parsed = parseCmuxTuiAttachBundle(
+      stdoutFor(
+        JSON.stringify({ build_identity: "abc123", remote_protocol: 12, version: "0.13.0" }),
+        JSON.stringify([{ fingerprint: "fp-2", revoked_at_unix: null }]),
+        JSON.stringify({ uri: invitation }),
+      ),
+      "freestyle",
+      "vm-1",
+      "fp-1",
+    );
+    expect(parsed.daemonBuild).toEqual({ commit: "abc123", remoteProtocol: 12, version: "0.13.0" });
+    expect(parsed.enrolled).toBe(false);
+    expect(parsed.invitation?.invitationId).toBe("inv-abc");
+  });
+
+  test("an enrolled, unrevoked fingerprint needs no invitation; a revoked one does", () => {
+    const enrolled = parseCmuxTuiAttachBundle(
+      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: null }]), ""),
+      "freestyle", "vm-1", "fp-1",
+    );
+    expect(enrolled.enrolled).toBe(true);
+    expect(enrolled.invitation).toBeNull();
+    expect(enrolled.daemonBuild).toBeNull();
+    const revoked = parseCmuxTuiAttachBundle(
+      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: 1 }]), ""),
+      "freestyle", "vm-1", "fp-1",
+    );
+    expect(revoked.enrolled).toBe(false);
+    expect(revoked.invitation).toBeNull();
   });
 });
