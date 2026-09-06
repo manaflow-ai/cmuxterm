@@ -126,6 +126,10 @@ struct CachedAgentProcessIdentityValidator: Sendable {
             case .persistedStore:
                 // Hermes is validated in the dedicated branch above.
                 observedSessionID = nil
+            case .cmuxHookStore:
+                // Hook-store registrations carry their canonical identity in
+                // the hook record; an exported process identity is optional.
+                observedSessionID = authoritativeEnvironmentSessionID
             }
             guard let observedSessionID else {
                 if case .cmuxHookStore = registration.sessionIdSource {
