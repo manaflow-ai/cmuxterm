@@ -90,6 +90,14 @@ actor CloudMachineLink {
         let session: String
     }
 
+    /// The first thing the link process tells us: a socket line, stdout closing
+    /// without one, or the connect deadline passing.
+    private enum LinkFirstLine: Sendable {
+        case socket(String)
+        case ended
+        case timedOut
+    }
+
     enum LinkError: Error, LocalizedError {
         case clientMissing
         case spawnFailed(String)
@@ -151,7 +159,6 @@ actor CloudMachineLink {
     private var eventsRecoveryTask: Task<Void, Never>?
     private var eventsStabilityTask: Task<Void, Never>?
     private var eventsRecoveryPhase: EventsRecoveryPhase = .healthy
-    private var inviteFileURL: URL?
     private var stderrTail: [String] = []
     /// Releases this link's claim on the app's WireGuard hub; runs once when the link ends.
     private var releaseHubLease: (@Sendable () async -> Void)?
@@ -180,13 +187,15 @@ actor CloudMachineLink {
 
     /// Spawns the headless client against `route` and waits for its local socket.
     ///
-    /// `wireguardHubSocket` routes the client through the app's WireGuard hub for a
-    /// machine on the private network; `releaseHubLease` is called exactly once when the
-    /// link ends (disconnect, exit, or a failed connect), so the hub can idle out.
+    /// `carrier` dials the machine's trusted listener with no enrollment; false presents
+    /// the stored device key instead. `wireguardHubSocket` routes the client through the
+    /// app's WireGuard hub for a machine on the private network; `releaseHubLease` is
+    /// called exactly once when the link ends (disconnect, exit, or a failed connect), so
+    /// the hub can idle out.
     func connect(
         route: String,
         session: String,
-        invitationURI: String?,
+        carrier: Bool = false,
         timeout: Duration = .seconds(60),
         wireguardHubSocket: String? = nil,
         releaseHubLease: (@Sendable () async -> Void)? = nil
@@ -199,22 +208,13 @@ actor CloudMachineLink {
         eventsCursor = nil
         resetEventsRecovery()
         try paths.ensureStateDir()
-        var inviteFilePath: String?
-        if let invitationURI, !invitationURI.isEmpty {
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("cmux-cloud-link-invite-\(UUID().uuidString.lowercased())")
-            try (invitationURI + "\n").data(using: .utf8)!.write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-            inviteFileURL = url
-            inviteFilePath = url.path
-        }
         let process = Process()
         process.executableURL = clientURL
         process.arguments = CloudTuiCommandLine.linkArguments(
             route: route,
             deviceName: CloudTuiClientPaths.deviceName(),
             stateDir: paths.stateDir.path,
-            inviteFilePath: inviteFilePath,
+            carrier: carrier,
             wireguardHubSocket: wireguardHubSocket
         )
         var environment = ProcessInfo.processInfo.environment
@@ -238,7 +238,6 @@ actor CloudMachineLink {
         } catch {
             state = .error
             lastError = Self.errorText(error)
-            removeInviteFile()
             await releaseHubLeaseOnce()
             throw LinkError.spawnFailed(error.localizedDescription)
         }
@@ -261,17 +260,28 @@ actor CloudMachineLink {
         }
         let socketPath: String
         do {
-            socketPath = try await withThrowingTaskGroup(of: String?.self) { group in
-                group.addTask { await firstSocket.result }
+            socketPath = try await withThrowingTaskGroup(of: LinkFirstLine.self) { group in
+                group.addTask { (await firstSocket.result).map(LinkFirstLine.socket) ?? .ended }
                 group.addTask {
                     try await Task.sleep(for: timeout)
-                    return nil
+                    return .timedOut
                 }
                 defer { group.cancelAll() }
-                guard let first = try await group.next(), let socket = first else {
+                switch try await group.next() {
+                case .socket(let socket)?:
+                    return socket
+                case .ended?:
+                    // stdout closed before a socket line: the client exited (an older
+                    // client rejecting a flag, a refused dial). Report that exit and its
+                    // stderr, not the deadline it never reached.
+                    await Self.terminateAndWait(process, exit: processExit)
+                    throw LinkError.exited(
+                        status: process.terminationStatus,
+                        output: stderrTail.joined(separator: "\n")
+                    )
+                case .timedOut?, nil:
                     throw LinkError.timedOut
                 }
-                return socket
             }
             guard process.isRunning else {
                 throw LinkError.exited(status: process.terminationStatus, output: stderrTail.joined(separator: "\n"))
@@ -279,7 +289,6 @@ actor CloudMachineLink {
         } catch {
             state = .error
             lastError = Self.errorText(error)
-            removeInviteFile()
             await Self.terminateAndWait(process, exit: processExit)
             if self.process === process {
                 self.process = nil
@@ -306,7 +315,6 @@ actor CloudMachineLink {
         eventsRecoveryPhase = .healthy
         state = .unavailable
         connected = nil
-        removeInviteFile()
         changesContinuation.finish()
         if let eventsProcess, let eventsProcessExit {
             await Self.terminateAndWait(eventsProcess, exit: eventsProcessExit)
@@ -714,7 +722,6 @@ actor CloudMachineLink {
         process = nil
         processExit = nil
         connected = nil
-        removeInviteFile()
         if state != .unavailable {
             state = status == 0 ? .unavailable : .error
             lastError = status == 0 ? nil : LinkError.exited(status: status, output: stderrTail.joined(separator: "\n")).errorDescription
@@ -806,12 +813,6 @@ actor CloudMachineLink {
         return try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 
-    private func removeInviteFile() {
-        if let inviteFileURL {
-            try? FileManager.default.removeItem(at: inviteFileURL)
-            self.inviteFileURL = nil
-        }
-    }
 }
 
 private enum CloudLinkCommandOutcome: Sendable, Equatable {

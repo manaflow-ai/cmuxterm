@@ -7104,8 +7104,6 @@ struct CMUXCLI {
             try runVMPtyAttach(commandArgs: commandArgs, client: client)
         case "vm-tui-connect":
             try runVMTuiConnect(commandArgs: commandArgs, client: client)
-        case "vm-tui-approve":
-            try runVMTuiApprove(commandArgs: commandArgs, client: client)
         case "vm-ssh-attach":
             // Hidden compatibility alias for workspaces created before the split helper was
             // nested under `cmux vm`.
@@ -13299,7 +13297,7 @@ struct CMUXCLI {
             "window_id": opened.windowId ?? NSNull(),
             "transport": "cmux-remote",
             "session": opened.session,
-            "enrolling": opened.enrolling,
+            "trusted_carrier": opened.trustedCarrier,
             "terminal_id": opened.terminalId ?? NSNull(),
             "remote_workspace_id": opened.remoteWorkspaceId ?? NSNull(),
             "surface_id": opened.terminalSurfaceId ?? NSNull(),
