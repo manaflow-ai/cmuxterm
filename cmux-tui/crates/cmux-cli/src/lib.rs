@@ -1756,12 +1756,18 @@ fn context_params(
     options: &GlobalOptions,
 ) -> Result<serde_json::Map<String, Value>, CliError> {
     let mut params = serde_json::Map::new();
-    let workspace_raw =
-        option_value(arguments, "--workspace").or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
+    let explicit_window = option_value(arguments, "--window").or_else(|| options.window.clone());
+    let workspace_raw = option_value(arguments, "--workspace").or_else(|| {
+        explicit_window.is_none().then(|| env::var("CMUX_WORKSPACE_ID").ok()).flatten()
+    });
     let surface_raw = option_value(arguments, "--surface")
         .or_else(|| option_value(arguments, "--panel"))
-        .or_else(|| env::var("CMUX_SURFACE_ID").ok());
-    let window = option_value(arguments, "--window").or_else(|| options.window.clone());
+        .or_else(|| {
+            (option_value(arguments, "--workspace").is_none() && explicit_window.is_none())
+                .then(|| env::var("CMUX_SURFACE_ID").ok())
+                .flatten()
+        });
+    let window = explicit_window;
     let window =
         window.map(|value| resolve_handle(&value, "window", options, None, None)).transpose()?;
     if let Some(window) = window.as_deref() {
