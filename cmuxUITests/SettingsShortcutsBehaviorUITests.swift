@@ -240,6 +240,28 @@ final class SettingsShortcutsBehaviorUITests: SettingsUITestCase {
         )
     }
 
+    func testSidebarSelectionTracksDetailScroll() {
+        let app = makeLaunchedApp()
+        let window = openSettings(app)
+        defer { closeSettings(app, window) }
+
+        let account = window.cells.containing(.staticText, identifier: "Account").firstMatch
+        let keyboardShortcuts = window.cells.containing(.staticText, identifier: "Keyboard Shortcuts").firstMatch
+        let detail = window.scrollViews["SettingsDetailScrollView"]
+
+        XCTAssertTrue(poll(timeout: 5.0) { account.exists && account.isSelected })
+        XCTAssertTrue(detail.waitForExistence(timeout: 5.0))
+
+        for _ in 0..<7 {
+            detail.swipeUp()
+        }
+
+        XCTAssertTrue(
+            poll(timeout: 5.0) { keyboardShortcuts.exists && keyboardShortcuts.isSelected },
+            "Keyboard Shortcuts should become the selected ToC section after scrolling the detail"
+        )
+    }
+
     // MARK: - Helpers
 
     /// Returns true when the recorder element's label or value contains

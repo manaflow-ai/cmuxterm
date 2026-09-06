@@ -354,6 +354,7 @@ public struct SettingsWindowRoot: View {
                     .padding(.top, 20)
                     .padding(.bottom, 20)
                 }
+                .accessibilityIdentifier("SettingsDetailScrollView")
                 .coordinateSpace(name: SettingsSectionScrollTracking.coordinateSpace)
                 .toggleStyle(.switch)
                 .onAppear {
