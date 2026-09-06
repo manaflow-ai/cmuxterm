@@ -7227,7 +7227,7 @@ struct CMUXCLI {
             )
 
         case "restore":
-            try runAsyncBlocking {
+            try runAsyncBlocking { [client] in
                 try await runRestoreCommand(
                     commandArgs: commandArgs,
                     client: client,

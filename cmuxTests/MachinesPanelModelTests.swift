@@ -467,7 +467,7 @@ final class MachinesPanelModelTests: XCTestCase {
         // Port rows: the sidebar side of `cmux vm open <m>:port/<n>` — the same
         // `<m>/browser/port:<n>` resource, so click and CLI open one catalog entry.
         let portRows = Dictionary(CloudTreeNodeBuilder.flattened(nodes).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        if case .port(let resource) = portRows["resource:vivid-newt/browser/port:3000"]!.kind {
+        if case .port(let resource, _, _) = portRows["resource:vivid-newt/browser/port:3000"]!.kind {
             XCTAssertEqual(resource.port, 3000)
             XCTAssertEqual(resource.id, port.id)
         } else { XCTFail("expected a port row") }

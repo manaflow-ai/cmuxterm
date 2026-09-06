@@ -198,7 +198,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Selects the workspace used by a new terminal when the caller did not
     /// provide an explicit workspace. Focus wins; otherwise daemon order is
     /// stable and independent of the order in which catalog rows arrived.
-    static func preferredWorkspace(_ workspaces: [SurfaceRemoteWorkspace]) -> SurfaceRemoteWorkspace? {
+    nonisolated static func preferredWorkspace(_ workspaces: [SurfaceRemoteWorkspace]) -> SurfaceRemoteWorkspace? {
         workspaces.sorted {
             if $0.focused != $1.focused { return $0.focused && !$1.focused }
             if $0.index != $1.index { return $0.index < $1.index }
@@ -208,7 +208,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     /// Name used when a machine has no workspace and the first terminal needs
     /// to create one.
-    static let firstWorkspaceName = "main"
+    nonisolated static let firstWorkspaceName = "main"
 
     enum ProviderError: Error, LocalizedError {
         case notSignedIn
