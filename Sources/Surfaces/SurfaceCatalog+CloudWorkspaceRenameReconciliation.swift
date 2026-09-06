@@ -297,14 +297,12 @@ extension SurfaceCatalog {
             resources: mergedResources
         )
 
-        for id in resourceIDsByMachine[machine] ?? [] { resources[id] = nil }
-        resourceIDsByMachine[machine] = nil
         for resource in mergedResources {
             precondition(resource.machine == machine, "resource \(resource.id) reported by the wrong provider")
-            resources[resource.id] = resource
-            resourceIDsByMachine[machine, default: []].insert(resource.id)
         }
-        machines[machine] = mergedInfo
+        guard replaceResources(mergedResources, on: machine, info: mergedInfo, from: source) else {
+            return false
+        }
         state.canonicalInfos[machine] = mergedInfo
         if let cursor {
             state.cursors[machine] = cursor
@@ -312,8 +310,6 @@ extension SurfaceCatalog {
             state.seenGenerations[machine, default: []].insert(cursor.generation)
             state.fingerprints[machine] = (cursor: cursor, value: acceptedFingerprint)
         }
-        resolvePendingRestoredProjections(on: machine)
-        notifyChange()
         return true
     }
 
