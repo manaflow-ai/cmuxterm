@@ -2490,6 +2490,7 @@ class TabManager: ObservableObject {
         sidebarGitMetadataService.resetAllWorkspaceGitProbeTracking()
 
         for workspace in closingWorkspaces {
+            recordVaultHistoryWorkspaceClosed(workspace)
             finalizeWorkspaceForRemoval(workspace, clearsWorkspaceGitProbes: false)
         }
 

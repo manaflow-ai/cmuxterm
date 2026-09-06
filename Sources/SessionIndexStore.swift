@@ -3,6 +3,7 @@ import AppKit
 import Bonsplit
 import CMUXAgentLaunch
 import Combine
+import CmuxAgentSessionStore
 import Darwin
 import Foundation
 import os
@@ -144,10 +145,9 @@ struct IndexSection: Identifiable, Equatable {
     /// This is a presentation snapshot supplied by `SessionIndexView`; the
     /// store itself remains independent of the tab manager.
     let activeEntryIDs: Set<String>
-    /// Extra per-row display facts (live status, folder/branch detail) keyed
-    /// by `SessionEntry.id`. Populated for Recent projections, including
-    /// Recent search results; Agent and Folder sections keep their compact row
-    /// treatment.
+    /// Extra per-row display facts (live status and folder/branch detail)
+    /// keyed by `SessionEntry.id`. Every grouping gets the same accessory so
+    /// Recent, Agent, Folder, and search projections stay visually aligned.
     let accessories: [String: VaultSessionRowAccessory]
 
     init(
@@ -200,6 +200,9 @@ struct DirectorySnapshot: Sendable {
 @MainActor
 final class SessionIndexStore: ObservableObject {
     private let snapshotLoader: SessionIndexSnapshotLoader
+    // Shared with the search extension so every Vault path uses the same
+    // injected repository and its actor-backed source cache.
+    let ampSessionRepository: any AmpHookSessionReading
 
     @Published private(set) var entries: [SessionEntry] = [] {
         didSet {
@@ -244,8 +247,9 @@ final class SessionIndexStore: ObservableObject {
             case .agent:
                 backfillAgentOrderFromEntries()
             case .recency:
-                refreshLiveSessionKeys()
+                break
             }
+            refreshLiveSessionKeys()
         }
     }
 
@@ -267,7 +271,7 @@ final class SessionIndexStore: ObservableObject {
     }
 
     /// Join keys of sessions with a currently-running agent process. Refreshed
-    /// on reload and on entering the recency grouping — no timers.
+    /// on reload and on grouping changes — no timers.
     @Published private(set) var liveSessionKeys: Set<String> = []
 
     /// Persisted order for agent sections.
@@ -297,8 +301,12 @@ final class SessionIndexStore: ObservableObject {
     private var cachedSections: [IndexSection] = []
     private var liveIndexObserver: NSObjectProtocol? = nil
 
-    init(snapshotLoader: SessionIndexSnapshotLoader = SessionIndexSnapshotLoader()) {
+    init(
+        snapshotLoader: SessionIndexSnapshotLoader = SessionIndexSnapshotLoader(),
+        ampSessionRepository: any AmpHookSessionReading = AmpHookSessionRepository()
+    ) {
         self.snapshotLoader = snapshotLoader
+        self.ampSessionRepository = ampSessionRepository
         self.agentOrder = Self.loadAgentOrder()
         self.directoryOrder = Self.loadDirectoryOrder()
         let storedGrouping = UserDefaults.standard.string(forKey: Self.groupingKey)
@@ -387,13 +395,19 @@ final class SessionIndexStore: ObservableObject {
                     : lhsLatest > rhsLatest
             }
             let orderedAgents = agentOrder + unknownAgents
+            let now = Date()
             sections = orderedAgents.compactMap { agent in
                 guard let entries = buckets[agent.rawValue], !entries.isEmpty else { return nil }
                 return IndexSection(
                     key: .agent(agent),
                     title: agent.displayName,
                     icon: .agent(agent),
-                    entries: entries
+                    entries: entries,
+                    accessories: VaultRecencySections.accessories(
+                        for: entries,
+                        liveKeys: liveSessionKeys,
+                        now: now
+                    )
                 )
             }
         case .directory:
@@ -413,16 +427,23 @@ final class SessionIndexStore: ObservableObject {
                     let rMax = buckets[rhs]?.map(\.modified).max() ?? .distantPast
                     return lMax == rMax ? lhs < rhs : lMax > rMax
                 }
+            let now = Date()
             sections = (directoryOrder + unknownSorted)
                 .filter { buckets[$0] != nil }
                 .map { path in
-                    IndexSection(
+                    let entries = buckets[path] ?? []
+                    return IndexSection(
                         key: .directory(path.isEmpty ? nil : path),
                         title: directoryDisplayName(path),
                         icon: .folder,
-                        entries: buckets[path] ?? []
-                )
-            }
+                        entries: entries,
+                        accessories: VaultRecencySections.accessories(
+                            for: entries,
+                            liveKeys: liveSessionKeys,
+                            now: now
+                        )
+                    )
+                }
         }
         return sections
     }
@@ -691,8 +712,11 @@ final class SessionIndexStore: ObservableObject {
         directorySnapshotGeneration += 1
         invalidateDirectorySnapshots()
         let snapshotLoader = self.snapshotLoader
+        let ampSessionRepository = self.ampSessionRepository
         let task = Task { @MainActor [weak self] in
-            let scanned = await snapshotLoader.load()
+            let scanned = await snapshotLoader.load(
+                ampSessionRepository: ampSessionRepository
+            )
             guard let self,
                   !Task.isCancelled,
                   self.loadGeneration == generation else {
@@ -757,6 +781,7 @@ final class SessionIndexStore: ObservableObject {
         let merged = await Self.loadAgents(
             order.agents,
             registry: order.registry,
+            ampSessionRepository: ampSessionRepository,
             needle: "",
             cwdFilter: cwdFilter,
             offset: 0,
@@ -834,7 +859,9 @@ final class SessionIndexStore: ObservableObject {
 #else
     @Sendable
 #endif
-    nonisolated static func loadInitialEntries() async -> [SessionEntry] {
+    nonisolated static func loadInitialEntries(
+        ampSessionRepository: any AmpHookSessionReading
+    ) async -> [SessionEntry] {
         // Initial scan errors are silently ignored — UI just shows the cached
         // entries we did get. Errors get surfaced when the user actively
         // searches via the popover.
@@ -843,6 +870,7 @@ final class SessionIndexStore: ObservableObject {
         let combined = await loadAgents(
             order.agents,
             registry: order.registry,
+            ampSessionRepository: ampSessionRepository,
             needle: "",
             cwdFilter: nil,
             offset: 0,
@@ -1423,7 +1451,8 @@ final class SessionIndexStore: ObservableObject {
             }
             return await Self.searchAgent(
                 needle: needle, agent: a, cwdFilter: cwdFilter,
-                offset: 0, limit: limit, errorBag: bag, registry: registry
+                offset: 0, limit: limit, errorBag: bag, registry: registry,
+                ampSessionRepository: ampSessionRepository
             )
         case .directory(let path):
             let noFolderScope = (path == nil) || ((path ?? "").isEmpty)
@@ -1434,6 +1463,7 @@ final class SessionIndexStore: ObservableObject {
             let merged = await Self.loadAgents(
                 order.agents,
                 registry: order.registry,
+                ampSessionRepository: ampSessionRepository,
                 needle: needle,
                 cwdFilter: cwdFilter,
                 offset: 0,
@@ -1452,6 +1482,7 @@ final class SessionIndexStore: ObservableObject {
     nonisolated private static func loadAgents(
         _ agents: [SessionAgent],
         registry: CmuxVaultAgentRegistry,
+        ampSessionRepository: any AmpHookSessionReading,
         needle: String,
         cwdFilter: String?,
         offset: Int,
@@ -1468,7 +1499,8 @@ final class SessionIndexStore: ObservableObject {
                         offset: offset,
                         limit: limit,
                         errorBag: errorBag,
-                        registry: registry
+                        registry: registry,
+                        ampSessionRepository: ampSessionRepository
                     )
                 }
             }
@@ -1483,7 +1515,8 @@ final class SessionIndexStore: ObservableObject {
     nonisolated private static func timedAgent(
         needle: String, agent: SessionAgent, cwdFilter: String?,
         offset: Int, limit: Int, errorBag: ErrorBag,
-        registry: CmuxVaultAgentRegistry
+        registry: CmuxVaultAgentRegistry,
+        ampSessionRepository: any AmpHookSessionReading
     ) async -> [SessionEntry] {
         #if DEBUG
         let start = ProcessInfo.processInfo.systemUptime
@@ -1494,7 +1527,8 @@ final class SessionIndexStore: ObservableObject {
             offset: offset,
             limit: limit,
             errorBag: errorBag,
-            registry: registry
+            registry: registry,
+            ampSessionRepository: ampSessionRepository
         )
         let ms = (ProcessInfo.processInfo.systemUptime - start) * 1000
         cmuxDebugLog("session.search.agent agent=\(agent.rawValue) ms=\(String(format: "%.0f", ms)) results=\(result.count) cwd=\(cwdFilter?.suffix(40) ?? "nil")")
@@ -1507,7 +1541,8 @@ final class SessionIndexStore: ObservableObject {
             offset: offset,
             limit: limit,
             errorBag: errorBag,
-            registry: registry
+            registry: registry,
+            ampSessionRepository: ampSessionRepository
         )
         #endif
     }
@@ -1520,7 +1555,8 @@ final class SessionIndexStore: ObservableObject {
     nonisolated static func searchAgent(
         needle: String, agent: SessionAgent, cwdFilter: String?,
         offset: Int, limit: Int, errorBag: ErrorBag,
-        registry: CmuxVaultAgentRegistry
+        registry: CmuxVaultAgentRegistry,
+        ampSessionRepository: any AmpHookSessionReading
     ) async -> [SessionEntry] {
         switch agent {
         case .claude: return await loadClaudeEntries(needle: needle, cwdFilter: cwdFilter, offset: offset, limit: limit)
@@ -1545,7 +1581,9 @@ final class SessionIndexStore: ObservableObject {
                 needle: needle,
                 cwdFilter: cwdFilter,
                 offset: offset,
-                limit: limit
+                limit: limit,
+                errorBag: errorBag,
+                ampSessionRepository: ampSessionRepository
             )
         }
     }
