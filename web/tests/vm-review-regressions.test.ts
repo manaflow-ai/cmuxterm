@@ -93,7 +93,7 @@ describe("VM review regressions", () => {
             operations += 1;
             return {
               transport: "cmux-remote", route: "ws://10.0.0.5:1337/v1/link", token: "test-token",
-              session: "test-session", expiresAtUnix: 2_000_000_000,
+              session: "test-session", expiresAtUnix: 2_000_000_000, trustedCarrier: true,
             };
           }),
         } as unknown as VmProviderGatewayShape;
