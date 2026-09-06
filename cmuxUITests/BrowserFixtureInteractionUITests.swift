@@ -272,7 +272,7 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     // MARK: - Socket plumbing (mirrors AutomationSocketUITests)
 
     private func waitForSocketPong(timeout: TimeInterval) -> Bool {
-        waitForControlSocketReady(
+        let ready = waitForControlSocketReady(
             pingTimeout: timeout,
             socketFileExists: {
                 self.socketCandidates().contains { FileManager.default.fileExists(atPath: $0) }
@@ -288,6 +288,16 @@ class BrowserFixtureSocketTestCase: XCTestCase {
                 return false
             }
         )
+        if ready { return true }
+
+        let diagnostics = loadDiagnostics()
+        guard controlSocketDiagnosticsReportReady(diagnostics),
+              let expectedPath = diagnostics["socketExpectedPath"],
+              socketCandidates().contains(expectedPath) else {
+            return false
+        }
+        socketPath = expectedPath
+        return true
     }
 
     private func socketCandidates() -> [String] {
