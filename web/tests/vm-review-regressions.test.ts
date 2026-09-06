@@ -7,7 +7,8 @@ import { closeCloudDbForTests } from "../db/client";
 import { maxActiveVmsForPlan } from "../services/vms/entitlements";
 import { VmRepository, VmRepositoryLive } from "../services/vms/repository";
 import { VmProviderGateway, type VmProviderGatewayShape } from "../services/vms/providerGateway";
-import { execVm, resizeVm } from "../services/vms/workflows";
+import { VmBillingGateway, noOpVmBillingGateway } from "../services/vms/billingGateway";
+import { execVm, resizeVm, openVmCmuxRemote, openAttachEndpoint, openVmPort, openVmSession, forkVm } from "../services/vms/workflows";
 
 const serialTest = (test as typeof test & { serial: typeof test }).serial;
 const dbTest = process.env.CMUX_DB_TEST === "1" ? serialTest : test.skip;
@@ -52,7 +53,7 @@ describe("VM review regressions", () => {
     expect(count?.count).toBe(1);
   }));
 
-  for (const operation of ["resize", "exec"] as const) {
+  for (const operation of ["resize", "exec", "cmux-remote", "attach", "port", "session", "fork"] as const) {
     for (const allowance of [maxActiveVmsForPlan("team", {}, { seats: 4 }), null, 50]) {
       dbTest(`${operation} resumes a paused Team VM using allowance ${allowance}`, () => withTeam(async team => {
         await sql`
@@ -78,6 +79,22 @@ describe("VM review regressions", () => {
             state: "awake", sampledAt: Date.now(), diskTotalMb: ++statsReads === 1 ? 32768 : 65536,
           })),
           resize: () => Effect.sync(() => { operations += 1; }),
+          openCmuxRemote: () => Effect.sync(() => {
+            operations += 1;
+            return { transport: "cmux-remote", route: "wss://vm.test/v1/link", token: "test", session: "cloud", expiresAtUnix: Date.now() / 1000 + 300 };
+          }),
+          openAttach: () => Effect.sync(() => {
+            operations += 1;
+            return { transport: "websocket", url: "wss://vm.test/pty", headers: {}, token: "test", sessionId: "session", attachmentId: "attachment", expiresAtUnix: Date.now() / 1000 + 300 };
+          }),
+          openPort: () => Effect.sync(() => {
+            operations += 1;
+            return { url: "https://vm.test", openUrl: "https://vm.test", token: "test" };
+          }),
+          fork: () => Effect.sync(() => {
+            operations += 1;
+            return { provider: "freestyle", providerVmId: providerVmId + "-fork", status: "running", image: "snapshot-test", createdAt: Date.now() };
+          }),
           exec: () => Effect.sync(() => {
             operations += 1;
             return { exitCode: 0, stdout: "ok", stderr: "" };
@@ -86,14 +103,22 @@ describe("VM review regressions", () => {
         const input = {
           userId: team, billingTeamId: team, billingPlanId: "team", callerPlanId: "team",
           teamIds: [team], providerVmId, maxActiveVms: allowance,
-          storageMb: 65536, command: "true", timeoutMs: 1000,
+          storageMb: 65536, command: "true", timeoutMs: 1000, port: 3000,
+          billingCustomerType: "team" as const,
         };
-        const program = operation === "resize"
-          ? resizeVm(input).pipe(Effect.asVoid)
-          : execVm(input).pipe(Effect.asVoid);
+        const programs = {
+          resize: () => resizeVm(input).pipe(Effect.asVoid),
+          exec: () => execVm(input).pipe(Effect.asVoid),
+          "cmux-remote": () => openVmCmuxRemote(input).pipe(Effect.asVoid),
+          attach: () => openAttachEndpoint(input).pipe(Effect.asVoid),
+          port: () => openVmPort(input).pipe(Effect.asVoid),
+          session: () => openVmSession(input).pipe(Effect.asVoid),
+          fork: () => forkVm(input).pipe(Effect.asVoid),
+        };
+        const program = programs[operation]();
         const result = await Effect.runPromise(program.pipe(
           Effect.either,
-          Effect.provide(Layer.mergeAll(VmRepositoryLive, Layer.succeed(VmProviderGateway, provider))),
+          Effect.provide(Layer.mergeAll(VmRepositoryLive, Layer.succeed(VmProviderGateway, provider), Layer.succeed(VmBillingGateway, noOpVmBillingGateway()))),
         ));
         if (allowance === 50) {
           expect(result._tag).toBe("Left");
