@@ -99,8 +99,10 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
                 }
                 try Task.checkCancellation()
                 try await session.start()
-                try await installStoredDocumentScripts()
-                try await applyStoredColorScheme()
+                if case .running(nil) = await session.snapshot().state {
+                    try await installStoredDocumentScripts()
+                    try await applyStoredColorScheme()
+                }
                 if let initialURL {
                     try await session.navigate(to: initialURL)
                 }

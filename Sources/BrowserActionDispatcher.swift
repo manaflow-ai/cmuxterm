@@ -164,11 +164,12 @@ struct BrowserActionDispatcher {
                 engine: panel.engineKind,
                 websiteDataStore:
                     panel.explicitEphemeralWebsiteDataStoreForSibling,
-                focus: true
+                focus: false
             ),
             let splitPanel = dock.browserPanel(for: splitPanelId) else {
                 return false
             }
+            dock.focusPanelFromDockInteraction(splitPanelId, window: nil)
             _ = appDelegate.focusBrowserAddressBar(in: splitPanel)
             return true
         }

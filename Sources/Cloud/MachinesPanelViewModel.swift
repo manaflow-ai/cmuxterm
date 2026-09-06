@@ -458,15 +458,17 @@ final class MachinesPanelViewModel: ObservableObject {
     private var treeTask: Task<Void, Never>?
     private static let statsInterval: Duration = .seconds(20)
 
-    init(createCoordinator: MachineCreateCoordinator = .shared) {
+    init(createCoordinator: MachineCreateCoordinator? = nil) {
+        let createCoordinator = createCoordinator ?? .shared
         self.createCoordinator = createCoordinator
         pendingCreates = createCoordinator.operations
+        let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
             object: createCoordinator,
             queue: .main
         ) { [weak self] notification in
-            let finished = notification.userInfo?[MachineCreateCoordinator.finishedUserInfoKey] as? MachineCreateCoordinator.Finished
+            let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
             MainActor.assumeIsolated { self?.createsDidChange(finished: finished) }
         }
         authSignOutObserver = NotificationCenter.default.addObserver(
@@ -581,11 +583,13 @@ final class MachinesPanelViewModel: ObservableObject {
         refreshTree(force: forceTree)
     }
 
-    /// Samples every machine's CPU/memory/disk. Sleeping machines report
+    /// Samples every desktop machine's CPU/memory/disk. Sleeping machines report
     /// `asleep` without being woken, so polling never costs the user anything.
+    /// Shell-only (`base`) machines serve no stats endpoint (501 on every poll),
+    /// so they are left out rather than asked every cycle.
     func refreshStats() {
         statsTask?.cancel()
-        let ids = machines.map(\.id)
+        let ids = machines.filter(\.isDesktop).map(\.id)
         guard !ids.isEmpty else { return }
         statsTask = Task { [weak self] in
             await withTaskGroup(of: (String, VMStats?).self) { group in

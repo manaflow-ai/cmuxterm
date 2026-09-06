@@ -341,35 +341,41 @@ The rejected alternatives are explicit:
 ## Lease/auth integration with the attach-endpoint flow
 
 `POST /api/vm/[id]/attach-endpoint` returns
-`{transport:"cmux-remote", route, token, expiresAtUnix, session, invitation?}`.
+`{transport:"cmux-remote", route, token, expiresAtUnix, session, trustedCarrier}`.
 The route is a direct Freestyle private IPv4 address on port 1337 when available,
 then private IPv6 for machines with a VPC, or the machine's public IPv6 for legacy
 public-network machines.
 The provider route token is recorded as a hash in the lease ledger and is not
-used as daemon session authentication. The cmux-tui Noise handshake and the
-enrolled device key authenticate the session. Private-network machines are
-reachable only when the owner's WireGuard tunnel is active.
+used as daemon session authentication. Private-network machines are reachable
+only when the owner's WireGuard tunnel is active, and that reachability is the
+admission: the daemon's cloud listener runs in trusted-carrier mode
+(`--remote-ws-trusted-carrier`, or `CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1` from
+the driver's systemd drop-in), so every link that reaches it is granted carrier
+authentication keyed by the client's own key. There is no device enrollment,
+no invitation, and no approval on the cloud path. The Noise handshake still
+runs for encryption and key binding; only the authorization check changed.
+Every other transport on the same daemon (unix, ssh, relay, iroh) keeps the
+enrollment model, and plain network evidence on an untrusted listener is still
+refused, so the flag is a property of that one listener.
 
 - `route` is a `ws://[address]:1337/v1/link` endpoint. It must never be copied
   into a durable invitation or log. The route posture is read from the VM, so
   changing the private-network feature flag cannot strand an existing VM.
-- `invitation` is present only when this client device is not yet enrolled
-  with this VM's daemon. The endpoint execs `remote enroll create --ttl 300`
-  in the VM and returns the single-use `cmux://enroll/...` URI. The Mac claims
-  it through `remote connect --invite-file`; the control plane approves the
-  matching invitation through `/cmux-remote/approve`. Approval and device
-  enrollment are separate from the short-lived provider lease.
-- After first enrollment the device key lives in the Mac's client state and
-  reattach needs only a fresh route and a valid device key. Revocation removes
-  the control-plane lease row. Freestyle does not yet revoke the daemon device
-  record because the lease ledger does not persist the claimed device id. This
-  is an explicit security follow-up: persist the returned fingerprint/device id
-  per lease, then call `remote enroll revoke <device-id>` for exactly those rows.
-  Never revoke every device on a team VM when one member signs out.
+- `trustedCarrier` is true when the machine's daemon serves the trusted
+  listener; the Mac then dials `remote connect <route> --carrier`. The endpoint
+  brings a daemon from an older bake to the pinned build and restarts it with
+  the drop-in, except under a device that is already enrolled there (the
+  restart would end its sessions); that device keeps dialing with its stored
+  key, and `trustedCarrier` is false for it until the machine is restarted for
+  another reason.
+- Revocation is the private network's: deleting a Mac's WireGuard peer ends
+  every connection from it at once. `POST /cmux-remote/approve` remains as a
+  no-op that answers `approved` for older Mac builds and is deleted once they
+  have rolled.
 
-Per-VM daemon identity plus per-user device keys give cloud attach the same
-model as every other cmux-tui remote (ssh, iroh, relay), which is what makes
-the right-pane drag UX (below) uniform.
+The trusted listener is what gives cloud attach one trust layer: the private
+network. The right-pane drag UX (below) stays uniform because the daemon still
+names every connection by the client's key.
 
 ## macOS integration: manual IO instead of a PTY bridge
 
@@ -395,6 +401,29 @@ protocol, and `cmux-terminal-client` (today iroh-only, C-ABI) can later
 subsume the sidecar by adding `ws`/`wss` to its accepted schemes; the
 provider machinery it needs is already shared in `cmux-remote`.
 
+## macOS: private-network machines dial through one WireGuard hub
+
+A machine on the owner's private network is reachable only inside the VPC. The
+app does not require `cmux vpn up` for that: when the bundled client advertises
+`wireguard-hub` (`remote-probe --json`) and the route host is a literal address
+inside the tunnel's `AllowedIPs` (before enrollment, inside the RFC 1918 / RFC
+4193 private ranges), the link is spawned with `--wireguard-hub <socket>` and
+dials through `cmux-tui wg hub`, one process per app that owns the in-process
+WireGuard tunnel and serves SOCKS5 on `~/.cmuxterm/wireguard/hub-<pid>.sock`.
+Public hosts and older clients dial directly, exactly as before.
+
+The hub has its own tunnel identity (`VMTunnelManager.Identity.app`:
+`mac-<uuid>-app`, `app.key`, `cmux-app.conf`), never the `cmux vpn up` key,
+because one WireGuard key supports one live session. `CloudWireGuardHub` owns
+the lifecycle: the first link starts it (enroll, write config, spawn, wait for
+the socket to accept), links hold leases, and it stops 10 s after the last
+release. An unexpected exit while leased restarts it with 1/2/4/8/16 s backoff;
+the links' own reconnect loops then find the socket again. A `cmux vm tui` pane
+execs its own client the app cannot watch, so `vm.cmux_remote_info` pins the
+hub for the rest of the app session when it hands that pane a
+`wireguard_hub_socket`. Sign-out and revoke stop it; app termination kills it.
+`vm.tunnel_status` reports the hub under `app_tunnel`.
+
 ## Drag-from-right-pane UX
 
 The right pane gains a "terminals" catalog: for each known daemon
@@ -414,11 +443,9 @@ grid, matching current cmuxd-remote semantics.
 
 ## Rollout status
 
-The migration is complete for the active Freestyle path. New and restored
-machines install the pinned cmux-tui daemon, expose only `cmux-remote`, and
-use the manual-IO surface path. The old WebSocket PTY gateway and provider
-drivers are removed. Rollback means selecting the previous validated Freestyle
-snapshot in the image manifest, not switching to a second provider or daemon.
+Cloud machine opens now require the cmux-tui daemon. The app does not retry
+through public WebSocket or SSH transport when the private cmux-tui link fails.
+Provider migration must deploy cmux-tui before the provider is enabled for users.
 
 Remaining rollout work is operational: run authenticated preview and staging
 create/attach/browser-proxy smoke after each deployment, measure Vercel create

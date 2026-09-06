@@ -31,6 +31,8 @@ describe("Freestyle Cloud VM daemon repair", () => {
     const daemon = cmuxTuiDaemonCommand(`[::]:${CMUX_TUI_PORT}`);
     expect(daemon).toContain("server start --session cloud");
     expect(daemon).toContain(`--remote-ws [::]:${CMUX_TUI_PORT}`);
+    // The cloud listener is reachable only inside the owner's private network.
+    expect(daemon).toContain("--remote-ws-trusted-carrier");
     expect(daemon).toContain(CMUX_TUI_BINARY_PATH);
     expect(daemon).not.toContain("cmuxd-remote");
   });
@@ -63,9 +65,23 @@ describe("Freestyle Cloud VM daemon repair", () => {
     const start = freestyleStartDaemonCommand();
     expect(start).toContain("cmux-tui-daemon.service");
     expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337");
+    // Machines healed in place get trusted mode through the same drop-in; the
+    // daemon reads the env, so the baked launch line need not carry the flag.
+    expect(start).toContain("Environment=CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1");
     expect(start).toContain("systemctl daemon-reload");
     expect(start).toContain("systemctl restart cmux-tui-daemon");
     expect(start).toContain("--remote-ws [::]:1337");
+
+    // The default launcher keeps a daemon that already runs; the trusted-listener
+    // heal must replace it, or installing the pinned binary changes nothing for
+    // the live process and the retried bundle still reports an untrusted daemon.
+    expect(start).toContain("pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 ||");
+    expect(start).not.toContain("pkill");
+    const heal = freestyleStartDaemonCommand({ replaceExisting: true });
+    expect(heal).toContain("systemctl restart cmux-tui-daemon");
+    expect(heal).toContain("pkill -f 'cmux-tui server [s]tart'");
+    expect(heal).not.toContain("pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 ||");
+    expect(heal).toContain("--remote-ws-trusted-carrier");
 
     const pinCheck = cmuxTuiPinCheckCommand(SOURCE);
     expect(pinCheck).toContain(SOURCE.sha256);
