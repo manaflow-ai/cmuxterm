@@ -874,6 +874,9 @@ fn run_socket_v2_command(
     let mut params = if matches!(
         command,
         "new-workspace"
+            | "close-workspace"
+            | "select-workspace"
+            | "rename-workspace"
             | "auth"
             | "login"
             | "logout"
@@ -1061,6 +1064,7 @@ fn run_socket_v2_command(
                 params.insert("group_placement".into(), Value::String(placement));
             }
             if let Some(reference) = option_value(workspace_args, "--group-reference") {
+                let reference = resolve_handle(&reference, "workspace", &options, None, None)?;
                 params.insert("group_reference_workspace_id".into(), Value::String(reference));
             }
             if let Some(layout) = option_value(workspace_args, "--layout") {
@@ -1076,9 +1080,10 @@ fn run_socket_v2_command(
                 }
                 params.insert("layout".into(), layout);
             }
-            if let Some(window) = option_value(workspace_args, "--window") {
-                params.insert("window_id".into(), Value::String(window));
-            } else if let Some(window) = options.window.clone() {
+            if let Some(window) =
+                option_value(workspace_args, "--window").or_else(|| options.window.clone())
+            {
+                let window = resolve_handle(&window, "window", &options, None, None)?;
                 params.insert("window_id".into(), Value::String(window));
             }
             if let Some(focus) = option_value(workspace_args, "--focus") {
@@ -1123,19 +1128,34 @@ fn run_socket_v2_command(
             return Ok(());
         }
         "close-workspace" | "select-workspace" | "rename-workspace" => {
-            let workspace = option_value(&arguments, "--workspace")
-                .or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
-            if command != "rename-workspace" && workspace.is_none() {
+            let explicit_window =
+                option_value(&arguments, "--window").or_else(|| options.window.clone());
+            let workspace_raw = option_value(&arguments, "--workspace").or_else(|| {
+                (command == "rename-workspace" && explicit_window.is_none())
+                    .then(|| env::var("CMUX_WORKSPACE_ID").ok())
+                    .flatten()
+            });
+            if command != "rename-workspace" && workspace_raw.is_none() {
                 return Err(CliError::Usage(format!("{command} requires --workspace")));
             }
             params.clear();
-            if let Some(window) =
-                option_value(&arguments, "--window").or_else(|| options.window.clone())
-            {
-                params.insert("window_id".into(), Value::String(window));
-            }
-            if let Some(workspace) = workspace {
+            let window = if let Some(window) = explicit_window {
+                let window = resolve_handle(&window, "window", &options, None, None)?;
+                params.insert("window_id".into(), Value::String(window.clone()));
+                Some(window)
+            } else {
+                None
+            };
+            if let Some(workspace) = workspace_raw {
+                let workspace =
+                    resolve_handle(&workspace, "workspace", &options, window.as_deref(), None)?;
                 params.insert("workspace_id".into(), Value::String(workspace));
+            } else if command == "rename-workspace" {
+                let current = socket(&options)?
+                    .send_v2("workspace.current", Value::Object(params.clone()))?;
+                if let Some(workspace) = current.get("workspace_id").and_then(Value::as_str) {
+                    params.insert("workspace_id".into(), Value::String(workspace.to_string()));
+                }
             }
             let method = match command {
                 "close-workspace" => "workspace.close",
@@ -1173,16 +1193,7 @@ fn run_socket_v2_command(
             return Ok(());
         }
         "new-pane" | "new-surface" => {
-            if let Some(window) =
-                option_value(&arguments, "--window").or_else(|| options.window.clone())
-            {
-                params.insert("window_id".into(), Value::String(window));
-            }
-            if let Some(workspace) = option_value(&arguments, "--workspace")
-                .or_else(|| env::var("CMUX_WORKSPACE_ID").ok())
-            {
-                params.insert("workspace_id".into(), Value::String(workspace));
-            }
+            params.remove("surface_id");
             if let Some(kind) = option_value(&arguments, "--type") {
                 params.insert("type".into(), Value::String(kind));
             }
@@ -1196,6 +1207,9 @@ fn run_socket_v2_command(
                 params.insert("placement".into(), Value::String(placement));
             }
             if let Some(pane) = option_value(&arguments, "--pane") {
+                let window = params.get("window_id").and_then(Value::as_str);
+                let workspace = params.get("workspace_id").and_then(Value::as_str);
+                let pane = resolve_handle(&pane, "pane", &options, window, workspace)?;
                 params.insert("pane_id".into(), Value::String(pane));
             }
             if let Some(provider) = option_value(&arguments, "--provider") {
