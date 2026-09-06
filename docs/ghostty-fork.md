@@ -12,34 +12,30 @@ When we change the fork, update this document and the parent submodule SHA.
 
 ## Current fork changes
 
-The submodule pinned by this branch is `466f85867`, on the fork branch
-`issue-10557-reload-config-stall`. It lets an embedded host commit app-scoped
-configuration without synchronously propagating it to every surface and fixes
-Fish SSH integration when only one forwarding feature is enabled. Its tree is
-current parent-main Ghostty pin `b17f1726f` plus those two feature commits,
-including the renderer updates that parent main reintroduced. It includes the
-prior fork changes below, including the tokened iOS render work at
-`3da10da73`, VT formatter cursor restoration at `f76c132e5`, VT
-stream-boundary visibility at `9513174f2`, and Hangul canonical font resolution
-at `3fbdd078d`.
+The submodule pinned by this branch is `abd40f6e4`, reachable from fork `main`
+after Ghostty PR #211 was merged. It includes the incremental embedded
+configuration propagation and Fish SSH feature-gating fixes described below,
+plus the renderer/API compatibility pin and the repeated word-selection drag
+anchor fix. Its tree includes the prior fork changes below, including tokened
+iOS render dispositions, VT formatter cursor restoration, VT stream-boundary
+visibility, and Hangul canonical font resolution.
 
 ### Current main-aligned feature pin
 
 - Branch:
-  - https://github.com/manaflow-ai/ghostty/tree/issue-10557-reload-config-stall
+  - https://github.com/manaflow-ai/ghostty/tree/main
 - Commit:
-  - `466f85867` (reapply the fork-main merge after main restored it)
+  - `abd40f6e4` (current fork main after Ghostty PR #211)
 - Summary:
   - Preserves incremental embedded configuration propagation and Fish SSH
-    feature gating on top of the parent repository's `b17f1726f` pin.
-  - Restores the renderer changes from the earlier `8ae680da5` merge after
-    parent main reintroduced those commits in PR #10595.
+    feature gating, with the renderer/API compatibility pin and current
+    repeated word-selection drag-anchor behavior.
 - Verification:
   - Universal ReleaseFast GhosttyKit build with native Sentry disabled.
   - `tests/test_issue_8093_ghostty_ssh_binary_path.py` with Fish 4.6.0.
 - Artifact:
-  - https://github.com/manaflow-ai/ghostty/releases/tag/xcframework-466f8586749216b686c5397d9f03e10eac1955c4-crashsubdir-cmux-crash-sentry-off-v1
-  - SHA-256 `a27c76e786da0b625b4cab8c0e0ae052e559bbf598fecca1935087b262844afb`
+  - https://github.com/manaflow-ai/ghostty/releases/tag/xcframework-abd40f6e472d57f2d4bb182004bb5f3fac8df961-crashsubdir-cmux-crash-sentry-off-noi18n-v2
+  - SHA-256 `fdb0f7e844fa086a410f0b1df23badf2b0503c084e1c66c297e22930758b6971`
     is pinned in `scripts/ghosttykit-checksums.txt`.
 
 ### Fish SSH feature gating
@@ -96,6 +92,33 @@ at `3fbdd078d`.
   - https://github.com/manaflow-ai/ghostty/releases/tag/xcframework-64b5767a64acac59dad75d9de606e2e06d118e3e-crashsubdir-cmux-crash-sentry-off-v1
   - Historical artifact SHA-256: `88d0c1af6eaed2db05f327c935ad9c4da4d5cf46b8404f8fd2e14b939a258359`
     (not retained in the current `scripts/ghosttykit-checksums.txt` manifest).
+
+### Repeated word-selection drag anchor
+
+- Pull request:
+  - https://github.com/manaflow-ai/ghostty/pull/211
+- Commits:
+  - `aa2fb7d9e` (test: anchor repeated selection at second click)
+  - `fb90d3515` (fix: anchor repeated word selection at latest click)
+  - `3f33233aa` (docs: describe repeated selection anchor)
+- File:
+  - `src/terminal/SelectionGesture.zig`
+- Summary:
+  - Moves the tracked pin and surface coordinates to every accepted repeated
+    press, so a double-click drag starts at the word under the second click.
+  - Measures the next repeat distance from the preceding press, matching the
+    moving anchor and preserving chained double/triple clicks.
+  - Adds behavior tests for the moved double-click anchor and chained repeat
+    distance.
+- Conflict note:
+  - Preserve the latest-press anchor when integrating upstream selection
+    changes. A repeat that selects the new word but drags from an older pin
+    regresses the visible selection and the next repeat's distance check.
+
+The corresponding universal ReleaseFast GhosttyKit archive is published at
+https://github.com/manaflow-ai/ghostty/releases/tag/xcframework-abd40f6e472d57f2d4bb182004bb5f3fac8df961-crashsubdir-cmux-crash-sentry-off-noi18n-v2
+with SHA-256 `fdb0f7e844fa086a410f0b1df23badf2b0503c084e1c66c297e22930758b6971`
+pinned in `scripts/ghosttykit-checksums.txt`.
 
 ### iOS tokened render disposition and nonblocking prompt reveal
 
