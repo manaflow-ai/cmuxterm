@@ -33,9 +33,23 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// The optional form lets strict snapshot boundaries reject malformed rows,
     /// while compatibility projections can safely drop them.
     private static func rowArray(_ raw: Any?) -> [[String: Any]]? {
-        guard let array = raw as? [Any] else { return nil }
-        guard array.allSatisfy({ $0 is [String: Any] }) else { return nil }
-        return array.compactMap { $0 as? [String: Any] }
+        // Use Foundation containers at this boundary. Swift's conditional cast
+        // from an NSArray containing bridged dictionaries can lower to an array
+        // force-cast on some macOS runtimes, even when written as `as? [Any]`.
+        guard let array = raw as? NSArray else { return nil }
+        var result: [[String: Any]] = []
+        result.reserveCapacity(array.count)
+        for element in array {
+            guard let dictionary = element as? NSDictionary else { return nil }
+            var row: [String: Any] = [:]
+            row.reserveCapacity(dictionary.count)
+            for (key, value) in dictionary {
+                guard let key = key as? String else { return nil }
+                row[key] = value
+            }
+            result.append(row)
+        }
+        return result
     }
 
     private static func rows(_ raw: Any?) -> [[String: Any]] {
