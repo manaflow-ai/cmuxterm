@@ -592,7 +592,7 @@ async def test_open_agent_accepts_first_run_trust_dialog(tools: VoiceTools, fake
         return None
 
     monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
-    frames = ["starting…\n", "Do you trust the files in this folder?\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel\n", "────\n❯ Try \"x\"\n────\n", "────\n❯ \n────\n", "────\n❯ \n────\n"]
+    frames = ["user@host proj % claude\n", "Do you trust the files in this folder?\n ❯ No, exit\n   Yes, I trust this folder\n Enter to confirm · Esc to cancel\n", "────\n❯ Try \"x\"\n────\n", "────\n❯ \n────\n", "────\n❯ \n────\n"]
     reads = {"n": 0}
     base = fake.responder
     def responder(m, p):
@@ -604,7 +604,7 @@ async def test_open_agent_accepts_first_run_trust_dialog(tools: VoiceTools, fake
     res = await tools.open_agent("claude")
     assert res["ok"] and res["say"] == "Opened Claude Code."
     keys = [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"]
-    assert keys == ["enter", "enter"]  # launch, then accept the trust dialog
+    assert keys == ["enter", "down", "enter"]  # launch, then move to "Yes" and confirm
 
 
 async def test_open_agent_is_idempotent_when_already_open(fake: FakeCmux):

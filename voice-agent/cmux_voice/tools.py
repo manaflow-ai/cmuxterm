@@ -739,10 +739,11 @@ class VoiceTools:
 
     # First-run dialogs an agent CLI may show before its input box. The user
     # asked to open the agent in this folder, so accepting is the implied choice.
+    # (needle, keys). Claude Code's trust dialog highlights "No, exit" by default,
+    # so accepting means moving to "Yes, I trust this folder" first.
     _AGENT_STARTUP_DIALOGS = (
-        ("trust this folder", "enter"),
-        ("Enter to confirm", "enter"),
-        ("Press Enter to continue", "enter"),
+        ("trust this folder", ("down", "enter")),
+        ("Press Enter to continue", ("enter",)),
     )
 
     async def _agent_box_visible(self, surface_id: str) -> bool:
@@ -773,12 +774,16 @@ class VoiceTools:
             text = res.get("text") or ""
             tail = [line.strip() for line in text.rstrip().splitlines()[-12:]]
             if not accepted_dialog:
-                for needle, key in self._AGENT_STARTUP_DIALOGS:
+                for needle, keys in self._AGENT_STARTUP_DIALOGS:
                     if any(needle.lower() in line.lower() for line in tail):
-                        try:
-                            await self.client.acall("surface.send_key", {"surface_id": surface_id, "key": key})
-                        except CmuxError:
-                            return False
+                        # If "Yes" is already highlighted, a bare Enter is enough.
+                        yes_selected = any("❯" in line and "yes" in line.lower() for line in tail)
+                        for key in (("enter",) if yes_selected else keys):
+                            try:
+                                await self.client.acall("surface.send_key", {"surface_id": surface_id, "key": key})
+                            except CmuxError:
+                                return False
+                            await asyncio.sleep(0.3)
                         accepted_dialog = True
                         await asyncio.sleep(1.0)
                         break
