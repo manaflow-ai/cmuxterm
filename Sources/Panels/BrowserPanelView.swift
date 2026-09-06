@@ -5876,7 +5876,7 @@ struct WebViewRepresentable: NSViewRepresentable {
         }
 
         func ensureLocalInlineSlotView(
-            paneDropTargetRegistry: PaneDropTargetRegistry?
+            paneDropTargetRegistry: PaneDropTargetRegistry
         ) -> WindowBrowserSlotView {
             if let localInlineSlotView, localInlineSlotView.superview === self {
                 localInlineSlotView.isHidden = false
@@ -5885,7 +5885,7 @@ struct WebViewRepresentable: NSViewRepresentable {
 
             let slotView = WindowBrowserSlotView(
                 frame: bounds,
-                paneDropTargetRegistry: paneDropTargetRegistry ?? PaneDropTargetRegistry()
+                paneDropTargetRegistry: paneDropTargetRegistry
             )
             slotView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(slotView, positioned: .above, relativeTo: nil)
@@ -7395,7 +7395,8 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     private func updateUsingLocalInlineHosting(_ nsView: NSView, context: Context, webView: WKWebView) -> Bool {
-        guard let host = nsView as? HostContainerView else { return false }
+        guard let host = nsView as? HostContainerView,
+              let paneDropTargetRegistry else { return false }
         host.setWindowPortalHosting(false)
         let slotView = host.ensureLocalInlineSlotView(
             paneDropTargetRegistry: paneDropTargetRegistry
@@ -7592,7 +7593,8 @@ struct WebViewRepresentable: NSViewRepresentable {
     }
 
     private func updateUsingWindowPortal(_ nsView: NSView, context: Context, webView: WKWebView) -> Bool {
-        guard let host = nsView as? HostContainerView else { return false }
+        guard let host = nsView as? HostContainerView,
+              let paneDropTargetRegistry else { return false }
         host.prepareForWindowPortalHosting()
         host.setLocalInlineSlotHidden(true)
         host.releaseHostedWebViewConstraints()

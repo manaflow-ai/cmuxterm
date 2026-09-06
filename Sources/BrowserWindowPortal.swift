@@ -1282,10 +1282,6 @@ final class WindowBrowserSlotView: NSView {
     fileprivate var isApplyingHostedInspectorLayout = false
     private var lastHostedInspectorLayoutBoundsSize: NSSize?
 
-    override convenience init(frame frameRect: NSRect) {
-        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
-    }
-
     init(frame frameRect: NSRect, paneDropTargetRegistry: PaneDropTargetRegistry) {
         paneDropTargetView = BrowserPaneDropTargetView(
             frame: .zero,
@@ -1912,7 +1908,7 @@ final class WindowBrowserPortal: NSObject {
     }
 
     private weak var window: NSWindow?
-    private var paneDropTargetRegistry: PaneDropTargetRegistry?
+    private let paneDropTargetRegistry: PaneDropTargetRegistry
     private let hostView = WindowBrowserHostView(frame: .zero)
     private let chromeComposition = AppWindowChromeComposition()
     private weak var installedContainerView: NSView?
@@ -1968,7 +1964,7 @@ final class WindowBrowserPortal: NSObject {
     }
 #endif
 
-    init(window: NSWindow, paneDropTargetRegistry: PaneDropTargetRegistry? = nil) {
+    init(window: NSWindow, paneDropTargetRegistry: PaneDropTargetRegistry) {
         self.window = window
         self.paneDropTargetRegistry = paneDropTargetRegistry
         super.init()
@@ -1980,15 +1976,11 @@ final class WindowBrowserPortal: NSObject {
         _ = ensureInstalled()
     }
 
-    func setPaneDropTargetRegistry(_ registry: PaneDropTargetRegistry) {
-        if let paneDropTargetRegistry {
-            precondition(
-                paneDropTargetRegistry === registry,
-                "A browser portal cannot change pane drop registry ownership"
-            )
-            return
-        }
-        paneDropTargetRegistry = registry
+    func validatePaneDropTargetRegistry(_ registry: PaneDropTargetRegistry) {
+        precondition(
+            paneDropTargetRegistry === registry,
+            "A browser portal cannot change pane drop registry ownership"
+        )
     }
 
     static func shouldTreatSplitResizeAsExternalGeometry(
@@ -2541,7 +2533,7 @@ final class WindowBrowserPortal: NSObject {
         }
         let created = WindowBrowserSlotView(
             frame: .zero,
-            paneDropTargetRegistry: paneDropTargetRegistry ?? PaneDropTargetRegistry()
+            paneDropTargetRegistry: paneDropTargetRegistry
         )
         if let paneDropContext = entry.paneDropContext {
             created.setPaneDropContext(paneDropContext)
@@ -4126,12 +4118,10 @@ enum BrowserWindowPortalRegistry {
 
     private static func portal(
         for window: NSWindow,
-        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
+        paneDropTargetRegistry: PaneDropTargetRegistry
     ) -> WindowBrowserPortal {
         if let existing = objc_getAssociatedObject(window, &cmuxWindowBrowserPortalKey) as? WindowBrowserPortal {
-            if let paneDropTargetRegistry {
-                existing.setPaneDropTargetRegistry(paneDropTargetRegistry)
-            }
+            existing.validatePaneDropTargetRegistry(paneDropTargetRegistry)
             portalsByWindowId[ObjectIdentifier(window)] = existing
             installWindowCloseObserverIfNeeded(for: window)
             return existing
@@ -4153,7 +4143,7 @@ enum BrowserWindowPortalRegistry {
         visibleInUI: Bool,
         zPriority: Int = 0,
         paneDropContext: BrowserPaneDropContext? = nil,
-        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
+        paneDropTargetRegistry: PaneDropTargetRegistry
     ) {
         guard let window = anchorView.window else { return }
 
@@ -4183,8 +4173,10 @@ enum BrowserWindowPortalRegistry {
     }
 
     static func synchronizeForAnchor(_ anchorView: NSView) {
-        guard let window = anchorView.window else { return }
-        let portal = portal(for: window)
+        guard let window = anchorView.window,
+              let portal = objc_getAssociatedObject(window, &cmuxWindowBrowserPortalKey) as? WindowBrowserPortal else {
+            return
+        }
         portal.synchronizeWebViewForAnchor(anchorView)
     }
 

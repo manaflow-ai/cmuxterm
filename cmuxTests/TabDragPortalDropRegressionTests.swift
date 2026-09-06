@@ -62,6 +62,15 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
         XCTAssertNil(registry.resolve(from: pasteboard))
     }
 
+    func testCoordinatorRetainsLiveRegistryAfterSecondAdoptionAttempt() {
+        let liveRegistry = TabDragTransferRegistry()
+        let coordinator = NativeDragCoordinator(tabDragTransferRegistry: liveRegistry)
+
+        coordinator.adopt(tabDragTransferRegistry: TabDragTransferRegistry())
+
+        XCTAssertTrue(coordinator.tabDragTransferRegistry === liveRegistry)
+    }
+
     func testAcceptedDropDoesNotLookLikeNativeDragEnd() throws {
         let registry = TabDragTransferRegistry()
         var observerCalls = 0
@@ -86,5 +95,39 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
 
     private final class ResettableTarget {
         var resetCount = 0
+    }
+}
+
+@MainActor
+extension WindowBrowserPortal {
+    convenience init(window: NSWindow) {
+        self.init(window: window, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+}
+
+@MainActor
+extension WindowBrowserSlotView {
+    convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+}
+
+@MainActor
+extension BrowserWindowPortalRegistry {
+    static func bind(
+        webView: WKWebView,
+        to anchorView: NSView,
+        visibleInUI: Bool,
+        zPriority: Int = 0,
+        paneDropContext: BrowserPaneDropContext? = nil
+    ) {
+        bind(
+            webView: webView,
+            to: anchorView,
+            visibleInUI: visibleInUI,
+            zPriority: zPriority,
+            paneDropContext: paneDropContext,
+            paneDropTargetRegistry: PaneDropTargetRegistry()
+        )
     }
 }

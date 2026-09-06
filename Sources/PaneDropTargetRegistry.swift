@@ -1,5 +1,11 @@
 import Foundation
 import Bonsplit
+import OSLog
+
+nonisolated private let nativeDragCoordinatorLogger = Logger(
+    subsystem: "ai.manaflow.cmux",
+    category: "NativeDragCoordinator"
+)
 
 @MainActor
 final class PaneDropTargetRegistry {
@@ -30,22 +36,32 @@ final class NativeDragCoordinator {
 
     private(set) var tabDragTransferRegistry: TabDragTransferRegistry
     private var nativeDragEndObserverID: UUID?
+    private var hasAdoptedTabDragTransferRegistry = false
 
     init() {
-        self.init(tabDragTransferRegistry: TabDragTransferRegistry())
+        tabDragTransferRegistry = TabDragTransferRegistry()
+        observeNativeDragEnds(on: tabDragTransferRegistry)
     }
 
     init(tabDragTransferRegistry: TabDragTransferRegistry) {
         self.tabDragTransferRegistry = tabDragTransferRegistry
+        hasAdoptedTabDragTransferRegistry = true
         observeNativeDragEnds(on: tabDragTransferRegistry)
     }
 
     func adopt(tabDragTransferRegistry: TabDragTransferRegistry) {
         guard self.tabDragTransferRegistry !== tabDragTransferRegistry else { return }
+        guard !hasAdoptedTabDragTransferRegistry else {
+            nativeDragCoordinatorLogger.error(
+                "Ignoring a second TabDragTransferRegistry adoption; retaining the registry used by live windows."
+            )
+            return
+        }
         if let nativeDragEndObserverID {
             self.tabDragTransferRegistry.removeNativeDragEndObserver(nativeDragEndObserverID)
         }
         self.tabDragTransferRegistry = tabDragTransferRegistry
+        hasAdoptedTabDragTransferRegistry = true
         observeNativeDragEnds(on: tabDragTransferRegistry)
     }
 
