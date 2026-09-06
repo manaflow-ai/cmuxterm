@@ -633,17 +633,14 @@ struct VMWebSocketDaemonEndpoint {
 /// cmuxd-remote → cmux-tui migration). The route carries the ingress token; the
 /// invitation is present only when this device is not yet enrolled with the daemon.
 struct VMCmuxRemoteEndpoint {
-    struct Invitation {
-        let uri: String
-        let invitationId: String
-        let expiresAtUnix: Int64
-    }
-
     let route: String
     let token: String
     let expiresAtUnix: Int64
     let session: String
-    let invitation: Invitation?
+    /// The machine's daemon serves the trusted-carrier listener: dial `--carrier`,
+    /// no enrollment. False only for a daemon the control plane left on an older
+    /// build because this Mac is already enrolled there.
+    let trustedCarrier: Bool
     /// The machine's private addresses, when the provider returned them. Keep
     /// this metadata on the client boundary so agents and diagnostics can see
     /// the same route state the backend used, without reconstructing it.
@@ -661,12 +658,6 @@ struct VMCmuxRemoteEndpoint {
     }
 
     let daemonBuild: DaemonBuild?
-}
-
-struct VMCmuxRemoteApproval {
-    let approved: Bool
-    let state: String
-    let deviceFingerprint: String?
 }
 
 enum VMAttachEndpoint {
@@ -1484,13 +1475,9 @@ actor VMClient {
             throw VMClientError.malformedResponse("Cloud VM cmux-remote attach response was missing required fields.")
         }
         let expiresAtUnix = (obj["expiresAtUnix"] as? Int64) ?? Int64((obj["expiresAtUnix"] as? Double) ?? 0)
-        var invitation: VMCmuxRemoteEndpoint.Invitation?
-        if let raw = obj["invitation"] as? [String: Any],
-           let uri = raw["uri"] as? String, !uri.isEmpty,
-           let invitationId = raw["invitationId"] as? String, !invitationId.isEmpty {
-            let invitationExpires = (raw["expiresAtUnix"] as? Int64) ?? Int64((raw["expiresAtUnix"] as? Double) ?? 0)
-            invitation = .init(uri: uri, invitationId: invitationId, expiresAtUnix: invitationExpires)
-        }
+        // Absent on a control plane older than the trusted listener: such a
+        // daemon would still expect enrollment, which this build no longer does.
+        let trustedCarrier = (obj["trustedCarrier"] as? Bool) ?? false
         var daemonBuild: VMCmuxRemoteEndpoint.DaemonBuild?
         if let raw = obj["daemonBuild"] as? [String: Any] {
             daemonBuild = .init(
@@ -1515,27 +1502,9 @@ actor VMClient {
             token: token,
             expiresAtUnix: expiresAtUnix,
             session: session,
-            invitation: invitation,
+            trustedCarrier: trustedCarrier,
             networkAddresses: networkAddresses,
             daemonBuild: daemonBuild
-        )
-    }
-
-    func approveCmuxRemoteEnrollment(id: String, invitationId: String) async throws -> VMCmuxRemoteApproval {
-        let encodedID = try pathSegment(id, fieldName: "vm id")
-        let (data, http) = try await request(
-            "POST",
-            path: "/api/vm/\(encodedID)/cmux-remote/approve",
-            jsonBody: ["invitationId": invitationId],
-            timeoutSeconds: 60
-        )
-        try ensureOK(http, data: data)
-        let obj = try decodeJSONObject(data)
-        let state = (obj["state"] as? String) ?? "pending"
-        return VMCmuxRemoteApproval(
-            approved: (obj["approved"] as? Bool) ?? false,
-            state: state,
-            deviceFingerprint: obj["deviceFingerprint"] as? String
         )
     }
 
