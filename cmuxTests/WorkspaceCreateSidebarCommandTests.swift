@@ -42,6 +42,8 @@ import Testing
         let params = try #require(payload["params"] as? [String: Any])
         #expect(params["workspace_id"] as? String == createdID.uuidString)
         #expect(params["text_length"] as? Int == "echo hello\r".count)
+        #expect(params["text"] is NSNull)
+        #expect(params["redacted_fields"] as? [String] == ["text"])
         let deliveryResult = try #require(payload["result"] as? [String: Any])
         #expect(deliveryResult["workspace_ref"] as? String != nil)
         #expect(deliveryResult["surface_ref"] as? String != nil)
