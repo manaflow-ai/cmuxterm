@@ -99,7 +99,7 @@ extension TerminalController {
                         )
                     }
                     if authorizedRequest.method == "surface.sync_codex_native_title" {
-                        return await v2MainAsync {
+                        return await self.v2MainAsync {
                             self.v2Result(
                                 id: authorizedRequest.id?.foundationObject,
                                 self.v2SurfaceSyncCodexNativeTitle(
