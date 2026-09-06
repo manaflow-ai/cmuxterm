@@ -109,6 +109,13 @@ class TerminalController {
     // Per-surface dedupe for high-frequency report_* socket telemetry.
     private nonisolated let socketFastPathState = SocketFastPathState()
     private nonisolated let myPid = getpid()
+    /// Always-on (release-visible) slow CLI socket command reporter. Emits a
+    /// unified-logging record once a command exceeds ~100ms so hangs are
+    /// queryable via `log show` instead of being invisible (issue #5834).
+    nonisolated let slowCommandReporter = SlowSocketCommandReporter()
+    /// Per-command watchdog for socket commands that synchronously execute on
+    /// the main actor.
+    nonisolated let mainThreadSocketCommandWatchdog = MainThreadSocketCommandWatchdog()
     private nonisolated static let socketCommandFocusAllowanceStackKey = "cmux.socketCommandFocusAllowanceStack"
     private nonisolated static let socketListenerFailureCaptureCooldown: TimeInterval = 60
     private nonisolated static let v2BrowserDownloadWaitDefaultTimeoutMs = 10_000
@@ -897,8 +904,8 @@ class TerminalController {
         return V2SocketRequest(bridging: request)
     }
 
-    private nonisolated func socketWorkerV2ResponseIfHandled(for command: String) -> (handled: Bool, response: String?) {
-        guard let request = parseV2SocketRequest(command),
+    private nonisolated func socketWorkerV2ResponseIfHandled(for request: V2SocketRequest?) -> (handled: Bool, response: String?) {
+        guard let request,
               Self.executionPolicy(forV2Method: request.method).runsOnSocketWorker else {
             return (false, nil)
         }
@@ -1112,12 +1119,15 @@ class TerminalController {
     private nonisolated func handleClient(_ socket: Int32, peerPid: pid_t? = nil) {
         defer { close(socket) }
 
+        // Pre-captured peer PID if available (captured in accept loop before the
+        // peer can disconnect), falling back to a live lookup. Used for both the
+        // ancestry check below and slow-command observability labeling.
+        let connectionPeerPid = peerPid ?? transport.peerProcessID(of: socket)
+
         // In cmuxOnly mode, verify the connecting process is a descendant of cmux.
         // In allowAll mode (env-var only), skip the ancestry check.
         if socketServer.accessMode == .cmuxOnly {
-            // Use pre-captured peer PID if available (captured in accept loop before
-            // the peer can disconnect), falling back to live lookup.
-            let pid = peerPid ?? transport.peerProcessID(of: socket)
+            let pid = connectionPeerPid
             if let pid {
                 guard isDescendant(pid) else {
                     _ = writeSocketResponse(
@@ -1166,7 +1176,11 @@ class TerminalController {
                     return
                 }
 
-                let result = processSocketLine(trimmed, authenticated: authenticated)
+                let result = processSocketLine(
+                    trimmed,
+                    authenticated: authenticated,
+                    peerPid: connectionPeerPid
+                )
                 authenticated = result.authenticated
                 if let response = result.response {
                     let didWriteResponse = writeSocketResponse(response, to: socket)
@@ -1184,11 +1198,14 @@ class TerminalController {
 
     private nonisolated func processSocketLine(
         _ command: String,
-        authenticated: Bool
+        authenticated: Bool,
+        peerPid: pid_t? = nil
     ) -> SocketLineProcessingResult {
+        // Always-on monotonic timing for release-visible slow-command logging.
+        let commandStartNs = DispatchTime.now().uptimeNanoseconds
 #if DEBUG
         let debugInfo = Self.socketCommandDebugInfo(command)
-        let debugStart = DispatchTime.now().uptimeNanoseconds
+        let debugStart = commandStartNs
         let debugLoggingEnabled = Self.socketCommandDebugLoggingEnabled()
         if debugLoggingEnabled {
             Self.debugLogSocketCommand(
@@ -1206,10 +1223,20 @@ class TerminalController {
                 loggingEnabled: debugLoggingEnabled
             )
 #endif
+            reportSlowSocketCommandIfNeeded(
+                command: command,
+                response: response,
+                startNs: commandStartNs,
+                peerPid: peerPid
+            )
             return SocketLineProcessingResult(response: response, authenticated: nextAuthenticated)
         }
 
-        let response = processCommandUsingSocketExecutionPolicy(command)
+        let response = processCommandUsingSocketExecutionPolicy(
+            command,
+            peerPid: peerPid,
+            commandStartNs: commandStartNs
+        )
 #if DEBUG
         if let response {
             Self.debugLogSocketCommandEndIfNeeded(
@@ -1220,27 +1247,23 @@ class TerminalController {
             )
         }
 #endif
+        if let response {
+            reportSlowSocketCommandIfNeeded(
+                command: command,
+                response: response,
+                startNs: commandStartNs,
+                peerPid: peerPid
+            )
+        }
         return SocketLineProcessingResult(response: response, authenticated: nextAuthenticated)
     }
 
-#if DEBUG
+    // The following three helpers are shared by both the DEBUG file-logging
+    // path and the always-on release slow-command Logger path, so they live
+    // outside `#if DEBUG`. They are pure and emit no user data.
     private struct SocketCommandDebugInfo {
         let protocolName: String
         let commandKey: String
-    }
-
-    private nonisolated static func socketCommandDebugLoggingEnabled(
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> Bool {
-        guard let rawValue = environment[socketCommandDebugLogEnvironmentKey] else {
-            return false
-        }
-        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "1", "true", "yes", "on":
-            return true
-        default:
-            return false
-        }
     }
 
     private nonisolated static func socketCommandDebugInfo(_ command: String) -> SocketCommandDebugInfo {
@@ -1263,6 +1286,92 @@ class TerminalController {
         }
         let sanitized = String(scalars).prefix(96)
         return sanitized.isEmpty ? "<empty>" : String(sanitized)
+    }
+
+    /// Best-effort classification of where a command's body executed, derived
+    /// from the same execution policy the dispatcher uses. Used only to label
+    /// slow-command records (so a main-thread hang is distinguishable from slow
+    /// worker-lane work); computed only on the slow path.
+    private nonisolated static func socketCommandLikelyRanOnMain(
+        protocolName: String,
+        method: String
+    ) -> Bool {
+        if protocolName == "v2" {
+            return !ControlCommandExecutionPolicy(forMethod: method).runsOnSocketWorker
+        }
+        // v1: `ping` answers on the socket worker; everything else hops to the
+        // main actor via `v2MainSync`.
+        return method.lowercased() != "ping"
+    }
+
+    private nonisolated static func socketCommandDescriptor(
+        command: String,
+        parsedRequest: V2SocketRequest?,
+        peerPid: pid_t?
+    ) -> SocketCommandDescriptor {
+        if let parsedRequest {
+            return SocketCommandDescriptor(
+                protocolName: "v2",
+                method: sanitizedSocketDebugToken(parsedRequest.method),
+                executedOnMain: !executionPolicy(forV2Method: parsedRequest.method).runsOnSocketWorker,
+                peerPid: peerPid
+            )
+        }
+
+        let info = socketCommandDebugInfo(command)
+        return SocketCommandDescriptor(
+            protocolName: info.protocolName,
+            method: info.commandKey,
+            executedOnMain: socketCommandLikelyRanOnMain(
+                protocolName: info.protocolName,
+                method: info.commandKey
+            ),
+            peerPid: peerPid
+        )
+    }
+
+    /// Time a completed socket command and, if it crossed the slow threshold,
+    /// emit a release-visible record. The fast path (the common case) does only
+    /// a monotonic subtraction and a comparison - no parsing, no allocations.
+    private nonisolated func reportSlowSocketCommandIfNeeded(
+        command: String,
+        response: String,
+        startNs: UInt64,
+        peerPid: pid_t?
+    ) {
+        let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds &- startNs) / 1_000_000
+        guard SlowSocketCommandReporter.isSlow(durationMs: elapsedMs) else { return }
+        let info = Self.socketCommandDebugInfo(command)
+        let descriptor = SocketCommandDescriptor(
+            protocolName: info.protocolName,
+            method: info.commandKey,
+            executedOnMain: Self.socketCommandLikelyRanOnMain(
+                protocolName: info.protocolName,
+                method: info.commandKey
+            ),
+            peerPid: peerPid
+        )
+        let observation = SocketCommandObservation(
+            descriptor: descriptor,
+            durationMs: elapsedMs,
+            responseByteCount: response.utf8.count
+        )
+        slowCommandReporter.reportIfSlow(observation)
+    }
+
+#if DEBUG
+    private nonisolated static func socketCommandDebugLoggingEnabled(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        guard let rawValue = environment[socketCommandDebugLogEnvironmentKey] else {
+            return false
+        }
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
     }
 
     private nonisolated static func socketCommandDebugStatus(response: String) -> String {
@@ -1433,9 +1542,14 @@ class TerminalController {
     }
 #endif
 
-    private nonisolated func processCommandUsingSocketExecutionPolicy(_ command: String) -> String? {
+    private nonisolated func processCommandUsingSocketExecutionPolicy(
+        _ command: String,
+        peerPid: pid_t? = nil,
+        commandStartNs: UInt64 = DispatchTime.now().uptimeNanoseconds
+    ) -> String? {
+        let v2Request = parseV2SocketRequest(command)
         if Thread.isMainThread,
-           let request = parseV2SocketRequest(command),
+           let request = v2Request,
            Self.executionPolicy(forV2Method: request.method) == .socketWorker(mainThreadCallable: false) {
             return v2Error(
                 id: request.id,
@@ -1444,7 +1558,7 @@ class TerminalController {
             )
         }
 
-        let socketWorkerResult = socketWorkerV2ResponseIfHandled(for: command)
+        let socketWorkerResult = socketWorkerV2ResponseIfHandled(for: v2Request)
         if socketWorkerResult.handled {
             guard let response = socketWorkerResult.response else {
                 return nil
@@ -1458,8 +1572,18 @@ class TerminalController {
             }
         }
 
-        return v2MainSync {
-            self.processCommand(command)
+        let descriptor = Self.socketCommandDescriptor(
+            command: command,
+            parsedRequest: v2Request,
+            peerPid: peerPid
+        )
+        return mainThreadSocketCommandWatchdog.monitor(
+            descriptor: descriptor,
+            startNs: commandStartNs
+        ) {
+            v2MainSync {
+                self.processCommand(command)
+            }
         }
     }
 
