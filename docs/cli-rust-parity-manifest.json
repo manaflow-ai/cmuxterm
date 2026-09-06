@@ -34,7 +34,7 @@
       "id": "coderouter-team",
       "commands": ["coderouter status", "coderouter machines", "coderouter claude"],
       "status": "pending",
-      "evidence": ["CLI/CMUXCLI+Coderouter.swift", "Sources/Cloud/CoderouterSocketCommands.swift"]
+      "evidence": ["CLI/CMUXCLI+Coderouter.swift", "Sources/Cloud/CoderouterSocketCommands.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#coderouter_team_status_reuses_cmux_auth_session"]
     },
     {
       "id": "app-and-settings",

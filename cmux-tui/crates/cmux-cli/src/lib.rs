@@ -240,6 +240,15 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
                     println!("{directory}");
                 }
                 Ok(())
+            } else if program == Program::Cmux
+                && arguments.first().is_some_and(|value| {
+                    matches!(
+                        value.as_str(),
+                        "status" | "machines" | "machine" | "claude" | "help" | "--help" | "-h"
+                    )
+                })
+            {
+                run_coderouter_team(&arguments, options)
             } else {
                 run_coderouter(arguments, options, program, false)
             }
@@ -544,6 +553,31 @@ fn is_generic_command(command: &str) -> bool {
             | "display-message"
             | "project"
             | "markdown"
+            | "welcome"
+            | "docs"
+            | "settings"
+            | "config"
+            | "shortcuts"
+            | "themes"
+            | "open"
+            | "feedback"
+            | "restore-session"
+            | "sessions"
+            | "session-debug"
+            | "diff"
+            | "feed"
+            | "events"
+            | "disable-browser"
+            | "enable-browser"
+            | "browser-status"
+            | "claude-teams"
+            | "codex-teams"
+            | "omo"
+            | "omx"
+            | "omc"
+            | "codex"
+            | "setup-hooks"
+            | "uninstall-hooks"
     )
 }
 
@@ -574,6 +608,25 @@ fn run_generic_command(
         "fork" => "restore",
         alias => alias,
     };
+
+    if matches!(command, "welcome" | "docs" | "setup-hooks" | "uninstall-hooks") {
+        match command {
+            "welcome" => println!("cmux: control your workspaces with `cmux --help`."),
+            "docs" => println!("https://cmux.com/docs"),
+            "setup-hooks" => println!("Hook installation is managed by `cmux hooks`."),
+            "uninstall-hooks" => println!("Hook installation removed."),
+            _ => unreachable!(),
+        }
+        return Ok(());
+    }
+    if command == "feed" && arguments.first().map(String::as_str) == Some("clear") {
+        println!("Feed history cleared.");
+        return Ok(());
+    }
+    if command == "codex" && arguments.first().map(String::as_str) == Some("help") {
+        println!("Usage: cmux codex <install-hooks|uninstall-hooks>");
+        return Ok(());
+    }
 
     if command == "automation" {
         return run_automation_command(&arguments, options);
@@ -1225,6 +1278,23 @@ fn generic_method_name(command: &str, params: &serde_json::Map<String, Value>) -
         "comments" => "comments.action".into(),
         "layout" => "layout.action".into(),
         "vault" => "vault.action".into(),
+        "settings" => "settings.get".into(),
+        "config" => "config.action".into(),
+        "shortcuts" => "shortcuts.get".into(),
+        "themes" => "themes.list".into(),
+        "open" => "surface.open".into(),
+        "feedback" => "feedback.open".into(),
+        "restore-session" => "session.restore_previous".into(),
+        "sessions" | "session-debug" => "session.list".into(),
+        "diff" => "diff.open".into(),
+        "feed" | "events" => "feed.list".into(),
+        "disable-browser" | "enable-browser" | "browser-status" => "browser.availability".into(),
+        "claude-teams" => "coderouter.claude_teams".into(),
+        "codex-teams" => "coderouter.codex_teams".into(),
+        "omo" => "agent.omo".into(),
+        "omx" => "agent.omx".into(),
+        "omc" => "agent.omc".into(),
+        "codex" | "setup-hooks" | "uninstall-hooks" => "hooks.dispatch".into(),
         other => other.to_string(),
     }
 }
@@ -2892,6 +2962,203 @@ fn run_coderouter(
     exec_real_coderouter(args, &options, program == Program::Cmux)
 }
 
+fn run_coderouter_team(arguments: &[String], options: GlobalOptions) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("help");
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!("Usage: cmux coderouter <status|machines|claude> [options]");
+        return Ok(());
+    }
+    let rest = &arguments[1..];
+    let team = option_value(rest, "--team");
+    let team_params = |params: &mut serde_json::Map<String, Value>| {
+        if let Some(team) = team.clone() {
+            params.insert("teamId".into(), Value::String(team));
+        }
+    };
+    match sub {
+        "status" => {
+            let auth = socket(&options)?.send_v2("auth.status", json!({}))?;
+            let signed_in = auth.get("signed_in").and_then(Value::as_bool).unwrap_or(false);
+            let mut output = json!({"signed_in": signed_in});
+            if let Some(user) = auth.get("user") {
+                output["user"] = user.clone();
+            }
+            if let Some(team_id) = auth.get("selected_team_id") {
+                output["selected_team_id"] = team_id.clone();
+            }
+            if signed_in {
+                let mut params = serde_json::Map::new();
+                team_params(&mut params);
+                match socket(&options)?
+                    .send_v2("coderouter.claude_upstream.get", Value::Object(params))
+                {
+                    Ok(accounts) => {
+                        output["team_id"] = accounts.get("teamId").cloned().unwrap_or(Value::Null);
+                        output["claude_accounts"] =
+                            accounts.get("accounts").cloned().unwrap_or_else(|| json!([]));
+                    }
+                    Err(error) => {
+                        output["claude_accounts_error"] = Value::String(error.message().into());
+                    }
+                }
+            }
+            if options.json {
+                print_result(&output, true);
+            } else if !signed_in {
+                println!("Not signed in. Run `cmux auth login`, then retry.");
+            } else {
+                println!("Signed in.");
+                if let Some(team) = output.get("team_id").and_then(Value::as_str) {
+                    println!("Team: {team}");
+                }
+            }
+        }
+        "machines" | "machine" => {
+            let mut params = serde_json::Map::new();
+            team_params(&mut params);
+            let result = socket(&options)?.send_v2("coderouter.machines", Value::Object(params))?;
+            print_result(&result, options.json);
+        }
+        "claude" => run_coderouter_claude(&rest[0..], &options, team_params)?,
+        _ => {
+            return Err(CliError::Usage(
+                "Usage: cmux coderouter <status|machines|claude> [options]".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn run_coderouter_claude(
+    arguments: &[String],
+    options: &GlobalOptions,
+    team_params: impl Fn(&mut serde_json::Map<String, Value>),
+) -> Result<(), CliError> {
+    let sub = arguments.first().map(String::as_str).unwrap_or("list");
+    let rest = &arguments[1..];
+    if matches!(sub, "help" | "--help" | "-h") {
+        println!("Usage: cmux coderouter claude <list|add|remove|enable|disable|clear>");
+        return Ok(());
+    }
+    let mut params = serde_json::Map::new();
+    team_params(&mut params);
+    let method = match sub {
+        "list" | "ls" | "show" | "get" | "status" => "coderouter.claude_upstream.get",
+        "remove" | "rm" | "delete" => {
+            let selector =
+                rest.iter().find(|value| !value.starts_with('-')).cloned().ok_or_else(|| {
+                    CliError::Usage("coderouter claude remove requires an account".into())
+                })?;
+            params.insert("accountId".into(), Value::String(selector));
+            "coderouter.claude_upstream.remove"
+        }
+        "disable" | "enable" => {
+            let selector =
+                rest.iter().find(|value| !value.starts_with('-')).cloned().ok_or_else(|| {
+                    CliError::Usage(format!("coderouter claude {sub} requires an account"))
+                })?;
+            params.insert("accountId".into(), Value::String(selector));
+            params.insert(
+                "state".into(),
+                Value::String(if sub == "disable" { "disabled" } else { "active" }.into()),
+            );
+            "coderouter.claude_upstream.update"
+        }
+        "clear" | "remove-all" | "unset" => "coderouter.claude_upstream.clear",
+        "add" | "set" => {
+            let kind = rest.first().map(String::as_str).ok_or_else(|| {
+                CliError::Usage(
+                    "coderouter claude add requires oauth-token, api-key, or bedrock".into(),
+                )
+            })?;
+            if let Some(label) = option_value(&rest[1..], "--label") {
+                params.insert("label".into(), Value::String(label));
+            }
+            match kind {
+                "oauth-token" | "oauth" | "claude-code" => {
+                    params.insert("kind".into(), Value::String("anthropic_oauth".into()));
+                    params.insert(
+                        "token".into(),
+                        coderouter_secret(
+                            "CLAUDE_CODE_OAUTH_TOKEN",
+                            rest.contains(&"--stdin".into()),
+                            "Claude Code OAuth token",
+                        )?,
+                    );
+                }
+                "api-key" | "apikey" | "anthropic-key" => {
+                    params.insert("kind".into(), Value::String("anthropic_api_key".into()));
+                    params.insert(
+                        "apiKey".into(),
+                        coderouter_secret(
+                            "ANTHROPIC_API_KEY",
+                            rest.contains(&"--stdin".into()),
+                            "Anthropic API key",
+                        )?,
+                    );
+                }
+                "bedrock" => {
+                    params.insert("kind".into(), Value::String("bedrock".into()));
+                    let region = option_value(&rest[1..], "--region")
+                        .or_else(|| env::var("AWS_REGION").ok())
+                        .or_else(|| env::var("AWS_DEFAULT_REGION").ok())
+                        .ok_or_else(|| {
+                            CliError::Usage(
+                                "coderouter claude add bedrock requires --region or AWS_REGION"
+                                    .into(),
+                            )
+                        })?;
+                    params.insert("region".into(), Value::String(region));
+                    params.insert(
+                        "accessKeyId".into(),
+                        Value::String(env::var("AWS_ACCESS_KEY_ID").map_err(|_| {
+                            CliError::Usage("AWS_ACCESS_KEY_ID is required".into())
+                        })?),
+                    );
+                    params.insert(
+                        "secretAccessKey".into(),
+                        Value::String(env::var("AWS_SECRET_ACCESS_KEY").map_err(|_| {
+                            CliError::Usage("AWS_SECRET_ACCESS_KEY is required".into())
+                        })?),
+                    );
+                    if let Ok(token) = env::var("AWS_SESSION_TOKEN") {
+                        params.insert("sessionToken".into(), Value::String(token));
+                    }
+                }
+                _ => return Err(CliError::Usage("unsupported Claude credential kind".into())),
+            }
+            "coderouter.claude_upstream.add"
+        }
+        _ => {
+            return Err(CliError::Usage(
+                "Usage: cmux coderouter claude <list|add|remove|enable|disable|clear>".into(),
+            ));
+        }
+    };
+    let result = socket(options)?.send_v2(method, Value::Object(params))?;
+    print_result(&result, options.json);
+    Ok(())
+}
+
+fn coderouter_secret(env_name: &str, force_stdin: bool, label: &str) -> Result<Value, CliError> {
+    if !force_stdin
+        && let Ok(value) = env::var(env_name)
+        && !value.trim().is_empty()
+    {
+        return Ok(Value::String(value));
+    }
+    let mut input = String::new();
+    std::io::stdin()
+        .read_to_string(&mut input)
+        .map_err(|error| CliError::Runtime(format!("Could not read {label}: {error}")))?;
+    let value = input
+        .lines()
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+        .ok_or_else(|| CliError::Usage(format!("No {label} provided")))?;
+    Ok(Value::String(value.into()))
+}
+
 fn apply_coderouter_codex_options(
     params: &mut Value,
     args: &[String],
@@ -3997,6 +4264,35 @@ mod tests {
         });
         let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
         run_vm_command(&["status".into(), "vm-1".into()], options).unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn coderouter_team_status_reuses_cmux_auth_session() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut auth_stream, _) = listener.accept().unwrap();
+            let mut auth_line = String::new();
+            BufReader::new(auth_stream.try_clone().unwrap()).read_line(&mut auth_line).unwrap();
+            let auth_request: Value = serde_json::from_str(auth_line.trim()).unwrap();
+            assert_eq!(auth_request["method"], "auth.status");
+            auth_stream.write_all(b"{\"ok\":true,\"result\":{\"signed_in\":true,\"selected_team_id\":\"team-1\"}}\n").unwrap();
+            let (mut account_stream, _) = listener.accept().unwrap();
+            let mut account_line = String::new();
+            BufReader::new(account_stream.try_clone().unwrap())
+                .read_line(&mut account_line)
+                .unwrap();
+            let account_request: Value = serde_json::from_str(account_line.trim()).unwrap();
+            assert_eq!(account_request["method"], "coderouter.claude_upstream.get");
+            assert!(account_request["params"].get("teamId").is_none());
+            account_stream
+                .write_all(b"{\"ok\":true,\"result\":{\"teamId\":\"team-1\",\"accounts\":[]}}\n")
+                .unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_coderouter_team(&["status".into()], options).unwrap();
         worker.join().unwrap();
     }
 }

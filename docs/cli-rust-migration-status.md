@@ -105,7 +105,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (28 tests).
+- `cargo test -p cmux-cli` (29 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -126,6 +126,9 @@ The following checks passed for the current slice:
 - Command-specific request tests for automation show, remotes add, mobile
   terminal font, and VM status. These tests verify the Swift method and
   parameter shape through a fake Unix socket.
+- CodeRouter team status test: Rust sends `auth.status` and then
+  `coderouter.claude_upstream.get` through the same cmux session. It does not
+  start a second authentication flow.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
