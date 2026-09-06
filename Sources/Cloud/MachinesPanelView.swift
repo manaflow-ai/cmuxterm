@@ -504,6 +504,7 @@ struct MachinesPanelView: View {
             machineActions: machineActions,
             nodeActions: nodeActions,
             expansionStore: expansionStore,
+            supportsCloudBrowser: CloudTunnelBackendSelector.live().select().isNetworkExtension,
             style: CloudTreeStyle.preset(id: cloudTreeStyleID) ?? .defaultStyle,
             onDragStateChange: { [weak viewModel] dragging in viewModel?.setTreeDragging(dragging) }
         )
@@ -901,13 +902,13 @@ struct MachineRowActions {
             arguments: arguments,
             successTitle: successTitle,
             presentOutputOnSuccess: presentOutputOnSuccess,
-            onCancellationReady: onCancellationReady
-        ) { completion in
+            onCancellationReady: onCancellationReady,
+            onCompletion: { completion in
             if completion.terminationStatus == 0 {
                 onSuccess?()
             }
             onDidMutate()
-        }
+        })
     }
 
     @MainActor

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CmuxWorkspaces
 
 #if canImport(cmux_DEV)
 @testable import cmux_DEV
@@ -157,7 +158,7 @@ struct CloudPortOpenRegressionTests {
             "resource:port-vm/browser/port:3000",
             "resource:port-vm/browser/port:8000",
         ])
-        #expect(byID["machine:port-vm/ws/ws_app/resource:port-vm/browser/port:8000"] != nil)
+        #expect(byID["machine:port-vm/ws/ws_app/resource:port-vm/browser/port:8000/tab:tab_port_8000"] != nil)
         #expect(portsGroup.children.last?.dragResource?.id == port.id)
         #expect(SurfaceResourceID(machine: machine, kind: .browser, key: "port:08000").forwardedPort == nil)
 
@@ -236,7 +237,7 @@ struct CloudPortOpenRegressionTests {
         ))
         let portsGroup = try #require(tree.first { $0.id == "machine:port-vm/ports" })
         #expect(portsGroup.children.compactMap { $0.dragResource?.id } == [port.id])
-        let workspacePort = try #require(tree.first { $0.id == "machine:port-vm/ws/ws_app/resource:port-vm/browser/port:8000" })
+        let workspacePort = try #require(tree.first { $0.id == "machine:port-vm/ws/ws_app/resource:port-vm/browser/port:8000/tab:tab_port" })
         guard case .port = workspacePort.kind else {
             Issue.record("the workspace pointer should retain the port row kind")
             return
@@ -335,6 +336,18 @@ struct CloudPortOpenRegressionTests {
             previousResources: refreshed,
             privateAddress: nil
         ).first?.url == nil, "an address withdrawal cannot leave a stale browser URL")
+    }
+
+    @Test("Port discovery uses the private cmux-tui link")
+    func portDiscoveryUsesPrivateMachineLink() throws {
+        let arguments = try #require(
+            CloudTuiCommandLine.listeningPortsArguments(socketPath: "/tmp/cmux-cloud.sock")
+        )
+        #expect(arguments == [
+            "--socket", "/tmp/cmux-cloud.sock",
+            "--json", "raw", "command",
+            "--request-json", #"{"cmd":"machine-listening-tcp","id":1}"#,
+        ])
     }
 
     @Test("Sidebar and repeated opens use the machine-owned local workspace and one catalog identity")
