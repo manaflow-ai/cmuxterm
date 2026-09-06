@@ -197,7 +197,7 @@ actor GhosttyPointerStyleIngress {
         }
     }
 
-    private func receive(_ incoming: GhosttyPointerStyleIngressRequest) {
+    func receive(_ incoming: GhosttyPointerStyleIngressRequest) {
         let request = incoming
         let lifecycleSequence = request.lifecycleSequence
         defer {
@@ -379,7 +379,7 @@ actor GhosttyPointerStyleIngress {
         }
     }
 
-    private func takePending(
+    func takePending(
         afterLifecycleSequence lifecycleSequence: UInt64
     ) async -> [
         UUID: GhosttyPointerStyleIngressRuntimePending
