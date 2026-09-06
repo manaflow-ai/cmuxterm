@@ -276,6 +276,9 @@ struct RightSidebarPanelView: View {
         .onChange(of: fileExplorerState.isVisible) { _, visible in
             if visible { hasMountedRightSidebarContent = true }
         }
+        .onChange(of: fileExplorerState.mode) { _, _ in
+            sessionFocusTaskStore.cancel(.focus)
+        }
         .onChange(of: feedEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: dockEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
         .onChange(of: cloudMachinesBetaEnabled) { _, _ in refreshModeAvailabilityAndFocusIfNeeded() }
