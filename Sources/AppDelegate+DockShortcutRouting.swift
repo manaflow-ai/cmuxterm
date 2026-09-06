@@ -65,7 +65,8 @@ extension KeyboardShortcutSettings.Action {
              .simulatorRotateRight,
              .simulatorToggleAppearance,
              .simulatorToggleSoftwareKeyboard,
-             .diffViewerNextFile, .diffViewerPreviousFile:
+             .diffViewerNextFile, .diffViewerPreviousFile,
+             .toggleTerminalBlueprint:
             .focusResolved
 
         case .openSettings, .reloadConfiguration,

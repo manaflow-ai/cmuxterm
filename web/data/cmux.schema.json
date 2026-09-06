@@ -1733,6 +1733,7 @@
               "switchRightSidebarToDock",
               "switchRightSidebarToMachines",
               "triggerFlash",
+              "toggleTerminalBlueprint",
               "nextSurface",
               "prevSurface",
               "moveSurfaceLeft",

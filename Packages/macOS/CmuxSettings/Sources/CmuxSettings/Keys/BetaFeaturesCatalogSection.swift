@@ -89,5 +89,16 @@ public struct BetaFeaturesCatalogSection: SettingCatalogSection {
         userDefaultsKey: "remoteTmux.beta.enabled"
     )
 
+    /// Blueprint: a per-terminal diagram canvas (Excalidraw) that sits below
+    /// the terminal in its pane. Agents draw the design they are working on
+    /// through the `cmux-blueprint` MCP server and the user sketches back.
+    /// Adds the drawer, its palette commands, the tab-bar button, and the
+    /// `toggleTerminalBlueprint` shortcut. Defaults off.
+    public let blueprint = DefaultsKey<Bool>(
+        id: "blueprint.beta.enabled",
+        defaultValue: false,
+        userDefaultsKey: "blueprint.beta.enabled"
+    )
+
     public init() {}
 }

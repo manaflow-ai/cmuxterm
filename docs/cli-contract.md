@@ -179,6 +179,7 @@ Environment:
 | `get-url` | Legacy alias for `browser get-url`. |
 | `focus-webview` | Legacy alias for `browser focus-webview`. |
 | `is-webview-focused` | Legacy alias for `browser is-webview-focused`. |
+| `blueprint` | Read and draw the Blueprint diagram canvas below a terminal (state, get, set, mermaid, ops, export, send, show, hide, collapse, expand, mcp). |
 | `markdown` | Open a markdown file in a formatted viewer panel with live reload. |
 | `vm-pty-attach` | Internal VM PTY attach command. |
 | `vm-ssh-attach` | Hidden compatibility alias for older VM workspaces. |
@@ -667,6 +668,37 @@ Re-running `cmux todo set` with the same `id`s updates text/state in place
 (checkbox identity is stable), so a watcher loop can re-emit the full list on
 every tick without churning item identities.
 
+## Blueprint
+
+`cmux blueprint` drives the Blueprint diagram canvas docked below a terminal
+(Settings › Beta Features › Blueprint). Every subcommand is one `blueprint.*`
+socket method; the socket answers `unavailable` with `data.setting =
+"blueprint.beta.enabled"` while the beta is off.
+
+| Subcommand | Socket method | Notes |
+| --- | --- | --- |
+| `state` | `blueprint.state` | Drawer visibility, `revision`, `element_count`, `updated_by`, `canvas_ready`, `has_mermaid`, and the compact text `summary`. |
+| `get [--format summary\|json\|mermaid]` | `blueprint.get` | `content` is the summary, the Excalidraw scene, or the last Mermaid source (`null` when none). |
+| `set [<scene.json>\|-] [--base-revision N] [--source agent\|user]` | `blueprint.set` | Replaces the scene. Limits: 1 MiB, 2,000 elements. |
+| `mermaid [<file.mmd>\|-] [--append] [--base-revision N]` | `blueprint.render_mermaid` | Renders Mermaid in the canvas (`mode` replace or append). Limit: 32 KiB. |
+| `ops [<ops.json>\|-] [--base-revision N]` | `blueprint.apply_ops` | `[{op: upsert, element}, {op: delete, id}, {op: clear}]`, at most 500. |
+| `export [--format png\|svg\|json\|mermaid\|summary] [--out <path>] [--scale N] [--dark]` | `blueprint.export` | PNG/SVG go to `--out` or next to the stored document; text formats print without `--out`. |
+| `send [--formats png,mermaid,summary,json] [--prefix <text>] [--submit]` | `blueprint.send_to_terminal` | Pastes one block into the terminal prompt. Default formats: `png,mermaid`. |
+| `show` / `hide` / `collapse` / `expand` / `toggle` `[--focus true\|false]` | `blueprint.show` … | Drawer verbs. `show` moves app focus only with `--focus true`. |
+| `mcp` | (stdio) | The `cmux-blueprint` MCP server; the Claude Code and Codex wrappers attach it. Runs without a live socket. |
+
+Targeting follows the surface selection contract: `--surface` names the
+terminal, otherwise the calling terminal (`CMUX_SURFACE_ID`) is used unless
+`--workspace` or `--window` is given, in which case that workspace's focused
+terminal is the target. `--auto-open true|false` overrides the
+`blueprint.autoOpenOnAgentUpdate` setting for one mutation.
+
+Revision contract: every accepted mutation, whoever authored it, bumps
+`revision`. Mutations may pass `base_revision`; a stale value fails with code
+`conflict` and `data.revision`, `data.updated_by`, `data.summary` so the caller
+can re-read cheaply. `set`, `mermaid`, and `ops` run on the socket worker lane
+and may take up to 45 seconds when the canvas page still has to load.
+
 ## No-Socket Help Probes
 
 The following probes are executable contract checks. They must exit 0 and print
@@ -829,6 +861,8 @@ the expected text without connecting to a cmux socket.
 - `cmux focus-webview --help` -> `Legacy alias for 'cmux browser focus-webview'`
 - `cmux is-webview-focused --help` -> `Legacy alias for 'cmux browser is-webview-focused'`
 - `cmux markdown --help` -> `Usage: cmux markdown open <path>`
+- `cmux blueprint --help` -> `Usage: cmux blueprint <subcommand> [options]`
+- `cmux blueprint mermaid --help` -> `Usage: cmux blueprint <subcommand> [options]`
 <!-- cli-contract-help-probes:end -->
 
 For `cmux restore`, `--surface [id|ref]` uses the caller when omitted.

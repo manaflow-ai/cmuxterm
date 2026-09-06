@@ -20,6 +20,10 @@ struct TerminalPanelView: View {
     @AppStorage(SessionContentWidthSettings.alignmentKey)
     private var storedSessionContentAlignment = SessionContentAlignment.center.rawValue
     @State private var terminalFontSize = GhosttyConfig.loadForCmux(globalFontMagnificationPercent: GlobalFontMagnification.storedPercent).fontSize
+    @AppStorage(TerminalBlueprintFeature.enabledKey)
+    private var blueprintEnabled = false
+    /// Height of the whole pane body; the blueprint drawer sizes itself as a fraction of it.
+    @State private var paneContentHeight: CGFloat = 0
     let paneId: PaneID
     let isFocused: Bool
     let isVisibleInUI: Bool
@@ -127,6 +131,19 @@ struct TerminalPanelView: View {
 #endif
             .layoutPriority(1)
 
+            if blueprintEnabled, panel.blueprint.isOpen {
+                TerminalBlueprintDrawerView(
+                    state: panel.blueprint,
+                    session: panel.blueprintWebSession,
+                    appearance: appearance,
+                    containerHeight: paneContentHeight,
+                    onRequestPanelFocus: {
+                        panel.blueprintDidBecomeFocused()
+                        onFocus()
+                    }
+                )
+            }
+
             if panel.isTextBoxActive {
                 TextBoxInputContainer(
                     text: $panel.textBoxContent,
@@ -180,6 +197,11 @@ struct TerminalPanelView: View {
             }
         }
         .background(Color(nsColor: appearance.contentBackgroundColor))
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            paneContentHeight = height
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ghosttyConfigDidReload)) { _ in
             terminalFontSize = GhosttyConfig.loadForCmux(globalFontMagnificationPercent: GlobalFontMagnification.storedPercent).fontSize
         }

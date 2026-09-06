@@ -93,6 +93,9 @@ extension TerminalController {
         "pane.break",
         "pane.join",
         "markdown.open",
+        // Opens the drawer without focus by default; focus=true also brings
+        // the terminal's window and workspace forward.
+        "blueprint.show",
         "browser.open_split",
         "sidebar.custom.open",
         // Opens the forked session's tab only when the caller passes

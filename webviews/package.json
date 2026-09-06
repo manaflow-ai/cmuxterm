@@ -16,6 +16,8 @@
     "react-doctor:ci": "react-doctor . --full --no-score --fail-on none"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "2.2.2",
     "@pierre/diffs": "1.2.7",
     "@pierre/trees": "1.0.0-beta.4",
     "@tanstack/react-router": "1.170.11",

@@ -695,7 +695,8 @@ extension Workspace {
                 textBoxDraft: terminalPanel.sessionTextBoxDraftSnapshot(),
                 isRemoteTerminal: activeRemoteTerminalSurfaceIds.contains(panelId),
                 remotePTYSessionID: remotePTYSessionIDForSnapshot(panelId: panelId),
-                wasAgentRunning: agentWasRunning
+                wasAgentRunning: agentWasRunning,
+                blueprint: terminalPanel.sessionBlueprintSnapshot()
             )
             browserSnapshot = nil
             markdownSnapshot = nil
@@ -2097,6 +2098,9 @@ extension Workspace {
             }
             terminalPanel.restoreSessionTextBoxDraft(snapshot.terminal?.textBoxDraft)
             applySessionPanelMetadata(snapshot, toPanelId: terminalPanel.id)
+            // After the metadata pass: the blueprint document is keyed by the
+            // persisted stable surface id that pass adopts.
+            terminalPanel.restoreSessionBlueprint(snapshot.terminal?.blueprint)
             armRestoredPanelTitleBoundary(
                 panelId: terminalPanel.id,
                 internallySeededInput: restoredStartupInput
@@ -4226,6 +4230,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             if builtInAction == .mobileConnect { return CmuxFeatureFlags.shared.isMobileConnectButtonEnabled }
             if builtInAction == .newAgentChat { return CmuxFeatureFlags.shared.isAgentChatUIEnabled }
             if builtInAction == .newSimulator { return CmuxFeatureFlags.shared.isSimulatorEnabled }
+            if builtInAction == .toggleBlueprint { return TerminalBlueprintFeature.isEnabled() }
             return true
         }
         let executableButtons = Dictionary(
@@ -14487,6 +14492,9 @@ extension Workspace: BonsplitDelegate {
                 }
             case .newSimulator:
                 _ = newSimulatorSurface(inPane: pane, focus: true)
+            case .toggleBlueprint:
+                // Show or hide the blueprint drawer of the terminal shown in this pane.
+                _ = selectedTerminalPanel(inPane: pane)?.blueprint.perform(.toggle)
             case .newTerminal, .newBrowser, .splitRight, .splitDown:
                 break
             }

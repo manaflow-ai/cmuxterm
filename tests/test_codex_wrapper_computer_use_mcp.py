@@ -455,6 +455,8 @@ def run_wrapper(
     mcp_handshake: bool = False,
     diagnostics: bool = False,
     non_cmux: bool = False,
+    blueprint_enabled: bool | None = None,
+    blueprint_disabled_env: bool = False,
 ) -> tuple[int, list[str], str, dict[str, object]]:
     with tempfile.TemporaryDirectory(prefix="cmux-codex-wrapper-test-") as td:
         tmp = Path(td)
@@ -577,6 +579,14 @@ exit 1
             env.pop("CMUX_COMPUTER_USE_INSTALL_GLOBAL_SKILL", None)
             env.pop("CMUX_CUA_SOCKET_AUTH_TOKEN", None)
             env["CMUX_COMPUTER_USE_APP_ENABLED"] = "1"
+            env.pop("CMUX_BLUEPRINT_MCP_DISABLED", None)
+            env.pop("CMUX_BLUEPRINT_SETTING_FILE", None)
+            if blueprint_enabled is not None:
+                blueprint_setting = sandbox_home / "Library" / "Application Support" / "cmux" / "blueprint" / "enabled"
+                blueprint_setting.parent.mkdir(parents=True, exist_ok=True)
+                blueprint_setting.write_text("1\n" if blueprint_enabled else "0\n", encoding="utf-8")
+            if blueprint_disabled_env:
+                env["CMUX_BLUEPRINT_MCP_DISABLED"] = "1"
             if diagnostics:
                 env["CMUX_CUA_DIAGNOSTICS"] = "1"
             else:
@@ -941,6 +951,59 @@ def test_codex_outside_cmux_reports_fail_closed_attachment(failures: list[str]) 
         failures,
     )
     expect(not helper_was_started(skill), f"outside cmux must not start an MCP helper, got {skill}", failures)
+
+
+def blueprint_config(args: list[str], key: str) -> str | None:
+    return arg_value(args, f"mcp_servers.cmux-blueprint.{key}=")
+
+
+def test_codex_gets_cmux_blueprint_when_enabled(failures: list[str]) -> None:
+    code, args, stderr, _ = run_wrapper(["hello"], blueprint_enabled=True)
+    expect(code == 0, f"blueprint: wrapper exited {code}: {stderr}", failures)
+    command = blueprint_config(args, "command")
+    expect(command is not None, f"blueprint: missing command config in {args}", failures)
+    if command is not None:
+        command_path = Path(json.loads(command))
+        expect(
+            command_path.is_absolute() and command_path.name == "cmux",
+            f"blueprint: command must be the absolute bundled cmux CLI, got {command}",
+            failures,
+        )
+    expect(
+        blueprint_config(args, "args") == '["blueprint","mcp"]',
+        f"blueprint: args must be [\"blueprint\",\"mcp\"], got {blueprint_config(args, 'args')}",
+        failures,
+    )
+    # Codex forwards only an allowlisted child env: the cmux binding is explicit.
+    expect(blueprint_config(args, "env.CMUX_SURFACE_ID") == '"surface:test"', f"blueprint: surface env missing in {args}", failures)
+    socket_env = blueprint_config(args, "env.CMUX_SOCKET_PATH") or ""
+    expect(socket_env.endswith('/cmux.sock"'), f"blueprint: socket env missing, got {socket_env!r}", failures)
+    expect(blueprint_config(args, "env.NODE_OPTIONS") == '""', f"blueprint: NODE_OPTIONS must be scrubbed in {args}", failures)
+    expect(blueprint_config(args, "env.BUN_OPTIONS") == '""', f"blueprint: BUN_OPTIONS must be scrubbed in {args}", failures)
+    expect(
+        command_config(args) is not None,
+        f"blueprint: computer use must still attach alongside, got {args}",
+        failures,
+    )
+    prompt_index = args.index("hello") if "hello" in args else -1
+    blueprint_index = next((i for i, arg in enumerate(args) if arg.startswith("mcp_servers.cmux-blueprint.command=")), -1)
+    expect(0 <= blueprint_index < prompt_index, f"blueprint: config must precede user argv, got {args}", failures)
+
+
+def test_codex_skips_cmux_blueprint_when_off(failures: list[str]) -> None:
+    for label, kwargs in (
+        ("toggle off", {"blueprint_enabled": False}),
+        ("toggle missing", {}),
+        ("disabled env", {"blueprint_enabled": True, "blueprint_disabled_env": True}),
+        ("dead socket", {"blueprint_enabled": True, "dead_socket": True}),
+    ):
+        code, args, stderr, _ = run_wrapper(["hello"], **kwargs)
+        expect(code == 0, f"blueprint {label}: wrapper exited {code}: {stderr}", failures)
+        expect(
+            blueprint_config(args, "command") is None,
+            f"blueprint {label}: must not attach, got {args}",
+            failures,
+        )
 
 
 def test_codex_gets_cmux_cua(failures: list[str]) -> None:
@@ -1566,6 +1629,8 @@ def main() -> int:
     test_codex_disabled_hooks_reports_inert_attachment(failures)
     test_codex_outside_cmux_reports_fail_closed_attachment(failures)
     test_codex_gets_cmux_cua(failures)
+    test_codex_gets_cmux_blueprint_when_enabled(failures)
+    test_codex_skips_cmux_blueprint_when_off(failures)
     test_codex_default_does_not_mutate_global_or_fake_session_discovery(failures)
     test_codex_default_skill_path_is_picker_safe(failures)
     test_codex_preserves_unverified_dangling_link_by_default(failures)
