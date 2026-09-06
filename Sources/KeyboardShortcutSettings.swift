@@ -116,6 +116,7 @@ enum KeyboardShortcutSettings {
         case switchRightSidebarToDock
         case switchRightSidebarToMachines
         case triggerFlash
+        case toggleTerminalBlueprint
 
         // Navigation
         case nextSurface
@@ -268,6 +269,7 @@ enum KeyboardShortcutSettings {
             case .switchRightSidebarToDock: return String(localized: "shortcut.switchRightSidebarToDock.label", defaultValue: "Show Sidebar Dock")
             case .switchRightSidebarToMachines: return String(localized: "shortcut.switchRightSidebarToMachines.label", defaultValue: "Show Sidebar Cloud")
             case .triggerFlash: return String(localized: "shortcut.flashFocusedPanel.label", defaultValue: "Flash Focused Panel")
+            case .toggleTerminalBlueprint: return String(localized: "shortcut.toggleTerminalBlueprint.label", defaultValue: "Toggle Blueprint")
             case .nextSurface: return String(localized: "shortcut.nextSurface.label", defaultValue: "Next Surface")
             case .prevSurface: return String(localized: "shortcut.previousSurface.label", defaultValue: "Previous Surface")
             case .moveSurfaceLeft: return String(localized: "shortcut.moveSurfaceLeft.label", defaultValue: "Reorder Surface Left")
@@ -471,6 +473,9 @@ enum KeyboardShortcutSettings {
                 return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .machines)
             case .triggerFlash:
                 return StoredShortcut(key: "h", command: true, shift: true, option: false, control: false)
+            case .toggleTerminalBlueprint:
+                // Opt-in: the blueprint is a beta feature, so it ships unbound.
+                return .unbound
             case .nextSidebarTab:
                 return StoredShortcut(key: "]", command: true, shift: false, option: false, control: true)
             case .prevSidebarTab:

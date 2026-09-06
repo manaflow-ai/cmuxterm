@@ -15,6 +15,7 @@ public struct BetaFeaturesSection: View {
     @State private var remoteTmux: DefaultsValueModel<Bool>
     @State private var workspaceTodoControls: DefaultsValueModel<Bool>
     @State private var workspaceTodosChecklistStyle: DefaultsValueModel<WorkspaceTodoChecklistStyle>
+    @State private var blueprint: DefaultsValueModel<Bool>
 
     public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog) {
         _feed = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarFeed))
@@ -25,6 +26,7 @@ public struct BetaFeaturesSection: View {
         _remoteTmux = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.remoteTmux))
         _workspaceTodoControls = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.workspaceTodoControls))
         _workspaceTodosChecklistStyle = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.workspaceTodosChecklistStyle))
+        _blueprint = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.blueprint))
     }
 
     public var body: some View {
@@ -50,6 +52,8 @@ public struct BetaFeaturesSection: View {
                 workspaceTodoControlsRow
                 SettingsCardDivider()
                 workspaceTodosChecklistStyleRow
+                SettingsCardDivider()
+                blueprintRow
             }
         }
         .task { startObservingSettings() }
@@ -65,6 +69,7 @@ public struct BetaFeaturesSection: View {
             remoteTmux,
             workspaceTodoControls,
             workspaceTodosChecklistStyle,
+            blueprint,
         ]
         models.forEach { $0.startObserving() }
     }
@@ -107,6 +112,23 @@ public struct BetaFeaturesSection: View {
             .labelsHidden()
             .pickerStyle(.segmented)
             .accessibilityIdentifier("SettingsBetaWorkspaceTodosChecklistStylePicker")
+        }
+    }
+
+    @ViewBuilder
+    private var blueprintRow: some View {
+        SettingsCardRow(
+            configurationReview: .json("blueprint.beta.enabled"),
+            searchAnchorID: "setting:betaFeatures:blueprint",
+            String(localized: "settings.betaFeatures.blueprint", defaultValue: "Blueprint"),
+            subtitle: blueprint.current
+                ? String(localized: "settings.betaFeatures.blueprint.subtitleOn", defaultValue: "Adds a diagram canvas below every terminal. Agents draw the design they are working on and you can sketch back.")
+                : String(localized: "settings.betaFeatures.blueprint.subtitleOff", defaultValue: "Hides the Blueprint drawer, its commands, and the tab-bar button until you enable it here.")
+        ) {
+            Toggle("", isOn: Binding(get: { blueprint.current }, set: { blueprint.set($0) }))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier("SettingsBetaBlueprintToggle")
         }
     }
 

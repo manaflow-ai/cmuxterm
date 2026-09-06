@@ -239,6 +239,52 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
+## Blueprint Canvas Web Assets
+
+cmux bundles these packages into `Resources/markdown-viewer/webviews-app/`
+(the `blueprint-*` chunks and `excalidraw-assets/` fonts) so the per-terminal
+blueprint canvas works offline.
+
+### Excalidraw
+
+- **Version:** 0.18.1
+- **License:** MIT License
+- **Copyright:** Copyright (c) 2020 Excalidraw
+- **Source:** https://github.com/excalidraw/excalidraw/releases/tag/v0.18.1
+- **Note:** The bundled `excalidraw-assets/fonts/` directory ships Excalidraw's
+  font families (Excalifont, Virgil, Cascadia, Comic Shanns, Lilita, Nunito,
+  Assistant, Liberation) under their respective OFL / MIT licenses as
+  redistributed by Excalidraw.
+
+### mermaid-to-excalidraw
+
+- **Version:** 2.2.2
+- **License:** MIT License
+- **Copyright:** Copyright (c) 2023 Excalidraw
+- **Source:** https://github.com/excalidraw/mermaid-to-excalidraw/releases/tag/v2.2.2
+
+MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
 ## Swift Package Dependencies
 
 The following packages are linked into the cmux app binary.

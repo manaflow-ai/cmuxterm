@@ -49,6 +49,12 @@ final class TerminalPanel: Panel, ObservableObject {
     @Published private(set) var tmuxLayoutReport: TmuxPaneLayoutReport?
     let shellActivity = TerminalPanelShellActivityModel()
     let textBoxState = TerminalPanelTextBoxState()
+    /// The per-terminal blueprint drawer model. Every entrypoint (drawer
+    /// buttons, shortcut, palette, tab bar, menu, socket) mutates it through
+    /// `TerminalBlueprintState.perform(_:)`.
+    let blueprint = TerminalBlueprintState(store: TerminalBlueprintStore.makeDefault())
+    /// Keeps the blueprint web view alive across SwiftUI churn.
+    let blueprintWebSession = TerminalBlueprintWebSession()
     @Published var isTextBoxActive: Bool = false
     @Published var textBoxContent: String = ""
     @Published var textBoxAttachments: [TextBoxAttachment] = []
@@ -172,6 +178,10 @@ final class TerminalPanel: Panel, ObservableObject {
         self.workspaceId = workspaceId
         self.surface = surface
         self.title = surface.agentPanelTitle ?? "Terminal"
+        blueprint.surfaceIDProvider = { [weak self] in self?.stableSurfaceId ?? UUID() }
+        blueprint.onRequestTerminalFocus = { [weak self] in
+            _ = self?.focusTerminalSurface(respectForeignFirstResponder: false)
+        }
         // Subscribe to surface's search state changes
         surface.$searchState
             .sink { [weak self] state in
@@ -466,6 +476,21 @@ final class TerminalPanel: Panel, ObservableObject {
         }
     }
 
+    /// The blueprint canvas took pointer focus; release terminal focus the
+    /// same way the text box does so the terminal stops drawing a cursor.
+    func blueprintDidBecomeFocused() {
+        surface.setFocus(false)
+        hostedView.setActive(false)
+    }
+
+    func sessionBlueprintSnapshot() -> SessionTerminalBlueprintSnapshot? {
+        blueprint.sessionSnapshot()
+    }
+
+    func restoreSessionBlueprint(_ snapshot: SessionTerminalBlueprintSnapshot?) {
+        blueprint.restore(from: snapshot)
+    }
+
     func sessionTextBoxDraftSnapshot() -> SessionTextBoxInputDraftSnapshot? {
         if let textBoxInputView {
             return textBoxInputView.sessionDraftSnapshot(isActive: isTextBoxActive)
@@ -682,6 +707,9 @@ final class TerminalPanel: Panel, ObservableObject {
         )
         discardAgentHibernationPhaseForPermanentClose()
         discardTextBoxContentForClose()
+        let blueprint = blueprint
+        Task { await blueprint.flushPendingSave() }
+        blueprintWebSession.teardown()
         removeOwnedSessionScrollbackReplayArtifact()
         // Detach from the window portal on real close so stale hosted views
         // cannot remain above browser panes after split close.

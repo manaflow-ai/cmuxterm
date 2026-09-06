@@ -11,6 +11,7 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
     case newSimulator = "cmux.newSimulator"
     case splitRight = "cmux.splitRight"
     case splitDown = "cmux.splitDown"
+    case toggleBlueprint = "cmux.toggleBlueprint"
 
     init?(configID: String) {
         switch configID {
@@ -35,6 +36,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             self = .splitRight
         case "cmux.splitDown", "splitDown":
             self = .splitDown
+        case "cmux.toggleBlueprint", "toggleBlueprint", "blueprint":
+            self = .toggleBlueprint
         default:
             return nil
         }
@@ -67,6 +70,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return (String(localized: "command.terminalSplitRight.title", defaultValue: "Split Right"), ["terminal", "split", "right"])
         case .splitDown:
             return (String(localized: "command.terminalSplitDown.title", defaultValue: "Split Down"), ["terminal", "split", "down"])
+        case .toggleBlueprint:
+            return (String(localized: "command.toggleBlueprint.title", defaultValue: "Toggle Blueprint"), ["blueprint", "canvas", "diagram", "sketch", "draw", "terminal"])
         }
     }
 
@@ -90,12 +95,14 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return "square.split.2x1"
         case .splitDown:
             return "square.split.1x2"
+        case .toggleBlueprint:
+            return "rectangle.and.pencil.and.ellipsis"
         }
     }
 
     var bonsplitAction: BonsplitConfiguration.SplitActionButton.Action? {
         switch self {
-        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator:
+        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator, .toggleBlueprint:
             return nil
         case .newTerminal:
             return .newTerminal

@@ -1045,6 +1045,14 @@ struct cmuxApp: App {
                 }
             }
 
+            splitCommandButton(title: String(localized: "menu.view.toggleBlueprint", defaultValue: "Toggle Blueprint"), shortcut: menuShortcut(for: .toggleTerminalBlueprint)) {
+                if AppDelegate.shared?.performBlueprintMenuToggle(
+                    preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                ) != true {
+                    NSSound.beep()
+                }
+            }
+
             splitCommandButton(title: String(localized: "menu.view.toggleRightSidebar", defaultValue: "Toggle Right Sidebar"), shortcut: menuShortcut(for: .toggleRightSidebar)) {
                 if AppDelegate.shared?.toggleRightSidebarInActiveMainWindow(
                     preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow

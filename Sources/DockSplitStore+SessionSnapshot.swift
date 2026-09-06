@@ -349,7 +349,8 @@ extension DockSplitStore {
                 textBoxDraft: terminal.sessionTextBoxDraftSnapshot(),
                 isRemoteTerminal: transfer?.isRemoteTerminal ?? false,
                 remotePTYSessionID: transfer?.remotePTYSessionID,
-                wasAgentRunning: agentWasRunning
+                wasAgentRunning: agentWasRunning,
+                blueprint: terminal.sessionBlueprintSnapshot()
             )
             browserSnapshot = nil
             filePreviewSnapshot = nil
