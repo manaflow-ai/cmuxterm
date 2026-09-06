@@ -66,7 +66,7 @@ struct TerminalCopyOnSelectManagedConfigLayeringTests {
 
         #expect(
             TerminalManagedGhosttySettings.ghosttyConfigContents(defaults: defaults)
-                == "copy-on-select = clipboard"
+                == "term = \(TerminalSurface.managedTerminalType)\ncopy-on-select = clipboard"
         )
 
         let effectiveValue = Self.effectiveGhosttyValues(afterLoading: [
