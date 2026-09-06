@@ -483,7 +483,12 @@ public struct SettingsWindowRoot: View {
         )
         .id(anchorID(for: .customSidebars))
 
-        BetaFeaturesSection(defaultsStore: defaultsStore, catalog: catalog)
+        BetaFeaturesSection(
+            defaultsStore: defaultsStore,
+            secretStore: secretStore,
+            catalog: catalog,
+            errorLog: runtime.errorLog
+        )
             .id(anchorID(for: .betaFeatures))
         AutomationSection(
             defaultsStore: defaultsStore,

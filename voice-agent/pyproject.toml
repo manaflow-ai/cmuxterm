@@ -1,0 +1,24 @@
+[project]
+name = "cmux-voice-agent"
+version = "0.1.0"
+description = "Voice control for cmux: Ultravox Realtime driven through Pipecat, executing tools against the cmux control socket."
+requires-python = ">=3.11"
+dependencies = [
+    # `local` (PyAudio) is intentionally excluded: it needs the PortAudio C library.
+    "pipecat-ai[ultravox,webrtc,silero,runner]==1.8.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

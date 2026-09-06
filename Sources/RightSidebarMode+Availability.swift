@@ -16,6 +16,8 @@ extension RightSidebarMode {
             return .dock
         case "cloud", "machines", "vms":
             return .machines
+        case "voice":
+            return .voice
         case "custom", "custom-sidebar":
             return .customSidebar
         default:
@@ -27,16 +29,23 @@ extension RightSidebarMode {
         availableModes(
             feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
             dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
-            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
+            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults),
+            voiceEnabled: VoiceAgentFeature.isEnabled(defaults: defaults)
         )
     }
 
-    static func availableModes(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> [RightSidebarMode] {
+    static func availableModes(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool,
+        voiceEnabled: Bool = false
+    ) -> [RightSidebarMode] {
         allCases.filter {
             $0.isAvailable(
                 feedEnabled: feedEnabled,
                 dockEnabled: dockEnabled,
-                machinesEnabled: machinesEnabled
+                machinesEnabled: machinesEnabled,
+                voiceEnabled: voiceEnabled
             )
         }
     }
@@ -45,7 +54,8 @@ extension RightSidebarMode {
         isAvailable(
             feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
             dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
-            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
+            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults),
+            voiceEnabled: VoiceAgentFeature.isEnabled(defaults: defaults)
         )
     }
 
@@ -75,7 +85,12 @@ extension RightSidebarMode {
         return index + 1
     }
 
-    func isAvailable(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> Bool {
+    func isAvailable(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool,
+        voiceEnabled: Bool = false
+    ) -> Bool {
         switch self {
         case .files, .find, .sessions:
             return true
@@ -85,6 +100,9 @@ extension RightSidebarMode {
             return dockEnabled
         case .machines:
             return machinesEnabled
+        case .voice:
+            // Voice agent beta: the mode bar grows a Voice tab once enabled.
+            return voiceEnabled
         case .customSidebar:
             // Available once the custom-sidebars beta is on AND a right-side
             // sidebar has been picked (right_sidebar set custom <name>); the

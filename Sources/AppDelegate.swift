@@ -2367,6 +2367,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         mainWindowLifecycleCoordinator.cancelAllWindowlessRouteFreezeTasks()
         MemoryPressureMonitor.shared.stop()
         computerUseUXCoordinator.teardownForTermination()
+        terminateVoiceAgentSidecar()
         if needsTerminationSnapshotBackstop {
             _ = saveSessionSnapshotIncludingProcessDetectedIndexes(includeScrollback: true, removeWhenEmpty: false)
         }
@@ -15117,6 +15118,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let manager = activeTabManagerForCommands(preferredWindow: mainWindowForShortcutEvent(event))
             if !openDiffViewerForFocusedWorkspace(for: manager) {
                 NSSound.beep()
+            }
+            return true
+        }
+
+        if matchConfiguredShortcut(event: event, action: .toggleVoiceAgent) {
+            let preferredWindow = mainWindowForShortcutEvent(event) ?? event.window ?? shortcutRoutingActiveWindow
+            DispatchQueue.main.async { [weak self, weak preferredWindow] in
+                _ = self?.performVoiceAgentToggle(preferredWindow: preferredWindow)
             }
             return true
         }
