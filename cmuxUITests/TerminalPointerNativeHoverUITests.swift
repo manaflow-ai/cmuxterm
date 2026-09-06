@@ -32,7 +32,7 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
             try? FileManager.default.removeItem(at: directory)
         }
 
-        let cursorReferences = try captureCursorReferences()
+        let cursorReferences = try loadCursorReferences()
         app.launch()
         let window = app.windows.firstMatch
         guard window.waitForExistence(timeout: 20) else {
@@ -129,7 +129,7 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
         // Never compare factory object identity. Copy and arrow share geometry,
         // so copy additionally excludes the captured frame cursor and the batch
         // must match the live copy reference's PNG bytes. References are captured
-        // before launch because factory images can be empty in the UI-test runner.
+        // after initializing AppKit, before launch, without changing the cursor.
         let hotspot = expected.hotspot
         let size = expected.size
         let capture: @Sendable () -> Data? = {
@@ -168,30 +168,25 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
     }
 
     @MainActor
-    private func captureCursorReferences() throws -> CursorReferences {
-        guard let current = NSCursor.currentSystem else {
-            throw failure("Cannot calibrate standard cursors without a system cursor")
-        }
-        defer { current.set() }
+    private func loadCursorReferences() throws -> CursorReferences {
+        // The UI-test runner can use XCTest without initializing NSApplication.
+        // AppKit must initialize before its standard cursor images are loaded.
+        _ = NSApplication.shared
         let cursors: [NSCursor] = [.arrow, .iBeam, .dragCopy, .pointingHand, .resizeLeftRight]
         let references = try cursors.map { cursor in
-            // Capture the OS-rendered reference before launching the app. Cursor
-            // setters never run between native hover events and their assertions.
-            cursor.set()
-            guard let active = NSCursor.currentSystem,
-                  let tiff = active.image.tiffRepresentation,
+            guard let tiff = cursor.image.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiff),
                   let image = bitmap.representation(using: .png, properties: [:]) else {
-                throw failure("System cursor did not materialize after setting a standard cursor")
+                throw failure("Standard cursor image is unavailable after AppKit initialization")
             }
-            let geometry = CursorReference(hotspot: active.hotSpot, size: active.image.size, image: image)
+            let geometry = CursorReference(hotspot: cursor.hotSpot, size: cursor.image.size, image: image)
             guard geometry.size.width > 0, geometry.size.height > 0 else {
-                throw failure("Standard cursor did not materialize: \(geometry.size)")
+                throw failure("Standard cursor has empty geometry: \(geometry.size)")
             }
             return geometry
         }
         guard Set(references.map(\.image)).count == references.count else {
-            throw failure("Standard cursor calibration produced duplicate cursor images")
+            throw failure("Standard cursor references contain duplicate images")
         }
         return CursorReferences(
             arrow: references[0],
