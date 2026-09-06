@@ -2580,6 +2580,52 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
     }
 
     @MainActor
+    func testRemoteStartupDoesNotRetainStaleInitialWorkingDirectory() throws {
+        let workspace = Workspace()
+        let config = WorkspaceRemoteConfiguration(
+            destination: "cmux-macmini",
+            port: nil,
+            identityFile: nil,
+            sshOptions: [],
+            localProxyPort: nil,
+            relayPort: 64019,
+            relayID: String(repeating: "a", count: 16),
+            relayToken: String(repeating: "b", count: 64),
+            localSocketPath: "/tmp/cmux-debug-test.sock",
+            terminalStartupCommand: "ssh-pty-attach",
+            preserveAfterTerminalExit: true
+        )
+        workspace.configureRemoteConnection(config, autoConnect: false)
+        workspace.workspaceEnvironment["CMUX_REMOTE_INITIAL_CWD"] = "/srv/cmux/stale"
+
+        let sourcePanelID = try XCTUnwrap(workspace.focusedTerminalPanel?.id)
+        let splitPanel = try XCTUnwrap(
+            workspace.newTerminalSplit(
+                from: sourcePanelID,
+                orientation: .vertical,
+                focus: false
+            )
+        )
+        XCTAssertNil(splitPanel.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"))
+
+        let paneID = try XCTUnwrap(workspace.bonsplitController.allPaneIds.first)
+        let explicitEnvironmentDirectory = "/srv/cmux/explicit-environment"
+        let surface = try XCTUnwrap(
+            workspace.newTerminalSurface(
+                inPane: paneID,
+                focus: false,
+                startupEnvironment: [
+                    "CMUX_REMOTE_INITIAL_CWD": explicitEnvironmentDirectory
+                ]
+            )
+        )
+        XCTAssertEqual(
+            surface.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"),
+            explicitEnvironmentDirectory
+        )
+    }
+
+    @MainActor
     func testDetachAttachDoesNotAdoptPersistentPTYSessionIDAcrossNilRelayWorkspaces() throws {
         let source = Workspace()
         let destination = Workspace()
