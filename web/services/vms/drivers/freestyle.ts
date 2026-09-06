@@ -53,14 +53,13 @@ import {
   CMUX_TUI_INSTALL_TIMEOUT_MS,
   CMUX_TUI_PORT,
   CMUX_TUI_SESSION,
-  approveCmuxTuiEnrollment,
+  CMUX_TUI_TRUSTED_CARRIER_ENV,
   CMUX_TUI_ATTACH_BUNDLE_NOT_READY_EXIT,
   cmuxTuiAttachBundleCommand,
   cmuxTuiDaemonBuild,
   cmuxTuiDaemonCommand,
   cmuxTuiInstallCommand,
   cmuxTuiPinCheckCommand,
-  mintCmuxTuiInvitation,
   parseCmuxTuiAttachBundle,
   resolveCmuxTuiSource,
   type CmuxTuiSource,
@@ -684,22 +683,33 @@ const REMOTE_WS_BIND_OVERRIDE =
   "/etc/systemd/system/cmux-tui-daemon.service.d/10-cmux-remote-ws-bind.conf";
 
 /**
- * (Re)start the daemon listening dual-stack. Under systemd (the baked
- * cmux-tui-daemon unit), install a drop-in setting
- * CMUX_TUI_REMOTE_WS_BIND=[::]:1337 — the env cmux-devbox-boot reads — then
- * restart the unit, healing machines from bakes that predate the env default.
- * Without systemd (or the unit), fall back to a direct daemon launch with the
- * dual-stack bind.
+ * (Re)start the daemon listening dual-stack with the trusted-carrier listener.
+ * Under systemd (the baked cmux-tui-daemon unit), install a drop-in setting
+ * CMUX_TUI_REMOTE_WS_BIND=[::]:1337 — the env cmux-devbox-boot reads — and
+ * CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1 — which the daemon itself reads, so a
+ * baked launch line that predates the flag still serves the trusted listener —
+ * then restart the unit. Without systemd (or the unit), fall back to a direct
+ * daemon launch carrying both.
  */
-export function freestyleStartDaemonCommand(): string {
+/**
+ * `replaceExisting` is the trusted-listener heal: a daemon that already runs
+ * without the trusted env must go, or installing the pinned binary changes
+ * nothing for the live process. systemd restarts unconditionally; the
+ * fallback launcher otherwise keeps a running daemon.
+ */
+export function freestyleStartDaemonCommand(options?: { replaceExisting?: boolean }): string {
+  const replace = options?.replaceExisting === true;
+  const fallbackLaunch = `(setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &)`;
   return [
     "if [ -d /run/systemd/system ] && [ -f /etc/systemd/system/cmux-tui-daemon.service ]; then",
     `mkdir -p ${REMOTE_WS_BIND_OVERRIDE.replace(/\/[^/]+$/, "")};`,
-    `printf '[Service]\\nEnvironment=CMUX_TUI_REMOTE_WS_BIND=${FREESTYLE_REMOTE_WS_BIND}\\n' > ${REMOTE_WS_BIND_OVERRIDE};`,
+    `printf '[Service]\\nEnvironment=CMUX_TUI_REMOTE_WS_BIND=${FREESTYLE_REMOTE_WS_BIND}\\nEnvironment=${CMUX_TUI_TRUSTED_CARRIER_ENV}=1\\n' > ${REMOTE_WS_BIND_OVERRIDE};`,
     "systemctl daemon-reload;",
     "systemctl restart cmux-tui-daemon;",
     "else",
-    `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || (setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &);`,
+    replace
+      ? `pkill -f 'cmux-tui server [s]tart' >/dev/null 2>&1; sleep 1; ${fallbackLaunch};`
+      : `pgrep -f 'cmux-tui server [s]tart' >/dev/null 2>&1 || ${fallbackLaunch};`,
     "fi",
   ].join(" ");
 }
@@ -1323,21 +1333,39 @@ export class FreestyleProvider implements VMProvider {
           const data = persisted ?? await vm.data();
           const route = freestyleCmuxRemoteRoute(data, vmId);
           const fingerprint = options?.deviceFingerprint;
-          const { bundle, healed } = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
+          let { bundle, healed } = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
+          // A daemon from a bake that predates the trusted listener is brought to
+          // the pinned build and restarted with the drop-in — but never under a
+          // device that is already enrolled there, whose sessions the restart
+          // would end; that device keeps dialing with its stored key. The
+          // manifest is read only here, so a manifest outage cannot reject an
+          // attach that needs no heal.
+          if (!bundle.trustedCarrier && !bundle.enrolled) {
+            healed = true;
+            const source = await this.deps.resolveDaemonSource("freestyle");
+            await this.installTrustedCmuxTui(vm, vmId, source);
+            const retried = await this.loadCmuxRemoteBundle(vm, vmId, fingerprint);
+            bundle = retried.bundle;
+            if (!bundle.trustedCarrier) {
+              throw new ProviderError(
+                "freestyle",
+                `cmux-tui daemon in ${vmId} still refuses the trusted listener after the pinned build was installed and restarted`,
+              );
+            }
+          }
           span.setAttribute("cmux.vm.cmux_remote.healed", healed);
+          span.setAttribute("cmux.vm.cmux_remote.trusted", bundle.trustedCarrier);
+          span.setAttribute("cmux.vm.cmux_remote.enrolled", bundle.enrolled);
           span.setAttribute("cmux.vm.network.private", (data.vpcs ?? data.networks ?? []).length > 0);
           span.setAttribute("cmux.vm.route.source", persisted ? "row" : "provider");
-          const invoke = this.cmuxTuiInvoke(vm);
-          const invitation = await this.cmuxRemoteInvitation(bundle, invoke, vmId);
-          span.setAttribute("cmux.vm.cmux_remote.invited", !bundle.enrolled);
           return {
             transport: "cmux-remote" as const,
             route,
             token: `cmux-freestyle-route-${randomBytes(32).toString("hex")}`,
             expiresAtUnix: Math.floor(Date.now() / 1000) + ROUTE_TOKEN_TTL_SECONDS,
             session: CMUX_TUI_SESSION,
+            trustedCarrier: bundle.trustedCarrier,
             ...(bundle.daemonBuild ? { daemonBuild: bundle.daemonBuild } : {}),
-            ...(invitation ? { invitation } : {}),
             ...this.networkAddresses(data),
           };
         } catch (err) {
@@ -1354,16 +1382,17 @@ export class FreestyleProvider implements VMProvider {
     vmId: string,
     fingerprint: string | undefined,
   ) {
+    const bundleOptions = { deviceFingerprint: fingerprint };
     let result = await this.execResult(
       vm,
-      cmuxTuiAttachBundleCommand({ readyGate: freestyleDaemonSettledCommand(), deviceFingerprint: fingerprint }),
+      cmuxTuiAttachBundleCommand({ readyGate: freestyleDaemonSettledCommand(), ...bundleOptions }),
       DAEMON_SETTLE_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS + EXEC_DEFAULT_TIMEOUT_MS,
     );
     let healed = false;
     if (!result || result.exitCode === CMUX_TUI_ATTACH_BUNDLE_NOT_READY_EXIT) {
       healed = true;
       await this.ensureCmuxTuiRunning(vm, vmId);
-      result = await this.execResult(vm, cmuxTuiAttachBundleCommand({ deviceFingerprint: fingerprint }));
+      result = await this.execResult(vm, cmuxTuiAttachBundleCommand(bundleOptions));
     }
     if (!result || result.exitCode !== 0) {
       throw new ProviderError(
@@ -1374,13 +1403,22 @@ export class FreestyleProvider implements VMProvider {
     return { bundle: parseCmuxTuiAttachBundle(result.stdout, "freestyle", vmId, fingerprint), healed };
   }
 
-  private async cmuxRemoteInvitation(
-    bundle: ReturnType<typeof parseCmuxTuiAttachBundle>,
-    invoke: CmuxTuiInvoke,
-    vmId: string,
-  ): Promise<CmuxRemoteEndpoint["invitation"] | undefined> {
-    if (bundle.enrolled || bundle.invitation) return bundle.invitation ?? undefined;
-    return mintCmuxTuiInvitation(invoke, "freestyle", vmId);
+  /**
+   * Bring a machine's daemon to the pinned build and restart it with the
+   * trusted-carrier drop-in. The manifest sha decides the install, not the
+   * bake-time pin file: a bake that predates the trusted listener records a
+   * binary that ignores the env, and only a build that honors it counts.
+   */
+  private async installTrustedCmuxTui(vm: Vm, vmId: string, source: CmuxTuiSource): Promise<void> {
+    const pinned = await this.execResult(vm, cmuxTuiPinCheckCommand(source));
+    if (pinned?.exitCode !== 0) {
+      await this.execOrThrow(vm, vmId, cmuxTuiInstallCommand(source), CMUX_TUI_INSTALL_TIMEOUT_MS)
+        .catch((err: unknown) => {
+          throw new ProviderError("freestyle", `cmux-tui install in ${vmId} failed: ${errorMessage(err)}`);
+        });
+    }
+    await this.execOrThrow(vm, vmId, freestyleStartDaemonCommand({ replaceExisting: true }), 60_000);
+    await waitForCmuxTuiReady(this.cmuxTuiInvoke(vm), "freestyle", vmId);
   }
 
   private networkAddresses(data: FreestyleRouteAddresses): Pick<CmuxRemoteEndpoint, "networkAddresses"> {
@@ -1398,29 +1436,14 @@ export class FreestyleProvider implements VMProvider {
     options?: CmuxRemoteApprovalOptions,
   ): Promise<CmuxRemoteApprovalResult> {
     void options;
+    void invitationId;
+    // Compatibility: the trusted listener enrolls nobody, so there is nothing
+    // to approve and nothing to exec. Older Mac builds call this once after
+    // their first connect and only need `approved` back.
     return withVmSpan(
       "cmux.vm.provider.approve_cmux_remote_enrollment",
-      spanAttributes(vmId, "approve_cmux_remote_enrollment"),
-      async () => {
-        try {
-          const vm = this.deps.client().vms.ref(vmId);
-          return await approveCmuxTuiEnrollment(
-            async (command, timeoutMs) =>
-              await this.execResult(vm, command, timeoutMs) ?? {
-                exitCode: 124,
-                stdout: "",
-                stderr: "exec failed",
-              },
-            "freestyle",
-            vmId,
-            invitationId,
-          );
-        } catch (err) {
-          throw err instanceof ProviderError
-            ? err
-            : new ProviderError("freestyle", `approveCmuxRemoteEnrollment(${vmId}) failed`, err);
-        }
-      },
+      spanAttributes(vmId, "approve_cmux_remote_enrollment", { "cmux.vm.cmux_remote.approve_noop": true }),
+      async () => ({ approved: true, state: "approved" as const }),
     );
   }
 
