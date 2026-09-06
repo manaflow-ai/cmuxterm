@@ -93,7 +93,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (20 tests).
+- `cargo test -p cmux-cli` (22 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -107,6 +107,7 @@ The following checks passed for the current slice:
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
+- Topology mutation handle normalization for workspace, window, pane, and surface targets.
 - Workspace and surface creation command parsing and boolean flag tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
