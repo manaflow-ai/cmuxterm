@@ -2463,6 +2463,22 @@ def test_live_socket_tmpdir_failure_does_not_block_node_options_injection(failur
     expect(child_node_options == "__UNSET__", f"tmpdir failure: expected child NODE_OPTIONS passthrough, got {child_node_options!r}", failures)
 
 
+def test_live_socket_recreates_legacy_node_options_restore_module(failures: list[str]) -> None:
+    with tempfile.TemporaryDirectory(prefix="cmux-claude-wrapper-legacy-node-options-") as td:
+        legacy_path = Path(td) / "cmux-claude-node-options" / "restore-node-options.cjs"
+        code, _, _, stderr, _, _, runtime_node_options, child_node_options, _, _ = run_wrapper(
+            socket_state="live",
+            argv=["hello"],
+            node_options=f'--require="{legacy_path}"',
+            tmpdir=td,
+        )
+        legacy_recreated = legacy_path.is_file()
+    expect(code == 0, f"legacy NODE_OPTIONS restore: wrapper exited {code}: {stderr}", failures)
+    expect(legacy_recreated, f"legacy NODE_OPTIONS restore: path was not recreated: {legacy_path}", failures)
+    expect(runtime_node_options == "__UNSET__", f"legacy NODE_OPTIONS restore: runtime leaked NODE_OPTIONS: {runtime_node_options!r}", failures)
+    expect(child_node_options == "__UNSET__", f"legacy NODE_OPTIONS restore: child leaked NODE_OPTIONS: {child_node_options!r}", failures)
+
+
 def test_live_socket_preserves_explicit_bypass_availability_flag(failures: list[str]) -> None:
     cases = [
         ("allow/plain", ["--allow-dangerously-skip-permissions", "hello"], True, "--allow-dangerously-skip-permissions"),
@@ -2680,6 +2696,7 @@ def main() -> int:
     test_live_socket_explicit_key_list_is_additive_to_vertex_auto_preserve(failures)
     test_live_socket_enforces_heap_cap_for_space_separated_flag(failures)
     test_live_socket_tmpdir_failure_does_not_block_node_options_injection(failures)
+    test_live_socket_recreates_legacy_node_options_restore_module(failures)
     test_live_socket_preserves_explicit_bypass_availability_flag(failures)
     test_live_socket_stale_mktemp_literal_does_not_warn(failures)
     test_missing_socket_skips_hook_injection(failures)
