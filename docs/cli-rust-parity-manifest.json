@@ -40,7 +40,7 @@
       "id": "app-and-settings",
       "commands": ["welcome", "docs", "settings", "config", "shortcuts", "themes", "auth", "open", "feedback"],
       "status": "partial",
-      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#topology_split_off_matches_swift_v2_request"]
     },
     {
       "id": "topology",
@@ -76,7 +76,7 @@
       "id": "compatibility",
       "commands": ["__tmux-compat", "restore", "fork", "restore-session", "hidden agent commands"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params"]
+      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#wait_for_signal_matches_tmux_compat_file_effect"]
     }
   ]
 }

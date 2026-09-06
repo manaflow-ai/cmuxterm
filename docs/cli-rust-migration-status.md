@@ -82,8 +82,8 @@ output, or side effects. The new topology and browser commands still need
 Swift-compatible handle normalization, help text, output formatting, and
 side-effect conformance.
 The latest stripped Rust candidate binaries from the packaging script are
-1,632,112 bytes (`cmux`) and 1,632,128 bytes (`coderouter`) as universal
-arm64+x86_64 Mach-O files. The pair is 3,264,240 bytes, about 3.11 MiB.
+1,729,440 bytes (`cmux`) and 1,729,424 bytes (`coderouter`) as universal
+arm64+x86_64 Mach-O files. The pair is 3,458,864 bytes, about 3.30 MiB.
 Keeping Swift in production while the gate is red adds this temporary Rust
 payload. Removing Swift before the gate passes would risk breaking commands,
 so the size increase remains accepted until cutover.
@@ -105,7 +105,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (29 tests).
+- `cargo test -p cmux-cli` (31 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -129,6 +129,7 @@ The following checks passed for the current slice:
 - CodeRouter team status test: Rust sends `auth.status` and then
   `coderouter.claude_upstream.get` through the same cmux session. It does not
   start a second authentication flow.
+- Topology split-off request test and tmux `wait-for` signal file test.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
@@ -138,10 +139,11 @@ The following checks passed for the current slice:
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
 - Universal arm64 and x86_64 Rust builds.
-- Stripped universal size measurement: `cmux` 1,632,112 bytes and
-  `coderouter` 1,632,128 bytes; 3,264,240 bytes combined.
+- Latest stripped universal size measurement after generic and team adapters:
+  `cmux` 1,729,440 bytes and `coderouter` 1,729,424 bytes; 3,458,864 bytes
+  combined (about 3.30 MiB).
 - `CMUX_ALLOW_LOW_SPACE_BUILD=1 PATH=/Users/lawrence/.cargo/bin:$PATH
-  scripts/build-cmux-cli-rust.sh --output-dir /tmp/cmux-cli-rust-final
+  scripts/build-cmux-cli-rust.sh --output-dir /tmp/cmux-cli-rust-slice-3
   --archs 'arm64 x86_64'` (pass; inventory check and universal packaging).
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.

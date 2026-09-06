@@ -674,6 +674,26 @@ fn run_generic_command(
     if command == "resize-pane" {
         return run_resize_pane_command(&arguments, options);
     }
+    if command == "wait-for" {
+        return run_wait_for_command(&arguments);
+    }
+    if matches!(
+        command,
+        "move-surface"
+            | "split-off"
+            | "reorder-surface"
+            | "reorder-workspace"
+            | "reorder-workspaces"
+            | "workspace-action"
+            | "tab-action"
+            | "move-tab-to-new-workspace"
+            | "rename-tab"
+    ) {
+        return run_topology_mutation_command(command, &arguments, options);
+    }
+    if matches!(command, "tree" | "top" | "memory") {
+        return run_inspection_command(command, &arguments, options);
+    }
 
     let (method, mut params) = generic_method_and_params(command, &arguments, &options)?;
     let timeout = match command {
@@ -1081,6 +1101,175 @@ fn run_resize_pane_command(arguments: &[String], options: GlobalOptions) -> Resu
     params.insert("amount".into(), Value::Number(amount.into()));
     let result = socket(&options)?.send_v2("pane.resize", Value::Object(params))?;
     print_result(&result, options.json);
+    Ok(())
+}
+
+fn run_wait_for_command(arguments: &[String]) -> Result<(), CliError> {
+    let signal = arguments.iter().any(|value| value == "-S" || value == "--signal");
+    let mut name = None;
+    let mut index = 0;
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--timeout" => index += 2,
+            "-S" | "--signal" => index += 1,
+            value if value.starts_with('-') => index += 1,
+            value => {
+                name = Some(value.to_string());
+                break;
+            }
+        }
+    }
+    let name = name.ok_or_else(|| CliError::Usage("wait-for requires a name".into()))?;
+    let timeout = option_value(arguments, "--timeout")
+        .unwrap_or_else(|| "30".into())
+        .parse::<f64>()
+        .map_err(|_| CliError::Usage("--timeout must be a number".into()))?;
+    if !timeout.is_finite() || timeout < 0.0 {
+        return Err(CliError::Usage("--timeout must be a number".into()));
+    }
+    let sanitized = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let path = PathBuf::from(format!("/tmp/cmux-wait-for-{sanitized}.sig"));
+    if signal {
+        std::fs::File::create(&path)
+            .map_err(|error| CliError::Runtime(format!("Could not signal wait-for: {error}")))?;
+        println!("OK");
+        return Ok(());
+    }
+    let deadline = std::time::Instant::now() + Duration::from_secs_f64(timeout);
+    while !path.exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    if path.exists() {
+        let _ = std::fs::remove_file(path);
+        println!("OK");
+        Ok(())
+    } else {
+        Err(CliError::Runtime(format!("wait-for timed out waiting for '{name}'")))
+    }
+}
+
+fn run_topology_mutation_command(
+    command: &str,
+    arguments: &[String],
+    options: GlobalOptions,
+) -> Result<(), CliError> {
+    let (mut method, mut params) = generic_method_and_params(command, arguments, &options)?;
+    let positional = params
+        .remove("args")
+        .and_then(|value| value.as_array().cloned())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|value| value.as_str().map(ToOwned::to_owned))
+        .collect::<Vec<_>>();
+    match command {
+        "split-off" => {
+            let direction = params
+                .remove("direction")
+                .or_else(|| positional.first().cloned().map(Value::String))
+                .unwrap_or_else(|| Value::String("right".into()));
+            params.insert("direction".into(), direction);
+        }
+        "reorder-surface" => {
+            rename_param(&mut params, "before", "before_surface_id");
+            rename_param(&mut params, "after", "after_surface_id");
+        }
+        "reorder-workspace" => {
+            rename_param(&mut params, "before", "before_workspace_id");
+            rename_param(&mut params, "after", "after_workspace_id");
+        }
+        "reorder-workspaces" => {
+            let order = params
+                .remove("order")
+                .and_then(|value| value.as_str().map(ToOwned::to_owned))
+                .ok_or_else(|| CliError::Usage("reorder-workspaces requires --order".into()))?;
+            params.insert(
+                "workspace_ids".into(),
+                Value::Array(
+                    order
+                        .split(',')
+                        .filter(|value| !value.trim().is_empty())
+                        .map(|value| Value::String(value.trim().into()))
+                        .collect(),
+                ),
+            );
+        }
+        "workspace-action" | "tab-action" => {
+            let action = params
+                .remove("action")
+                .or_else(|| positional.first().cloned().map(Value::String))
+                .ok_or_else(|| CliError::Usage(format!("{command} requires --action")))?;
+            let action = action.as_str().unwrap_or_default().to_ascii_lowercase().replace('-', "_");
+            params.insert("action".into(), Value::String(action));
+        }
+        "move-tab-to-new-workspace" => {
+            method = "tab.action".into();
+            params.insert("action".into(), Value::String("move_to_new_workspace".into()));
+        }
+        "rename-tab" => {
+            method = "tab.action".into();
+            params.insert("action".into(), Value::String("rename".into()));
+            if !params.contains_key("title") {
+                let title = positional.join(" ");
+                if title.is_empty() {
+                    return Err(CliError::Usage("rename-tab requires a title".into()));
+                }
+                params.insert("title".into(), Value::String(title));
+            }
+        }
+        _ => {}
+    }
+    let result = socket(&options)?.send_v2(&method, Value::Object(params))?;
+    print_result(&format_ids(result, options.id_format.as_deref().unwrap_or("refs")), options.json);
+    Ok(())
+}
+
+fn rename_param(params: &mut serde_json::Map<String, Value>, from: &str, to: &str) {
+    if let Some(value) = params.remove(from) {
+        params.insert(to.into(), value);
+    }
+}
+
+fn run_inspection_command(
+    command: &str,
+    arguments: &[String],
+    options: GlobalOptions,
+) -> Result<(), CliError> {
+    let (method, mut params) = generic_method_and_params(command, arguments, &options)?;
+    params.remove("args");
+    if arguments.iter().any(|value| value == "--all" || value == "--all-windows") {
+        params.insert("all_windows".into(), Value::Bool(true));
+    }
+    if command == "top" {
+        if let Some(interval) = option_value(arguments, "--interval") {
+            params.insert(
+                "interval_ms".into(),
+                Value::Number(
+                    interval
+                        .parse::<u64>()
+                        .map_err(|_| CliError::Usage("top --interval must be an integer".into()))?
+                        .into(),
+                ),
+            );
+        }
+        if arguments.iter().any(|value| value == "--processes") {
+            params.insert("include_processes".into(), Value::Bool(true));
+        }
+    }
+    let result = socket(&options)?.send_v2_with_timeout(
+        &method,
+        Value::Object(params),
+        Duration::from_secs(60),
+    )?;
+    print_result(&format_ids(result, options.id_format.as_deref().unwrap_or("refs")), options.json);
     Ok(())
 }
 
@@ -4294,5 +4483,41 @@ mod tests {
         let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
         run_coderouter_team(&["status".into()], options).unwrap();
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn topology_split_off_matches_swift_v2_request() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "surface.split_off");
+            assert_eq!(request["params"]["surface_id"], "surface:2");
+            assert_eq!(request["params"]["direction"], "right");
+            stream.write_all(b"{\"ok\":true,\"result\":{\"surface_id\":\"surface:3\"}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), json: true, ..GlobalOptions::default() };
+        run_topology_mutation_command(
+            "split-off",
+            &["--surface".into(), "surface:2".into(), "right".into()],
+            options,
+        )
+        .unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn wait_for_signal_matches_tmux_compat_file_effect() {
+        let name = format!("rust-test-{}", std::process::id());
+        let path = PathBuf::from(format!("/tmp/cmux-wait-for-{name}.sig"));
+        let _ = std::fs::remove_file(&path);
+        run_wait_for_command(&["--signal".into(), name.clone()]).unwrap();
+        assert!(path.exists());
+        run_wait_for_command(&["--timeout".into(), "0".into(), name]).unwrap();
+        assert!(!path.exists());
     }
 }
