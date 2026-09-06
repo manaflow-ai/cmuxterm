@@ -13534,7 +13534,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C5BEA2B0EA914759A8BFD577 /* VaultSocketPayloadTests.swift in Sources */,
 				D1DE0BAC0000000000001D01 /* VideoBackgroundAudioArbiterTests.swift in Sources */,
 				D1DE0BAC0000000000001901 /* VideoBackgroundSettingsFileStoreTests.swift in Sources */,
-				D1DE0BAC0000000000001A01 /* VideoBackgroundWebViewBridgeTests.swift in Sources */
+				D1DE0BAC0000000000001A01 /* VideoBackgroundWebViewBridgeTests.swift in Sources */,
 				A3340002A3340002A3340002 /* ViewerNavigationTests.swift in Sources */,
 				6EE115A36CAD9082FBC4593E /* VMClientTelemetryTests.swift in Sources */,
 				C37800000000000000000003 /* VMDefaultCloudCommandTests.swift in Sources */,
