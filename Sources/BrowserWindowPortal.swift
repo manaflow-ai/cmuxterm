@@ -3123,9 +3123,7 @@ final class WindowBrowserPortal: NSObject {
         paneDropContext: BrowserPaneDropContext? = nil,
         paneDropTargetRegistry: PaneDropTargetRegistry? = nil
     ) {
-        if let paneDropTargetRegistry {
-            setPaneDropTargetRegistry(paneDropTargetRegistry)
-        }
+        validatePaneDropTargetRegistry(paneDropTargetRegistry)
         guard ensureInstalled() else { return }
 
         let webViewId = ObjectIdentifier(webView)
