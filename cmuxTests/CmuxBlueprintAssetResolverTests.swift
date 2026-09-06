@@ -98,6 +98,11 @@ struct CmuxBlueprintAssetResolverTests {
         let csp = try #require(headers["Content-Security-Policy"])
         #expect(csp.contains("default-src 'none'"))
         #expect(csp.contains("script-src 'self'"))
+        // The page's inline asset-path script must stay allowed by hash, and
+        // `callAsyncJavaScript` stays blocked (no unsafe-eval): the bridge
+        // uses page evaluation plus message replies on purpose.
+        #expect(csp.contains(CmuxBlueprintAssetResolver.inlineAssetPathScriptHash))
+        #expect(!csp.contains("'unsafe-eval'"))
         let script = try #require(fixture.resolver.asset(for: URL(string: "cmux-blueprint://app/chunks/blueprintSurface.mjs")!))
         #expect(fixture.resolver.responseHeaders(for: script, contentLength: 1)["Content-Security-Policy"] == nil)
     }

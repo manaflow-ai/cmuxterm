@@ -108,7 +108,7 @@ struct CmuxBlueprintAssetResolver: Sendable {
         if asset.mimeType == "text/html" {
             headers["Content-Security-Policy"] = [
                 "default-src 'none'",
-                "script-src 'self' 'wasm-unsafe-eval'",
+                "script-src 'self' 'wasm-unsafe-eval' '\(Self.inlineAssetPathScriptHash)'",
                 "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data: blob:",
                 "font-src 'self' data:",
@@ -121,6 +121,12 @@ struct CmuxBlueprintAssetResolver: Sendable {
         }
         return headers
     }
+
+    /// SHA-256 of the one inline script `blueprint.html` carries
+    /// (`window.EXCALIDRAW_ASSET_PATH = "./excalidraw-assets/";`, written by
+    /// `scripts/build-webviews-app.sh`). Allowing it by hash keeps inline
+    /// scripts otherwise blocked while letting Excalidraw find its fonts.
+    static let inlineAssetPathScriptHash = "sha256-0sO4FkJ7riEd7Z9fxi96qING7AnRsdpJ9cVa7WZxx9g="
 
     /// Splits the request path into validated components. Rejects empty,
     /// dot, dot-dot, and hidden components as well as characters outside the

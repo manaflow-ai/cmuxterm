@@ -333,7 +333,7 @@ final class BlueprintMCPServer {
         case "method_not_found":
             return "Blueprint is not available in this cmux: turn it on in Settings › Beta Features › Blueprint, or update cmux."
         case "conflict":
-            return "conflict: \(error.message)\nRead the canvas again with blueprint_state or blueprint_get and retry with the current revision."
+            return "\(error.message)\nRead the canvas again with blueprint_state or blueprint_get and retry with the current revision."
         default:
             return error.message
         }

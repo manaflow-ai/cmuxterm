@@ -151,6 +151,7 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
             webView.removeFromSuperview()
             self.webView = nil
             didLoadPage = false
+            failPendingInvocations(TerminalBlueprintError.webViewUnavailable)
             state?.webViewDidReset()
         }
 
@@ -160,16 +161,16 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == TerminalBlueprintWebRenderer.messageHandlerName,
-                  let decoded = TerminalBlueprintBridgeMessage(body: message.body) else {
-                return
-            }
+            guard message.name == TerminalBlueprintWebRenderer.messageHandlerName else { return }
+            if handleInvocationReply(message.body) { return }
+            guard let decoded = TerminalBlueprintBridgeMessage(body: message.body) else { return }
             state?.handleBridgeMessage(decoded)
         }
 
         // MARK: WKNavigationDelegate
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            failPendingInvocations(TerminalBlueprintError.webViewUnavailable)
             state?.webViewDidReset()
             if let loadedIsDark {
                 loadPage(isDark: loadedIsDark)
@@ -197,24 +198,43 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
         // MARK: TerminalBlueprintWebControlling
 
         func setScene(_ sceneJSON: String, source: TerminalBlueprintDocument.Author) async throws -> Int {
-            let result = try await call(
-                "return await window.cmuxBlueprint.setScene(sceneJSON, opts);",
+            let object = try await callObject(
+                "window.cmuxBlueprint.setScene(sceneJSON, opts)",
                 arguments: ["sceneJSON": sceneJSON, "opts": ["source": source.rawValue]]
             )
-            return Self.integer((result as? [String: Any])?["elementCount"]) ?? 0
+            return Self.integer(object["elementCount"]) ?? 0
         }
 
         func currentSceneJSON() async throws -> String {
-            let result = try await call("return await window.cmuxBlueprint.getScene();")
-            guard let sceneJSON = (result as? [String: Any])?["sceneJSON"] as? String else {
-                throw TerminalBlueprintError.webViewUnavailable
+            let object = try await callObject("window.cmuxBlueprint.getScene()")
+            guard let sceneJSON = object["sceneJSON"] as? String else {
+                throw TerminalBlueprintError.renderFailed("getScene returned no sceneJSON")
             }
             return sceneJSON
         }
 
         func summary() async throws -> String {
-            let result = try await call("return await window.cmuxBlueprint.getSummary();")
-            return result as? String ?? ""
+            let value = try await callValue("window.cmuxBlueprint.getSummary()")
+            return value as? String ?? ""
+        }
+
+        func renderMermaid(_ source: String, mode: TerminalBlueprintState.MermaidMode) async throws -> TerminalBlueprintRenderOutcome {
+            let object = try await callObject(
+                "window.cmuxBlueprint.renderMermaid(source, opts)",
+                arguments: ["source": source, "opts": ["mode": mode.rawValue]]
+            )
+            return TerminalBlueprintRenderOutcome(
+                elementCount: Self.integer(object["elementCount"]) ?? 0,
+                warnings: (object["warnings"] as? [String]) ?? []
+            )
+        }
+
+        func applyOps(_ ops: [[String: Any]]) async throws -> Int {
+            let object = try await callObject(
+                "window.cmuxBlueprint.applyOps(ops)",
+                arguments: ["ops": ops]
+            )
+            return Self.integer(object["applied"]) ?? 0
         }
 
         func requestExport(
@@ -225,8 +245,8 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
             scale: Double,
             dark: Bool
         ) async throws {
-            _ = try await call(
-                "window.cmuxBlueprint.requestExport(requestId, opts); return true;",
+            _ = try await invoke(
+                "window.cmuxBlueprint.requestExport(requestId, opts)",
                 arguments: [
                     "requestId": requestID,
                     "opts": ["png": png, "svg": svg, "mermaid": mermaid, "scale": scale, "dark": dark],
@@ -234,44 +254,125 @@ struct TerminalBlueprintWebRenderer: NSViewRepresentable {
             )
         }
 
-        func renderMermaid(_ source: String, mode: TerminalBlueprintState.MermaidMode) async throws -> TerminalBlueprintRenderOutcome {
-            let result = try await call(
-                "return await window.cmuxBlueprint.renderMermaid(source, opts);",
-                arguments: ["source": source, "opts": ["mode": mode.rawValue]]
-            )
-            let object = result as? [String: Any]
-            return TerminalBlueprintRenderOutcome(
-                elementCount: Self.integer(object?["elementCount"]) ?? 0,
-                warnings: (object?["warnings"] as? [String]) ?? []
-            )
-        }
-
-        func applyOps(_ ops: [[String: Any]]) async throws -> Int {
-            let result = try await call(
-                "return await window.cmuxBlueprint.applyOps(ops);",
-                arguments: ["ops": ops]
-            )
-            return Self.integer((result as? [String: Any])?["applied"]) ?? 0
-        }
-
         func setTheme(isDark: Bool) async {
-            _ = try? await call(
-                "window.cmuxBlueprint.setTheme(theme); return true;",
-                arguments: ["theme": isDark ? "dark" : "light"]
-            )
+            _ = try? await invoke("window.cmuxBlueprint.setTheme(theme)", arguments: ["theme": isDark ? "dark" : "light"])
         }
 
         func zoomToFit() async {
-            _ = try? await call("window.cmuxBlueprint.zoomToFit(); return true;")
+            _ = try? await invoke("window.cmuxBlueprint.zoomToFit()")
         }
 
         func clearScene() async {
-            _ = try? await call("window.cmuxBlueprint.clear(); return true;")
+            _ = try? await invoke("window.cmuxBlueprint.clear()")
         }
 
-        private func call(_ body: String, arguments: [String: Any] = [:]) async throws -> Any? {
+        // MARK: Page invocation
+
+        /// How long one page call may take (Mermaid parsing loads a 3 MB chunk on first use).
+        private static let invocationTimeout: Duration = .seconds(30)
+
+        private var pendingInvocations: [String: CheckedContinuation<Any?, any Error>] = [:]
+        private var invocationTimeouts: [String: Task<Void, Never>] = [:]
+
+        /// Runs `expression` in the page and returns its awaited value.
+        ///
+        /// The page's Content Security Policy has no `unsafe-eval`, which makes
+        /// `callAsyncJavaScript` (function construction) drop its result. So the
+        /// script is evaluated as ordinary page code and the value comes back
+        /// through the `cmuxBlueprint` message handler, like exports do.
+        /// `arguments` become `const` bindings visible to the expression.
+        private func invoke(_ expression: String, arguments: [String: Any] = [:]) async throws -> Any? {
             guard let webView else { throw TerminalBlueprintError.webViewUnavailable }
-            return try await webView.callAsyncJavaScript(body, arguments: arguments, in: nil, in: .page)
+            let requestID = UUID().uuidString
+            var bindings: [String] = []
+            for (name, value) in arguments {
+                guard let literal = Self.jsLiteral(value) else {
+                    throw TerminalBlueprintError.renderFailed("Argument \(name) is not JSON-encodable")
+                }
+                bindings.append("const \(name) = \(literal);")
+            }
+            let script = """
+            (function () {
+              \(bindings.joined(separator: "\n  "))
+              const __post = (message) => window.webkit.messageHandlers.\(TerminalBlueprintWebRenderer.messageHandlerName).postMessage(message);
+              Promise.resolve().then(() => (\(expression))).then(
+                (value) => __post({ type: "invokeResult", requestId: \(Self.jsLiteral(requestID) ?? "\"\""), value: JSON.stringify(value === undefined ? null : value) }),
+                (error) => __post({ type: "invokeFailed", requestId: \(Self.jsLiteral(requestID) ?? "\"\""), message: String((error && error.message) || error) })
+              );
+            })();
+            """
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any?, any Error>) in
+                pendingInvocations[requestID] = continuation
+                invocationTimeouts[requestID] = Task { [weak self] in
+                    try? await Task.sleep(for: Self.invocationTimeout)
+                    guard !Task.isCancelled else { return }
+                    self?.resolveInvocation(requestID, with: .failure(TerminalBlueprintError.renderFailed("The canvas did not answer in time")))
+                }
+                webView.evaluateJavaScript(script, in: nil, in: .page) { [weak self] result in
+                    if case .failure(let error) = result {
+                        self?.resolveInvocation(requestID, with: .failure(TerminalBlueprintError.renderFailed(TerminalBlueprintState.describeUnderlying(error))))
+                    }
+                }
+            }
+        }
+
+        private func callObject(_ expression: String, arguments: [String: Any] = [:]) async throws -> [String: Any] {
+            guard let object = try await invoke(expression, arguments: arguments) as? [String: Any] else {
+                throw TerminalBlueprintError.renderFailed("The canvas returned no object for \(expression.prefix(60))")
+            }
+            return object
+        }
+
+        private func callValue(_ expression: String, arguments: [String: Any] = [:]) async throws -> Any? {
+            try await invoke(expression, arguments: arguments)
+        }
+
+        /// Returns true when the message was an invocation reply.
+        private func handleInvocationReply(_ body: Any) -> Bool {
+            guard let object = body as? [String: Any],
+                  let type = object["type"] as? String,
+                  type == "invokeResult" || type == "invokeFailed",
+                  let requestID = object["requestId"] as? String else {
+                return false
+            }
+            if type == "invokeFailed" {
+                let message = object["message"] as? String ?? "The canvas reported an error"
+                resolveInvocation(requestID, with: .failure(TerminalBlueprintError.renderFailed(message)))
+                return true
+            }
+            var value: Any?
+            if let text = object["value"] as? String, let data = text.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) {
+                value = parsed is NSNull ? nil : parsed
+            }
+            resolveInvocation(requestID, with: .success(value))
+            return true
+        }
+
+        private func resolveInvocation(_ requestID: String, with result: Result<Any?, any Error>) {
+            invocationTimeouts.removeValue(forKey: requestID)?.cancel()
+            guard let continuation = pendingInvocations.removeValue(forKey: requestID) else { return }
+            continuation.resume(with: result)
+        }
+
+        private func failPendingInvocations(_ error: any Error) {
+            for requestID in Array(pendingInvocations.keys) {
+                resolveInvocation(requestID, with: .failure(error))
+            }
+        }
+
+        /// A JavaScript literal for a JSON-encodable value (U+2028/2029 escaped).
+        private static func jsLiteral(_ value: Any) -> String? {
+            guard JSONSerialization.isValidJSONObject([value]),
+                  let data = try? JSONSerialization.data(withJSONObject: [value], options: [.fragmentsAllowed]),
+                  let wrapped = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            // Strip the wrapping array used to allow scalar values.
+            let inner = String(wrapped.dropFirst().dropLast())
+            return inner
+                .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
+                .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
         }
 
         private static func integer(_ value: Any?) -> Int? {

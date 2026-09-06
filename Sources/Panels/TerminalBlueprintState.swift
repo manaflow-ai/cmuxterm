@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 /// The WebKit-facing half of a blueprint: what Swift can ask the canvas page to do.
 ///
@@ -57,7 +58,9 @@ protocol TerminalBlueprintPersisting: Sendable {
     func save(_ document: TerminalBlueprintDocument) async throws
 }
 
-enum TerminalBlueprintError: Error, Equatable {
+enum TerminalBlueprintError: Error, Equatable, LocalizedError {
+    var errorDescription: String? { TerminalBlueprintErrorText.describe(self) }
+
     case webViewUnavailable
     case exportTimedOut
     case exportFailed(String)
@@ -175,7 +178,7 @@ final class TerminalBlueprintState {
         clock: any Clock<Duration> = ContinuousClock(),
         saveDebounce: Duration = .milliseconds(750),
         exportTimeout: Duration = .seconds(15),
-        canvasReadyTimeout: Duration = .seconds(10),
+        canvasReadyTimeout: Duration = .seconds(30),
         defaults: UserDefaults = .standard
     ) {
         self.surfaceIDProvider = surfaceIDProvider
@@ -496,10 +499,10 @@ final class TerminalBlueprintState {
         do {
             outcome = try await webController.renderMermaid(source, mode: mode)
             renderedScene = try await webController.currentSceneJSON()
-        } catch let error as TerminalBlueprintError {
-            throw error
         } catch {
-            throw TerminalBlueprintError.renderFailed(error.localizedDescription)
+            Self.logger.error("renderMermaid failed: \(String(describing: error), privacy: .public)")
+            if let blueprintError = error as? TerminalBlueprintError { throw blueprintError }
+            throw TerminalBlueprintError.renderFailed(Self.describeUnderlying(error))
         }
         sceneJSON = renderedScene
         elementCount = outcome.elementCount
@@ -541,7 +544,9 @@ final class TerminalBlueprintState {
                 applied = try await webController.applyOps(ops)
                 sceneJSON = try await webController.currentSceneJSON()
             } catch {
-                throw TerminalBlueprintError.renderFailed(error.localizedDescription)
+                Self.logger.error("applyOps failed: \(String(describing: error), privacy: .public)")
+                if let blueprintError = error as? TerminalBlueprintError { throw blueprintError }
+                throw TerminalBlueprintError.renderFailed(Self.describeUnderlying(error))
             }
             elementCount = TerminalBlueprintScene.liveElementCount(inSceneJSON: sceneJSON ?? Self.emptySceneJSON)
             lastAppliedDigest = nil
@@ -772,4 +777,18 @@ final class TerminalBlueprintState {
     }
 
     static let emptySceneJSON = #"{"type":"excalidraw","version":2,"source":"cmux","elements":[],"appState":{},"files":{}}"#
+
+    nonisolated static let logger = Logger(subsystem: "com.cmuxterm.app", category: "blueprint")
+
+    /// WebKit wraps page exceptions in an NSError whose message lives in userInfo.
+    nonisolated static func describeUnderlying(_ error: any Error) -> String {
+        let nsError = error as NSError
+        if let message = nsError.userInfo["WKJavaScriptExceptionMessage"] as? String, !message.isEmpty {
+            return message
+        }
+        if let message = nsError.userInfo[NSLocalizedDescriptionKey] as? String, !message.isEmpty {
+            return message
+        }
+        return String(describing: error)
+    }
 }
