@@ -19,6 +19,9 @@ final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
     private var didFire = false
     private var didFinish = false
+    private var isCapturingBacktrace = false
+    private var isReportingHang = false
+    private var pendingRecoveryElapsedMs: Double?
 
     init(
         descriptor: SocketCommandDescriptor,
@@ -62,11 +65,19 @@ final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
         guard elapsedMs >= thresholdMs else { return }
 
         lock.lock()
-        guard !didFinish, !didFire else {
+        guard !didFinish, !didFire, !isCapturingBacktrace else {
             lock.unlock()
             return
         }
+        isCapturingBacktrace = true
+        lock.unlock()
+
+        let backtrace = backtraceCapturer.captureBacktrace()
+
+        lock.lock()
+        isCapturingBacktrace = false
         didFire = true
+        isReportingHang = true
         lock.unlock()
 
         reporter.reportHang(
@@ -74,9 +85,19 @@ final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
                 descriptor: descriptor,
                 elapsedMs: elapsedMs,
                 thresholdMs: thresholdMs,
-                backtrace: backtraceCapturer.captureBacktrace()
+                backtrace: backtrace
             )
         )
+
+        lock.lock()
+        isReportingHang = false
+        let recoveryElapsedMs = pendingRecoveryElapsedMs
+        pendingRecoveryElapsedMs = nil
+        lock.unlock()
+
+        if let recoveryElapsedMs {
+            reportRecovery(elapsedMs: recoveryElapsedMs)
+        }
     }
 
     func finish(nowNs: UInt64) {
@@ -90,21 +111,28 @@ final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
         didFinish = true
         let timer = self.timer
         self.timer = nil
-        let shouldReportRecovery = didFire
+        let shouldReportRecovery = didFire && !isCapturingBacktrace && !isReportingHang
+        if isCapturingBacktrace || isReportingHang || (didFire && !shouldReportRecovery) {
+            pendingRecoveryElapsedMs = elapsedMs
+        }
         lock.unlock()
 
         timer?.cancel()
 
         if shouldReportRecovery {
-            reporter.reportRecovery(
-                MainThreadSocketCommandWatchdogObservation(
-                    descriptor: descriptor,
-                    elapsedMs: elapsedMs,
-                    thresholdMs: thresholdMs,
-                    backtrace: []
-                )
-            )
+            reportRecovery(elapsedMs: elapsedMs)
         }
+    }
+
+    private func reportRecovery(elapsedMs: Double) {
+        reporter.reportRecovery(
+            MainThreadSocketCommandWatchdogObservation(
+                descriptor: descriptor,
+                elapsedMs: elapsedMs,
+                thresholdMs: thresholdMs,
+                backtrace: []
+            )
+        )
     }
 
     private static func elapsedMs(startNs: UInt64, nowNs: UInt64) -> Double {

@@ -1,4 +1,5 @@
 import AppKit
+import CmuxTestSupport
 
 final class WindowDecorationsController {
     private var observers: [NSObjectProtocol] = []
@@ -219,7 +220,7 @@ final class WindowDecorationsController {
             lastMinimalModeTitlebarClick = nil
             return false
         }
-        guard !isMinimalModeTitlebarControlHit(window: window, locationInWindow: locationInWindow) else {
+        guard !minimalModeTitlebarDoubleClickShouldDefer(window: window, locationInWindow: locationInWindow) else {
             lastMinimalModeTitlebarClick = nil
             return false
         }
@@ -286,7 +287,7 @@ final class WindowDecorationsController {
         slot: MinimalModeSidebarControlActionSlot?
     ) {
         guard ProcessInfo.processInfo.environment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] == "1" else { return }
-        _ = CmuxUITestCapture.mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
+        _ = UITestCaptureSink().mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
             if event.type == .leftMouseDown {
                 let count = (payload["minimalSidebarWindowMonitorLeftMouseDownCount"] as? String).flatMap(Int.init) ?? 0
                 payload["minimalSidebarWindowMonitorLeftMouseDownCount"] = String(count + 1)
@@ -310,7 +311,7 @@ final class WindowDecorationsController {
         slot: MinimalModeSidebarControlActionSlot?
     ) {
         guard ProcessInfo.processInfo.environment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] == "1" else { return }
-        _ = CmuxUITestCapture.mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
+        _ = UITestCaptureSink().mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
             let count = (payload["minimalSidebarWindowSendEventLeftMouseDownCount"] as? String).flatMap(Int.init) ?? 0
             payload["minimalSidebarWindowSendEventLeftMouseDownCount"] = String(count + 1)
             payload["minimalSidebarWindowSendEventLastWindowNumber"] = String(window.windowNumber)
@@ -328,34 +329,52 @@ final class WindowDecorationsController {
         anchorView: NSView? = nil
     ) {
         #if DEBUG
-        _ = CmuxUITestCapture.mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
+        _ = UITestCaptureSink().mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
             payload["minimalSidebarWindowMonitorLastAction"] = slot.debugName
         }
         #endif
 
         Task { @MainActor [weak window] in
-            guard let window else { return }
+            guard let window,
+                  let appDelegate = AppDelegate.shared,
+                  let context = appDelegate.prepareSenderRelativeMainWindowAction(in: window) else {
+                return
+            }
             switch slot {
             case .toggleSidebar:
-                _ = AppDelegate.shared?.toggleSidebarInActiveMainWindow(preferredWindow: window)
+                context.sidebarState.toggle()
             case .showNotifications:
                 let resolvedAnchorView = NotificationsAnchorRegistry.shared.closestAnchor(
                     in: window,
                     to: locationInWindow
                 ) ?? anchorView
-                AppDelegate.shared?.toggleNotificationsPopover(animated: true, anchorView: resolvedAnchorView)
+                appDelegate.toggleNotificationsPopover(animated: true, anchorView: resolvedAnchorView)
             case .newTab:
-                let targetTabManager = AppDelegate.shared?.activeTabManagerForCommands(preferredWindow: window)
-                _ = AppDelegate.shared?.performNewWorkspaceAction(
-                    tabManager: targetTabManager,
+                _ = appDelegate.performNewWorkspaceAction(
+                    tabManager: context.tabManager,
                     debugSource: "titlebar.minimalSidebarControl"
                 )
+            case .newWorkspaceMenu:
+                if let anchorView {
+                    _ = appDelegate.showNewWorkspaceContextMenu(
+                        anchorView: anchorView,
+                        debugSource: "titlebar.minimalSidebarControl.newWorkspaceMenu"
+                    )
+                } else if let contentView = window.contentView {
+                    // Window-monitor path: no control view exists yet, so drop
+                    // the menu where the click landed.
+                    _ = appDelegate.showNewWorkspaceContextMenu(
+                        anchorView: contentView,
+                        at: contentView.convert(locationInWindow, from: nil),
+                        debugSource: "titlebar.minimalSidebarControl.newWorkspaceMenu"
+                    )
+                }
             case .focusHistoryBack:
-                guard focusHistoryNavigationAvailability(preferredWindow: window).canNavigateBack else { return }
-                AppDelegate.shared?.activeTabManagerForCommands(preferredWindow: window)?.navigateBack()
+                guard context.tabManager.canNavigateBack else { return }
+                context.tabManager.navigateBack()
             case .focusHistoryForward:
-                guard focusHistoryNavigationAvailability(preferredWindow: window).canNavigateForward else { return }
-                AppDelegate.shared?.activeTabManagerForCommands(preferredWindow: window)?.navigateForward()
+                guard context.tabManager.canNavigateForward else { return }
+                context.tabManager.navigateForward()
             }
         }
     }
@@ -381,7 +400,7 @@ final class WindowDecorationsController {
               let contentView = window.contentView else {
             #if DEBUG
             if ProcessInfo.processInfo.environment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] == "1" {
-                _ = CmuxUITestCapture.mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
+                _ = UITestCaptureSink().mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
                     payload["minimalSidebarTitlebarClickTargetInstalled"] = "false"
                     payload["minimalSidebarTitlebarClickTargetWindowNumber"] = String(window.windowNumber)
                 }
@@ -397,7 +416,7 @@ final class WindowDecorationsController {
             minimalModeSidebarTitlebarClickTargets.setObject(view, forKey: window)
             return view
         }()
-        target.config = (TitlebarControlsStyle(rawValue: UserDefaults.standard.integer(forKey: "titlebarControlsStyle")) ?? .classic).config
+        target.config = TitlebarControlsStyle.stored().config
         target.isEnabled = true
         target.requiresRevealedState = true
         target.telemetryPrefix = "minimalSidebarTitlebarClickTarget"
@@ -435,7 +454,7 @@ final class WindowDecorationsController {
 
         #if DEBUG
         if ProcessInfo.processInfo.environment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] == "1" {
-            _ = CmuxUITestCapture.mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
+            _ = UITestCaptureSink().mutateJSONObjectIfConfigured(envKey: "CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH") { payload in
                 payload["minimalSidebarTitlebarClickTargetInstalled"] = "true"
                 payload["minimalSidebarTitlebarClickTargetWindowNumber"] = String(window.windowNumber)
                 payload["minimalSidebarTitlebarClickTargetFrameInWindow"] = NSStringFromRect(target.convert(target.bounds, to: nil))

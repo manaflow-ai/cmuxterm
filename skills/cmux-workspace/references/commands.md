@@ -6,6 +6,7 @@ Use these commands from a cmux terminal. Most commands infer the caller workspac
 
 ```bash
 cmux identify --json
+cmux --json --id-format both identify   # stable UUIDs plus human refs, for logs and handoffs
 cmux current-workspace --json
 cmux capabilities --json
 cmux ping
@@ -83,9 +84,11 @@ cmux sidebar-state --workspace "$CMUX_WORKSPACE_ID" --json
 ## Notifications and Attention
 
 ```bash
-cmux notify --title "Done" --body "Task complete"
+notification_id="$(cmux notify --title "Done" --body "Task complete" --id-format uuids | awk '$1 == "OK" {print $2}')"
+cmux dismiss-notification --id "$notification_id"
+cmux notify --clear
 cmux list-notifications --json
-cmux clear-notifications
+cmux clear-notifications --workspace "$CMUX_WORKSPACE_ID" --surface "$CMUX_SURFACE_ID"
 cmux trigger-flash --workspace "$CMUX_WORKSPACE_ID" --surface "$CMUX_SURFACE_ID"
 cmux surface-health --workspace "$CMUX_WORKSPACE_ID" --json
 ```
@@ -100,11 +103,4 @@ cmux settings path
 cmux settings cmux-json
 cmux settings shortcuts
 cmux reload-config
-```
-
-## Tagged Reloads
-
-```bash
-./scripts/reload.sh --tag <short-tag>
-CMUX_SOCKET_PATH=/tmp/cmux-debug-<short-tag>.sock cmux identify --json
 ```

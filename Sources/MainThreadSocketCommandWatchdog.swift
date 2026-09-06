@@ -47,4 +47,25 @@ final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
         defer { ticket.finish(nowNs: DispatchTime.now().uptimeNanoseconds) }
         return body()
     }
+
+    func monitorAsync<T: Sendable>(
+        descriptor: SocketCommandDescriptor,
+        startNs: UInt64,
+        _ body: () async -> T
+    ) async -> T {
+        guard descriptor.executedOnMain else {
+            return await body()
+        }
+
+        let ticket = MainThreadSocketCommandWatchdogTicket(
+            descriptor: descriptor,
+            thresholdMs: thresholdMs,
+            startNs: startNs,
+            reporter: reporter,
+            backtraceCapturer: backtraceCapturer
+        )
+        ticket.start(on: queue)
+        defer { ticket.finish(nowNs: DispatchTime.now().uptimeNanoseconds) }
+        return await body()
+    }
 }
