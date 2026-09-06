@@ -69,11 +69,12 @@ socket refresh/debug controls, limited AI accounts, `cr add codex`, and
 CodeRouter delegation. The new topology and browser commands still need
 Swift-compatible handle normalization, help text, output formatting, and
 side-effect conformance.
-The latest stripped Rust candidate binaries are 1,533,072 bytes (`cmux`) and
-1,533,080 bytes (`coderouter`) as universal arm64+x86_64 Mach-O files. The
-pair is about 2.92 MiB. Keeping Swift in production while the gate is red
-adds this temporary Rust payload. Removing Swift before the gate passes would
-risk breaking commands, so the size increase remains accepted until cutover.
+The latest stripped Rust candidate binaries are 1,582,704 bytes (`cmux`) and
+1,582,712 bytes (`coderouter`) as universal arm64+x86_64 Mach-O files. The
+pair is 3,165,416 bytes, about 3.02 MiB. Keeping Swift in production while
+the gate is red adds this temporary Rust payload. Removing Swift before the
+gate passes would risk breaking commands, so the size increase remains
+accepted until cutover.
 
 Known verification gap: Rust auth resolution now supports an explicit password,
 `CMUX_SOCKET_PASSWORD`, the shared password file, and the scoped legacy macOS
@@ -109,8 +110,8 @@ The following checks passed for the current slice:
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
 - Universal arm64 and x86_64 Rust builds.
-- Stripped universal size measurement: `cmux` 1,533,072 bytes and
-  `coderouter` 1,533,080 bytes; 3,066,152 bytes combined.
+- Stripped universal size measurement: `cmux` 1,582,704 bytes and
+  `coderouter` 1,582,712 bytes; 3,165,416 bytes combined.
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.
 - `cmux cr add codex` sends `aiAccounts.upload` with no credential in argv or
