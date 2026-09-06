@@ -1,7 +1,8 @@
 import Darwin
 import Foundation
 
-// `cmux coderouter <status|machines|claude>`: the team-level settings of the
+// `cmux coderouter <status|machines|claude|agent>`: the team-level settings and
+// routed-agent entrypoint for the
 // cmux coderouter model plane that Cloud machines route their agents through.
 // The CLI is presentation only; each verb maps to one `coderouter.*` socket
 // method handled by the app's `CoderouterClient`, which holds the Stack
@@ -9,7 +10,7 @@ import Foundation
 // is exec'd into the installed CodeRouter CLI before any socket is opened.
 extension CMUXCLI {
     static let coderouterUsage = """
-        Usage: cmux coderouter <status|machines|claude> [options]
+        Usage: cmux coderouter <status|machines|claude|agent> [options]
 
         Team settings for the cmux coderouter model plane that Cloud machines
         route codex, claude, pi, and opencode through. Any other verb, and every
@@ -20,6 +21,11 @@ extension CMUXCLI {
 
           cmux coderouter machines [--team <id>] [--json]
               30-day coderouter usage per Cloud machine (tokens, API-equivalent USD).
+
+          cmux coderouter agent <claude|codex|opencode|pi> [vm-agent-options] -- <prompt or args...>
+              Start an agent on a routed Cloud machine. This is the same path as
+              `cmux vm agent`; the `agent` form keeps CodeRouter and compute in
+              one command family.
 
           cmux coderouter claude list [--team <id>] [--json]
               Every Claude upstream account of the team: id, kind, masked
@@ -64,7 +70,7 @@ extension CMUXCLI {
     /// else keeps the pre-existing passthrough into the installed CodeRouter CLI,
     /// so `cmux coderouter accounts`, `cmux coderouter login`, and a bare
     /// `cmux coderouter` behave exactly as before.
-    static let cmuxOwnedCoderouterVerbs: Set<String> = ["status", "machines", "claude", "help", "--help", "-h"]
+    static let cmuxOwnedCoderouterVerbs: Set<String> = ["status", "machines", "claude", "agent", "help", "--help", "-h"]
 
     static func isCmuxOwnedCoderouterInvocation(_ args: [String]) -> Bool {
         guard let first = args.first?.lowercased() else { return false }
@@ -135,6 +141,9 @@ extension CMUXCLI {
         case "claude":
             try runCoderouterClaudeCommand(commandArgs: rest, client: client, jsonOutput: jsonOutput)
 
+        case "agent":
+            try runCoderouterAgentCommand(commandArgs: rest, client: client, jsonOutput: jsonOutput)
+
         default:
             throw CLIError(message: """
                 Unknown coderouter subcommand: \(sub)
@@ -142,6 +151,23 @@ extension CMUXCLI {
                 \(Self.coderouterUsage)
                 """)
         }
+    }
+
+    /// Routes the CodeRouter agent spelling through the existing VM-agent
+    /// implementation so machine selection, sync, detached terminals, and
+    /// reattach output have one owner.
+    private func runCoderouterAgentCommand(commandArgs: [String], client: SocketClient, jsonOutput: Bool) throws {
+        if commandArgs.contains("--help") || commandArgs.contains("-h") {
+            print(Self.vmAgentUsage.replacingOccurrences(of: "cmux vm agent", with: "cmux coderouter agent"))
+            return
+        }
+        guard let first = commandArgs.first else {
+            throw CLIError(message: "Usage: cmux coderouter agent <claude|codex|opencode|pi> [options] -- <prompt or args...>\n\n\(Self.coderouterUsage)")
+        }
+        guard first == "--agent" || Self.vmAgentNames.contains(first.lowercased()) else {
+            throw CLIError(message: "coderouter agent: expected claude, codex, opencode, or pi; got \(Self.sanitizeForTerminal(first))")
+        }
+        try runVMAgentCommand(rest: Self.vmAgentAliasArgs(commandArgs), client: client, jsonOutput: jsonOutput)
     }
 
     private func runCoderouterClaudeCommand(commandArgs: [String], client: SocketClient, jsonOutput: Bool) throws {

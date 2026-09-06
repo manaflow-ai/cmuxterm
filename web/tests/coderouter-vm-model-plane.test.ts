@@ -16,10 +16,13 @@ import {
   VM_ID_HEADER,
   VM_PLACEHOLDER_API_KEY,
 } from "../services/coderouter/routeTokenAuth";
+import { freestyleEdgeRules } from "../services/vms/drivers/freestyle";
+import { validateTlsSpec } from "freestyle";
 
 // The Cloud VM model plane: a new machine gets base URLs and placeholder keys
 // in its env, and ONE edge rule that injects a route token bound to the VM
-// row id. The token never appears in the env. Provisioning failures are
+// row id. The token never appears in the env; the edge injects both a bearer
+// and the explicit route headers on the wire. Provisioning failures are
 // typed so the workflow fails the create instead of shipping an unwired box.
 // There is no plan or entitlement gate: every team gets a token.
 
@@ -56,6 +59,7 @@ describe("provisionVmModelPlane", () => {
         domain: "coderouter.cmux.internal",
         destinationHost: "coderouter.dev",
         headers: {
+          authorization: "Bearer crt_test-token",
           [ROUTE_TOKEN_HEADER]: "crt_test-token",
           [VM_ID_HEADER]: INPUT.cloudVmId,
         },
@@ -67,6 +71,18 @@ describe("provisionVmModelPlane", () => {
     const provision = await provisionVmModelPlane(INPUT, deps());
     expect(provision.edgeRules[0]?.domain).not.toMatch(/crt_/);
     expect(JSON.stringify(vmGuestModelPlaneEnv())).not.toContain("crt_");
+  });
+
+  test("the provisioned rule is a valid Freestyle egress TLS spec", async () => {
+    const provision = await provisionVmModelPlane(INPUT, deps());
+    const rules = freestyleEdgeRules(provision.edgeRules);
+    expect(rules).toHaveLength(1);
+    expect(() => validateTlsSpec({ rules })).not.toThrow();
+    expect(rules?.[0]).toMatchObject({
+      source: {},
+      destination: { host: "coderouter.dev", port: 443 },
+      transform: [{ headers: { authorization: "Bearer crt_test-token" } }],
+    });
   });
 
   test("the origin override points the edge rule at a preview deployment", async () => {

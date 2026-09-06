@@ -1114,6 +1114,10 @@ extension CMUXCLI {
         """
         Usage: cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--remote-workspace <ws>] [--new] [--size <s>] [--json] -- <prompt or args...>
 
+        Short forms:
+          cmux agent <claude|codex|opencode|pi> [vm-agent-options] -- <prompt or args...>
+          cmux coderouter agent <claude|codex|opencode|pi> [vm-agent-options] -- <prompt or args...>
+
         Run a coding agent on a cloud machine. The machine is chosen like `vm run`
         (sticky per directory, then idle pool machine, then a fresh one) unless
         --machine pins one. The agent starts as a detached terminal in the
@@ -1168,6 +1172,49 @@ extension CMUXCLI {
         case "pi": return ["pi", "-p", prompt]
         default: return nil
         }
+    }
+
+    /// Normalizes the ergonomic provider-first aliases into the canonical
+    /// `vm agent --agent <name> ...` argument shape. VM options are recognized
+    /// until the first unrecognized token; the remainder is kept behind `--`
+    /// so provider flags and subcommands cannot be mistaken for cmux options.
+    static func vmAgentAliasArgs(_ rest: [String]) -> [String] {
+        guard let first = rest.first, first != "--agent" else { return rest }
+        let agent = first.lowercased()
+        guard vmAgentNames.contains(agent) else { return rest }
+
+        let tail = Array(rest.dropFirst())
+        var normalized = ["--agent", agent]
+        if let separator = tail.firstIndex(of: "--") {
+            normalized.append(contentsOf: tail)
+            return normalized
+        }
+
+        let valueOptions: Set<String> = [
+            "--machine", "--cwd", "--name", "--remote-workspace", "--size",
+        ]
+        let flagOptions: Set<String> = ["--sync", "--no-open", "--new", "--json"]
+        var index = 0
+        while index < tail.count {
+            let token = tail[index]
+            if flagOptions.contains(token) {
+                normalized.append(token)
+                index += 1
+                continue
+            }
+            if valueOptions.contains(token), index + 1 < tail.count {
+                normalized.append(token)
+                normalized.append(tail[index + 1])
+                index += 2
+                continue
+            }
+            break
+        }
+        if index < tail.count {
+            normalized.append("--")
+            normalized.append(contentsOf: tail[index...])
+        }
+        return normalized
     }
 
     /// The default terminal name for an agent run: the agent plus the start of its prompt.

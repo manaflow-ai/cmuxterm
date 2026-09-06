@@ -26,8 +26,8 @@ without a login profile). The work user is the base's **`ubuntu`** (uid
 the bake creates no users. A cmux login banner (`cmux-motd`, rendered by
 pam_motd on SSH) replaces the stock Ubuntu and Freestyle motd text.
 
-`vm-devbox-image.test.ts` pins the shared files (`cmux-bashrc`,
-`agent-config.sh`, `seed-history`, `chrome-managed-policy.json`) to their
+`vm-devbox-image.test.ts` pins the shared files (`cmux-bashrc`, the guest
+`cmux` adapter, `agent-config.sh`, `seed-history`, `chrome-managed-policy.json`) to their
 chatmux counterparts, so edit both copies together.
 
 ## Desktop layer (`desktop/`)

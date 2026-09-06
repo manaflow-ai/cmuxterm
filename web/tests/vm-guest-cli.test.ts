@@ -10,7 +10,11 @@ import { GUEST_CMUX_SHIM, GUEST_CMUX_SHIM_PATH, guestCliInstallCommand } from ".
  * Runs the shim against a fake cmux-tui binary that prints its argv one word
  * per line, so a test can assert exactly what would reach the daemon.
  */
-function runShim(args: string[], env: Record<string, string | undefined> = {}): { argv: string[]; status: number | null; stderr: string } {
+function runShim(
+  args: string[],
+  env: Record<string, string | undefined> = {},
+  setup?: (directory: string) => void,
+): { argv: string[]; status: number | null; stdout: string; stderr: string } {
   const dir = mkdtempSync(join(tmpdir(), "cmux-guest-cli-"));
   const shim = join(dir, "cmux");
   const fakeTui = join(dir, "cmux-tui");
@@ -18,12 +22,15 @@ function runShim(args: string[], env: Record<string, string | undefined> = {}): 
   chmodSync(shim, 0o755);
   writeFileSync(fakeTui, '#!/bin/sh\nprintf \'%s\\n\' "$@"\n');
   chmodSync(fakeTui, 0o755);
+  setup?.(dir);
+  const inheritedPath = env.PATH ?? process.env.PATH ?? "/usr/bin:/bin";
   const result = spawnSync("sh", [shim, ...args], {
     encoding: "utf8",
-    env: { NODE_ENV: "test", PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: dir, CMUX_TUI_BIN: fakeTui, ...env },
+    timeout: 12_000,
+    env: { NODE_ENV: "test", HOME: dir, CMUX_TUI_BIN: fakeTui, ...env, PATH: `${dir}:${inheritedPath}` },
   });
   const argv = result.stdout.length === 0 ? [] : result.stdout.replace(/\n$/, "").split("\n");
-  return { argv, status: result.status, stderr: result.stderr };
+  return { argv, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 const TERMINAL_ID = "term_0123456789abcdef0123456789abcdef";
@@ -56,6 +63,150 @@ describe("in-VM cmux shim", () => {
     // workspace when the fresh session has none.
     expect(GUEST_CMUX_SHIM).toContain('workspace "$target" run --on-exit close');
     expect(GUEST_CMUX_SHIM).toContain("workspace create --name main");
+  });
+
+  test("help exposes the shared auth, CodeRouter, and agent contract", () => {
+    const run = runShim(["--help"]);
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain("cmux auth status [--json]");
+    expect(run.stdout).toContain("cmux coderouter status|usage|models");
+    expect(run.stdout).toContain("cmux coderouter agent <claude|codex|opencode|pi>");
+    expect(run.stdout).toContain("cmux agent <claude|codex|opencode|pi>");
+  });
+
+  describe("auth status", () => {
+    const fakeCurl = (status: string, body = "") => (directory: string) => {
+      const curl = join(directory, "curl");
+      writeFileSync(
+        curl,
+        `#!/bin/sh\ncase "$*" in\n  *-w*) printf '%s' '${status}' ;;\n  *) printf '%s' '${body.replace(/'/g, "'\\''")}' ;;\nesac\n`,
+      );
+      chmodSync(curl, 0o755);
+    };
+
+    test("reports daemon and accepted VM-bound route without exposing a token", () => {
+      const run = runShim(
+        ["auth", "status", "--json"],
+        {
+          CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal",
+          OPENAI_API_KEY: "cmux-vm-edge-placeholder",
+        },
+        fakeCurl("200"),
+      );
+      expect(run.status).toBe(0);
+      const payload = JSON.parse(run.stdout) as Record<string, any>;
+      expect(payload.authenticated).toBe(true);
+      expect(payload.daemon).toMatchObject({ running: true, authenticated: true, session: "cloud" });
+      expect(payload.tls).toEqual({ reachable: true });
+      expect(payload.coderouter).toMatchObject({ configured: true, route_authenticated: "accepted", http_status: "200" });
+      expect(run.stdout).not.toContain("crt_");
+    });
+
+    test("separates TLS reachability from a rejected route", () => {
+      const run = runShim(
+        ["auth", "status", "--json"],
+        { CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal" },
+        fakeCurl("401"),
+      );
+      expect(run.status).not.toBe(0);
+      const payload = JSON.parse(run.stdout) as Record<string, any>;
+      expect(payload.authenticated).toBe(false);
+      expect(payload.daemon.authenticated).toBe(true);
+      expect(payload.tls).toEqual({ reachable: true });
+      expect(payload.coderouter).toMatchObject({ route_authenticated: "rejected", http_status: "401" });
+    });
+
+    test("does not claim full authentication when the model plane is absent", () => {
+      const run = runShim(["auth", "status", "--json"]);
+      expect(run.status).not.toBe(0);
+      const payload = JSON.parse(run.stdout) as Record<string, any>;
+      expect(payload.authenticated).toBe(false);
+      expect(payload.daemon).toMatchObject({ running: true, authenticated: true });
+      expect(payload.coderouter).toMatchObject({ configured: false, route_authenticated: "not_configured" });
+    });
+
+    test("refuses a route token copied into the guest", () => {
+      const run = runShim(
+        ["auth", "status"],
+        { OPENAI_API_KEY: "crt_should_not_be_here" },
+      );
+      expect(run.status).not.toBe(0);
+      expect(run.stderr).toContain("refusing a coderouter route token");
+    });
+  });
+
+  describe("CodeRouter agent entrypoints", () => {
+    test("reads usage and models through the configured HTTPS edge", () => {
+      const run = runShim(
+        ["coderouter", "usage"],
+        { CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal" },
+        (directory) => {
+          const curl = join(directory, "curl");
+          writeFileSync(
+            curl,
+            "#!/bin/sh\ncase \"$*\" in\n  *vm-usage/self*) printf '%s' '{\"kind\":\"ready\",\"vmId\":\"vm-test\"}' ;;\n  *v1/models*) printf '%s' '{\"data\":[{\"id\":\"test-model\"}]}' ;;\n  *) exit 1 ;;\nesac\n",
+          );
+          chmodSync(curl, 0o755);
+        },
+      );
+      expect(run.status).toBe(0);
+      expect(JSON.parse(run.stdout)).toEqual({ kind: "ready", vmId: "vm-test" });
+
+      const models = runShim(
+        ["coderouter", "models"],
+        { CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal" },
+        (directory) => {
+          const curl = join(directory, "curl");
+          writeFileSync(curl, "#!/bin/sh\nprintf '%s' '{\"data\":[{\"id\":\"test-model\"}]}'\n");
+          chmodSync(curl, 0o755);
+        },
+      );
+      expect(models.status).toBe(0);
+      expect(JSON.parse(models.stdout).data[0].id).toBe("test-model");
+    });
+
+    test("maps a bare prompt through the short agent alias", () => {
+      const run = runShim(["agent", "claude", "reply exactly pong"], {}, (directory) => {
+        const claude = join(directory, "claude");
+        writeFileSync(claude, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n");
+        chmodSync(claude, 0o755);
+      });
+      expect(run.status).toBe(0);
+      expect(run.stdout.trim().split("\n")).toEqual(["-p", "reply exactly pong"]);
+    });
+
+    test("accepts the canonical separator before a guest prompt", () => {
+      const run = runShim(["coderouter", "agent", "codex", "--", "reply exactly pong"], {}, (directory) => {
+        const codex = join(directory, "codex");
+        writeFileSync(codex, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n");
+        chmodSync(codex, 0o755);
+      });
+      expect(run.status).toBe(0);
+      expect(run.stdout.trim().split("\n")).toEqual(["exec", "reply exactly pong"]);
+    });
+
+    test("keeps cmux-tui's local agent scope available", () => {
+      const run = runShim(["agent", "list"]);
+      expect(run.status).toBe(0);
+      expect(run.argv).toEqual(["--session", "cloud", "agent", "list"]);
+    });
+
+    test("passes provider subcommands through the coderouter prefix", () => {
+      const run = runShim(["coderouter", "agent", "codex", "exec", "summarize"], {}, (directory) => {
+        const codex = join(directory, "codex");
+        writeFileSync(codex, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n");
+        chmodSync(codex, 0o755);
+      });
+      expect(run.status).toBe(0);
+      expect(run.stdout.trim().split("\n")).toEqual(["exec", "summarize"]);
+    });
+
+    test("keeps account login host-owned", () => {
+      const run = runShim(["coderouter", "claude", "list"]);
+      expect(run.status).toBe(2);
+      expect(run.stderr).toContain("host-owned");
+      expect(run.stderr).toContain("Stack tokens");
+    });
   });
 
   // `cmux notify` is what agent hooks run inside a machine. cmux-tui has no
@@ -159,7 +310,7 @@ describe("in-VM cmux shim", () => {
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("home-fake --session cloud --quiet notification create --title T --body  --terminal " + TERMINAL_ID);
-  });
+  }, 20_000);
 
   test("install command is a safe atomic base64 write", () => {
     const command = guestCliInstallCommand();

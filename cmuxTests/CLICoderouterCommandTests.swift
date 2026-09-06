@@ -402,6 +402,49 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
     }
 
+    func testCoderouterAgentUsesTheSharedVMAgentPath() throws {
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-agent-home-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let (result, state) = try runCoderouterCLI(
+            ["coderouter", "agent", "claude", "--machine", "vm-agent-test", "--no-open", "--json", "--", "reply exactly pong"],
+            socketName: "coderouter-agent",
+            extraEnvironment: ["HOME": home.path]
+        ) { method, params in
+            guard method == "surface.new_terminal" else { return nil }
+            XCTAssertEqual(params["machine"] as? String, "vm-agent-test")
+            let command = params["command"] as? [String] ?? []
+            XCTAssertEqual(command.first, "bash")
+            XCTAssertTrue(command.last?.contains("exec 'claude' '-p' 'reply exactly pong'") == true, command.description)
+            return self.okResponse([
+                "machine": "vm-agent-test",
+                "terminal_id": "term_agent_test",
+                "remote_workspace_id": "ws_agent_test",
+            ])
+        }
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let payload = try XCTUnwrap(jsonObject(result.stdout))
+        XCTAssertEqual(payload["agent"] as? String, "claude")
+        XCTAssertEqual(payload["terminal_id"] as? String, "term_agent_test")
+        XCTAssertEqual(payload["workspace_id"] as? String, "ws_agent_test")
+        XCTAssertTrue(state.commands.contains { $0.contains(#""method":"surface.new_terminal""#) })
+    }
+
+    func testProviderFirstAgentAliasAddsTheCanonicalSeparator() {
+        XCTAssertEqual(
+            CMUXCLI.vmAgentAliasArgs(["claude", "--machine", "vm-agent-test", "reply exactly pong"]),
+            ["--agent", "claude", "--machine", "vm-agent-test", "--", "reply exactly pong"]
+        )
+        XCTAssertEqual(
+            CMUXCLI.vmAgentAliasArgs(["codex", "--", "exec", "summarize"]),
+            ["--agent", "codex", "--", "exec", "summarize"]
+        )
+    }
+
     func testCoderouterStatusCombinesAuthAndAccounts() throws {
         let (result, state) = try runCoderouterCLI(
             ["coderouter", "status"],

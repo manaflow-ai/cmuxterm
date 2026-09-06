@@ -4923,11 +4923,11 @@ struct CMUXCLI {
     }
 
     private func localizedCoderouterCommands() -> String {
-        let defaultValue = "coderouter <status|machines|claude> [--team <id>] [--json]    (team model-plane settings; other verbs pass through)"
+        let defaultValue = "coderouter <status|machines|claude|agent> [--team <id>] [--json]    (team model-plane settings; other verbs pass through)"
         let bundle = CLIExecutableLocator.enclosingAppBundle() ?? .main
         let catalogValue = String(
             localized: "cli.coderouter.commands",
-            defaultValue: "coderouter <status|machines|claude> [--team <id>] [--json]    (team model-plane settings; other verbs pass through)",
+            defaultValue: "coderouter <status|machines|claude|agent> [--team <id>] [--json]    (team model-plane settings; other verbs pass through)",
             bundle: bundle
         )
         let explicitValue = CMUXDiffViewerLocalization.string(
@@ -5594,6 +5594,11 @@ struct CMUXCLI {
 
         case "agent-hibernation":
             try runAgentHibernation(commandArgs: commandArgs, client: client, jsonOutput: jsonOutput)
+
+        case "agent":
+            // Short form for the same routed Cloud-agent path exposed as
+            // `cmux vm agent` and `cmux coderouter agent`.
+            try runVMAgentCommand(rest: Self.vmAgentAliasArgs(commandArgs), client: client, jsonOutput: jsonOutput)
 
         case "vpn":
             try runVPNCommand(commandArgs: commandArgs, client: client, jsonOutput: jsonOutput)
@@ -18509,6 +18514,8 @@ struct CMUXCLI {
             return Self.vaultUsage
         case "ai-accounts":
             return Self.aiAccountsUsage
+        case "agent":
+            return Self.vmAgentUsage.replacingOccurrences(of: "cmux vm agent", with: "cmux agent")
         case "coderouter":
             return Self.coderouterUsage
         case "ping":
@@ -41063,6 +41070,7 @@ export default CMUXSessionRestore;
           shortcuts
           disable-browser | enable-browser | browser-status
           agent-hibernation <on|off>
+          agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <n>] [--no-open] -- <prompt or args...>
           \(restoreCommandUsageLine)
           restore-session
           \(String(localized: "cli.sessions.command", defaultValue: "sessions [list] [options]"))

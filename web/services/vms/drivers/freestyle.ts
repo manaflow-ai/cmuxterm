@@ -38,7 +38,7 @@ import {
   devboxDesktopOpenUrl,
 } from "../images/desktop";
 import { recordSpanError, setSpanAttributes, withVmSpan } from "../telemetry";
-import { guestCliInstallCommand } from "../guestCli";
+import { GUEST_CMUX_SHIM, GUEST_CMUX_SHIM_PATH } from "../guestCli";
 import {
   CMUX_TUI_BINARY_PATH,
   CMUX_TUI_INSTALL_TIMEOUT_MS,
@@ -89,21 +89,22 @@ import {
 // loopback nor the public NIC.
 //
 // Creates take NO ports field, NO create-time env, and NO systemd injection;
-// `firewall` is mandatory. Model-plane env is delivered by writing the
-// persisted /root/.config/cmux/model-plane.env file (0600) that
-// /etc/cmux/agent-config.sh already sources when the boot env is absent.
+// `firewall` is mandatory. The model-plane env is the static placeholder file
+// baked at /etc/cmux/model-plane.env; no per-machine credential or create-time
+// env is written into the guest.
 //
 // Create runs no guest bootstrap. The devbox snapshot carries the pinned
 // cmux-tui build and the cmux-tui-daemon systemd unit, and its supervisor
 // (services/vms/images/devbox/cmux-devbox-boot) starts the daemon with a
 // fresh identity as soon as the machine resumes, keyed on the platform
 // instance id. Create is therefore `vms.create`, the grow-only resize, and one
-// file write; attach heals a daemon that is not yet, or no longer, listening.
+// safe guest-adapter write; attach heals a daemon that is not yet, or no
+// longer, listening.
 //
 // The coderouter model plane is edge-injected: the create carries an inline
-// `tls` rule for the coderouter host whose transform adds
-// `x-coderouter-route-token` and `x-cmux-vm-id` to every request the guest
-// makes there. The platform steers the host to its edge (/etc/hosts) and
+// `tls` rule for the coderouter host whose transform overwrites `authorization`
+// and adds `x-coderouter-route-token` and `x-cmux-vm-id` to every request the
+// guest makes there. The platform steers the host to its edge (/etc/hosts) and
 // installs its CA at boot; rules added after boot never reach a running
 // guest, so the rule must be inline. The env file holds only base URLs and
 // placeholder keys: no token is ever written into the guest. Injection
@@ -479,12 +480,9 @@ export function mintFreestylePortRuleDomain(suffix: string = FREESTYLE_PORT_RULE
 }
 
 /**
- * The persisted model-plane env file, byte-compatible with what
- * /etc/cmux/agent-config.sh itself writes from a boot env: shells that see no
- * boot env source this copy and then materialize the codex/pi/opencode
- * configs. Freestyle has no create-time env, so the driver writes the file.
- * Every key is rendered; OPENAI_BASE_URL is the anchor the generator keys on,
- * so its absence means "no model plane" and nothing is written.
+ * Freestyle has no create-time environment injection. The model-plane env is
+ * therefore baked into the devbox image and sourced by the guest shell; the
+ * driver only supplies the edge rule and refreshes the CLI adapter.
  */
 export function normalizeFreestyleExecTimeout(timeoutMs: number | undefined): number {
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -1160,13 +1158,13 @@ export class FreestyleProvider implements VMProvider {
             "cmux.vm.network.private": !!networkId,
           });
           // The snapshot carries the installed binary and a persisted
-          // model-plane file with placeholders only; heal best-effort so the
-          // machine is attach-ready without failing restore on a transient
-          // daemon error. The new machine's env (its own VM id) and edge rule
-          // are mandatory: a snapshot never carries a token, so the restored
-          // machine is unusable until its own injection is live.
-          await this.ensureCmuxTuiRunning(vm, vmId).catch(() => undefined);
+          // model-plane file with placeholders only. The guest adapter is a
+          // required artifact, so install it before returning; daemon healing
+          // remains best-effort for a transient resume race. The new machine's
+          // edge rule is supplied inline, so its route is still fail-closed.
           try {
+            await this.installGuestCli(vm);
+            await this.ensureCmuxTuiRunning(vm, vmId, false).catch(() => undefined);
           } catch (err) {
             await vm.delete().catch((cleanupErr) => {
               console.error(`[freestyle] restore rollback failed; VM ${vmId} may be orphaned`, cleanupErr);
@@ -1360,12 +1358,6 @@ export class FreestyleProvider implements VMProvider {
   }
 
   /**
-   * Edge injection activates 20-30 s after boot and a guest request made
-   * before that reaches coderouter without the token. Prove each rule from
-   * inside the guest before handing the machine out; an inactive rule means
-   * the machine can never reach a model, so the caller rolls it back.
-   */
-  /**
    * Attach-time heal: a daemon that is running AND listening dual-stack is
    * left alone; anything else is repaired, reinstalling first when the binary
    * is missing (a pre-bake image) or superseded by a manifest pin change. On a
@@ -1374,9 +1366,9 @@ export class FreestyleProvider implements VMProvider {
    * because a machine from an older bake boots the daemon on 0.0.0.0, which
    * the public-IPv6 route cannot reach.
    */
-  private async ensureCmuxTuiRunning(vm: Vm, vmId: string): Promise<void> {
+  private async ensureCmuxTuiRunning(vm: Vm, vmId: string, installGuestCli = true): Promise<void> {
     // Keep the shim present even when the baked daemon is already healthy.
-    await this.installGuestCli(vm);
+    if (installGuestCli) await this.installGuestCli(vm);
     const healthy = await this.execResult(vm, freestyleDaemonSettledCommand(), DAEMON_SETTLE_TIMEOUT_MS + EXEC_OVERHEAD_TIMEOUT_MS);
     if (healthy?.exitCode === 0) return;
     const source = await this.deps.resolveDaemonSource("freestyle");
@@ -1391,9 +1383,30 @@ export class FreestyleProvider implements VMProvider {
     await waitForCmuxTuiReady(this.cmuxTuiInvoke(vm), "freestyle", vmId);
   }
 
-  /** Installs the in-VM `cmux` shim atomically; failures remain attach-best-effort. */
+  /**
+   * Installs the in-VM `cmux` shim with an upload-then-rename. The temporary
+   * path avoids following a pre-existing `/usr/local/bin/cmux` symlink and the
+   * filesystem endpoint avoids a shell command-line limit silently dropping
+   * the adapter on older images; create/attach callers treat a failed install
+   * as a failed heal.
+   */
   private async installGuestCli(vm: Vm): Promise<void> {
-    await this.execResult(vm, guestCliInstallCommand(), 30_000);
+    const temporaryPath = `${GUEST_CMUX_SHIM_PATH}.tmp-${randomBytes(12).toString("hex")}`;
+    try {
+      await vm.fs.writeTextFile(temporaryPath, GUEST_CMUX_SHIM, { mode: 0o755 });
+      const result = await vm.exec({
+        command: `chmod 0755 '${temporaryPath}' && mv -f '${temporaryPath}' '${GUEST_CMUX_SHIM_PATH}'`,
+        timeoutMs: 30_000,
+        linuxUser: GUEST_LINUX_USER,
+      });
+      const exitCode = result.statusCode ?? 124;
+      if (exitCode !== 0) {
+        throw new Error(`guest cmux shim install exited ${exitCode}`);
+      }
+    } catch (error) {
+      await vm.fs.remove(temporaryPath).catch(() => undefined);
+      throw error;
+    }
   }
 
   private async execResult(vm: Vm, command: string, timeoutMs = EXEC_DEFAULT_TIMEOUT_MS): Promise<ExecResult | null> {

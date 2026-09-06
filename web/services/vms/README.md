@@ -455,24 +455,32 @@ features:
   grant, the same trust model as the old tokened proxy URLs. Rules are reused per
   (vm, port), cascade-delete with the VM, and are deleted on sign-out by
   `revokeEndpointLeases` (the next openPort mints a fresh subdomain).
-- **Model-plane edge injection (`CMUX_VM_MODEL_PLANE_EDGE_INJECTION=1`, default off)** —
-  an egress rule `{ vmId } → { public }` on the coderouter origin with a headers
-  transform: the edge injects `authorization` + `x-coderouter-route-token` into the
-  guest's calls in flight, the persisted env file carries only a placeholder key, and a
-  compromised guest holds no credential to exfiltrate. Header values are write-only at
-  the provider (read back as `***`). Opt-in until validated against the live edge; when
-  the rule create fails the driver falls back to env-file delivery rather than shipping
-  an unwired machine.
+- **Model-plane edge injection** — an egress rule `{ vmId } → { public }` on the
+  CodeRouter origin with a headers transform. The edge overwrites the guest's
+  placeholder `authorization` and injects the explicit `x-coderouter-route-token`
+  plus `x-cmux-vm-id` binding header in flight. The persisted env file carries only
+  placeholder keys, and a compromised guest has no credential to exfiltrate. Header
+  values are write-only at the provider (read back as `***`); provisioning fails
+  closed if the rule cannot be installed.
 
 ## In-VM cmux CLI and machine-to-machine links
 
-The driver installs `/usr/local/bin/cmux` (`services/vms/guestCli.ts`) at create and heal: a
-POSIX shim over the machine's own cmux-tui binary. Local verbs use cmux-tui's grammar against
+The devbox bake installs `/usr/local/bin/cmux` (`services/vms/guestCli.ts`) and the driver
+reinstalls it atomically at create/attach heal: a POSIX shim over the machine's own cmux-tui
+binary. Local verbs use cmux-tui's grammar against
 the machine's daemon session; `cmux vm …` verbs talk to peer machines through cmux-remote
 links granted from the Mac with `cmux vm link <src> <dst>` (route + single-use enrollment
 invitation pushed into `~/.cmux/peers/<dst>.json` on `<src>`, enrollment approved by the Mac
 through the control plane). No control-plane credential enters a VM; a machine reaches only
 the peers the user linked.
+
+The shim keeps the shared CLI contract for the operations that are safe to run from inside a
+machine: `cmux auth status [--json]` reports the local daemon, TLS reachability, and whether
+the VM-bound CodeRouter route was accepted; `cmux coderouter status|usage|models` reads the
+machine's own model plane; and `cmux coderouter agent <claude|codex|opencode|pi> …` (or the
+short `cmux agent …`) launches a preinstalled agent through that plane. A bare prompt is
+converted to the provider's one-shot form. `cmux auth login/logout` and account/upstream
+management remain host-owned, so the VM never needs a Stack session token.
 
 Freestyle machines boot the shared devbox snapshot (definition in
 `services/vms/images/devbox/`, baked with `web/scripts/build-devbox-freestyle.ts` against
@@ -561,7 +569,8 @@ provisioner (`services/vms/modelPlaneGateway.ts` adapting
 provider call, it mints one route token bound to the row id (`coderouter_route_tokens.vm_id`)
 and returns one edge rule: domain `coderouter.cmux.internal` (the alias every guest dials;
 `CMUX_VM_EDGE_ALIAS_DOMAIN` overrides it per deployment, never per machine), destination host
-this deployment's API host, and headers `x-coderouter-route-token` and `x-cmux-vm-id`. The
+this deployment's API host, and headers `authorization`, `x-coderouter-route-token`, and
+`x-cmux-vm-id`. The
 Freestyle driver passes the rule inline as `tls.rules` on the create; the platform resolves the
 alias to its edge, installs its CA in the guest at boot, terminates TLS for the alias, forwards
 to the destination host, and injects (and overwrites) those headers on every request.

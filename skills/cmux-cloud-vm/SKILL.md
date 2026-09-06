@@ -5,7 +5,7 @@ description: Route work to cmux Cloud machines (persistent cloud VMs) from the C
 
 # cmux Cloud Machines
 
-Everything the Cloud sidebar can do, from the CLI — plus agent-only primitives (`route`, `run`, `agent`, `exec`, `push`, `pull`, `wait`). Requires the cmux app running and a signed-in account (`cmux auth status`, `cmux auth login`). All of it is plain CLI, so it works for Claude Code, Codex, OpenCode, Pi, or any harness — and `cmux vm prompt` bootstraps an agent that has no skill loaded: it installs the app-bundled cmux-cloud skill at `~/.config/cmux/skills/cmux-cloud.md` and prints a kickoff prompt pointing at it (`--open <agent>` starts a local agent terminal with that prompt directly).
+Everything the Cloud sidebar can do, from the CLI — plus agent-only primitives (`route`, `run`, `agent`, `exec`, `push`, `pull`, `wait`). Host-side operations require the cmux app and a signed-in account (`cmux auth status`, `cmux auth login`); the guest-safe subset documented below runs inside a VM without a Stack session. All of it is plain CLI, so it works for Claude Code, Codex, OpenCode, Pi, or any harness — and `cmux vm prompt` bootstraps an agent that has no skill loaded: it installs the app-bundled cmux-cloud skill at `~/.config/cmux/skills/cmux-cloud.md` and prints a kickoff prompt pointing at it (`--open <agent>` starts a local agent terminal with that prompt directly).
 
 ## What a machine is
 
@@ -99,6 +99,23 @@ A pane showing a machine surface is an ordinary local pane: move, split, reorder
 ## CodeRouter and model credentials
 
 CodeRouter routes **model credentials**, not compute. An agent started with `vm agent` inside a machine authenticates the same way it would locally (its own login, or CodeRouter's env/config in the machine's `/root`); set that up once on the machine (`vm exec <id> -- …`) and it persists on the volume. Do not put the user's tokens on a machine unless they ask.
+
+The guest `cmux` adapter exposes the shared auth and CodeRouter commands:
+
+```bash
+cmux auth status --json
+cmux coderouter status --json
+cmux coderouter usage
+cmux coderouter models
+cmux coderouter agent claude "summarize the current checkout"
+cmux agent codex "run the tests"
+```
+
+`auth status` reports daemon health, TLS reachability, and VM-bound route authentication
+without printing credentials. Stack account login and upstream credential management remain
+host-owned (`cmux auth login`, `cmux coderouter claude …` on the Mac); never copy those
+tokens into a VM. A bare agent sentence uses the provider's one-shot form, while flags and
+provider subcommands pass through unchanged.
 
 ## Agent policy
 

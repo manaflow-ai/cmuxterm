@@ -121,14 +121,16 @@ Two complementary layers, both already live at the provider:
 - **Revoke** on: VM destroy (provider cascade + row revoke), account sign-out
   (`revokeEndpointLeases` extension), or explicit `cmux vm unlink` / grant
   revocation.
-- The model-plane token rides the **same** edge rule (one rule, two headers), which
-  retires the root-readable `model-plane.env` credential once
-  `CMUX_VM_MODEL_PLANE_EDGE_INJECTION` graduates from its flag.
+- The model plane already uses the edge-held route token: the guest carries only
+  the static placeholder env, while the inline Freestyle rule injects the
+  bearer and VM-binding headers on the wire. There is no guest-readable route
+  credential or runtime feature flag to graduate.
 
 ## Phasing
 
 1. **Shipped (PR #11609):** full capability contract; in-VM `cmux` shim;
-   Mac-brokered `vm link`; TLS port previews; flag-gated model-plane edge injection.
+   Mac-brokered `vm link`; TLS port previews; inline model-plane edge injection
+   and guest-safe auth/CodeRouter commands.
 2. **Machine principal:** `cloud_vm_identities` + `verifyRequest` VM mode + edge
    rule at create + scoped `peers.read`/`self.notify`.
 3. **Server-side grants:** `cloud_vm_peer_grants`, grant-gated attach/approve/exec,
@@ -138,8 +140,7 @@ Two complementary layers, both already live at the provider:
 
 ## Failure honesty
 
-- Edge rule create fails at VM create → machine ships without a control-plane
-  identity (in-VM `cmux vm` verbs answer "no identity; use `cmux vm link` from the
-  Mac"), never a blocked create.
+- Edge rule or route-token provisioning fails at VM create → the create is
+  rolled back and reported retryable; an unwired machine is never handed out.
 - A server that predates the machine principal → the in-VM CLI falls back to route
   files (the PR #11609 flow), which keeps working.

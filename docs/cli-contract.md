@@ -85,7 +85,8 @@ Environment:
 | `events` | Stream reconnectable cmux events as newline-delimited JSON. |
 | `sessions [list]` | List saved agent session records without requiring a running cmux socket. Filters: `--agent <name>`, `--session <id>`, `--workspace <id>`, `--surface <id>`, `--cwd <text>`. Overrides: `--state-dir <path>`, `--codex-home <path>`. Text output defaults to 100 results; `--limit <n>` takes a positive integer and `--all` removes the limit. Supports `--json`. |
 | `auth` | Manage auth status, login, and logout through the app. |
-| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the installed CodeRouter CLI (`coderouter` or `cr` on PATH) unchanged, exit 127 when it is missing. |
+| `coderouter`, `cr` | `cmux coderouter <status|machines|claude|agent>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts) and routes `agent` through the shared Cloud-agent path. Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the installed CodeRouter CLI (`coderouter` or `cr` on PATH) unchanged, exit 127 when it is missing. |
+| `agent` | `cmux agent <claude|codex|opencode|pi> [vm-agent-options] -- <prompt or args...>` (or the `--agent` spelling) is a short alias for `cmux vm agent`, using the same machine routing, repository sync, detached terminal, and reattach behavior. |
 | `vm`, `cloud` | Manage cloud VMs. `cloud` is an alias for `vm`. |
 | `vpn` | Manage the private WireGuard network used by cloud machines: `up`, `down`, `status`, `revoke`, and `hosts`. `up` enrolls this Mac through `vm.tunnel_config`; `hosts` writes `<machine>.internal` entries into cmux's managed `/etc/hosts` block. |
 | `remotes`, `remote` | Manage remote Macs in the team device registry so they appear in the iOS app's device list. `remote` is an alias for `remotes`. |
@@ -337,6 +338,7 @@ CodeRouter subcommands (cmux-owned; anything else passes through to the installe
 | Command | Contract |
 | --- | --- |
 | `coderouter status` | Sign-in state (`auth.status`), selected team, and the team's Claude upstream accounts. Supports `--team <id>` and `--json`. |
+| `coderouter agent <claude\|codex\|opencode\|pi> [vm-agent-options] -- <prompt or args...>` | Routes through the exact `vm agent` implementation; it is the CodeRouter-prefixed spelling for starting an agent on a routed Cloud machine. |
 | `coderouter machines` | 30-day coderouter usage per Cloud machine from `GET /api/coderouter/vm-usage/team`: vmId, display name, total tokens, API-equivalent USD, plus a total line. Alias `machine`. Supports `--team <id>` and `--json` (raw team-usage payload). |
 | `coderouter claude list` | Every Claude upstream account of the team: id, kind, masked identifier, label, health (`active`, `disabled`, `cooling down Ns <failure code>`), last use. Aliases `ls`, `show`, `get`, `status`. Supports `--team <id>` and `--json`. |
 | `coderouter claude add oauth-token` | Add a Claude Code OAuth token (`sk-ant-oat01-...`, from `claude setup-token`) as one more account. The token is read from `CLAUDE_CODE_OAUTH_TOKEN`, from stdin with `--stdin` or a non-TTY stdin, or from a hidden terminal prompt; never from argv. `--label <s>` names it. A non-`sk-ant-oat01-` value is rejected before the socket is used. Prints the masked identifier and account id only. `set` is an alias of `add`. Supports `--team <id>` and `--json`. |
@@ -345,6 +347,16 @@ CodeRouter subcommands (cmux-owned; anything else passes through to the installe
 | `coderouter claude remove <account>` | Remove one account. `<account>` is the id, or a label or masked identifier that matches exactly one account (ambiguity is an error naming the count). Idempotent. Aliases `rm`, `delete`. |
 | `coderouter claude disable <account>`, `coderouter claude enable <account>` | Take an account out of routing, or put it back, via `coderouter.claude_upstream.update`. Same selector rules as `remove`. |
 | `coderouter claude clear` | Remove every Claude upstream account of the team (`No Claude upstream accounts were set.` when none). Aliases `remove-all`, `unset`. Supports `--team <id>` and `--json`. |
+
+Guest-safe commands (available from `/usr/local/bin/cmux` inside a Cloud VM):
+
+| Command | Contract |
+| --- | --- |
+| `auth status [--json]` | Reports the local cmux-tui daemon, TLS-edge reachability, and VM-bound CodeRouter route authentication. It never prints a token; a non-zero exit means the complete VM auth path is not ready. `login`/`logout` remain host-owned. |
+| `coderouter status [--json]` | Alias for the guest auth report. |
+| `coderouter usage [--json]` | Returns this machine's 30-day usage from `/api/coderouter/vm-usage/self` through the injected TLS route. |
+| `coderouter models [--json]` | Returns the models visible through the VM's CodeRouter route. |
+| `coderouter agent <claude\|codex\|opencode\|pi> ...` | Runs a preinstalled coding agent with the VM's placeholder environment; the Freestyle edge supplies the route credential. A bare sentence uses the provider's one-shot form. `cmux agent ...` is the short alias. |
 
 Socket methods: `coderouter.claude_upstream.get|add|update|remove|clear` (`set` is an alias of `add`), `coderouter.machines`. Sign-in failures surface as the `auth_required` code, like `vm`.
 
@@ -681,7 +693,8 @@ the expected text without connecting to a cmux socket.
 - `cmux cloud --help` -> `Usage: cmux cloud <base|new|ls|domains|tree|status|stats|rename|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|link|workspace|ports|tools|handoff|promote-template|attach|ssh|ssh-info> [args...]`
 - `cmux remotes --help` -> `Usage: cmux remotes <list|add|remove> [options]`
 - `cmux remote --help` -> `Usage: cmux remotes <list|add|remove> [options]`
-- `cmux coderouter --help` -> `Usage: cmux coderouter <status|machines|claude> [options]`
+- `cmux coderouter --help` -> `Usage: cmux coderouter <status|machines|claude|agent> [options]`
+- `cmux agent --help` -> `Usage: cmux agent --agent <claude|codex|opencode|pi>`
 - `cmux rpc --help` -> `Usage: cmux rpc <method> [json-params]`
 - `cmux comments --help` -> `Usage: cmux comments <subcommand> [options]`
 - `cmux vault --help` -> `Usage: cmux vault <subcommand> [options]`
