@@ -1841,8 +1841,13 @@ fn start_wireguard_with_timeout_inner(
         anyhow!(catalog().remote_client.wireguard_config_invalid(&error.to_string()))
     })?;
     let net = match timeout {
+        // The timeout future must be built inside the runtime: `tokio::time::timeout`
+        // registers its sleep with the current reactor at construction, and there is
+        // none on this thread, so building it as `block_on`'s argument panics.
         Some(timeout) => runtime
-            .block_on(tokio::time::timeout(timeout, cmux_wg::WgNet::start_with_new_socket(config)))
+            .block_on(async {
+                tokio::time::timeout(timeout, cmux_wg::WgNet::start_with_new_socket(config)).await
+            })
             .map_err(|_| anyhow!("WireGuard startup timed out after {timeout:?}"))?
             .map_err(|error| {
                 anyhow!(catalog().remote_client.wireguard_start_failed(&error.to_string()))
