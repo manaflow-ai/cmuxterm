@@ -545,4 +545,40 @@ struct TerminalBlueprintStateTests {
         _ = try await state.setScene(sceneWithOneBox, baseRevision: nil, author: .agent, autoOpen: false)
         #expect(state.summaryText == "#box00001 rectangle \"\" (0,0 100x40)")
     }
+
+    @Test("a restore that ran before the stable surface id was adopted still finds the stored scene")
+    func loadRetriesAfterSurfaceIDChanges() async {
+        // Session restore calls restore(from:) before the panel adopts its
+        // persisted stable id, so the first load looks under a throwaway id.
+        let persistedID = UUID()
+        let store = RecordingBlueprintStore(preloaded: [persistedID: TerminalBlueprintDocument(
+            surfaceID: persistedID,
+            sceneJSON: sceneWithOneBox,
+            mermaidSource: "flowchart LR",
+            revision: 4,
+            updatedAt: Date(),
+            lastAuthor: .agent
+        )])
+        let defaults = UserDefaults(suiteName: "TerminalBlueprintStateTests-\(UUID().uuidString)")!
+        var currentID = UUID()
+        let state = TerminalBlueprintState(
+            surfaceIDProvider: { currentID },
+            store: store,
+            saveDebounce: .milliseconds(1),
+            defaults: defaults
+        )
+        state.restore(from: SessionTerminalBlueprintSnapshot(isOpen: true, layout: .split(fraction: 0.4), revision: 4))
+        await state.waitForPendingWork()
+        #expect(state.sceneJSON == nil)
+
+        currentID = persistedID
+        state.loadDocumentIfNeeded()
+        await state.waitForPendingWork()
+
+        #expect(state.sceneJSON == sceneWithOneBox)
+        #expect(state.elementCount == 1)
+        #expect(state.mermaidSource == "flowchart LR")
+        #expect(state.revision == 4)
+        #expect(state.summaryText.contains("#box00001"))
+    }
 }
