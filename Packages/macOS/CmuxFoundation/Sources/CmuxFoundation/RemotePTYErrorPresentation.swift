@@ -30,13 +30,43 @@ public struct RemotePTYErrorPresentation: Equatable, Sendable {
 
     /// Resolves a message and optional structured code into a category.
     ///
-    /// Legacy marker matching is retained for older daemon/app pairs. A
-    /// structured code is consulted only after those compatibility markers.
+    /// A present non-legacy structured code is authoritative, including when
+    /// its value is unknown. Legacy marker matching is retained for older
+    /// daemon/app pairs and for the explicit legacy envelopes.
     ///
     /// - Parameters:
     ///   - message: The daemon or transport diagnostic.
     ///   - code: The stable wire code, when one is available.
     public init(message: String, code: String?) {
+        if let normalizedCode = RemotePTYErrorCode.normalized(code) {
+            switch normalizedCode {
+            case RemotePTYErrorCode.legacy.rawValue, "rpc_error":
+                // Older app builds wrap every PTY failure in this envelope;
+                // classify the embedded diagnostic below.
+                break
+            case RemotePTYErrorCode.capabilityMissing.rawValue:
+                kind = .capabilityMissing
+                return
+            case RemotePTYErrorCode.sessionNotFound.rawValue:
+                kind = .sessionNotFound
+                return
+            case RemotePTYErrorCode.inputQueueFull.rawValue:
+                kind = .inputQueueFull
+                return
+            case RemotePTYErrorCode.connectionInactive.rawValue:
+                kind = .connectionInactive
+                return
+            case RemotePTYErrorCode.timeout.rawValue:
+                kind = .timeout
+                return
+            default:
+                // Future codes must fail closed rather than inherit a
+                // potentially misleading category from localized text.
+                kind = .generic
+                return
+            }
+        }
+
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             kind = .generic
@@ -54,8 +84,10 @@ public struct RemotePTYErrorPresentation: Equatable, Sendable {
             return
         }
         if lowered.contains("pty_session_not_found") ||
-            (lowered.contains("persistent ssh pty session") && lowered.contains("not running")) ||
-            (lowered.contains("persistent pty session") && lowered.contains("not running")) {
+            (lowered.contains("persistent ssh pty session") &&
+             (lowered.contains("not running") || lowered.contains("no longer running"))) ||
+            (lowered.contains("persistent pty session") &&
+             (lowered.contains("not running") || lowered.contains("no longer running"))) {
             kind = .sessionNotFound
             return
         }
@@ -85,33 +117,29 @@ public struct RemotePTYErrorPresentation: Equatable, Sendable {
             return
         }
 
-        guard let code = RemotePTYErrorCode.normalized(code) else {
-            kind = .generic
-            return
-        }
-        switch code {
-        case RemotePTYErrorCode.capabilityMissing.rawValue:
-            kind = .capabilityMissing
-        case RemotePTYErrorCode.sessionNotFound.rawValue:
-            kind = .sessionNotFound
-        case RemotePTYErrorCode.inputQueueFull.rawValue:
-            kind = .inputQueueFull
-        case RemotePTYErrorCode.connectionInactive.rawValue:
-            kind = .connectionInactive
-        case RemotePTYErrorCode.timeout.rawValue:
-            kind = .timeout
-        default:
-            kind = .generic
-        }
+        kind = .generic
     }
 
-    /// Resolves an error using its localized diagnostic and structured code.
+    /// Resolves an error using its diagnostic and explicit structured code.
+    ///
+    /// When no code is attached to the error, the diagnostic is treated as a
+    /// legacy message first. A known code inferred from a local transport seam
+    /// is used only when that message has no more specific legacy marker.
     ///
     /// - Parameter error: The remote PTY failure to classify.
     public init(error: any Error) {
-        self.init(
-            message: error.localizedDescription,
-            code: RemotePTYErrorCode.code(for: error)
-        )
+        let message = error.localizedDescription
+        if let structuredCode = RemotePTYErrorCode.structuredCode(from: error) {
+            self.init(message: message, code: structuredCode)
+            return
+        }
+
+        let legacyPresentation = Self(message: message, code: nil)
+        guard legacyPresentation.kind == .generic else {
+            self = legacyPresentation
+            return
+        }
+
+        self.init(message: message, code: RemotePTYErrorCode.code(for: error))
     }
 }

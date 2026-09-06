@@ -1,4 +1,5 @@
 import CmuxFoundation
+import Foundation
 
 extension TerminalController {
     /// Returns the machine-readable code placed on v2 remote-PTY failures.
@@ -8,9 +9,8 @@ extension TerminalController {
 
     /// Resolves the app-bundle human message for a remote-PTY failure.
     nonisolated func v2RemotePTYUserFacingErrorMessage(_ error: any Error) -> String {
-        v2RemotePTYUserFacingErrorMessage(
-            error.localizedDescription,
-            code: v2RemotePTYErrorCode(error)
+        localizedRemotePTYErrorMessage(
+            for: RemotePTYErrorPresentation(error: error).kind
         )
     }
 
@@ -23,25 +23,55 @@ extension TerminalController {
         _ message: String,
         code: String?
     ) -> String {
-        switch RemotePTYErrorPresentation(message: message, code: code).kind {
+        localizedRemotePTYErrorMessage(
+            for: RemotePTYErrorPresentation(message: message, code: code).kind
+        )
+    }
+
+    private nonisolated func localizedRemotePTYErrorMessage(
+        for kind: RemotePTYErrorPresentation.Kind
+    ) -> String {
+        switch kind {
         case .capabilityMissing:
-            return "remote daemon does not support persistent SSH PTY sessions; reconnect the remote workspace to update cmux"
+            return String(
+                localized: "remoteDaemon.error.missingPersistentPTYCapability",
+                defaultValue: "remote daemon does not support persistent SSH PTY sessions; reconnect the remote workspace to update cmux"
+            )
         case .sessionNotFound:
-            return "persistent SSH PTY session is no longer running"
+            return String(
+                localized: "remotePTYAttach.error.sessionEnded",
+                defaultValue: "persistent SSH PTY session is no longer running"
+            )
         case .inputQueueFull:
-            return "remote PTY input is temporarily backed up"
+            return String(
+                localized: "remotePTYAttach.error.inputBackedUp",
+                defaultValue: "remote PTY input is temporarily backed up"
+            )
         case .connectionInactive:
-            return "remote connection is not active"
+            return String(
+                localized: "remotePTYAttach.error.connectionInactive",
+                defaultValue: "remote connection is not active"
+            )
         case .daemonNotReady:
-            return "remote daemon is not ready"
-        case .missingWorkspaceID:
-            return "missing workspace_id in SSH PTY session list response"
-        case .missingSessionID:
-            return "missing session_id in SSH PTY session list response"
+            return String(
+                localized: "remotePTYAttach.error.daemonNotReady",
+                defaultValue: "remote daemon is not ready"
+            )
+        case .missingWorkspaceID, .missingSessionID:
+            return String(
+                localized: "remotePTYAttach.error.reconnectRequired",
+                defaultValue: "Reconnect the remote workspace and try again."
+            )
         case .timeout:
-            return "remote daemon did not respond in time"
+            return String(
+                localized: "remotePTYAttach.error.daemonTimeout",
+                defaultValue: "remote daemon did not respond in time"
+            )
         case .generic:
-            return "remote PTY operation failed"
+            return String(
+                localized: "remotePTYAttach.error.operationFailed",
+                defaultValue: "remote PTY operation failed"
+            )
         }
     }
 }

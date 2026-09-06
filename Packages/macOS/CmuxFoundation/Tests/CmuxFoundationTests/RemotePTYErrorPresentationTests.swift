@@ -122,4 +122,15 @@ struct RemotePTYErrorPresentationTests {
 
         #expect(RemotePTYErrorPresentation(error: error).kind == .missingSessionID)
     }
+
+    @Test("error initializer uses a transport seam when its text is generic")
+    func errorInitializerUsesTransportSeamForGenericText() {
+        let error = NSError(
+            domain: "cmux.remote.daemon.rpc",
+            code: 11,
+            userInfo: [NSLocalizedDescriptionKey: "transport failed"]
+        )
+
+        #expect(RemotePTYErrorPresentation(error: error).kind == .timeout)
+    }
 }
