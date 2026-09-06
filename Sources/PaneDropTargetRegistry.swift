@@ -31,7 +31,11 @@ final class NativeDragCoordinator {
     private(set) var tabDragTransferRegistry: TabDragTransferRegistry
     private var nativeDragEndObserverID: UUID?
 
-    init(tabDragTransferRegistry: TabDragTransferRegistry = TabDragTransferRegistry()) {
+    init() {
+        self.init(tabDragTransferRegistry: TabDragTransferRegistry())
+    }
+
+    init(tabDragTransferRegistry: TabDragTransferRegistry) {
         self.tabDragTransferRegistry = tabDragTransferRegistry
         observeNativeDragEnds(on: tabDragTransferRegistry)
     }
