@@ -1093,6 +1093,38 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(Darwin.kill(pid, 0) == -1 && errno == ESRCH, "the link child must be reaped before connect returns")
     }
 
+    @Test func linkClientExitingBeforeItsSocketLineReportsTheExitNotATimeout() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-cloud-connect-exit-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let client = root.appendingPathComponent("fake-cmux-tui")
+        // An older bundled client that does not know a flag exits at once with a
+        // usage error and never prints a connection snapshot.
+        try """
+        #!/bin/sh
+        echo 'cmux-tui: unknown option "--carrier"' >&2
+        exit 2
+        """.write(to: client, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: client.path)
+        let link = CloudMachineLink(
+            machineID: "test-machine",
+            clientURL: client,
+            paths: CloudTuiClientPaths(home: root)
+        )
+        let started = ContinuousClock.now
+        do {
+            _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", carrier: true, timeout: .seconds(60))
+            Issue.record("a client that exits before its socket line must fail the connect")
+        } catch CloudMachineLink.LinkError.exited(let status, let output) {
+            #expect(status == 2)
+            #expect(output.contains("unknown option"), "the client's stderr must reach the error: \(output)")
+        } catch {
+            Issue.record("expected LinkError.exited, got \(error)")
+        }
+        #expect(ContinuousClock.now - started < .seconds(10), "an exited client must not wait for the connect deadline")
+    }
+
     @Test func disconnectStopsLinkAndEventChildrenBeforeReturning() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-cloud-disconnect-\(UUID().uuidString.lowercased())", isDirectory: true)
