@@ -1,5 +1,6 @@
 import AppKit
 import Bonsplit
+import WebKit
 @_implementationOnly import XCTest
 
 #if canImport(cmux_DEV)
