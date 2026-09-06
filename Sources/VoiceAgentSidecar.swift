@@ -250,6 +250,19 @@ enum VoiceAgentSidecarLauncher {
         }
     }
 
+    /// Kills any `voice-agent/server.py` this user is running that we do not
+    /// own. The app records its own sidecar in `VoiceAgentSidecarRegistry`;
+    /// anything else is an orphan from an earlier run or an old build.
+    nonisolated static func terminateOrphans() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        process.arguments = ["-u", String(getuid()), "-f", "voice-agent/server.py"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
     nonisolated static func terminate(pid: Int) {
         guard pid > 1 else { return }
         kill(pid_t(pid), SIGTERM)

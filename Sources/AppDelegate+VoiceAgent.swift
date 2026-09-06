@@ -107,6 +107,9 @@ extension AppDelegate {
             }
             VoiceAgentSidecarRegistry.clear(matching: session)
         }
+        // A sidecar from a previous app run (or a stale one after a rebuild)
+        // is never reused: it may be running old code, and its token is lost.
+        VoiceAgentSidecarLauncher.terminateOrphans()
         guard VoiceAgentSidecarRegistry.beginStarting() else {
             return .failure(.alreadyStarting)
         }
