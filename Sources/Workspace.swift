@@ -8736,6 +8736,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let remoteTerminalStartupCommand = suppressWorkspaceRemoteStartupCommand ? nil : remoteTerminalStartupCommand()
         let startupCommand = explicitInitialCommand ?? remoteTerminalStartupCommand
         let remoteStartupCommandForEnvironment = explicitInitialCommand == nil ? remoteTerminalStartupCommand : nil
+        let explicitRemoteInitialWorkingDirectory = normalizedTerminalStartupWorkingDirectory(
+            startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey],
+            preserveExact: true
+        )
         let newPanelID = UUID()
         let requestedRemotePTYSessionID = normalizedRemotePTYSessionID(remotePTYSessionID)
         let effectiveRemotePTYSessionID = requestedRemotePTYSessionID
@@ -8778,8 +8782,11 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let localWorkingDirectory: String?
         if remoteStartupCommandForEnvironment != nil {
             localWorkingDirectory = nil
+            effectiveStartupEnvironment.removeValue(forKey: Self.remoteInitialWorkingDirectoryEnvironmentKey)
             if let splitWorkingDirectory {
                 effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = splitWorkingDirectory
+            } else if let explicitRemoteInitialWorkingDirectory {
+                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = explicitRemoteInitialWorkingDirectory
             }
         } else {
             localWorkingDirectory = splitWorkingDirectory
@@ -9067,6 +9074,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let remoteTerminalStartupCommand = suppressWorkspaceRemoteStartupCommand ? nil : remoteTerminalStartupCommand()
         let startupCommand = explicitInitialCommand ?? remoteTerminalStartupCommand
         let remoteStartupCommandForEnvironment = explicitInitialCommand == nil ? remoteTerminalStartupCommand : nil
+        let explicitRemoteInitialWorkingDirectory = normalizedTerminalStartupWorkingDirectory(
+            startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey],
+            preserveExact: true
+        )
         let newPanelID = restoredSurfaceId ?? UUID()
         let requestedRemotePTYSessionID = normalizedRemotePTYSessionID(remotePTYSessionID)
         let effectiveRemotePTYSessionID = requestedRemotePTYSessionID
@@ -9101,6 +9112,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let localWorkingDirectory: String?
         if remoteStartupCommandForEnvironment != nil {
             localWorkingDirectory = nil
+            effectiveStartupEnvironment.removeValue(forKey: Self.remoteInitialWorkingDirectoryEnvironmentKey)
             let remoteInitialWorkingDirectory = inheritWorkingDirectoryFallback
                 ? resolvedTerminalStartupWorkingDirectory(
                     requestedWorkingDirectory: workingDirectory,
@@ -9110,6 +9122,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 : normalizedTerminalStartupWorkingDirectory(workingDirectory, preserveExact: true)
             if let remoteInitialWorkingDirectory {
                 effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = remoteInitialWorkingDirectory
+            } else if let explicitRemoteInitialWorkingDirectory {
+                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = explicitRemoteInitialWorkingDirectory
             }
         } else {
             localWorkingDirectory = requestedWorkingDirectory
