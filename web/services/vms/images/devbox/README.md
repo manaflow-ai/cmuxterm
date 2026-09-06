@@ -285,10 +285,11 @@ be updated before a private-network image can be assessed. Rebuilding a guest
 image cannot add that missing capability to an installed Mac app.
 
 The probe creates its own VPC, VM from the requested snapshot, and temporary
-WireGuard tunnel. It uses the production driver to obtain and approve an
-invitation, reads the session snapshot through the private hub, then connects
-again with the persisted device identity and no new invitation. The report
-records both commits and the enrollment, reconnect, and snapshot results.
+WireGuard tunnel. It uses the production driver to confirm the machine serves
+the trusted-carrier listener, dials it with `--carrier` (no enrollment, no
+approval), reads the session snapshot through the private hub, then connects
+again the same way. The report records both commits and the trusted-listener,
+reconnect, and snapshot results.
 The client need not match the image's older baked commit: successful protocol
 operations are the compatibility check.
 
