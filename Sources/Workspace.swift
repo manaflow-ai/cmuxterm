@@ -8180,7 +8180,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         ]
         if preserveExact {
             return candidates.lazy.compactMap {
-                normalizedTerminalStartupWorkingDirectory($0, preserveExact: true)
+                self.normalizedTerminalStartupWorkingDirectory($0, preserveExact: true)
             }.first
         }
         return TerminalWorkingDirectoryResolver.firstAvailable(candidates)
