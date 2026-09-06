@@ -187,7 +187,6 @@ exit 0
 
         env = os.environ.copy()
         sandbox_home = tmp / "home"
-        sandbox_home.mkdir(parents=True, exist_ok=True)
         env["HOME"] = str(sandbox_home)
         env["PATH"] = f"{wrapper_dir}:{real_dir}:{env.get('PATH', '/usr/bin:/bin')}"
         env["CMUX_SURFACE_ID"] = "surface:test"

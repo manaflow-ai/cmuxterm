@@ -112,6 +112,9 @@ exit 0
                 node_options = wait_for_text(ready_path)
                 match = re.search(r'--require="([^"]+)"|--require=(\S+)', node_options)
                 if match is None:
+                    continue_path.touch()
+                    process.kill()
+                    stdout, stderr = process.communicate()
                     print(f"FAIL: wrapped Claude did not receive a restore preload: {node_options!r}")
                     return 1
 
