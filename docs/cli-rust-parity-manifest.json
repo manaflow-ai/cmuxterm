@@ -10,7 +10,7 @@
       "id": "startup",
       "commands": ["--help", "help", "--version", "version", "capabilities", "context"],
       "status": "partial",
-      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "cmux-tui/crates/cmux-cli/src/bin/cmux.rs"]
+      "evidence": ["cmux-tui/crates/cmux-cli/src/lib.rs", "cmux-tui/crates/cmux-cli/src/bin/cmux.rs", "cmux-tui/crates/cmux-cli/src/lib.rs#command_usage"]
     },
     {
       "id": "socket-transport",
@@ -64,7 +64,7 @@
       "id": "agents-and-hooks",
       "commands": ["hooks", "codex", "claude-hook", "claude-teams", "codex-teams", "omo", "omx", "omc"],
       "status": "pending",
-      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#source_inventory_labels_are_parseable_by_rust"]
+      "evidence": ["CLI/cmux.swift", "CLI/CMUXCLI+AgentHookDefinitions.swift", "cmux-tui/crates/cmux-cli/src/lib.rs#generic_method_and_params", "cmux-tui/crates/cmux-cli/src/lib.rs#source_inventory_labels_are_parseable_by_rust", "cmux-tui/crates/cmux-cli/src/lib.rs#run_generic_command"]
     },
     {
       "id": "cloud-and-remotes",
