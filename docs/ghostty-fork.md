@@ -12,6 +12,27 @@ When we change the fork, update this document and the parent submodule SHA.
 
 ## Current fork changes
 
+### Pending OSC 22 modifier correction
+
+https://github.com/manaflow-ai/ghostty/pull/216 contains the native prerequisite
+for cmux PR #9362. Modifier-key callbacks previously replaced an explicit OSC 22
+request with text or the mouse-reporting arrow. The terminal now distinguishes
+an unspecified shape from an explicit request and resolves the mode default in
+one place. Modifier and link-exit paths preserve that base outside temporary
+rectangle-selection and Shift-selection overrides.
+
+The test-only commit is `e4aa4ba16`; the tested fix is
+`d60e7f1f6318ccc3f095f5d7d100b04ee7ba94df`. Native modifier/default tests and a
+universal ReleaseFast framework build pass. The internal Zig shape field is now
+optional; the C action ABI is unchanged. Preserve the explicit/default
+distinction when merging upstream mouse-shape changes.
+
+The parent pin below remains unchanged until the dependency reaches fork main.
+This core also serves iOS, so Austin must merge the dependency under the standing
+iOS rule. A merge commit retains the tested SHA; a squash requires a new
+framework build and checksum. After merging, update the parent pin and checksum,
+then rerun `TerminalPointerNativeHoverUITests` and the tagged app build.
+
 The submodule pinned by this branch is `abd40f6e4`, reachable from fork
 `main` after Ghostty PR #211 was merged.
 It carries the renderer/API compatibility pin plus the Fish SSH feature-gating

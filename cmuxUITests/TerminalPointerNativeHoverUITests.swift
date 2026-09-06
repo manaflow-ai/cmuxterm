@@ -103,14 +103,28 @@ final class TerminalPointerNativeHoverUITests: XCTestCase {
         try expectCursor(cursorReferences.resizeLeftRight, app: app, label: "Divider cursor overrides OSC 22")
         left.hover()
         try expectCursor(cursorReferences.pointingHand, app: app, label: "Pointer restored after divider hover")
+
+        // Mouse-reporting editors can explicitly request text instead of the
+        // implicit arrow. A modifier key must preserve that OSC 22 request too.
+        try emit(["text"], app: app, marker: directory.appendingPathComponent("reporting-ready"),
+                 enableMouseReporting: true)
+        framePoint.hover()
+        left.hover()
+        try expectCursor(cursorReferences.iBeam, app: app, label: "Explicit text with mouse reporting")
+        app.typeKey(XCUIKeyboardKey.command.rawValue, modifierFlags: [])
+        try expectCursor(cursorReferences.iBeam, app: app, label: "Mouse-reporting text after Command")
     }
 
     @MainActor
-    private func emit(_ shapes: [String], app: XCUIApplication, marker: URL) throws {
+    private func emit(
+        _ shapes: [String], app: XCUIApplication, marker: URL,
+        enableMouseReporting: Bool = false
+    ) throws {
         let escapes = shapes.map { "\\033]22;\($0)\\007" }.joined()
+        let reporting = enableMouseReporting ? "\\033[?1000h" : ""
         let quotedMarker = "'" + marker.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
         // Clear welcome links out of the hover region and acknowledge actual PTY output.
-        app.typeText("printf '\\033[2J\\033[H\(escapes)Pointer fixture\\n'; : > \(quotedMarker)\n")
+        app.typeText("printf '\\033[2J\\033[H\(reporting)\(escapes)Pointer fixture\\n'; : > \(quotedMarker)\n")
         let ready = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in FileManager.default.fileExists(atPath: marker.path) },
             object: nil
