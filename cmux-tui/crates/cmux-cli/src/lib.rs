@@ -1119,7 +1119,17 @@ fn run_socket_v2_command(
             params.insert("scrollback".into(), Value::Bool(true));
         }
     }
-    let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+    let result = if command == "login"
+        || (command == "auth" && arguments.first().map(String::as_str) == Some("login"))
+    {
+        socket(&options)?.send_v2_with_timeout(
+            method,
+            Value::Object(params),
+            Duration::from_secs(305),
+        )?
+    } else {
+        socket(&options)?.send_v2(method, Value::Object(params))?
+    };
     let result = format_ids(result, &id_format);
     if (command == "auth" || command == "login" || command == "logout") && !json_output {
         if command == "logout"
@@ -2024,8 +2034,19 @@ impl SocketClient {
     }
 
     fn send_v2(&self, method: &str, params: Value) -> Result<Value, CliError> {
+        self.send_v2_with_timeout(method, params, DEFAULT_TIMEOUT)
+    }
+
+    fn send_v2_with_timeout(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, CliError> {
         let mut stream =
             self.stream.try_clone().map_err(|error| CliError::Runtime(error.to_string()))?;
+        stream.set_read_timeout(Some(timeout)).ok();
+        stream.set_write_timeout(Some(timeout)).ok();
         authenticate_stream(&mut stream, self.password.as_deref())?;
         let request = json!({
             "id": Uuid::new_v4().to_string().to_uppercase(),

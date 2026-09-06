@@ -77,8 +77,9 @@ risk breaking commands, so the size increase remains accepted until cutover.
 
 Known verification gap: Rust auth resolution now supports an explicit password,
 `CMUX_SOCKET_PASSWORD`, the shared password file, and the scoped legacy macOS
-Keychain entries. The macOS Security framework path still needs a macOS build
-and a live Keychain conformance test.
+Keychain entries. Login now uses the Swift-compatible 305 second request
+timeout. The macOS Security framework path still needs a macOS build and a
+live Keychain conformance test.
 
 Known verification gap: the full Xcode release build and installed end-user
 test have not run in this environment. The local build guard requires more
