@@ -40,6 +40,11 @@ private struct SocketLineProcessingResult: Sendable {
     let response: String?
     let passwordAuthorization: SocketPasswordAuthorization
 }
+
+struct SocketCommandProcessingResult: Sendable {
+    let response: String?
+    let descriptor: SocketCommandDescriptor
+}
 // Agent notification gating types (AgentNotifyCategory / AgentTurnCompleteMode /
 // AgentNotificationMeta / agentNotificationShouldDeliver) live in AgentNotificationGate.swift.
 
@@ -2006,10 +2011,9 @@ class TerminalController {
             )
 #endif
             reportSlowSocketCommandIfNeeded(
-                command: command,
+                descriptor: Self.socketCommandDescriptor(command: command, peerPid: peerPid),
                 response: response,
-                startNs: commandStartNs,
-                peerPid: peerPid
+                startNs: commandStartNs
             )
             return SocketLineProcessingResult(
                 response: response,
@@ -2017,11 +2021,12 @@ class TerminalController {
             )
         }
 
-        let response = processCommandUsingSocketExecutionPolicy(
+        let processingResult = processCommandUsingSocketExecutionPolicyResult(
             command,
             peerPid: peerPid,
             commandStartNs: commandStartNs
         )
+        let response = processingResult.response
 #if DEBUG
         if let response {
             Self.debugLogSocketCommandEndIfNeeded(
@@ -2033,10 +2038,9 @@ class TerminalController {
         }
 #endif
         reportSlowSocketCommandIfNeeded(
-            command: command,
+            descriptor: processingResult.descriptor,
             response: response,
-            startNs: commandStartNs,
-            peerPid: peerPid
+            startNs: commandStartNs
         )
         return SocketLineProcessingResult(
             response: response,
@@ -2055,41 +2059,52 @@ class TerminalController {
     }
 
     private nonisolated static func socketCommandDescriptor(
+        protocolName: String,
+        method: String,
+        policy: ControlCommandExecutionPolicy,
+        peerPid: pid_t?
+    ) -> SocketCommandDescriptor {
+        SocketCommandDescriptor(
+            protocolName: protocolName,
+            method: sanitizedSocketCommandToken(method),
+            executedOnMain: !policy.runsOnSocketWorker,
+            peerPid: peerPid
+        )
+    }
+
+    private nonisolated static func socketCommandDescriptor(
         command: String,
         peerPid: pid_t?
     ) -> SocketCommandDescriptor {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if let request = Self.v2Parser.lenientRequest(fromLine: trimmed) {
-            return SocketCommandDescriptor(
+            return Self.socketCommandDescriptor(
                 protocolName: "v2",
-                method: sanitizedSocketCommandToken(request.method),
-                executedOnMain: !executionPolicy(forV2Method: request.method).runsOnSocketWorker,
+                method: request.method,
+                policy: executionPolicy(forV2Method: request.method),
                 peerPid: peerPid
             )
         }
 
         let commandToken = trimmed.split(separator: " ", maxSplits: 1).first.map(String.init) ?? "<empty>"
-        let method = sanitizedSocketCommandToken(commandToken)
-        return SocketCommandDescriptor(
+        return Self.socketCommandDescriptor(
             protocolName: "v1",
-            method: method,
-            executedOnMain: method.lowercased() != "ping"
-                && !ControlCommandExecutionPolicy(forV1Command: commandToken.lowercased()).runsOnSocketWorker,
+            method: commandToken,
+            policy: ControlCommandExecutionPolicy(forV1Command: commandToken.lowercased()),
             peerPid: peerPid
         )
     }
 
     private nonisolated func reportSlowSocketCommandIfNeeded(
-        command: String,
+        descriptor: SocketCommandDescriptor,
         response: String?,
-        startNs: UInt64,
-        peerPid: pid_t?
+        startNs: UInt64
     ) {
         let elapsedMs = Double(DispatchTime.now().uptimeNanoseconds &- startNs) / 1_000_000
         guard SlowSocketCommandReporter.isSlow(durationMs: elapsedMs) else { return }
         slowCommandReporter.reportIfSlow(
             SocketCommandObservation(
-                descriptor: Self.socketCommandDescriptor(command: command, peerPid: peerPid),
+                descriptor: descriptor,
                 durationMs: elapsedMs,
                 responseByteCount: response?.utf8.count ?? 0
             )
@@ -2335,11 +2350,11 @@ class TerminalController {
     }
 #endif
 
-    private nonisolated func processCommandUsingSocketExecutionPolicy(
+    private nonisolated func processCommandUsingSocketExecutionPolicyResult(
         _ command: String,
         peerPid: pid_t? = nil,
         commandStartNs: UInt64 = DispatchTime.now().uptimeNanoseconds
-    ) -> String? {
+    ) -> SocketCommandProcessingResult {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if trimmed.hasPrefix("{") {
@@ -2350,14 +2365,27 @@ class TerminalController {
             let parsedRequest: ControlRequest
             switch Self.v2Parser.request(fromLine: trimmed) {
             case .failure(let parseError):
-                return Self.v2Encoder.response(for: parseError)
+                return SocketCommandProcessingResult(
+                    response: Self.v2Encoder.response(for: parseError),
+                    descriptor: Self.socketCommandDescriptor(command: command, peerPid: peerPid)
+                )
             case .success(let parsed):
                 parsedRequest = parsed
             }
 
             let relayAuthorization = authorizeRemoteRelayRequest(parsedRequest)
+            let parsedPolicy = Self.executionPolicy(forV2Method: parsedRequest.method)
+            let parsedDescriptor = Self.socketCommandDescriptor(
+                protocolName: "v2",
+                method: parsedRequest.method,
+                policy: parsedPolicy,
+                peerPid: peerPid
+            )
             if let errorResponse = relayAuthorization.errorResponse {
-                return errorResponse
+                return SocketCommandProcessingResult(
+                    response: errorResponse,
+                    descriptor: parsedDescriptor
+                )
             }
             let request = relayAuthorization.request
             let automationOrigin = CmuxAutomationInvocationContext.eventOrigin
@@ -2366,82 +2394,123 @@ class TerminalController {
                 id: request.id.map(\.foundationObject),
                 params: request.params.mapValues(\.foundationObject)
             ) {
-                return focusError
+                return SocketCommandProcessingResult(
+                    response: focusError,
+                    descriptor: parsedDescriptor
+                )
             }
 
             let policy = Self.executionPolicy(forV2Method: request.method)
+            let descriptor = Self.socketCommandDescriptor(
+                protocolName: "v2",
+                method: request.method,
+                policy: policy,
+                peerPid: peerPid
+            )
             if let action = browserKeyboardAction(for: request.method),
                let rawKey = request.params["key"]?.foundationObject as? String,
                let event = BrowserKeyboardEvent(rawKey: rawKey),
                event.nativeKey != nil {
                 guard !Thread.isMainThread else {
-                    return v2Error(
+                    return SocketCommandProcessingResult(
+                        response: v2Error(
+                            id: request.id.map(\.foundationObject),
+                            code: "invalid_dispatch",
+                            message: "\(request.method) must run off the main thread"
+                        ),
+                        descriptor: descriptor
+                    )
+                }
+                return SocketCommandProcessingResult(
+                    response: CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                        v2BrowserKeyboardNativeResponseSync(
+                            request: request,
+                            event: event,
+                            action: action
+                        )
+                    },
+                    descriptor: descriptor
+                )
+            }
+            if Thread.isMainThread, policy == .socketWorker(mainThreadCallable: false) {
+                return SocketCommandProcessingResult(
+                    response: v2Error(
                         id: request.id.map(\.foundationObject),
                         code: "invalid_dispatch",
                         message: "\(request.method) must run off the main thread"
-                    )
-                }
-                return CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
-                    v2BrowserKeyboardNativeResponseSync(
-                        request: request,
-                        event: event,
-                        action: action
-                    )
-                }
-            }
-            if Thread.isMainThread, policy == .socketWorker(mainThreadCallable: false) {
-                return v2Error(
-                    id: request.id.map(\.foundationObject),
-                    code: "invalid_dispatch",
-                    message: "\(request.method) must run off the main thread"
+                    ),
+                    descriptor: descriptor
                 )
             }
             if policy.runsOnSocketWorker {
-                return CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
-                    socketWorkerV2Response(handling: request)
-                }
+                return SocketCommandProcessingResult(
+                    response: CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                        socketWorkerV2Response(handling: request)
+                    },
+                    descriptor: descriptor
+                )
             }
-            let descriptor = Self.socketCommandDescriptor(command: command, peerPid: peerPid)
-            return mainThreadSocketCommandWatchdog.monitor(
-                descriptor: descriptor,
-                startNs: commandStartNs
-            ) {
-                CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
-                    processParsedV2Command(request)
-                }
-            }
+            return SocketCommandProcessingResult(
+                response: mainThreadSocketCommandWatchdog.monitor(
+                    descriptor: descriptor,
+                    startNs: commandStartNs
+                ) {
+                    CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                        processParsedV2Command(request)
+                    }
+                },
+                descriptor: descriptor
+            )
         }
 
         let parts = trimmed.split(separator: " ", maxSplits: 1).map(String.init)
         guard let commandToken = parts.first else {
             // Empty line: let the main-lane dispatcher produce the legacy
             // "ERROR: Empty command" reply.
-            return v2MainSync {
-                self.processCommand(command)
-            }
+            return SocketCommandProcessingResult(
+                response: v2MainSync {
+                    self.processCommand(command)
+                },
+                descriptor: Self.socketCommandDescriptor(command: command, peerPid: peerPid)
+            )
         }
         let cmd = commandToken.lowercased()
         let args = parts.count > 1 ? parts[1] : ""
+        let policy = ControlCommandExecutionPolicy(forV1Command: cmd)
+        let descriptor = Self.socketCommandDescriptor(
+            protocolName: "v1",
+            method: cmd,
+            policy: policy,
+            peerPid: peerPid
+        )
 
         if Thread.isMainThread,
-           ControlCommandExecutionPolicy(forV1Command: cmd) == .socketWorker(mainThreadCallable: false) {
-            return "ERROR: \(cmd) must run off the main thread"
+           policy == .socketWorker(mainThreadCallable: false) {
+            return SocketCommandProcessingResult(
+                response: "ERROR: \(cmd) must run off the main thread",
+                descriptor: descriptor
+            )
         }
 
         let workerV1 = socketWorkerV1ResponseIfHandled(cmd: cmd, args: args)
         if workerV1.handled {
-            return workerV1.response
+            return SocketCommandProcessingResult(
+                response: workerV1.response,
+                descriptor: descriptor
+            )
         }
 
-        let descriptor = Self.socketCommandDescriptor(command: command, peerPid: peerPid)
-        return mainThreadSocketCommandWatchdog.monitor(
-            descriptor: descriptor,
-            startNs: commandStartNs
-        ) {
-            v2MainSync(commandKey: cmd) {
-                self.processCommand(command)
-            }
-        }
+        return SocketCommandProcessingResult(
+            response: mainThreadSocketCommandWatchdog.monitor(
+                descriptor: descriptor,
+                startNs: commandStartNs
+            ) {
+                v2MainSync(commandKey: cmd) {
+                    self.processCommand(command)
+                }
+            },
+            descriptor: descriptor
+        )
     }
 
     /// Public entry point mirroring the socket's `processCommand` path so
@@ -2449,7 +2518,7 @@ class TerminalController {
     /// request) can reuse the full V1/V2 dispatcher without duplicating
     /// its auth/policy wrappers.
     nonisolated func handleSocketLine(_ line: String) -> String {
-        return processCommandUsingSocketExecutionPolicy(line) ?? ""
+        return processCommandUsingSocketExecutionPolicyResult(line).response ?? ""
     }
 
     func processCommand(_ command: String) -> String {
@@ -2669,8 +2738,8 @@ class TerminalController {
     }
 
     /// Parses and dispatches a v2 line on the calling thread. Socket traffic
-    /// enters through `processCommandUsingSocketExecutionPolicy`, which parses
-    /// before this point; this entry serves in-process callers
+    /// enters through the socket execution-policy result dispatcher, which
+    /// parses before this point; this entry serves in-process callers
     /// (`runV2CommandLine`, and `processCommand`'s v2 branch), so it may parse
     /// on its calling thread.
     private nonisolated func processV2Command(_ jsonLine: String) -> String {

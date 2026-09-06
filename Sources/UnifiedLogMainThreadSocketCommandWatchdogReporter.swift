@@ -3,10 +3,10 @@ import os
 
 /// Writes main-thread socket command watchdog events to unified logging.
 final class UnifiedLogMainThreadSocketCommandWatchdogReporter: MainThreadSocketCommandWatchdogReporter {
-    static let subsystem = "com.cmuxterm.app"
-    static let category = "socket-command-watchdog"
+    private static let subsystem = "com.cmuxterm.app"
+    private static let category = "socket-command-watchdog"
 
-    private let logger = Logger(subsystem: subsystem, category: category)
+    private let logger = Logger(subsystem: Self.subsystem, category: Self.category)
 
     func reportHang(_ observation: MainThreadSocketCommandWatchdogObservation) {
         let descriptor = observation.descriptor

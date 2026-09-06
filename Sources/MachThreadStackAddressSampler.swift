@@ -103,7 +103,7 @@ struct MachThreadStackAddressSampler {
 
     private static func normalizedInstructionPointer(_ address: UInt) -> UInt {
         #if arch(arm64)
-        return address & 0x0000_000F_FFFF_FFFF
+        return CMUXStripCodePointer(address)
         #else
         return address
         #endif
