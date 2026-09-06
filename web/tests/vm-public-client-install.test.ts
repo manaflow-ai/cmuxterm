@@ -20,8 +20,8 @@ test("the installed public client works without access to the daemon's private h
     mkdirSync(shimBin);
     const binary = "#!/bin/sh\nprintf 'cmux-fixture\\n'\n";
     writeFileSync(source, binary, { mode: 0o755 });
-    if (spawnSync("sha256sum", ["--version"]).status !== 0) {
-      writeFileSync(join(shimBin, "sha256sum"), "#!/bin/sh\nexec shasum -a 256 \"$@\"\n", { mode: 0o755 });
+    if (process.platform === "darwin") {
+      writeFileSync(join(shimBin, "sha256sum"), "#!/bin/sh\nexec shasum -a 256 \"$@\" -\n", { mode: 0o755 });
     }
     const sha256 = createHash("sha256").update(binary).digest("hex");
     // Execute the actual installer, remapping only its filesystem destinations.
