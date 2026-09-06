@@ -157,6 +157,21 @@ struct CodexHookInjectionStrippingTests {
         )
     }
 
+    @Test("Preserves legacy bare hook paths with shell metacharacters")
+    func preservesLegacyBareHookPathsWithShellMetacharacters() {
+        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
+            "/Users/Example;Name/.cmux/hooks/cmux-codex-hook-0123456789abcdef-\(subcommand).sh"
+        } + ["--model", "gpt-5.5"]
+
+        #expect(
+            AgentLaunchSanitizer.sanitizedLaunchArguments(
+                arguments,
+                launcher: "",
+                fallbackKind: "codex"
+            ) == arguments
+        )
+    }
+
     @Test("Preserves malformed content-addressed Codex hook paths")
     func preservesMalformedContentAddressedCodexHookPaths() {
         let arguments = [

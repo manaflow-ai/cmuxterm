@@ -36,6 +36,7 @@ struct CodexHookScriptNameTests {
         let paths = [
             "/Users/Example Name/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
             "/Users/Example $HOME/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
+            "/Users/Example;Name/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
             "/Users/Example/back\\slash [glob]/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
             "/Users/Example/\"double\"/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
             "/Users/Example/three'''quotes/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
