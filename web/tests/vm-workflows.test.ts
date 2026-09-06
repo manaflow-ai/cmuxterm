@@ -31,7 +31,6 @@ import {
   VmCreateInProgressError,
   VmDatabaseError,
   VmLimitExceededError,
-  VmSharedResourceLimitExceededError,
   VmNotFoundError,
   VmProviderOperationError,
   VmSnapshotNotFoundError,
@@ -41,7 +40,6 @@ import {
 import { accountDeletionUserHash } from "../services/account/deletionLock";
 import { isVmAttachTransportUnsupportedError } from "../services/vms/errors";
 import {
-  PLAN_SHARED_DISK_MB,
   VM_DISK_MB_MAX,
   VM_RESOURCE_RESIZE_PENDING_METADATA_KEY,
   VM_RESOURCE_RESIZE_UNCONFIRMED_METADATA_KEY,
@@ -165,11 +163,11 @@ describe("VM Effect workflows", () => {
       providerMetadata: {},
     });
     let reservation: unknown;
-    let beginInput: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
+    let beginInput: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
     let finalizedReservation: unknown;
     const repo = {
       ...testWorkflowRepo({ vm: source }),
-      beginCreate: (input: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown }) => {
+      beginCreate: (input: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown }) => {
         beginInput = input;
         reservation = input.resourceReservation;
         return Effect.succeed({
@@ -224,13 +222,13 @@ describe("VM Effect workflows", () => {
       }).pipe(Effect.provide(workflowLayer(repo, provider))),
     );
 
-    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 });
-    expect(beginInput?.reserveSharedResourceHeadroom).toBe(true);
+    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: VM_DISK_MB_MAX });
+    expect(beginInput?.forkPending).toBe(true);
     expect(beginInput?.forkMinimumResourceReservation).toEqual({ vcpus: 1, memoryMb: 4 * 1024, diskMb: 16 * 1024 });
     expect(finalizedReservation).toEqual({ vcpus: 16, memoryMb: 32768, diskMb: 65536 });
   });
 
-  test("uses the shared-pool fallback for implausible legacy fork stats", async () => {
+  test("uses the legacy machine fallback for implausible legacy fork stats", async () => {
     const source = testCloudVmRow({
       id: "00000000-0000-4000-8000-000000000155",
       userId: "user-workflow-legacy-fork-invalid-shape",
@@ -250,11 +248,11 @@ describe("VM Effect workflows", () => {
       providerMetadata: {},
     });
     let reservation: unknown;
-    let beginInput: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
+    let beginInput: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
     let finalizedReservation: unknown;
     const repo = {
       ...testWorkflowRepo({ vm: source }),
-      beginCreate: (input: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown }) => {
+      beginCreate: (input: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown }) => {
         beginInput = input;
         reservation = input.resourceReservation;
         return Effect.succeed({
@@ -309,10 +307,10 @@ describe("VM Effect workflows", () => {
       }).pipe(Effect.provide(workflowLayer(repo, provider))),
     );
 
-    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 });
-    expect(beginInput?.reserveSharedResourceHeadroom).toBe(true);
+    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: VM_DISK_MB_MAX });
+    expect(beginInput?.forkPending).toBe(true);
     expect(beginInput?.forkMinimumResourceReservation).toEqual({ vcpus: 1, memoryMb: 4 * 1024, diskMb: 16 * 1024 });
-    expect(finalizedReservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 });
+    expect(finalizedReservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: VM_DISK_MB_MAX });
   });
 
   test("keeps the supported 1-vCPU legacy fork shape", async () => {
@@ -335,11 +333,11 @@ describe("VM Effect workflows", () => {
       providerMetadata: {},
     });
     let reservation: unknown;
-    let beginInput: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
+    let beginInput: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown } | undefined;
     let finalizedReservation: unknown;
     const repo = {
       ...testWorkflowRepo({ vm: source }),
-      beginCreate: (input: { resourceReservation?: unknown; reserveSharedResourceHeadroom?: boolean; forkMinimumResourceReservation?: unknown }) => {
+      beginCreate: (input: { resourceReservation?: unknown; forkPending?: boolean; forkMinimumResourceReservation?: unknown }) => {
         beginInput = input;
         reservation = input.resourceReservation;
         return Effect.succeed({
@@ -394,115 +392,12 @@ describe("VM Effect workflows", () => {
       }).pipe(Effect.provide(workflowLayer(repo, provider))),
     );
 
-    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 });
-    expect(beginInput?.reserveSharedResourceHeadroom).toBe(true);
+    expect(reservation).toEqual({ vcpus: 5, memoryMb: 20 * 1024, diskMb: VM_DISK_MB_MAX });
+    expect(beginInput?.forkPending).toBe(true);
     expect(beginInput?.forkMinimumResourceReservation).toEqual({ vcpus: 1, memoryMb: 4 * 1024, diskMb: 16 * 1024 });
     expect(finalizedReservation).toEqual({ vcpus: 1, memoryMb: 4096, diskMb: 16384 });
   });
 
-  test("recomputes a legacy native fork claim after scoped repair", async () => {
-    const source = testCloudVmRow({
-      id: "00000000-0000-4000-8000-000000000162",
-      userId: "user-workflow-fork-retry",
-      billingTeamId: "team-workflow-fork-retry",
-      billingPlanId: "pro",
-      providerVmId: "provider-vm-fork-retry-source",
-      status: "running",
-      providerMetadata: {},
-    });
-    const pendingFork = testCloudVmRow({
-      id: "00000000-0000-4000-8000-000000000163",
-      userId: source.userId,
-      billingTeamId: source.billingTeamId,
-      billingPlanId: "pro",
-      providerVmId: null,
-      status: "provisioning",
-    });
-    let currentSource = source;
-    const beginInputs: Array<{ resourceReservation?: unknown }> = [];
-    const reservations: unknown[] = [];
-    const repo = {
-      ...testWorkflowRepo({ vm: source }),
-      findUserVm: () => Effect.succeed(currentSource),
-      beginCreate: (input: { resourceReservation?: unknown; forkMinimumResourceReservation?: unknown }) => {
-        beginInputs.push(input);
-        if (beginInputs.length === 1) {
-          return Effect.fail(new VmSharedResourceLimitExceededError({
-            kind: "shared_resources",
-            billingTeamId: source.billingTeamId!,
-            phase: "create",
-            resource: "diskMb",
-            used: 200 * 1024,
-            requested: 200 * 1024,
-            limit: 200 * 1024,
-          }));
-        }
-        return Effect.succeed({
-          inserted: true,
-          vm: {
-            ...pendingFork,
-            providerMetadata: {
-              cmuxResourceReservation: input.resourceReservation,
-              cmuxResourceForkPending: input.forkMinimumResourceReservation,
-            },
-          },
-        });
-      },
-      legacyResourceReservationCandidates: () => Effect.succeed([currentSource]),
-      setResourceReservation: (input: { id: string; reservation: unknown }) => Effect.sync(() => {
-        reservations.push(input.reservation);
-        if (input.id === source.id) {
-          currentSource = {
-            ...currentSource,
-            providerMetadata: { cmuxResourceReservation: input.reservation },
-          };
-        }
-        return true;
-      }),
-      markCreateRunning: ({ providerVmId }: { providerVmId: string }) => Effect.succeed({
-        ...pendingFork,
-        providerVmId,
-        status: "running" as const,
-      }),
-    } as unknown as VmRepositoryShape;
-    const provider: VmProviderGatewayShape = {
-      ...unusedProviderGateway(),
-      getStatus: () => Effect.succeed("running"),
-      getStats: (_provider, providerVmId) => Effect.succeed({
-        state: "awake" as const,
-        sampledAt: Date.now(),
-        cpus: 2,
-        memoryTotalMb: 8192,
-        diskTotalMb: providerVmId === source.providerVmId ? 65536 : 65536,
-      }),
-      fork: () => Effect.succeed(testVmHandle({ providerVmId: "provider-vm-fork-retry-copy" })),
-    };
-
-    await Effect.runPromise(
-      forkVm({
-        userId: source.userId,
-        billingCustomerType: "team",
-        billingTeamId: source.billingTeamId!,
-        teamIds: [source.billingTeamId!],
-        billingPlanId: "pro",
-        maxActiveVms: 50,
-        providerVmId: source.providerVmId!,
-      }).pipe(Effect.provide(workflowLayer(repo, provider))),
-    );
-
-    expect(beginInputs).toHaveLength(2);
-    expect(beginInputs[0]?.resourceReservation).toEqual({
-      vcpus: 5,
-      memoryMb: 20 * 1024,
-      diskMb: 200 * 1024,
-    });
-    expect(beginInputs[1]?.resourceReservation).toEqual({
-      vcpus: 2,
-      memoryMb: 8192,
-      diskMb: 65536,
-    });
-    expect(reservations[0]).toEqual({ vcpus: 2, memoryMb: 8192, diskMb: 65536 });
-  });
 
   test("records CPU and memory in new snapshot claims", async () => {
     const source = testCloudVmRow({
@@ -586,7 +481,7 @@ describe("VM Effect workflows", () => {
     expect(event?.metadata).toMatchObject({
       vcpus: 5,
       memoryMb: 20 * 1024,
-      diskMb: 200 * 1024,
+      diskMb: VM_DISK_MB_MAX,
     });
   });
 
@@ -3237,7 +3132,7 @@ describe("VM Effect workflows", () => {
     expect(row?.providerMetadata).toEqual({});
   });
 
-  dbTest("holds shared disk headroom until a provider resize is confirmed", async () => {
+  dbTest("allows creation during a resize and persists the confirmed disk size", async () => {
     if (!sql) throw new Error("test database not initialized");
     await sql`truncate cloud_vm_billing_grants, cloud_vm_usage_events, cloud_vm_leases, cloud_vms restart identity cascade`;
     const vmId = "00000000-0000-4000-8000-000000000147";
@@ -3274,7 +3169,7 @@ describe("VM Effect workflows", () => {
 
     expect(reservation).toMatchObject({
       previousDiskMb: 32768,
-      reservedDiskMb: 200 * 1024,
+      reservedDiskMb: 65536,
       requestedDiskMb: 65536,
     });
     expect(typeof reservation?.operationId).toBe("string");
@@ -3284,7 +3179,7 @@ describe("VM Effect workflows", () => {
       where id = ${vmId}
     `;
     expect(pending?.pending).toBe(true);
-    const blocked = await Effect.runPromise(
+    const duringResize = await Effect.runPromise(
       Effect.gen(function* () {
         const repo = yield* VmRepository;
         return yield* repo.beginCreate({
@@ -3296,12 +3191,10 @@ describe("VM Effect workflows", () => {
           maxActiveVms: 50,
           idempotencyKey: "blocked-while-resizing",
           resourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: 32768 },
-          sharedResourceCapacity: { vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 },
         });
-      }).pipe(Effect.flip, Effect.provide(VmRepositoryLive)),
+      }).pipe(Effect.provide(VmRepositoryLive)),
     );
-    const blockedFailure = Array.isArray(blocked) ? blocked[0] : blocked;
-    expect(blockedFailure).toMatchObject({ _tag: "VmSharedResourceLimitExceededError", resource: "diskMb" });
+    expect(duringResize.inserted).toBe(true);
 
     const confirmed = await runRepo((repo) => repo.confirmVmResize!({
       id: vmId,
@@ -3327,7 +3220,6 @@ describe("VM Effect workflows", () => {
       maxActiveVms: 50,
       idempotencyKey: "after-resize-confirmed",
       resourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: 32768 },
-      sharedResourceCapacity: { vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 },
     }));
     expect(created.inserted).toBe(true);
 
@@ -3339,7 +3231,7 @@ describe("VM Effect workflows", () => {
     expect(stored?.diskMb).toBe(73728);
   });
 
-  dbTest("reserves remaining shared-pool headroom while a native fork runs", async () => {
+  dbTest("allows resize while a native fork owns only its own machine shape", async () => {
     if (!sql) throw new Error("test database not initialized");
     await sql`truncate cloud_vm_billing_grants, cloud_vm_usage_events, cloud_vm_leases, cloud_vms restart identity cascade`;
     const sourceId = "00000000-0000-4000-8000-000000000160";
@@ -3372,8 +3264,7 @@ describe("VM Effect workflows", () => {
       maxActiveVms: 50,
       idempotencyKey: "native-fork-headroom",
       resourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: 32768 },
-      sharedResourceCapacity: { vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 },
-      reserveSharedResourceHeadroom: true,
+      forkPending: true,
     }));
     expect(created.inserted).toBe(true);
 
@@ -3385,9 +3276,9 @@ describe("VM Effect workflows", () => {
       from cloud_vms
       where id = ${created.vm.id}
     `;
-    expect(stored).toEqual({ vcpus: 3, memoryMb: 12 * 1024, diskMb: 168 * 1024 });
+    expect(stored).toEqual({ vcpus: 2, memoryMb: 8192, diskMb: 32768 });
 
-    const blockedResize = await Effect.runPromise(
+    const duringFork = await Effect.runPromise(
       Effect.gen(function* () {
         const repo = yield* VmRepository;
         return yield* repo.reserveVmResize!({
@@ -3399,15 +3290,14 @@ describe("VM Effect workflows", () => {
           storageMb: 65536,
           maxActiveVms: 50,
         });
-      }).pipe(Effect.flip, Effect.provide(VmRepositoryLive)),
+      }).pipe(Effect.provide(VmRepositoryLive)),
     );
-    expect(blockedResize).toMatchObject({ _tag: "VmSharedResourceLimitExceededError", resource: "diskMb" });
+    expect(duringFork).toMatchObject({ requestedDiskMb: 65536, reservedDiskMb: 65536 });
 
     const replaced = await runRepo((repo) => repo.setResourceReservation!({
       id: created.vm.id,
-      expectedReservation: { vcpus: 3, memoryMb: 12 * 1024, diskMb: 168 * 1024 },
+      expectedReservation: { vcpus: 2, memoryMb: 8192, diskMb: 32768 },
       reservation: { vcpus: 2, memoryMb: 8192, diskMb: 32768 },
-      sharedResourceCapacity: { vcpus: 5, memoryMb: 20 * 1024, diskMb: 200 * 1024 },
     }));
     expect(replaced).toBe(true);
   });
@@ -3558,7 +3448,7 @@ describe("VM Effect workflows", () => {
         ${oldVmId}, 'user-workflow-resize-recovery-old', ${teamId}, 'pro', 'freestyle',
         'provider-vm-resize-recovery-old', 'snapshot-test', 'running',
         ${sql.json({
-          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: PLAN_SHARED_DISK_MB },
+          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: VM_DISK_MB_MAX },
           cmuxResourceResizePending: {
             operationId: "resize-operation-recovery",
             requestedDiskMb: 65536,
@@ -3631,7 +3521,7 @@ describe("VM Effect workflows", () => {
         ${vmId}, 'user-workflow-resize-unconfirmed', ${teamId}, 'pro', 'freestyle',
         'provider-vm-resize-unconfirmed', 'snapshot-test', 'running',
         ${sql.json({
-          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: PLAN_SHARED_DISK_MB },
+          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: VM_DISK_MB_MAX },
           [VM_RESOURCE_RESIZE_UNCONFIRMED_METADATA_KEY]: {
             operationId: "resize-operation-unconfirmed",
             requestedDiskMb: 65536,
@@ -3682,7 +3572,7 @@ describe("VM Effect workflows", () => {
         ${vmId}, 'user-workflow-resize-abandoned', ${teamId}, 'pro', 'freestyle',
         'provider-vm-resize-abandoned', 'snapshot-test', 'running',
         ${sql.json({
-          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: PLAN_SHARED_DISK_MB },
+          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: VM_DISK_MB_MAX },
           [VM_RESOURCE_RESIZE_PENDING_METADATA_KEY]: {
             operationId: "resize-operation-abandoned",
             requestedDiskMb: 65536,
@@ -3754,7 +3644,7 @@ describe("VM Effect workflows", () => {
         ${vmId}, 'user-workflow-resize-fresh-pending', ${teamId}, 'pro', 'freestyle',
         'provider-vm-resize-fresh-pending', 'snapshot-test', 'running',
         ${sql.json({
-          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: PLAN_SHARED_DISK_MB },
+          cmuxResourceReservation: { vcpus: 2, memoryMb: 8192, diskMb: VM_DISK_MB_MAX },
           [VM_RESOURCE_RESIZE_PENDING_METADATA_KEY]: {
             operationId: "resize-operation-fresh-pending",
             requestedDiskMb: 65536,
@@ -3900,7 +3790,7 @@ describe("VM Effect workflows", () => {
     expect(row).toEqual({ diskMb: 65536, unconfirmed: false });
   });
 
-  dbTest("uses the shared disk pool for snapshot events without a recorded size", async () => {
+  dbTest("uses the per-machine disk maximum for snapshot events without a recorded size", async () => {
     if (!sql) throw new Error("test database not initialized");
     await sql`truncate cloud_vm_billing_grants, cloud_vm_usage_events, cloud_vm_leases, cloud_vms restart identity cascade`;
     await sql`
@@ -3928,7 +3818,7 @@ describe("VM Effect workflows", () => {
     expect(reservation).toEqual({
       vcpus: 5,
       memoryMb: 20 * 1024,
-      diskMb: PLAN_SHARED_DISK_MB,
+      diskMb: VM_DISK_MB_MAX,
     });
   });
 

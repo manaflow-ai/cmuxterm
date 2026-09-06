@@ -4337,16 +4337,46 @@ struct CMUXCLI {
     // never pins an image id unless the person passes `--image`: a pinned id
     // that drifted from the web deploy's manifest failed every create with
     // `vm_image_config_error`.
-    /// `--size` spellings → memory in MB. Every plan sells exactly the plan
-    /// machine (5 vCPU / 20 GB / 200 GB), so 20g is the only preset; the
-    /// backend resolves any other size to the plan machine.
+    /// `--size` spellings → memory in MB. The supported base-image ladder is
+    /// 4 GB, 8 GB, 16 GB, 24 GB, 32 GB, and 64 GB of RAM, with disk sizes
+    /// following each image. Each machine has its own resources.
     private static let cloudVMSizeAliases: [String: Int] = [
+        "4g": 4096, "4gb": 4096,
+        "8g": 8192, "8gb": 8192,
+        "16g": 16384, "16gb": 16384,
+        "24g": 24576, "24gb": 24576,
+        "32g": 32768, "32gb": 32768,
+        "64g": 65536, "64gb": 65536,
+        // Keep the prior preset parseable so scripts fail only at the server
+        // validation boundary, not in the client parser.
         "20g": 20480, "20gb": 20480,
     ]
     static func parseCloudVMSize(_ raw: String) -> Int? {
         let key = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if let mb = cloudVMSizeAliases[key] { return mb }
         if let mb = Int(key), mb >= 512 { return mb }
+        return nil
+    }
+    static func parseCloudVMDiskMb(_ raw: String) -> Int? {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let number = normalized.hasSuffix("g") ? String(normalized.dropLast())
+            : normalized.hasSuffix("gb") ? String(normalized.dropLast(2))
+            : normalized.hasSuffix("gib") ? String(normalized.dropLast(3))
+            : normalized
+        guard let gib = Int(number), (4...256).contains(gib), gib % 4 == 0 else { return nil }
+        return gib * 1024
+    }
+    /// Return only a kind that the caller explicitly requested. A missing flag
+    /// lets the control plane choose the provider's active image-manifest
+    /// default, so this client does not guess provider capabilities.
+    static func parseExplicitCloudVMKindFlag(_ args: [String], command: String) throws -> VMMachineKind? {
+        let requestsBase = args.contains("--base") || args.contains("--no-desktop")
+        let requestsDesktop = args.contains("--desktop")
+        if requestsBase && requestsDesktop {
+            throw CLIError(message: "\(command): choose one of --base or --desktop")
+        }
+        if requestsBase { return .base }
+        if requestsDesktop { return .desktop }
         return nil
     }
     /// `--base` / `--no-desktop` → shell-only; anything else (including `--desktop`
