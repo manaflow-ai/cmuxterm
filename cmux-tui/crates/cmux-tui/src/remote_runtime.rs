@@ -448,19 +448,10 @@ impl TransportProvider for RoutedRelayProvider {
 /// `direct_dialer` replaces the operating-system TCP dial for `ws`/`wss`
 /// routes: an in-process WireGuard tunnel (`WireGuardDialer`) or a shared hub
 /// (`SocksDialer`). Every other scheme is unaffected.
-pub fn client_provider_registry(
-    ssh: SshProviderConfig,
-    relay_routes: BTreeMap<String, RelayClientOptions>,
-    iroh_path: IrohPathMode,
-    direct_dialer: Option<Arc<dyn Dialer>>,
-) -> Result<cmux_remote::provider::ProviderRegistry, ProviderError> {
-    client_provider_registry_with_carrier(ssh, relay_routes, iroh_path, direct_dialer, false)
-}
-
 /// `direct_carrier_auth` lets `ws`/`wss` routes dial with carrier authentication
 /// (`remote connect --carrier`): the daemon is expected to serve a trusted-network
 /// listener, as cmux Cloud machines do behind the owner's private network.
-pub fn client_provider_registry_with_carrier(
+pub fn client_provider_registry(
     ssh: SshProviderConfig,
     relay_routes: BTreeMap<String, RelayClientOptions>,
     iroh_path: IrohPathMode,
@@ -2926,7 +2917,10 @@ mod tests {
     }
 
     fn test_providers(ssh: SshProviderConfig) -> Arc<cmux_remote::provider::ProviderRegistry> {
-        Arc::new(client_provider_registry(ssh, BTreeMap::new(), IrohPathMode::Auto, None).unwrap())
+        Arc::new(
+            client_provider_registry(ssh, BTreeMap::new(), IrohPathMode::Auto, None, false)
+                .unwrap(),
+        )
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -4987,7 +4981,7 @@ mod tests {
             ..SshProviderConfig::default()
         };
         let providers = Arc::new(
-            client_provider_registry(ssh.clone(), BTreeMap::new(), IrohPathMode::Auto, None)
+            client_provider_registry(ssh.clone(), BTreeMap::new(), IrohPathMode::Auto, None, false)
                 .unwrap(),
         );
         let mut unix_route = Url::parse("unix:///").unwrap();

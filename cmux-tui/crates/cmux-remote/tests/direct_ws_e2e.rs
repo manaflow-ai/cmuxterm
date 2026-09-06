@@ -148,7 +148,9 @@ async fn carrier_dial_is_accepted_only_by_a_trusted_listener() {
         .await
         .unwrap();
     let provider = DirectWebSocketProvider::new(65_535).with_carrier_auth(true);
-    let dial = |server: &cmux_remote::daemon::DirectWebSocketServer, session: SessionId| {
+    let dial = |server: &cmux_remote::daemon::DirectWebSocketServer,
+                session: SessionId,
+                reconnect: ReconnectPolicy| {
         let endpoint = Url::parse(&format!("ws://{}/v1/link", server.local_addr())).unwrap();
         let provider = provider.clone();
         async move {
@@ -171,17 +173,20 @@ async fn carrier_dial_is_accepted_only_by_a_trusted_listener() {
                     session,
                     lane_policy: LanePolicy::Isolated,
                     limits: SessionLimits::default(),
-                    reconnect: ReconnectPolicy { maximum_attempts: Some(1), ..Default::default() },
+                    reconnect,
                 },
             )
             .await
         }
     };
 
-    let client = tokio::time::timeout(CONNECT_TIMEOUT, dial(&trusted, SessionId([81; 16])))
-        .await
-        .expect("trusted carrier dial timed out")
-        .expect("trusted listener refused a carrier dial");
+    let client = tokio::time::timeout(
+        CONNECT_TIMEOUT,
+        dial(&trusted, SessionId([81; 16]), ReconnectPolicy::default()),
+    )
+    .await
+    .expect("trusted carrier dial timed out")
+    .expect("trusted listener refused a carrier dial");
     let daemon_client =
         tokio::time::timeout(Duration::from_secs(5), accepted.recv()).await.unwrap().unwrap();
     assert_eq!(client.snapshot().await.state, ConnectionState::Connected);
@@ -193,10 +198,19 @@ async fn carrier_dial_is_accepted_only_by_a_trusted_listener() {
     assert_eq!(daemon_client.receive().await.unwrap().unwrap().payload, b"input".as_slice());
     client.close().await.unwrap();
 
-    tokio::time::timeout(CONNECT_TIMEOUT, dial(&untrusted, SessionId([82; 16])))
-        .await
-        .expect("untrusted carrier dial timed out")
-        .expect_err("untrusted listener accepted a carrier dial");
+    // One attempt is enough to observe the refusal; a retry budget would only
+    // repeat the same rejected handshake.
+    tokio::time::timeout(
+        CONNECT_TIMEOUT,
+        dial(
+            &untrusted,
+            SessionId([82; 16]),
+            ReconnectPolicy { maximum_attempts: Some(1), ..Default::default() },
+        ),
+    )
+    .await
+    .expect("untrusted carrier dial timed out")
+    .expect_err("untrusted listener accepted a carrier dial");
 
     trusted.shutdown().await.unwrap();
     untrusted.shutdown().await.unwrap();
