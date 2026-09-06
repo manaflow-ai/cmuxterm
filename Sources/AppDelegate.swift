@@ -567,13 +567,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let sessionDragRegistry = SessionDragRegistry()
     /// Owns pane-transfer capabilities shared by every window, workspace, and Dock.
     private var tabDragTransferRegistryStorage: TabDragTransferRegistry?
+    private weak var observedTabDragTransferRegistry: TabDragTransferRegistry?
+    private var tabDragTransferRegistryEndObserverID: UUID?
     var tabDragTransferRegistry: TabDragTransferRegistry {
         if let tabDragTransferRegistryStorage {
             return tabDragTransferRegistryStorage
         }
         let registry = TabDragTransferRegistry()
+        observeNativeDragEnds(on: registry)
         tabDragTransferRegistryStorage = registry
         return registry
+    }
+
+    private func observeNativeDragEnds(on registry: TabDragTransferRegistry) {
+        guard observedTabDragTransferRegistry !== registry else { return }
+        if let observedTabDragTransferRegistry,
+           let observerID = tabDragTransferRegistryEndObserverID {
+            observedTabDragTransferRegistry.removeNativeDragEndObserver(observerID)
+        }
+        tabDragTransferRegistryEndObserverID = registry.addNativeDragEndObserver {
+            PaneDropTargetRegistry.shared.resetAll()
+        }
+        observedTabDragTransferRegistry = registry
     }
     /// Caches live pane-transfer resolution for pointer hit-testing paths.
     lazy var liveTabDragCapabilityResolver = LiveTabDragCapabilityResolver(
@@ -2446,6 +2461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             )
         }
         tabDragTransferRegistryStorage = tabManager.tabDragTransferRegistry
+        observeNativeDragEnds(on: tabManager.tabDragTransferRegistry)
         // SwiftUI constructs the initial TabManager before this delegate is
         // available; adopt its coordinators so every later window shares them.
         pullRequestProbeService = tabManager.pullRequestProbeService

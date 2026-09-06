@@ -31,6 +31,9 @@ final class BrowserPaneDropTargetView: NSView {
             DragOverlayRoutingPolicy.filePreviewTransferType,
             DragOverlayRoutingPolicy.bonsplitTabTransferType,
         ]).union(PasteboardFileURLReader.fileURLPasteboardTypes)))
+        PaneDropTargetRegistry.shared.register(self) { [weak self] in
+            self?.resetAfterNativeDragEnd()
+        }
     }
 
     @available(*, unavailable)
@@ -147,6 +150,18 @@ final class BrowserPaneDropTargetView: NSView {
         exitActiveFileDropWebView(sender)
         didRequestWebViewRestoreForDrag = false
         clearDragState(phase: "ended")
+        transferDropRouter.clear()
+    }
+
+    func resetAfterNativeDragEnd() {
+        dropRoutingRegistration.clear()
+        exitActiveFileDropWebView(nil)
+        activeFileDropWebView = nil
+        preparedFileDropWebView = nil
+        performedFileDropWebView = nil
+        didRequestWebViewRestoreForDrag = false
+        activeZone = nil
+        slotView?.setPortalDragDropZone(nil)
         transferDropRouter.clear()
     }
 

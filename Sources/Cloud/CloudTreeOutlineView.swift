@@ -162,7 +162,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             supersededDragSequenceNumber = activeDragSequenceNumber
             if let activeDrag {
                 self.activeDrag = nil
-                activeDrag.transferRegistry.end(activeDrag.registration)
+                activeDrag.transferRegistry.endNativeDrag(activeDrag.registration)
                 SurfaceResourceDragRegistry.shared.discard(id: activeDrag.id)
             }
             activeDragWriter?.releaseSourceGraph()
@@ -202,7 +202,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             }
             if let activeDrag {
                 self.activeDrag = nil
-                activeDrag.transferRegistry.end(activeDrag.registration)
+                activeDrag.transferRegistry.endNativeDrag(activeDrag.registration)
                 SurfaceResourceDragRegistry.shared.discard(id: activeDrag.id)
             }
             activeDragWriter?.releaseSourceGraph()
@@ -1017,7 +1017,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
 #endif
             // The registration is paired with the exact source that promoted
             // this session; do not consult a potentially rebuilt environment.
-            activeDrag.transferRegistry.end(activeDrag.registration)
+            activeDrag.transferRegistry.endNativeDrag(activeDrag.registration)
             SurfaceResourceDragRegistry.shared.discard(id: activeDrag.id)
             self.activeDrag = nil
         }

@@ -1871,6 +1871,8 @@
 		C51A73000000000000000201 /* PaneDropContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51A73000000000000000202 /* PaneDropContainer.swift */; };
 		D0B752900000000000000002 /* PaneDropRoutingRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B752900000000000000001 /* PaneDropRoutingRegistration.swift */; };
 		D0B752900000000000000004 /* PaneDropRoutingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B752900000000000000003 /* PaneDropRoutingSession.swift */; };
+		D0B752900000000000000006 /* PaneDropTargetRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B752900000000000000005 /* PaneDropTargetRegistry.swift */; };
+		D0B752900000000000000008 /* PaneDropTargetViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B752900000000000000007 /* PaneDropTargetViewRepresentable.swift */; };
 		D0B1001CA1B2C3D4E5F60001 /* PaneDropRoutingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B1001DA1B2C3D4E5F60001 /* PaneDropRoutingSupport.swift */; };
 		A5001400 /* Panel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001410 /* Panel.swift */; };
 		A5001405 /* PanelContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5001415 /* PanelContentView.swift */; };
@@ -5095,6 +5097,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		C51A73000000000000000202 /* PaneDropContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropContainer.swift; sourceTree = "<group>"; };
 		D0B752900000000000000001 /* PaneDropRoutingRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropRoutingRegistration.swift; sourceTree = "<group>"; };
 		D0B752900000000000000003 /* PaneDropRoutingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropRoutingSession.swift; sourceTree = "<group>"; };
+		D0B752900000000000000005 /* PaneDropTargetRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropTargetRegistry.swift; sourceTree = "<group>"; };
+		D0B752900000000000000007 /* PaneDropTargetViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropTargetViewRepresentable.swift; sourceTree = "<group>"; };
 		D0B1001DA1B2C3D4E5F60001 /* PaneDropRoutingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaneDropRoutingSupport.swift; sourceTree = "<group>"; };
 		A5001410 /* Panel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/Panel.swift; sourceTree = "<group>"; };
 		A5001415 /* PanelContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/PanelContentView.swift; sourceTree = "<group>"; };
@@ -7745,6 +7749,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C51A73000000000000000202 /* PaneDropContainer.swift */,
 				D0B752900000000000000001 /* PaneDropRoutingRegistration.swift */,
 				D0B752900000000000000003 /* PaneDropRoutingSession.swift */,
+				D0B752900000000000000005 /* PaneDropTargetRegistry.swift */,
+				D0B752900000000000000007 /* PaneDropTargetViewRepresentable.swift */,
 				D0B1001DA1B2C3D4E5F60001 /* PaneDropRoutingSupport.swift */,
 				469200034692000146920002 /* PaneTransferSourceResolver.swift */,
 				469200024692000146920002 /* PaneTransferDropRouter.swift */,
@@ -11516,6 +11522,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C51A73000000000000000201 /* PaneDropContainer.swift in Sources */,
 				D0B752900000000000000002 /* PaneDropRoutingRegistration.swift in Sources */,
 				D0B752900000000000000004 /* PaneDropRoutingSession.swift in Sources */,
+				D0B752900000000000000006 /* PaneDropTargetRegistry.swift in Sources */,
+				D0B752900000000000000008 /* PaneDropTargetViewRepresentable.swift in Sources */,
 				D0B1001CA1B2C3D4E5F60001 /* PaneDropRoutingSupport.swift in Sources */,
 				A5001400 /* Panel.swift in Sources */,
 				A5001405 /* PanelContentView.swift in Sources */,

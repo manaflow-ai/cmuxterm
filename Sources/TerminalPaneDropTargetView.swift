@@ -1,7 +1,6 @@
 import AppKit
 import Bonsplit
 import Foundation
-import SwiftUI
 import CmuxTerminal
 
 final class PaneDropTargetView: NSView {
@@ -29,6 +28,9 @@ final class PaneDropTargetView: NSView {
         registerForDraggedTypes(Array(Set([
             DragOverlayRoutingPolicy.bonsplitTabTransferType,
         ]).union(PasteboardFileURLReader.fileURLPasteboardTypes)))
+        PaneDropTargetRegistry.shared.register(self) { [weak self] in
+            self?.resetAfterNativeDragEnd()
+        }
         setupDropZoneOverlayView()
     }
 
@@ -136,6 +138,12 @@ final class PaneDropTargetView: NSView {
     override func draggingEnded(_ sender: any NSDraggingInfo) {
         dropRoutingRegistration.clear(sender)
         clearDragState(phase: "ended")
+        transferDropRouter.clear()
+    }
+
+    func resetAfterNativeDragEnd() {
+        dropRoutingRegistration.clear()
+        setActiveDropZone(nil)
         transferDropRouter.clear()
     }
 
@@ -479,22 +487,4 @@ final class PaneDropTargetView: NSView {
         )
     }
 #endif
-}
-
-typealias TerminalPaneDropTargetView = PaneDropTargetView
-
-struct PaneDropTargetRepresentable: NSViewRepresentable {
-    let dropContext: PaneDropContext?
-
-    func makeNSView(context: Context) -> PaneDropTargetView {
-        PaneDropTargetView(frame: .zero)
-    }
-
-    func updateNSView(_ nsView: PaneDropTargetView, context: Context) {
-        nsView.dropContext = dropContext
-        nsView.hostedView = nil
-        if dropContext == nil {
-            nsView.draggingExited(nil)
-        }
-    }
 }
