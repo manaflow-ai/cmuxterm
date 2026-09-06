@@ -630,6 +630,41 @@ extension TerminalController {
         return provider
     }
 
+    /// `vm.env_set {id, entries: [{key, value}]}` → the machine's `~/.config/cmux/env`
+    /// gains (or overwrites) those variables. Values travel over the machine's link into
+    /// the in-VM `cmux env receive` (see `CloudEnvDelivery`): never through `vm.exec`, a
+    /// command line, or a terminal's visible screen. The result names keys only.
+    nonisolated func socketWorkerVMEnvSetResponse(id: Any?, params: [String: Any]) -> String {
+        guard let vmId = Self.surfaceString(params["id"]), !vmId.isEmpty else {
+            return v2Error(id: id, code: "invalid_params", message: "vm.env_set requires `id`. Run `cmux vm ls` to find one.")
+        }
+        guard let rawEntries = params["entries"] as? [[String: Any]], !rawEntries.isEmpty else {
+            return v2Error(id: id, code: "invalid_params", message: "vm.env_set requires `entries`: a non-empty array of {key, value}.")
+        }
+        var entries: [CloudEnvDelivery.Entry] = []
+        for raw in rawEntries {
+            // Raw strings: a value's whitespace is part of the value.
+            guard let key = raw["key"] as? String, let value = raw["value"] as? String else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.env_set: every entry needs a string `key` and a string `value`.")
+            }
+            guard CloudEnvDelivery.isValidKey(key) else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.env_set: invalid variable name '\(key)' (keys match [A-Za-z_][A-Za-z0-9_]*).")
+            }
+            entries.append(CloudEnvDelivery.Entry(key: key, value: value))
+        }
+        return v2VmCall(id: id, timeoutSeconds: 180) {
+            let provider = try await Self.cloudTuiProvider(machineID: vmId, catalog: await SurfaceCatalog.shared)
+            let outcome = try await provider.deliverEnvironment(entries)
+            var count = entries.count
+            var path: Any = NSNull()
+            if case .ok(let keys, let reported) = outcome {
+                count = keys
+                if let reported { path = reported }
+            }
+            return ["machine": vmId, "keys": entries.map(\.key), "count": count, "path": path]
+        }
+    }
+
     /// `vm.terminal_write {id, terminal_id, text?, keys?}` → types `text` (as-is, no
     /// newline) and then presses `keys` (named: enter, escape, tab, up; chords join with
     /// `+`: ctrl+c — verified live, `ctrl-c` is rejected) in the remote terminal.

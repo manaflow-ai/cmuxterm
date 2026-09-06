@@ -3,11 +3,14 @@ import Foundation
 /// `cmux vm layout export|apply` and `cmux vm env set|ls|rm`: layouts as data, and a
 /// per-machine environment, for cloud machines.
 ///
-/// Nothing here is a new socket method. Both verb families run the machine's own in-VM
-/// `cmux` shim (`cmux layout …`, `cmux env …`; web/services/vms/guestCli.ts) over the
-/// existing `vm.exec` channel, exactly like `vm push` / `vm tools` do. That keeps ONE
-/// implementation of "apply this layout" and "set this variable" for the Mac CLI, an
-/// agent inside the machine, and a linked peer machine (the shared-behavior policy).
+/// Layouts run the machine's own in-VM `cmux layout …` (web/services/vms/guestCli.ts)
+/// over the existing `vm.exec` channel, exactly like `vm push` / `vm tools` do, so the
+/// Mac CLI, an agent inside the machine, and a linked peer share ONE implementation of
+/// "apply this layout" (the shared-behavior policy). Environment VALUES are different:
+/// they are secrets, and `vm.exec` is a plaintext hop through the control plane and the
+/// provider, so `vm env set` goes through the app's `vm.env_set`, which delivers them
+/// over the machine's end-to-end link into the same shim's `cmux env receive`
+/// (`CloudEnvDelivery`). `vm env ls|rm` carry names only and stay on exec.
 ///
 /// The layout document is the declarative format `cmux new-workspace --layout`,
 /// `cmux layout save/get/open`, and cmux.json already accept (`CmuxLayoutNode`), so a
@@ -45,19 +48,24 @@ extension CMUXCLI {
 
     static let vmEnvUsage = """
         Usage:
-          cmux vm env set <machine> KEY=VALUE [KEY2=VALUE2 …] [--from-file <.env>]
+          cmux vm env set <machine> KEY=VALUE [KEY2=VALUE2 …] [--from-file <.env>] [-]
                                                               Set environment variables for every terminal, agent, and
                                                               command cmux starts on the machine. They persist in
                                                               ~/.config/cmux/env on its durable volume (mode 0600) and are
                                                               sourced by login and interactive shells there. --from-file
-                                                              reads KEY=VALUE lines (dotenv rules: blank lines and #
-                                                              comments skipped, optional `export `, matching quotes stripped).
+                                                              and `-` (stdin) read KEY=VALUE lines (dotenv rules: blank
+                                                              lines and # comments skipped, optional `export `, matching
+                                                              quotes stripped) — prefer them over KEY=VALUE on the command
+                                                              line so values stay out of your shell history and `ps`.
           cmux vm env ls <machine> [--show]                   List the variable names; --show prints the values too.
           cmux vm env rm <machine> KEY [KEY2 …]               Remove variables.
 
-        Keys match [A-Za-z_][A-Za-z0-9_]*. Values never appear in the machine's argv (they are piped
-        in) and this Mac never prints them unless you pass --show. Terminals already running keep
-        their old environment; new ones pick up the change. Add --json for the raw result.
+        How values travel: over the machine's cmux-tui link (end-to-end encrypted, brokered but never
+        read by the control plane) into the machine's `cmux env receive`, which turns terminal echo
+        off before it reads. Nothing passes through vm.exec, a command line, or a terminal's screen,
+        and only names are ever printed back (use --show to see values). Forks, snapshots, and
+        templates of the machine inherit the file; `cmux vm env rm` before you promote one.
+        Keys match [A-Za-z_][A-Za-z0-9_]*. Add --json for the raw result.
         """
 
     /// `vm.exec` budgets. Export is one snapshot read; apply spawns a handful of shells
@@ -275,7 +283,10 @@ extension CMUXCLI {
         let tail = Array(rest.dropFirst()).filter { $0 != "--json" }
         switch verb {
         case "set", "add":
-            let (fileOpt, args) = parseOption(tail, name: "--from-file")
+            let (fileOpt, args0) = parseOption(tail, name: "--from-file")
+            // `-`: KEY=VALUE lines on stdin — the way to keep values out of argv entirely.
+            let readStdin = args0.contains("-")
+            let args = args0.filter { $0 != "-" }
             if let unknown = args.first(where: { $0.hasPrefix("-") }) {
                 throw CLIError(message: "vm env set: unknown flag '\(unknown)'\n\n\(Self.vmEnvUsage)")
             }
@@ -290,23 +301,34 @@ extension CMUXCLI {
                     }
                     assignments += try Self.parseVMEnvFile(text)
                 }
+                if readStdin {
+                    let data = FileHandle.standardInput.readDataToEndOfFile()
+                    guard let text = String(data: data, encoding: .utf8) else {
+                        throw VMEnvError(description: "stdin is not UTF-8 text")
+                    }
+                    assignments += try Self.parseVMEnvFile(text)
+                }
             } catch let error as VMEnvError {
                 throw CLIError(message: "vm env set: \(error.description)", exitCode: 2)
             }
             guard !assignments.isEmpty else {
-                throw CLIError(message: "vm env set: give KEY=VALUE pairs and/or --from-file <.env>\n\n\(Self.vmEnvUsage)", exitCode: 2)
+                throw CLIError(message: "vm env set: give KEY=VALUE pairs, --from-file <.env>, or - for stdin\n\n\(Self.vmEnvUsage)", exitCode: 2)
             }
             let merged = Self.mergedVMEnvAssignments(assignments)
-            let result = try runVMShim(
-                Self.vmEnvSetCommand(merged),
-                machine: machine,
-                client: client,
-                timeoutMs: Self.vmEnvExecTimeoutMs,
-                feature: "env"
+            // Values go to the app over the local socket and from there over the machine's
+            // link into `cmux env receive` (CloudEnvDelivery) — never `vm.exec`, never argv on
+            // the machine, never a visible screen. The app answers with names only.
+            let response = try client.sendV2(
+                method: "vm.env_set",
+                params: Self.vmEnvSetParams(machine: machine, assignments: merged),
+                responseTimeout: 200
             )
             let keys = merged.map(\.key)
             if jsonOutput {
-                print(jsonString(["machine": machine, "keys": keys, "stdout": result.stdout]))
+                var out = response
+                out["machine"] = machine
+                out["keys"] = keys
+                print(jsonString(out))
                 return
             }
             // Names only: a value is a secret until proven otherwise.
@@ -455,11 +477,14 @@ extension CMUXCLI {
         return "printf %s '\(documentJSON.base64EncodedString())' | base64 -d | " + argv.map(vmShimShellQuote).joined(separator: " ")
     }
 
-    /// `KEY=VALUE` lines, base64, piped into `cmux env set -` — values never sit in the
-    /// machine's argv or process listing.
-    static func vmEnvSetCommand(_ assignments: [VMEnvAssignment]) -> String {
-        let payload = assignments.map { vmEnvPayloadLine($0) + "\n" }.joined()
-        return "printf %s '\(Data(payload.utf8).base64EncodedString())' | base64 -d | cmux env set -"
+    /// The `vm.env_set` request: entries as typed `{key, value}` objects. Values cross
+    /// only the authenticated local socket here; the app forwards them over the machine
+    /// link (see `CloudEnvDelivery`).
+    static func vmEnvSetParams(machine: String, assignments: [VMEnvAssignment]) -> [String: Any] {
+        [
+            "id": machine,
+            "entries": assignments.map { ["key": $0.key, "value": $0.value] },
+        ]
     }
 
     static func vmEnvListCommand(show: Bool, json: Bool) -> String {
@@ -471,20 +496,6 @@ extension CMUXCLI {
 
     static func vmEnvRemoveCommand(keys: [String]) -> String {
         (["cmux", "env", "rm"] + keys).map(vmShimShellQuote).joined(separator: " ")
-    }
-
-    /// The shim reads the payload with dotenv rules (surrounding matching quotes are
-    /// stripped, edges trimmed). Values that those rules would alter are wrapped in
-    /// double quotes so the outer pair is what gets stripped and the value survives
-    /// byte for byte; plain values stay plain.
-    static func vmEnvPayloadLine(_ assignment: VMEnvAssignment) -> String {
-        let value = assignment.value
-        let needsWrap: Bool = {
-            guard let first = value.first, let last = value.last else { return false }
-            if first == " " || first == "\t" || last == " " || last == "\t" { return true }
-            return first == "\"" || first == "'" || last == "\"" || last == "'"
-        }()
-        return needsWrap ? "\(assignment.key)=\"\(value)\"" : "\(assignment.key)=\(value)"
     }
 
     /// Later assignments win, like a shell; order of first appearance is kept.

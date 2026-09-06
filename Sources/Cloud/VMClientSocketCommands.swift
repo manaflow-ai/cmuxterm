@@ -573,6 +573,8 @@ extension TerminalController {
             return socketWorkerVMTerminalReadResponse(id: id, params: params)
         case "vm.terminal_wait":
             return socketWorkerVMTerminalWaitResponse(id: id, params: params)
+        case "vm.env_set":
+            return socketWorkerVMEnvSetResponse(id: id, params: params)
         default:
             return v2Error(id: id, code: "method_not_found", message: "Unknown method")
         }

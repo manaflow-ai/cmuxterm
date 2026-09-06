@@ -589,10 +589,17 @@ A machine workspace *is* its screen's layout. Two things make it travel as data:
   (`cmux vm layout export|apply`) runs that implementation over `vm.exec`; inside
   a machine the same verb works locally and toward linked peers.
 
-The shim also carries `cmux env set|ls|rm|path` (a 0600 `~/.config/cmux/env` of
-`export` lines plus an idempotent hook in `~/.profile`/`~/.bashrc`, so every
-login and interactive shell cmux starts sees the values; the Mac's `cmux vm env`
-pipes values base64 over exec) and the Mac spellings for the machine's own
+The shim also carries `cmux env set|ls|rm|path|receive` (a 0600
+`~/.config/cmux/env` of `export` lines plus an idempotent hook in
+`~/.profile`/`~/.bashrc`, so every login and interactive shell cmux starts sees
+the values). Values never ride `vm.exec`: the Mac's `cmux vm env set` calls
+`vm.env_set`, and `CmuxTuiSurfaceProvider.deliverEnvironment` starts `cmux env
+receive` as a terminal over the link, waits for `CMUX-ENV-READY` (printed only
+after `stty -echo`), types base64 lines and `CMUX-ENV-END` with `terminal write
+--bytes-base64`, waits for `CMUX-ENV-OK|ERR`, and closes the terminal — the
+daemon does not journal terminal input, so the value exists on the machine only
+in the receiver and the file. A peer machine uses the same handshake. The shim
+also speaks the Mac spellings for the machine's own
 session: `cmux tree`, `new-workspace`, `new-split`, `send`, `send-key`,
 `read-screen`, `terminal send|read|wait|close` (default target
 `$CMUX_TUI_TERMINAL_ID`, the caller's own terminal). Every one of them takes a

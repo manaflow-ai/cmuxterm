@@ -185,11 +185,14 @@ Document (identical to `cmux new-workspace --layout`, `cmux layout get`, cmux.js
 ```bash
 cmux vm env set <id> KEY=VALUE [KEY2=VALUE2 …]        # /root/.config/cmux/env (0600) on the persistent volume
 cmux vm env set <id> --from-file .env                 # dotenv rules: blank and # lines skipped, optional `export `, matching quotes stripped
+cmux vm env set <id> -                                # KEY=VALUE lines on stdin (preferred for scripts: nothing in argv)
 cmux vm env ls <id> [--show] [--json]                 # names; --show adds values; --json {path, keys, values?}
 cmux vm env rm <id> KEY [KEY2 …]
 ```
 
-Values are sourced by every login/interactive shell on the machine (a one-line hook in `~/.profile` and `~/.bashrc`, installed on first `set`), so every terminal cmux starts (`vm open`, `surface new-terminal`, `vm agent`, layout panes), `vm exec`, and the in-VM `cmux agent …` see them. Keys must match `[A-Za-z_][A-Za-z0-9_]*`. Values travel base64 over the exec channel, never as plaintext argv, and are never echoed by `ls` without `--show`. Snapshots and forks carry the file (it lives in `/root`).
+Values are sourced by every login/interactive shell on the machine (a one-line hook in `~/.profile` and `~/.bashrc`, installed on first `set`), so every terminal cmux starts (`vm open`, `surface new-terminal`, `vm agent`, layout panes), `vm exec`, and the in-VM `cmux agent …` see them. Keys must match `[A-Za-z_][A-Za-z0-9_]*`.
+
+Transport: `vm env set` is the one `vm` verb that does **not** ride `vm.exec`. Values go to the app over the local socket and from there over the machine's cmux-tui link (Noise-authenticated end to end, on the private WireGuard network) into the machine's `cmux env receive`: a receiver terminal turns PTY echo off, prints `CMUX-ENV-READY`, reads base64 lines until `CMUX-ENV-END`, writes `~/.config/cmux/env` (0600), and answers `CMUX-ENV-OK keys=<n>`; the sender closes the terminal. So a value is never in a command line, never in the control plane or the provider API, never on a screen or in scrollback (the daemon does not journal input), and `ls` never prints one without `--show`. Inside a machine, `cmux vm env set <peer> …` uses the same handshake toward a linked peer. Snapshots, forks, and templates carry the file (it lives in `/root`): `cmux vm env rm` what must not travel before `vm promote-template`. A machine whose shim predates the verb is reported as such (reconnect: `cmux vm tree <id> --refresh`).
 
 ## Opening things for the human (`vm open`)
 

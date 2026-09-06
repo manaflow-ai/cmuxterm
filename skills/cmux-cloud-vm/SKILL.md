@@ -123,6 +123,7 @@ The document is the one cmux already uses locally (`cmux new-workspace --layout`
 ```bash
 cmux vm env set <m> DATABASE_URL=… API_KEY=…       # stored 0600 at /root/.config/cmux/env on the machine's persistent volume
 cmux vm env set <m> --from-file .env               # dotenv rules: blank/# skipped, optional `export `, quotes stripped
+cat .env | cmux vm env set <m> -                  # same, from stdin (nothing in argv or history)
 cmux vm env ls <m> [--show] [--json]               # names only unless --show
 cmux vm env rm <m> API_KEY
 cmux vm push <m> ./config work/app/config          # files and folders (tarball, SHA-256 verified; .git/node_modules excluded by default)
@@ -130,7 +131,9 @@ git bundle create /tmp/repo.bundle --all && cmux vm push <m> /tmp/repo.bundle wo
 cmux vm exec <m> -- sh -c 'cd work && git clone repo.bundle app'
 ```
 
-`vm env` values are sourced by every login and interactive shell on the machine (`~/.profile` / `~/.bashrc` hook, installed once), so terminals from `vm open`, `surface new-terminal`, `vm agent`, layout panes and `vm exec` all see them, and so do agents the in-VM `cmux agent …` starts. Values never transit the control plane as plaintext arguments (they ride base64 over the exec channel) and never enter the repo: commit the *names* (for example in a layout's `env` or a README) and set the values per machine. Do not put the user's own account tokens on a machine unless they ask; model credentials already reach agents through CodeRouter's edge.
+`vm env` values are sourced by every login and interactive shell on the machine (`~/.profile` / `~/.bashrc` hook, installed once), so terminals from `vm open`, `surface new-terminal`, `vm agent`, layout panes and `vm exec` all see them, and so do agents the in-VM `cmux agent …` starts.
+
+**How values travel, and the rules that keep them secret.** `vm env set` sends values over the machine's cmux-tui link (end-to-end encrypted between the Mac and the daemon on the private WireGuard network; the control plane brokers the route but never reads it) into the machine's `cmux env receive`, which turns terminal echo off before it reads. Nothing passes through `vm.exec`, a provider API, a command line, shell history, or a terminal's screen, and the daemon never journals terminal input. On the machine they are one root-only 0600 file. Your side of the bargain: prefer `--from-file .env` or `-` (stdin) over `KEY=VALUE` arguments so values stay out of *your* shell history and `ps`; keep values out of layout documents (names belong there, values in `vm env`); `vm env ls` prints names unless you pass `--show`; and remember that forks, snapshots and templates copy the volume, file included (`cmux vm env rm` before `vm promote-template`). Do not put the user's own account tokens on a machine unless they ask; model credentials already reach agents through CodeRouter's edge and never sit in the guest.
 
 ## Inside a machine: the same verbs, and other machines
 

@@ -131,6 +131,13 @@ struct CloudTuiCommandLine: Sendable {
         ["--socket", socketPath, "--json", "terminal", terminalID, "write", "--text", text]
     }
 
+    /// `terminal <term_id> write --bytes-base64 <b64>` (spec `terminal.input.write`): raw
+    /// bytes to the PTY, for payloads that must not be re-interpreted as text (the env
+    /// delivery in `CmuxTuiSurfaceProvider+Environment.swift`).
+    static func writeBytesArguments(socketPath: String, terminalID: String, base64: String) -> [String] {
+        ["--socket", socketPath, "--json", "terminal", terminalID, "write", "--bytes-base64", base64]
+    }
+
     /// `terminal <term_id> keys <key>…` (spec `terminal.input.keys`): named keys such as
     /// `enter`, `tab`, `escape`, `up`, and `+`-joined chords such as `ctrl+c` (verified
     /// live; `ctrl-c` is `validation.invalid`). The daemon rejects empty names.

@@ -10,9 +10,9 @@ import XCTest
 
 /// Black-box coverage for `cmux vm layout export|apply` and `cmux vm env set|ls|rm`:
 /// the real CLI binary runs against a mock control socket that plays the app's side of
-/// `vm.exec`, `layout.get`, `vm.tree`, and `vm.workspace_open`, so argument parsing,
+/// `vm.exec`, `vm.env_set`, `layout.get`, `vm.tree`, and `vm.workspace_open`, so argument parsing,
 /// local document validation (the JSON path in the error, zero socket traffic), the
-/// base64 payload framing the in-VM shim consumes, dotenv parsing, saved-layout
+/// base64 layout framing the in-VM shim consumes, the link-only env transport, dotenv parsing, saved-layout
 /// wrapper detection, the outdated-shim guard, and the `--open` refresh/retry policy
 /// are exercised exactly as an agent hits them. CLI-target code is not linked into
 /// this bundle (see CLIVMTransferTests), so the static helpers are verified through
@@ -128,7 +128,97 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
     // MARK: - vm env
 
-    func testVMEnvSetPipesAssignmentsIntoTheMachineShim() throws {
+    private struct VMEnvProcessResult {
+        let status: Int32
+        let stdout: String
+        let stderr: String
+        let timedOut: Bool
+    }
+
+    /// Like `runProcess`, with bytes on stdin — `cmux vm env set <m> -` reads assignments
+    /// there so values never sit in the caller's argv or history.
+    private func runProcessWithInput(
+        executablePath: String,
+        arguments: [String],
+        environment: [String: String],
+        standardInput: String,
+        timeout: TimeInterval
+    ) -> VMEnvProcessResult {
+        let process = Process()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        let stdinPipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        process.environment = environment
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        do {
+            try process.run()
+        } catch {
+            return VMEnvProcessResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
+        }
+        stdinPipe.fileHandleForWriting.write(Data(standardInput.utf8))
+        try? stdinPipe.fileHandleForWriting.close()
+        let exitSignal = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            process.waitUntilExit()
+            exitSignal.signal()
+        }
+        let timedOut = exitSignal.wait(timeout: .now() + timeout) == .timedOut
+        if timedOut {
+            process.terminate()
+            if exitSignal.wait(timeout: .now() + 1) == .timedOut {
+                kill(process.processIdentifier, SIGKILL)
+                _ = exitSignal.wait(timeout: .now() + 1)
+            }
+        }
+        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return VMEnvProcessResult(
+            status: process.isRunning ? SIGKILL : process.terminationStatus,
+            stdout: stdout,
+            stderr: stderr,
+            timedOut: timedOut
+        )
+    }
+
+    /// The app's side of `vm.env_set`: names back, never values. Any `vm.exec` is a test
+    /// failure — values must not ride the control plane.
+    private func startVMEnvSetMock(
+        listenerFD: Int32,
+        state: MockSocketServerState,
+        log: VMLayoutEnvRequestLog
+    ) -> XCTestExpectation {
+        startMockServer(listenerFD: listenerFD, state: state) { line in
+            if line.hasPrefix("auth ") { return "OK" }
+            guard let request = self.jsonObject(line),
+                  let id = request["id"] as? String,
+                  let method = request["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            log.append(request)
+            let params = (request["params"] as? [String: Any]) ?? [:]
+            guard method == "vm.env_set",
+                  let machine = params["id"] as? String,
+                  let entries = params["entries"] as? [[String: Any]] else {
+                return self.v2Response(id: id, ok: false, error: ["code": "unexpected", "message": "Unexpected method \(method)"])
+            }
+            let keys = entries.compactMap { $0["key"] as? String }
+            return self.v2Response(id: id, ok: true, result: [
+                "machine": machine, "keys": keys, "count": keys.count, "path": "/root/.config/cmux/env",
+            ])
+        }
+    }
+
+    /// `KEY=VALUE` per entry of the first `vm.env_set` the mock saw, in request order.
+    private func vmEnvSetEntryLines(_ log: VMLayoutEnvRequestLog) -> [String] {
+        let entries = (log.params(ofFirst: "vm.env_set")?["entries"] as? [[String: Any]]) ?? []
+        return entries.map { "\(($0["key"] as? String) ?? "?")=\(($0["value"] as? String) ?? "?")" }
+    }
+
+    func testVMEnvSetDeliversEntriesOverTheMachineLinkNeverExec() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-env-set")
         let listenerFD = try bindUnixSocket(at: socketPath)
@@ -138,10 +228,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             Darwin.close(listenerFD)
             unlink(socketPath)
         }
-
-        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
-            self.vmLayoutEnvExecResponse(id: id, stdout: "")
-        }
+        let serverHandled = startVMEnvSetMock(listenerFD: listenerFD, state: state, log: log)
 
         let result = runProcess(
             executablePath: cliPath,
@@ -153,20 +240,17 @@ extension CLINotifyProcessIntegrationRegressionTests {
         wait(for: [serverHandled], timeout: 30)
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
-
-        let commands = log.commands()
-        XCTAssertEqual(commands.count, 1, "one exec carries every assignment: \(commands)")
-        let command = try XCTUnwrap(commands.first)
-        XCTAssertTrue(command.hasSuffix("| base64 -d | cmux env set -"), command)
-        let payload = try XCTUnwrap(Self.base64Payload(inCommand: command), "payload must be base64 between printf and base64 -d: \(command)")
-        XCTAssertEqual(String(decoding: payload, as: UTF8.self), "A=1\nB=x y\n")
+        // One request, the link-backed method, typed entries — and no exec anywhere.
+        XCTAssertEqual(log.methods, ["vm.env_set"], log.methods.description)
+        XCTAssertEqual(log.params(ofFirst: "vm.env_set")?["id"] as? String, "brave-otter")
+        XCTAssertEqual(vmEnvSetEntryLines(log), ["A=1", "B=x y"])
+        XCTAssertTrue(log.commands().isEmpty, "values must never ride vm.exec: \(log.commands())")
         // Values are secrets: the summary names keys only.
         XCTAssertTrue(result.stdout.contains("OK set 2 variables on brave-otter: A, B"), result.stdout)
         XCTAssertFalse(result.stdout.contains("x y"), result.stdout)
-        XCTAssertFalse(command.contains("x y"), "values never appear in the machine's argv: \(command)")
     }
 
-    func testVMEnvSetReadsDotenvFilesAndWrapsValuesTheShimWouldAlter() throws {
+    func testVMEnvSetReadsDotenvFilesAndStdinLiterally() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-env-file")
         let listenerFD = try bindUnixSocket(at: socketPath)
@@ -190,41 +274,38 @@ extension CLINotifyProcessIntegrationRegressionTests {
         EMPTY=
         """.write(to: envFile, atomically: true, encoding: .utf8)
 
-        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
-            self.vmLayoutEnvExecResponse(id: id, stdout: "")
-        }
+        let serverHandled = startVMEnvSetMock(listenerFD: listenerFD, state: state, log: log)
 
         // An argv pair repeated by the file: the later (file) value wins, once, in the
-        // position of its first appearance. `Q='x'` keeps its literal quotes.
-        let result = runProcess(
+        // position of its first appearance. `Q='x'` keeps its literal quotes; stdin (`-`)
+        // is read with the same dotenv rules and appended after the file.
+        let result = runProcessWithInput(
             executablePath: cliPath,
-            arguments: ["vm", "env", "set", "brave-otter", "PLAIN=argv", "Q='x'", "--from-file", envFile.path],
+            arguments: ["vm", "env", "set", "brave-otter", "PLAIN=argv", "Q='x'", "--from-file", envFile.path, "-"],
             environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            standardInput: "FROM_STDIN=\"two words\"\n# ignored\nexport SECOND=2\n",
             timeout: 30
         )
 
         wait(for: [serverHandled], timeout: 30)
+        XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
-        let command = try XCTUnwrap(log.commands().first)
-        let decoded = try XCTUnwrap(Self.base64Payload(inCommand: command))
-        let payload = String(decoding: decoded, as: UTF8.self)
+        XCTAssertEqual(log.methods, ["vm.env_set"], log.methods.description)
         // dotenv rules applied on the Mac (comments, `export`, matching quotes, inline
-        // comment); values the shim's own dotenv pass would alter (literal edge quotes,
-        // edge whitespace) travel wrapped in double quotes so they survive byte for byte.
-        XCTAssertEqual(
-            payload,
-            """
-            PLAIN=hello
-            Q="'x'"
-            DATABASE_URL=postgres://localhost/app
-            TOKEN=abc def
-            QUOTED_LITERAL=keep
-            SPACEY="  padded  "
-            EMPTY=
-
-            """
-        )
-        XCTAssertTrue(result.stdout.contains("OK set 7 variables on brave-otter"), result.stdout)
+        // comment); every value reaches the app byte for byte, quotes and padding included.
+        XCTAssertEqual(vmEnvSetEntryLines(log), [
+            "PLAIN=hello",
+            "Q='x'",
+            "DATABASE_URL=postgres://localhost/app",
+            "TOKEN=abc def",
+            "QUOTED_LITERAL=keep",
+            "SPACEY=  padded  ",
+            "EMPTY=",
+            "FROM_STDIN=two words",
+            "SECOND=2",
+        ])
+        XCTAssertTrue(result.stdout.contains("OK set 9 variables on brave-otter"), result.stdout)
+        XCTAssertFalse(result.stdout.contains("postgres://"), "values never echo back: \(result.stdout)")
     }
 
     func testVMEnvSetRejectsInvalidKeysWithoutTouchingTheSocket() throws {
@@ -238,9 +319,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             unlink(socketPath)
         }
         // Never awaited: a correct CLI makes no connection at all.
-        _ = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
-            self.vmLayoutEnvExecResponse(id: id, stdout: "")
-        }
+        _ = startVMEnvSetMock(listenerFD: listenerFD, state: state, log: log)
 
         let result = runProcess(
             executablePath: cliPath,
@@ -251,8 +330,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
         XCTAssertEqual(result.status, 2, "stdout=\(result.stdout) stderr=\(result.stderr)")
         XCTAssertTrue(result.stderr.contains("invalid variable name '1BAD'"), result.stderr)
-        XCTAssertTrue(log.commands().isEmpty, "no exec for a rejected assignment: \(log.commands())")
-        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.exec") }, state.snapshot().description)
+        XCTAssertTrue(log.methods.isEmpty, "no request for a rejected assignment: \(log.methods)")
+        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.env_set") || $0.contains("vm.exec") }, state.snapshot().description)
     }
 
     func testVMEnvListForwardsFlagsAndPrintsStdoutVerbatim() throws {

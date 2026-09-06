@@ -81,8 +81,11 @@ The checklist an agent runs through, each item a primitive (not a doc):
    honored — designed.
 4. **Secrets**: `vm env set|ls|rm` — shipped machine-local (0600 file on the
    persistent volume, sourced by every shell cmux starts: terminals, `vm exec`,
-   `vm agent`, layout panes, in-VM `cmux agent`); per-(user, project) storage and
-   edge-resident values remain the long game (docs/vm-identity-edge-auth.md).
+   `vm agent`, layout panes, in-VM `cmux agent`). Values never ride `vm.exec`:
+   they cross the machine's end-to-end link into `cmux env receive` with PTY
+   echo off (`CloudEnvDelivery`), so no server, command line, or screen ever
+   holds them; per-(user, project) storage and edge-resident values remain the
+   long game (docs/vm-identity-edge-auth.md).
 5. **Services**: recipe `services` (postgres/redis via the baked docker) with
    health gates — next, part of `vm dev` P2.
 6. **Workspace + layout**: `vm workspace new --name` + `vm layout apply` —
