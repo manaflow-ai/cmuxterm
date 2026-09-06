@@ -39,8 +39,8 @@
     {
       "id": "app-and-settings",
       "commands": ["welcome", "docs", "settings", "config", "shortcuts", "themes", "auth", "open", "feedback"],
-      "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md"]
+      "status": "partial",
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
     },
     {
       "id": "topology",

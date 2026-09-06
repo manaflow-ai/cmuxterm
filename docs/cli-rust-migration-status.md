@@ -52,7 +52,7 @@ All 12 families remain incomplete:
 | coderouter-native | partial | all account verbs and Swift output/error parity |
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
-| app-and-settings | pending | docs, settings, config, themes, auth, open, feedback |
+| app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
 | topology | partial | window inspection and basic window actions are ported; workspace, pane, surface, tree, and tab actions remain |
 | terminal-and-notifications | partial | terminal reads/sends and basic notification create/list/dismiss/read/open actions are ported; selection, capture, feed, advanced targeting, and logs remain |
 | browser | partial | open, navigate, back, forward, reload, URL, and webview focus aliases are ported; snapshots, selectors, eval, profiles, storage, and browser namespace parsing remain |
@@ -63,8 +63,9 @@ All 12 families remain incomplete:
 The Rust candidate currently provides the migration slice for capabilities,
 context, RPC, ping, identify, window inspection and basic window actions,
 workspace and pane inspection, terminal text reads and sends, basic notification
-actions, common browser navigation aliases, socket refresh/debug controls,
-limited AI accounts, `cr add codex`, and CodeRouter delegation.
+actions, common browser navigation aliases, auth status/sign-in/sign-out,
+socket refresh/debug controls, limited AI accounts, `cr add codex`, and
+CodeRouter delegation.
 The Rust candidate binaries are about 1.375 MiB each as universal Mach-O
 artifacts. Keeping Swift in production while the gate is red adds about
 2.62 MiB. Removing Swift before the gate passes would risk breaking commands,
@@ -94,6 +95,7 @@ The following checks passed for the current slice:
 - Notification list parsing and notification command parsing tests.
 - Browser navigation alias parsing tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
+- Authentication command parsing tests.
 - Universal arm64 and x86_64 Rust builds.
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.
