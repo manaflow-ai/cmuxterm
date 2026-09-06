@@ -31,6 +31,8 @@ public struct SettingsRuntime: @unchecked Sendable {
     public let accountFlow: AccountFlow?
     /// Host callbacks for actions the package cannot perform itself.
     public let hostActions: SettingsHostActions
+    /// Host-scoped factory-default resolver for dynamic shortcut actions.
+    public let shortcutDefaultResolver: ShortcutDefaultResolver
 
     /// Creates the settings runtime bundle injected into the settings UI.
     ///
@@ -42,6 +44,8 @@ public struct SettingsRuntime: @unchecked Sendable {
     ///   - errorLog: Rolling settings error log displayed as alerts.
     ///   - accountFlow: Optional host-owned account flow actions.
     ///   - hostActions: Host callbacks for actions the package cannot perform itself.
+    ///   - shortcutDefaultResolver: Value-typed defaults supplied by the host;
+    ///     defaults to the package table for previews and package-only hosts.
     ///   - searchIndex: Prebuilt search index to share across settings roots. When `nil`,
     ///     the runtime builds one index from `catalog` and keeps it for its own lifetime.
     @MainActor
@@ -53,6 +57,7 @@ public struct SettingsRuntime: @unchecked Sendable {
         errorLog: SettingsErrorLog,
         accountFlow: AccountFlow? = nil,
         hostActions: SettingsHostActions = NoopSettingsHostActions(),
+        shortcutDefaultResolver: ShortcutDefaultResolver = .builtIn,
         searchIndex: SettingsSearchIndex? = nil
     ) {
         self.catalog = catalog
@@ -73,6 +78,7 @@ public struct SettingsRuntime: @unchecked Sendable {
         // only while a Settings card is mounted. Spawn consumers therefore see
         // dotfiles edits after Settings closes as well.
         self.declarativeTerminalConfigurationModel.startObserving()
+        self.shortcutDefaultResolver = shortcutDefaultResolver
     }
 }
 

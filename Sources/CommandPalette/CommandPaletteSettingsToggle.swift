@@ -766,7 +766,10 @@ enum CommandPaletteSettingsToggleCommands {
                 sectionTitle: beta,
                 keywords: ["betaFeatures.feed", "feed", "right", "sidebar", "beta", "agent", "decisions", "permissions"],
                 defaultValue: RightSidebarBetaFeatureSettings.defaultFeedEnabled,
-                defaultsKey: RightSidebarBetaFeatureSettings.feedEnabledKey
+                defaultsKey: RightSidebarBetaFeatureSettings.feedEnabledKey,
+                didSet: { _, _, notificationCenter in
+                    notificationCenter.post(name: RightSidebarBetaFeatureSettings.didChangeNotification, object: nil)
+                }
             ),
             CommandPaletteSettingToggleDescriptor(
                 commandId: commandIdPrefix + "rightSidebarDock",
@@ -777,7 +780,10 @@ enum CommandPaletteSettingsToggleCommands {
                 sectionTitle: beta,
                 keywords: ["betaFeatures.dock", "dock", "right", "sidebar", "beta", "terminal", "controls"],
                 defaultValue: RightSidebarBetaFeatureSettings.defaultDockEnabled,
-                defaultsKey: RightSidebarBetaFeatureSettings.dockEnabledKey
+                defaultsKey: RightSidebarBetaFeatureSettings.dockEnabledKey,
+                didSet: { _, _, notificationCenter in
+                    notificationCenter.post(name: RightSidebarBetaFeatureSettings.didChangeNotification, object: nil)
+                }
             ),
             CommandPaletteSettingToggleDescriptor(
                 commandId: commandIdPrefix + "claudeCodeIntegration",
