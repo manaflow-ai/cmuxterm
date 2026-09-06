@@ -1449,6 +1449,16 @@ fn print_surface_list(result: &Value) {
     }
 }
 
+fn browser_response_timeout(params: &serde_json::Map<String, Value>) -> Duration {
+    if params.get("snapshot_after").and_then(Value::as_bool) == Some(true) {
+        return Duration::from_secs(35);
+    }
+    if let Some(timeout_ms) = params.get("timeout_ms").and_then(Value::as_u64) {
+        return Duration::from_secs_f64((timeout_ms as f64 / 1_000.0 + 8.0).max(15.0));
+    }
+    Duration::from_secs(20)
+}
+
 /// Execute the high-value browser namespace commands. The Swift CLI has a
 /// larger browser surface; this function keeps the common automation verbs on
 /// the same v2 methods so agents can use the bundled CLI without a second
@@ -1558,7 +1568,9 @@ fn run_browser_command(
         result
     };
     let send = |method: &str, params: serde_json::Map<String, Value>| -> Result<Value, CliError> {
-        let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+        let timeout = browser_response_timeout(&params);
+        let result =
+            socket(&options)?.send_v2_with_timeout(method, Value::Object(params), timeout)?;
         let result = format_ids(result, &id_format);
         print_result(&result, json_output);
         Ok(result)
@@ -1722,7 +1734,11 @@ fn run_browser_command(
                 })?;
                 params.insert("max_depth".into(), Value::Number(depth.into()));
             }
-            let result = socket(&options)?.send_v2("browser.snapshot", Value::Object(params))?;
+            let result = socket(&options)?.send_v2_with_timeout(
+                "browser.snapshot",
+                Value::Object(params.clone()),
+                browser_response_timeout(&params),
+            )?;
             let result = format_ids(result, &id_format);
             if json_output {
                 print_result(&result, true);
@@ -2763,6 +2779,14 @@ mod tests {
         assert_eq!(
             object_handle(&json!({"workspace_ref": "workspace:2"}), "workspace"),
             "workspace:2"
+        );
+        assert_eq!(browser_response_timeout(&serde_json::Map::new()), Duration::from_secs(20));
+        assert_eq!(
+            browser_response_timeout(&serde_json::Map::from_iter([(
+                "snapshot_after".into(),
+                Value::Bool(true),
+            )])),
+            Duration::from_secs(35)
         );
     }
 

@@ -108,6 +108,7 @@ The following checks passed for the current slice:
 - Browser navigation alias parsing tests.
 - Browser namespace parsing coverage for the supported automation verbs.
 - Browser snapshot socket conformance test (method and surface context).
+- Browser automation response timeout selection for navigation snapshots and waits.
 - Browser profile lifecycle request routing.
 - Terminal selection and panel send alias parsing.
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
