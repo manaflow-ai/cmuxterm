@@ -20,6 +20,7 @@ async function sendHook(
     event: eventName(subcommand),
     ...extra,
   };
+<<<<<<< ours
   const result = await dispatcher.run(
     ["hooks", "pi", subcommand, ...target],
     cwd,
@@ -27,6 +28,17 @@ async function sendHook(
     context,
   );
   if (result.ok) rememberSurfaceTarget(dispatcher, sessionId, result);
+=======
+  const result = runCmux(["hooks", "enqueue", "pi", subcommand], cwd, JSON.stringify(payload));
+  if (!result.ok) {
+    warn(ctx, "cmux hook command failed", {
+      subcommand,
+      status: result.status,
+      stderr_available: result.stderr.trim().length > 0,
+      error_available: result.error !== undefined,
+    });
+  }
+>>>>>>> theirs
   return result.ok;
 }
 
@@ -218,6 +230,7 @@ async function ensureResumeBinding(
   }
 }
 
+<<<<<<< ours
 async function clearResumeBinding(
   dispatcher: PiCmuxCommandDispatcher,
   context: PiExtensionContextSnapshot,
@@ -238,6 +251,30 @@ async function clearResumeBinding(
     "--source",
     "agent-hook",
   ], cwd, undefined, context);
+=======
+function sendDirectSessionFinalize(ctx: ExtensionContext, sessionId: string, cwd: string): void {
+  const payload: HookExtra = {
+    session_id: sessionId,
+    cwd,
+    hook_event_name: eventName("session-finalize"),
+    event: eventName("session-finalize"),
+  };
+  try {
+    const child = spawn(cmuxExecutable(), ["hooks", "pi", "session-finalize"], {
+      env: hookEnvironment(cwd, true),
+      stdio: ["pipe", "ignore", "ignore"],
+      detached: true,
+    });
+    child.on("error", () => {
+      warn(ctx, "failed to launch direct Pi finalization fallback", { session_id: sessionId });
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(JSON.stringify(payload));
+    child.unref();
+  } catch (_) {
+    warn(ctx, "failed to launch direct Pi finalization fallback", { session_id: sessionId });
+  }
+>>>>>>> theirs
 }
 
 type PiFeedEventName =
@@ -545,6 +582,7 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
         terminationReason: firstString(objectValue(event, ["reason"])) || "session_shutdown",
       };
     }
+<<<<<<< ours
     await enqueueLifecycleTask(sessionId, context, async () => {
       await dispatcher.finishFeedForSession(sessionId);
       const feedDelivered = !state.feedDeliveryFailed;
@@ -557,6 +595,16 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
         releaseSessionRuntime(dispatcher, sessionStates, sessionId);
       }
     });
+=======
+    if (sendHook("session-finalize", ctx)) {
+      sessionStates.delete(sessionId);
+      return;
+    }
+    // Queue admission failed. A detached direct finalizer waits behind the
+    // already-queued stop through the CLI barrier before performing teardown.
+    sendDirectSessionFinalize(ctx, sessionId, cwd);
+    sessionStates.delete(sessionId);
+>>>>>>> theirs
   });
 }
 """#

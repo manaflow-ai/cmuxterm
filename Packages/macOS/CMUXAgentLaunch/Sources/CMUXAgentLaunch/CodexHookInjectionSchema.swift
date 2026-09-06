@@ -14,6 +14,7 @@ public struct CodexHookInjectionSchema: Equatable, Sendable {
     /// sanitization on this shared value so a format change cannot update only
     /// one side of the boundary.
     public static let current = Self(events: [
+<<<<<<< ours
         .init(agentEvent: "SessionStart", cmuxSubcommand: "session-start", timeoutMs: 10000),
         .init(agentEvent: "UserPromptSubmit", cmuxSubcommand: "prompt-submit", timeoutMs: 10000),
         .init(agentEvent: "Stop", cmuxSubcommand: "stop", timeoutMs: 10000),
@@ -22,6 +23,19 @@ public struct CodexHookInjectionSchema: Equatable, Sendable {
         .init(agentEvent: "PermissionRequest", cmuxSubcommand: "notification", timeoutMs: 120000),
         .init(agentEvent: "SubagentStart", cmuxSubcommand: "subagent-start", timeoutMs: 10000, isSynchronous: true),
         .init(agentEvent: "SubagentStop", cmuxSubcommand: "subagent-stop", timeoutMs: 10000, isSynchronous: true),
+=======
+        .init(agentEvent: "SessionStart", cmuxSubcommand: "session-start", timeoutMs: AgentHookDeliveryPolicy.declaredTimeoutMilliseconds),
+        .init(agentEvent: "UserPromptSubmit", cmuxSubcommand: "prompt-submit", timeoutMs: AgentHookDeliveryPolicy.declaredTimeoutMilliseconds),
+        .init(agentEvent: "Stop", cmuxSubcommand: "stop", timeoutMs: AgentHookDeliveryPolicy.declaredTimeoutMilliseconds),
+        .init(agentEvent: "PreToolUse", cmuxSubcommand: "pre-tool-use", timeoutMs: AgentHookDeliveryPolicy.declaredTimeoutMilliseconds),
+        .init(agentEvent: "PostToolUse", cmuxSubcommand: "post-tool-use", timeoutMs: AgentHookDeliveryPolicy.declaredTimeoutMilliseconds),
+        .init(
+            agentEvent: "PermissionRequest",
+            cmuxSubcommand: "notification",
+            timeoutMs: 120000,
+            delivery: .direct
+        ),
+>>>>>>> theirs
     ])
 
     /// Exact older shapes accepted by saved-layout and replay sanitization.
@@ -40,6 +54,19 @@ public struct CodexHookInjectionSchema: Equatable, Sendable {
             .init(agentEvent: "PreToolUse", cmuxSubcommand: "pre-tool-use", timeoutMs: 120000),
             .init(agentEvent: "PostToolUse", cmuxSubcommand: "post-tool-use", timeoutMs: 10000),
             .init(agentEvent: "PermissionRequest", cmuxSubcommand: "notification", timeoutMs: 120000),
+        ]),
+        Self(events: [
+            .init(agentEvent: "SessionStart", cmuxSubcommand: "session-start", timeoutMs: 10000),
+            .init(agentEvent: "UserPromptSubmit", cmuxSubcommand: "prompt-submit", timeoutMs: 10000),
+            .init(agentEvent: "Stop", cmuxSubcommand: "stop", timeoutMs: 10000),
+            .init(agentEvent: "PreToolUse", cmuxSubcommand: "pre-tool-use", timeoutMs: 120000),
+            .init(agentEvent: "PostToolUse", cmuxSubcommand: "post-tool-use", timeoutMs: 10000),
+            .init(
+                agentEvent: "PermissionRequest",
+                cmuxSubcommand: "notification",
+                timeoutMs: 120000,
+                delivery: .direct
+            ),
         ]),
         Self(events: [
             .init(agentEvent: "SessionStart", cmuxSubcommand: "session-start", timeoutMs: 10000),

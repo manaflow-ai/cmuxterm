@@ -543,6 +543,7 @@ function cmuxExecutable(): string {
   return process.env.CMUX_PI_CMUX_BIN || "cmux";
 }
 
+<<<<<<< ours
 interface PiFeedCommand {
   readonly args: string[];
   readonly cwd: string;
@@ -556,5 +557,31 @@ interface PiCommandCancellation {
   cancelled: boolean;
   cancel?: () => void;
 }
+=======
+function runCmux(args: string[], cwd: string, input?: string): CommandResult {
+  try {
+    const env = hookEnvironment(cwd, true);
+    if (args[0] === "hooks" && args[1] === "enqueue") {
+      env.CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC = "1";
+    }
+    const result = spawnSync(cmuxExecutable(), args, {
+      input,
+      encoding: "utf8",
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 5000,
+    });
+    const status = typeof result.status === "number" ? result.status : null;
+    return {
+      ok: status === 0 && !result.error,
+      status,
+      stdout: typeof result.stdout === "string" ? result.stdout : "",
+      stderr: typeof result.stderr === "string" ? result.stderr : "",
+      error: result.error,
+    };
+  } catch (error) {
+    return { ok: false, status: null, stdout: "", stderr: "", error };
+  }
+>>>>>>> theirs
 """#
 }

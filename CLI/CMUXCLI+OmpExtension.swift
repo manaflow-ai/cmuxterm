@@ -190,8 +190,13 @@ function startHook(invocation: HookInvocation, subcommand: string): RunningHook 
       resolve();
     };
     try {
+<<<<<<< ours
       child = spawn(invocation.cmux, ["hooks", "omp", subcommand], {
         env: invocation.env,
+=======
+      const child = spawn(invocation.cmux, ["hooks", "enqueue", "omp", subcommand], {
+        env: { ...invocation.env, CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC: "1" },
+>>>>>>> theirs
         stdio: ["pipe", "ignore", "ignore"],
       });
       child.on("error", settle);
