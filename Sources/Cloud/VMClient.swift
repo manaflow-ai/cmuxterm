@@ -2093,7 +2093,9 @@ actor VMClient {
                 onRetry()
                 let retryAfterSeconds = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
                 let delaySeconds = min(max(retryAfterSeconds ?? 2, 1), 10)
-                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                try await Task.sleep(
+                    nanoseconds: UInt64(delaySeconds.components.seconds) * 1_000_000_000
+                )
                 continue
             }
             if retryTransientServiceUnavailable,
