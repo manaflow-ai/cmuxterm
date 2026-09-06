@@ -1,0 +1,657 @@
+import Darwin
+import Foundation
+import XCTest
+
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+
+/// Black-box coverage for `cmux vm layout export|apply` and `cmux vm env set|ls|rm`:
+/// the real CLI binary runs against a mock control socket that plays the app's side of
+/// `vm.exec`, `layout.get`, `vm.tree`, and `vm.workspace_open`, so argument parsing,
+/// local document validation (the JSON path in the error, zero socket traffic), the
+/// base64 payload framing the in-VM shim consumes, dotenv parsing, saved-layout
+/// wrapper detection, the outdated-shim guard, and the `--open` refresh/retry policy
+/// are exercised exactly as an agent hits them. CLI-target code is not linked into
+/// this bundle (see CLIVMTransferTests), so the static helpers are verified through
+/// their observable command lines.
+extension CLINotifyProcessIntegrationRegressionTests {
+    /// Every decoded request the mock saw, in order, for assertions on method sequence
+    /// and parameters (the raw `state` lines include the auth handshake).
+    private final class VMLayoutEnvRequestLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var requests: [[String: Any]] = []
+
+        func append(_ request: [String: Any]) {
+            lock.lock()
+            requests.append(request)
+            lock.unlock()
+        }
+
+        func snapshot() -> [[String: Any]] {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests
+        }
+
+        var methods: [String] { snapshot().compactMap { $0["method"] as? String } }
+
+        func params(ofFirst method: String) -> [String: Any]? {
+            snapshot().first { ($0["method"] as? String) == method }?["params"] as? [String: Any]
+        }
+
+        func commands() -> [String] {
+            snapshot().compactMap { request in
+                guard (request["method"] as? String) == "vm.exec" else { return nil }
+                return (request["params"] as? [String: Any])?["command"] as? String
+            }
+        }
+    }
+
+    private final class VMLayoutEnvCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func next() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            value += 1
+            return value
+        }
+    }
+
+    private func vmLayoutEnvExecResponse(id: String, stdout: String, stderr: String = "", exitCode: Int = 0) -> String {
+        v2Response(id: id, ok: true, result: ["exit_code": exitCode, "stdout": stdout, "stderr": stderr])
+    }
+
+    /// The base64 body of a `printf %s '<b64>' | base64 -d | …` command.
+    private static func base64Payload(inCommand command: String) -> Data? {
+        guard let start = command.range(of: "printf %s '"),
+              let end = command.range(of: "' | base64 -d | ") else { return nil }
+        return Data(base64Encoded: String(command[start.upperBound..<end.lowerBound]))
+    }
+
+    private func vmLayoutEnvEnvironment(socketPath: String) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+        return environment
+    }
+
+    private func vmLayoutEnvTempDir(_ name: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-vm-\(name)-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// A mock that answers `vm.exec` through `onExec` and rejects every other method.
+    private func startVMExecMock(
+        listenerFD: Int32,
+        state: MockSocketServerState,
+        log: VMLayoutEnvRequestLog,
+        onExec: @escaping @Sendable (_ id: String, _ command: String) -> String
+    ) -> XCTestExpectation {
+        startMockServer(listenerFD: listenerFD, state: state) { line in
+            if line.hasPrefix("auth ") { return "OK" }
+            guard let request = self.jsonObject(line),
+                  let id = request["id"] as? String,
+                  let method = request["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            log.append(request)
+            guard method == "vm.exec",
+                  let params = request["params"] as? [String: Any],
+                  let command = params["command"] as? String else {
+                return self.v2Response(id: id, ok: false, error: ["code": "unexpected", "message": "Unexpected method \(method)"])
+            }
+            return onExec(id, command)
+        }
+    }
+
+    private static let sampleLayoutNode: [String: Any] = [
+        "direction": "horizontal",
+        "split": 0.6,
+        "children": [
+            ["pane": ["surfaces": [["type": "terminal", "name": "agent", "command": "claude", "cwd": "work/app"]]]],
+            [
+                "direction": "vertical",
+                "children": [
+                    ["pane": ["surfaces": [["type": "terminal", "command": "bun test --watch"]]]],
+                    ["pane": ["surfaces": [["type": "browser", "url": "http://localhost:3000"]]]],
+                ],
+            ],
+        ],
+    ]
+
+    // MARK: - vm env
+
+    func testVMEnvSetPipesAssignmentsIntoTheMachineShim() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-env-set")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "")
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "env", "set", "brave-otter", "A=1", "B=x y"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+
+        let commands = log.commands()
+        XCTAssertEqual(commands.count, 1, "one exec carries every assignment: \(commands)")
+        let command = try XCTUnwrap(commands.first)
+        XCTAssertTrue(command.hasSuffix("| base64 -d | cmux env set -"), command)
+        let payload = try XCTUnwrap(Self.base64Payload(inCommand: command), "payload must be base64 between printf and base64 -d: \(command)")
+        XCTAssertEqual(String(decoding: payload, as: UTF8.self), "A=1\nB=x y\n")
+        // Values are secrets: the summary names keys only.
+        XCTAssertTrue(result.stdout.contains("OK set 2 variables on brave-otter: A, B"), result.stdout)
+        XCTAssertFalse(result.stdout.contains("x y"), result.stdout)
+        XCTAssertFalse(command.contains("x y"), "values never appear in the machine's argv: \(command)")
+    }
+
+    func testVMEnvSetReadsDotenvFilesAndWrapsValuesTheShimWouldAlter() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-env-file")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let tempDir = try vmLayoutEnvTempDir("env-file")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let envFile = tempDir.appendingPathComponent("dev.env")
+        try """
+        # database
+        export DATABASE_URL="postgres://localhost/app"
+
+        TOKEN='abc def'
+        PLAIN=hello # trailing comment
+        QUOTED_LITERAL="keep"
+        SPACEY="  padded  "
+        EMPTY=
+        """.write(to: envFile, atomically: true, encoding: .utf8)
+
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "")
+        }
+
+        // An argv pair repeated by the file: the later (file) value wins, once, in the
+        // position of its first appearance. `Q='x'` keeps its literal quotes.
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "env", "set", "brave-otter", "PLAIN=argv", "Q='x'", "--from-file", envFile.path],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        let command = try XCTUnwrap(log.commands().first)
+        let decoded = try XCTUnwrap(Self.base64Payload(inCommand: command))
+        let payload = String(decoding: decoded, as: UTF8.self)
+        // dotenv rules applied on the Mac (comments, `export`, matching quotes, inline
+        // comment); values the shim's own dotenv pass would alter (literal edge quotes,
+        // edge whitespace) travel wrapped in double quotes so they survive byte for byte.
+        XCTAssertEqual(
+            payload,
+            """
+            PLAIN=hello
+            Q="'x'"
+            DATABASE_URL=postgres://localhost/app
+            TOKEN=abc def
+            QUOTED_LITERAL=keep
+            SPACEY="  padded  "
+            EMPTY=
+
+            """
+        )
+        XCTAssertTrue(result.stdout.contains("OK set 7 variables on brave-otter"), result.stdout)
+    }
+
+    func testVMEnvSetRejectsInvalidKeysWithoutTouchingTheSocket() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-env-bad")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        // Never awaited: a correct CLI makes no connection at all.
+        _ = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "")
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "env", "set", "brave-otter", "1BAD=value"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        XCTAssertEqual(result.status, 2, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("invalid variable name '1BAD'"), result.stderr)
+        XCTAssertTrue(log.commands().isEmpty, "no exec for a rejected assignment: \(log.commands())")
+        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.exec") }, state.snapshot().description)
+    }
+
+    func testVMEnvListForwardsFlagsAndPrintsStdoutVerbatim() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-env-ls")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let listing = "{\"path\":\"/root/.config/cmux/env\",\"keys\":[\"A\",\"B\"]}\n"
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: listing)
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "env", "ls", "brave-otter", "--json"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.commands(), ["cmux env ls --json"])
+        XCTAssertEqual(result.stdout, listing, "the shim's listing is printed byte for byte")
+    }
+
+    func testVMEnvRemoveForwardsKeys() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-env-rm")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "")
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "env", "rm", "brave-otter", "A", "DATABASE_URL"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.commands(), ["cmux env rm A DATABASE_URL"])
+        XCTAssertTrue(result.stdout.contains("OK removed 2 variables on brave-otter: A, DATABASE_URL"), result.stdout)
+    }
+
+    // MARK: - vm layout
+
+    func testVMLayoutExportForwardsWorkspaceAndRawAndPrintsJSON() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-export")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let exported = "{\"version\":1,\"screen_id\":\"screen_1\",\"root\":{\"kind\":\"leaf\",\"pane_id\":\"pane_1\",\"tab_ids\":[]}}\n"
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: exported)
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "export", "brave-otter", "ws_1", "--raw"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.commands(), ["cmux layout export --json --workspace ws_1 --raw"])
+        XCTAssertEqual(result.stdout, exported)
+        let timeout = try XCTUnwrap(log.params(ofFirst: "vm.exec")?["timeout_ms"] as? Int)
+        XCTAssertGreaterThanOrEqual(timeout, 30_000)
+    }
+
+    func testVMLayoutApplySendsTheDocumentAndForwardsTargetFlags() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-apply")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let tempDir = try vmLayoutEnvTempDir("layout-apply")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let layoutFile = tempDir.appendingPathComponent("dev.json")
+        let documentBytes = try JSONSerialization.data(withJSONObject: Self.sampleLayoutNode, options: [.sortedKeys])
+        try documentBytes.write(to: layoutFile)
+
+        let applied = """
+        {"workspace_id":"ws_1","workspace_name":"dev","panes":[{"pane_id":"pane_1","surfaces":[{"type":"terminal","terminal_id":"term_1","tab_id":"tab_1"}]},{"pane_id":"pane_2","surfaces":[{"type":"terminal","terminal_id":"term_2","tab_id":"tab_2"}]},{"pane_id":"pane_3","surfaces":[{"type":"browser","browser_id":"browser_1","tab_id":"tab_3"}]}],"warnings":["project surfaces are Mac-only; skipped 0"]}
+
+        """
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: applied)
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", layoutFile.path, "--workspace", "ws_1", "--name", "dev"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.methods, ["vm.exec"], "no open without --open")
+        let command = try XCTUnwrap(log.commands().first)
+        XCTAssertTrue(command.hasSuffix("| base64 -d | cmux layout apply --json --workspace ws_1 --name dev -"), command)
+        XCTAssertEqual(Self.base64Payload(inCommand: command), documentBytes, "the file travels byte for byte")
+        XCTAssertTrue(result.stdout.contains("OK workspace=ws_1 name=dev panes=3 surfaces=3 machine=brave-otter"), result.stdout)
+        XCTAssertTrue(result.stdout.contains("cmux vm workspace open brave-otter ws_1"), "hint names the manual open: \(result.stdout)")
+        XCTAssertTrue(result.stderr.contains("warning: project surfaces are Mac-only"), result.stderr)
+    }
+
+    func testVMLayoutApplyFromSavedLayoutRefreshesRetriesAndOpens() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-open")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        let openAttempts = VMLayoutEnvCounter()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let localWorkspaceID = UUID().uuidString
+
+        let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
+            if line.hasPrefix("auth ") { return "OK" }
+            guard let request = self.jsonObject(line),
+                  let id = request["id"] as? String,
+                  let method = request["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            log.append(request)
+            let params = (request["params"] as? [String: Any]) ?? [:]
+            switch method {
+            case "layout.get":
+                guard (params["name"] as? String) == "dev" else {
+                    return self.v2Response(id: id, ok: false, error: ["code": "not_found", "message": "Layout not found"])
+                }
+                // What `cmux layout get dev` returns: the saved-layout wrapper.
+                let saved: [String: Any] = [
+                    "name": "dev",
+                    "description": "agent left, tests right",
+                    "workspace": ["name": "dev", "cwd": "~/src/app", "layout": Self.sampleLayoutNode],
+                ]
+                return self.v2Response(id: id, ok: true, result: saved)
+            case "vm.exec":
+                return self.vmLayoutEnvExecResponse(
+                    id: id,
+                    stdout: "{\"workspace_id\":\"ws_9\",\"workspace_name\":\"dev\",\"panes\":[{\"pane_id\":\"pane_1\",\"surfaces\":[{\"type\":\"terminal\",\"terminal_id\":\"term_1\",\"tab_id\":\"tab_1\"}]}],\"warnings\":[]}\n"
+                )
+            case "vm.tree":
+                return self.v2Response(id: id, ok: true, result: ["machines": [], "resources": [], "projections": []])
+            case "vm.workspace_open":
+                // The catalog has not seen the new workspace on the first try.
+                if openAttempts.next() == 1 {
+                    return self.v2Response(id: id, ok: false, error: ["code": "not_found", "message": "destinationNotFound(\"workspace ws_9 on brave-otter\")"])
+                }
+                return self.v2Response(id: id, ok: true, result: [
+                    "machine": "brave-otter",
+                    "remote_workspace_id": "ws_9",
+                    "remote_workspace_name": "dev",
+                    "workspace_id": localWorkspaceID,
+                    "surface_ids": [UUID().uuidString],
+                    "opened": 1,
+                    "here": false,
+                ])
+            default:
+                return self.v2Response(id: id, ok: false, error: ["code": "unexpected", "message": "Unexpected method \(method)"])
+            }
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", "--from-saved", "dev", "--open"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 45
+        )
+
+        wait(for: [serverHandled], timeout: 45)
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(
+            log.methods,
+            ["layout.get", "vm.exec", "vm.tree", "vm.workspace_open", "vm.workspace_open"],
+            "saved layout read locally, applied, catalog refreshed, then opened (one not-found retry)"
+        )
+
+        // The wrapper is forwarded as-is: the shim reads `workspace.layout` itself.
+        let command = try XCTUnwrap(log.commands().first)
+        XCTAssertTrue(command.hasSuffix("| base64 -d | cmux layout apply --json -"), command)
+        let forwarded = try XCTUnwrap(Self.base64Payload(inCommand: command))
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: forwarded) as? [String: Any])
+        XCTAssertEqual(object["name"] as? String, "dev")
+        let workspace = try XCTUnwrap(object["workspace"] as? [String: Any])
+        XCTAssertEqual(workspace["cwd"] as? String, "~/src/app")
+        XCTAssertNotNil(workspace["layout"] as? [String: Any])
+
+        let refresh = try XCTUnwrap(log.params(ofFirst: "vm.tree"))
+        XCTAssertEqual(refresh["id"] as? String, "brave-otter")
+        XCTAssertEqual(refresh["refresh"] as? Bool, true)
+        let open = try XCTUnwrap(log.params(ofFirst: "vm.workspace_open"))
+        XCTAssertEqual(open["id"] as? String, "brave-otter")
+        XCTAssertEqual(open["workspace_id"] as? String, "ws_9")
+
+        XCTAssertTrue(result.stdout.contains("OK workspace=ws_9 name=dev panes=1 surfaces=1 machine=brave-otter"), result.stdout)
+        XCTAssertTrue(result.stdout.contains("OK opened workspace=\(localWorkspaceID) opened=1 machine=brave-otter"), result.stdout)
+    }
+
+    func testVMLayoutApplyOpenGivesUpWithTheManualCommand() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-open-fail")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let tempDir = try vmLayoutEnvTempDir("layout-open-fail")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let layoutFile = tempDir.appendingPathComponent("one.json")
+        try JSONSerialization.data(withJSONObject: ["pane": ["surfaces": [["type": "terminal"]]]]).write(to: layoutFile)
+
+        let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in
+            if line.hasPrefix("auth ") { return "OK" }
+            guard let request = self.jsonObject(line),
+                  let id = request["id"] as? String,
+                  let method = request["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            log.append(request)
+            switch method {
+            case "vm.exec":
+                return self.vmLayoutEnvExecResponse(id: id, stdout: "{\"workspace_id\":\"ws_7\",\"workspace_name\":\"one\",\"panes\":[],\"warnings\":[]}\n")
+            case "vm.tree":
+                return self.v2Response(id: id, ok: true, result: ["machines": [], "resources": [], "projections": []])
+            case "vm.workspace_open":
+                // The Mac keeps seeing it as empty: every attempt says so.
+                return self.v2Response(id: id, ok: true, result: ["machine": "brave-otter", "remote_workspace_id": "ws_7", "opened": 0, "empty": true])
+            default:
+                return self.v2Response(id: id, ok: false, error: ["code": "unexpected", "message": "Unexpected method \(method)"])
+            }
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", layoutFile.path, "--open"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 60
+        )
+
+        wait(for: [serverHandled], timeout: 60)
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertNotEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.methods.filter { $0 == "vm.workspace_open" }.count, 5, "five attempts, one second apart: \(log.methods)")
+        XCTAssertTrue(result.stderr.contains("ws_7"), result.stderr)
+        XCTAssertTrue(result.stderr.contains("cmux vm workspace open brave-otter ws_7"), result.stderr)
+    }
+
+    func testVMLayoutApplyRejectsInvalidDocumentsBeforeTouchingTheMachine() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-invalid")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        // Never awaited: a correct CLI makes no connection for a bad document.
+        _ = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "")
+        }
+        let tempDir = try vmLayoutEnvTempDir("layout-invalid")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let cases: [(name: String, document: Any, expectedPath: String, expectedReason: String)] = [
+            (
+                "one-child",
+                ["direction": "horizontal", "children": [["pane": ["surfaces": [["type": "terminal"]]]]]],
+                "$.children",
+                "exactly 2 children"
+            ),
+            (
+                "nested-bad-type",
+                [
+                    "layout": [
+                        "direction": "vertical",
+                        "children": [
+                            ["pane": ["surfaces": [["type": "terminal"]]]],
+                            ["pane": ["surfaces": [["type": "tmux"]]]],
+                        ],
+                    ],
+                ],
+                "$.layout.children[1].pane.surfaces[0].type",
+                "'type' must be"
+            ),
+            (
+                "both-keys",
+                ["pane": ["surfaces": [["type": "terminal"]]], "direction": "horizontal", "children": []],
+                "$",
+                "both 'pane' and 'direction'"
+            ),
+            (
+                "no-layout",
+                ["name": "dev", "workspace": ["cwd": "~"]],
+                "$",
+                "no layout found"
+            ),
+            (
+                "empty-surfaces",
+                ["workspace": ["layout": ["pane": ["surfaces": []]]]],
+                "$.workspace.layout.pane.surfaces",
+                "non-empty array"
+            ),
+        ]
+
+        for testCase in cases {
+            let file = tempDir.appendingPathComponent("\(testCase.name).json")
+            try JSONSerialization.data(withJSONObject: testCase.document).write(to: file)
+            let result = runProcess(
+                executablePath: cliPath,
+                arguments: ["vm", "layout", "apply", "brave-otter", file.path],
+                environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+                timeout: 30
+            )
+            XCTAssertEqual(result.status, 2, "\(testCase.name): stdout=\(result.stdout) stderr=\(result.stderr)")
+            XCTAssertTrue(result.stderr.contains("invalid layout document"), "\(testCase.name): \(result.stderr)")
+            XCTAssertTrue(result.stderr.contains(" at \(testCase.expectedPath)"), "\(testCase.name) names the path: \(result.stderr)")
+            XCTAssertTrue(result.stderr.contains(testCase.expectedReason), "\(testCase.name) says why: \(result.stderr)")
+        }
+
+        let notJSON = tempDir.appendingPathComponent("not.json")
+        try Data("{".utf8).write(to: notJSON)
+        let broken = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", notJSON.path],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+        XCTAssertEqual(broken.status, 2, broken.stderr)
+        XCTAssertTrue(broken.stderr.contains("not valid JSON at $"), broken.stderr)
+
+        XCTAssertTrue(log.commands().isEmpty, "no exec for a rejected document: \(log.commands())")
+        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.exec") }, state.snapshot().description)
+    }
+
+    func testVMLayoutApplyExplainsAnOutdatedShim() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath("vm-layout-old-shim")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let tempDir = try vmLayoutEnvTempDir("layout-old-shim")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let layoutFile = tempDir.appendingPathComponent("one.json")
+        try JSONSerialization.data(withJSONObject: ["pane": ["surfaces": [["type": "terminal"]]]]).write(to: layoutFile)
+
+        // An old shim knows no `layout` word and falls through to cmux-tui, which
+        // rejects the resource scope.
+        let serverHandled = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
+            self.vmLayoutEnvExecResponse(id: id, stdout: "", stderr: "error: unknown resource scope \"layout\"\n", exitCode: 2)
+        }
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", layoutFile.path],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertNotEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("predates layout support"), result.stderr)
+        XCTAssertTrue(result.stderr.contains("cmux vm tree brave-otter --refresh"), result.stderr)
+    }
+}
