@@ -20,6 +20,11 @@ public enum ManagedDevicePolicyKey: String, CaseIterable, Sendable {
     /// listener, connection admission, and device pairing.
     case disableRemoteControl = "DisableRemoteControl"
 
+    /// Disables Cloud Machines surfaces and control-plane access. This is a
+    /// tier-0 administrator gate: the sidebar, restored sessions, registry,
+    /// and CLI/socket commands must all fail closed while it is enforced.
+    case disableCloud = "DisableCloud"
+
     /// Restricts embedded-browser top-level navigations to the administrator's
     /// URL patterns. An empty forced array denies every external web origin
     /// while preserving local `file:` documents opened through cmux's trusted
