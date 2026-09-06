@@ -3549,12 +3549,14 @@ class TabManager: ObservableObject {
     }
 
     func applyWindowBackdropModeForAllTabs(reason: String) {
-        let backgroundColor = GhosttyApp.shared.defaultBackgroundColor
-        let backgroundOpacity = GhosttyApp.shared.defaultBackgroundOpacity
+        var config = GhosttyConfig.loadForCmux(
+            globalFontMagnificationPercent: GlobalFontMagnification.storedPercent
+        )
+        config.backgroundColor = GhosttyApp.shared.defaultBackgroundColor
+        config.backgroundOpacity = GhosttyApp.shared.defaultBackgroundOpacity
         for tab in tabs {
             tab.applyGhosttyChrome(
-                backgroundColor: backgroundColor,
-                backgroundOpacity: backgroundOpacity,
+                from: config,
                 reason: reason
             )
         }

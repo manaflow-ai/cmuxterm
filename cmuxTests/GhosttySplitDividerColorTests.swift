@@ -1,3 +1,4 @@
+import AppKit
 import CmuxFoundation
 import CmuxTerminalCore
 import Testing
@@ -29,8 +30,21 @@ struct GhosttySplitDividerColorTests {
         """)
 
         let workspace = Workspace(title: "Tests")
+        defer { workspace.teardownAllPanels() }
         workspace.applyGhosttyChrome(from: config, reason: "test-split-divider-color")
 
         #expect(workspace.bonsplitController.configuration.appearance.chromeColors.borderHex == "#78A9FF")
+    }
+
+    @Test
+    func explicitPaneBorderColorOverridesGhosttySplitDividerColor() {
+        let colors = Workspace.bonsplitChromeColors(
+            backgroundColor: NSColor(hex: "#272822")!,
+            backgroundOpacity: 1,
+            paneBorderColorHex: "#123456",
+            splitDividerColor: .orange
+        )
+
+        #expect(colors.borderHex == "#123456")
     }
 }
