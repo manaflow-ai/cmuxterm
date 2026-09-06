@@ -174,7 +174,7 @@ struct RightSidebarPanelView: View {
 
     private var featureAvailableModes: [RightSidebarMode] {
         _ = managedPolicyRevision
-        RightSidebarMode.availableModes(
+        return RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
             machinesEnabled: CloudMachinesFeature.isEnabled
