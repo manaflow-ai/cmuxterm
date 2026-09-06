@@ -5,8 +5,10 @@ import Foundation
 actor CmxIrohDeferredByteTransport:
     CmxByteTransport,
     CmxByteTransportClosureObserving,
+    CmxByteTransportClosureObservationReadiness,
     CmxByteTransportContinuityIdentifying,
-    CmxByteTransportPathObserving
+    CmxByteTransportPathObserving,
+    CmxByteTransportLivenessObserving
 {
     private let request: CmxByteTransportRequest
     private let provider: any CmxIrohDeferredTransportProviding
@@ -17,6 +19,7 @@ actor CmxIrohDeferredByteTransport:
     private var pathObservationContinuations:
         [UUID: AsyncStream<CmxTransportPath>.Continuation] = [:]
     private var closed = false
+    private var closureObservationReadyWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         request: CmxByteTransportRequest,
@@ -63,6 +66,7 @@ actor CmxIrohDeferredByteTransport:
             transportGeneration = UUID()
             connectTask = nil
             await startPendingPathObservations(on: connected)
+            resumeClosureObservationReadyWaiters()
         } catch {
             connectTask = nil
             throw error
@@ -84,6 +88,7 @@ actor CmxIrohDeferredByteTransport:
     func close() async {
         guard !closed else { return }
         closed = true
+        resumeClosureObservationReadyWaiters()
         connectTask?.cancel()
         connectTask = nil
         let closing = transport
@@ -236,5 +241,34 @@ actor CmxIrohDeferredByteTransport:
             continuation.finish()
         }
         pathObservationContinuations.removeAll()
+    }
+
+    func waitUntilTransportClosureObservationIsReady() async -> Bool {
+        guard !closed else { return false }
+        if let transport {
+            if let readiness = transport as? any CmxByteTransportClosureObservationReadiness {
+                return await readiness.waitUntilTransportClosureObservationIsReady()
+            }
+            return transport is any CmxByteTransportClosureObserving
+        }
+        await withCheckedContinuation { continuation in
+            if transport != nil || closed { continuation.resume() }
+            else { closureObservationReadyWaiters.append(continuation) }
+        }
+        guard !closed, let transport else { return false }
+        return transport is any CmxByteTransportClosureObserving
+    }
+
+    private func resumeClosureObservationReadyWaiters() {
+        let waiters = closureObservationReadyWaiters
+        closureObservationReadyWaiters.removeAll(keepingCapacity: false)
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func isTransportClosed() async -> Bool {
+        if closed { return true }
+        guard let transport else { return false }
+        guard let observing = transport as? any CmxByteTransportLivenessObserving else { return false }
+        return await observing.isTransportClosed()
     }
 }

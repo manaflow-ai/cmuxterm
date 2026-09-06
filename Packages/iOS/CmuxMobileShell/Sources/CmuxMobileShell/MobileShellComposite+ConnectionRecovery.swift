@@ -654,7 +654,7 @@ extension MobileShellComposite {
         instanceTag: String? = nil,
         ifStillCurrent: (() -> Bool)? = nil
     ) async {
-        await connectManualHost(
+        _ = await connectManualHost(
             name: name,
             host: host,
             port: port,
@@ -860,7 +860,7 @@ extension MobileShellComposite {
             )
             for route in candidates {
                 guard ifStillCurrent?() ?? true else { return .superseded }
-                await connectManualHost(
+                _ = await connectManualHost(
                     name: name,
                     host: route.host,
                     port: route.port,
