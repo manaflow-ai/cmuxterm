@@ -94,6 +94,60 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         )
     }
 
+    func testClaudeNoFlickerAcceptedReplacementMarksWorkspaceRunning() throws {
+        let context = try makeClaudeHookContext(name: "claude-noflicker-replacement")
+        defer { context.cleanup() }
+
+        let now = Date().timeIntervalSince1970
+        let oldSessionId = "old-session"
+        let newSessionId = "new-session"
+        let store: [String: Any] = [
+            "version": 1,
+            "sessions": [
+                oldSessionId: [
+                    "sessionId": oldSessionId,
+                    "workspaceId": context.workspaceId,
+                    "surfaceId": context.surfaceId,
+                    "cwd": context.root.path,
+                    "agentLifecycle": "running",
+                    "startedAt": now,
+                    "updatedAt": now,
+                ],
+            ],
+            "activeSessionsByWorkspace": [
+                context.workspaceId: [
+                    "sessionId": oldSessionId,
+                    "updatedAt": now,
+                ],
+            ],
+            "activeSessionsBySurface": [
+                context.surfaceId: [
+                    "sessionId": oldSessionId,
+                    "updatedAt": now,
+                ],
+            ],
+        ]
+        try JSONSerialization.data(withJSONObject: store, options: [.prettyPrinted])
+            .write(
+                to: context.root.appendingPathComponent("claude-hook-sessions.json"),
+                options: .atomic
+            )
+
+        let result = runClaudeHook(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            standardInput: #"{"session_id":"new-session","source":"startup","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#,
+            extraEnvironment: ["CLAUDE_CODE_NO_FLICKER": "1"]
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertTrue(
+            context.state.commands.contains { $0.hasPrefix("set_status claude_code Running ") },
+            "An accepted no-flicker replacement must mark Claude running, saw \(context.state.commands)"
+        )
+    }
+
     func testClaudeSessionStartRecordIsNotRestorableUntilPrompt() throws {
         let context = try makeClaudeHookContext(name: "claude-session-restorable")
         defer { context.cleanup() }
