@@ -890,15 +890,17 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
     }
 
     @Test func clientArgvIsExact() {
-        #expect(CloudTuiCommandLine.linkArguments(route: "wss://m.vm.cmux.sh/v1/link?t=1", deviceName: "cmux-mac", stateDir: "/s", inviteFilePath: "/i") ==
-            ["remote", "connect", "wss://m.vm.cmux.sh/v1/link?t=1", "--device-name", "cmux-mac", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--invite-file", "/i"])
-        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", inviteFilePath: nil) ==
+        // A machine's trusted listener is dialed with --carrier: no invite file, no enrollment.
+        #expect(CloudTuiCommandLine.linkArguments(route: "wss://m.vm.cmux.sh/v1/link?t=1", deviceName: "cmux-mac", stateDir: "/s", carrier: true) ==
+            ["remote", "connect", "wss://m.vm.cmux.sh/v1/link?t=1", "--device-name", "cmux-mac", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--carrier"])
+        // A machine this Mac enrolled with before trusted listeners presents its stored key.
+        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s") ==
             ["remote", "connect", "r", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent"])
         // A private-network machine dials through the app's WireGuard hub. Both long-lived
         // helper processes must also stop if their app parent exits without cleanup.
-        #expect(CloudTuiCommandLine.linkArguments(route: "ws://[fd00::10]:1337/v1/link", deviceName: "d", stateDir: "/s", inviteFilePath: "/i", wireguardHubSocket: "/h.sock") ==
-            ["remote", "connect", "ws://[fd00::10]:1337/v1/link", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--invite-file", "/i", "--wireguard-hub", "/h.sock"])
-        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", inviteFilePath: nil, wireguardHubSocket: "") ==
+        #expect(CloudTuiCommandLine.linkArguments(route: "ws://[fd00::10]:1337/v1/link", deviceName: "d", stateDir: "/s", carrier: true, wireguardHubSocket: "/h.sock") ==
+            ["remote", "connect", "ws://[fd00::10]:1337/v1/link", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent", "--carrier", "--wireguard-hub", "/h.sock"])
+        #expect(CloudTuiCommandLine.linkArguments(route: "r", deviceName: "d", stateDir: "/s", wireguardHubSocket: "") ==
             ["remote", "connect", "r", "--device-name", "d", "--state-dir", "/s", "--headless", "--json", "--exit-with-parent"])
         #expect(CloudTuiCommandLine.wireGuardHubArguments(configPath: "/w/cmux-app.conf", socketPath: "/w/hub-1.sock") ==
             ["wg", "hub", "--config", "/w/cmux-app.conf", "--socket", "/w/hub-1.sock", "--exit-with-parent"])
@@ -1070,7 +1072,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             paths: CloudTuiClientPaths(home: root)
         )
         let task = Task {
-            try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", invitationURI: nil)
+            try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main")
         }
         for _ in 0..<200 where !FileManager.default.fileExists(atPath: pidFile.path) {
             try await Task.sleep(for: .milliseconds(10))
@@ -1089,6 +1091,39 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             Issue.record("a cancelled link connect returned \(error) instead of CancellationError")
         }
         #expect(Darwin.kill(pid, 0) == -1 && errno == ESRCH, "the link child must be reaped before connect returns")
+    }
+
+    @Test func linkClientExitingBeforeItsSocketLineReportsTheExitNotATimeout() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-cloud-connect-exit-\(UUID().uuidString.lowercased())", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let client = root.appendingPathComponent("fake-cmux-tui")
+        // An older bundled client that does not know a flag exits at once with a
+        // usage error and never prints a connection snapshot.
+        try """
+        #!/bin/sh
+        echo 'cmux-tui: unknown option "--carrier"' >&2
+        exit 2
+        """.write(to: client, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: client.path)
+        let link = CloudMachineLink(
+            machineID: "test-machine",
+            clientURL: client,
+            paths: CloudTuiClientPaths(home: root)
+        )
+        // The error kind is the whole check: before the fix this path threw
+        // `timedOut` the moment stdout closed, so a wall-clock bound adds nothing
+        // and only measures how fast the host spawns a fresh script.
+        do {
+            _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", carrier: true, timeout: .seconds(60))
+            Issue.record("a client that exits before its socket line must fail the connect")
+        } catch CloudMachineLink.LinkError.exited(let status, let output) {
+            #expect(status == 2)
+            #expect(output.contains("unknown option"), "the client's stderr must reach the error: \(output)")
+        } catch {
+            Issue.record("expected LinkError.exited, got \(error)")
+        }
     }
 
     @Test func disconnectStopsLinkAndEventChildrenBeforeReturning() async throws {
@@ -1115,7 +1150,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             clientURL: client,
             paths: CloudTuiClientPaths(home: root)
         )
-        _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main", invitationURI: nil)
+        _ = try await link.connect(route: "ws://10.0.0.1:1337/v1/link", session: "main")
         for _ in 0..<200 where !FileManager.default.fileExists(atPath: eventPIDFile.path) {
             try await Task.sleep(for: .milliseconds(10))
         }
