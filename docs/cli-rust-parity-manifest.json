@@ -51,8 +51,8 @@
     {
       "id": "terminal-and-notifications",
       "commands": ["send", "send-key", "read-screen", "read-selection", "capture-pane", "notify", "feed", "log"],
-      "status": "pending",
-      "evidence": ["CLI/cmux.swift", "docs/cli-contract.md"]
+      "status": "partial",
+      "evidence": ["CLI/cmux.swift", "cmux-tui/crates/cmux-cli/src/lib.rs", "docs/cli-contract.md"]
     },
     {
       "id": "browser",

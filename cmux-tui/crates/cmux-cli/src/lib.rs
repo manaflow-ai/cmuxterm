@@ -70,6 +70,7 @@ enum CommandLine {
     FocusWindow(Vec<String>),
     CloseWindow(Vec<String>),
     LegacyV1 { command: String, arguments: Vec<String> },
+    SocketV2 { command: String, arguments: Vec<String> },
     Cr(Vec<String>),
     CodeRouter(Vec<String>),
     AiAccounts(Vec<String>),
@@ -171,6 +172,9 @@ fn run_inner(args: Vec<String>, program: Program) -> Result<(), CliError> {
             let response = socket(&options)?.send_v1(&command)?;
             println!("{response}");
             Ok(())
+        }
+        CommandLine::SocketV2 { command, arguments } => {
+            run_socket_v2_command(&command, arguments, options)
         }
         CommandLine::Cr(arguments) => run_coderouter(arguments, options, program, true),
         CommandLine::CodeRouter(arguments) => {
@@ -293,6 +297,16 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
         (_, Some("new-window")) => CommandLine::NewWindow(args[index + 1..].to_vec()),
         (_, Some("focus-window")) => CommandLine::FocusWindow(args[index + 1..].to_vec()),
         (_, Some("close-window")) => CommandLine::CloseWindow(args[index + 1..].to_vec()),
+        (
+            _,
+            Some(
+                command @ ("list-workspaces" | "current-workspace" | "list-panes"
+                | "list-pane-surfaces" | "list-panels" | "focus-pane" | "focus-panel"
+                | "read-screen" | "send" | "send-key"),
+            ),
+        ) => {
+            CommandLine::SocketV2 { command: command.into(), arguments: args[index + 1..].to_vec() }
+        }
         (_, Some("__sidebar_footer_icon_balance")) => CommandLine::LegacyV1 {
             command: "__sidebar_footer_icon_balance".into(),
             arguments: args[index + 1..].to_vec(),
@@ -597,6 +611,148 @@ fn format_ids(value: Value, mode: &str) -> Value {
     }
 }
 
+fn run_socket_v2_command(
+    command: &str,
+    arguments: Vec<String>,
+    options: GlobalOptions,
+) -> Result<(), CliError> {
+    let mut params = context_params(&arguments, &options)?;
+    let method = match command {
+        "list-workspaces" => "workspace.list",
+        "current-workspace" => "workspace.current",
+        "list-panes" => "pane.list",
+        "list-pane-surfaces" => "pane.surfaces",
+        "list-panels" => "surface.list",
+        "focus-pane" => "pane.focus",
+        "focus-panel" => "surface.focus",
+        "read-screen" => "surface.read_text",
+        "send" => {
+            let text = trailing_text(&arguments, "send")?;
+            params.insert("text".into(), Value::String(unescape_send_text(&text)));
+            "surface.send_text"
+        }
+        "send-key" => {
+            let key = trailing_key(&arguments, "send-key")?;
+            params.insert("key".into(), Value::String(key));
+            "surface.send_key"
+        }
+        _ => unreachable!("parser only creates known socket commands"),
+    };
+    if command == "read-screen" {
+        let scrollback = arguments.iter().any(|argument| argument == "--scrollback");
+        if scrollback {
+            params.insert("scrollback".into(), Value::Bool(true));
+        }
+        if let Some(lines) = option_value(&arguments, "--lines") {
+            let lines = lines.parse::<u64>().map_err(|_| {
+                CliError::Usage("read-screen: --lines must be greater than 0".into())
+            })?;
+            if lines == 0 {
+                return Err(CliError::Usage("read-screen: --lines must be greater than 0".into()));
+            }
+            params.insert("lines".into(), Value::Number(lines.into()));
+            params.insert("scrollback".into(), Value::Bool(true));
+        }
+    }
+    let result = socket(&options)?.send_v2(method, Value::Object(params))?;
+    if command == "read-screen" && !options.json {
+        println!("{}", result.get("text").and_then(Value::as_str).unwrap_or_default());
+    } else {
+        print_result(&result, options.json);
+    }
+    Ok(())
+}
+
+fn context_params(
+    arguments: &[String],
+    options: &GlobalOptions,
+) -> Result<serde_json::Map<String, Value>, CliError> {
+    let mut params = serde_json::Map::new();
+    let workspace =
+        option_value(arguments, "--workspace").or_else(|| env::var("CMUX_WORKSPACE_ID").ok());
+    let surface = option_value(arguments, "--surface")
+        .or_else(|| option_value(arguments, "--panel"))
+        .or_else(|| env::var("CMUX_SURFACE_ID").ok());
+    let window = option_value(arguments, "--window").or_else(|| options.window.clone());
+    if let Some(window) = window {
+        params.insert("window_id".into(), Value::String(window));
+    }
+    if let Some(workspace) = workspace {
+        params.insert("workspace_id".into(), Value::String(workspace));
+    }
+    if let Some(surface) = surface {
+        params.insert("surface_id".into(), Value::String(surface));
+    }
+    for name in ["--workspace", "--surface", "--panel", "--window", "--scrollback", "--lines"] {
+        reject_option(arguments, name)?;
+    }
+    Ok(params)
+}
+
+fn reject_option(arguments: &[String], name: &str) -> Result<(), CliError> {
+    let mut index = 0;
+    while index < arguments.len() {
+        if arguments[index] == name {
+            if arguments.get(index + 1).is_none() {
+                return Err(CliError::Usage(format!("{name} requires a value")));
+            }
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    Ok(())
+}
+
+fn trailing_text(arguments: &[String], command: &str) -> Result<String, CliError> {
+    let mut index = 0;
+    let mut values = Vec::new();
+    while index < arguments.len() {
+        match arguments[index].as_str() {
+            "--workspace" | "--surface" | "--panel" | "--window" | "--lines" => index += 2,
+            value
+                if value.starts_with("--workspace=")
+                    || value.starts_with("--surface=")
+                    || value.starts_with("--panel=")
+                    || value.starts_with("--window=")
+                    || value.starts_with("--lines=")
+                    || value == "--scrollback" =>
+            {
+                index += 1;
+            }
+            "--" => {
+                values.extend(arguments[index + 1..].iter().cloned());
+                break;
+            }
+            value if value.starts_with('-') => {
+                return Err(CliError::Usage(format!("{command}: unknown option '{value}'")));
+            }
+            value => {
+                values.push(value.to_string());
+                index += 1;
+            }
+        }
+    }
+    if values.is_empty() {
+        return Err(CliError::Usage(format!("{command} requires text")));
+    }
+    Ok(values.join(" "))
+}
+
+fn trailing_key(arguments: &[String], command: &str) -> Result<String, CliError> {
+    let key = arguments
+        .iter()
+        .rev()
+        .find(|argument| !argument.starts_with('-'))
+        .cloned()
+        .ok_or_else(|| CliError::Usage(format!("{command} requires a key")))?;
+    Ok(key)
+}
+
+fn unescape_send_text(value: &str) -> String {
+    value.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\\\", "\\")
+}
+
 fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
     let method = args
         .first()
@@ -617,7 +773,7 @@ fn parse_rpc(args: &[String]) -> Result<CommandLine, CliError> {
 fn usage(program: Program) -> &'static str {
     match program {
         Program::Cmux => {
-            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
+            "cmux - control cmux via Unix socket\n\nUsage:\n  cmux [global-options] <command> [options]\n\nCommands:\n  cr <coderouter-args...>       Run CodeRouter\n  coderouter <args...>          Run CodeRouter\n  ai-accounts <list|upload|remove>\n  capabilities [--json|--offline] Describe available operations\n  context [--json]              Describe current agent context\n  ping                          Check the running cmux socket\n  identify [options]            Describe the caller and target\n  list-windows [--json]         List cmux windows\n  current-window [--json]       Print the current window\n  new-window                    Create a window\n  focus-window --window <id>    Focus a window\n  close-window --window <id>    Close a window\n  list-workspaces [--json]      List workspaces\n  current-workspace [--json]    Print the current workspace\n  list-panes [--json]           List panes\n  list-pane-surfaces [--json]   List surfaces in a pane\n  list-panels [--json]          List surfaces\n  read-screen [options]         Read terminal text\n  send [options] <text>         Send text to a terminal\n  send-key [options] <key>      Send a key to a terminal\n  rpc <method> [json]            Send a v2 socket request\n  version                        Print the CLI version\n\nGlobal options:\n  --socket <path>                Override the cmux Unix socket\n  --password <value>             Authenticate to a password-protected socket\n  --id-format <refs|uuids|both>  Select identifier rendering\n  --window <id>                  Select a target window\n  --json                         Print JSON results\n  -h, --help                     Print this help\n  -v, --version                  Print the version"
         }
         Program::CodeRouter => {
             "coderouter - CodeRouter CLI shipped with cmux\n\nUsage:\n  coderouter [command] [options]\n\nWhen launched beside cmux, the bundled CodeRouter executable receives a\nshort-lived broker configuration from the same cmux session. No second\nauthentication flow is used."
@@ -1190,6 +1346,18 @@ mod tests {
         let (_, list) =
             parse_args(&["list-windows".into(), "--json".into()], Program::Cmux).unwrap();
         assert_eq!(list, CommandLine::ListWindows(vec!["--json".into()]));
+        let (_, send) = parse_args(
+            &["send".into(), "--surface".into(), "surface:1".into(), "hello".into()],
+            Program::Cmux,
+        )
+        .unwrap();
+        assert_eq!(
+            send,
+            CommandLine::SocketV2 {
+                command: "send".into(),
+                arguments: vec!["--surface".into(), "surface:1".into(), "hello".into()]
+            }
+        );
     }
 
     #[test]
@@ -1295,6 +1463,23 @@ mod tests {
             })
         );
         assert_eq!(format_ids(value, "both")["id"], "uuid");
+    }
+
+    #[test]
+    fn builds_surface_text_request_without_losing_context() {
+        let options = GlobalOptions { json: true, ..GlobalOptions::default() };
+        let params = context_params(
+            &["--surface".into(), "surface:1".into(), "--workspace".into(), "workspace:1".into()],
+            &options,
+        )
+        .unwrap();
+        assert_eq!(params["surface_id"], "surface:1");
+        assert_eq!(params["workspace_id"], "workspace:1");
+        assert_eq!(
+            trailing_text(&["hello".into(), "world".into()], "send").unwrap(),
+            "hello world"
+        );
+        assert_eq!(unescape_send_text(r"hello\nworld"), "hello\nworld");
     }
 
     #[test]

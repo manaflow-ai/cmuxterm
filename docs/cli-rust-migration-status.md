@@ -54,7 +54,7 @@ All 12 families remain incomplete:
 | coderouter-team | pending | status, machines, Claude team operations |
 | app-and-settings | pending | docs, settings, config, themes, auth, open, feedback |
 | topology | partial | window inspection and basic window actions are ported; workspace, pane, surface, tree, and tab actions remain |
-| terminal-and-notifications | pending | terminal I/O, feed, notifications, logs |
+| terminal-and-notifications | partial | send, send-key, and read-screen are ported; selection, capture, feed, notifications, and logs remain |
 | browser | pending | browser commands, snapshots, actions, storage, profiles |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
 | cloud-and-remotes | pending | VM, cloud, remote, SSH, and remote terminal paths |
@@ -62,7 +62,8 @@ All 12 families remain incomplete:
 
 The Rust candidate currently provides the migration slice for capabilities,
 context, RPC, ping, identify, window inspection and basic window actions,
-limited AI accounts, `cr add codex`, and CodeRouter delegation.
+workspace and pane inspection, terminal text reads and sends, limited AI
+accounts, `cr add codex`, and CodeRouter delegation.
 The Rust candidate binaries are about 1.375 MiB each as universal Mach-O
 artifacts. Keeping Swift in production while the gate is red adds about
 2.62 MiB. Removing Swift before the gate passes would risk breaking commands,
@@ -83,11 +84,12 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (14 tests).
+- `cargo test -p cmux-cli` (16 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
 - Password source precedence tests, including the final Keychain fallback.
+- V2 request construction tests for workspace, pane, and terminal context.
 - Universal arm64 and x86_64 Rust builds.
 - CodeRouter broker, marker discovery, installer, and release-strip smoke
   tests.
