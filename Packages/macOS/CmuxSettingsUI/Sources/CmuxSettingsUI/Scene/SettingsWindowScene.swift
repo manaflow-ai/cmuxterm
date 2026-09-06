@@ -85,6 +85,15 @@ public struct SettingsWindowRoot: View {
     /// the per-entry selection survives.
     private var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var visibleSectionIDs: Set<SettingsSectionID> {
+        Set(
+            searchIndex.entries.compactMap { entry in
+                guard case .section = entry.kind, isEntryVisible(entry) else { return nil }
+                return parentSection(for: entry)
+            }
+        )
+    }
+
     // Legacy uses a non-optional `Binding<String>` because a sidebar
     // selection always points at *some* entry (section row or setting
     // hit). Mirroring that here lets List's selection semantics behave
@@ -345,6 +354,7 @@ public struct SettingsWindowRoot: View {
                     .padding(.top, 20)
                     .padding(.bottom, 20)
                 }
+                .coordinateSpace(name: SettingsSectionScrollTracking.coordinateSpace)
                 .toggleStyle(.switch)
                 .onAppear {
                     // Legacy SettingsView.onAppear scrolls to the restored
@@ -367,6 +377,12 @@ public struct SettingsWindowRoot: View {
                 .onReceive(NotificationCenter.default.publisher(for: Self.navigationRequestName)) { notification in
                     applyScrollNavigation(notification, proxy: proxy)
                 }
+                .settingsSectionScrollTracking(
+                    selectedSectionRaw: $selectedSectionRaw,
+                    selectedSidebarEntryID: $selectedSidebarEntryID,
+                    isSearching: isSearching,
+                    visibleSections: visibleSectionIDs
+                )
             }
         }
     }
