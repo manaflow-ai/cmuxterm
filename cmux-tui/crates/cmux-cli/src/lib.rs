@@ -346,6 +346,8 @@ fn parse_args(args: &[String], program: Program) -> Result<(GlobalOptions, Comma
                 | "login"
                 | "logout"
                 | "browser"
+                | "workspace"
+                | "window"
                 | "new-workspace"
                 | "close-workspace"
                 | "select-workspace"
@@ -865,6 +867,12 @@ fn run_socket_v2_command(
     if command == "browser" {
         return run_browser_command(arguments, options, json_output);
     }
+    if command == "workspace" {
+        return run_workspace_namespace(arguments, options);
+    }
+    if command == "window" {
+        return run_window_namespace(arguments, options);
+    }
     let id_format = option_value(&arguments, "--id-format")
         .or_else(|| options.id_format.clone())
         .unwrap_or_else(|| "refs".into());
@@ -1303,6 +1311,83 @@ fn object_handle(value: &Value, kind: &str) -> String {
         .find_map(|key| value.get(key).and_then(Value::as_str))
         .unwrap_or_default()
         .to_string()
+}
+
+fn run_workspace_namespace(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let subcommand = arguments
+        .first()
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| CliError::Usage("workspace requires a subcommand".into()))?;
+    let mut rest = arguments[1..].to_vec();
+    let command = match subcommand.as_str() {
+        "create" | "new" | "new-workspace" => "new-workspace",
+        "list" | "ls" => "list-workspaces",
+        "current" | "show" => "current-workspace",
+        "close" | "delete" => "close-workspace",
+        "select" | "focus" => "select-workspace",
+        "rename" => "rename-workspace",
+        other => return Err(CliError::Usage(format!("Unknown workspace subcommand: {other}"))),
+    };
+    if matches!(command, "close-workspace" | "select-workspace")
+        && option_value(&rest, "--workspace").is_none()
+        && let Some(index) = rest.iter().position(|value| !value.starts_with('-'))
+    {
+        let target = rest.remove(index);
+        rest.splice(index..index, ["--workspace".into(), target]);
+    }
+    run_socket_v2_command(command, rest, options)
+}
+
+fn run_window_namespace(arguments: Vec<String>, options: GlobalOptions) -> Result<(), CliError> {
+    let subcommand = arguments
+        .first()
+        .map(|value| value.to_ascii_lowercase())
+        .ok_or_else(|| CliError::Usage("window requires a subcommand".into()))?;
+    let mut rest = arguments[1..].to_vec();
+    let command = match subcommand.as_str() {
+        "list" | "ls" => "list-windows",
+        "current" | "show" => "current-window",
+        "create" | "new" => "new-window",
+        "focus" | "select" => "focus-window",
+        "close" | "delete" => "close-window",
+        other => return Err(CliError::Usage(format!("Unknown window subcommand: {other}"))),
+    };
+    if matches!(command, "focus-window" | "close-window")
+        && option_value(&rest, "--window").is_none()
+        && let Some(index) = rest.iter().position(|value| !value.starts_with('-'))
+    {
+        let target = rest.remove(index);
+        rest.splice(index..index, ["--window".into(), target]);
+    }
+    match command {
+        "list-windows" => run_list_windows(rest, options),
+        "current-window" => run_current_window(rest, options),
+        "new-window" => {
+            reject_no_arguments("window create", &rest)?;
+            let response = socket(&options)?.send_v1("new_window")?;
+            println!("{response}");
+            Ok(())
+        }
+        "focus-window" => {
+            let window = option_value(&rest, "--window")
+                .or_else(|| options.window.clone())
+                .ok_or_else(|| CliError::Usage("window focus requires --window".into()))?;
+            let window = resolve_handle(&window, "window", &options, None, None)?;
+            let response = socket(&options)?.send_v1(&format!("focus_window {window}"))?;
+            println!("{response}");
+            Ok(())
+        }
+        "close-window" => {
+            let window = option_value(&rest, "--window")
+                .or_else(|| options.window.clone())
+                .ok_or_else(|| CliError::Usage("window close requires --window".into()))?;
+            let window = resolve_handle(&window, "window", &options, None, None)?;
+            let response = socket(&options)?.send_v1(&format!("close_window {window}"))?;
+            println!("{response}");
+            Ok(())
+        }
+        _ => unreachable!(),
+    }
 }
 
 fn print_workspace_list(result: &Value) {
@@ -2634,6 +2719,16 @@ mod tests {
             CommandLine::SocketV2 {
                 command: "read-selection".into(),
                 arguments: vec!["--surface".into(), "surface:1".into()]
+            }
+        );
+        let (_, workspace) =
+            parse_args(&["workspace".into(), "list".into(), "--json".into()], Program::Cmux)
+                .unwrap();
+        assert_eq!(
+            workspace,
+            CommandLine::SocketV2 {
+                command: "workspace".into(),
+                arguments: vec!["list".into(), "--json".into()]
             }
         );
     }

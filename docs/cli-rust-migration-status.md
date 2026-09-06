@@ -53,7 +53,7 @@ All 12 families remain incomplete:
 | coderouter-delegated | partial | complete delegation and broker lifecycle parity |
 | coderouter-team | pending | status, machines, Claude team operations |
 | app-and-settings | partial | auth status/login/logout is ported; docs, settings, config, themes, welcome, open, and feedback remain |
-| topology | partial | window inspection, basic window actions, workspace and pane/surface inspection output, and common ref/index resolution are ported; tree, tab, full handle normalization, and exact mutation output remain |
+| topology | partial | window/workspace namespaces, basic window actions, workspace and pane/surface inspection output, and common ref/index resolution are ported; tree, tab, full handle normalization, and exact mutation output remain |
 | terminal-and-notifications | partial | terminal reads, selection, sends, panel aliases, sidebar status/progress/log forwarding, and basic notification actions are ported; capture, feed, advanced targeting, and exact metadata output remain |
 | browser | partial | open, navigate, back, forward, reload, URL, webview focus, snapshot, eval, wait, click/fill/type/press, and profile lifecycle aliases are ported; storage, selector normalization, and exact automation output remain |
 | agents-and-hooks | pending | hooks, teams, extensions, restore and feed paths |
@@ -93,7 +93,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (22 tests).
+- `cargo test -p cmux-cli` (23 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -108,6 +108,7 @@ The following checks passed for the current slice:
 - Sidebar metadata v1 forwarding test with workspace context and shell quoting.
 - Workspace ref resolution test before a v2 request.
 - Topology mutation handle normalization for workspace, window, pane, and surface targets.
+- Workspace namespace parser coverage.
 - Workspace and surface creation command parsing and boolean flag tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.
 - Authentication command parsing tests.
