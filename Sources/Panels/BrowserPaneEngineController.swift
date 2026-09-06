@@ -45,10 +45,21 @@ final class BrowserPaneEngineController {
         case .webkit:
             adapter = WebKitBrowserPaneEngineAdapter(webView: webView)
         case .chromium:
-            // Prefer the in-process CEF engine: native GPU rendering with no
-            // frame streaming. The child-process streamed engine remains the
-            // fallback when the CEF framework is not embedded in this build.
-            if CEFRuntimeBootstrap.isRuntimeAvailable {
+            // OWL is opt-in while its native Mojo host is dogfooded. The
+            // legacy CEF adapter remains the safe default until OWL runs in a
+            // dedicated helper process (Chromium's base singleton cannot share
+            // an address space with CEF).
+            if ProcessInfo.processInfo.environment["CMUX_USE_OWL"] == "1" {
+                adapter = ChromiumBrowserPaneEngineAdapter(
+                    profileID: profileID,
+                    storageID: storageID,
+                    remoteDebuggingPort: remoteDebuggingPort,
+                    environment: chromiumRuntimeEnvironment,
+                    documentScripts: initialDocumentScripts,
+                    startPrerequisite: startPrerequisite,
+                    navigationPolicyHandler: chromiumNavigationPolicy
+                )
+            } else if CEFRuntimeBootstrap.isRuntimeAvailable {
                 let cefAdapter = CEFBrowserPaneEngineAdapter(
                     profileID: profileID,
                     storageID: storageID,
@@ -58,9 +69,7 @@ final class BrowserPaneEngineController {
                     navigationPolicy: chromiumNavigationPolicy
                 )
                 adapter = cefAdapter
-                cefAdapter.onStartupFailure = { [weak self] in
-                    self?.fallbackFromCEF()
-                }
+                cefAdapter.onStartupFailure = { [weak self] in self?.fallbackFromCEF() }
             } else {
                 adapter = ChromiumBrowserPaneEngineAdapter(
                     profileID: profileID,

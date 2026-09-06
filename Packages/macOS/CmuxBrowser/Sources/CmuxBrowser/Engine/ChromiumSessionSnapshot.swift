@@ -22,6 +22,8 @@ public struct ChromiumSessionSnapshot: Equatable, Sendable {
     public let isLoading: Bool
     /// Monotonically increasing main-frame navigation revision.
     public let navigationRevision: UInt64
+    /// Window-server compositor context used by the native OWL layer host.
+    public let nativeSurfaceContextID: UInt32?
 
     /// Creates an immutable session snapshot.
     ///
@@ -47,6 +49,7 @@ public struct ChromiumSessionSnapshot: Equatable, Sendable {
         forwardHistoryURLs: [URL]? = nil,
         isLoading: Bool = false,
         navigationRevision: UInt64 = 0
+        , nativeSurfaceContextID: UInt32? = nil
     ) {
         self.state = state
         self.currentURL = currentURL
@@ -58,5 +61,6 @@ public struct ChromiumSessionSnapshot: Equatable, Sendable {
         self.forwardHistoryURLs = forwardHistoryURLs
         self.isLoading = isLoading
         self.navigationRevision = navigationRevision
+        self.nativeSurfaceContextID = nativeSurfaceContextID
     }
 }

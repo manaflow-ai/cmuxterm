@@ -178,7 +178,28 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         guard fileManager.isExecutableFile(atPath: installedExecutable.path) else {
             throw ChromiumRuntimeArtifactError.executableNotFound
         }
+        if installedExecutable.lastPathComponent == "Content Shell" {
+            try await signNativeOwlRuntime(in: installDirectory)
+        }
         return installedExecutable
+    }
+
+    /// Ad-hoc signs the downloaded OWL dylib so macOS library validation can
+    /// load it from the cmux-managed runtime directory. The archive checksum
+    /// is verified before this local signing step.
+    private func signNativeOwlRuntime(in directory: URL) async throws {
+        let dylib = directory.appendingPathComponent("libowl_fresh_mojo_runtime.dylib")
+        guard fileManager.fileExists(atPath: dylib.path) else {
+            throw ChromiumRuntimeArtifactError.executableNotFound
+        }
+        let codesign = Process()
+        codesign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        codesign.arguments = ["--force", "--sign", "-", dylib.path]
+        codesign.standardOutput = FileHandle.nullDevice
+        codesign.standardError = FileHandle.nullDevice
+        guard try await runProcess(codesign) == 0 else {
+            throw ChromiumRuntimeArtifactError.extractionFailed("OWL runtime signing failed")
+        }
     }
 
     /// Finds only the runtime revision and architecture described by the
@@ -198,18 +219,21 @@ struct ChromiumRuntimeArtifactStore: Sendable {
     /// only bounded diagnostics. Raw diagnostics are retained for private
     /// logging and never become part of the user-facing error.
     private func extractArchive(_ archiveURL: URL, into staging: URL) async throws {
-        let unzip = Process()
-        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        unzip.arguments = ["-q", archiveURL.path, "-d", staging.path]
+        let extractor = Process()
+        let isTarGZ = archiveURL.path.lowercased().hasSuffix(".tar.gz")
+        extractor.executableURL = URL(fileURLWithPath: isTarGZ ? "/usr/bin/tar" : "/usr/bin/unzip")
+        extractor.arguments = isTarGZ
+            ? ["-xzf", archiveURL.path, "-C", staging.path]
+            : ["-q", archiveURL.path, "-d", staging.path]
         let errorPipe = Pipe()
-        unzip.standardError = errorPipe
-        unzip.standardOutput = FileHandle.nullDevice
+        extractor.standardError = errorPipe
+        extractor.standardOutput = FileHandle.nullDevice
 
         let status: Int32
         do {
-            status = try await runProcess(unzip)
+            status = try await runProcess(extractor)
         } catch {
-            throw ChromiumRuntimeArtifactError.extractionFailed("unzip could not start")
+            throw ChromiumRuntimeArtifactError.extractionFailed("archive extractor could not start")
         }
         let diagnostics = String(
             data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
@@ -220,7 +244,7 @@ struct ChromiumRuntimeArtifactStore: Sendable {
                 Logger(subsystem: "com.cmux.browser", category: "runtime")
                     .error("Chromium archive extraction failed: \(diagnostics, privacy: .private(mask: .hash))")
             }
-            throw ChromiumRuntimeArtifactError.extractionFailed("unzip failed")
+            throw ChromiumRuntimeArtifactError.extractionFailed("archive extraction failed")
         }
     }
 
@@ -242,8 +266,9 @@ struct ChromiumRuntimeArtifactStore: Sendable {
         defer { try? listingHandle.close() }
 
         let listing = Process()
-        listing.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        listing.arguments = ["-Z1", archiveURL.path]
+        let isTarGZ = archiveURL.path.lowercased().hasSuffix(".tar.gz")
+        listing.executableURL = URL(fileURLWithPath: isTarGZ ? "/usr/bin/tar" : "/usr/bin/unzip")
+        listing.arguments = isTarGZ ? ["-tzf", archiveURL.path] : ["-Z1", archiveURL.path]
         listing.standardOutput = listingHandle
         listing.standardError = FileHandle.nullDevice
         let status: Int32
@@ -343,6 +368,7 @@ struct ChromiumRuntimeArtifactStore: Sendable {
     private static let executableNames: Set<String> = [
         "Google Chrome for Testing",
         "chrome",
+        "Content Shell",
     ]
 
     private static func findExecutable(in root: URL, fileManager: FileManager) throws -> URL {
@@ -357,7 +383,7 @@ struct ChromiumRuntimeArtifactStore: Sendable {
             // The app bundle contains identically-prefixed helper binaries;
             // only the browser binary lives directly under `Contents/MacOS`
             // of the outer bundle or stands alone at the tree root.
-            if candidate.lastPathComponent == "Google Chrome for Testing" {
+            if candidate.lastPathComponent == "Google Chrome for Testing" || candidate.lastPathComponent == "Content Shell" {
                 let parents = candidate.pathComponents.dropLast()
                 guard parents.suffix(2).elementsEqual(["Contents", "MacOS"]) else { continue }
             }

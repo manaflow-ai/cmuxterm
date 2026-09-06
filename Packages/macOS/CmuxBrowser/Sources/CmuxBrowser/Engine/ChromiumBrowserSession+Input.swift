@@ -5,6 +5,7 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport or command error.
     public func stopLoading() async throws {
+        if owlRuntime != nil { return }
         _ = try await send(method: "Page.stopLoading")
     }
 
@@ -22,6 +23,10 @@ extension ChromiumBrowserSession {
         height: Int,
         deviceScaleFactor: Double = 1
     ) async throws {
+        if let owlRuntime {
+            try owlRuntime.resize(width: width, height: height, scale: deviceScaleFactor)
+            return
+        }
         _ = try await send(
             method: "Emulation.setDeviceMetricsOverride",
             parameters: .object([
@@ -41,6 +46,13 @@ extension ChromiumBrowserSession {
     /// - Returns: JSON-compatible result, or `.null` for no value.
     /// - Throws: A CDP transport, command, or JavaScript evaluation error.
     public func evaluateJavaScript(_ script: String, awaitPromise: Bool = true) async throws -> CDPValue {
+        if let owlRuntime {
+            let raw = try owlRuntime.evaluate(script)
+            if let data = raw.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) {
+                return CDPValue(any: object)
+            }
+            return .string(raw)
+        }
         let parameters: CDPValue = .object([
             "expression": .string(script),
             "returnByValue": .bool(true),
@@ -95,6 +107,12 @@ extension ChromiumBrowserSession {
         deltaX: Double = 0,
         deltaY: Double = 0
     ) async throws {
+        if let owlRuntime {
+            let kind: UInt32 = type == "mouseWheel" ? 2 : (type == "mouseMoved" ? 0 : (type == "mousePressed" ? 1 : 2))
+            let buttonValue: UInt32 = button == "right" ? 2 : (button == "middle" ? 1 : 0)
+            try owlRuntime.mouse(kind: kind, x: x, y: y, button: buttonValue, clickCount: UInt32(max(1, clickCount)), deltaX: deltaX, deltaY: deltaY, modifiers: 0)
+            return
+        }
         var values: [String: CDPValue] = [
             "type": .string(type),
             "x": .number(x),
@@ -142,6 +160,10 @@ extension ChromiumBrowserSession {
         modifiers: Int = 0,
         windowsVirtualKeyCode: Int = 0
     ) async throws {
+        if let owlRuntime {
+            try owlRuntime.key(down: type != "keyUp", keyCode: UInt32(max(0, windowsVirtualKeyCode)), text: text, modifiers: UInt32(max(0, modifiers)))
+            return
+        }
         var parameters: [String: CDPValue] = [
             "type": .string(type),
             "key": .string(key),

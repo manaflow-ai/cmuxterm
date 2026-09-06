@@ -8,35 +8,24 @@
 /// runtime reproducible and prevents a page or a settings file from selecting
 /// an arbitrary executable.
 struct ChromiumRuntimeManifest: Sendable {
-    private static let productionVersion = "152.0.7977.42"
+    private static let productionVersion = "owl-chromium-7523a3a72320"
 
     let version: String
     let artifacts: [String: ChromiumRuntimeArtifact]
 
     /// The production manifest for the current macOS process architecture.
     ///
-    /// Chrome for Testing publishes separate arm64 and x86_64 archives. The
-    /// URLs are pinned to one revision; callers must not substitute a URL from
-    /// page content or an untrusted configuration file.
-    ///
-    /// The full Chrome for Testing browser (not `chrome-headless-shell`) is
-    /// pinned deliberately: the headless shell has no extensions subsystem,
-    /// while the full browser under `--headless=new` loads unpacked
-    /// extensions and matches the engine users run day to day.
+    /// The reviewed OWL release publishes a native macOS arm64 Content Shell
+    /// plus its Mojo runtime dylib. The URL and source commit are pinned; page
+    /// content and settings cannot select an arbitrary executable.
     static let production = ChromiumRuntimeManifest(
         version: productionVersion,
         artifacts: [
             "arm64": ChromiumRuntimeArtifact(
                 version: productionVersion,
                 platform: "mac-arm64",
-                downloadURL: URL(string: "https://storage.googleapis.com/chrome-for-testing-public/\(productionVersion)/mac-arm64/chrome-mac-arm64.zip")!,
-                sha256: "c9a7b6bfb57731944990ffb7cafc17ae2f2a2e25ad1f145f45584d7b799d3ce8"
-            ),
-            "x86_64": ChromiumRuntimeArtifact(
-                version: productionVersion,
-                platform: "mac-x64",
-                downloadURL: URL(string: "https://storage.googleapis.com/chrome-for-testing-public/\(productionVersion)/mac-x64/chrome-mac-x64.zip")!,
-                sha256: "3bd9d6b077d67466ffff1b65e4292a255b953587dc6f4b72dfbd88df2cfd99e7"
+                downloadURL: URL(string: "https://github.com/manaflow-ai/chromium/releases/download/owl-chromium-7523a3a72320/owl-chromium-runtime-macos-arm64-7523a3a72320.tar.gz")!,
+                sha256: "08f48d9c5a220b94a803d935a174ddc93303cd495de16b6474bd907faf62dee0"
             ),
         ]
     )

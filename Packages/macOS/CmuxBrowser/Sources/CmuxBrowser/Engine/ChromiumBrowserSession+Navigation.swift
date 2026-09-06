@@ -6,6 +6,13 @@ extension ChromiumBrowserSession {
     /// - Parameter url: Destination URL.
     /// - Throws: A CDP transport error or Chromium navigation rejection.
     public func navigate(to url: URL) async throws {
+        if let owlRuntime {
+            beginNavigation()
+            try owlRuntime.navigate(url)
+            currentURL = url
+            publish()
+            return
+        }
         beginNavigation()
         let result: CDPValue
         do {

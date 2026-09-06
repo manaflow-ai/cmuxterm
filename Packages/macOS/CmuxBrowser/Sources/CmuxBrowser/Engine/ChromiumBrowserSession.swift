@@ -29,6 +29,10 @@ public actor ChromiumBrowserSession {
     /// Renderer-side observer used to mirror SPA title mutations.
     let documentTitleObservation = ChromiumDocumentTitleObservation()
     var process: Process?
+    /// Native OWL Mojo transport used by the Content Shell runtime.
+    var owlRuntime: OwlFreshRuntime?
+    var owlPollTask: Task<Void, Never>?
+    var nativeSurfaceContextID: UInt32?
     var connection: ChromiumCDPConnection?
     var state: ChromiumSessionState = .stopped
     var currentURL: URL?
@@ -123,6 +127,8 @@ public actor ChromiumBrowserSession {
     deinit {
         startupTask?.cancel()
         screencastUpdateTask?.cancel()
+        owlPollTask?.cancel()
+        owlRuntime = nil
         for child in pendingProcesses.values {
             child.terminate()
         }
@@ -163,6 +169,9 @@ public actor ChromiumBrowserSession {
         }
     }
 
+    /// Whether this session is backed by the native OWL surface transport.
+    public func usesNativeOWL() -> Bool { owlRuntime != nil || (state == .running(nil) && process == nil && connection == nil) }
+
     private func performStart(generation: UInt64) async throws {
         guard isCurrentStartup(generation), process == nil else {
             throw CancellationError()
@@ -180,6 +189,14 @@ public actor ChromiumBrowserSession {
                 for: profileID,
                 storageID: storageID
             )
+            if executable.lastPathComponent == "Content Shell" {
+                try await performOwlStart(
+                    executable: executable,
+                    profileDirectory: profileDirectory,
+                    generation: generation
+                )
+                return
+            }
             let debuggingTransport: ChromiumDebuggingTransport
             if requestedRemoteDebuggingPort.isExternallyAttachable {
                 let port: Int
@@ -323,6 +340,57 @@ public actor ChromiumBrowserSession {
         }
     }
 
+    /// Starts the forked Content Shell through its native Mojo C ABI.
+    ///
+    /// OWL owns the renderer and GPU process; cmux receives only compositor
+    /// context IDs and forwards input through the same isolated session.
+    private func performOwlStart(
+        executable: URL,
+        profileDirectory: URL,
+        generation: UInt64
+    ) async throws {
+        let initialURL = currentURL ?? URL(string: "about:blank")!
+        let runtime = try OwlFreshRuntime(
+            shell: executable,
+            initialURL: initialURL,
+            profile: profileDirectory
+        ) { [weak self] event in
+            Task { await self?.handleOwlEvent(event, generation: generation) }
+        }
+        guard isCurrentStartup(generation) else {
+            throw CancellationError()
+        }
+        owlRuntime = runtime
+        nativeSurfaceContextID = nil
+        state = .running(nil)
+        isLoading = true
+        publish()
+        owlPollTask = Task.detached(priority: .userInitiated) { [runtime] in
+            while !Task.isCancelled {
+                runtime.poll()
+            }
+        }
+    }
+
+    private func handleOwlEvent(_ event: OwlFreshRuntime.Event, generation: UInt64) {
+        guard lifecycleGeneration == generation, owlRuntime != nil else { return }
+        switch event.kind {
+        case 3, 6:
+            if event.contextID != 0 { nativeSurfaceContextID = event.contextID }
+        case 4:
+            if let rawURL = event.url, let url = URL(string: rawURL) { currentURL = url }
+            title = event.title
+            isLoading = event.loading
+            navigationRevision &+= 1
+        case 5:
+            state = .crashed(-1)
+            isLoading = false
+        default:
+            break
+        }
+        publish()
+    }
+
     /// Stops CDP and requests asynchronous termination of the managed child.
     public func stop() {
         isStopping = true
@@ -330,6 +398,10 @@ public actor ChromiumBrowserSession {
         startupGeneration = nil
         startupTask?.cancel()
         startupTask = nil
+        owlPollTask?.cancel()
+        owlPollTask = nil
+        owlRuntime = nil
+        nativeSurfaceContextID = nil
         let connectionToClose = connection
         connectionToClose?.close()
         connection = nil

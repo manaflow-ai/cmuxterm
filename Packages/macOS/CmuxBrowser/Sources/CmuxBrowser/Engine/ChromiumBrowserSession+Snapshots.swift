@@ -65,7 +65,8 @@ extension ChromiumBrowserSession {
             backHistoryURLs: backHistoryURLs,
             forwardHistoryURLs: forwardHistoryURLs,
             isLoading: isLoading,
-            navigationRevision: navigationRevision
+            navigationRevision: navigationRevision,
+            nativeSurfaceContextID: nativeSurfaceContextID
         )
     }
 

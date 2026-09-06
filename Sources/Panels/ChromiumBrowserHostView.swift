@@ -1,6 +1,7 @@
 import AppKit
 import CmuxBrowser
 import Foundation
+import QuartzCore
 
 /// AppKit surface for an out-of-process Chromium page.
 ///
@@ -11,6 +12,7 @@ import Foundation
 @MainActor
 final class ChromiumBrowserHostView: NSView {
     private let imageView = NSImageView(frame: .zero)
+    private var nativeSurfaceLayer: CALayer?
     private weak var session: ChromiumBrowserSession?
     private let inputQueue: ChromiumInputEventQueue
     private let keyMapping = ChromiumKeyMapping()
@@ -114,6 +116,7 @@ final class ChromiumBrowserHostView: NSView {
                 await MainActor.run {
                     guard let self else { return }
                     self.onSnapshot?(snapshot)
+                    self.updateNativeSurface(contextID: snapshot.nativeSurfaceContextID)
                     if case .running = snapshot.state {
                         // The first layout can happen before the child/CDP
                         // connection is ready. Retry once at the transition
@@ -204,12 +207,33 @@ final class ChromiumBrowserHostView: NSView {
         isSessionRunning = false
         lastViewport = .zero
         imageView.image = nil
+        nativeSurfaceLayer?.removeFromSuperlayer()
+        nativeSurfaceLayer = nil
     }
 
     override func layout() {
         super.layout()
         imageView.frame = bounds
+        nativeSurfaceLayer?.frame = bounds
         updateViewportIfNeeded()
+    }
+
+    /// Mounts the compositor's window-server surface without copying pixels
+    /// through CDP. OWL publishes a CAContext ID for the active web surface.
+    private func updateNativeSurface(contextID: UInt32?) {
+        guard let contextID,
+              let hostClass = NSClassFromString("CALayerHost") as? CALayer.Type else {
+            nativeSurfaceLayer?.isHidden = true
+            return
+        }
+        let layer = nativeSurfaceLayer ?? hostClass.init()
+        layer.setValue(NSNumber(value: contextID), forKey: "contextId")
+        layer.frame = bounds
+        layer.isHidden = false
+        if nativeSurfaceLayer == nil {
+            self.layer?.addSublayer(layer)
+            nativeSurfaceLayer = layer
+        }
     }
 
     override func updateTrackingAreas() {
