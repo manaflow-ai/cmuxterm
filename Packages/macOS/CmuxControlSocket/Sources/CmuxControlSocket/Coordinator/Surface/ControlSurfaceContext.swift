@@ -230,6 +230,40 @@ public protocol ControlSurfaceContext: AnyObject {
         key: String
     ) -> ControlSurfaceSendResolution
 
+    /// Scrolls a terminal surface's viewport for `surface.scroll`. Resolves
+    /// the target exactly like ``controlSurfaceSendKey`` and reports through
+    /// the same resolution; `.sent` means every requested page was applied.
+    ///
+    /// - Parameters:
+    ///   - routing: The routing selectors.
+    ///   - surfaceID: The parsed `surface_id`, if any.
+    ///   - hasSurfaceIDParam: Whether a `surface_id` param was present.
+    ///   - direction: Where to scroll.
+    ///   - pages: How many pages for `.up` / `.down` (ignored for top/bottom).
+    /// - Returns: The send resolution.
+    func controlSurfaceScroll(
+        routing: ControlRoutingSelectors,
+        surfaceID: UUID?,
+        hasSurfaceIDParam: Bool,
+        direction: ControlSurfaceScrollDirection,
+        pages: Int
+    ) -> ControlSurfaceSendResolution
+
+    /// Focuses a surface like ``controlSurfaceFocus`` and then hands keyboard
+    /// focus to it (the terminal's first responder), for `surface.focus_input`.
+    /// With a nil `surfaceID` the focused surface of the resolved workspace is
+    /// used. The returned `focused` case's `keyboardFocused` mirror lives in
+    /// the coordinator payload as `input_focused`.
+    ///
+    /// - Parameters:
+    ///   - routing: The routing selectors.
+    ///   - surfaceID: The surface to focus, or nil for the focused one.
+    /// - Returns: The focus resolution plus whether the keyboard focus landed.
+    func controlSurfaceFocusInput(
+        routing: ControlRoutingSelectors,
+        surfaceID: UUID?
+    ) -> (resolution: ControlSurfaceFocusResolution, inputFocused: Bool)
+
     // `surface.read_text` has no witness here: it runs on the socket-worker lane
     // (issue #5757) so its full-scrollback formatting stays off the main actor,
     // which the @MainActor coordinator seam cannot host. The app dispatches it

@@ -148,6 +148,8 @@ Environment:
 | `read-screen` | Read terminal text from a surface. `--selection` is a text-only compatibility alias for `read-selection`. |
 | `send` | Send text to a terminal surface. |
 | `send-key` | Send one key to a terminal surface. |
+| `rpc surface.scroll` | Scroll a terminal viewport: `{"direction": "up\|down\|top\|bottom", "pages": n}` plus the usual surface selectors. Runs Ghostty's page-scroll bindings; not focus-intent. |
+| `rpc surface.focus_input` | Focus a surface (default: the focused one) and give it keyboard focus; returns `input_focused`. Focus-intent. |
 | `send-panel` | Send text to a panel/surface. |
 | `send-key-panel` | Send one key to a panel/surface. |
 | `notify` | Send a notification to a workspace/surface and return its notification id; `--clear` clears the resolved caller/target scope. Supports `--id-format refs\|uuids\|both` for human-readable handles. |
