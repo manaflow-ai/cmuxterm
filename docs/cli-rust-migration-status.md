@@ -90,7 +90,7 @@ The following checks passed for the current slice:
 
 - Rust format check.
 - Clippy with warnings denied.
-- `cargo test -p cmux-cli` (19 tests).
+- `cargo test -p cmux-cli` (20 tests).
 - V1 socket tests for `ping`, window inspection parsing, and window command
   dispatch.
 - Identifier rendering tests for `refs`, `uuids`, and `both` modes.
@@ -99,6 +99,7 @@ The following checks passed for the current slice:
 - Notification list parsing and notification command parsing tests.
 - Browser navigation alias parsing tests.
 - Browser namespace parsing coverage for the supported automation verbs.
+- Browser snapshot socket conformance test (method and surface context).
 - Terminal selection and panel send alias parsing.
 - Workspace and surface creation command parsing and boolean flag tests.
 - Socket refresh, reload, focus, and surface diagnostic command parsing tests.

@@ -2340,6 +2340,31 @@ mod tests {
     }
 
     #[test]
+    fn browser_snapshot_uses_v2_method_and_surface_context() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cmux.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let worker = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(line.trim()).unwrap();
+            assert_eq!(request["method"], "browser.snapshot");
+            assert_eq!(request["params"]["surface_id"], "surface:1");
+            assert_eq!(request["params"]["interactive"], true);
+            stream.write_all(b"{\"ok\":true,\"result\":{\"snapshot\":\"- button\"}}\n").unwrap();
+        });
+        let options = GlobalOptions { socket: Some(path), ..GlobalOptions::default() };
+        run_browser_command(
+            vec!["surface:1".into(), "snapshot".into(), "--interactive".into()],
+            options,
+            true,
+        )
+        .unwrap();
+        worker.join().unwrap();
+    }
+
+    #[test]
     fn parses_windows_v1_response_for_json_output() {
         let windows = parse_windows(
             "*0: win_1 selected_workspace=ws_1 workspaces=2\n1: win_2 selected_workspace=none workspaces=0",
