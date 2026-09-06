@@ -41,6 +41,8 @@ struct MachineSnapshot: Equatable, Identifiable {
     let createdAt: Date?
     /// User-chosen label; nil when the machine has no label.
     let label: String?
+    /// Server-generated three-word name; nil for machines older than naming.
+    var slug: String? = nil
     /// Free-plan access window position; `.unrestricted` on paid plans.
     var freeAccess: FreeAccessState = .unrestricted
     /// Latest activity reading; nil until the first sample lands.
@@ -53,7 +55,16 @@ struct MachineSnapshot: Equatable, Identifiable {
     /// anywhere), v6 is the fallback.
     var privateAddress: String?
 
-    var displayName: String { label?.isEmpty == false ? label! : id }
+    /// The label when set, else the generated name, else the machine id.
+    var displayName: String {
+        if let label, !label.isEmpty { return label }
+        if let slug, !slug.isEmpty { return slug }
+        return id
+    }
+
+    /// True when the row shows something other than the id, so the id still
+    /// needs a home on the second line (CLI verbs and URLs use it).
+    var showsName: Bool { displayName != id }
 
     var kindLabel: String {
         isDesktop
@@ -182,6 +193,7 @@ enum MachineSnapshotBuilder {
             activity: activity(fromStatus: summary.status),
             createdAt: createdAt,
             label: summary.displayName,
+            slug: summary.slug,
             freeAccess: freeAccess,
             stats: nil,
             privateAddress: summary.preferredPrivateAddress
@@ -437,24 +449,26 @@ final class MachinesPanelViewModel: ObservableObject {
     /// Last plan limits the list returned; the banner countdown re-derives from
     /// these on every local recompute without another round trip.
     private var lastLimits: VMPlanLimits?
-    /// Which image each kind provisions, from the last list; empty until then.
+    /// Legacy image-kind data for older callers; the current sheet is base-only.
     var imageKinds: [VMImageKindOption] { lastLimits?.imageKinds ?? [] }
+    var memoryOptionsMb: [Int] { lastLimits?.memoryOptionsMb ?? [] }
     private var authSignOutObserver: NSObjectProtocol?
     private var treeChangeObserver: NSObjectProtocol?
     private var createChangeObserver: NSObjectProtocol?
-    private var renameFailureObserver: NSObjectProtocol?
     private var treeTask: Task<Void, Never>?
     private static let statsInterval: Duration = .seconds(20)
 
-    init(createCoordinator: MachineCreateCoordinator = .shared) {
+    init(createCoordinator: MachineCreateCoordinator? = nil) {
+        let createCoordinator = createCoordinator ?? .shared
         self.createCoordinator = createCoordinator
         pendingCreates = createCoordinator.operations
+        let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
             object: createCoordinator,
             queue: .main
         ) { [weak self] notification in
-            let finished = notification.userInfo?[MachineCreateCoordinator.finishedUserInfoKey] as? MachineCreateCoordinator.Finished
+            let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
             MainActor.assumeIsolated { self?.createsDidChange(finished: finished) }
         }
         authSignOutObserver = NotificationCenter.default.addObserver(
@@ -476,17 +490,6 @@ final class MachinesPanelViewModel: ObservableObject {
         ) { [weak self] _ in
             // Delivered on the main queue (`queue: .main`), which is the main actor.
             MainActor.assumeIsolated { self?.scheduleCatalogRead() }
-        }
-        renameFailureObserver = NotificationCenter.default.addObserver(
-            forName: CloudWorkspaceRenameWriteThrough.didFailNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let message = notification.userInfo?["message"] as? String
-            MainActor.assumeIsolated {
-                guard let self, let message, !message.isEmpty else { return }
-                self.treeErrorDescription = message
-            }
         }
     }
 
@@ -531,9 +534,6 @@ final class MachinesPanelViewModel: ObservableObject {
         if let createChangeObserver {
             NotificationCenter.default.removeObserver(createChangeObserver)
         }
-        if let renameFailureObserver {
-            NotificationCenter.default.removeObserver(renameFailureObserver)
-        }
     }
 
     /// Mirrors the coordinator's rows. A completion also re-reads the fleet so
@@ -558,7 +558,6 @@ final class MachinesPanelViewModel: ObservableObject {
     /// Publishes the catalog's current value and the local workspace list. Cheap
     /// (a value read), so every change notification may call it.
     func readCatalog() {
-        CloudWorkspaceRenameWriteThrough.reconcileRemoteProjections(catalog: SurfaceCatalog.shared)
         catalog = SurfaceCatalog.shared.snapshot
         localWorkspaces = localWorkspacesProvider()
     }

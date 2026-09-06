@@ -58,12 +58,13 @@ extension TabManager {
                 title: title
             )
         }
+        // A local workspace standing for a cloud machine's cmux-tui workspace writes a
+        // USER rename through to that daemon (persisted there, broadcast to every
+        // client). Auto titles never propagate. Workspace names stay non-empty,
+        // so clearing remains a local title operation only.
         if applied, propagateToCloud, source == .user {
-            CloudWorkspaceRenameWriteThrough.propagate(
-                workspace: tabs[index],
-                localTitle: title,
-                previousCustomTitle: previousCustomTitle,
-                editSequence: tabs[index].cloudRenameEditSequence
+            SurfaceCatalog.shared.propagateCloudWorkspaceRename(
+                workspace: tabs[index], localTitle: title, previousCustomTitle: previousCustomTitle
             )
         }
         return applied

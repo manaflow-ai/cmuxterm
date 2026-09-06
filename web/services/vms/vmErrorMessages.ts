@@ -92,6 +92,7 @@ export async function vmRequiresProCopy(
   };
 }
 
+/** Copy returned when an account's shared Cloud VM resource pool is full. */
 function localeFromPath(value: string): Locale | null {
   try {
     const firstSegment = new URL(value).pathname.split("/").filter(Boolean)[0];

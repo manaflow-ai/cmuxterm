@@ -1716,6 +1716,10 @@ struct SessionPanelSnapshot: Codable, Sendable {
     var customTitle: String?
     /// Provenance of `customTitle`; absent provenance restores as user-set for compatibility.
     var customTitleSource: Workspace.CustomTitleSource? = nil
+    /// Compatibility marker for builds that do not know the `.remote` enum
+    /// case. Older builds ignore this field and read the encoded source as
+    /// `.user`; newer builds restore the remote provenance from the marker.
+    var customTitleWasRemote: Bool? = nil
     var directory: String?
     var directoryIsTrustedRemoteReport: Bool? = nil
     var directoryRequiresRemoteTrust: Bool? = nil
@@ -1836,34 +1840,9 @@ struct SessionCanvasPaneSnapshot: Codable, Equatable, Sendable {
 struct SessionCloudVMBindingSnapshot: Codable, Sendable, Equatable {
     var vmID: String
     var isBase: Bool
-    /// Stable cmux-tui workspace id, absent in older session manifests.
-    var remoteWorkspaceID: String?
-
-    init(vmID: String, isBase: Bool, remoteWorkspaceID: String? = nil) {
-        self.vmID = vmID
-        self.isBase = isBase
-        self.remoteWorkspaceID = remoteWorkspaceID
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case vmID
-        case isBase
-        case remoteWorkspaceID
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        vmID = try container.decode(String.self, forKey: .vmID)
-        isBase = try container.decode(Bool.self, forKey: .isBase)
-        remoteWorkspaceID = try container.decodeIfPresent(String.self, forKey: .remoteWorkspaceID)
-    }
-
-    func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(vmID, forKey: .vmID)
-        try container.encode(isBase, forKey: .isBase)
-        try container.encodeIfPresent(remoteWorkspaceID, forKey: .remoteWorkspaceID)
-    }
+    /// The machine's cmux-tui workspace this local workspace stands for; absent in
+    /// legacy snapshots and for machine-only bindings (`vm shell`).
+    var remoteWorkspaceID: String? = nil
 }
 
 struct SessionWorkspaceSnapshot: Codable, Sendable {
@@ -1877,6 +1856,10 @@ struct SessionWorkspaceSnapshot: Codable, Sendable {
     var customTitle: String?
     /// Provenance of `customTitle`; absent provenance restores as user-set for compatibility.
     var customTitleSource: Workspace.CustomTitleSource? = nil
+    /// Compatibility marker for builds that do not know the `.remote` enum
+    /// case. Older builds ignore this field and read the encoded source as
+    /// `.user`; newer builds restore the remote provenance from the marker.
+    var customTitleWasRemote: Bool? = nil
     var customDescription: String?
     var customColor: String?
     var customizationDirectory: String? = nil
@@ -1923,6 +1906,24 @@ struct SessionWorkspaceSnapshot: Codable, Sendable {
     var dock: SessionSplitContainerSnapshot? = nil // Missing legacy fields continue to seed from dock.json.
 }
 extension SessionWorkspaceSnapshot: WorkspaceSessionRemoteRestoreSnapshot {}
+
+extension SessionPanelSnapshot {
+    /// The source after applying the forward-compatible remote marker.
+    var effectiveCustomTitleSource: Workspace.CustomTitleSource? {
+        guard customTitle != nil else { return nil }
+        if customTitleWasRemote == true { return .remote }
+        return customTitleSource ?? .user
+    }
+}
+
+extension SessionWorkspaceSnapshot {
+    /// The source after applying the forward-compatible remote marker.
+    var effectiveCustomTitleSource: Workspace.CustomTitleSource? {
+        guard customTitle != nil else { return nil }
+        if customTitleWasRemote == true { return .remote }
+        return customTitleSource ?? .user
+    }
+}
 
 struct SessionWorkspaceGroupSnapshot: Codable, Sendable, Equatable {
     var id: UUID
