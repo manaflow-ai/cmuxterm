@@ -59,6 +59,22 @@ struct ManagedDevicePolicyTests {
         #expect(policy.isKeyForcedInAppDomain(ManagedDevicePolicyKey.disableRemoteControl.rawValue))
     }
 
+    @Test func forcedCloudDisableIsEnforcedAndLocksTheKey() throws {
+        let (defaults, cleanup) = try makeSuite("cloud")
+        defer { cleanup() }
+
+        defaults.set(false, forKey: ManagedDevicePolicyKey.disableCloud.rawValue)
+        defaults.set(true, forKey: Self.forcedMirrorPrefix + ManagedDevicePolicyKey.disableCloud.rawValue)
+        let policy = ManagedDevicePolicy(
+            defaults: defaults,
+            releaseDomainDefaults: nil,
+            forcedObject: Self.probe
+        )
+
+        #expect(policy.isCloudDisabled)
+        #expect(policy.isKeyForcedInAppDomain(ManagedDevicePolicyKey.disableCloud.rawValue))
+    }
+
     @Test func forcedFalseLocksTheKeyWithoutEnforcingThePolicy() throws {
         let (defaults, cleanup) = try makeSuite("forcedFalse")
         defer { cleanup() }
@@ -154,6 +170,7 @@ struct ManagedDevicePolicyTests {
         // configuration profiles.
         #expect(ManagedDevicePolicyKey.disableEmbeddedBrowser.rawValue == "DisableEmbeddedBrowser")
         #expect(ManagedDevicePolicyKey.disableRemoteControl.rawValue == "DisableRemoteControl")
+        #expect(ManagedDevicePolicyKey.disableCloud.rawValue == "DisableCloud")
         #expect(ManagedDevicePolicyKey.browserURLAllowlist.rawValue == "BrowserURLAllowlist")
         #expect(ManagedDevicePolicy.releasePayloadDomain == "com.cmuxterm.app")
     }

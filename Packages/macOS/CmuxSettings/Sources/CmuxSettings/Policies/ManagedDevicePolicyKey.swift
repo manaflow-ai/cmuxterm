@@ -20,6 +20,9 @@ public enum ManagedDevicePolicyKey: String, CaseIterable, Sendable {
     /// listener, connection admission, and device pairing.
     case disableRemoteControl = "DisableRemoteControl"
 
+    /// Disables all cmux Cloud Machines and private-network access.
+    case disableCloud = "DisableCloud"
+
     /// Restricts embedded-browser top-level navigations to the administrator's
     /// URL patterns. An empty forced array denies every external web origin
     /// while preserving local `file:` documents opened through cmux's trusted

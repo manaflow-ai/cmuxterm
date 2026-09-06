@@ -92,6 +92,13 @@ public struct ManagedDevicePolicy: Sendable {
         forcedBool(for: key) == true
     }
 
+    /// Whether an administrator has disabled cmux Cloud Machines. This is the
+    /// authoritative gate for Cloud UI, Cloud socket operations, and the
+    /// app-managed private-network tunnel.
+    public var isCloudDisabled: Bool {
+        isEnforced(.disableCloud)
+    }
+
     /// The profile-forced Boolean for `key`, or `nil` when no profile forces
     /// it (or forces a non-Boolean value).
     public func forcedBool(for key: ManagedDevicePolicyKey) -> Bool? {

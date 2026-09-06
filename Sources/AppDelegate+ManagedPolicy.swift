@@ -1,8 +1,9 @@
 import Foundation
+import CmuxSettings
 
 /// Runtime enforcement for MDM managed policies (`DisableEmbeddedBrowser`,
-/// `DisableRemoteControl`): installs the transition observer and closes live
-/// browser panes when the browser policy activates mid-session.
+/// `DisableRemoteControl`, `DisableCloud`): installs the transition observer
+/// and closes live restricted resources when a policy activates mid-session.
 extension AppDelegate {
     /// Installs the managed-policy transition observer once at startup.
     func installManagedPolicyEnforcement() {
@@ -19,8 +20,20 @@ extension AppDelegate {
                 // policy (including live connections) and re-arms it when
                 // the policy lifts.
                 MobileHostService.shared.syncToSettings()
+            },
+            enforceCloudPolicy: { [weak self] in
+                self?.disableCloudAccessForManagedPolicy()
             }
         )
+        if ManagedDevicePolicy().isCloudDisabled {
+            disableCloudAccessForManagedPolicy()
+        }
+    }
+
+    /// Removes live Cloud attachments and the app-managed VPN when an MDM
+    /// profile disables Cloud while cmux is running.
+    func disableCloudAccessForManagedPolicy() {
+        prepareCloudVMAccessForSignOut()
     }
 
     /// Closes every live browser pane — main area and Docks, across all
