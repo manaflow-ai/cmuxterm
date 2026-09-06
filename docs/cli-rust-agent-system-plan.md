@@ -43,6 +43,30 @@ available as a stable embeddable Rust crate. The wrapper and the native cmux
 capabilities do not create a second login or a second persistent credential
 store.
 
+## Control-plane tower
+
+The system is easiest for an agent to reason about when each layer has one
+authority and one observable contract:
+
+```mermaid
+flowchart TD
+    A[Agent or human] --> D[Discovery: capabilities and context]
+    D --> C[Capability request: schema, permission, idempotency]
+    C --> S[Local socket: v2 bytes and structured errors]
+    S --> M[cmux app authority: auth, context, resources]
+    M --> R[Resource adapters: workspace, terminal, browser, CodeRouter]
+    R --> E[Result and semantic event]
+    CR[coderouter binary] --> B[Short-lived broker]
+    B --> M
+    E --> V[Verification predicate]
+    V --> A
+```
+
+The Rust CLI owns discovery, framing, validation, and process boundaries. The
+app owns credentials and mutable resource state. The server owns capability
+truth. Events and verification close the loop so an agent can tell whether a
+request changed durable state instead of trusting a successful write alone.
+
 ## System invariants and expert review gates
 
 These invariants connect the app, socket, CLI, CodeRouter process, and release
