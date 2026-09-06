@@ -70,6 +70,26 @@ struct CodexHookInjectionStrippingTests {
         )
     }
 
+    @Test("Strips the inline queued hook fallback")
+    func stripsInlineQueuedHookFallback() {
+        // If ~/.cmux/hooks cannot be written, the wrapper embeds this marked
+        // shell body directly in Codex argv. Resume capture must still remove
+        // it so the wrapper does not inject a second hook set.
+        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
+            if subcommand == "notification" {
+                return ": cmux-codex-hook; cmux hooks codex notification"
+            }
+            return ": cmux-codex-hook; cmux hooks enqueue codex \(subcommand)"
+        } + ["--model", "gpt-5.5"]
+        #expect(
+            AgentLaunchSanitizer.sanitizedLaunchArguments(
+                arguments,
+                launcher: "",
+                fallbackKind: "codex"
+            ) == ["codex", "--model", "gpt-5.5"]
+        )
+    }
+
     @Test("Strips joined cmux Codex hook options")
     func stripsJoinedCmuxCodexHookOptions() {
         let arguments = ["codex"] + codexWrapperHookArguments(joined: true) { subcommand in
