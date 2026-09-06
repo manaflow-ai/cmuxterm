@@ -47,7 +47,7 @@ extension DockSplitStore {
             return false
         }
         if shouldFocus {
-            dock.focusPanel(panelID)
+            dock.focusPanelFromDockInteraction(panelID, window: nil)
         }
         panel.triggerFlash(reason: reason)
         return true
