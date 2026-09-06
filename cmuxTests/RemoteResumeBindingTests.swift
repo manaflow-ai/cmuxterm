@@ -1322,6 +1322,10 @@ struct RemoteResumeBindingTests {
             remotePTYSessionID: remotePTYSessionID,
             restoredPanelId: surfaceID
         )
+        // The persisted PTY and relay binding represent an active remote
+        // terminal. Keep the fixture's topology aligned with production so
+        // session restore exercises the remote startup command path.
+        workspace.trackRemoteTerminalSurface(surfaceID)
 
         let relayedRequest: [String: Any] = [
             "id": "relayed-resume-set",
