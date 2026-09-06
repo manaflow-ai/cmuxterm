@@ -19,19 +19,25 @@ final class BrowserPaneDropTargetView: NSView {
     weak var preparedFileDropWebView: NSView?
     weak var performedFileDropWebView: NSView?
     var didRequestWebViewRestoreForDrag = false
+    private let paneDropTargetRegistry: PaneDropTargetRegistry
 #if DEBUG
     private var lastHitTestSignature: String?
 #endif
 
     override var acceptsFirstResponder: Bool { false }
 
-    override init(frame frameRect: NSRect) {
+    override convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+
+    init(frame frameRect: NSRect, paneDropTargetRegistry: PaneDropTargetRegistry) {
+        self.paneDropTargetRegistry = paneDropTargetRegistry
         super.init(frame: frameRect)
         registerForDraggedTypes(Array(Set([
             DragOverlayRoutingPolicy.filePreviewTransferType,
             DragOverlayRoutingPolicy.bonsplitTabTransferType,
         ]).union(PasteboardFileURLReader.fileURLPasteboardTypes)))
-        PaneDropTargetRegistry.shared.register(self) { [weak self] in
+        paneDropTargetRegistry.register(self) { [weak self] in
             self?.resetAfterNativeDragEnd()
         }
     }

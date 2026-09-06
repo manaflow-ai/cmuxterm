@@ -22,19 +22,26 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
         )
     }
 
+    func testLiveFilePreviewRoutesTerminalPortalMouseUpWithoutTabCapability() {
+        XCTAssertTrue(
+            DragOverlayRoutingPolicy.shouldPassThroughTerminalPortalHitTesting(
+                pasteboardTypes: [DragOverlayRoutingPolicy.filePreviewTransferType],
+                eventType: .leftMouseUp,
+                hasActiveDropDrag: false,
+                hasLiveTabTransfer: false,
+                hasLiveFileDropPayload: true
+            ),
+            "A live file-preview drop must reach the pane target without a tab capability"
+        )
+    }
+
     func testNativeDragEndObserverResetsRegisteredTargets() throws {
         let registry = TabDragTransferRegistry()
-        let targetRegistry = PaneDropTargetRegistry()
+        let coordinator = NativeDragCoordinator(tabDragTransferRegistry: registry)
         let target = ResettableTarget()
-        targetRegistry.register(target) {
+        coordinator.paneDropTargetRegistry.register(target) {
             target.resetCount += 1
         }
-        var observerCalls = 0
-        let observerID = registry.addNativeDragEndObserver {
-            targetRegistry.resetAll()
-            observerCalls += 1
-        }
-        defer { registry.removeNativeDragEndObserver(observerID) }
 
         let transfer = TabDragTransfer(
             tab: Tab(
@@ -51,7 +58,6 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
 
         registry.endNativeDrag(registration)
 
-        XCTAssertEqual(observerCalls, 1)
         XCTAssertEqual(target.resetCount, 1)
         XCTAssertNil(registry.resolve(from: pasteboard))
     }

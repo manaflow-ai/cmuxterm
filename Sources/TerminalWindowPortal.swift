@@ -172,7 +172,8 @@ final class WindowTerminalHostView: NSView {
                 )
                 guard routingContext.eventKind != .pointerUp
                     || hasActivePaneDropDrag
-                    || hasLiveTabTransfer else {
+                    || hasLiveTabTransfer
+                    || hasLiveFileDropPayload else {
                     let hitView = super.hitTest(point)
                     return hitView === self ? nil : hitView
                 }

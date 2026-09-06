@@ -328,7 +328,8 @@ extension DockSplitStore {
                 to: anchorView,
                 visibleInUI: true,
                 zPriority: 1,
-                paneDropContext: paneDropContext
+                paneDropContext: paneDropContext,
+                paneDropTargetRegistry: AppDelegate.shared?.paneDropTargetRegistry
             )
         }
         // Reconciliation is also responsible for clearing an obsolete active

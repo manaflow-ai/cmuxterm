@@ -5,9 +5,10 @@ typealias TerminalPaneDropTargetView = PaneDropTargetView
 
 struct PaneDropTargetRepresentable: NSViewRepresentable {
     let dropContext: PaneDropContext?
+    let paneDropTargetRegistry: PaneDropTargetRegistry
 
     func makeNSView(context: Context) -> PaneDropTargetView {
-        PaneDropTargetView(frame: .zero)
+        PaneDropTargetView(frame: .zero, paneDropTargetRegistry: paneDropTargetRegistry)
     }
 
     func updateNSView(_ nsView: PaneDropTargetView, context: Context) {

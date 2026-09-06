@@ -406,7 +406,6 @@ enum DragOverlayRoutingPolicy {
             && hasLiveTabTransfer
             && (!hasFilePreviewType || hasLiveFileDropPayload)
         let hasLiveFilePreviewTransfer = hasFilePreviewType
-            && hasLiveTabTransfer
             && hasLiveFileDropPayload
         switch routingContext.eventKind {
         case .pointerDrag:

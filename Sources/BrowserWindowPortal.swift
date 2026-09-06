@@ -1260,7 +1260,7 @@ final class WindowBrowserSlotView: NSView {
             yieldOwnedFirstResponderIfNeeded(in: window, reason: "slotHidden")
         }
     }
-    private let paneDropTargetView = BrowserPaneDropTargetView(frame: .zero)
+    private let paneDropTargetView: BrowserPaneDropTargetView
     private let dropZoneOverlayView = BrowserDropZoneOverlayView(frame: .zero)
     private var searchOverlayHostingView: NSHostingView<BrowserSearchOverlay>?
     private var designComposerHostingView: BrowserDesignModeComposerHostingView?
@@ -1282,7 +1282,15 @@ final class WindowBrowserSlotView: NSView {
     fileprivate var isApplyingHostedInspectorLayout = false
     private var lastHostedInspectorLayoutBoundsSize: NSSize?
 
-    override init(frame frameRect: NSRect) {
+    override convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+
+    init(frame frameRect: NSRect, paneDropTargetRegistry: PaneDropTargetRegistry) {
+        paneDropTargetView = BrowserPaneDropTargetView(
+            frame: .zero,
+            paneDropTargetRegistry: paneDropTargetRegistry
+        )
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.masksToBounds = true
@@ -1904,6 +1912,7 @@ final class WindowBrowserPortal: NSObject {
     }
 
     private weak var window: NSWindow?
+    private var paneDropTargetRegistry: PaneDropTargetRegistry?
     private let hostView = WindowBrowserHostView(frame: .zero)
     private let chromeComposition = AppWindowChromeComposition()
     private weak var installedContainerView: NSView?
@@ -1959,8 +1968,9 @@ final class WindowBrowserPortal: NSObject {
     }
 #endif
 
-    init(window: NSWindow) {
+    init(window: NSWindow, paneDropTargetRegistry: PaneDropTargetRegistry? = nil) {
         self.window = window
+        self.paneDropTargetRegistry = paneDropTargetRegistry
         super.init()
         hostView.wantsLayer = true
         hostView.layer?.masksToBounds = true
@@ -1968,6 +1978,17 @@ final class WindowBrowserPortal: NSObject {
         hostView.autoresizingMask = []
         installGeometryObservers(for: window)
         _ = ensureInstalled()
+    }
+
+    func setPaneDropTargetRegistry(_ registry: PaneDropTargetRegistry) {
+        if let paneDropTargetRegistry {
+            precondition(
+                paneDropTargetRegistry === registry,
+                "A browser portal cannot change pane drop registry ownership"
+            )
+            return
+        }
+        paneDropTargetRegistry = registry
     }
 
     static func shouldTreatSplitResizeAsExternalGeometry(
@@ -2518,7 +2539,10 @@ final class WindowBrowserPortal: NSObject {
             existing.setPaneTopChromeHeight(entry.paneTopChromeHeight)
             return existing
         }
-        let created = WindowBrowserSlotView(frame: .zero)
+        let created = WindowBrowserSlotView(
+            frame: .zero,
+            paneDropTargetRegistry: paneDropTargetRegistry ?? PaneDropTargetRegistry()
+        )
         if let paneDropContext = entry.paneDropContext {
             created.setPaneDropContext(paneDropContext)
         }
@@ -3104,8 +3128,12 @@ final class WindowBrowserPortal: NSObject {
         to anchorView: NSView,
         visibleInUI: Bool,
         zPriority: Int = 0,
-        paneDropContext: BrowserPaneDropContext? = nil
+        paneDropContext: BrowserPaneDropContext? = nil,
+        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
     ) {
+        if let paneDropTargetRegistry {
+            setPaneDropTargetRegistry(paneDropTargetRegistry)
+        }
         guard ensureInstalled() else { return }
 
         let webViewId = ObjectIdentifier(webView)
@@ -4096,14 +4124,23 @@ enum BrowserWindowPortalRegistry {
         }
     }
 
-    private static func portal(for window: NSWindow) -> WindowBrowserPortal {
+    private static func portal(
+        for window: NSWindow,
+        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
+    ) -> WindowBrowserPortal {
         if let existing = objc_getAssociatedObject(window, &cmuxWindowBrowserPortalKey) as? WindowBrowserPortal {
+            if let paneDropTargetRegistry {
+                existing.setPaneDropTargetRegistry(paneDropTargetRegistry)
+            }
             portalsByWindowId[ObjectIdentifier(window)] = existing
             installWindowCloseObserverIfNeeded(for: window)
             return existing
         }
 
-        let portal = WindowBrowserPortal(window: window)
+        let portal = WindowBrowserPortal(
+            window: window,
+            paneDropTargetRegistry: paneDropTargetRegistry
+        )
         objc_setAssociatedObject(window, &cmuxWindowBrowserPortalKey, portal, .OBJC_ASSOCIATION_RETAIN)
         portalsByWindowId[ObjectIdentifier(window)] = portal
         installWindowCloseObserverIfNeeded(for: window)
@@ -4115,13 +4152,17 @@ enum BrowserWindowPortalRegistry {
         to anchorView: NSView,
         visibleInUI: Bool,
         zPriority: Int = 0,
-        paneDropContext: BrowserPaneDropContext? = nil
+        paneDropContext: BrowserPaneDropContext? = nil,
+        paneDropTargetRegistry: PaneDropTargetRegistry? = nil
     ) {
         guard let window = anchorView.window else { return }
 
         let windowId = ObjectIdentifier(window)
         let webViewId = ObjectIdentifier(webView)
-        let nextPortal = portal(for: window)
+        let nextPortal = portal(
+            for: window,
+            paneDropTargetRegistry: paneDropTargetRegistry
+        )
 
         if let oldWindowId = webViewToWindowId[webViewId],
            oldWindowId != windowId {
@@ -4133,7 +4174,8 @@ enum BrowserWindowPortalRegistry {
             to: anchorView,
             visibleInUI: visibleInUI,
             zPriority: zPriority,
-            paneDropContext: paneDropContext
+            paneDropContext: paneDropContext,
+            paneDropTargetRegistry: paneDropTargetRegistry
         )
         webViewToWindowId[webViewId] = windowId
         pruneWebViewMappings(for: windowId, validWebViewIds: nextPortal.webViewIds())

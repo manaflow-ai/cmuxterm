@@ -29,6 +29,7 @@ extension GhosttyApp: TerminalEngineHosting {
 /// surface model historically constructed in its initializer.
 struct TerminalSurfaceViewFactory: TerminalSurfaceViewProviding {
     let imageTransferPreparation: TerminalImageTransferPreparationService
+    let paneDropTargetRegistryProvider: @MainActor () -> PaneDropTargetRegistry? = { nil }
 
     @MainActor
     func makeSurfaceViews(
@@ -38,7 +39,13 @@ struct TerminalSurfaceViewFactory: TerminalSurfaceViewProviding {
             frame: initialFrame,
             imageTransferPreparation: imageTransferPreparation
         )
-        return (view, GhosttySurfaceScrollView(surfaceView: view))
+        return (
+            view,
+            GhosttySurfaceScrollView(
+                surfaceView: view,
+                paneDropTargetRegistry: paneDropTargetRegistryProvider() ?? PaneDropTargetRegistry()
+            )
+        )
     }
 }
 

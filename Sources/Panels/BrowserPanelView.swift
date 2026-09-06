@@ -278,6 +278,7 @@ struct BrowserPanelView: View {
     private let inheritedColorScheme: ColorScheme
     @Environment(\.cmuxCanvasInlineBrowserHosting) private var canvasInlineBrowserHosting
     @Environment(\.paneDropZone) private var paneDropZone
+    @Environment(\.paneDropTargetRegistry) private var paneDropTargetRegistry
     /// Held detector instance used to summarize installed browsers rather than
     /// the former `BrowserInstalledBrowserDetector` static namespace.
     private let installedBrowserDetector = BrowserInstalledBrowserDetector()
@@ -1845,6 +1846,7 @@ struct BrowserPanelView: View {
                     isPanelFocused: isFocused,
                     portalZPriority: portalPriority,
                     paneDropZone: paneDropZone,
+                    paneDropTargetRegistry: paneDropTargetRegistry,
                     paneOwnershipOverride: paneOwnershipOverride,
                     searchOverlay: panel.searchState.map { searchState in
                         BrowserPortalSearchOverlayConfiguration(
@@ -5489,6 +5491,7 @@ struct WebViewRepresentable: NSViewRepresentable {
     let isPanelFocused: Bool
     let portalZPriority: Int
     let paneDropZone: DropZone?
+    let paneDropTargetRegistry: PaneDropTargetRegistry? = nil
     /// Explicit pane-ownership for hosts (the Dock) whose panels are not in the
     /// main `Workspace` tree, so the portal-visibility gate can resolve ownership
     /// without `Workspace.paneId(forPanelId:)`. `nil` keeps the main-area path.
@@ -5872,13 +5875,18 @@ struct WebViewRepresentable: NSViewRepresentable {
             onGeometryChanged?()
         }
 
-        func ensureLocalInlineSlotView() -> WindowBrowserSlotView {
+        func ensureLocalInlineSlotView(
+            paneDropTargetRegistry: PaneDropTargetRegistry?
+        ) -> WindowBrowserSlotView {
             if let localInlineSlotView, localInlineSlotView.superview === self {
                 localInlineSlotView.isHidden = false
                 return localInlineSlotView
             }
 
-            let slotView = WindowBrowserSlotView(frame: bounds)
+            let slotView = WindowBrowserSlotView(
+                frame: bounds,
+                paneDropTargetRegistry: paneDropTargetRegistry ?? PaneDropTargetRegistry()
+            )
             slotView.translatesAutoresizingMaskIntoConstraints = false
             addSubview(slotView, positioned: .above, relativeTo: nil)
             localInlineSlotConstraints = [
@@ -7389,7 +7397,9 @@ struct WebViewRepresentable: NSViewRepresentable {
     private func updateUsingLocalInlineHosting(_ nsView: NSView, context: Context, webView: WKWebView) -> Bool {
         guard let host = nsView as? HostContainerView else { return false }
         host.setWindowPortalHosting(false)
-        let slotView = host.ensureLocalInlineSlotView()
+        let slotView = host.ensureLocalInlineSlotView(
+            paneDropTargetRegistry: paneDropTargetRegistry
+        )
         slotView.setDesignComposer(designComposer)
         let isAlreadyInLocalHost = host.containsManagedLocalInlineContent(webView)
         let shouldPreserveExternalFullscreenHost = Self.shouldPreserveExternalFullscreenHost(
@@ -7679,7 +7689,8 @@ struct WebViewRepresentable: NSViewRepresentable {
                 to: portalAnchorView,
                 visibleInUI: coordinator.desiredPortalVisibleInUI,
                 zPriority: coordinator.desiredPortalZPriority,
-                paneDropContext: currentPaneDropContext
+                paneDropContext: currentPaneDropContext,
+                paneDropTargetRegistry: paneDropTargetRegistry
             )
             BrowserWindowPortalRegistry.refresh(
                 webView: webView,
@@ -7718,7 +7729,8 @@ struct WebViewRepresentable: NSViewRepresentable {
                     to: portalAnchorView,
                     visibleInUI: coordinator.desiredPortalVisibleInUI,
                     zPriority: coordinator.desiredPortalZPriority,
-                    paneDropContext: currentPaneDropContext
+                    paneDropContext: currentPaneDropContext,
+                    paneDropTargetRegistry: paneDropTargetRegistry
                 )
                 BrowserWindowPortalRegistry.refresh(
                     webView: webView,
@@ -7762,7 +7774,8 @@ struct WebViewRepresentable: NSViewRepresentable {
                     to: portalAnchorView,
                     visibleInUI: coordinator.desiredPortalVisibleInUI,
                     zPriority: coordinator.desiredPortalZPriority,
-                    paneDropContext: activePaneDropContext
+                    paneDropContext: activePaneDropContext,
+                    paneDropTargetRegistry: paneDropTargetRegistry
                 )
                 // Force a rendering-state reattach after portal host replacement
                 // (e.g. after a pane split). Without this, WKWebView can freeze
