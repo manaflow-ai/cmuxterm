@@ -9607,6 +9607,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0DEFF100000000000000003 /* Build Command Palette Nucleo FFI */,
 				A5001300A1B2C3D4E5F60719 /* ShellScript */,
 				C0DE80000000000000000001 /* Install CodeRouter CLI */,
+				C0DE81000000000000000001 /* Install Rust CLI migration artifacts */,
 				A9E030000000000000000009 /* Reject Bundled Provider Binaries */,
 
 			);
@@ -10056,6 +10057,33 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
 			shellScript = "\"${SRCROOT}/scripts/install-coderouter-cli.sh\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin\"\n";
+		};
+		C0DE81000000000000000001 /* Install Rust CLI migration artifacts */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/cmux-tui/Cargo.toml",
+				"$(SRCROOT)/cmux-tui/Cargo.lock",
+				"$(SRCROOT)/cmux-tui/crates/cmux-cli/Cargo.toml",
+				"$(SRCROOT)/cmux-tui/crates/cmux-cli/build.rs",
+				"$(SRCROOT)/cmux-tui/crates/cmux-cli/src",
+				"$(SRCROOT)/scripts/build-cmux-cli-rust.sh",
+				"$(SRCROOT)/scripts/install-cmux-cli-rust.sh",
+			);
+			name = "Install Rust CLI migration artifacts";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/cmux-rust",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/coderouter-rust",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"${SRCROOT}/scripts/install-cmux-cli-rust.sh\" \"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/..\" --archs \"${ARCHS:-}\"\n";
 		};
 		A9E030000000000000000009 /* Reject Bundled Provider Binaries */ = {
 			isa = PBXShellScriptBuildPhase;
