@@ -148,6 +148,14 @@ final class CmuxTuiSurfaceProviderRegistry {
         guard let page = try? await client.listPage() else { return false }
         guard generation == refreshGeneration else { return false }
         let seen = Set(page.vms.map(\.id))
+        if seen.isEmpty {
+            await wireGuardHub?.releasePrewarm()
+        } else if let wireGuardHub {
+            // Start one shared hub before per-machine refreshes race to create links.
+            // A transient DNS/handshake failure is retried inside `prewarm`; retaining
+            // its claim also lets the actor restart an unexpected child exit immediately.
+            _ = try? await wireGuardHub.prewarm()
+        }
         // Reconcile both stores. A restored catalog can contain a machine for
         // which this process has not created a provider yet.
         let catalogMachineIDs = Set(catalog.machines.keys.compactMap(\.cloudMachineID))
