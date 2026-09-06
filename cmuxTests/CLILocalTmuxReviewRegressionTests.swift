@@ -105,6 +105,40 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(invocation.contains("attach-session -t $7"), invocation)
     }
 
+    func testLocalTmuxClientListingUsesPopulatedTTYTarget() throws {
+        let root = makeLocalTmuxTestRoot("client-tty-target")
+        let fakeTmuxURL = root.appendingPathComponent("fake-tmux", isDirectory: false)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fakeTmux = """
+        #!/bin/sh
+        case "$*" in
+          *list-clients*)
+            case "$*" in
+              *'#{client_tty}'*) printf '/dev/ttys999\\twork\\t123\\t/dev/ttys999\\n'; exit 0 ;;
+              *) printf '\\twork\\t123\\t/dev/ttys999\\n'; exit 0 ;;
+            esac
+            ;;
+          *) exit 0 ;;
+        esac
+        """
+        try Data(fakeTmux.utf8).write(to: fakeTmuxURL)
+        XCTAssertEqual(chmod(fakeTmuxURL.path, 0o755), 0)
+
+        let builder = LocalTmuxCommandBuilder(
+            tmuxPath: fakeTmuxURL.path,
+            socketPath: root.appendingPathComponent("server.sock").path
+        )
+        let result = try LocalTmuxProcessRunner(executablePath: fakeTmuxURL.path).run(
+            arguments: builder.listClientsArguments()
+        )
+
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let clients = try LocalTmuxSessionListParser().clients(result.stdout)
+        XCTAssertEqual(clients.map(\.clientID), ["/dev/ttys999"])
+    }
+
     func testLocalTmuxDirectoryOverrideIsRejectedAsMissingExecutable() throws {
         let cliPath = try bundledCLIPath()
         let root = makeLocalTmuxTestRoot("directory-bin")
