@@ -3,6 +3,7 @@ import CmuxCore
 import CmuxWorkspaces
 import Foundation
 import CmuxSidebar
+import Observation
 import SwiftUI
 
 private struct SidebarPanelObservationState: Equatable {
@@ -10,6 +11,58 @@ private struct SidebarPanelObservationState: Equatable {
 
     init(panels: [UUID: any Panel]) {
         panelIds = panels.keys.sorted { $0.uuidString < $1.uuidString }
+    }
+}
+
+/// Publishes workspace pane-topology changes to sidebar observation tasks.
+@MainActor
+@Observable
+final class WorkspaceSidebarLayoutObservationModel {
+    @ObservationIgnored
+    private(set) var changeGeneration: UInt64 = 0
+    @ObservationIgnored
+    private(set) var changeObservers: [UUID: AsyncStream<Void>.Continuation] = [:]
+    @ObservationIgnored
+    private var hasUnobservedChange = false
+
+    /// Returns an independently subscribed stream of pane-topology changes.
+    func changes() -> AsyncStream<Void> {
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let id = UUID()
+            changeObservers[id] = continuation
+            if hasUnobservedChange {
+                hasUnobservedChange = false
+                continuation.yield(())
+            }
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.changeObservers[id] = nil }
+            }
+        }
+    }
+
+    /// Publishes a pane split, pane close, or pane-collapse move.
+    func layoutDidChange() {
+        changeGeneration &+= 1
+        guard !changeObservers.isEmpty else {
+            hasUnobservedChange = true
+            return
+        }
+
+        var delivered = false
+        var terminatedObserverIDs: [UUID] = []
+        for (id, continuation) in changeObservers {
+            if case .terminated = continuation.yield(()) {
+                terminatedObserverIDs.append(id)
+            } else {
+                delivered = true
+            }
+        }
+        for id in terminatedObserverIDs {
+            changeObservers[id] = nil
+        }
+        if !delivered {
+            hasUnobservedChange = true
+        }
     }
 }
 
@@ -50,6 +103,13 @@ extension View {
                     }
                     group.addTask { @MainActor in
                         for await _ in debouncedChanges {
+                            if Task.isCancelled { break }
+                            onChange(id)
+                        }
+                    }
+                    let layoutChanges = workspace.sidebarLayoutObservation.changes()
+                    group.addTask { @MainActor in
+                        for await _ in layoutChanges {
                             if Task.isCancelled { break }
                             onChange(id)
                         }
@@ -343,10 +403,6 @@ extension Workspace {
             .map { _ in () }
             .eraseToAnyPublisher()
 
-        return Publishers.Merge(
-            stateChanges,
-            sidebarLayoutObservationPublisher
-        )
-        .eraseToAnyPublisher()
+        return stateChanges
     }
 }

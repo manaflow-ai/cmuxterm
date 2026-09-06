@@ -3076,6 +3076,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     var restoredPanelTitleBoundariesByPanelId: [UUID: RestoredPanelTitleBoundary] = [:]
     /// Agent runtime maps that affect sidebar status visibility.
     let sidebarAgentRuntimeObservation = WorkspaceSidebarAgentRuntimeObservationModel()
+    /// Pane-topology changes that affect the sidebar split affordance.
+    let sidebarLayoutObservation = WorkspaceSidebarLayoutObservationModel()
     /// Todo lifecycle state: manual status override + persisted checklist (all logic lives in `Workspace+Todos.swift`).
     let todoState = WorkspaceTodoState()
     let sidebarProcessTitleObservation: WorkspaceSidebarProcessTitleObservationModel
@@ -3129,17 +3131,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         set { restoredAgentLifecycle.invalidatedFingerprintsByPanelId = newValue }
     }
     private var pendingTerminalInputObserversByPanelId: [UUID: [WorkspacePendingTerminalInputObserver]] = [:]
-    // WorkspaceSidebarObservation already aggregates, debounces, and bridges
-    // Combine publishers into the sidebar's async observation tasks. Keep this
-    // topology-only signal on that existing Combine boundary instead of adding
-    // a parallel async event path for one layout invalidation.
-    private let sidebarLayoutObservationSubject = PassthroughSubject<Void, Never>()
-    var sidebarLayoutObservationPublisher: AnyPublisher<Void, Never> {
-        sidebarLayoutObservationSubject.eraseToAnyPublisher()
-    }
-
     private func publishSidebarLayoutChanged() {
-        sidebarLayoutObservationSubject.send()
+        sidebarLayoutObservation.layoutDidChange()
     }
 
     private let sessionRestorePolicy: WorkspaceSessionRestorePolicyService<SurfaceResumeBindingSnapshot>

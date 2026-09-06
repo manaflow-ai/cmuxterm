@@ -136,6 +136,19 @@ struct WorkspaceSidebarObservationTests {
         )
     }
 
+    @Test func sidebarLayoutObservationReplaysChangeToLateSubscriber() async {
+        let model = WorkspaceSidebarLayoutObservationModel()
+        model.layoutDidChange()
+
+        var iterator = model.changes().makeAsyncIterator()
+        let nextChange = await iterator.next()
+
+        #expect(
+            nextChange != nil,
+            "A sidebar row that subscribes after a pane-layout change must still refresh from current workspace state."
+        )
+    }
+
     @Test func sidebarImmediateObservationPublisherCoalescesDescriptionBursts() {
         let workspace = Workspace()
 
@@ -298,7 +311,7 @@ struct WorkspaceSidebarObservationTests {
         )
     }
 
-    @Test func sidebarObservationPublisherEmitsWhenTabMoveCollapsesPane() throws {
+    @Test func sidebarLayoutObservationEmitsWhenTabMoveCollapsesPane() throws {
         let workspace = Workspace()
         let leftPanelId = try #require(workspace.focusedPanelId)
         let leftPaneId = try #require(workspace.paneId(forPanelId: leftPanelId))
@@ -315,12 +328,7 @@ struct WorkspaceSidebarObservationTests {
 
         #expect(workspace.bonsplitController.allPaneIds.count == 2)
 
-        var publishCount = 0
-        let cancellable = workspace.sidebarObservationPublisher.sink {
-            publishCount += 1
-        }
-        defer { cancellable.cancel() }
-        publishCount = 0
+        let changeGenerationBeforeMove = workspace.sidebarLayoutObservation.changeGeneration
 
         workspace.splitTabBar(
             workspace.bonsplitController,
@@ -332,7 +340,7 @@ struct WorkspaceSidebarObservationTests {
         #expect(workspace.paneId(forPanelId: leftPanelId) == rightPaneId)
         #expect(workspace.bonsplitController.allPaneIds.count == 1)
         #expect(
-            publishCount > 0,
+            workspace.sidebarLayoutObservation.changeGeneration > changeGenerationBeforeMove,
             "Moving the last tab out of a pane should refresh sidebar split-pane counts."
         )
     }
