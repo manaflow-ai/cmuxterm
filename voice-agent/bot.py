@@ -79,6 +79,29 @@ def first_speaker_settings(ui_summary: str = "") -> Dict[str, Any]:
     return {"agent": {"prompt": build_greeting_prompt(ui_summary), "uninterruptible": False}}
 
 
+def with_reply_hint(tool_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach an instruction for the spoken reply so the model never goes silent.
+
+    Ultravox sees the tool result as data; without a hint it often stays quiet
+    after acting. The hint states what kind of reply this outcome needs.
+    """
+    out = dict(result)
+    status = out.get("status")
+    if status == "needs_confirmation":
+        out["reply"] = "Ask the user this question aloud, then wait for their yes or no."
+    elif status == "ambiguous":
+        out["reply"] = "Read the options aloud briefly and ask which one they meant."
+    elif status == "nothing_pending":
+        out["reply"] = "Tell the user there was nothing waiting to confirm and ask what they would like to do."
+    elif out.get("ok") is False:
+        out["reply"] = "Tell the user this did not work, say why in a few words, and offer one next step."
+    elif tool_name in {"get_ui_state", "read_terminal", "which_pane", "shell_context"}:
+        out["reply"] = "Answer the user's question from this information in one or two spoken sentences."
+    else:
+        out["reply"] = "Confirm out loud in one natural sentence what you just did."
+    return out
+
+
 def build_tools(on_state=None, on_end_session=None) -> VoiceTools:
     client = CmuxClient(allowed_methods=ALLOWED_METHODS)
     policy = ConfirmationPolicy(trust_terminal_input=os.environ.get("CMUX_VOICE_TRUST_TERMINAL") == "1")
@@ -89,7 +112,9 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
     from pipecat.adapters.schemas.function_schema import FunctionSchema
     from pipecat.adapters.schemas.tools_schema import ToolsSchema
     from pipecat.services.llm_service import FunctionCallParams
-    from pipecat.services.ultravox.llm import OneShotInputParams, UltravoxRealtimeLLMService
+    from pipecat.services.ultravox.llm import OneShotInputParams
+
+    from cmux_voice.ultravox_service import CmuxUltravoxService as UltravoxRealtimeLLMService
 
     api_key = os.environ.get("ULTRAVOX_API_KEY")
     if not api_key:
@@ -127,7 +152,7 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
                 logger.exception(f"tool {spec.name} failed")
                 result = {"ok": False, "say": f"Something went wrong running {spec.name}."}
             logger.info(f"tool {spec.name} -> {result.get('say', '')[:120]}")
-            await params.result_callback(result)
+            await params.result_callback(with_reply_hint(spec.name, result))
 
         return handler
 

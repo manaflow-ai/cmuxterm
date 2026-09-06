@@ -39,6 +39,16 @@ CLI or the command palette would.
 Closing tabs or workspaces always asks first. Running a command asks first
 unless **Run Commands Without Confirmation** is on.
 
+## How it talks
+
+Every request gets a spoken reply: a one-sentence confirmation of what was
+done ("I split the pane to the right and opened a new terminal there"), a
+follow-up question when the request could mean several things ("Which staff
+portal folder, the one under Local Projects or under Documents?"), or a plain
+explanation plus a next step when it gets stuck ("I couldn't find a folder
+called notes. Want me to search under Documents?"). Confirmation questions for
+closing things or running commands are read aloud and wait for yes or no.
+
 ## Completion recaps
 
 When a coding agent (Claude Code, Codex, OpenCode, or any agent with cmux

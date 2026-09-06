@@ -114,3 +114,22 @@ def test_prompt_guards_composition_and_git_context():
     assert "do not add ideas" in prompt
     assert "not a git repository" in prompt
     assert "go_to_directory" in prompt and "run_shell" in prompt and "compose_and_type" in prompt
+
+
+def test_prompt_requires_spoken_replies():
+    from cmux_voice.prompt import build_system_prompt
+
+    prompt = build_system_prompt()
+    assert "Every request gets a spoken reply" in prompt
+    assert "ask one short follow-up question" in prompt
+    assert "When you get stuck" in prompt
+
+
+def test_reply_hints_cover_every_outcome():
+    import bot
+
+    assert "Ask the user" in bot.with_reply_hint("close_tab", {"ok": True, "status": "needs_confirmation", "say": "Close it?"})["reply"]
+    assert "options" in bot.with_reply_hint("go_to_directory", {"ok": True, "status": "ambiguous", "say": "x"})["reply"]
+    assert "did not work" in bot.with_reply_hint("split", {"ok": False, "say": "no"})["reply"]
+    assert "Answer the user" in bot.with_reply_hint("which_pane", {"ok": True, "say": "pane 1"})["reply"]
+    assert "Confirm out loud" in bot.with_reply_hint("split", {"ok": True, "say": "Split right."})["reply"]
