@@ -21,6 +21,13 @@ CLI or the command palette would.
 | "Read the screen" | `surface.read_text` (the text is sent to Ultravox) |
 | "Open github dot com" / "go back" / "reload" | `browser.navigate` / `browser.back` / `browser.reload` |
 | "Close this tab" → "no" | Nothing (closing always confirms) |
+| "Which pane am I in?" | Reads back pane number, position, workspace, and tab |
+| "Focus the terminal" / "put the cursor in the terminal" | `surface.focus_input`: focuses the terminal and gives it keyboard focus |
+| "Type git status" / "write hello world" | `surface.send_text`, verbatim, no Enter |
+| "Start dictating" … "stop dictating" | Everything you say is typed into the terminal until you stop; "send it" presses Enter |
+| "Option two" / "the second one" | Down arrow N-1 times then Enter, for Claude Code style choice menus (confirms first unless trusted) |
+| "Next" / "previous" / "confirm" / "cancel" | Arrow keys, Enter, Escape in a prompt menu |
+| "Scroll up" / "scroll down two pages" / "go to the top" | `surface.scroll` (Ghostty page scroll bindings) |
 | "Goodbye" | Ends the session |
 
 Closing tabs or workspaces always asks first. Running a command asks first

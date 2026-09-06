@@ -267,7 +267,101 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "create_workspace", "rename_workspace", "close_workspace", "split", "new_tab", "close_tab",
         "equalize_splits", "type_text", "press_key", "run_command", "interrupt",
         "browser_navigate", "browser_history", "confirm", "end_session",
+        "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
     assert confirming == {"close_workspace", "close_tab", "run_command"}
     assert all(s.cancel_on_interruption for s in tools.specs())
+
+
+# ------------------------------------------------------- focus / where am I
+
+
+async def test_which_pane_reports_position(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.which_pane()
+    assert res["ok"]
+    assert res["say"] == 'You are in pane 1 of 2 on the left, in workspace web frontend, on terminal "vim".'
+
+
+async def test_focus_terminal_calls_focus_input(tools: VoiceTools, fake: FakeCmux):
+    fake.responder = lambda m, p: {"surface_id": "S-B2", "input_focused": True} if m == "surface.focus_input" else FakeCmux.default_responder(fake, m, p)
+    res = await tools.focus_terminal("npm")
+    assert res["ok"] and res["say"] == "Cursor is in npm run dev."
+    assert {"method": "surface.focus_input", "params": {"surface_id": "S-B2"}} in fake.requests
+
+
+async def test_focus_terminal_default_uses_focused(tools: VoiceTools, fake: FakeCmux):
+    await tools.focus_terminal()
+    assert {"method": "surface.focus_input", "params": {}} in fake.requests
+
+
+# -------------------------------------------------------------- dictation
+
+
+async def test_dictate_types_verbatim_without_enter(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.dictate("git commit -m 'fix the thing'")
+    assert res["ok"] and res["typed"] == "git commit -m 'fix the thing'"
+    assert {"method": "surface.send_text", "params": {"surface_id": "S-B1", "text": "git commit -m 'fix the thing'"}} in fake.requests
+    assert "surface.send_key" not in fake.methods()
+
+
+async def test_dictation_mode_toggle(tools: VoiceTools):
+    assert tools.dictation_active is False
+    res = await tools.set_dictation(True)
+    assert res["dictation"] is True and tools.dictation_active
+    res = await tools.set_dictation(False)
+    assert res["dictation"] is False and not tools.dictation_active
+
+
+# ------------------------------------------------------------ menus
+
+
+async def test_choose_option_moves_down_then_enter_after_confirm(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.choose_option(3)
+    assert res["status"] == "needs_confirmation"
+    res = await tools.confirm("yes")
+    assert res["ok"] and res["say"] == "Chose option 3."
+    keys = [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"]
+    assert keys == ["down", "down", "enter"]
+
+
+async def test_choose_option_trusted_is_immediate(fake: FakeCmux):
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(trust_terminal_input=True))
+    res = await t.choose_option(1)
+    assert res["ok"]
+    assert [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"] == ["enter"]
+    client.close()
+
+
+async def test_menu_navigate_next_and_cancel_are_immediate(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.menu_navigate("next", times=2)
+    assert res["ok"] and res["say"] == "Next."
+    res = await tools.menu_navigate("cancel")
+    assert res["ok"] and res["say"] == "Cancelled."
+    keys = [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"]
+    assert keys == ["down", "down", "escape"]
+
+
+async def test_menu_navigate_confirm_requires_confirmation(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.menu_navigate("confirm")
+    assert res["status"] == "needs_confirmation"
+    assert "surface.send_key" not in fake.methods()
+
+
+# ------------------------------------------------------------- scroll
+
+
+async def test_scroll_pages_and_edges(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.scroll("up", pages=2)
+    assert res["ok"] and res["say"] == "Scrolled up 2 pages."
+    assert {"method": "surface.scroll", "params": {"surface_id": "S-B1", "direction": "up", "pages": 2}} in fake.requests
+    res = await tools.scroll("end")
+    assert res["say"] == "At the bottom."
+    assert {"method": "surface.scroll", "params": {"surface_id": "S-B1", "direction": "bottom", "pages": 1}} in fake.requests
+
+
+async def test_scroll_rejects_nonsense(tools: VoiceTools, fake: FakeCmux):
+    res = await tools.scroll("sideways")
+    assert res["ok"] is False
+    assert "surface.scroll" not in fake.methods()

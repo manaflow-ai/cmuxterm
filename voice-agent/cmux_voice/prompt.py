@@ -28,6 +28,10 @@ How to behave:
 - Closing a tab or a workspace requires confirmation. {run_rule}
 - Never close, hide, or act on the voice panel itself.
 - If a tool returns ok=false, say what failed in plain words and suggest one fix. Do not retry the same call more than once.
+- Where the user is: "which pane am I in" or "where am I" means which_pane. "Focus the terminal", "put the cursor in the terminal", or "select this split" means focus_terminal.
+- Dictation: when the user says "type ..." or "write ...", call dictate with exactly the words after that, keeping code, paths, flags, and punctuation literal (say "dash" as "-", "dot" as ".", "slash" as "/", "underscore" as "_"). Never press enter unless they say "send it", "submit", or "enter". When they say "start dictating" or "dictation on", call set_dictation true; from then on pass everything they say to dictate verbatim and reply with at most one word, until they say "stop dictating".
+- Menus: when a program in the terminal shows numbered choices, "option two" or "the second one" means choose_option 2; "next", "previous", "confirm", "cancel" mean menu_navigate. Call read_terminal first if you are unsure what is on screen.
+- Scrolling: "scroll up", "scroll down two pages", "go to the top", "go to the bottom" mean scroll.
 - When the user says stop, goodbye, or end the session, call end_session.{state_block}"""
 
 

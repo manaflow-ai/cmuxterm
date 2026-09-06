@@ -60,6 +60,8 @@ ALLOWED_METHODS = frozenset(
         "surface.action",
         "surface.send_text",
         "surface.send_key",
+        "surface.scroll",
+        "surface.focus_input",
         "surface.read_text",
         "surface.trigger_flash",
         "browser.open_split",
@@ -90,6 +92,8 @@ class VoiceTools:
         self.state: Optional[UIState] = None
         self._on_state = on_state
         self._on_end_session = on_end_session
+        # While on, everything the user says is typed into the terminal verbatim.
+        self.dictation_active = False
 
     # ------------------------------------------------------------ snapshot
 
@@ -107,6 +111,12 @@ class VoiceTools:
 
     async def _state(self) -> UIState:
         return self.state or await self.refresh()
+
+    async def _state_fresh(self) -> Optional[UIState]:
+        try:
+            return await self.refresh()
+        except CmuxError:
+            return None
 
     async def _done(self, say: str, flash_surface: Optional[str] = None, **extra: Any) -> Dict[str, Any]:
         if flash_surface:
@@ -401,6 +411,135 @@ class VoiceTools:
             return self._fail(f"I couldn't interrupt: {e}")
         return await self._done("Sent control C.", flash_surface=s.id)
 
+    # ------------------------------------------------- tools: focus / where am I
+
+    async def which_pane(self) -> Dict[str, Any]:
+        st = await self._state_fresh()
+        if st is None:
+            return self._fail("I can't reach cmux right now.")
+        ws, pane, surface = st.current_workspace, st.focused_pane, st.focused_surface
+        if ws is None or pane is None:
+            return self._fail("Nothing is focused.")
+        where = f" on the {pane.position}" if pane.position else ""
+        what = f'{surface.type} "{surface.title}"' if surface else "an empty pane"
+        say = f"You are in pane {pane.number} of {len(ws.panes)}{where}, in workspace {ws.title}, on {what}."
+        return {"ok": True, "say": say, "pane": pane.number, "workspace": ws.title, "surface": surface.title if surface else None}
+
+    async def focus_terminal(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Put the keyboard cursor in a terminal (the focused one by default)."""
+        st = await self._state()
+        params: Dict[str, Any] = {}
+        if target:
+            s = st.resolve_surface(target, kind="terminal")
+            if s is None:
+                return self._fail(f"I could not find a terminal matching {target}.")
+            params["surface_id"] = s.id
+        try:
+            res = await self.client.acall("surface.focus_input", params) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't focus the terminal: {e}")
+        title = ""
+        if res.get("surface_id"):
+            hit = next((x for p in (st.current_workspace.panes if st.current_workspace else []) for x in p.surfaces if x.id == res["surface_id"]), None)
+            title = hit.title if hit else ""
+        say = f"Cursor is in {title}." if title else "Cursor is in the terminal."
+        if not res.get("input_focused", True):
+            say = "Focused the terminal, but the cursor may still be elsewhere. Click into it once."
+        return await self._done(say, flash_surface=res.get("surface_id"))
+
+    # ---------------------------------------------------------- tools: dictation
+
+    async def dictate(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Type the user's words verbatim into the terminal, no Enter."""
+        if not text or not text.strip():
+            return self._fail("I didn't catch anything to type.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": text})
+        except CmuxError as e:
+            return self._fail(f"I couldn't type that: {e}")
+        return await self._done("Typed.", flash_surface=s.id, typed=text)
+
+    async def set_dictation(self, enabled: bool) -> Dict[str, Any]:
+        self.dictation_active = bool(enabled)
+        if self.dictation_active:
+            return {"ok": True, "say": "Dictating. Everything you say goes into the terminal. Say stop dictating to finish, or send it to press enter.", "dictation": True}
+        return {"ok": True, "say": "Stopped dictating.", "dictation": False}
+
+    # ------------------------------------------------------ tools: menu / options
+
+    async def choose_option(self, number: int, target: Optional[str] = None) -> Dict[str, Any]:
+        """Pick item N of a numbered prompt menu (Claude Code style): press Down N-1 times, then Enter."""
+        try:
+            n = int(number)
+        except (TypeError, ValueError):
+            return self._fail("Which option number?")
+        if n < 1 or n > 20:
+            return self._fail("Option numbers go from 1 to 20.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for _ in range(n - 1):
+                    await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "down"})
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't choose that: {e}")
+            return await self._done(f"Chose option {n}.", flash_surface=s.id)
+
+        # Choosing an option submits it, so it follows the same trust rule as pressing Enter.
+        if self.policy.trust_terminal_input:
+            return await execute()
+        return self.policy.stage("choose_option", {"number": n}, f"Choose option {n}?", execute)
+
+    async def menu_navigate(self, action: str, times: int = 1, target: Optional[str] = None) -> Dict[str, Any]:
+        """Move through a prompt menu: next/previous (arrow keys), confirm (Enter), cancel (Escape)."""
+        a = (action or "").strip().lower()
+        key = {"next": "down", "down": "down", "previous": "up", "prev": "up", "up": "up", "back": "up",
+               "confirm": "enter", "select": "enter", "accept": "enter", "cancel": "escape", "escape": "escape",
+               "tab": "tab", "space": "space", "toggle": "space"}.get(a)
+        if key is None:
+            return self._fail("Say next, previous, confirm, or cancel.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        count = max(1, min(int(times or 1), 20)) if key in {"down", "up", "tab"} else 1
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for _ in range(count):
+                    await self.client.acall("surface.send_key", {"surface_id": s.id, "key": key})
+            except CmuxError as e:
+                return self._fail(f"I couldn't press {key}: {e}")
+            label = {"down": "Next.", "up": "Previous.", "enter": "Confirmed.", "escape": "Cancelled.", "tab": "Tab.", "space": "Toggled."}[key]
+            return await self._done(label, flash_surface=s.id)
+
+        if key == "enter" and not self.policy.trust_terminal_input:
+            return self.policy.stage("menu_navigate", {"action": a}, "Press enter to confirm?", execute)
+        return await execute()
+
+    # -------------------------------------------------------------- tools: scroll
+
+    async def scroll(self, direction: str = "up", pages: int = 1, target: Optional[str] = None) -> Dict[str, Any]:
+        d = (direction or "up").strip().lower()
+        d = {"upwards": "up", "downwards": "down", "start": "top", "beginning": "top", "end": "bottom", "latest": "bottom"}.get(d, d)
+        if d not in {"up", "down", "top", "bottom"}:
+            return self._fail("Say scroll up, down, to the top, or to the bottom.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        n = max(1, min(int(pages or 1), 50))
+        try:
+            await self.client.acall("surface.scroll", {"surface_id": s.id, "direction": d, "pages": n})
+        except CmuxError as e:
+            return self._fail(f"I couldn't scroll: {e}")
+        say = {"up": f"Scrolled up {n} page{'s' if n > 1 else ''}.", "down": f"Scrolled down {n} page{'s' if n > 1 else ''}.", "top": "At the top.", "bottom": "At the bottom."}[d]
+        return {"ok": True, "say": say}
+
     # ------------------------------------------------------------ tools: browser
 
     async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -470,6 +609,13 @@ class VoiceTools:
             ToolSpec("press_key", "Press a key in a terminal: enter, escape, tab, up, down, left, right, backspace, ctrl-c, ctrl-d, or combos like ctrl-l.", {"key": {"type": "string", "description": "The key name."}, "target": target_prop}, self.press_key, required=["key"]),
             ToolSpec("run_command", "Type a shell command into a terminal and press enter. Requires confirmation unless trusted input is enabled.", {"command": {"type": "string", "description": "Exactly the command to run."}, "target": target_prop}, self.run_command, required=["command"]),
             ToolSpec("interrupt", "Send control C to a terminal to stop the running program.", {"target": target_prop}, self.interrupt),
+            ToolSpec("which_pane", "Say which pane, workspace, and tab the user is currently in.", {}, self.which_pane),
+            ToolSpec("focus_terminal", "Put the keyboard cursor into a terminal so typing goes there. Default: the focused terminal.", {"target": target_prop}, self.focus_terminal),
+            ToolSpec("dictate", "Type the user's spoken words into the terminal exactly as said, without pressing enter. Use for 'type ...', 'write ...', or anything said while dictation is on.", {"text": {"type": "string", "description": "The exact words to type. Keep code, paths, and flags literal."}, "target": target_prop}, self.dictate, required=["text"]),
+            ToolSpec("set_dictation", "Turn dictation mode on or off. While on, everything the user says is typed into the terminal via dictate, until they say stop dictating.", {"enabled": {"type": "boolean"}}, self.set_dictation, required=["enabled"]),
+            ToolSpec("choose_option", "Pick a numbered option from a prompt menu in the terminal, such as a Claude Code choice list: moves down N-1 times and presses enter.", {"number": {"type": "integer", "description": "1-based option number."}, "target": target_prop}, self.choose_option, required=["number"]),
+            ToolSpec("menu_navigate", "Move through a prompt menu in the terminal: next or previous (arrow keys), confirm (enter), cancel (escape), tab, or toggle (space).", {"action": {"type": "string", "enum": ["next", "previous", "confirm", "cancel", "tab", "toggle"]}, "times": {"type": "integer", "description": "How many steps for next/previous. Default 1."}, "target": target_prop}, self.menu_navigate, required=["action"]),
+            ToolSpec("scroll", "Scroll the terminal view up or down by pages, or jump to the top or bottom.", {"direction": {"type": "string", "enum": ["up", "down", "top", "bottom"]}, "pages": {"type": "integer", "description": "Pages to scroll for up/down. Default 1."}, "target": target_prop}, self.scroll),
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
