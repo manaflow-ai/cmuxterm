@@ -353,7 +353,7 @@ struct SidebarWorkspaceSnapshotFactory {
     ) -> [SidebarWorkspaceSnapshotBuilder.PullRequestDisplay] {
         workspace.sidebarPullRequestsInDisplayOrder(orderedPanelIds: orderedPanelIds).map {
             let title = "\($0.label) #\($0.number)"
-            SidebarWorkspaceSnapshotBuilder.PullRequestDisplay(
+            return SidebarWorkspaceSnapshotBuilder.PullRequestDisplay(
                 id: "\($0.label.lowercased())#\($0.number)|\($0.url.absoluteString)",
                 number: $0.number,
                 label: $0.label,
