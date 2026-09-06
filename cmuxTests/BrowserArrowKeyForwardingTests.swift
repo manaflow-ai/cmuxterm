@@ -51,6 +51,16 @@ final class BrowserArrowKeyForwardingTests: XCTestCase {
                 "Expected browser editor to own Shift/Option arrow flags \(flags.rawValue)"
             )
         }
+        for keyCode in [123, 124, 125, 126] as [UInt16] {
+            XCTAssertTrue(
+                shouldDispatchBrowserArrowViaFirstResponderKeyDown(
+                    keyCode: keyCode,
+                    firstResponderIsBrowser: true,
+                    flags: [.command, .shift]
+                ),
+                "Expected browser editor to own Cmd+Shift arrow keyCode \(keyCode)"
+            )
+        }
     }
 
     func testDoesNotForceForwardArrowsOutsidePlainBrowserResponderPath() {
@@ -76,14 +86,14 @@ final class BrowserArrowKeyForwardingTests: XCTestCase {
     }
 
     func testNativeBrowserArrowMappingUsesMacVirtualKeys() {
-        let expected: [(String, UInt16)] = [
-            ("ArrowLeft", 123),
-            ("ArrowRight", 124),
-            ("ArrowDown", 125),
-            ("ArrowUp", 126),
+        let expected: [(String, UInt16, String)] = [
+            ("ArrowLeft", 123, "\u{F702}"),
+            ("ArrowRight", 124, "\u{F703}"),
+            ("ArrowDown", 125, "\u{F701}"),
+            ("ArrowUp", 126, "\u{F700}"),
         ]
 
-        for (rawKey, keyCode) in expected {
+        for (rawKey, keyCode, characters) in expected {
             guard let event = BrowserKeyboardEvent(rawKey: rawKey),
                   let specification = SyntheticKeyEventFactory.specification(forBrowserEvent: event)
             else {
@@ -91,6 +101,8 @@ final class BrowserArrowKeyForwardingTests: XCTestCase {
                 continue
             }
             XCTAssertEqual(specification.keyCode, keyCode, "Unexpected native key code for \(rawKey)")
+            XCTAssertEqual(specification.characters, characters)
+            XCTAssertEqual(specification.charactersIgnoringModifiers, characters)
         }
     }
 }

@@ -576,7 +576,7 @@ extension TerminalController {
         return "ERROR: rate_limited retry_after_ms=\(retryAfterMilliseconds)"
     }
 
-    private nonisolated static func controlCallResult(
+    nonisolated static func controlCallResult(
         fromEncodedResponse response: String
     ) -> ControlCallResult? {
         guard let data = response.data(using: .utf8),

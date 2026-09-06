@@ -141,8 +141,10 @@ func shouldDispatchBrowserArrowViaFirstResponderKeyDown(
         return true
     }
     // Cmd+Option+Arrow remains reserved for cmux pane-focus shortcuts.
-    return (normalizedFlags == [.command] || normalizedFlags == [.command, .shift]) &&
-        (keyCode == 125 || keyCode == 126)
+    if normalizedFlags == [.command] {
+        return keyCode == 125 || keyCode == 126
+    }
+    return normalizedFlags == [.command, .shift]
 }
 
 func shouldDispatchBrowserOmnibarArrowViaFirstResponderKeyDown(

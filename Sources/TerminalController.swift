@@ -2297,6 +2297,25 @@ class TerminalController {
             }
 
             let policy = Self.executionPolicy(forV2Method: request.method)
+            if let action = browserKeyboardAction(for: request.method),
+               let rawKey = request.params["key"]?.foundationObject as? String,
+               let event = BrowserKeyboardEvent(rawKey: rawKey),
+               event.nativeKey != nil {
+                guard !Thread.isMainThread else {
+                    return v2Error(
+                        id: request.id.map(\.foundationObject),
+                        code: "invalid_dispatch",
+                        message: "\(request.method) must run off the main thread"
+                    )
+                }
+                return CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                    v2BrowserKeyboardNativeResponseSync(
+                        request: request,
+                        event: event,
+                        action: action
+                    )
+                }
+            }
             if Thread.isMainThread, policy == .socketWorker(mainThreadCallable: false) {
                 return v2Error(
                     id: request.id.map(\.foundationObject),

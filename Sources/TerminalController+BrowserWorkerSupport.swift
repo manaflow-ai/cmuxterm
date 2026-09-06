@@ -47,28 +47,90 @@ extension TerminalController {
                 )
             }.value
         }
-        var resolvedResult = result
-        // The existing accessibility snapshot implementation is a worker-lane
-        // operation. Keep the optional `snapshot_after` contract intact by
-        // invoking that established bridge only after the non-blocking native
-        // key delivery has completed; the readiness/input path above remains
-        // fully async and never waits on a semaphore.
-        if case .ok(let jsonPayload) = result,
-           v2Bool(params, "snapshot_after") == true,
-           let payload = jsonPayload.foundationObject as? [String: Any],
-           let rawSurfaceID = payload["surface_id"] as? String,
-           let surfaceID = UUID(uuidString: rawSurfaceID) {
-            var mutablePayload = payload
-            v2BrowserAppendPostSnapshot(
-                params: params,
-                surfaceId: surfaceID,
-                payload: &mutablePayload
-            )
-            if let snapshotPayload = JSONValue(foundationObject: mutablePayload) {
-                resolvedResult = .ok(snapshotPayload)
+        // Snapshot work is dispatched to the established blocking worker seam
+        // after native delivery; the cooperative socket task never performs
+        // v2BrowserAppendPostSnapshot directly.
+        return await v2BrowserKeyboardResponseWithWorkerSnapshot(
+            encodedResponse: Self.v2Encoder.response(id: request.id, result),
+            request: request
+        )
+    }
+
+    /// Adds an optional post-action snapshot on a dedicated blocking worker,
+    /// keeping WebKit callback waits off the cooperative executor and main actor.
+    private nonisolated func v2BrowserKeyboardResponseWithWorkerSnapshot(
+        encodedResponse: String,
+        request: ControlRequest
+    ) async -> String {
+        guard v2Bool(request.params.mapValues(\.foundationObject), "snapshot_after") == true,
+              let result = Self.controlCallResult(fromEncodedResponse: encodedResponse),
+              case .ok(let payload) = result,
+              let payloadObject = payload.foundationObject as? [String: Any],
+              let rawSurfaceID = payloadObject["surface_id"] as? String,
+              let surfaceID = UUID(uuidString: rawSurfaceID) else {
+            return encodedResponse
+        }
+        let params = request.params.mapValues(\.foundationObject)
+        let snapshotPayload = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var mutablePayload = payloadObject
+                self.v2BrowserAppendPostSnapshot(
+                    params: params,
+                    surfaceId: surfaceID,
+                    payload: &mutablePayload
+                )
+                continuation.resume(returning: mutablePayload)
             }
         }
-        return Self.v2Encoder.response(id: request.id, resolvedResult)
+        guard let jsonPayload = JSONValue(foundationObject: snapshotPayload) else {
+            return encodedResponse
+        }
+        return Self.v2Encoder.response(
+            id: request.id,
+            .ok(jsonPayload)
+        )
+    }
+
+    /// Runs the native keyboard path from the synchronous socket adapter while
+    /// keeping the main actor available for WebKit readiness and delivery.
+    nonisolated func v2BrowserKeyboardNativeResponseSync(
+        request: ControlRequest,
+        event: BrowserKeyboardEvent,
+        action: BrowserKeyboardAction
+    ) -> String {
+        let params = request.params.mapValues(\.foundationObject)
+        let allowsFocusMutation = Self.socketCommandAllowsInAppFocusMutations(
+            commandKey: request.method,
+            isV2: true,
+            params: params
+        )
+        let encodedResponse = CmuxAutomationInvocationContext.$focusAllowed.withValue(allowsFocusMutation) {
+            v2AsyncResultCall(id: request.id?.foundationObject, timeoutSeconds: 15) {
+                await self.v2BrowserKeyboardNativeResult(
+                    request: request,
+                    event: event,
+                    action: action
+                )
+            }
+        }
+        guard v2Bool(params, "snapshot_after") == true,
+              let result = Self.controlCallResult(fromEncodedResponse: encodedResponse),
+              case .ok(let payload) = result,
+              let payloadObject = payload.foundationObject as? [String: Any],
+              let rawSurfaceID = payloadObject["surface_id"] as? String,
+              let surfaceID = UUID(uuidString: rawSurfaceID) else {
+            return encodedResponse
+        }
+        var mutablePayload = payloadObject
+        v2BrowserAppendPostSnapshot(
+            params: params,
+            surfaceId: surfaceID,
+            payload: &mutablePayload
+        )
+        guard let jsonPayload = JSONValue(foundationObject: mutablePayload) else {
+            return encodedResponse
+        }
+        return Self.v2Encoder.response(id: request.id, .ok(jsonPayload))
     }
 
     /// Executes a mapped browser key on the main actor after an asynchronous

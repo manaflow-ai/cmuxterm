@@ -21,6 +21,17 @@ final class BrowserNativeInputDeliveryOwner {
         }
     }
 
+    func modifierFlags(removing keyCode: UInt16) -> NSEvent.ModifierFlags {
+        heldModifierKeys.filter { $0.key != keyCode }.values.reduce(into: NSEvent.ModifierFlags()) { flags, modifier in
+            if modifier.contains(.shift) { flags.insert(.shift) }
+            if modifier.contains(.control) { flags.insert(.control) }
+            if modifier.contains(.option) { flags.insert(.option) }
+            if modifier.contains(.command) { flags.insert(.command) }
+            if modifier.contains(.capsLock) { flags.insert(.capsLock) }
+            if modifier.contains(.function) { flags.insert(.function) }
+        }
+    }
+
     func withDispatch<T>(_ body: () -> T) -> T {
         dispatchDepth += 1
         defer { dispatchDepth = max(0, dispatchDepth - 1) }
@@ -229,11 +240,12 @@ extension WKWebView {
                 return .eventCreationFailed
             }
         case .keyUp:
-            browserNativeInputDeliveryOwner.removeModifier(for: key.keyCode)
-            guard deliverBrowserFlagsChanged(key, flags: browserNativeInputDeliveryOwner.activeModifierFlags) else {
-                browserNativeInputDeliveryOwner.setModifier(modifierKey, for: key.keyCode)
+            let releasedFlags = browserNativeInputDeliveryOwner.modifierFlags(removing: key.keyCode)
+            guard deliverBrowserFlagsChanged(key, flags: releasedFlags) else {
+                _ = deliverBrowserFlagsChanged(key, flags: releasedFlags)
                 return .eventCreationFailed
             }
+            browserNativeInputDeliveryOwner.removeModifier(for: key.keyCode)
         }
         return .delivered
     }
