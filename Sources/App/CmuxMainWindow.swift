@@ -259,6 +259,7 @@ final class CmuxMainWindow: NSWindow {
             backing: backing,
             defer: flag
         )
+        autorecalculatesKeyViewLoop = false
         collectionBehavior = Self.canonicalCollectionBehavior(collectionBehavior)
     }
 
