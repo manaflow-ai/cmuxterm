@@ -252,7 +252,10 @@ final class SettingsShortcutsBehaviorUITests: SettingsUITestCase {
         XCTAssertTrue(poll(timeout: 5.0) { account.exists && account.isSelected })
         XCTAssertTrue(detail.waitForExistence(timeout: 5.0))
 
-        for _ in 0..<7 {
+        for _ in 0..<12 {
+            if poll(timeout: 0.5) { keyboardShortcuts.exists && keyboardShortcuts.isSelected } {
+                break
+            }
             detail.swipeUp()
         }
 
