@@ -2058,7 +2058,7 @@ class TerminalController {
         return sanitized.isEmpty ? "<empty>" : String(sanitized)
     }
 
-    private nonisolated static func socketCommandDescriptor(
+    nonisolated static func socketCommandDescriptor(
         protocolName: String,
         method: String,
         policy: ControlCommandExecutionPolicy,
@@ -2072,7 +2072,7 @@ class TerminalController {
         )
     }
 
-    private nonisolated static func socketCommandDescriptor(
+    nonisolated static func socketCommandDescriptor(
         command: String,
         peerPid: pid_t?
     ) -> SocketCommandDescriptor {
@@ -2095,7 +2095,7 @@ class TerminalController {
         )
     }
 
-    private nonisolated func reportSlowSocketCommandIfNeeded(
+    nonisolated func reportSlowSocketCommandIfNeeded(
         descriptor: SocketCommandDescriptor,
         response: String?,
         startNs: UInt64
