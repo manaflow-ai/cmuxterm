@@ -293,6 +293,42 @@ import Testing
         }
     }
 
+    @Test func codexNativeTitleSyncAppliesToRawPanelTitleWithAutoNamingDisabled() throws {
+        try withAutoNamingSetting(false) {
+            try withManager { _, workspace in
+                let pane = try #require(workspace.bonsplitController.allPaneIds.first)
+                let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: true)?.id)
+
+                let envelope = try call(method: "surface.sync_codex_native_title", params: [
+                    "workspace_id": workspace.id.uuidString,
+                    "panel_id": panelId.uuidString,
+                    "title": "測試 cmux 與 codex Tab 同步"
+                ])
+                let result = try #require(envelope["result"] as? [String: Any])
+                #expect(result["applied"] as? Bool == true)
+                #expect(workspace.panelTitles[panelId] == "測試 cmux 與 codex Tab 同步")
+                #expect(workspace.panelCustomTitles[panelId] == nil)
+            }
+        }
+    }
+
+    @Test func codexNativeTitleSyncPreservesExistingCustomPanelTitle() throws {
+        try withManager { _, workspace in
+            let pane = try #require(workspace.bonsplitController.allPaneIds.first)
+            let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: true)?.id)
+            _ = workspace.setPanelCustomTitle(panelId: panelId, title: "my renamed tab", source: .user)
+
+            let envelope = try call(method: "surface.sync_codex_native_title", params: [
+                "workspace_id": workspace.id.uuidString,
+                "panel_id": panelId.uuidString,
+                "title": "fresh Codex conversation title"
+            ])
+            #expect(envelope["ok"] as? Bool == true)
+            #expect(workspace.panelCustomTitles[panelId] == "my renamed tab")
+            #expect(workspace.panelCustomTitleSources[panelId] == .user)
+        }
+    }
+
     @Test func malformedParamsProduceCleanErrors() throws {
         try withAutoNamingSetting(true) {
             try withManager { _, workspace in
