@@ -86,6 +86,7 @@ extension KeyboardShortcutSettings.Action {
              .switchRightSidebarToFeed,
              .switchRightSidebarToDock,
              .switchRightSidebarToMachines,
+             .toggleVoiceAgent,
              .nextSidebarTab, .prevSidebarTab,
              .nextSidebarTabInGroup, .prevSidebarTabInGroup,
              .moveWorkspaceUp, .moveWorkspaceDown,

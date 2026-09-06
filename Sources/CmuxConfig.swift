@@ -940,12 +940,15 @@ struct CmuxSurfaceTabBarButton: Codable, Sendable, Hashable, Identifiable {
     static let splitDown = actionReference(CmuxSurfaceTabBarBuiltInAction.splitDown.configID)
 
     static let mobileConnect = actionReference(CmuxSurfaceTabBarBuiltInAction.mobileConnect.configID)
+    static let voiceRecap = actionReference(CmuxSurfaceTabBarBuiltInAction.voiceRecap.configID)
 
     static let defaults: [CmuxSurfaceTabBarButton] = [
         .newTerminal,
         .newBrowser,
         .splitRight,
-        .splitDown
+        .splitDown,
+        // Hidden unless the voice agent beta is enabled (see Workspace's button gate).
+        .voiceRecap
     ]
 
     static func builtIn(
@@ -2059,7 +2062,8 @@ final class CmuxConfigStore: ObservableObject {
             .builtIn(.newTerminal),
             .builtIn(.newBrowser),
             .builtIn(.splitRight),
-            .builtIn(.splitDown)
+            .builtIn(.splitDown),
+            .builtIn(.voiceRecap)
         ]
         let resolvedButtons = resolvedSurfaceTabBarButtons(
             configuredButtons,

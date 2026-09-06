@@ -15,9 +15,25 @@ public struct BetaFeaturesSection: View {
     @State private var remoteTmux: DefaultsValueModel<Bool>
     @State private var workspaceTodoControls: DefaultsValueModel<Bool>
     @State private var workspaceTodosChecklistStyle: DefaultsValueModel<WorkspaceTodoChecklistStyle>
+    @State private var voiceAgent: DefaultsValueModel<Bool>
+    @State private var voiceAgentTrustTerminalInput: DefaultsValueModel<Bool>
+    @State private var voiceAgentApiKey: SecretValueModel
+    @State private var voiceAgentApiKeyDraft = ""
     @State private var blueprint: DefaultsValueModel<Bool>
 
-    public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog) {
+    public init(
+        defaultsStore: UserDefaultsSettingsStore,
+        secretStore: SecretFileStore,
+        catalog: SettingCatalog,
+        errorLog: SettingsErrorLog
+    ) {
+        _voiceAgent = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.voiceAgent))
+        _voiceAgentTrustTerminalInput = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.voiceAgent.trustTerminalInput))
+        _voiceAgentApiKey = State(initialValue: SecretValueModel(
+            store: secretStore,
+            key: catalog.voiceAgent.ultravoxApiKey,
+            errorLog: errorLog
+        ))
         _feed = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarFeed))
         _dock = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarDock))
         _cloudMachines = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.cloudMachines))
@@ -53,6 +69,13 @@ public struct BetaFeaturesSection: View {
                 SettingsCardDivider()
                 workspaceTodosChecklistStyleRow
                 SettingsCardDivider()
+                voiceAgentRow
+                if voiceAgent.current {
+                    SettingsCardDivider()
+                    voiceAgentApiKeyRow
+                    SettingsCardDivider()
+                    voiceAgentTrustRow
+                }
                 blueprintRow
             }
         }
@@ -69,9 +92,89 @@ public struct BetaFeaturesSection: View {
             remoteTmux,
             workspaceTodoControls,
             workspaceTodosChecklistStyle,
+            voiceAgent,
+            voiceAgentTrustTerminalInput,
             blueprint,
         ]
         models.forEach { $0.startObserving() }
+        voiceAgentApiKey.startObserving()
+    }
+
+    @ViewBuilder
+    private var voiceAgentRow: some View {
+        SettingsCardRow(
+            configurationReview: .json("voiceAgent.beta.enabled"),
+            searchAnchorID: "setting:betaFeatures:voice-agent",
+            String(localized: "settings.betaFeatures.voiceAgent", defaultValue: "Voice Agent"),
+            subtitle: voiceAgent.current
+                ? String(localized: "settings.betaFeatures.voiceAgent.subtitleOn", defaultValue: "Adds a Voice tab to the right sidebar. Talk to control workspaces, panes, terminals, and the browser. Speech and, when you ask for it, terminal text are sent to Ultravox.")
+                : String(localized: "settings.betaFeatures.voiceAgent.subtitleOff", defaultValue: "Hides the Voice tab and the Toggle Voice Agent command until you enable it here.")
+        ) {
+            Toggle("", isOn: Binding(get: { voiceAgent.current }, set: { voiceAgent.set($0) }))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier("SettingsBetaVoiceAgentToggle")
+        }
+    }
+
+    @ViewBuilder
+    private var voiceAgentApiKeyRow: some View {
+        let hasKey = !voiceAgentApiKey.current.isEmpty
+        SettingsCardRow(
+            configurationReview: .settingsOnly,
+            searchAnchorID: "setting:betaFeatures:voice-agent-api-key",
+            String(localized: "settings.betaFeatures.voiceAgent.apiKey", defaultValue: "Ultravox API Key"),
+            subtitle: hasKey
+                ? String(localized: "settings.betaFeatures.voiceAgent.apiKey.subtitleSet", defaultValue: "Stored in a private file and passed only to the local voice server.")
+                : String(localized: "settings.betaFeatures.voiceAgent.apiKey.subtitleUnset", defaultValue: "Required. Create a key at ultravox.ai.")
+        ) {
+            HStack(spacing: 8) {
+                SecureField(
+                    String(localized: "settings.betaFeatures.voiceAgent.apiKey.placeholder", defaultValue: "API key"),
+                    text: $voiceAgentApiKeyDraft
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 170)
+                .accessibilityIdentifier("SettingsBetaVoiceAgentApiKeyField")
+                Button(
+                    hasKey
+                        ? String(localized: "settings.betaFeatures.voiceAgent.apiKey.change", defaultValue: "Change")
+                        : String(localized: "settings.betaFeatures.voiceAgent.apiKey.set", defaultValue: "Set")
+                ) {
+                    let value = voiceAgentApiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !value.isEmpty else { return }
+                    voiceAgentApiKey.set(value)
+                    voiceAgentApiKeyDraft = ""
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(voiceAgentApiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                if hasKey {
+                    Button(String(localized: "settings.betaFeatures.voiceAgent.apiKey.clear", defaultValue: "Clear")) {
+                        voiceAgentApiKey.reset()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var voiceAgentTrustRow: some View {
+        SettingsCardRow(
+            configurationReview: .json("voiceAgent.trustTerminalInput"),
+            searchAnchorID: "setting:betaFeatures:voice-agent-trust-terminal",
+            String(localized: "settings.betaFeatures.voiceAgent.trustTerminalInput", defaultValue: "Run Commands Without Confirmation"),
+            subtitle: voiceAgentTrustTerminalInput.current
+                ? String(localized: "settings.betaFeatures.voiceAgent.trustTerminalInput.subtitleOn", defaultValue: "“Run ls” executes immediately. Closing tabs and workspaces still asks first.")
+                : String(localized: "settings.betaFeatures.voiceAgent.trustTerminalInput.subtitleOff", defaultValue: "The agent asks before pressing Enter in a terminal.")
+        ) {
+            Toggle("", isOn: Binding(get: { voiceAgentTrustTerminalInput.current }, set: { voiceAgentTrustTerminalInput.set($0) }))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier("SettingsBetaVoiceAgentTrustToggle")
+        }
     }
 
     @ViewBuilder

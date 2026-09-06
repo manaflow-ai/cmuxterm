@@ -37,3 +37,12 @@ public enum ControlSurfaceSendResolution: Sendable, Equatable {
     /// The input was sent. Carries the echoed identity and whether it was queued.
     case sent(windowID: UUID?, workspaceID: UUID, surfaceID: UUID, queued: Bool)
 }
+
+/// Scroll directions for `surface.scroll`, mapped onto Ghostty binding
+/// actions by the app-side seam.
+public enum ControlSurfaceScrollDirection: String, Sendable, CaseIterable {
+    case up
+    case down
+    case top
+    case bottom
+}

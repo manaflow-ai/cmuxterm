@@ -41,6 +41,7 @@ extension ShortcutAction {
         case .switchRightSidebarToDock: return "Show Sidebar Dock"
         case .switchRightSidebarToMachines: return "Show Sidebar Cloud"
         case .triggerFlash: return "Flash Focused Panel"
+        case .toggleVoiceAgent: return "Toggle Voice Agent"
         case .toggleTerminalBlueprint: return "Toggle Blueprint"
         case .nextSurface: return "Next Surface"
         case .prevSurface: return "Previous Surface"

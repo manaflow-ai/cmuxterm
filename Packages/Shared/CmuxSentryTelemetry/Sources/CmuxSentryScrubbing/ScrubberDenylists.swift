@@ -64,6 +64,7 @@ public struct ScrubberDenylists: Sendable {
         // SECRET_ACCESS_KEY; `bearer` catches a `bearer`-named field.
         "accesskey",
         "bearer",
+        "ultravox",     // voiceAgent.ultravoxApiKey / ULTRAVOX_API_KEY
     ]
 
     /// Short or marker-free credential key aliases matched WHOLE (not as

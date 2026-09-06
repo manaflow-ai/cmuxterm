@@ -1,0 +1,1201 @@
+"""Voice tool registry: framework-agnostic tool definitions over the cmux socket.
+
+Each tool is a `ToolSpec` (name, description, JSON-schema properties, handler).
+`bot.py` adapts these to Pipecat `FunctionSchema`s; tests call handlers directly.
+
+Handlers never raise. They return a dict with at least:
+  ok:  bool
+  say: a short, speakable sentence for the model to relay
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable, Dict, List, Optional
+
+from .cmux_client import CmuxClient, CmuxError
+from . import shell_context as shellctx
+from .policy import ConfirmationPolicy
+from .state import Pane, Surface, UIState, Workspace
+
+Handler = Callable[..., Awaitable[Dict[str, Any]]]
+
+
+@dataclass
+class ToolSpec:
+    name: str
+    description: str
+    properties: Dict[str, Any]
+    handler: Handler
+    required: List[str] = field(default_factory=list)
+    # All tools run in milliseconds against the local socket, so they stay
+    # synchronous for Ultravox (cancel_on_interruption=True). Marking a tool
+    # async would make Ultravox return a placeholder and inject the real result
+    # later as user text, which breaks the confirmation flow.
+    cancel_on_interruption: bool = True
+
+
+# Every socket method the voice agent is allowed to send. `CmuxClient` refuses the rest.
+ALLOWED_METHODS = frozenset(
+    {
+        "system.tree",
+        "system.identify",
+        "pane.list",
+        "pane.focus",
+        "pane.last",
+        "workspace.list",
+        "workspace.current",
+        "workspace.select",
+        "workspace.next",
+        "workspace.previous",
+        "workspace.last",
+        "workspace.create",
+        "workspace.rename",
+        "workspace.close",
+        "workspace.equalize_splits",
+        "workspace.group.list",
+        "workspace.group.create",
+        "workspace.group.rename",
+        "workspace.group.focus",
+        "workspace.group.new_workspace",
+        "workspace.group.add",
+        "surface.rename",
+        "surface.focus",
+        "surface.split",
+        "surface.create",
+        "surface.close",
+        "surface.action",
+        "surface.send_text",
+        "surface.send_key",
+        "surface.scroll",
+        "surface.focus_input",
+        "surface.read_text",
+        "surface.trigger_flash",
+        "browser.open_split",
+        "browser.navigate",
+        "browser.back",
+        "browser.forward",
+        "browser.reload",
+        "browser.url.get",
+    }
+)
+
+_RISKY = re.compile(r"\b(rm\s+-[rf]|git\s+(push\s+.*--force|reset\s+--hard|clean\s+-[fd]|branch\s+-D)|sudo\b|mkfs|dd\s+if=|:\(\)\s*\{)", re.IGNORECASE)
+
+
+def _is_risky(command: str) -> bool:
+    return bool(_RISKY.search(command))
+
+
+_URL_LIKE = re.compile(r"^(https?://|file://|localhost(:\d+)?(/|$)|[\w.-]+\.[a-z]{2,}(/|:|$))", re.IGNORECASE)
+
+
+class VoiceTools:
+    """Holds the client, the confirmation policy, and a cached UI snapshot."""
+
+    def __init__(
+        self,
+        client: CmuxClient,
+        policy: Optional[ConfirmationPolicy] = None,
+        *,
+        on_state: Optional[Callable[[UIState], Awaitable[None]]] = None,
+        on_end_session: Optional[Callable[[], Awaitable[None]]] = None,
+    ) -> None:
+        self.client = client
+        self.policy = policy or ConfirmationPolicy()
+        self.state: Optional[UIState] = None
+        self._on_state = on_state
+        self._on_end_session = on_end_session
+        # While on, everything the user says is typed into the terminal verbatim.
+        self.dictation_active = False
+        self._last_typed_surface: Optional[str] = None
+
+    # ------------------------------------------------------------ snapshot
+
+    async def refresh(self) -> UIState:
+        tree = await self.client.acall("system.tree")
+        pane_rows: List[Dict[str, Any]] = []
+        try:
+            pane_rows = list((await self.client.acall("pane.list") or {}).get("panes") or [])
+        except CmuxError:
+            pane_rows = []
+        self.state = UIState.from_tree(tree or {}, pane_rows)
+        try:
+            rows = (await self.client.acall("workspace.list") or {}).get("workspaces") or []
+            dirs = {str(r.get("id")): r.get("current_directory") for r in rows}
+            for w in self.state.workspaces:
+                w.current_directory = dirs.get(w.id) or w.current_directory
+        except CmuxError:
+            pass
+        try:
+            groups = (await self.client.acall("workspace.group.list") or {}).get("groups") or []
+            self.state.apply_groups(groups)
+        except CmuxError:
+            pass
+        if self._on_state is not None:
+            await self._on_state(self.state)
+        return self.state
+
+    async def _state(self) -> UIState:
+        return self.state or await self.refresh()
+
+    async def _state_fresh(self) -> Optional[UIState]:
+        try:
+            return await self.refresh()
+        except CmuxError:
+            return None
+
+    async def _done(self, say: str, flash_surface: Optional[str] = None, **extra: Any) -> Dict[str, Any]:
+        if flash_surface:
+            try:
+                await self.client.acall("surface.trigger_flash", {"surface_id": flash_surface})
+            except CmuxError:
+                pass
+        try:
+            await self.refresh()
+        except CmuxError:
+            pass
+        out = {"ok": True, "say": say}
+        out.update(extra)
+        return out
+
+    @staticmethod
+    def _fail(say: str, **extra: Any) -> Dict[str, Any]:
+        out = {"ok": False, "say": say}
+        out.update(extra)
+        return out
+
+    # ----------------------------------------------------------- resolvers
+
+    async def _workspace(self, target: Optional[str]) -> Workspace | Dict[str, Any]:
+        st = await self._state()
+        ws = st.resolve_workspace(target)
+        if ws is None:
+            return self._fail(f"I could not find a workspace called {target}.")
+        return ws
+
+    async def _pane(self, target: Optional[str]) -> Pane | Dict[str, Any]:
+        st = await self._state()
+        pane = st.resolve_pane(target)
+        if pane is None:
+            return self._fail(f"I could not find a pane matching {target}." if target else "There is no focused pane.")
+        return pane
+
+    async def _surface_of_kind(self, target: Optional[str], kind: str, missing: str) -> Surface | Dict[str, Any]:
+        # The focused surface changes under the user's hands; never act on a cached one.
+        st = await self._state() if target else (await self._state_fresh() or await self._state())
+        if target:
+            # Resolve without a kind filter first so a wrong-kind target gets a precise message.
+            s = st.resolve_surface(target)
+            if s is not None and s.type != kind:
+                if s.is_browser or s.is_terminal:
+                    return self._fail(f"{s.title or 'That tab'} is a {s.type}, not a {kind}.")
+                return self._fail(f"{s.title or 'That tab'} is not a {kind}.")
+            if s is None:
+                s = st.resolve_surface(target, kind=kind)
+            if s is None:
+                return self._fail(f"I could not find a {kind} matching {target}.")
+            return s
+        s = st.resolve_surface(None, kind=kind)
+        if s is None:
+            return self._fail(missing)
+        return s
+
+    def _pane_of(self, surface: Surface) -> Optional[Pane]:
+        ws = self.state.current_workspace if self.state else None
+        if ws is None:
+            return None
+        return next((p for p in ws.panes if any(x.id == surface.id for x in p.surfaces)), None)
+
+    async def _terminal(self, target: Optional[str]) -> Surface | Dict[str, Any]:
+        return await self._surface_of_kind(target, "terminal", "I could not find a terminal to type into.")
+
+    async def _browser(self, target: Optional[str]) -> Surface | Dict[str, Any]:
+        return await self._surface_of_kind(
+            target, "browser", "There is no browser open in this workspace. Say open a URL in a split to create one."
+        )
+
+    # ----------------------------------------------------------- tools: context
+
+    async def get_ui_state(self) -> Dict[str, Any]:
+        try:
+            st = await self.refresh()
+        except CmuxError as e:
+            return self._fail(f"I can't reach cmux: {e}")
+        return {"ok": True, "say": st.summary(), "state": st.summary()}
+
+    async def read_terminal(self, target: Optional[str] = None, lines: int = 40) -> Dict[str, Any]:
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            res = await self.client.acall("surface.read_text", {"surface_id": s.id, "lines": int(lines)}) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't read that terminal: {e}")
+        text = res.get("text")
+        if text is None and res.get("base64"):
+            import base64
+
+            text = base64.b64decode(res["base64"]).decode("utf-8", errors="replace")
+        text = (text or "").rstrip()
+        tail = "\n".join(text.splitlines()[-int(lines):])
+        return {"ok": True, "say": tail or "The terminal is empty.", "text": tail, "surface": s.title}
+
+    # ---------------------------------------------------------- tools: navigate
+
+    async def focus_workspace(self, target: str) -> Dict[str, Any]:
+        low = (target or "").strip().lower()
+        try:
+            if low in {"next", "forward"}:
+                await self.client.acall("workspace.next")
+                return await self._done("Next workspace.")
+            if low in {"previous", "prev", "back"}:
+                await self.client.acall("workspace.previous")
+                return await self._done("Previous workspace.")
+            if low in {"last", "recent"}:
+                await self.client.acall("workspace.last")
+                return await self._done("Back to the last workspace.")
+            st = await self._state()
+            ws = st.resolve_workspace(target)
+            if ws is None:
+                names = [w.title for w in st.workspaces if w.title][:4]
+                return self._fail(f"I could not find a workspace called {target}." + (f" I know: {', '.join(names)}." if names else ""))
+            await self.client.acall("workspace.select", {"workspace_id": ws.id})
+            return await self._done(f"Switched to {ws.title}.")
+        except CmuxError as e:
+            return self._fail(f"I couldn't switch workspace: {e}")
+
+    async def focus_pane(self, target: str) -> Dict[str, Any]:
+        low = (target or "").strip().lower()
+        try:
+            if low in {"last", "previous", "back"}:
+                await self.client.acall("pane.last")
+                return await self._done("Back to the previous pane.")
+            pane = await self._pane(target)
+            if isinstance(pane, dict):
+                return pane
+            await self.client.acall("pane.focus", {"pane_id": pane.id})
+            label = pane.selected_surface.title if pane.selected_surface else f"pane {pane.number}"
+            return await self._done(f"Focused {label}.")
+        except CmuxError as e:
+            return self._fail(f"I couldn't focus that pane: {e}")
+
+    async def focus_tab(self, target: str) -> Dict[str, Any]:
+        """Switch to a tab by name: in this workspace first, then any workspace (cached names, one call)."""
+        st = await self._state()
+        s = st.resolve_surface(target)
+        ws = None
+        if s is None:
+            for candidate in st.workspaces:
+                if candidate is st.current_workspace:
+                    continue
+                found = st.resolve_surface(target, workspace=candidate)
+                if found is not None:
+                    s, ws = found, candidate
+                    break
+        if s is None:
+            near = [x.title for w in st.workspaces for p in w.panes for x in p.surfaces if x.title][:3]
+            hint = f" Tabs I know: {', '.join(near)}." if near else ""
+            return self._fail(f"I could not find a tab matching {target}.{hint}")
+        try:
+            if ws is not None:
+                await self.client.acall("workspace.select", {"workspace_id": ws.id})
+            await self.client.acall("surface.focus", {"surface_id": s.id})
+            where = f" in {ws.title}" if ws is not None else ""
+            return await self._done(f"Focused {s.title or 'that tab'}{where}.")
+        except CmuxError as e:
+            return self._fail(f"I couldn't focus that tab: {e}")
+
+    # ------------------------------------------------------- tools: create/arrange
+
+    async def create_workspace(self, name: Optional[str] = None, working_directory: Optional[str] = None) -> Dict[str, Any]:
+        # workspace.create has no title parameter; name it with workspace.rename afterwards.
+        params: Dict[str, Any] = {"focus": True}
+        if working_directory:
+            params["working_directory"] = working_directory
+        try:
+            res = await self.client.acall("workspace.create", params) or {}
+            wid = res.get("workspace_id")
+            if name and name.strip() and wid:
+                await self.client.acall("workspace.rename", {"workspace_id": wid, "title": name.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't create a workspace: {e}")
+        return await self._done(f"Created workspace {name.strip()}." if name and name.strip() else "Created a new workspace.", workspace_id=wid)
+
+    async def rename_workspace(self, title: str, target: Optional[str] = None) -> Dict[str, Any]:
+        ws = await self._workspace(target)
+        if isinstance(ws, dict):
+            return ws
+        try:
+            await self.client.acall("workspace.rename", {"workspace_id": ws.id, "title": title})
+        except CmuxError as e:
+            return self._fail(f"I couldn't rename it: {e}")
+        return await self._done(f"Renamed to {title}.")
+
+    async def close_workspace(self, target: Optional[str] = None) -> Dict[str, Any]:
+        ws = await self._workspace(target)
+        if isinstance(ws, dict):
+            return ws
+        tabs = sum(len(p.surfaces) for p in ws.panes)
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("workspace.close", {"workspace_id": ws.id})
+            except CmuxError as e:
+                return self._fail(f"I couldn't close it: {e}")
+            return await self._done(f"Closed {ws.title}.")
+
+        return self.policy.stage("close_workspace", {"target": target}, f"Close workspace {ws.title} with {tabs} tab{'s' if tabs != 1 else ''}?", execute)
+
+    MIN_SPLIT_COLUMNS = 60  # a terminal narrower than this cannot show an agent CLI or a diff
+
+    async def split(self, direction: str = "right", kind: str = "terminal", url: Optional[str] = None) -> Dict[str, Any]:
+        d = (direction or "right").strip().lower()
+        if d not in {"left", "right", "up", "down"}:
+            return self._fail("Direction must be left, right, up, or down.")
+        st = await self._state_fresh() or await self._state()
+        pane = st.focused_pane
+        if pane is not None and d in {"left", "right"} and pane.columns and pane.columns < 2 * self.MIN_SPLIT_COLUMNS:
+            n = len(st.current_workspace.panes) if st.current_workspace else 0
+            return self._fail(
+                f"This pane is only {pane.columns} columns wide, so splitting it sideways would leave both halves too narrow to use. "
+                + (f"There are already {n} panes here; say close this pane, or split down instead." if n > 1 else "Say split down instead, or make the window wider.")
+            )
+        k = (kind or "terminal").strip().lower()
+        try:
+            if k == "browser" or url:
+                params: Dict[str, Any] = {"direction": d}
+                if url:
+                    params["url"] = _normalize_url(url)
+                res = await self.client.acall("browser.open_split", params) or {}
+                sid = res.get("surface_id")
+                return await self._done(f"Opened a browser {d}.", flash_surface=sid, surface_id=sid)
+            res = await self.client.acall("surface.split", {"direction": d, "type": "terminal", "focus": True}) or {}
+            sid = res.get("surface_id")
+            return await self._done(f"Split {d}.", flash_surface=sid, surface_id=sid)
+        except CmuxError as e:
+            return self._fail(f"I couldn't split: {e}")
+
+    async def new_tab(self, kind: str = "terminal", url: Optional[str] = None) -> Dict[str, Any]:
+        k = (kind or "terminal").strip().lower()
+        params: Dict[str, Any] = {"type": "browser" if k == "browser" or url else "terminal"}
+        if url:
+            params["url"] = _normalize_url(url)
+        try:
+            res = await self.client.acall("surface.create", params) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't open a new tab: {e}")
+        sid = res.get("surface_id")
+        return await self._done("Opened a new browser tab." if params["type"] == "browser" else "Opened a new terminal tab.", flash_surface=sid, surface_id=sid)
+
+    async def close_tab(self, target: Optional[str] = None) -> Dict[str, Any]:
+        st = await self._state()
+        s = st.resolve_surface(target)
+        if s is None:
+            return self._fail("I could not find that tab.")
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.close", {"surface_id": s.id})
+            except CmuxError as e:
+                return self._fail(f"I couldn't close it: {e}")
+            return await self._done(f"Closed {s.title or 'the tab'}.")
+
+        return self.policy.stage("close_tab", {"target": target}, f"Close the {s.type} tab {s.title}?", execute)
+
+    async def close_pane(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Close a pane (all its tabs). Confirm-gated."""
+        pane = await self._pane(target)
+        if isinstance(pane, dict):
+            return pane
+        n = len(pane.surfaces)
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for surf in list(pane.surfaces):
+                    await self.client.acall("surface.close", {"surface_id": surf.id})
+            except CmuxError as e:
+                return self._fail(f"I couldn't close that pane: {e}")
+            return await self._done(f"Closed pane {pane.number}.")
+
+        return self.policy.stage("close_pane", {"target": target}, f"Close pane {pane.number} with {n} tab{'s' if n != 1 else ''}?", execute)
+
+    async def equalize_splits(self) -> Dict[str, Any]:
+        try:
+            await self.client.acall("workspace.equalize_splits")
+        except CmuxError as e:
+            return self._fail(f"I couldn't equalize the splits: {e}")
+        return await self._done("Splits equalized.")
+
+    # ----------------------------------------------------------- tools: terminal
+
+    async def type_text(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
+        if text is None or text == "":
+            return self._fail("There is nothing to type.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": text})
+        except CmuxError as e:
+            return self._fail(f"I couldn't type into the terminal: {e}")
+        self._last_typed_surface = s.id
+        return await self._done(f"Typed {text}.", flash_surface=s.id)
+
+    async def press_key(self, key: str, target: Optional[str] = None) -> Dict[str, Any]:
+        k = (key or "").strip().lower().replace(" ", "")
+        if not k:
+            return self._fail("Which key?")
+        aliases = {"control-c": "ctrl-c", "controlc": "ctrl-c", "ctrlc": "ctrl-c", "esc": "escape", "return": "enter", "newline": "enter"}
+        k = aliases.get(k, k)
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": k})
+            except CmuxError as e:
+                return self._fail(f"I couldn't press {k}: {e}")
+            return await self._done(f"Pressed {k}.", flash_surface=s.id)
+
+        if k == "enter" and not self.policy.trust_terminal_input:
+            return self.policy.stage("press_key", {"key": k, "target": target}, f"Press enter in {s.title or 'the terminal'}?", execute)
+        return await execute()
+
+    async def run_command(self, command: str, target: Optional[str] = None) -> Dict[str, Any]:
+        if not command or not command.strip():
+            return self._fail("What command should I run?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": command})
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't run that: {e}")
+            output = await self._output_after(s.id, command)
+            return await self._done(f"Ran {command}.", flash_surface=s.id, output=output)
+
+        if self.policy.trust_terminal_input:
+            return await execute()
+        return self.policy.stage("run_command", {"command": command, "target": target}, f"Run {command} in {s.title or 'the terminal'}?", execute)
+
+    async def interrupt(self, target: Optional[str] = None) -> Dict[str, Any]:
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "ctrl-c"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't interrupt: {e}")
+        return await self._done("Sent control C.", flash_surface=s.id)
+
+    # ------------------------------------------------- tools: focus / where am I
+
+    async def which_pane(self) -> Dict[str, Any]:
+        st = await self._state_fresh()
+        if st is None:
+            return self._fail("I can't reach cmux right now.")
+        ws, pane, surface = st.current_workspace, st.focused_pane, st.focused_surface
+        if ws is None or pane is None:
+            return self._fail("Nothing is focused.")
+        where = f" on the {pane.position}" if pane.position else ""
+        what = f'{surface.type} "{surface.title}"' if surface else "an empty pane"
+        say = f"You are in pane {pane.number} of {len(ws.panes)}{where}, in workspace {ws.title}, on {what}."
+        return {"ok": True, "say": say, "pane": pane.number, "workspace": ws.title, "surface": surface.title if surface else None}
+
+    async def focus_terminal(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Put the keyboard cursor in a terminal (the focused one by default)."""
+        st = await self._state()
+        params: Dict[str, Any] = {}
+        if target:
+            s = st.resolve_surface(target, kind="terminal")
+            if s is None:
+                return self._fail(f"I could not find a terminal matching {target}.")
+            params["surface_id"] = s.id
+        try:
+            res = await self.client.acall("surface.focus_input", params) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't focus the terminal: {e}")
+        title = ""
+        if res.get("surface_id"):
+            hit = next((x for p in (st.current_workspace.panes if st.current_workspace else []) for x in p.surfaces if x.id == res["surface_id"]), None)
+            title = hit.title if hit else ""
+        say = f"Cursor is in {title}." if title else "Cursor is in the terminal."
+        if not res.get("input_focused", True):
+            say = "Focused the terminal, but the cursor may still be elsewhere. Click into it once."
+        return await self._done(say, flash_surface=res.get("surface_id"))
+
+    # ---------------------------------------------------------- tools: dictation
+
+    async def dictate(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Type the user's words verbatim into the terminal, no Enter."""
+        if not text or not text.strip():
+            return self._fail("I didn't catch anything to type.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": text})
+        except CmuxError as e:
+            return self._fail(f"I couldn't type that: {e}")
+        self._last_typed_surface = s.id
+        return await self._done("Typed.", flash_surface=s.id, typed=text)
+
+    async def set_dictation(self, enabled: bool) -> Dict[str, Any]:
+        self.dictation_active = bool(enabled)
+        if self.dictation_active:
+            return {"ok": True, "say": "Dictating. Everything you say goes into the terminal. Say stop dictating to finish, or send it to press enter.", "dictation": True}
+        return {"ok": True, "say": "Stopped dictating.", "dictation": False}
+
+    # ------------------------------------------------------ tools: menu / options
+
+    async def choose_option(self, number: int, target: Optional[str] = None) -> Dict[str, Any]:
+        """Pick item N of a numbered prompt menu (Claude Code style): press Down N-1 times, then Enter."""
+        try:
+            n = int(number)
+        except (TypeError, ValueError):
+            return self._fail("Which option number?")
+        if n < 1 or n > 20:
+            return self._fail("Option numbers go from 1 to 20.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for _ in range(n - 1):
+                    await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "down"})
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't choose that: {e}")
+            return await self._done(f"Chose option {n}.", flash_surface=s.id)
+
+        # Choosing an option submits it, so it follows the same trust rule as pressing Enter.
+        if self.policy.trust_terminal_input:
+            return await execute()
+        return self.policy.stage("choose_option", {"number": n}, f"Choose option {n}?", execute)
+
+    async def menu_navigate(self, action: str, times: int = 1, target: Optional[str] = None) -> Dict[str, Any]:
+        """Move through a prompt menu: next/previous (arrow keys), confirm (Enter), cancel (Escape)."""
+        a = (action or "").strip().lower()
+        key = {"next": "down", "down": "down", "previous": "up", "prev": "up", "up": "up", "back": "up",
+               "confirm": "enter", "select": "enter", "accept": "enter", "cancel": "escape", "escape": "escape",
+               "tab": "tab", "space": "space", "toggle": "space"}.get(a)
+        if key is None:
+            return self._fail("Say next, previous, confirm, or cancel.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        count = max(1, min(int(times or 1), 20)) if key in {"down", "up", "tab"} else 1
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                for _ in range(count):
+                    await self.client.acall("surface.send_key", {"surface_id": s.id, "key": key})
+            except CmuxError as e:
+                return self._fail(f"I couldn't press {key}: {e}")
+            label = {"down": "Next.", "up": "Previous.", "enter": "Confirmed.", "escape": "Cancelled.", "tab": "Tab.", "space": "Toggled."}[key]
+            return await self._done(label, flash_surface=s.id)
+
+        if key == "enter" and not self.policy.trust_terminal_input:
+            return self.policy.stage("menu_navigate", {"action": a}, "Press enter to confirm?", execute)
+        return await execute()
+
+    # -------------------------------------------------------------- tools: scroll
+
+    async def scroll(self, direction: str = "up", pages: int = 1, target: Optional[str] = None) -> Dict[str, Any]:
+        d = (direction or "up").strip().lower()
+        d = {"upwards": "up", "downwards": "down", "start": "top", "beginning": "top", "end": "bottom", "latest": "bottom"}.get(d, d)
+        if d not in {"up", "down", "top", "bottom"}:
+            return self._fail("Say scroll up, down, to the top, or to the bottom.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        n = max(1, min(int(pages or 1), 50))
+        try:
+            await self.client.acall("surface.scroll", {"surface_id": s.id, "direction": d, "pages": n})
+        except CmuxError as e:
+            return self._fail(f"I couldn't scroll: {e}")
+        say = {"up": f"Scrolled up {n} page{'s' if n > 1 else ''}.", "down": f"Scrolled down {n} page{'s' if n > 1 else ''}.", "top": "At the top.", "bottom": "At the bottom."}[d]
+        return {"ok": True, "say": say}
+
+    async def _output_after(self, surface_id: str, command: str, settle_s: float = 1.2, max_lines: int = 25) -> str:
+        """The lines the terminal printed after `command`, once a prompt returns (or settle_s elapses).
+
+        Gives the model something to answer with ("what changed?", "list the files")
+        instead of narrating that a command ran. Long output is truncated from the top.
+        """
+        deadline = asyncio.get_running_loop().time() + max(settle_s, 6.0)
+        last = ""
+        while True:
+            await asyncio.sleep(0.4)
+            try:
+                text = (await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 80}) or {}).get("text") or ""
+            except CmuxError:
+                return ""
+            lines = [l.rstrip() for l in text.rstrip().splitlines()]
+            # Find the echoed command line (last occurrence), take what follows.
+            idx = next((i for i in range(len(lines) - 1, -1, -1) if command.strip() in lines[i]), None)
+            after = lines[idx + 1:] if idx is not None else lines[-max_lines:]
+            body = [l for l in after if l.strip()]
+            prompt_back = bool(body) and _looks_like_shell_prompt(body[-1])
+            # Drop every prompt line, not just the last: the model otherwise reads
+            # "user@host dir %" as output and invents files or folders from it.
+            body = [l for l in body if not _looks_like_shell_prompt(l)]
+            joined = "\n".join(body[-max_lines:])
+            if prompt_back or (joined == last and asyncio.get_running_loop().time() > deadline - (6.0 - settle_s)):
+                return joined
+            if asyncio.get_running_loop().time() > deadline:
+                return joined
+            last = joined
+
+    # ------------------------------------------------------ tools: shell context
+
+    async def _shell_context(self, surface: Surface) -> shellctx.ShellContext:
+        st = await self._state()
+        fallback = st.current_workspace.current_directory if st.current_workspace else None
+        return await asyncio.to_thread(shellctx.shell_context, surface.tty, fallback)
+
+    async def shell_context(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Where the terminal is: working directory and git branch."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        say = f"You are in {shellctx.speakable(ctx.cwd)}" if ctx.cwd else "I can't tell the working directory"
+        if ctx.git_branch:
+            say += f", on branch {ctx.git_branch}"
+        return {"ok": True, "say": say + ".", "cwd": ctx.cwd, "git_branch": ctx.git_branch, "git_root": ctx.git_root}
+
+    async def go_to_directory(self, name: str, parent: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Find a folder by spoken name and cd into it. Not confirm-gated: navigation is harmless."""
+        if not name or not name.strip():
+            return self._fail("Which folder?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        candidates = await asyncio.to_thread(shellctx.find_directories, name, parent=parent, cwd=ctx.cwd)
+        if not candidates:
+            return self._fail(f"I couldn't find a folder called {name}." + (f" under {parent}." if parent else ""))
+        best = candidates[0]
+        others = [c for c in candidates[1:] if os.path.basename(c).lower() == os.path.basename(best).lower()]
+        if others and not parent and len(candidates) > 1:
+            # Same folder name in several places: ask, listing parents.
+            options = ", ".join(shellctx.speakable(c) for c in candidates[:4])
+            return {
+                "ok": True,
+                "status": "ambiguous",
+                "say": f"I found several: {options}. Which one?",
+                "candidates": candidates[:4],
+            }
+        command = shellctx.cd_command(best)
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": command})
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't change directory: {e}")
+        return await self._done(f"Now in {shellctx.speakable(best)}.", flash_surface=s.id, path=best, command=command)
+
+    async def run_shell(self, command: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Run a shell command the model composed from the user's intent. Same trust rule as run_command."""
+        if not command or not command.strip():
+            return self._fail("What should I run?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        cmd = command.strip()
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": cmd})
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't run that: {e}")
+            output = await self._output_after(s.id, cmd)
+            return await self._done(f"Ran {cmd}.", flash_surface=s.id, command=cmd, output=output)
+
+        # Trusted input skips the question, except for destructive commands
+        # (force pushes, hard resets, rm -rf, sudo), which always confirm.
+        if self.policy.trust_terminal_input and not _is_risky(cmd):
+            return await execute()
+        return self.policy.stage("run_shell", {"command": cmd}, f"Run {cmd}?", execute)
+
+    async def compose_and_type(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Type a message the model has already rewritten into the focused input (terminal or an agent CLI), no Enter."""
+        if not text or not text.strip():
+            return self._fail("What should I write?")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        body = text.strip()
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": body})
+        except CmuxError as e:
+            return self._fail(f"I couldn't type that: {e}")
+        self._last_typed_surface = s.id
+        return await self._done("Written. Say enter to send it.", flash_surface=s.id, typed=body)
+
+    async def press_enter(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Submit whatever is in the focused input. Trust rule: like pressing Enter."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+
+        async def execute() -> Dict[str, Any]:
+            try:
+                await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+            except CmuxError as e:
+                return self._fail(f"I couldn't press enter: {e}")
+            self._last_typed_surface = None
+            return await self._done("Sent.", flash_surface=s.id)
+
+        if self.policy.trust_terminal_input or self._last_typed_here(s):
+            return await execute()
+        return self.policy.stage("press_enter", {}, "Press enter?", execute)
+
+    def _last_typed_here(self, s: Surface) -> bool:
+        """Enter right after the agent itself typed into this surface needs no confirmation:
+        the user already heard what was written."""
+        return self._last_typed_surface == s.id
+
+    # -------------------------------------------------------- tools: agents (Claude Code)
+
+    # First-run dialogs an agent CLI may show before its input box. The user
+    # asked to open the agent in this folder, so accepting is the implied choice.
+    # (needle, keys). Claude Code's trust dialog highlights "No, exit" by default,
+    # so accepting means moving to "Yes, I trust this folder" first.
+    _AGENT_STARTUP_DIALOGS = (
+        ("trust this folder", ("down", "enter")),
+        ("Press Enter to continue", ("enter",)),
+    )
+
+    async def _agent_box_visible(self, surface_id: str) -> bool:
+        try:
+            res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 14}) or {}
+        except CmuxError:
+            return False
+        tail = [l.strip() for l in (res.get("text") or "").rstrip().splitlines()[-10:]]
+        return any(_is_bare_agent_prompt(l) or l.startswith("❯") for l in tail) and not any(_looks_like_shell_prompt(l) for l in tail[-1:])
+
+    async def _wait_for_agent_prompt(self, surface_id: str, timeout_s: float = 25.0) -> bool:
+        """Poll the terminal until an agent CLI input box is empty and ready.
+
+        Claude Code draws its box with placeholder text ("❯ Try ...") about a
+        second after launch and clears it ~0.4 s later; text typed into the
+        placeholder frame is lost. Wait for a bare prompt line, seen twice.
+        On a first run in a folder Claude Code first asks "Do you trust this
+        folder?"; that is accepted (once) before waiting for the box.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout_s
+        stable = 0
+        accepted_dialog = False
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                res = await self.client.acall("surface.read_text", {"surface_id": surface_id, "lines": 20}) or {}
+            except CmuxError:
+                return False
+            text = res.get("text") or ""
+            tail = [line.strip() for line in text.rstrip().splitlines()[-12:]]
+            if not accepted_dialog:
+                for needle, keys in self._AGENT_STARTUP_DIALOGS:
+                    if any(needle.lower() in line.lower() for line in tail):
+                        # If "Yes" is already highlighted, a bare Enter is enough.
+                        yes_selected = any("❯" in line and "yes" in line.lower() for line in tail)
+                        for key in (("enter",) if yes_selected else keys):
+                            try:
+                                await self.client.acall("surface.send_key", {"surface_id": surface_id, "key": key})
+                            except CmuxError:
+                                return False
+                            await asyncio.sleep(0.3)
+                        accepted_dialog = True
+                        await asyncio.sleep(1.0)
+                        break
+                if accepted_dialog:
+                    continue
+            if any(_is_bare_agent_prompt(line) for line in tail):
+                stable += 1
+                if stable >= 2:
+                    return True
+            else:
+                stable = 0
+            await asyncio.sleep(0.4)
+        return False
+
+
+    async def open_agent(self, agent: str = "claude", prompt: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Launch a coding agent CLI in the terminal, optionally with a first prompt typed (not sent).
+
+        Launching is harmless, so it never asks. A first prompt is typed only;
+        the user says enter to send it, so they can hear it first.
+        """
+        name = (agent or "claude").strip().lower()
+        binary = {"claude": "claude", "claude code": "claude", "codex": "codex", "opencode": "opencode", "gemini": "gemini", "pi": "pi"}.get(name)
+        if binary is None:
+            return self._fail(f"I don't know how to open {agent}. I can open Claude Code, Codex, OpenCode, Gemini, or Pi.")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        pane = self._pane_of(s)
+        if pane is not None and pane.columns and pane.columns < self.MIN_SPLIT_COLUMNS:
+            return self._fail(
+                f"That terminal is only {pane.columns} columns wide, too narrow for {agent} to draw its screen. "
+                "Say close the other panes or equalize the splits first, then open it again."
+            )
+        label = {"claude": "Claude Code", "codex": "Codex", "opencode": "OpenCode", "gemini": "Gemini", "pi": "Pi"}[binary]
+        # Already running here? Then just use it (type the prompt if given).
+        if await self._agent_box_visible(s.id):
+            if prompt and prompt.strip():
+                try:
+                    await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+                except CmuxError as e:
+                    return self._fail(f"{label} is open, but I couldn't type the prompt: {e}")
+                self._last_typed_surface = s.id
+                return await self._done(f"{label} is already open here; I typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip(), already_open=True)
+            return {"ok": True, "say": f"{label} is already open in this terminal.", "agent": binary, "already_open": True}
+        try:
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": binary})
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't open {agent}: {e}")
+        # Wait for the CLI's input box (accepting a first-run trust dialog on the
+        # way) whether or not there is a prompt to type: the user's next words
+        # go into that box, and typing before it exists loses them.
+        ready = await self._wait_for_agent_prompt(s.id)
+        if not ready:
+            return self._fail(f"I launched {label}, but its input box never appeared. Read the terminal to see what it is showing.")
+        if prompt and prompt.strip():
+            try:
+                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+            except CmuxError as e:
+                return self._fail(f"Opened {label}, but couldn't type the prompt: {e}")
+            self._last_typed_surface = s.id
+            return await self._done(f"Opened {label} and typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip())
+        return await self._done(f"Opened {label}.", flash_surface=s.id, agent=binary)
+
+    # ------------------------------------------------------ tools: workspace groups
+
+    async def create_workspace_group(self, name: str, workspaces: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Create a named group in the sidebar, optionally containing existing workspaces (by name)."""
+        if not name or not name.strip():
+            return self._fail("What should the group be called?")
+        st = await self._state()
+        ids: List[str] = []
+        for w in workspaces or []:
+            ws = st.resolve_workspace(w)
+            if ws is not None:
+                ids.append(ws.id)
+        params: Dict[str, Any] = {"name": name.strip()}
+        if ids:
+            params["child_workspace_ids"] = ids
+        try:
+            res = await self.client.acall("workspace.group.create", params) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't create the group: {e}")
+        gid = res.get("group_id") or (res.get("group") or {}).get("id")
+        extra = f" with {len(ids)} workspace{'s' if len(ids) != 1 else ''}" if ids else ""
+        return await self._done(f"Created group {name.strip()}{extra}.", group_id=gid)
+
+    async def rename_workspace_group(self, name: str, target: Optional[str] = None) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(target)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {target}." if target else "This workspace isn't in a group.")
+        try:
+            await self.client.acall("workspace.group.rename", {"group_id": g.id, "name": name.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't rename the group: {e}")
+        return await self._done(f"Renamed group {g.name} to {name.strip()}.")
+
+    async def focus_workspace_group(self, target: str) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(target)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {target}.")
+        try:
+            await self.client.acall("workspace.group.focus", {"group_id": g.id})
+        except CmuxError as e:
+            return self._fail(f"I couldn't switch to that group: {e}")
+        return await self._done(f"Switched to group {g.name}.")
+
+    async def create_workspace_in_group(self, group: str, name: Optional[str] = None) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(group)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {group}.")
+        try:
+            res = await self.client.acall("workspace.group.new_workspace", {"group_id": g.id}) or {}
+            wid = res.get("workspace_id")
+            if name and wid:
+                await self.client.acall("workspace.rename", {"workspace_id": wid, "title": name.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't create a workspace in {g.name}: {e}")
+        return await self._done(f"Created workspace {name.strip()} in group {g.name}." if name else f"Created a workspace in group {g.name}.", workspace_id=wid)
+
+    async def rename_tab(self, title: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Name a split tab (surface). Default: the focused one."""
+        if not title or not title.strip():
+            return self._fail("What should the tab be called?")
+        st = await self._state_fresh() or await self._state()
+        s = st.resolve_surface(target)
+        if s is None:
+            return self._fail(f"I couldn't find a tab matching {target}." if target else "There is no focused tab.")
+        try:
+            await self.client.acall("surface.rename", {"surface_id": s.id, "title": title.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't rename the tab: {e}")
+        return await self._done(f"Named the tab {title.strip()}.", flash_surface=s.id)
+
+    # ------------------------------------------------------------ tools: git
+
+    _GIT_ACTIONS = {
+        "status": "git status",
+        "log": "git log --oneline -10",
+        "diff": "git diff",
+        "fetch": "git fetch --all --prune",
+        "pull": "git pull",
+        "stash": "git stash",
+        "stash_pop": "git stash pop",
+        "branches": "git branch -a",
+    }
+
+    async def git_action(self, action: str, branch: Optional[str] = None, message: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Common git operations from lazy spoken intent; the exact command is composed here."""
+        a = (action or "").strip().lower().replace("-", "_").replace(" ", "_")
+        aliases = {"checkout": "switch", "check_out": "switch", "change_branch": "switch", "go_to_branch": "switch",
+                   "new_branch": "create_branch", "create": "create_branch", "branch": "create_branch",
+                   "save": "commit", "publish": "push", "update": "pull", "sync": "pull", "list_branches": "branches", "history": "log"}
+        a = aliases.get(a, a)
+        b = (branch or "").strip()
+
+        def q(x: str) -> str:
+            return shellctx.shlex.quote(x)
+
+        if a in self._GIT_ACTIONS:
+            cmd = self._GIT_ACTIONS[a]
+        elif a == "switch":
+            if not b:
+                return self._fail("Which branch should I switch to?")
+            cmd = f"git checkout {q(b)}"
+        elif a == "create_branch":
+            if not b:
+                return self._fail("What should the new branch be called?")
+            cmd = f"git checkout -b {q(b)}"
+        elif a == "merge":
+            if not b:
+                return self._fail("Which branch should I merge in?")
+            cmd = f"git merge {q(b)}"
+        elif a == "commit":
+            msg = (message or "").strip()
+            if not msg:
+                return self._fail("What should the commit message be?")
+            cmd = f"git add -A && git commit -m {q(msg)}"
+        elif a == "push":
+            cmd = f"git push -u origin {q(b)}" if b else "git push -u origin HEAD"
+        elif a == "delete_branch":
+            if not b:
+                return self._fail("Which branch should I delete?")
+            cmd = f"git branch -d {q(b)}"
+        else:
+            return self._fail(f"I don't know the git action {action}. Try status, switch, create branch, merge, commit, push, pull, fetch, stash, log, or diff.")
+        return await self.run_shell(cmd, target=target)
+
+    # --------------------------------------------------------- tools: worktrees
+
+    async def create_worktree(self, branch: str, base: Optional[str] = None, open_claude: bool = False, target: Optional[str] = None) -> Dict[str, Any]:
+        """Create a git worktree for `branch` under <repo>/.claude/worktrees/<branch>
+        (Claude Code's own convention), open it in a new named workspace, and
+        optionally start Claude Code there. Runs git directly, so it is instant."""
+        if not branch or not branch.strip():
+            return self._fail("What should the worktree's branch be called?")
+        name = re.sub(r"[^A-Za-z0-9._/-]+", "-", branch.strip()).strip("-")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        root = ctx.git_root
+        if not root:
+            return self._fail("This folder is not a git repository. Go to a project first, then ask for a worktree.")
+        path = os.path.join(root, ".claude", "worktrees", name.replace("/", "-"))
+        if os.path.isdir(path):
+            created = False
+        else:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            args = ["git", "-C", root, "worktree", "add", "-b", name, path] + ([base.strip()] if base and base.strip() else [])
+            result = await asyncio.to_thread(shellctx._run, args, 20.0)
+            # git prints to stderr; check the directory instead of the output.
+            if not os.path.isdir(path):
+                # Branch may already exist: retry without -b.
+                await asyncio.to_thread(shellctx._run, ["git", "-C", root, "worktree", "add", path, name], 20.0)
+            if not os.path.isdir(path):
+                return self._fail(f"git could not create the worktree for {name}. Say 'show me git branches' to check the name.")
+            created = True
+        title = f"{os.path.basename(root)} · {name}"
+        try:
+            res = await self.client.acall("workspace.create", {"focus": True, "working_directory": path}) or {}
+            if res.get("workspace_id"):
+                await self.client.acall("workspace.rename", {"workspace_id": res["workspace_id"], "title": title})
+        except CmuxError as e:
+            return self._fail(f"Created the worktree, but I couldn't open a workspace for it: {e}")
+        say = f"{'Created' if created else 'Opened the existing'} worktree {name} in a new workspace."
+        if open_claude:
+            await asyncio.sleep(1.2)  # let the new terminal's shell start
+            opened = await self.open_agent("claude")
+            if opened.get("ok"):
+                say += " Claude Code is open there."
+        return await self._done(say, workspace_id=res.get("workspace_id"), path=path, branch=name)
+
+    async def quit_agent(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """Leave the agent CLI in the terminal (types its /exit and presses enter; falls back to ctrl-d)."""
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        if not await self._agent_box_visible(s.id):
+            return {"ok": True, "say": "No agent is open in this terminal.", "already_closed": True}
+        try:
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "ctrl-u"})
+            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": "/exit"})
+            await asyncio.sleep(0.4)
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "enter"})
+        except CmuxError as e:
+            return self._fail(f"I couldn't quit the agent: {e}")
+        for _ in range(12):
+            await asyncio.sleep(0.5)
+            if not await self._agent_box_visible(s.id):
+                self._last_typed_surface = None
+                return await self._done("Closed the agent; you're back at the shell.", flash_surface=s.id)
+        try:
+            await self.client.acall("surface.send_key", {"surface_id": s.id, "key": "ctrl-d"})
+        except CmuxError:
+            pass
+        return await self._done("Asked the agent to exit.", flash_surface=s.id)
+
+    # ------------------------------------------------------------ tools: browser
+
+    async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
+        if not url or not url.strip():
+            return self._fail("Which address?")
+        st = await self._state()
+        s = st.resolve_surface(target, kind="browser")
+        try:
+            if s is None or not s.is_browser:
+                res = await self.client.acall("browser.open_split", {"url": _normalize_url(url), "direction": "right"}) or {}
+                sid = res.get("surface_id")
+                return await self._done(f"Opened {url} in a new browser.", flash_surface=sid, surface_id=sid)
+            await self.client.acall("browser.navigate", {"surface_id": s.id, "url": _normalize_url(url)})
+            return await self._done(f"Opened {url}.", flash_surface=s.id, surface_id=s.id)
+        except CmuxError as e:
+            return self._fail(f"I couldn't open that address: {e}")
+
+    async def browser_history(self, action: str, target: Optional[str] = None) -> Dict[str, Any]:
+        a = (action or "").strip().lower()
+        method = {"back": "browser.back", "forward": "browser.forward", "reload": "browser.reload", "refresh": "browser.reload"}.get(a)
+        if method is None:
+            return self._fail("Say back, forward, or reload.")
+        s = await self._browser(target)
+        if isinstance(s, dict):
+            return s
+        try:
+            await self.client.acall(method, {"surface_id": s.id})
+        except CmuxError as e:
+            return self._fail(f"I couldn't go {a}: {e}")
+        return await self._done({"back": "Went back.", "forward": "Went forward.", "reload": "Reloaded.", "refresh": "Reloaded."}[a], flash_surface=s.id)
+
+    # ------------------------------------------------------------ tools: session
+
+    async def confirm(self, decision: str) -> Dict[str, Any]:
+        return await self.policy.decide(decision)
+
+    async def end_session(self) -> Dict[str, Any]:
+        if self._on_end_session is not None:
+            await self._on_end_session()
+        return {"ok": True, "say": "Goodbye.", "status": "ending"}
+
+    # ------------------------------------------------------------- registry
+
+    def specs(self) -> List[ToolSpec]:
+        target_prop = {
+            "type": "string",
+            "description": "Optional. A number from get_ui_state, a name, or words like 'current', 'this'. Omit for the focused one.",
+        }
+        pane_target_prop = {
+            "type": "string",
+            "description": "Pane number from get_ui_state, or a direction relative to the focused pane: left, right, up, down. 'last' returns to the previously focused pane.",
+        }
+        return [
+            ToolSpec("get_ui_state", "Get the current workspaces, panes, and tabs with their numbers and names. Call this before acting when unsure.", {}, self.get_ui_state),
+            ToolSpec("read_terminal", "Read the last lines of text shown in a terminal.", {"target": target_prop, "lines": {"type": "integer", "description": "How many lines from the bottom. Default 40."}}, self.read_terminal),
+            ToolSpec("focus_workspace", "Switch to a workspace by number or name, or 'next', 'previous', 'last'.", {"target": {"type": "string", "description": "Workspace number, name, or next/previous/last."}}, self.focus_workspace, required=["target"]),
+            ToolSpec("focus_pane", "Move focus to another pane in the current workspace.", {"target": pane_target_prop}, self.focus_pane, required=["target"]),
+            ToolSpec("focus_tab", "Show a tab (surface) by number within the focused pane or by title.", {"target": {"type": "string", "description": "Tab number or title."}}, self.focus_tab, required=["target"]),
+            ToolSpec("create_workspace", "Create a new workspace and switch to it.", {"name": {"type": "string", "description": "Optional title."}, "working_directory": {"type": "string", "description": "Optional directory path."}}, self.create_workspace),
+            ToolSpec("rename_workspace", "Rename a workspace.", {"title": {"type": "string", "description": "The new name."}, "target": target_prop}, self.rename_workspace, required=["title"]),
+            ToolSpec("close_workspace", "Close a workspace. Requires confirmation.", {"target": target_prop}, self.close_workspace),
+            ToolSpec("split", "Split the focused pane and open a new terminal or browser there.", {"direction": {"type": "string", "enum": ["left", "right", "up", "down"], "description": "Where the new pane goes. Default right."}, "kind": {"type": "string", "enum": ["terminal", "browser"], "description": "What to open. Default terminal."}, "url": {"type": "string", "description": "For a browser, the address to open."}}, self.split),
+            ToolSpec("new_tab", "Open a new tab in the focused pane.", {"kind": {"type": "string", "enum": ["terminal", "browser"], "description": "Default terminal."}, "url": {"type": "string", "description": "For a browser, the address to open."}}, self.new_tab),
+            ToolSpec("close_tab", "Close a tab. Requires confirmation.", {"target": target_prop}, self.close_tab),
+            ToolSpec("close_pane", "Close a whole pane (all of its tabs). Requires confirmation.", {"target": pane_target_prop}, self.close_pane),
+            ToolSpec("equalize_splits", "Make all panes in the current workspace the same size.", {}, self.equalize_splits),
+            ToolSpec("type_text", "Type text into a terminal without pressing enter.", {"text": {"type": "string", "description": "Exactly what to type."}, "target": target_prop}, self.type_text, required=["text"]),
+            ToolSpec("press_key", "Press a key in a terminal: enter, escape, tab, up, down, left, right, backspace, ctrl-c, ctrl-d, or combos like ctrl-l.", {"key": {"type": "string", "description": "The key name."}, "target": target_prop}, self.press_key, required=["key"]),
+            ToolSpec("run_command", "Type a shell command into a terminal and press enter. Requires confirmation unless trusted input is enabled.", {"command": {"type": "string", "description": "Exactly the command to run."}, "target": target_prop}, self.run_command, required=["command"]),
+            ToolSpec("interrupt", "Send control C to a terminal to stop the running program.", {"target": target_prop}, self.interrupt),
+            ToolSpec("which_pane", "Say which pane, workspace, and tab the user is currently in.", {}, self.which_pane),
+            ToolSpec("focus_terminal", "Put the keyboard cursor into a terminal so typing goes there. Default: the focused terminal.", {"target": target_prop}, self.focus_terminal),
+            ToolSpec("dictate", "Type the user's spoken words into the terminal exactly as said, without pressing enter. Use for 'type ...', 'write ...', or anything said while dictation is on.", {"text": {"type": "string", "description": "The exact words to type. Keep code, paths, and flags literal."}, "target": target_prop}, self.dictate, required=["text"]),
+            ToolSpec("set_dictation", "Turn dictation mode on or off. While on, everything the user says is typed into the terminal via dictate, until they say stop dictating.", {"enabled": {"type": "boolean"}}, self.set_dictation, required=["enabled"]),
+            ToolSpec("choose_option", "Pick a numbered option from a prompt menu in the terminal, such as a Claude Code choice list: moves down N-1 times and presses enter.", {"number": {"type": "integer", "description": "1-based option number."}, "target": target_prop}, self.choose_option, required=["number"]),
+            ToolSpec("menu_navigate", "Move through a prompt menu in the terminal: next or previous (arrow keys), confirm (enter), cancel (escape), tab, or toggle (space).", {"action": {"type": "string", "enum": ["next", "previous", "confirm", "cancel", "tab", "toggle"]}, "times": {"type": "integer", "description": "How many steps for next/previous. Default 1."}, "target": target_prop}, self.menu_navigate, required=["action"]),
+            ToolSpec("scroll", "Scroll the terminal view up or down by pages, or jump to the top or bottom.", {"direction": {"type": "string", "enum": ["up", "down", "top", "bottom"]}, "pages": {"type": "integer", "description": "Pages to scroll for up/down. Default 1."}, "target": target_prop}, self.scroll),
+            ToolSpec("shell_context", "Report the terminal's working directory and git branch. Call before composing a shell or git command when the answer depends on where the user is.", {"target": target_prop}, self.shell_context),
+            ToolSpec("go_to_directory", "Change the terminal's directory to a folder the user names. Finds it by name (relative to the current directory, then by search) and runs cd. Ask only if several folders share the name.", {"name": {"type": "string", "description": "Folder name or path as spoken, e.g. 'staff portal', 'voice agent', 'src/lib'."}, "parent": {"type": "string", "description": "Optional parent folder name to disambiguate."}, "target": target_prop}, self.go_to_directory, required=["name"]),
+            ToolSpec("run_shell", "Run a shell or git command that YOU composed from the user's intent, e.g. 'switch to develop' -> git checkout develop. Compose exact, correct syntax; call shell_context first if it depends on the current branch or directory. Requires confirmation unless trusted input is on.", {"command": {"type": "string", "description": "The exact command line."}, "target": target_prop}, self.run_shell, required=["command"]),
+            ToolSpec("compose_and_type", "Write a message YOU rewrote from the user's rough words into the focused input, such as a Claude Code prompt or a commit message, without sending it. The user then says enter to send.", {"text": {"type": "string", "description": "The polished text to type."}, "target": target_prop}, self.compose_and_type, required=["text"]),
+            ToolSpec("press_enter", "Press enter to submit whatever is in the focused input, terminal or agent CLI. Use when the user says enter, send, submit, or go.", {"target": target_prop}, self.press_enter),
+            ToolSpec("open_agent", "Open a coding agent CLI (Claude Code by default; also Codex, OpenCode, Gemini, Pi) in the terminal. Optionally type a first prompt YOU composed from the user's request; it is typed but not sent until the user says enter. Never asks for confirmation.", {"agent": {"type": "string", "description": "claude (default), codex, opencode, gemini, or pi."}, "prompt": {"type": "string", "description": "Optional first prompt, already rewritten into a clear instruction."}, "target": target_prop}, self.open_agent),
+            ToolSpec("create_workspace_group", "Create a named workspace group in the sidebar, optionally containing existing workspaces.", {"name": {"type": "string"}, "workspaces": {"type": "array", "items": {"type": "string"}, "description": "Existing workspace names to put in the group."}}, self.create_workspace_group, required=["name"]),
+            ToolSpec("rename_workspace_group", "Rename a workspace group (default: the group containing the current workspace).", {"name": {"type": "string"}, "target": {"type": "string", "description": "Group name to rename."}}, self.rename_workspace_group, required=["name"]),
+            ToolSpec("focus_workspace_group", "Switch to a workspace group by name (its first workspace).", {"target": {"type": "string"}}, self.focus_workspace_group, required=["target"]),
+            ToolSpec("create_workspace_in_group", "Create a new workspace inside a named group, optionally naming it.", {"group": {"type": "string"}, "name": {"type": "string"}}, self.create_workspace_in_group, required=["group"]),
+            ToolSpec("rename_tab", "Name a split tab (the focused one by default), e.g. 'call this tab server'.", {"title": {"type": "string"}, "target": target_prop}, self.rename_tab, required=["title"]),
+            ToolSpec("git_action", "Run a common git operation from lazy intent; the exact command is composed for you. Actions: status, switch (checkout), create_branch, merge, commit (needs message), push, pull, fetch, stash, stash_pop, log, diff, branches, delete_branch.", {"action": {"type": "string"}, "branch": {"type": "string", "description": "Branch name when the action needs one."}, "message": {"type": "string", "description": "Commit message for commit."}, "target": target_prop}, self.git_action, required=["action"]),
+            ToolSpec("create_worktree", "Create a git worktree for a new (or existing) branch in the current repo, open it in a new named workspace, and optionally start Claude Code there.", {"branch": {"type": "string"}, "base": {"type": "string", "description": "Optional base branch or commit."}, "open_claude": {"type": "boolean", "description": "Also open Claude Code in the new workspace."}, "target": target_prop}, self.create_worktree, required=["branch"]),
+            ToolSpec("quit_agent", "Quit the agent CLI (Claude Code, Codex, ...) running in the terminal and return to the shell. Use for 'quit Claude', 'exit Claude Code', 'close Codex'.", {"target": target_prop}, self.quit_agent),
+            ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
+            ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
+            ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
+            ToolSpec("end_session", "End the voice session when the user says stop, goodbye, or that they are done.", {}, self.end_session),
+        ]
+
+
+_SHELL_PROMPT = re.compile(r"^\S+@\S+\s+\S+\s*[%$#]\s*$|^[%$#]\s*$|^\S+\s*[%$#]\s*$")
+
+
+def _looks_like_shell_prompt(line: str) -> bool:
+    stripped = line.strip()
+    return bool(_SHELL_PROMPT.match(stripped)) or stripped.endswith((" %", " $", "❯"))
+
+
+def _is_bare_agent_prompt(line: str) -> bool:
+    """An agent CLI input line with nothing typed: "❯", ">", "│ >", or "> " variants."""
+    stripped = line.strip("│ ").strip()
+    return stripped in {"❯", ">", "›", "$ ❯"}
+
+
+def _normalize_url(raw: str) -> str:
+    u = (raw or "").strip()
+    if not u:
+        return u
+    u = u.replace(" dot ", ".").replace(" slash ", "/")
+    if "://" in u:
+        return u
+    if _URL_LIKE.match(u):
+        return "https://" + u
+    return "https://www.google.com/search?q=" + u.replace(" ", "+")

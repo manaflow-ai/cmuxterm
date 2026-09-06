@@ -55,6 +55,12 @@ extension ControlCommandCoordinator {
             return surfaceSendText(request.params, context: context)
         case "surface.send_key":
             return surfaceSendKey(request.params, context: context)
+        case "surface.scroll":
+            return surfaceScroll(request.params)
+        case "surface.focus_input":
+            return surfaceFocusInput(request.params)
+        case "surface.rename":
+            return surfaceRename(request.params)
         case "surface.report_tty": return surfaceReportTTY(request.params)
         case "surface.report_pwd": return surfaceReportPWD(request.params)
         case "surface.report_git_branch": return surfaceReportGitBranch(request.params)

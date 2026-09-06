@@ -1,0 +1,9 @@
+[
+ {"say":"go to alpha","check":"workspace_is","value":"Alpha","wait":8},
+ {"say":"open claude code and ask it to create three files named one dot txt, two dot txt and three dot txt, each containing a different short proverb, then list them","check":"box_contains","value":"three","wait":18},
+ {"say":"enter","check":"in_claude","wait":2},
+ {"say":"switch to staff portal","check":"spoken_contains","value":"finished in workspace Alpha","wait":60},
+ {"say":"go to alpha","check":"spoken_contains","value":"three","wait":30},
+ {"say":"quit claude code","check":"at_shell","wait":14},
+ {"say":"list the files here","check":"screen_contains","value":"two.txt","wait":10}
+]

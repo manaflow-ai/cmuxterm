@@ -148,6 +148,9 @@ Environment:
 | `read-screen` | Read terminal text from a surface. `--selection` is a text-only compatibility alias for `read-selection`. |
 | `send` | Send text to a terminal surface. |
 | `send-key` | Send one key to a terminal surface. |
+| `rpc surface.scroll` | Scroll a terminal viewport: `{"direction": "up\|down\|top\|bottom", "pages": n}` plus the usual surface selectors. Runs Ghostty's page-scroll bindings; not focus-intent. |
+| `rpc surface.rename` | Set a surface's custom title: `{"surface_id"?: id, "title": text}` (empty title clears it; default: the focused surface). |
+| `rpc surface.focus_input` | Focus a surface (default: the focused one) and give it keyboard focus; returns `input_focused`. Focus-intent. |
 | `send-panel` | Send text to a panel/surface. |
 | `send-key-panel` | Send one key to a panel/surface. |
 | `notify` | Send a notification to a workspace/surface and return its notification id; `--clear` clears the resolved caller/target scope. Supports `--id-format refs\|uuids\|both` for human-readable handles. |
@@ -533,7 +536,7 @@ Right sidebar commands:
 | --- | --- |
 | `right-sidebar toggle`, `right-sidebar show`, `right-sidebar hide` | Change right-sidebar visibility without printing on success. |
 | `right-sidebar focus` | Focus the current right-sidebar mode. |
-| `right-sidebar set <files\|find\|vault\|sessions\|feed\|dock\|cloud>` | Show the right sidebar, switch mode, and focus it unless `--no-focus` is passed. |
+| `right-sidebar set <files\|find\|vault\|sessions\|feed\|dock\|cloud\|voice>` | Show the right sidebar, switch mode, and focus it unless `--no-focus` is passed. |
 | `right-sidebar files`, `right-sidebar find`, `right-sidebar vault`, `right-sidebar sessions`, `right-sidebar feed`, `right-sidebar dock`, `right-sidebar cloud` | Short aliases for `right-sidebar set <mode>` with focus. `cloud` (aliases `machines`, `vms`) is the Cloud machines panel; `mode` reports it as `machines`. |
 | `right-sidebar mode` | Print JSON with `visible` and `mode`. |
 | `--workspace <id\|ref\|index>` | Target the window containing a workspace. Refs and indexes resolve before the V1 socket command is sent. |

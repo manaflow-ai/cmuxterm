@@ -49,6 +49,8 @@ public struct SettingCatalog: SettingCatalogSection {
     public let customSidebars = CustomSidebarsCatalogSection()
     public let shortcuts = KeyboardShortcutsCatalogSection()
     public let integrations = IntegrationsCatalogSection()
+    /// Settings for the voice agent (the `voiceAgent.*` keys).
+    public let voiceAgent = VoiceAgentCatalogSection()
     public let account = AccountCatalogSection()
 
     public init() {}

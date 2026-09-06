@@ -99,6 +99,7 @@ extension ShortcutAction {
         case .switchRightSidebarToDock: return ShortcutStroke(key: "5", control: true)
         case .switchRightSidebarToMachines: return ShortcutStroke(key: "6", control: true)
         case .triggerFlash: return ShortcutStroke(key: "h", command: true, shift: true)
+        case .toggleVoiceAgent: return nil
         case .toggleTerminalBlueprint: return nil
         case .nextSidebarTab: return ShortcutStroke(key: "]", command: true, control: true)
         case .prevSidebarTab: return ShortcutStroke(key: "[", command: true, control: true)

@@ -1,3 +1,16 @@
+# Demux instructions
+
+## 1. Upstream sync function
+
+```bash
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
+
+---
+
 <h1 align="center">cmux</h1>
 <p align="center">A Ghostty-based macOS terminal with vertical tabs and notifications for AI coding agents</p>
 

@@ -2216,6 +2216,20 @@ struct ContentView: View {
         }
     }
 
+    /// Centered "DMUX" wordmark for the window's top chrome strip. Non-interactive, so
+    /// titlebar drag/double-click and any controls underneath keep working.
+    private func dmuxWindowTitle(appearance: WindowAppearanceSnapshot) -> some View {
+        DmuxWindowTitleLabel(
+            textColor: fakeTitlebarTextColor(appearance: appearance).opacity(0.7)
+        )
+        // Same vertical frame as the title row (`customTitlebar`) so the wordmark's
+        // center matches the folder icon / focused command name.
+        .frame(height: max(1, WindowChromeMetrics.appTitlebarHeight - 2), alignment: .center)
+        .padding(.top, 2)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .allowsHitTesting(false)
+    }
+
     private func workspaceTitlebarBand(appearance: WindowAppearanceSnapshot) -> some View {
         Color.clear
             .frame(height: WindowChromeMetrics.appTitlebarHeight)
@@ -2696,6 +2710,11 @@ struct ContentView: View {
                     workspaceTitlebarBand(appearance: appearance)
                         .zIndex(100)
                 }
+
+                // App wordmark. Lives outside `WorkspaceTitlebarModeLayer` so it stays
+                // visible in minimal mode and fullscreen, not just the standard titlebar.
+                dmuxWindowTitle(appearance: appearance)
+                    .zIndex(101)
             }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .frame(minWidth: CGFloat(SessionPersistencePolicy.minimumWindowWidth), minHeight: CGFloat(SessionPersistencePolicy.minimumWindowHeight))
@@ -7074,6 +7093,7 @@ struct ContentView: View {
             )
         )
         contributions.append(contentsOf: Self.commandPaletteNewAgentChatContributions())
+        contributions.append(contentsOf: Self.commandPaletteVoiceAgentContributions())
         contributions.append(contentsOf: Self.commandPaletteBlueprintContributions())
         contributions.append(
             CommandPaletteCommandContribution(
@@ -8328,6 +8348,7 @@ struct ContentView: View {
             }
         }
         registerAgentChatCommandPaletteHandler(&registry)
+        registerVoiceAgentCommandPaletteHandler(&registry)
         registerBlueprintCommandPaletteHandlers(&registry)
         registry.register(commandId: "palette.openFolder") {
             // Defer so the command palette dismisses before the modal sheet appears.
@@ -17612,4 +17633,25 @@ private struct ExtensionSidebarBrowserStackDropDelegate: DropDelegate {
 enum SidebarSelection {
     case tabs
     case notifications
+}
+
+/// The app wordmark shown in every window's top chrome strip.
+///
+/// Small, tracked-out monospaced caps so it reads as a subtle badge rather than
+/// competing with the focused command name.
+struct DmuxWindowTitleLabel: View {
+    static let text = "DMUX"
+
+    let textColor: Color
+
+    var body: some View {
+        Text(Self.text)
+            .cmuxFont(size: 11, weight: .semibold, design: .monospaced)
+            .tracking(3)
+            .foregroundColor(textColor)
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityLabel(Self.text)
+            .allowsHitTesting(false)
+    }
 }

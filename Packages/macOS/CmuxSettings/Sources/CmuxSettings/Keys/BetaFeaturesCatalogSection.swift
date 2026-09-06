@@ -89,6 +89,17 @@ public struct BetaFeaturesCatalogSection: SettingCatalogSection {
         userDefaultsKey: "remoteTmux.beta.enabled"
     )
 
+    /// Voice agent: talk to cmux (Ultravox Realtime through a local Pipecat
+    /// sidecar) to drive workspaces, panes, terminals, and the browser. Adds
+    /// the Voice tab to the right sidebar, the palette command, and the
+    /// `toggleVoiceAgent` shortcut. Defaults off; requires an Ultravox API key
+    /// (`voiceAgent.ultravoxApiKey`) and the `voice-agent/` Python sidecar.
+    public let voiceAgent = DefaultsKey<Bool>(
+        id: "voiceAgent.beta.enabled",
+        defaultValue: false,
+        userDefaultsKey: "voiceAgent.beta.enabled"
+    )
+
     /// Blueprint: a per-terminal diagram canvas (Excalidraw) that sits below
     /// the terminal in its pane. Agents draw the design they are working on
     /// through the `cmux-blueprint` MCP server and the user sketches back.

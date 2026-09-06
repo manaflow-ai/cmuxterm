@@ -25,6 +25,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
     case feed
     case dock
     case machines
+    case voice
     case customSidebar = "custom-sidebar"
 
     var label: String {
@@ -35,6 +36,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return String(localized: "rightSidebar.mode.feed", defaultValue: "Feed")
         case .dock: return String(localized: "rightSidebar.mode.dock", defaultValue: "Dock")
         case .machines: return String(localized: "rightSidebar.mode.machines", defaultValue: "Cloud")
+        case .voice: return String(localized: "rightSidebar.mode.voice", defaultValue: "Voice")
         case .customSidebar: return String(localized: "rightSidebar.mode.customSidebar", defaultValue: "Custom")
         }
     }
@@ -48,6 +50,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return "dot.radiowaves.left.and.right"
         case .dock: return "dock.rectangle"
         case .machines: return "cloud"
+        case .voice: return "mic"
         case .customSidebar: return "wand.and.stars"
         }
     }
@@ -60,6 +63,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return .switchRightSidebarToFeed
         case .dock: return .switchRightSidebarToDock
         case .machines: return .switchRightSidebarToMachines
+        case .voice: return nil
         case .customSidebar: return nil
         }
     }
@@ -85,7 +89,7 @@ enum FileExplorerRootSyncPolicy {
         switch mode {
         case .files, .find:
             return true
-        case .sessions, .feed, .dock, .machines, .customSidebar:
+        case .sessions, .feed, .dock, .machines, .voice, .customSidebar:
             return false
         }
     }
@@ -170,7 +174,8 @@ struct RightSidebarPanelView: View {
         RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled
+            machinesEnabled: CmuxFeatureFlags.shared.isCloudVMUIEnabled || cloudMachinesBetaEnabled,
+            voiceEnabled: VoiceAgentFeature.isEnabled()
         )
     }
 
@@ -506,6 +511,10 @@ struct RightSidebarPanelView: View {
                 dockPanel(windowAppearance: windowAppearance)
             case .machines:
                 MachinesPanelView(
+                    chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor
+                )
+            case .voice:
+                VoiceAgentSidebarView(
                     chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor
                 )
             case .customSidebar:

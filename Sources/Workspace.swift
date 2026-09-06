@@ -4230,6 +4230,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             if builtInAction == .mobileConnect { return CmuxFeatureFlags.shared.isMobileConnectButtonEnabled }
             if builtInAction == .newAgentChat { return CmuxFeatureFlags.shared.isAgentChatUIEnabled }
             if builtInAction == .newSimulator { return CmuxFeatureFlags.shared.isSimulatorEnabled }
+            if builtInAction == .voiceRecap { return VoiceAgentFeature.isEnabled() }
             if builtInAction == .toggleBlueprint { return TerminalBlueprintFeature.isEnabled() }
             return true
         }
@@ -14492,6 +14493,11 @@ extension Workspace: BonsplitDelegate {
                 }
             case .newSimulator:
                 _ = newSimulatorSurface(inPane: pane, focus: true)
+            case .voiceRecap:
+                // Speak a recap of the terminal shown in this pane. Starts a
+                // voice session first if none is live.
+                let surfaceID = selectedTerminalPanel(inPane: pane)?.id
+                _ = AppDelegate.shared?.requestVoiceAgentRecap(surfaceID: surfaceID, preferredWindow: presentingWindow)
             case .toggleBlueprint:
                 // Show or hide the blueprint drawer of the terminal shown in this pane.
                 _ = selectedTerminalPanel(inPane: pane)?.blueprint.perform(.toggle)

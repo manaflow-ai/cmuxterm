@@ -11,6 +11,7 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
     case newSimulator = "cmux.newSimulator"
     case splitRight = "cmux.splitRight"
     case splitDown = "cmux.splitDown"
+    case voiceRecap = "cmux.voiceRecap"
     case toggleBlueprint = "cmux.toggleBlueprint"
 
     init?(configID: String) {
@@ -36,6 +37,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             self = .splitRight
         case "cmux.splitDown", "splitDown":
             self = .splitDown
+        case "cmux.voiceRecap", "voiceRecap", "recap":
+            self = .voiceRecap
         case "cmux.toggleBlueprint", "toggleBlueprint", "blueprint":
             self = .toggleBlueprint
         default:
@@ -70,6 +73,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return (String(localized: "command.terminalSplitRight.title", defaultValue: "Split Right"), ["terminal", "split", "right"])
         case .splitDown:
             return (String(localized: "command.terminalSplitDown.title", defaultValue: "Split Down"), ["terminal", "split", "down"])
+        case .voiceRecap:
+            return (String(localized: "command.voiceRecap.title", defaultValue: "Speak a Recap of This Terminal"), ["voice", "recap", "summary", "summarize", "speak", "agent"])
         case .toggleBlueprint:
             return (String(localized: "command.toggleBlueprint.title", defaultValue: "Toggle Blueprint"), ["blueprint", "canvas", "diagram", "sketch", "draw", "terminal"])
         }
@@ -95,6 +100,8 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
             return "square.split.2x1"
         case .splitDown:
             return "square.split.1x2"
+        case .voiceRecap:
+            return "waveform.circle"
         case .toggleBlueprint:
             return "rectangle.and.pencil.and.ellipsis"
         }
@@ -102,7 +109,7 @@ enum CmuxSurfaceTabBarBuiltInAction: String, Codable, Sendable, CaseIterable, Ha
 
     var bonsplitAction: BonsplitConfiguration.SplitActionButton.Action? {
         switch self {
-        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator, .toggleBlueprint:
+        case .newWorkspace, .newAgentChat, .cloudVM, .mobileConnect, .newSimulator, .voiceRecap, .toggleBlueprint:
             return nil
         case .newTerminal:
             return .newTerminal

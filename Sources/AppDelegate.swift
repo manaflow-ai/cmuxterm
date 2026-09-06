@@ -2368,6 +2368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         mainWindowLifecycleCoordinator.cancelAllWindowlessRouteFreezeTasks()
         MemoryPressureMonitor.shared.stop()
         computerUseUXCoordinator.teardownForTermination()
+        terminateVoiceAgentSidecar()
         if needsTerminationSnapshotBackstop {
             _ = saveSessionSnapshotIncludingProcessDetectedIndexes(includeScrollback: true, removeWhenEmpty: false)
         }
@@ -15122,6 +15123,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
+        if matchConfiguredShortcut(event: event, action: .toggleVoiceAgent) {
+            let preferredWindow = mainWindowForShortcutEvent(event) ?? event.window ?? shortcutRoutingActiveWindow
+            DispatchQueue.main.async { [weak self, weak preferredWindow] in
+                _ = self?.performVoiceAgentToggle(preferredWindow: preferredWindow)
+            }
+            return true
+        }
+
         if matchConfiguredShortcut(event: event, action: .toggleTerminalBlueprint) {
             let routedManager = preferredMainWindowContextForShortcutRouting(event: event)?.tabManager ?? tabManager
             if routedManager?.performBlueprintAction(.toggle) != true {
@@ -17543,6 +17552,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 onExecuted?()
                 return true
             case .newAgentChat: return performConfiguredNewAgentChatAction(context: context, preferredWindow: preferredWindow, onExecuted: onExecuted)
+            case .voiceRecap:
+                // Palette / config-action route: recap the focused terminal.
+                let didRequest = requestVoiceAgentRecap(surfaceID: nil, preferredWindow: preferredWindow)
+                if didRequest { onExecuted?() }
+                return didRequest
             case .cloudVM:
                 let didStart = performCloudVMAction(
                     tabManager: context.tabManager,
