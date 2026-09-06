@@ -8,6 +8,7 @@ resolution of those references back to UUIDs.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -89,9 +90,19 @@ class Workspace:
 
 
 @dataclass
+class WorkspaceGroup:
+    id: str
+    ref: str
+    name: str
+    member_workspace_ids: List[str] = field(default_factory=list)
+    is_collapsed: bool = False
+
+
+@dataclass
 class UIState:
     window_id: Optional[str]
     workspaces: List[Workspace]
+    groups: List[WorkspaceGroup] = field(default_factory=list)
 
     # ------------------------------------------------------------------ build
 
@@ -191,6 +202,29 @@ class UIState:
         if ws is None:
             return []
         return [s for p in ws.panes for s in p.surfaces if s.is_browser]
+
+    def apply_groups(self, rows: List[Dict[str, Any]]) -> None:
+        self.groups = [
+            WorkspaceGroup(
+                id=str(r.get("id") or r.get("group_id") or ""),
+                ref=str(r.get("ref") or ""),
+                name=str(r.get("name") or ""),
+                member_workspace_ids=[str(x) for x in (r.get("member_workspace_ids") or [])],
+                is_collapsed=bool(r.get("is_collapsed", False)),
+            )
+            for r in rows
+            if r.get("id") or r.get("group_id")
+        ]
+
+    def resolve_group(self, target: Optional[str]) -> Optional["WorkspaceGroup"]:
+        if target is None or not str(target).strip():
+            ws = self.current_workspace
+            if ws is not None:
+                for g in self.groups:
+                    if ws.id in g.member_workspace_ids:
+                        return g
+            return None
+        return _best_name_match(str(target), [(g.name, g) for g in self.groups])
 
     # -------------------------------------------------------------- resolvers
 
@@ -353,28 +387,53 @@ def _short(text: str, limit: int = 40) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+_SEPARATORS = re.compile(r"[\s_\-\./:]+")
+_FILLER = {"the", "a", "an", "my", "workspace", "tab", "group", "folder", "one", "called", "named"}
+
+
+def _squash(s: str) -> str:
+    return _SEPARATORS.sub("", str(s or "").lower())
+
+
+def _tokens(s: str) -> set:
+    return {t for t in _SEPARATORS.split(str(s or "").lower()) if t and t not in _FILLER}
+
+
 def _best_name_match(needle: str, candidates: List[tuple[str, Any]]) -> Any:
-    """Case-insensitive match: exact, then prefix, then substring, then token overlap."""
-    needle = needle.strip().lower()
-    if not needle:
+    """Spoken-name matching: exact, then exact ignoring case/separators ("staff portal"
+    == "Staff-Portal"), then prefix/substring on the squashed form, then the
+    candidate sharing the most meaningful words (ties -> shortest name)."""
+    raw = str(needle or "").strip().lower()
+    if not raw:
         return None
-    norm = [(str(name or "").lower(), obj) for name, obj in candidates]
-    for name, obj in norm:
-        if name == needle:
+    sq = _squash(raw)
+    norm = [(str(name or "").lower(), _squash(name), obj) for name, obj in candidates]
+    for name, _, obj in norm:
+        if name == raw:
             return obj
-    for name, obj in norm:
-        if name.startswith(needle):
+    for _, squashed, obj in norm:
+        if squashed and squashed == sq:
             return obj
-    for name, obj in norm:
-        if needle in name:
+    for _, squashed, obj in norm:
+        if squashed.startswith(sq):
             return obj
-    words = set(needle.split())
-    best, best_score = None, 0
-    for name, obj in norm:
-        score = len(words & set(name.replace("/", " ").replace("-", " ").split()))
+    for _, squashed, obj in norm:
+        if sq in squashed:
+            return obj
+    words = _tokens(raw)
+    best, best_score = None, 0.0
+    for name, squashed, obj in norm:
+        cand = _tokens(name)
+        if not words or not cand:
+            continue
+        overlap = len(words & cand)
+        if overlap == 0:
+            # spoken words are often run together or split differently: check prefixes
+            overlap = sum(1 for w in words if any(c.startswith(w) or w.startswith(c) for c in cand if len(w) > 2 and len(c) > 2))
+        score = overlap / max(len(words), 1) + (0.001 / (len(squashed) + 1))
         if score > best_score:
             best, best_score = obj, score
-    return best
+    return best if best_score >= 0.5 else None
 
 
 _DIRECTION_WORDS = {

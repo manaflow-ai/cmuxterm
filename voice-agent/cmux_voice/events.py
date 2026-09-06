@@ -64,10 +64,16 @@ class AgentCompletion:
 
 
 Callback = Callable[[AgentCompletion], Awaitable[None]]
+FrameCallback = Callable[[Dict[str, Any]], Awaitable[None]]
+
+# Events that change what the user can refer to by name (workspaces, tabs,
+# groups) or where they are. The subscriber hands these to `on_ui_event` so the
+# name cache is refreshed the moment something is created, renamed, or focused.
+UI_CATEGORIES = ["workspace", "surface", "pane"]
 
 
 class AgentEventSubscriber:
-    """Background thread: events.stream(category=agent) -> callback(AgentCompletion)."""
+    """Background thread: events.stream(agent + ui categories) -> callbacks."""
 
     def __init__(
         self,
@@ -77,8 +83,10 @@ class AgentEventSubscriber:
         socket_path: Optional[str] = None,
         capability: Optional[str] = None,
         reconnect_delay_s: float = 2.0,
+        on_ui_event: Optional[FrameCallback] = None,
     ) -> None:
         self._callback = callback
+        self._on_ui_event = on_ui_event
         self._loop = loop
         self.socket_path = socket_path or default_socket_path()
         self.capability = capability if capability is not None else os.environ.get("CMUX_SOCKET_CAPABILITY")
@@ -101,7 +109,8 @@ class AgentEventSubscriber:
     # -- internals ---------------------------------------------------------
 
     def _request_line(self) -> bytes:
-        params: Dict[str, Any] = {"categories": ["agent"], "include_heartbeats": True}
+        categories = ["agent"] + (UI_CATEGORIES if self._on_ui_event is not None else [])
+        params: Dict[str, Any] = {"categories": categories, "include_heartbeats": True}
         if self.last_seq:
             # Reconnect: resume after the last event we handled.
             params["after_seq"] = self.last_seq
@@ -172,6 +181,10 @@ class AgentEventSubscriber:
             if seq <= self.ignore_through_seq:
                 return None
             self.last_seq = max(self.last_seq, seq)
+        if frame.get("category") in UI_CATEGORIES:
+            if self._on_ui_event is not None:
+                asyncio.run_coroutine_threadsafe(self._on_ui_event(frame), self._loop)
+            return None
         completion = AgentCompletion.from_frame(frame)
         if completion is None:
             return None

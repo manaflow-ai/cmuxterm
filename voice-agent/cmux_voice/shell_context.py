@@ -79,8 +79,13 @@ def _norm(s: str) -> str:
     return re.sub(r"[\s_\-\.]+", "", s).lower()
 
 
+def _tokens(s: str) -> List[str]:
+    return [t for t in re.split(r"[\s_\-\.]+", s.lower()) if t]
+
+
 def _match_score(name: str, wanted: str) -> int:
-    """Higher is better: exact > prefix > substring > fuzzy token overlap."""
+    """Higher is better: exact > prefix > substring > word overlap (spoken names
+    are lazy: "staff portal" should find "Staff-Portal", "the dmux repo" -> "dmux")."""
     n, w = _norm(name), _norm(wanted)
     if not w:
         return 0
@@ -90,6 +95,14 @@ def _match_score(name: str, wanted: str) -> int:
         return 80
     if w in n:
         return 60
+    nt, wt = set(_tokens(name)), [t for t in _tokens(wanted) if t not in {"the", "a", "my", "folder", "directory", "repo", "project"}]
+    if not wt or not nt:
+        return 0
+    hits = sum(1 for t in wt if t in nt or any(c.startswith(t) or t.startswith(c) for c in nt if len(t) > 2 and len(c) > 2))
+    if hits == len(wt):
+        return 50
+    if hits and hits / len(wt) >= 0.5:
+        return 30
     return 0
 
 
@@ -108,6 +121,33 @@ def _walk(root: Path, max_depth: int, limit: int = 4000) -> Iterable[Path]:
             count += 1
             if count >= limit:
                 return
+
+
+_INDEX: dict = {"paths": [], "built_at": 0.0}
+_INDEX_TTL_S = 300.0
+
+
+def build_directory_index(roots: Optional[List[str]] = None) -> List[str]:
+    """Walk the project roots once and cache every directory (bounded depth)."""
+    import time as _t
+
+    paths: List[str] = []
+    for root in roots or _DEFAULT_ROOTS:
+        for p in _walk(Path(root), max_depth=3 if root != "~" else 2, limit=4000):
+            paths.append(str(p))
+    _INDEX["paths"] = paths
+    _INDEX["built_at"] = _t.time()
+    return paths
+
+
+def _indexed_paths(roots: Optional[List[str]]) -> List[str]:
+    import time as _t
+
+    if roots is not None:
+        return [str(p) for root in roots for p in _walk(Path(root), max_depth=3, limit=4000)]
+    if not _INDEX["paths"] or _t.time() - _INDEX["built_at"] > _INDEX_TTL_S:
+        build_directory_index()
+    return list(_INDEX["paths"])
 
 
 def find_directories(
@@ -159,12 +199,17 @@ def find_directories(
     for line in out.splitlines():
         if line and not any(f"/{s}/" in line for s in _SKIP_DIRS):
             consider(Path(line), 20)
-    # 3) Bounded walk of project roots.
-    for root in roots or _DEFAULT_ROOTS:
-        for p in _walk(Path(root), max_depth=3 if root != "~" else 2, limit=2500):
-            consider(p, 10)
+    # 3) The cached project index (instant; rebuilt every few minutes).
+    for path in _indexed_paths(roots):
+        consider(Path(path), 10)
 
-    ranked = sorted(scored.items(), key=lambda kv: (-kv[1], len(kv[0]), kv[0]))
+    def rank_key(item):
+        path, score = item
+        low = path.lower()
+        penalty = 15 if any(seg in low for seg in ("/archive", "/old/", "/backup", "/tmp/", "/.claude/worktrees/")) else 0
+        return (-(score - penalty), path.count("/"), len(path), path)
+
+    ranked = sorted(scored.items(), key=rank_key)
     return [p for p, _ in ranked[:limit]]
 
 

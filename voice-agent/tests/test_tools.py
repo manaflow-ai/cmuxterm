@@ -82,7 +82,7 @@ def test_error_response_raises_with_code(fake: FakeCmux):
 async def test_get_ui_state_calls_tree_and_panes(tools: VoiceTools, fake: FakeCmux):
     res = await tools.get_ui_state()
     assert res["ok"] and "web frontend" in res["say"]
-    assert fake.methods() == ["system.tree", "pane.list", "workspace.list"]
+    assert fake.methods() == ["system.tree", "pane.list", "workspace.list", "workspace.group.list"]
 
 
 async def test_read_terminal_returns_tail(tools: VoiceTools, fake: FakeCmux):
@@ -138,7 +138,8 @@ async def test_split_browser_with_url(tools: VoiceTools, fake: FakeCmux):
 async def test_create_and_rename_workspace(tools: VoiceTools, fake: FakeCmux):
     res = await tools.create_workspace("notes")
     assert res["ok"] and res["workspace_id"] == "WS-NEW"
-    assert {"method": "workspace.create", "params": {"focus": True, "title": "notes"}} in fake.requests
+    assert {"method": "workspace.create", "params": {"focus": True}} in fake.requests
+    assert {"method": "workspace.rename", "params": {"workspace_id": "WS-NEW", "title": "notes"}} in fake.requests
     res = await tools.rename_workspace("docs", "api")
     assert res["ok"]
     assert {"method": "workspace.rename", "params": {"workspace_id": "WS-A", "title": "docs"}} in fake.requests
@@ -269,6 +270,7 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "browser_navigate", "browser_history", "confirm", "end_session",
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
         "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent", "close_pane",
+        "create_workspace_group", "rename_workspace_group", "focus_workspace_group", "create_workspace_in_group", "rename_tab", "git_action", "create_worktree",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
     assert confirming == {"close_workspace", "close_tab", "close_pane", "run_command", "run_shell"}

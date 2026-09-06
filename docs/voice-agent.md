@@ -34,6 +34,13 @@ CLI or the command palette would.
 | "Write down: make the login async and add tests" / "tell it to …" | Rewrites your rough words into a clear message and types it into the focused input (Claude Code, Codex, or the shell) without sending |
 | "Open Claude Code" / "start Codex and tell it to add tests for login" | Launches the agent CLI in the terminal, no confirmation; a first prompt is typed for you to send with "enter" |
 | "Enter" / "send it" | Submits whatever is in the focused input. No confirmation when the agent just typed it for you |
+| "New group called Clients" / "rename this group to Work" / "switch to group Clients" / "new workspace in Clients called Invoices" | Workspace groups (`workspace.group.*`) |
+| "New workspace called API" / "rename this workspace to API" | Created, then named via `workspace.rename` |
+| "Split right and call it server" / "call this tab logs" | `surface.rename` (new socket method) |
+| "Switch to API" / "go to the logs tab" | Name lookup is cached and refreshed from cmux's event stream, so switching is a single instant call; matching ignores case, dashes, and filler words |
+| "Check out develop" / "make a branch called fix-login" / "merge develop" / "commit this as fix login" / "push" / "pull" / "what changed" | `git_action` composes the exact command; confirms unless trusted input is on |
+| "Create a worktree for feature-x and open Claude there" | `git worktree add` under `<repo>/.claude/worktrees/`, a new named workspace in it, optionally Claude Code |
+| (an agent finishes in another workspace or split) | One spoken notice: "Claude Code just finished in workspace X, tab Y." The full recap plays the moment you switch there, by voice or by clicking |
 | "Goodbye" | Ends the session |
 
 Closing tabs or workspaces always asks first. Running a command asks first

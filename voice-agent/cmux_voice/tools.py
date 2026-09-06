@@ -56,6 +56,13 @@ ALLOWED_METHODS = frozenset(
         "workspace.rename",
         "workspace.close",
         "workspace.equalize_splits",
+        "workspace.group.list",
+        "workspace.group.create",
+        "workspace.group.rename",
+        "workspace.group.focus",
+        "workspace.group.new_workspace",
+        "workspace.group.add",
+        "surface.rename",
         "surface.focus",
         "surface.split",
         "surface.create",
@@ -121,6 +128,11 @@ class VoiceTools:
             dirs = {str(r.get("id")): r.get("current_directory") for r in rows}
             for w in self.state.workspaces:
                 w.current_directory = dirs.get(w.id) or w.current_directory
+        except CmuxError:
+            pass
+        try:
+            groups = (await self.client.acall("workspace.group.list") or {}).get("groups") or []
+            self.state.apply_groups(groups)
         except CmuxError:
             pass
         if self._on_state is not None:
@@ -246,9 +258,11 @@ class VoiceTools:
             if low in {"last", "recent"}:
                 await self.client.acall("workspace.last")
                 return await self._done("Back to the last workspace.")
-            ws = await self._workspace(target)
-            if isinstance(ws, dict):
-                return ws
+            st = await self._state()
+            ws = st.resolve_workspace(target)
+            if ws is None:
+                names = [w.title for w in st.workspaces if w.title][:4]
+                return self._fail(f"I could not find a workspace called {target}." + (f" I know: {', '.join(names)}." if names else ""))
             await self.client.acall("workspace.select", {"workspace_id": ws.id})
             return await self._done(f"Switched to {ws.title}.")
         except CmuxError as e:
@@ -270,29 +284,46 @@ class VoiceTools:
             return self._fail(f"I couldn't focus that pane: {e}")
 
     async def focus_tab(self, target: str) -> Dict[str, Any]:
+        """Switch to a tab by name: in this workspace first, then any workspace (cached names, one call)."""
         st = await self._state()
         s = st.resolve_surface(target)
+        ws = None
         if s is None:
-            return self._fail(f"I could not find a tab matching {target}.")
+            for candidate in st.workspaces:
+                if candidate is st.current_workspace:
+                    continue
+                found = st.resolve_surface(target, workspace=candidate)
+                if found is not None:
+                    s, ws = found, candidate
+                    break
+        if s is None:
+            near = [x.title for w in st.workspaces for p in w.panes for x in p.surfaces if x.title][:3]
+            hint = f" Tabs I know: {', '.join(near)}." if near else ""
+            return self._fail(f"I could not find a tab matching {target}.{hint}")
         try:
+            if ws is not None:
+                await self.client.acall("workspace.select", {"workspace_id": ws.id})
             await self.client.acall("surface.focus", {"surface_id": s.id})
-            return await self._done(f"Focused {s.title or 'that tab'}.")
+            where = f" in {ws.title}" if ws is not None else ""
+            return await self._done(f"Focused {s.title or 'that tab'}{where}.")
         except CmuxError as e:
             return self._fail(f"I couldn't focus that tab: {e}")
 
     # ------------------------------------------------------- tools: create/arrange
 
     async def create_workspace(self, name: Optional[str] = None, working_directory: Optional[str] = None) -> Dict[str, Any]:
+        # workspace.create has no title parameter; name it with workspace.rename afterwards.
         params: Dict[str, Any] = {"focus": True}
-        if name:
-            params["title"] = name
         if working_directory:
             params["working_directory"] = working_directory
         try:
             res = await self.client.acall("workspace.create", params) or {}
+            wid = res.get("workspace_id")
+            if name and name.strip() and wid:
+                await self.client.acall("workspace.rename", {"workspace_id": wid, "title": name.strip()})
         except CmuxError as e:
             return self._fail(f"I couldn't create a workspace: {e}")
-        return await self._done(f"Created workspace {name}." if name else "Created a new workspace.", workspace_id=res.get("workspace_id"))
+        return await self._done(f"Created workspace {name.strip()}." if name and name.strip() else "Created a new workspace.", workspace_id=wid)
 
     async def rename_workspace(self, title: str, target: Optional[str] = None) -> Dict[str, Any]:
         ws = await self._workspace(target)
@@ -849,6 +880,178 @@ class VoiceTools:
             return await self._done(f"Opened {label} and typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip())
         return await self._done(f"Opened {label}.", flash_surface=s.id, agent=binary)
 
+    # ------------------------------------------------------ tools: workspace groups
+
+    async def create_workspace_group(self, name: str, workspaces: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Create a named group in the sidebar, optionally containing existing workspaces (by name)."""
+        if not name or not name.strip():
+            return self._fail("What should the group be called?")
+        st = await self._state()
+        ids: List[str] = []
+        for w in workspaces or []:
+            ws = st.resolve_workspace(w)
+            if ws is not None:
+                ids.append(ws.id)
+        params: Dict[str, Any] = {"name": name.strip()}
+        if ids:
+            params["child_workspace_ids"] = ids
+        try:
+            res = await self.client.acall("workspace.group.create", params) or {}
+        except CmuxError as e:
+            return self._fail(f"I couldn't create the group: {e}")
+        gid = res.get("group_id") or (res.get("group") or {}).get("id")
+        extra = f" with {len(ids)} workspace{'s' if len(ids) != 1 else ''}" if ids else ""
+        return await self._done(f"Created group {name.strip()}{extra}.", group_id=gid)
+
+    async def rename_workspace_group(self, name: str, target: Optional[str] = None) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(target)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {target}." if target else "This workspace isn't in a group.")
+        try:
+            await self.client.acall("workspace.group.rename", {"group_id": g.id, "name": name.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't rename the group: {e}")
+        return await self._done(f"Renamed group {g.name} to {name.strip()}.")
+
+    async def focus_workspace_group(self, target: str) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(target)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {target}.")
+        try:
+            await self.client.acall("workspace.group.focus", {"group_id": g.id})
+        except CmuxError as e:
+            return self._fail(f"I couldn't switch to that group: {e}")
+        return await self._done(f"Switched to group {g.name}.")
+
+    async def create_workspace_in_group(self, group: str, name: Optional[str] = None) -> Dict[str, Any]:
+        st = await self._state()
+        g = st.resolve_group(group)
+        if g is None:
+            return self._fail(f"I couldn't find a group matching {group}.")
+        try:
+            res = await self.client.acall("workspace.group.new_workspace", {"group_id": g.id}) or {}
+            wid = res.get("workspace_id")
+            if name and wid:
+                await self.client.acall("workspace.rename", {"workspace_id": wid, "title": name.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't create a workspace in {g.name}: {e}")
+        return await self._done(f"Created workspace {name.strip()} in group {g.name}." if name else f"Created a workspace in group {g.name}.", workspace_id=wid)
+
+    async def rename_tab(self, title: str, target: Optional[str] = None) -> Dict[str, Any]:
+        """Name a split tab (surface). Default: the focused one."""
+        if not title or not title.strip():
+            return self._fail("What should the tab be called?")
+        st = await self._state_fresh() or await self._state()
+        s = st.resolve_surface(target)
+        if s is None:
+            return self._fail(f"I couldn't find a tab matching {target}." if target else "There is no focused tab.")
+        try:
+            await self.client.acall("surface.rename", {"surface_id": s.id, "title": title.strip()})
+        except CmuxError as e:
+            return self._fail(f"I couldn't rename the tab: {e}")
+        return await self._done(f"Named the tab {title.strip()}.", flash_surface=s.id)
+
+    # ------------------------------------------------------------ tools: git
+
+    _GIT_ACTIONS = {
+        "status": "git status",
+        "log": "git log --oneline -10",
+        "diff": "git diff",
+        "fetch": "git fetch --all --prune",
+        "pull": "git pull",
+        "stash": "git stash",
+        "stash_pop": "git stash pop",
+        "branches": "git branch -a",
+    }
+
+    async def git_action(self, action: str, branch: Optional[str] = None, message: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
+        """Common git operations from lazy spoken intent; the exact command is composed here."""
+        a = (action or "").strip().lower().replace("-", "_").replace(" ", "_")
+        aliases = {"checkout": "switch", "check_out": "switch", "change_branch": "switch", "go_to_branch": "switch",
+                   "new_branch": "create_branch", "create": "create_branch", "branch": "create_branch",
+                   "save": "commit", "publish": "push", "update": "pull", "sync": "pull", "list_branches": "branches", "history": "log"}
+        a = aliases.get(a, a)
+        b = (branch or "").strip()
+
+        def q(x: str) -> str:
+            return shellctx.shlex.quote(x)
+
+        if a in self._GIT_ACTIONS:
+            cmd = self._GIT_ACTIONS[a]
+        elif a == "switch":
+            if not b:
+                return self._fail("Which branch should I switch to?")
+            cmd = f"git checkout {q(b)}"
+        elif a == "create_branch":
+            if not b:
+                return self._fail("What should the new branch be called?")
+            cmd = f"git checkout -b {q(b)}"
+        elif a == "merge":
+            if not b:
+                return self._fail("Which branch should I merge in?")
+            cmd = f"git merge {q(b)}"
+        elif a == "commit":
+            msg = (message or "").strip()
+            if not msg:
+                return self._fail("What should the commit message be?")
+            cmd = f"git add -A && git commit -m {q(msg)}"
+        elif a == "push":
+            cmd = f"git push -u origin {q(b)}" if b else "git push -u origin HEAD"
+        elif a == "delete_branch":
+            if not b:
+                return self._fail("Which branch should I delete?")
+            cmd = f"git branch -d {q(b)}"
+        else:
+            return self._fail(f"I don't know the git action {action}. Try status, switch, create branch, merge, commit, push, pull, fetch, stash, log, or diff.")
+        return await self.run_shell(cmd, target=target)
+
+    # --------------------------------------------------------- tools: worktrees
+
+    async def create_worktree(self, branch: str, base: Optional[str] = None, open_claude: bool = False, target: Optional[str] = None) -> Dict[str, Any]:
+        """Create a git worktree for `branch` under <repo>/.claude/worktrees/<branch>
+        (Claude Code's own convention), open it in a new named workspace, and
+        optionally start Claude Code there. Runs git directly, so it is instant."""
+        if not branch or not branch.strip():
+            return self._fail("What should the worktree's branch be called?")
+        name = re.sub(r"[^A-Za-z0-9._/-]+", "-", branch.strip()).strip("-")
+        s = await self._terminal(target)
+        if isinstance(s, dict):
+            return s
+        ctx = await self._shell_context(s)
+        root = ctx.git_root
+        if not root:
+            return self._fail("This folder is not a git repository. Go to a project first, then ask for a worktree.")
+        path = os.path.join(root, ".claude", "worktrees", name.replace("/", "-"))
+        if os.path.isdir(path):
+            created = False
+        else:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            args = ["git", "-C", root, "worktree", "add", "-b", name, path] + ([base.strip()] if base and base.strip() else [])
+            result = await asyncio.to_thread(shellctx._run, args, 20.0)
+            # git prints to stderr; check the directory instead of the output.
+            if not os.path.isdir(path):
+                # Branch may already exist: retry without -b.
+                await asyncio.to_thread(shellctx._run, ["git", "-C", root, "worktree", "add", path, name], 20.0)
+            if not os.path.isdir(path):
+                return self._fail(f"git could not create the worktree for {name}. Say 'show me git branches' to check the name.")
+            created = True
+        title = f"{os.path.basename(root)} · {name}"
+        try:
+            res = await self.client.acall("workspace.create", {"focus": True, "working_directory": path}) or {}
+            if res.get("workspace_id"):
+                await self.client.acall("workspace.rename", {"workspace_id": res["workspace_id"], "title": title})
+        except CmuxError as e:
+            return self._fail(f"Created the worktree, but I couldn't open a workspace for it: {e}")
+        say = f"{'Created' if created else 'Opened the existing'} worktree {name} in a new workspace."
+        if open_claude:
+            await asyncio.sleep(1.2)  # let the new terminal's shell start
+            opened = await self.open_agent("claude")
+            if opened.get("ok"):
+                say += " Claude Code is open there."
+        return await self._done(say, workspace_id=res.get("workspace_id"), path=path, branch=name)
+
     # ------------------------------------------------------------ tools: browser
 
     async def browser_navigate(self, url: str, target: Optional[str] = None) -> Dict[str, Any]:
@@ -932,6 +1135,13 @@ class VoiceTools:
             ToolSpec("compose_and_type", "Write a message YOU rewrote from the user's rough words into the focused input, such as a Claude Code prompt or a commit message, without sending it. The user then says enter to send.", {"text": {"type": "string", "description": "The polished text to type."}, "target": target_prop}, self.compose_and_type, required=["text"]),
             ToolSpec("press_enter", "Press enter to submit whatever is in the focused input, terminal or agent CLI. Use when the user says enter, send, submit, or go.", {"target": target_prop}, self.press_enter),
             ToolSpec("open_agent", "Open a coding agent CLI (Claude Code by default; also Codex, OpenCode, Gemini, Pi) in the terminal. Optionally type a first prompt YOU composed from the user's request; it is typed but not sent until the user says enter. Never asks for confirmation.", {"agent": {"type": "string", "description": "claude (default), codex, opencode, gemini, or pi."}, "prompt": {"type": "string", "description": "Optional first prompt, already rewritten into a clear instruction."}, "target": target_prop}, self.open_agent),
+            ToolSpec("create_workspace_group", "Create a named workspace group in the sidebar, optionally containing existing workspaces.", {"name": {"type": "string"}, "workspaces": {"type": "array", "items": {"type": "string"}, "description": "Existing workspace names to put in the group."}}, self.create_workspace_group, required=["name"]),
+            ToolSpec("rename_workspace_group", "Rename a workspace group (default: the group containing the current workspace).", {"name": {"type": "string"}, "target": {"type": "string", "description": "Group name to rename."}}, self.rename_workspace_group, required=["name"]),
+            ToolSpec("focus_workspace_group", "Switch to a workspace group by name (its first workspace).", {"target": {"type": "string"}}, self.focus_workspace_group, required=["target"]),
+            ToolSpec("create_workspace_in_group", "Create a new workspace inside a named group, optionally naming it.", {"group": {"type": "string"}, "name": {"type": "string"}}, self.create_workspace_in_group, required=["group"]),
+            ToolSpec("rename_tab", "Name a split tab (the focused one by default), e.g. 'call this tab server'.", {"title": {"type": "string"}, "target": target_prop}, self.rename_tab, required=["title"]),
+            ToolSpec("git_action", "Run a common git operation from lazy intent; the exact command is composed for you. Actions: status, switch (checkout), create_branch, merge, commit (needs message), push, pull, fetch, stash, stash_pop, log, diff, branches, delete_branch.", {"action": {"type": "string"}, "branch": {"type": "string", "description": "Branch name when the action needs one."}, "message": {"type": "string", "description": "Commit message for commit."}, "target": target_prop}, self.git_action, required=["action"]),
+            ToolSpec("create_worktree", "Create a git worktree for a new (or existing) branch in the current repo, open it in a new named workspace, and optionally start Claude Code there.", {"branch": {"type": "string"}, "base": {"type": "string", "description": "Optional base branch or commit."}, "open_claude": {"type": "boolean", "description": "Also open Claude Code in the new workspace."}, "target": target_prop}, self.create_worktree, required=["branch"]),
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),

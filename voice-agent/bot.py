@@ -27,6 +27,8 @@ from typing import Any, Dict, Optional
 from loguru import logger
 
 from cmux_voice.cmux_client import CmuxClient, CmuxError
+from cmux_voice import shell_context
+from cmux_voice.completion_flow import CompletionFlow
 from cmux_voice.events import AgentCompletion, AgentEventSubscriber
 from cmux_voice.summary import CompletionSummarizer
 from cmux_voice.policy import ConfirmationPolicy
@@ -191,6 +193,7 @@ async def run_bot(transport) -> None:
             asyncio.create_task(_end())
 
     tools = build_tools(on_state=on_state, on_end_session=on_end_session)
+    asyncio.get_running_loop().run_in_executor(None, shell_context.build_directory_index)
 
     ui_summary = ""
     try:
@@ -206,19 +209,19 @@ async def run_bot(transport) -> None:
     summaries_enabled = os.environ.get("CMUX_VOICE_SUMMARIES", "1") != "0"
     summarizer = CompletionSummarizer(CmuxClient(allowed_methods=ALLOWED_METHODS), enabled=summaries_enabled)
 
-    async def on_agent_completion(completion: AgentCompletion) -> None:
-        briefing = await summarizer.briefing_for(completion)
-        if briefing is None:
-            return
+    async def speak(text: str) -> None:
         task = task_holder.get("task")
         if task is None:
             return
-        logger.info(f"completion summary: {completion.source} on {completion.surface_id}")
         try:
-            await rtvi.send_server_message({"type": "agent_completed", "source": completion.source, "surface_id": completion.surface_id})
+            await rtvi.send_server_message({"type": "agent_completed"})
         except Exception:  # noqa: BLE001
             pass
-        await task.queue_frames([InputTextRawFrame(text=briefing)])
+        await task.queue_frames([InputTextRawFrame(text=text)])
+
+    flow = CompletionFlow(tools, summarizer, speak, enabled=summaries_enabled)
+    on_agent_completion = flow.on_agent_completion
+    on_ui_event = flow.on_ui_event
 
     pipeline = Pipeline([transport.input(), rtvi, llm, transport.output()])
     task = PipelineTask(
@@ -258,8 +261,9 @@ async def run_bot(transport) -> None:
 
     subscriber: Optional[AgentEventSubscriber] = None
     if summaries_enabled:
-        subscriber = AgentEventSubscriber(on_agent_completion, asyncio.get_running_loop(), socket_path=tools.client.socket_path)
+        subscriber = AgentEventSubscriber(on_agent_completion, asyncio.get_running_loop(), socket_path=tools.client.socket_path, on_ui_event=on_ui_event)
         subscriber.start()
+        await flow.sync_focus()
 
     runner = PipelineRunner(handle_sigint=False)
     try:

@@ -45,6 +45,44 @@ class CompletionSummarizer:
         self.only_focused = only_focused
         self._last_by_surface: Dict[str, float] = {}
         self.history: List[SummaryRecord] = []
+        # Completions that finished somewhere the user was not looking. Announced
+        # briefly at the time; the full recap plays when they switch there.
+        self.pending: Dict[str, AgentCompletion] = {}
+
+    def defer(self, completion: AgentCompletion) -> None:
+        if completion.surface_id:
+            self.pending[completion.surface_id] = completion
+
+    def take_pending(self, surface_id: Optional[str]) -> Optional[AgentCompletion]:
+        if not surface_id:
+            return None
+        return self.pending.pop(surface_id, None)
+
+    async def callout_for(self, completion: AgentCompletion) -> str:
+        """One spoken sentence: which agent finished, and where."""
+        where = await self._describe_location(completion)
+        agent = {"claude": "Claude Code", "codex": "Codex", "opencode": "OpenCode"}.get(completion.source, completion.source)
+        return (
+            "[Agent finished elsewhere. This is a system notice, not the user speaking. Say exactly one short sentence: "
+            f'"{agent} just finished in {where}. Say switch to it when you want the summary." Then stop; call no tools.]'
+        )
+
+    async def _describe_location(self, completion: AgentCompletion) -> str:
+        ws_title, tab_title = None, None
+        try:
+            tree = await self.client.acall("system.tree") or {}
+            for w in (tree.get("windows") or [{}])[0].get("workspaces") or []:
+                for pane in w.get("panes") or []:
+                    for surf in pane.get("surfaces") or []:
+                        if str(surf.get("id")) == str(completion.surface_id):
+                            ws_title, tab_title = w.get("title"), surf.get("title")
+        except CmuxError:
+            pass
+        if ws_title and tab_title and tab_title != ws_title:
+            return f'workspace {ws_title}, tab {tab_title}'
+        if ws_title:
+            return f"workspace {ws_title}"
+        return "another workspace"
 
     async def briefing_for(self, completion: AgentCompletion) -> Optional[str]:
         """The text to inject into the call, or None to skip this event."""
