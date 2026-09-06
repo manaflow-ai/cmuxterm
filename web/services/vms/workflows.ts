@@ -1285,7 +1285,7 @@ export function forkVm(input: {
       source,
       input.providerVmId,
       "fork",
-      { forceProviderProbe: true },
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
     );
 
     const nativeFork = source.provider === "freestyle" && providers.fork !== undefined;
@@ -1961,6 +1961,8 @@ const RESUME_SETTLE_INTERVAL = "1 second";
 type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize";
 
 type ResumePreflightOptions = {
+  /** Current resolved allowance; null explicitly means uncapped. */
+  readonly maxActiveVms?: number | null;
   /**
    * Probe the provider even when Postgres still says `running`. Providers may
    * pause a VM independently (for example after an idle timeout), so an
@@ -2037,10 +2039,12 @@ function resumeUntilRunning(
   });
 }
 
+/** Reserve a resume against the caller's current allowance, including paid seats. */
 function reservePausedResumeIfTeam(
   repo: VmRepositoryShape,
   vm: CloudVmRow,
   providerVmId: string,
+  maxActiveVms?: number | null,
 ): Effect.Effect<boolean, VmWorkflowError> {
   if (!vm.billingTeamId) return Effect.succeed(false);
   return Effect.gen(function* () {
@@ -2049,7 +2053,7 @@ function reservePausedResumeIfTeam(
       userId: vm.userId,
       billingTeamId: vm.billingTeamId,
       providerVmId,
-      maxActiveVms: maxActiveVmsForPlan(vm.billingPlanId),
+      maxActiveVms: maxActiveVms === undefined ? maxActiveVmsForPlan(vm.billingPlanId) : maxActiveVms,
     });
     if (!reserved) {
       return yield* Effect.fail(new VmNotFoundError({ vmId: providerVmId }));
@@ -2199,7 +2203,7 @@ function preflightResumeIfSuspended(
     }
     if (status !== "paused") return false;
 
-    const reserved = yield* reservePausedResumeIfTeam(repo, vm, providerVmId);
+    const reserved = yield* reservePausedResumeIfTeam(repo, vm, providerVmId, options.maxActiveVms);
     yield* resumeUntilRunning(providers, vm, providerVmId).pipe(
       Effect.tapError(() => rollbackPausedResumeReservation(repo, vm, providerVmId, reserved)),
     );
@@ -2224,6 +2228,7 @@ function withResumeOnSuspendedAfterFailure<A>(
   providerVmId: string,
   resumeSource: VmResumeSource,
   op: Effect.Effect<A, VmWorkflowError>,
+  maxActiveVms?: number | null,
 ): Effect.Effect<A, VmWorkflowError> {
   return op.pipe(
     Effect.catchAll((originalError) => {
@@ -2250,7 +2255,7 @@ function withResumeOnSuspendedAfterFailure<A>(
           return yield* Effect.fail(originalError);
         }
 
-        const reserved = yield* reservePausedResumeIfTeam(repo, vm, providerVmId);
+        const reserved = yield* reservePausedResumeIfTeam(repo, vm, providerVmId, maxActiveVms);
         yield* resumeUntilRunning(providers, vm, providerVmId).pipe(
           Effect.tapError(() => rollbackPausedResumeReservation(repo, vm, providerVmId, reserved)),
           Effect.catchAll(() => Effect.fail(originalError)),
@@ -2506,6 +2511,8 @@ export function execVm(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
+  /** Current account allowance, already scaled by paid seats. */
+  readonly maxActiveVms?: number | null;
   readonly command: string;
   readonly timeoutMs: number;
   /** Caller's CURRENT billing plan; used for the free access window. */
@@ -2521,6 +2528,7 @@ export function execVm(input: {
       vm,
       input.providerVmId,
       "exec",
+      { maxActiveVms: input.maxActiveVms },
     );
     const result = yield* providers.exec(vm.provider, input.providerVmId, input.command, {
       timeoutMs: input.timeoutMs,
@@ -2584,6 +2592,7 @@ export function resizeVm(input: {
     }
     yield* preflightResumeIfSuspended(repo, providers, vm, input.providerVmId, "resize", {
       forceProviderProbe: true,
+      maxActiveVms: input.maxActiveVms,
     });
     const current = yield* providers.getStats(vm.provider, input.providerVmId);
     const currentMb = vmProviderResourceSize("diskMb", current.diskTotalMb);
@@ -2735,6 +2744,8 @@ export function openVmPort(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
+  /** Current account allowance, already scaled by paid seats. */
+  readonly maxActiveVms?: number | null;
   readonly port: number;
   /** Caller's CURRENT billing plan; used for the free access window. */
   readonly callerPlanId?: string | null;
@@ -2761,7 +2772,7 @@ export function openVmPort(input: {
       vm,
       input.providerVmId,
       "open_port",
-      { forceProviderProbe: true },
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
     );
     const endpoint = yield* providers.openPort(vm.provider, input.providerVmId, input.port);
     // Keep the preview token in the same revocation ledger as terminal/RPC
@@ -2809,6 +2820,8 @@ export function openVmCmuxRemote(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
+  /** Current account allowance, already scaled by paid seats. */
+  readonly maxActiveVms?: number | null;
   readonly deviceFingerprint?: string;
   readonly clientCapabilities?: readonly string[];
   /** Caller's CURRENT billing plan; the free access window applies to cmux-tui attaches too. */
@@ -2833,7 +2846,7 @@ export function openVmCmuxRemote(input: {
       vm,
       input.providerVmId,
       "attach",
-      { forceProviderProbe: true },
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
     );
     const endpoint = yield* withResumeOnSuspendedAfterFailure(
       repo,
@@ -2846,6 +2859,7 @@ export function openVmCmuxRemote(input: {
         clientCapabilities: input.clientCapabilities,
         providerMetadata: vm.providerMetadata,
       }),
+      input.maxActiveVms,
     );
     yield* repo.recordLease({
       vmId: vm.id,
@@ -2973,6 +2987,8 @@ type OpenAttachEndpointInput = {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
+  /** Current account allowance, already scaled by paid seats. */
+  readonly maxActiveVms?: number | null;
   readonly options?: AttachOptions;
   readonly sessionTitle?: string | null;
   /** Caller's CURRENT billing plan; used for the free access window. */
@@ -2991,6 +3007,8 @@ export function openVmSession(input: {
   readonly billingTeamId?: string | null;
   readonly teamIds?: readonly string[];
   readonly providerVmId: string;
+  /** Current account allowance, already scaled by paid seats. */
+  readonly maxActiveVms?: number | null;
   readonly sessionId?: string;
   readonly attachmentId?: string;
   readonly title?: string | null;
@@ -3005,6 +3023,7 @@ export function openVmSession(input: {
     teamIds: input.teamIds,
     providerVmId: input.providerVmId,
     callerPlanId: input.callerPlanId,
+    maxActiveVms: input.maxActiveVms,
     sessionTitle: input.title,
     options: {
       requireDaemon: true,
@@ -3053,7 +3072,7 @@ function openAttachEndpointResult(input: OpenAttachEndpointInput) {
       vm,
       input.providerVmId,
       "attach",
-      { forceProviderProbe: true },
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
     );
     // Once preflight records the VM as running, that state is externally
     // visible to concurrent attach/SSH requests. Later cleanup failures must
@@ -3069,6 +3088,7 @@ function openAttachEndpointResult(input: OpenAttachEndpointInput) {
         ...(input.options ?? {}),
         providerMetadata: vm.providerMetadata,
       }),
+      input.maxActiveVms,
     );
     yield* storeEndpointLeases(vm, endpoint).pipe(
       Effect.catchAll((err) =>
