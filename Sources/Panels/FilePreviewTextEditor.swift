@@ -493,13 +493,12 @@ extension NSTextView {
     }
 
     func applyFilePreviewTextEditorInsets() {
-        let targetInset = NSSize(width: 12, height: 10)
+        let targetInset = FilePreviewTextEditorLayout.textContainerInset
         if textContainerInset.width != targetInset.width || textContainerInset.height != targetInset.height {
             textContainerInset = targetInset
         }
-        let lineFragmentPadding: CGFloat = 0
-        if textContainer?.lineFragmentPadding != lineFragmentPadding {
-            textContainer?.lineFragmentPadding = lineFragmentPadding
+        if textContainer?.lineFragmentPadding != FilePreviewTextEditorLayout.lineFragmentPadding {
+            textContainer?.lineFragmentPadding = FilePreviewTextEditorLayout.lineFragmentPadding
         }
     }
 }
