@@ -213,29 +213,26 @@ struct AgentLifecycleReconciliationStateTests {
         )
         var state = AgentLifecycleReconciliationState()
 
-        #expect(
-            state.recordProcessGeneration(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                generation: generation,
-                isBuiltIn: true
-            )
+        let acceptedGeneration = state.recordProcessGeneration(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            generation: generation,
+            isBuiltIn: true
         )
-        let token = try #require(
-            state.beginFeedAttention(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                isBuiltIn: true
-            )
+        #expect(acceptedGeneration)
+        let startedAttention = state.beginFeedAttention(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            isBuiltIn: true
         )
+        let token = try #require(startedAttention)
 
-        #expect(
-            state.recordProcessExit(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                generation: generation
-            )
+        let acceptedExit = state.recordProcessExit(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            generation: generation
         )
+        #expect(acceptedExit)
         #expect(
             state.hasFeedAttention(
                 key: BuiltInAgentIntegration.cursor.statusKey,
@@ -243,34 +240,31 @@ struct AgentLifecycleReconciliationStateTests {
             ),
             "An exact process exit cannot prove ownership of a nil-generation attention token."
         )
-        #expect(
-            state.endFeedAttention(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                token: token
-            )
+        let endedAttention = state.endFeedAttention(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            token: token
         )
+        #expect(endedAttention)
     }
 
     @Test("An unidentified process exit preserves unbound Feed attention")
     func unidentifiedProcessExitPreservesUnboundFeedAttention() throws {
         let panelId = UUID()
         var state = AgentLifecycleReconciliationState()
-        let token = try #require(
-            state.beginFeedAttention(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                isBuiltIn: true
-            )
+        let startedAttention = state.beginFeedAttention(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            isBuiltIn: true
         )
+        let token = try #require(startedAttention)
 
-        #expect(
-            state.recordUnidentifiedProcessExit(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                isBuiltIn: true
-            )
+        let acceptedExit = state.recordUnidentifiedProcessExit(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            isBuiltIn: true
         )
+        #expect(acceptedExit)
         #expect(
             state.hasFeedAttention(
                 key: BuiltInAgentIntegration.cursor.statusKey,
@@ -278,12 +272,11 @@ struct AgentLifecycleReconciliationStateTests {
             ),
             "An unidentified exit cannot prove that an unbound prompt belongs to the exited process."
         )
-        #expect(
-            state.endFeedAttention(
-                key: BuiltInAgentIntegration.cursor.statusKey,
-                panelId: panelId,
-                token: token
-            )
+        let endedAttention = state.endFeedAttention(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            token: token
         )
+        #expect(endedAttention)
     }
 }
