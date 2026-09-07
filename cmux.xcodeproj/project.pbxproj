@@ -10143,6 +10143,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C5A1FED100000000000000D3 /* CmuxSwiftRenderUI */,
 				C5A1FED200000000000000E3 /* CmuxSidebarInterpreterClient */,
 				C5A1FED200000000000000E6 /* CmuxSidebarRemoteRender */,
+				C51A700000000000000000A2 /* CmuxSimulator */,
+				C51A700000000000000000B2 /* CmuxSimulatorUI */,
+				C51A700000000000000000C2 /* CmuxSimulatorWorker */,
 				5E55200000000000000000B2 /* CmuxWindowing */,
 				5E55500000000000000000E2 /* CmuxCommandPalette */,
 				C617000000000000000000A2 /* CmuxGit */,
@@ -10301,10 +10304,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A500D013A1B2C3D4E5F60718 /* CMUXDebugLog */,
 				CC0033E15A1B2C3D4E5F0011 /* CmuxDiffComments */,
 				AC4A6E7C4A700001AC4A0004 /* CmuxAgentChat */,				A9523E000000000000000002 /* CmuxAgentLifecycle */,
-				C51A700000000000000000A2 /* CmuxSimulator */,
-				C51A700000000000000000B2 /* CmuxSimulatorUI */,
-				C51A700000000000000000C2 /* CmuxSimulatorWorker */,
-
 			);
 			productName = cmuxTests;
 			productReference = F1000002A1B2C3D4E5F60718 /* cmuxTests.xctest */;
