@@ -41,6 +41,8 @@ struct MachineSnapshot: Equatable, Identifiable {
     let createdAt: Date?
     /// User-chosen label; nil when the machine has no label.
     let label: String?
+    /// Server-generated three-word name; nil for machines older than naming.
+    var slug: String? = nil
     /// Free-plan access window position; `.unrestricted` on paid plans.
     var freeAccess: FreeAccessState = .unrestricted
     /// Latest activity reading; nil until the first sample lands.
@@ -53,7 +55,16 @@ struct MachineSnapshot: Equatable, Identifiable {
     /// anywhere), v6 is the fallback.
     var privateAddress: String?
 
-    var displayName: String { label?.isEmpty == false ? label! : id }
+    /// The label when set, else the generated name, else the machine id.
+    var displayName: String {
+        if let label, !label.isEmpty { return label }
+        if let slug, !slug.isEmpty { return slug }
+        return id
+    }
+
+    /// True when the row shows something other than the id, so the id still
+    /// needs a home on the second line (CLI verbs and URLs use it).
+    var showsName: Bool { displayName != id }
 
     var kindLabel: String {
         isDesktop
@@ -182,6 +193,7 @@ enum MachineSnapshotBuilder {
             activity: activity(fromStatus: summary.status),
             createdAt: createdAt,
             label: summary.displayName,
+            slug: summary.slug,
             freeAccess: freeAccess,
             stats: nil,
             privateAddress: summary.preferredPrivateAddress
@@ -437,23 +449,26 @@ final class MachinesPanelViewModel: ObservableObject {
     /// Last plan limits the list returned; the banner countdown re-derives from
     /// these on every local recompute without another round trip.
     private var lastLimits: VMPlanLimits?
-    /// Which image each kind provisions, from the last list; empty until then.
+    /// Legacy image-kind data for older callers; the current sheet is base-only.
     var imageKinds: [VMImageKindOption] { lastLimits?.imageKinds ?? [] }
+    var memoryOptionsMb: [Int] { lastLimits?.memoryOptionsMb ?? [] }
     private var authSignOutObserver: NSObjectProtocol?
     private var treeChangeObserver: NSObjectProtocol?
     private var createChangeObserver: NSObjectProtocol?
     private var treeTask: Task<Void, Never>?
     private static let statsInterval: Duration = .seconds(20)
 
-    init(createCoordinator: MachineCreateCoordinator = .shared) {
+    init(createCoordinator: MachineCreateCoordinator? = nil) {
+        let createCoordinator = createCoordinator ?? .shared
         self.createCoordinator = createCoordinator
         pendingCreates = createCoordinator.operations
+        let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
             object: createCoordinator,
             queue: .main
         ) { [weak self] notification in
-            let finished = notification.userInfo?[MachineCreateCoordinator.finishedUserInfoKey] as? MachineCreateCoordinator.Finished
+            let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
             MainActor.assumeIsolated { self?.createsDidChange(finished: finished) }
         }
         authSignOutObserver = NotificationCenter.default.addObserver(
@@ -568,11 +583,13 @@ final class MachinesPanelViewModel: ObservableObject {
         refreshTree(force: forceTree)
     }
 
-    /// Samples every machine's CPU/memory/disk. Sleeping machines report
+    /// Samples every desktop machine's CPU/memory/disk. Sleeping machines report
     /// `asleep` without being woken, so polling never costs the user anything.
+    /// Shell-only (`base`) machines serve no stats endpoint (501 on every poll),
+    /// so they are left out rather than asked every cycle.
     func refreshStats() {
         statsTask?.cancel()
-        let ids = machines.map(\.id)
+        let ids = machines.filter(\.isDesktop).map(\.id)
         guard !ids.isEmpty else { return }
         statsTask = Task { [weak self] in
             await withTaskGroup(of: (String, VMStats?).self) { group in
@@ -600,9 +617,11 @@ final class MachinesPanelViewModel: ObservableObject {
         usageTask?.cancel()
         guard let client = MachineUsageClient.shared else { return }
         usageTask = Task { [weak self] in
-            guard let usage = try? await client.teamUsage() else { return }
+            // A failed refresh clears the readout: a stale spend figure is
+            // worse than none, and the next poll restores it.
+            let usage = (try? await client.teamUsage())?.byMachineID ?? [:]
             guard !Task.isCancelled, let self else { return }
-            self.applyUsage(usage.byMachineID)
+            self.applyUsage(usage)
         }
     }
 

@@ -132,7 +132,8 @@ enum AgentHookNotificationClassifier {
         displayName: String,
         signal: String,
         message: String,
-        isFallback: Bool
+        isFallback: Bool,
+        neutralErrorBody: String? = nil
     ) -> AgentHookNotificationSummary {
         // Stop banners are the only place where a provider error can replace a
         // completion classification. Notification hooks also carry free-form
@@ -173,10 +174,10 @@ enum AgentHookNotificationClassifier {
         if !isUserInitiatedStop,
            (lower.contains("error") || lower.contains("failed") || lower.contains("failure") || lower.contains("exception")) {
             let body = message.isEmpty
-                ? String.localizedStringWithFormat(
+                ? (neutralErrorBody ?? String.localizedStringWithFormat(
                     String(localized: "agent.generic.notification.body.reportedError", defaultValue: "%@ reported an error"),
                     displayName
-                )
+                ))
                 : message
             return AgentHookNotificationSummary(
                 subtitle: String(localized: "agent.generic.notification.subtitle.error", defaultValue: "Error"),
