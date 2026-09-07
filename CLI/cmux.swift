@@ -5220,6 +5220,14 @@ struct CMUXCLI {
             throw unknownCommandError(command)
         }
 
+        let rpcBatch = command == "rpc-batch"
+            ? try prepareRPCBatch(commandArgs: commandArgs, windowID: windowId, idFormat: idFormatArg)
+            : nil
+        if let rpcBatch, rpcBatch.dryRun {
+            print(jsonString(["ok": true, "dry_run": true, "requests": rpcBatch.plan.requests.count]))
+            return
+        }
+
         // Registry inspection, cleanup, and direct headless attach must keep
         // working while the GUI is quit (including during an app update).
         if command == "local-tmux" || command == "tmux" {
@@ -6823,6 +6831,11 @@ struct CMUXCLI {
                 }
             default:
                 throw CLIError(message: mobileUsage + "\n" + compatibleTagsUsage)
+            }
+
+        case "rpc-batch":
+            if let rpcBatch {
+                try runRPCBatch(plan: rpcBatch.plan, continueOnError: rpcBatch.continueOnError, client: client)
             }
 
         case "rpc":
@@ -18904,6 +18917,8 @@ struct CMUXCLI {
               cmux cloud exec <id> -- echo hello
               cmux vm rm <id>
             """
+        case "rpc-batch":
+            return rpcBatchUsage()
         case "rpc":
             return """
             Usage: cmux rpc <method> [json-params]
@@ -41289,6 +41304,7 @@ export default CMUXSessionRestore;
           vm <base|new|ls|domains|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|ssh|workspace|terminal|tab> [args...]    (alias: cloud)
           remotes <list|add|remove> [--route <host:port>] [--tag <tag>] [--json]    (alias: remote)
           ai-accounts <list|upload|remove> [--team <id>] [--json]
+          rpc-batch <file|-> [--dry-run] [--continue-on-error]
           rpc <method> [json-params]
           \(simulatorCommandUsageLine)
           \(iosCommandUsageLine)
