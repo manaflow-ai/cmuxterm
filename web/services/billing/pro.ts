@@ -282,6 +282,7 @@ export async function reconcileProPlanMetadata(
   );
 }
 
+// oxlint-disable-next-line complexity -- Billing status resolves Stripe snapshots, legacy query seams, Founder rows, manual grants, and metadata reconciliation as one precedence-ordered state machine.
 export async function resolveProPlanStatus(
   user: ProReconcileUser,
   options: {
@@ -319,6 +320,8 @@ export async function resolveProPlanStatus(
   const metadata = proMetadataRecord(user.clientReadOnlyMetadata);
   const metadataFounderEntitlement = hasFounderEditionEntitlement(metadata);
   const metadataPlanId = planIdFromMetadata(metadata);
+  const hasManualVmPlanOverride =
+    hasManualVmOverride(metadata) || metadataFounderEntitlement;
   if (!user.isAnonymous && isDevelopmentProAccessEnabled(options.environment)) {
     return {
       planId: PRO_PLAN_ID,
@@ -364,8 +367,6 @@ export async function resolveProPlanStatus(
       hasActiveFounderSubscription ||= state.founder;
     }
   }
-  const hasManualVmPlanOverride =
-    hasManualVmOverride(metadata) || metadataFounderEntitlement;
   const metadataEntitlementPro =
     hasActiveStripeSubscription || hasActiveFounderSubscription;
   const normalizedPlan = normalizePersonalPlan(

@@ -57,6 +57,7 @@ type StripeSubscriptionRow = {
   raw: Record<string, unknown> | null;
 };
 
+// oxlint-disable-next-line complexity -- The billing page keeps auth, plan-state, and mutually exclusive billing surfaces in one request-scoped render.
 export default async function DashboardBillingPage({
   params,
   searchParams,

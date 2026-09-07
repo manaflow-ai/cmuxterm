@@ -21,6 +21,7 @@ import { resolveBillingTeam } from "../../../../services/billing/teamResolution"
 const ANONYMOUS_IF_EXISTS = "anonymous-if-exists[deprecated]" as const;
 type GetStackServerApp = typeof StackLib.getStackServerApp;
 
+// oxlint-disable-next-line complexity -- Portal access must keep the App Store gate, Stack auth, ownership claim, Stripe customer lookup, and one error boundary ordered.
 export async function GET(request: NextRequest) {
   if (
     isAppStoreDistributionMode({

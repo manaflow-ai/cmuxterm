@@ -261,6 +261,7 @@ type CheckoutCompletionLockedResult = {
   };
 };
 
+// oxlint-disable-next-line complexity -- Checkout completion must keep ownership fencing, account-deletion locks, durable Stripe writes, and post-commit metadata ordering explicit.
 export async function recordCheckoutCompletion(
   input: CheckoutCompletionInput,
   dependencies: BillingPurchaseDependencies = {},
