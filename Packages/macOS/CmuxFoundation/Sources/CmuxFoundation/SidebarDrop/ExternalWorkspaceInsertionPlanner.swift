@@ -3,30 +3,15 @@ public import Foundation
 
 /// Plans where a **new** unpinned root workspace should be inserted in the sidebar.
 ///
-/// This is intentionally separate from internal workspace reorder planning.
-/// Reorder math answers "where should an existing workspace move?"; this planner
-/// answers "at what index should a brand-new workspace be inserted?"
-///
-/// Geometry reuses ``SidebarDropPlanner``'s new-workspace insertion bands
-/// (edge/gap → insert, row center → reject). Callers must supply **root-level**
-/// targets only so grouped children / group headers are not treated as legal
-/// v1 destinations.
+/// Geometry uses **visible** root rows. ``Plan/insertionIndex`` is always a slot
+/// in the **complete** top-level ungrouped order (not the visible-only array).
 public struct ExternalWorkspaceInsertionPlanner: Sendable {
-    /// One root-level sidebar row that can host an external directory insertion.
+    /// One visible root-level sidebar row used for pointer geometry.
     public struct RootTarget: Equatable, Sendable {
-        /// Workspace identity for the row (never a filesystem path).
         public let workspaceId: UUID
-        /// Whether the row sits in the leading pinned segment.
         public let isPinned: Bool
-        /// Row frame in the drop overlay's coordinate space.
         public let frame: CGRect
 
-        /// Creates a root-level insertion target.
-        ///
-        /// - Parameters:
-        ///   - workspaceId: Workspace UUID for the row.
-        ///   - isPinned: Whether the row is pinned.
-        ///   - frame: Row frame in drop coordinates.
         public init(workspaceId: UUID, isPinned: Bool, frame: CGRect) {
             self.workspaceId = workspaceId
             self.isPinned = isPinned
@@ -36,44 +21,38 @@ public struct ExternalWorkspaceInsertionPlanner: Sendable {
 
     /// Insertion plan for a new unpinned workspace.
     public struct Plan: Equatable, Sendable {
-        /// Index into the provided `rootTargets` / matching top-level order at
-        /// which the new workspace should be inserted. Already clamped so an
-        /// unpinned workspace cannot land inside the pinned prefix.
+        /// Index into the complete top-level ungrouped order, or `count` to append.
+        /// Clamped so an unpinned workspace cannot land inside the pinned prefix.
         public let insertionIndex: Int
         /// Existing-style sidebar insertion indicator to render.
         public let indicator: SidebarDropIndicator
 
-        /// Creates an external insertion plan.
-        ///
-        /// - Parameters:
-        ///   - insertionIndex: Clamped insertion index for the new workspace.
-        ///   - indicator: Drop indicator matching that index.
         public init(insertionIndex: Int, indicator: SidebarDropIndicator) {
             self.insertionIndex = insertionIndex
             self.indicator = indicator
         }
     }
 
-    /// Creates an external new-workspace insertion planner.
     public init() {}
 
     /// Resolves a pointer location into a new-workspace insertion plan.
     ///
     /// - Parameters:
-    ///   - point: Pointer location in the same coordinate space as `rootTargets`.
-    ///   - rootTargets: Ordered root-level rows only (no group children / headers).
-    /// - Returns: A plan when the pointer is over an insertion band or gap;
-    ///   `nil` when targets are empty, or when the pointer is over a row center
-    ///   (rejected so we never imply opening an existing workspace).
+    ///   - point: Pointer in the same coordinate space as `visibleRootTargets`.
+    ///   - visibleRootTargets: On-screen root rows for geometry / indicator.
+    ///   - completeTopLevelIds: Full ungrouped root order for the commit slot.
+    ///   - completePinnedCount: Leading pinned prefix length in that complete order.
     public func plan(
         point: CGPoint,
-        rootTargets: [RootTarget]
+        visibleRootTargets: [RootTarget],
+        completeTopLevelIds: [UUID],
+        completePinnedCount: Int
     ) -> Plan? {
-        guard !rootTargets.isEmpty else {
+        guard !visibleRootTargets.isEmpty else {
             return nil
         }
 
-        let dropTargets = rootTargets.map {
+        let dropTargets = visibleRootTargets.map {
             SidebarDropPlanner.WorkspaceDropTarget(
                 workspaceId: $0.workspaceId,
                 isPinned: $0.isPinned,
@@ -87,17 +66,47 @@ public struct ExternalWorkspaceInsertionPlanner: Sendable {
             return nil
         }
 
-        // Mid-row "drop onto existing workspace" is bonsplit semantics, not
-        // Finder directory creation. Reject so we never imply reuse/dedupe.
-        guard case .newWorkspace(let insertionIndex, let indicator) = action else {
+        guard case .newWorkspace(let visibleSlot, let visibleIndicator) = action else {
             return nil
         }
-        return Plan(insertionIndex: insertionIndex, indicator: indicator)
+
+        let visibleIds = visibleRootTargets.map(\.workspaceId)
+        let completeSlot = completeTopLevelSlot(
+            fromVisibleSlot: visibleSlot,
+            visibleIds: visibleIds,
+            completeTopLevelIds: completeTopLevelIds
+        )
+        let clampedSlot = max(
+            0,
+            min(
+                max(completeSlot, max(0, completePinnedCount)),
+                completeTopLevelIds.count
+            )
+        )
+        let indicator = remappedIndicator(
+            visibleIndicator: visibleIndicator,
+            completeSlot: clampedSlot,
+            completeTopLevelIds: completeTopLevelIds,
+            visibleRootTargets: visibleRootTargets
+        )
+        return Plan(insertionIndex: clampedSlot, indicator: indicator)
+    }
+
+    /// Convenience when every root row is visible (unit tests / short lists).
+    public func plan(
+        point: CGPoint,
+        rootTargets: [RootTarget]
+    ) -> Plan? {
+        let pinnedCount = rootTargets.prefix(while: \.isPinned).count
+        return plan(
+            point: point,
+            visibleRootTargets: rootTargets,
+            completeTopLevelIds: rootTargets.map(\.workspaceId),
+            completePinnedCount: pinnedCount
+        )
     }
 
     /// Insertion plan when the sidebar has no root rows yet.
-    ///
-    /// - Returns: Append-at-zero with an end-of-list indicator.
     public func planForEmptySidebar() -> Plan {
         Plan(
             insertionIndex: 0,
@@ -105,13 +114,25 @@ public struct ExternalWorkspaceInsertionPlanner: Sendable {
         )
     }
 
+    /// Maps a visible-array insertion slot onto the complete top-level order.
+    public func completeTopLevelSlot(
+        fromVisibleSlot visibleSlot: Int,
+        visibleIds: [UUID],
+        completeTopLevelIds: [UUID]
+    ) -> Int {
+        let clampedVisible = max(0, min(visibleSlot, visibleIds.count))
+        if clampedVisible < visibleIds.count {
+            let anchorId = visibleIds[clampedVisible]
+            return completeTopLevelIds.firstIndex(of: anchorId) ?? completeTopLevelIds.count
+        }
+        guard let lastVisibleId = visibleIds.last,
+              let lastCompleteIndex = completeTopLevelIds.firstIndex(of: lastVisibleId) else {
+            return completeTopLevelIds.count
+        }
+        return lastCompleteIndex + 1
+    }
+
     /// Maps a top-level insertion slot to a raw `tabs` array index.
-    ///
-    /// - Parameters:
-    ///   - slot: Index into `topLevelIds` (or `topLevelIds.count` to append).
-    ///   - topLevelIds: Root-level workspace ids in sidebar order.
-    ///   - tabIds: Full workspace storage order (`TabManager.tabs` ids).
-    /// - Returns: Index suitable for `insertionIndexOverride` on workspace creation.
     public func rawTabInsertionIndex(
         forTopLevelSlot slot: Int,
         topLevelIds: [UUID],
@@ -131,5 +152,41 @@ public struct ExternalWorkspaceInsertionPlanner: Sendable {
             }
         }
         return tabIds.count
+    }
+
+    private func remappedIndicator(
+        visibleIndicator: SidebarDropIndicator,
+        completeSlot: Int,
+        completeTopLevelIds: [UUID],
+        visibleRootTargets: [RootTarget]
+    ) -> SidebarDropIndicator {
+        if let tabId = visibleIndicator.tabId,
+           let completeIndex = completeTopLevelIds.firstIndex(of: tabId) {
+            let impliedSlot = visibleIndicator.edge == .bottom ? completeIndex + 1 : completeIndex
+            if impliedSlot == completeSlot {
+                return visibleIndicator
+            }
+        }
+
+        if completeSlot >= completeTopLevelIds.count {
+            if let lastVisible = visibleRootTargets.last {
+                return SidebarDropIndicator(tabId: lastVisible.workspaceId, edge: .bottom)
+            }
+            return SidebarDropIndicator(tabId: nil, edge: .bottom)
+        }
+
+        let anchorId = completeTopLevelIds[completeSlot]
+        if visibleRootTargets.contains(where: { $0.workspaceId == anchorId }) {
+            return SidebarDropIndicator(tabId: anchorId, edge: .top)
+        }
+        if let lastVisible = visibleRootTargets.last,
+           let lastComplete = completeTopLevelIds.firstIndex(of: lastVisible.workspaceId),
+           completeSlot > lastComplete {
+            return SidebarDropIndicator(tabId: lastVisible.workspaceId, edge: .bottom)
+        }
+        if let firstVisible = visibleRootTargets.first {
+            return SidebarDropIndicator(tabId: firstVisible.workspaceId, edge: .top)
+        }
+        return SidebarDropIndicator(tabId: anchorId, edge: .top)
     }
 }

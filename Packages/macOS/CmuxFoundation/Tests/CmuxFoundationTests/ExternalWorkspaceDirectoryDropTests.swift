@@ -146,7 +146,7 @@ import Testing
             rootTargets: rootTargets
         )
         #expect(plan?.insertionIndex == 2)
-        #expect(plan?.indicator == SidebarDropIndicator(tabId: nil, edge: .bottom))
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: second, edge: .bottom))
     }
 
     @Test func rejectsRowCenterSoExistingWorkspaceIsNotImplied() {
@@ -183,5 +183,67 @@ import Testing
         #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 1, topLevelIds: [a, b, c], tabIds: [a, b, c]) == 1)
         #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 3, topLevelIds: [a, b, c], tabIds: [a, b, c]) == 3)
         #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 0, topLevelIds: [a, b], tabIds: [a, b, c]) == 0)
+    }
+
+    @Test func mapsVisibleSlotOntoCompleteOrderWhenRootsAreOffscreen() {
+        let ids = (0..<10).map { _ in UUID() }
+        // Viewport shows only D E F (indices 3,4,5).
+        let visible = Array(ids[3...5])
+        let planner = ExternalWorkspaceInsertionPlanner()
+
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 0,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 3
+        )
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 1,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 4
+        )
+        // After last visible (F) must land beside F in the complete order,
+        // not at the end after J.
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 3,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 6
+        )
+    }
+
+    @Test func visibleGeometryDropBelowLastVisibleUsesCompleteOrderSlot() {
+        let ids = (0..<10).map { _ in UUID() }
+        let visibleIds = Array(ids[3...5])
+        let visibleTargets = targets(visibleIds)
+        // Bottom edge of last visible row (F): y near maxY of third visible frame.
+        // frames: 0→0..32, 1→40..72, 2→80..112 ⇒ bottom band of F around y=102.
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 102),
+            visibleRootTargets: visibleTargets,
+            completeTopLevelIds: ids,
+            completePinnedCount: 0
+        )
+        #expect(plan?.insertionIndex == 6)
+        #expect(plan?.indicator.tabId == ids[5])
+        #expect(plan?.indicator.edge == .bottom)
+    }
+
+    @Test func visibleGeometryDropAboveFirstVisibleUsesCompleteOrderSlot() {
+        let ids = (0..<10).map { _ in UUID() }
+        let visibleIds = Array(ids[3...5])
+        let visibleTargets = targets(visibleIds)
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 2),
+            visibleRootTargets: visibleTargets,
+            completeTopLevelIds: ids,
+            completePinnedCount: 0
+        )
+        #expect(plan?.insertionIndex == 3)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: ids[3], edge: .top))
     }
 }

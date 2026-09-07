@@ -486,7 +486,8 @@ extension FileDropOverlayView {
             clearExternalDirectorySidebarRoute()
             return nil
         }
-        guard let router = SidebarExternalDirectoryDropRouter.current else {
+        guard let window,
+              let router = SidebarExternalDirectoryDropRouter.router(for: window) else {
             clearExternalDirectorySidebarRoute()
             return nil
         }

@@ -124,7 +124,8 @@ extension TabManager {
         guard let insertionIndexOverride else {
             return newTabInsertIndex(snapshot: snapshot, placementOverride: placementOverride)
         }
-        return Self.clampedDetachedWorkspaceInsertIndex(insertionIndexOverride, tabs: snapshot.tabs)
+        let liveTabs = orderedLiveWorkspaceCreationTabs(from: snapshot) ?? snapshot.tabs
+        return Self.clampedDetachedWorkspaceInsertIndex(insertionIndexOverride, tabs: liveTabs)
     }
 
     /// Clamps a proposed create-at-index slot so a new unpinned workspace cannot

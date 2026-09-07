@@ -323,6 +323,20 @@ final class FileDropOverlayView: NSView {
         exitActiveDragTargets(sender)
     }
 
+    /// Escape / session teardown while the pointer is still over the overlay
+    /// often skips `draggingExited`. Match pane drop targets and clear the
+    /// sidebar insertion affordance here.
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        hintBadgeView.hide()
+        preparedDragWebView = nil
+        preparedPaneDropTarget = nil
+        didPerformDragAsText = false
+        performedTextDragWebView = nil
+        performedTextPaneDropTarget = nil
+        clearExternalDirectorySidebarRoute()
+        exitActiveDragTargets(sender)
+    }
+
     func exitActiveDragTargets(_ sender: (any NSDraggingInfo)?) {
         if let prev = activeDragWebView {
             prev.draggingExited(sender)
@@ -337,7 +351,9 @@ final class FileDropOverlayView: NSView {
     func clearExternalDirectorySidebarRoute() {
         guard isRoutingExternalDirectoryToSidebar else { return }
         isRoutingExternalDirectoryToSidebar = false
-        SidebarExternalDirectoryDropRouter.current?.clearExternalDirectoryDrop()
+        if let window {
+            SidebarExternalDirectoryDropRouter.router(for: window)?.clearExternalDirectoryDrop()
+        }
     }
 
     private func exitActiveDragTargets(

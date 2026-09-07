@@ -1728,8 +1728,13 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
     private var lastAcceptedReorderDropPlan: SidebarWorkspaceReorderDropPlan?
 
     /// Last accepted Finder-directory insertion plan painted for an external
-    /// drop. Committed verbatim on release, same rationale as reorder.
+    /// drop. Committed after a fresh replan on release.
     private var lastAcceptedExternalDirectoryDropPlan: ExternalWorkspaceInsertionPlanner.Plan?
+
+    /// Window-space pointer for an active external-directory sidebar route.
+    /// Viewport / autoscroll changes replan from this point (same idea as
+    /// ``reorderDragWindowPoint`` for internal reorder).
+    private var externalDirectoryDragWindowPoint: NSPoint?
 
     /// One-shot: the next apply comes from this window's own drop, so the
     /// selected-workspace scroll policy must not yank the viewport away from
@@ -1775,13 +1780,17 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
 
     func reorderDropDragExited() {
         reorderDragPayloadWorkspaceId = nil
-        lastAcceptedExternalDirectoryDropPlan = nil
+        clearExternalDirectoryDrop()
         guard reorderDragWindowPoint != nil || reorderIndicatorPainter != nil else { return }
         reorderDragWindowPoint = nil
         retireReorderIndicator()
     }
 
     // MARK: - SidebarExternalDirectoryDropRouting (window FileDropOverlayView)
+
+    var externalDirectoryDropHostingWindow: NSWindow? {
+        containerView?.window
+    }
 
     func containsExternalDirectoryDropWindowPoint(_ windowPoint: NSPoint) -> Bool {
         guard let dropView = containerView?.reorderDropView, dropView.window != nil else {
@@ -1792,20 +1801,25 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
     }
 
     /// Updates the insertion indicator for a Finder directory drag using
-    /// root-level (ungrouped) rows only. Group headers and grouped children
-    /// are rejected for v1 so drops never invent group membership.
+    /// visible root-level rows for geometry and the complete ungrouped root
+    /// order for the commit slot.
     @discardableResult
     func updateExternalDirectoryDrop(atWindowPoint windowPoint: NSPoint) -> Int? {
-        guard let container = containerView else { return nil }
+        externalDirectoryDragWindowPoint = windowPoint
+        guard let container = containerView else {
+            clearExternalDirectoryDrop()
+            return nil
+        }
         let point = container.reorderDropView.convert(windowPoint, from: nil)
         return updateExternalDirectoryDrag(
             point: point,
-            targets: refreshReorderDropTargets()
+            visibleTargets: refreshReorderDropTargets()
         )
     }
 
     func clearExternalDirectoryDrop() {
         lastAcceptedExternalDirectoryDropPlan = nil
+        externalDirectoryDragWindowPoint = nil
         retireReorderIndicator()
     }
 
@@ -1818,28 +1832,20 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
             clearExternalDirectoryDrop()
             return false
         }
-        defer {
-            lastAcceptedExternalDirectoryDropPlan = nil
-            retireReorderIndicator()
+        defer { clearExternalDirectoryDrop() }
+
+        // Replan from the release point so autoscroll / viewport drift cannot
+        // commit a stale hover plan.
+        _ = updateExternalDirectoryDrop(atWindowPoint: windowPoint)
+        guard let plan = lastAcceptedExternalDirectoryDropPlan else {
+            return false
         }
 
-        let planner = ExternalWorkspaceInsertionPlanner()
-        let targets = refreshReorderDropTargets()
-        let rootTargets = externalDirectoryRootTargets(from: targets)
-        let point = containerView?.reorderDropView.convert(windowPoint, from: nil) ?? .zero
-        let plan = lastAcceptedExternalDirectoryDropPlan ?? {
-            if rootTargets.isEmpty {
-                return rows.isEmpty ? planner.planForEmptySidebar() : nil
-            }
-            return planner.plan(point: point, rootTargets: rootTargets)
-        }()
-        guard let plan else { return false }
-
-        let topLevelIds = rootTargets.map(\.workspaceId)
+        let completeOrder = completeExternalDirectoryRootOrder()
         let created = actions.createWorkspaceFromExternalDirectory(
             directoryPath,
             plan.insertionIndex,
-            topLevelIds
+            completeOrder.ids
         )
         if created {
             suppressSelectedScrollAfterLocalDrop = true
@@ -1849,16 +1855,25 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
 
     private func updateExternalDirectoryDrag(
         point: CGPoint,
-        targets: [SidebarWorkspaceReorderDropOverlay.Target]
+        visibleTargets: [SidebarWorkspaceReorderDropOverlay.Target]
     ) -> Int? {
         actions?.updateDragAutoscroll()
-        let rootTargets = externalDirectoryRootTargets(from: targets)
+        let completeOrder = completeExternalDirectoryRootOrder()
+        let visibleRootTargets = externalDirectoryRootTargets(from: visibleTargets)
         let planner = ExternalWorkspaceInsertionPlanner()
         let plan: ExternalWorkspaceInsertionPlanner.Plan?
-        if rootTargets.isEmpty {
+        if completeOrder.ids.isEmpty {
             plan = rows.isEmpty ? planner.planForEmptySidebar() : nil
+        } else if visibleRootTargets.isEmpty {
+            // Complete roots exist but none are on screen — no legal geometry.
+            plan = nil
         } else {
-            plan = planner.plan(point: point, rootTargets: rootTargets)
+            plan = planner.plan(
+                point: point,
+                visibleRootTargets: visibleRootTargets,
+                completeTopLevelIds: completeOrder.ids,
+                completePinnedCount: completeOrder.pinnedCount
+            )
         }
         guard let plan else {
             lastAcceptedExternalDirectoryDropPlan = nil
@@ -1870,13 +1885,23 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         return plan.insertionIndex
     }
 
+    private func completeExternalDirectoryRootOrder() -> (ids: [UUID], pinnedCount: Int) {
+        let roots = rows.filter { !$0.isGroupHeader && $0.groupId == nil }
+        let ids = roots.map(\.workspaceId)
+        let pinnedCount = roots.prefix(while: \.isPinned).count
+        return (ids, pinnedCount)
+    }
+
     private func externalDirectoryRootTargets(
         from targets: [SidebarWorkspaceReorderDropOverlay.Target]
     ) -> [ExternalWorkspaceInsertionPlanner.RootTarget] {
-        targets.compactMap { target in
+        let pinnedByWorkspaceId = Dictionary(
+            uniqueKeysWithValues: rows.map { ($0.workspaceId, $0.isPinned) }
+        )
+        return targets.compactMap { target in
             // v1: reject group headers and grouped children entirely.
             guard !target.isGroupHeader, target.groupId == nil else { return nil }
-            let isPinned = rows.first(where: { $0.workspaceId == target.workspaceId })?.isPinned ?? false
+            let isPinned = pinnedByWorkspaceId[target.workspaceId] ?? false
             return ExternalWorkspaceInsertionPlanner.RootTarget(
                 workspaceId: target.workspaceId,
                 isPinned: isPinned,
@@ -2226,6 +2251,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         enforceHoverOnVisibleCells()
         updateDropTargets()
         replanReorderDragIfActive()
+        replanExternalDirectoryDropIfActive()
     }
 
     /// Edge autoscroll moves rows under a stationary pointer, and AppKit only
@@ -2235,6 +2261,11 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
     private func replanReorderDragIfActive() {
         guard let windowPoint = reorderDragWindowPoint else { return }
         updateReorderDrag(windowPoint: windowPoint)
+    }
+
+    private func replanExternalDirectoryDropIfActive() {
+        guard let windowPoint = externalDirectoryDragWindowPoint else { return }
+        _ = updateExternalDirectoryDrop(atWindowPoint: windowPoint)
     }
 
     private let selectionCoalescer = SidebarSelectionCoalescer<ContinuousClock>()

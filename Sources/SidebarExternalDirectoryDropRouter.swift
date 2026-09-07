@@ -6,14 +6,18 @@ import CmuxFoundation
 ///
 /// Spatial planning and indicator painting stay in the sidebar; the overlay only
 /// owns pasteboard / drag lifecycle and delegates here when the pointer is over
-/// a live workspace list.
+/// a live workspace list in the **same** window.
 @MainActor
 protocol SidebarExternalDirectoryDropRouting: AnyObject {
+    /// Window that owns this sidebar presentation. Used to scope Finder routing
+    /// so window A's overlay never consults window B's sidebar.
+    var externalDirectoryDropHostingWindow: NSWindow? { get }
+
     /// Whether `windowPoint` lies inside this sidebar's visible drop surface.
     func containsExternalDirectoryDropWindowPoint(_ windowPoint: NSPoint) -> Bool
 
     /// Updates insertion indicator for a validated directory drag at `windowPoint`.
-    /// - Returns: planned insertion index when a legal plan is active; otherwise `nil`.
+    /// - Returns: planned complete top-level insertion slot when legal; otherwise `nil`.
     @discardableResult
     func updateExternalDirectoryDrop(atWindowPoint windowPoint: NSPoint) -> Int?
 
@@ -28,20 +32,49 @@ protocol SidebarExternalDirectoryDropRouting: AnyObject {
     ) -> Bool
 }
 
-/// Process-local registration of the active AppKit workspace sidebar router.
+/// Per-window registration of AppKit workspace sidebar routers.
+///
+/// Finder drops are owned by each window's ``FileDropOverlayView``. Resolution
+/// is always keyed by that overlay's `NSWindow` so multi-window sessions cannot
+/// cross-wire sidebars.
 @MainActor
 enum SidebarExternalDirectoryDropRouter {
-    private static weak var active: (any SidebarExternalDirectoryDropRouting)?
+    private struct WeakRouter {
+        weak var value: (any SidebarExternalDirectoryDropRouting)?
+    }
+
+    private static var routersByIdentity: [ObjectIdentifier: WeakRouter] = [:]
 
     static func register(_ router: any SidebarExternalDirectoryDropRouting) {
-        active = router
+        prune()
+        routersByIdentity[ObjectIdentifier(router)] = WeakRouter(value: router)
     }
 
     static func unregister(_ router: any SidebarExternalDirectoryDropRouting) {
-        if active === router {
-            active = nil
-        }
+        routersByIdentity.removeValue(forKey: ObjectIdentifier(router))
+        prune()
     }
 
-    static var current: (any SidebarExternalDirectoryDropRouting)? { active }
+    /// Returns the sidebar router hosted by `window`, or `nil` (fail closed).
+    static func router(for window: NSWindow) -> (any SidebarExternalDirectoryDropRouting)? {
+        prune()
+        for entry in routersByIdentity.values {
+            guard let router = entry.value,
+                  router.externalDirectoryDropHostingWindow === window else {
+                continue
+            }
+            return router
+        }
+        return nil
+    }
+
+    /// Test seam: number of live registered routers after pruning.
+    static var registeredRouterCountForTests: Int {
+        prune()
+        return routersByIdentity.values.compactMap(\.value).count
+    }
+
+    private static func prune() {
+        routersByIdentity = routersByIdentity.filter { $0.value.value != nil }
+    }
 }

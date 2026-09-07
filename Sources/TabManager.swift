@@ -1374,12 +1374,14 @@ class TabManager: ObservableObject {
             // reading @Published placement state from existing workspaces mid-creation.
             // `insertionIndexOverride` mirrors detached/new-workspace create-at-index:
             // nil preserves every existing call site; an explicit index clamps into the
-            // unpinned region (new Finder sidebar drops always create unpinned workspaces).
+            // unpinned region against the same reconciled live order used by
+            // `newTabInsertIndex` (new Finder sidebar drops always create unpinned workspaces).
             let insertIndex: Int = {
                 if let insertionIndexOverride {
+                    let liveTabs = orderedLiveWorkspaceCreationTabs(from: snapshot) ?? snapshot.tabs
                     return Self.clampedDetachedWorkspaceInsertIndex(
                         insertionIndexOverride,
-                        tabs: snapshot.tabs
+                        tabs: liveTabs
                     )
                 }
                 return newTabInsertIndex(snapshot: snapshot, placementOverride: placementOverride)
@@ -1736,7 +1738,7 @@ class TabManager: ObservableObject {
         )
     }
 
-    private func orderedLiveWorkspaceCreationTabs(
+    func orderedLiveWorkspaceCreationTabs(
         from snapshot: WorkspaceCreationSnapshot
     ) -> [WorkspaceCreationTabSnapshot]? {
         let currentTabs = tabs
