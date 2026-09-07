@@ -55,8 +55,10 @@ public protocol TerminalSurfaceNativeViewing: NSView, TerminalSurfaceHosting {
         replay: @escaping () -> Void
     ) -> Bool
 
-    /// Whether cmux-authored context recovery can reach the PTY without queuing.
-    var canAcceptImmediateContextManagementInput: Bool { get }
+    /// Whether this host has an ordered admission path for cmux-authored
+    /// context recovery input. Hosts may deliver immediately or queue behind
+    /// an active clipboard read, but unsupported hosts must fail closed.
+    var canAcceptContextManagementInput: Bool { get }
 
     /// Positions the native pointer at the center of a mobile-selected cell.
     func positionMobilePointer(
@@ -74,12 +76,12 @@ public protocol TerminalSurfaceNativeViewing: NSView, TerminalSurfaceHosting {
 }
 
 public extension TerminalSurfaceNativeViewing {
-    /// Hosts must explicitly opt in after wiring clipboard sequencing.
+    /// Hosts must explicitly opt in after wiring ordered input admission.
     ///
     /// The fail-closed default prevents context recovery from overtaking a
     /// host's deferred clipboard/user-input queue when the host forgets to
     /// provide its readiness witness.
-    var canAcceptImmediateContextManagementInput: Bool { false }
+    var canAcceptContextManagementInput: Bool { false }
 
     /// Leaves input synchronous for hosts without clipboard sequencing.
     ///

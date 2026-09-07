@@ -89,6 +89,39 @@ struct TerminalSurfaceExplicitInputTests {
         )
     }
 
+    @Test func contextManagementInputWaitsForRuntimeClipboardRead() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.shouldDeferRuntimeInput = true
+
+        #expect(fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(fixture.nativeView.deferredRuntimeInputs.count == 1)
+        #expect(fixture.paneHost.explicitInputCount == 1)
+
+        fixture.nativeView.shouldDeferRuntimeInput = false
+        fixture.nativeView.deferredRuntimeInputs.removeFirst()()
+
+        #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
+    }
+
+    @Test func contextManagementInputFailsClosedWithoutOrderedAdmission() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.canAcceptContextManagementInput = false
+
+        #expect(!fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(fixture.paneHost.explicitInputCount == 0)
+        #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
+    }
+
     @Test func pasteTextNotifiesPaneHostBeforeQueueingOnAColdSurface() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }

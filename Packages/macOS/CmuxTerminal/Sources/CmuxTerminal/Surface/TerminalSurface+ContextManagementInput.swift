@@ -62,34 +62,33 @@ extension TerminalSurface {
         }
     }
 
-    /// Sends cmux-authored recovery input only when it can reach the live PTY immediately.
+    /// Sends cmux-authored recovery input to the live PTY, preserving the
+    /// clipboard sequencer's ordering when a runtime read is in flight.
     ///
-    /// Recovery input never enters the cold-surface or clipboard deferral queues. Returning
-    /// `false` leaves the pressure state intact so a later authoritative lifecycle signal can
-    /// retry without allowing automation to overtake user input.
+    /// A temporary clipboard collision queues the recovery write behind the
+    /// read and still returns `true`: the sequencer owns the retry, so the
+    /// coordinator must not convert that transient wait into manual recovery.
+    /// Permanent surface/process failures still return `false`.
     ///
     /// - Parameter text: Text, including a provider-specific Return character, to send.
-    /// - Returns: Whether the text was delivered synchronously to the live PTY.
+    /// - Returns: Whether the text was delivered or accepted for ordered replay.
     @MainActor
     @discardableResult
     public func sendContextManagementInput(_ text: String) -> Bool {
         guard !text.isEmpty,
               surface != nil,
-              surfaceView.canAcceptImmediateContextManagementInput else {
+              surfaceView.canAcceptContextManagementInput else {
             return false
         }
         paneHost.terminalSurfaceDidReceiveExplicitInput()
-        let result = sendInputToLiveSurfaceAfterExplicitInput(
-            text,
-            allowClipboardDeferral: false
-        )
-        if result == .sent {
+        let result = sendInputAfterExplicitInput(text)
+        if result.accepted {
             hibernationRecorder.recordTerminalInput(
                 workspaceId: tabId,
                 panelId: id
             )
         }
-        return result == .sent
+        return result.accepted
     }
 
     /// Requests a PTY-tee parser reset before the next output chunk.
