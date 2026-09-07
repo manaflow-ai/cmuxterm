@@ -90,11 +90,11 @@ release_assets = [
 immutable_assets, ignored_assets = module.collect_immutable_assets({"assets": release_assets})
 assert ignored_assets == 1
 to_delete, builds = module.partition_assets(
-    immutable_assets, keep_builds=3, total_assets=13, max_assets=8
+    immutable_assets, keep_builds=3, total_assets=9, max_assets=8
 )
 assert builds == [4, 3, 2, 1]
-assert {asset.build for asset in to_delete} == {1, 2, 3}
-assert len(to_delete) == 6
+assert {asset.build for asset in to_delete} == {1}
+assert len(to_delete) == 2
 assert all(asset.asset_id != 1000 for asset in to_delete)
 PY
 
