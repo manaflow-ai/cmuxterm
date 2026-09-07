@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "cli.rpcBatch.error.globalOptions": {
+      "extractionState": "manual",
+      "comment": "RPC batch CLI. Additional locale translations are tracked for the release localization pass.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rpc-batch does not accept --window or --id-format; put explicit targets in each request's params"
+          }
+        }
+      }
+    },
+    "cli.rpcBatch.error.read": {
+      "extractionState": "manual",
+      "comment": "RPC batch CLI. Additional locale translations are tracked for the release localization pass.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read the RPC batch; use a readable regular file or - for standard input"
+          }
+        }
+      }
+    },
+    "cli.rpcBatch.error.invalid": {
+      "extractionState": "manual",
+      "comment": "RPC batch CLI. Additional locale translations are tracked for the release localization pass.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid RPC batch (%1$@, request index %2$@). Run cmux rpc-batch --help for the input contract."
+          }
+        }
+      }
+    },
+    "cli.rpcBatch.error.failed": {
+      "extractionState": "manual",
+      "comment": "RPC batch CLI. Additional locale translations are tracked for the release localization pass.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "RPC batch did not complete successfully; inspect the JSON results before retrying any request"
+          }
+        }
+      }
+    },
+    "cli.rpcBatch.help": {
+      "extractionState": "manual",
+      "comment": "RPC batch CLI. Additional locale translations are tracked for the release localization pass.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage: cmux rpc-batch <file|-> [--dry-run] [--continue-on-error]\n\nExecute a JSON array of v2 requests in order with one CLI process.\nLocal Unix sockets reuse one authenticated connection; relays retain their\nexisting per-request connection behavior.\nEach request has a unique id, a method, and optional object params.\nExample: [{\"id\":\"windows\",\"method\":\"window.list\"}]\n\nReference an earlier result with {\"$ref\":\"request-id#/json/pointer\"}.\nUse ~0 for a literal ~ and ~1 for / in a JSON Pointer key.\nIDs use letters, digits, _ or - (1-128 bytes). References must point backward.\nLimits: 1 MiB input, 256 requests, 64 levels of JSON nesting.\nevents.stream and auth.* methods cannot be batched.\n\n--dry-run            Validate offline and print the request count; send nothing.\n--continue-on-error  Continue independent requests after server errors or missing\n                     references. Transport errors always stop the batch.\n\nOutput is JSON with ordered results and execution timing metrics.\nExit codes: 0 success, 1 execution/connection failure, 2 invalid input.\nBatches are sequential, not atomic. Successful requests are never rolled back\nor retried. A lost response may mean the server already applied that request.\nPut window/workspace/surface targets in params; --window and --id-format are\nnot accepted. Result IDs are preserved exactly as returned by the server."
+          }
+        }
+      }
+    },
     "cli.help.readScreen": {
       "extractionState": "manual",
       "localizations": {

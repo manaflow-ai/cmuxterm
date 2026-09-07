@@ -150,3 +150,24 @@ tasks.replace("search", priority: .userInitiated) {
     await rebuildSearchIndex()
 }
 ```
+
+## RPC batch plans
+
+`CmuxRPCBatchPlan` validates bounded JSON request sequences and resolves references
+without filesystem or socket access. The caller supplies the transport and monotonic
+clock. `CmuxRPCBatchCallFailure` distinguishes complete server errors from uncertain
+transport failures; only the former can continue on the existing connection.
+
+```swift
+let plan = try CmuxRPCBatchPlan(data: Data("""
+[{"id":"read","method":"window.list"}]
+""".utf8))
+let report = plan.execute(now: { 0 }) { method, params in
+    // Tests inject responses; the CLI injects its authenticated SocketClient.
+    ["windows": []]
+}
+assert(report.ok)
+```
+
+Run the behavioral suite with `swift test --filter CmuxRPCBatchTests` from this
+package. See `docs/rpc-batch.md` at the repository root for the CLI contract.

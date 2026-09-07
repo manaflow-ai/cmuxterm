@@ -170,6 +170,20 @@ export default function ApiPage() {
         </tbody>
       </table>
 
+      <DocsHeading level={2} id="rpc-batch">{t("rpcBatchTitle")}</DocsHeading>
+      <p>{t("rpcBatchDescription")}</p>
+      <CodeBlock lang="json">{`[
+  {"id":"create","method":"workspace.create"},
+  {"id":"rename","method":"workspace.rename","params":{
+    "workspace_id":{"$ref":"create#/workspace_id"},
+    "title":"Batch workspace"
+  }}
+]`}</CodeBlock>
+      <CodeBlock lang="bash">{`cmux rpc-batch workflow.json --dry-run
+cmux rpc-batch workflow.json`}</CodeBlock>
+      <p>{t("rpcBatchValidation")}</p>
+      <Callout>{t("rpcBatchFailures")}</Callout>
+
       <DocsHeading level={2} id="workspace-commands">{t("workspaceCommands")}</DocsHeading>
 
       <Cmd

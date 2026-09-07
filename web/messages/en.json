@@ -2495,6 +2495,10 @@
       }
     },
     "api": {
+      "rpcBatchTitle": "Batch RPC workflows",
+      "rpcBatchDescription": "Use rpc-batch to run a JSON plan in one CLI process. Local Unix sockets reuse one authenticated connection. Each request has a unique id, a method, and optional params. A $ref object substitutes a value from an earlier result using a JSON Pointer.",
+      "rpcBatchValidation": "Run --dry-run to validate the entire plan offline before sending any requests. Input is limited to 1 MiB, 256 requests, and 64 nesting levels. Put explicit window, workspace, and surface targets in params; --window and --id-format are not accepted.",
+      "rpcBatchFailures": "Batches execute sequentially and are not atomic. The default stops after the first failure; --continue-on-error continues independent requests after server errors or unresolved references. Transport errors always stop execution, and requests are never automatically retried. JSON output includes every result, skipped requests, and timing metrics. Exit codes are 0 for success, 1 for execution failure, and 2 for invalid input.",
       "title": "CLI Reference",
       "metaTitle": "CLI Reference",
       "metaDescription": "cmux CLI and Unix socket API reference. Workspace management, split panes, input control, notifications, sidebar metadata, environment variables, and detection methods.",

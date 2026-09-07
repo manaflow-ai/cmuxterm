@@ -176,6 +176,7 @@ extension CMUXCLI {
         "restore",
         "right-sidebar",
         "rpc",
+        "rpc-batch",
         "select-workspace",
         "send",
         "send-key",
