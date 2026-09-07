@@ -95,3 +95,35 @@ struct TerminalCommandEquivalentRouter {
         return false
     }
 }
+
+extension AppDelegate {
+    /// Carries a configured shortcut chord prefix from the local event monitor
+    /// to the same event's later AppKit key-equivalent dispatch. The monitor
+    /// must clear its per-call matching state before returning, but terminal
+    /// routing still needs to know that the event completed a configured chord.
+    func rememberConfiguredShortcutChordForKeyEquivalent(event: NSEvent) {
+        guard let prefix = activeConfiguredShortcutChordPrefixForCurrentEvent else {
+            configuredShortcutChordKeyEquivalentState = nil
+            return
+        }
+        configuredShortcutChordKeyEquivalentState = .init(event: event, firstStroke: prefix)
+    }
+
+    func configuredShortcutChordPrefixForKeyEquivalent(event: NSEvent) -> ShortcutStroke? {
+        guard let state = configuredShortcutChordKeyEquivalentState,
+              state.event === event else {
+            return nil
+        }
+        return state.firstStroke
+    }
+
+    func clearConfiguredShortcutChordForKeyEquivalent(event: NSEvent? = nil) {
+        guard let event else {
+            configuredShortcutChordKeyEquivalentState = nil
+            return
+        }
+        if configuredShortcutChordKeyEquivalentState?.event === event {
+            configuredShortcutChordKeyEquivalentState = nil
+        }
+    }
+}

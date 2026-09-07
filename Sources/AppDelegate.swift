@@ -873,8 +873,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let firstStroke: ShortcutStroke
         let windowNumber: Int?
     }
+    struct ConfiguredShortcutChordKeyEquivalentState {
+        let event: NSEvent
+        let firstStroke: ShortcutStroke
+    }
     var pendingConfiguredShortcutChord: PendingConfiguredShortcutChord?
     var activeConfiguredShortcutChordPrefixForCurrentEvent: ShortcutStroke?
+    var configuredShortcutChordKeyEquivalentState: ConfiguredShortcutChordKeyEquivalentState?
     var shortcutEventFocusContextCache: ShortcutEventFocusContextCache?
     private var ghosttyConfigObserver: NSObjectProtocol?
     private var globalFontMagnificationObserver: NSObjectProtocol?
@@ -14132,6 +14137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 )
 #endif
                 if handledByShortcut {
+                    self.clearConfiguredShortcutChordForKeyEquivalent(event: event)
 #if DEBUG
                     cmuxDebugLog("  → consumed by handleCustomShortcut")
 #endif
@@ -14189,6 +14195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func clearConfiguredShortcutChordState() {
         pendingConfiguredShortcutChord = nil
         activeConfiguredShortcutChordPrefixForCurrentEvent = nil
+        configuredShortcutChordKeyEquivalentState = nil
     }
 
     /// Coalesce shortcut-default changes and refresh on the next runloop turn to
@@ -14421,6 +14428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func handleCustomShortcut(event: NSEvent) -> Bool {
+        configuredShortcutChordKeyEquivalentState = nil
         guard event.type == .keyDown else {
             clearConfiguredShortcutChordState()
             return false
@@ -14460,6 +14468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             activeConfiguredShortcutChordPrefixForCurrentEvent = nil
         }
         pendingConfiguredShortcutChord = nil
+        rememberConfiguredShortcutChordForKeyEquivalent(event: event)
         defer { activeConfiguredShortcutChordPrefixForCurrentEvent = nil; clearShortcutEventFocusContextCache(for: event) }
 
         if let textBoxShortcutTabManager = terminalTextShortcutBypassTabManagerBeforeContextResolution(
@@ -19364,6 +19373,10 @@ private extension NSWindow {
     }
 
     @objc func cmux_performKeyEquivalent(with event: NSEvent) -> Bool {
+        let configuredShortcutChordPrefix = AppDelegate.shared?.configuredShortcutChordPrefixForKeyEquivalent(event: event)
+        defer {
+            AppDelegate.shared?.clearConfiguredShortcutChordForKeyEquivalent(event: event)
+        }
 #if DEBUG
         let typingTimingStart = CmuxTypingTiming.start()
         defer {
@@ -19771,7 +19784,7 @@ private extension NSWindow {
                event: event,
                terminalView: firstResponderGhosttyView,
                firstResponder: self.firstResponder,
-               hasActiveShortcutChord: AppDelegate.shared?.activeConfiguredShortcutChordPrefixForCurrentEvent != nil
+               hasActiveShortcutChord: configuredShortcutChordPrefix != nil
            ) {
 #if DEBUG
             cmuxDebugLog("  → terminal claimed standard Edit command equivalent before mainMenu")

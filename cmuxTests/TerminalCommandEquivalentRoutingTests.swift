@@ -29,6 +29,11 @@ struct TerminalCommandEquivalentRoutingTests {
             actions.append("paste")
         }
 
+        @objc func pasteAndMatchStyleAction(_ sender: Any?) {
+            _ = sender
+            actions.append("pasteAndMatchStyle")
+        }
+
         @objc func cutAction(_ sender: Any?) {
             _ = sender
             actions.append("cut")
@@ -76,7 +81,19 @@ struct TerminalCommandEquivalentRoutingTests {
     }
 
     private final class FocusProbeView: NSView {
+        private(set) var actions: [String] = []
+
         override var acceptsFirstResponder: Bool { true }
+
+        override func copy(_ sender: Any?) {
+            _ = sender
+            actions.append("copy")
+        }
+
+        override func paste(_ sender: Any?) {
+            _ = sender
+            actions.append("paste")
+        }
     }
 
     @Test
@@ -91,7 +108,7 @@ struct TerminalCommandEquivalentRoutingTests {
                     "Paste and Match Style",
                     "v",
                     [.command, .shift],
-                    #selector(MenuActionProbe.pasteAction(_:))
+                    #selector(MenuActionProbe.pasteAndMatchStyleAction(_:))
                 ),
             ]
         )
@@ -119,7 +136,7 @@ struct TerminalCommandEquivalentRoutingTests {
         #expect(window.performKeyEquivalent(with: shiftedPasteEvent))
         #expect(terminal.menuMissEvents.map { KeyboardLayout.normalizedCharacters(for: $0) } == ["c"])
         #expect(terminal.performKeyEquivalentEvents.map { KeyboardLayout.normalizedCharacters(for: $0) } == ["v", "v"])
-        #expect(menuProbe.actions == ["paste", "paste"])
+        #expect(menuProbe.actions == ["paste", "pasteAndMatchStyle"])
     }
 
     @Test
@@ -197,15 +214,44 @@ struct TerminalCommandEquivalentRoutingTests {
     }
 
     @Test
-    func nonTerminalResponderRetainsEditMenuDispatch() throws {
+    func activeConfiguredShortcutChordLeavesTerminalEquivalentUnclaimed() throws {
         let menuProbe = MenuActionProbe()
-        let (window, _, previousMenu) = try makeWindowWithTerminal(
+        let (window, terminal, previousMenu) = try makeWindowWithTerminal(
             menuProbe: menuProbe,
             menuItems: [
                 ("Copy", "c", [.command], #selector(MenuActionProbe.copyAction(_:))),
-                ("Paste", "v", [.command], #selector(MenuActionProbe.pasteAction(_:))),
+            ]
+        )
+        defer { tearDown(window: window, previousMenu: previousMenu) }
+
+        let event = try #require(makeKeyDownEvent(
+            key: "c",
+            keyCode: UInt16(kVK_ANSI_C),
+            windowNumber: window.windowNumber
+        ))
+
+        #expect(!TerminalCommandEquivalentRouter().route(
+            event: event,
+            terminalView: terminal,
+            firstResponder: terminal,
+            hasActiveShortcutChord: true
+        ))
+        #expect(terminal.menuMissEvents.isEmpty)
+        #expect(menuProbe.actions.isEmpty)
+    }
+
+    @Test
+    func nonTerminalResponderRetainsEditMenuDispatch() throws {
+        let menuProbe = MenuActionProbe()
+        let responder = FocusProbeView(frame: NSRect(x: 0, y: 0, width: 64, height: 32))
+        let (window, _, previousMenu) = try makeWindowWithTerminal(
+            menuProbe: menuProbe,
+            menuItems: [
+                ("Copy", "c", [.command], #selector(FocusProbeView.copy(_:))),
+                ("Paste", "v", [.command], #selector(FocusProbeView.paste(_:))),
             ],
-            firstResponder: FocusProbeView(frame: NSRect(x: 0, y: 0, width: 64, height: 32))
+            firstResponder: responder,
+            useMenuProbeTarget: false
         )
         defer { tearDown(window: window, previousMenu: previousMenu) }
 
@@ -218,7 +264,8 @@ struct TerminalCommandEquivalentRoutingTests {
             #expect(window.performKeyEquivalent(with: event))
         }
 
-        #expect(menuProbe.actions == ["copy", "paste"])
+        #expect(responder.actions == ["copy", "paste"])
+        #expect(menuProbe.actions.isEmpty)
     }
 
     private typealias MenuItemSpec = (title: String, key: String, modifiers: NSEvent.ModifierFlags, action: Selector)
@@ -226,7 +273,9 @@ struct TerminalCommandEquivalentRoutingTests {
     private func makeWindowWithTerminal(
         menuProbe: MenuActionProbe,
         menuItems: [MenuItemSpec],
-        firstResponder: NSView? = nil
+        firstResponder: NSView? = nil,
+        menuItemTarget: AnyObject? = nil,
+        useMenuProbeTarget: Bool = true
     ) throws -> (NSWindow, TerminalProbeView, NSMenu?) {
         _ = NSApplication.shared
         AppDelegate.installWindowResponderSwizzlesForTesting()
@@ -257,7 +306,7 @@ struct TerminalCommandEquivalentRoutingTests {
         for spec in menuItems {
             let item = NSMenuItem(title: spec.title, action: spec.action, keyEquivalent: spec.key)
             item.keyEquivalentModifierMask = spec.modifiers
-            item.target = menuProbe
+            item.target = useMenuProbeTarget ? (menuItemTarget ?? menuProbe) : nil
             editMenu.addItem(item)
         }
         mainMenu.addItem(editItem)
