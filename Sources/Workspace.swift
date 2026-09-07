@@ -259,7 +259,6 @@ extension Workspace {
         terminalStartupRestoreCoordinator.removeAllRestores()
         clearDeferredAgentResumeRestores(startRuntime: false)
         surfaceResumeBindingsByPanelId.removeAll(keepingCapacity: false)
-        surfaceResumeBindingGenerationsByPanelId.removeAll(keepingCapacity: false)
         surfaceResumeRestoreClaimsByPanelId.removeAll(keepingCapacity: false)
         unresolvedResumeBindingPanelIds.removeAll(keepingCapacity: false)
         unresolvedDockResumeBindingPanelIds.removeAll(keepingCapacity: false)
