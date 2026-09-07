@@ -72,7 +72,7 @@ final class BrowserPopupPanel: NSPanel {
             ) == true {
                 return true
             }
-            guard !cmuxBrowserWebKitKeyDownDispatchIsActive() else { return true }
+            guard !browserWebView.browserNativeInputDeliveryOwner.isDispatchActive else { return true }
             _ = cmuxForceDispatchKeyDownOnce(
                 event,
                 to: browserWebView,

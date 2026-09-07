@@ -105,7 +105,8 @@ final class CmuxWebViewKeyDownReentryTests {
                 windowNumber: window.windowNumber
             ))
 
-            let handled = cmuxWithBrowserWebKitKeyDownDispatch {
+            let webView = try #require(window.firstResponder as? WKWebView)
+            let handled = cmuxWithBrowserWebKitKeyDownDispatch(for: webView) {
                 window.performKeyEquivalent(with: event)
             }
 
@@ -125,7 +126,8 @@ final class CmuxWebViewKeyDownReentryTests {
                 windowNumber: window.windowNumber
             ))
 
-            let handled = cmuxWithBrowserWebKitKeyDownDispatch {
+            let webView = try #require(window.firstResponder as? WKWebView)
+            let handled = cmuxWithBrowserWebKitKeyDownDispatch(for: webView) {
                 window.performKeyEquivalent(with: event)
             }
 
@@ -145,7 +147,8 @@ final class CmuxWebViewKeyDownReentryTests {
                 windowNumber: window.windowNumber
             ))
 
-            let handled = cmuxWithBrowserWebKitKeyDownDispatch {
+            let webView = try #require(window.firstResponder as? WKWebView)
+            let handled = cmuxWithBrowserWebKitKeyDownDispatch(for: webView) {
                 window.performKeyEquivalent(with: event)
             }
 
@@ -202,7 +205,8 @@ final class CmuxWebViewKeyDownReentryTests {
                 windowNumber: window.windowNumber
             ))
 
-            let handled = cmuxWithBrowserWebKitKeyDownDispatch {
+            let webView = try #require(window.firstResponder as? WKWebView)
+            let handled = cmuxWithBrowserWebKitKeyDownDispatch(for: webView) {
                 window.performKeyEquivalent(with: event)
             }
 

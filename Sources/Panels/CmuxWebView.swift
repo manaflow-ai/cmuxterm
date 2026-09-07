@@ -727,7 +727,7 @@ final class CmuxWebView: WKWebView {
         normalizedFlags: NSEvent.ModifierFlags,
         fallbackReason: String
     ) -> Bool {
-        if cmuxBrowserWebKitKeyDownDispatchIsActive() {
+        if browserNativeInputDeliveryOwner.isDispatchActive {
             return true
         }
         let result = super.performKeyEquivalent(with: event)
