@@ -54,7 +54,7 @@ extension CMUXCLI {
         workingDirectory: String
     ) throws {
         guard !CodexWriterRecovery.usesRemoteProvider(arguments: arguments),
-              let sessionID = CodexWriterRecovery.resumeSessionID(arguments: arguments) else {
+              let sessionID = CodexWriterRecovery.codexResumeSessionID(arguments: arguments) else {
             return
         }
         let codexHome = CodexHomeResolver().resolve(

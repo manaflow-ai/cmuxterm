@@ -66,6 +66,12 @@ struct CodexWriterRecoveryTests {
             CodexWriterRecovery.resumeSessionID(arguments: ["recover", threadID, "--yes"]) == threadID
         )
         #expect(
+            CodexWriterRecovery.codexResumeSessionID(arguments: ["codex", "resume", threadID]) == threadID
+        )
+        #expect(
+            CodexWriterRecovery.codexResumeSessionID(arguments: ["other-agent", "resume", threadID]) == nil
+        )
+        #expect(
             CodexWriterRecovery.usesRemoteProvider(arguments: ["codex", "resume", threadID, "--remote", "ws://127.0.0.1:1"])
         )
         #expect(
