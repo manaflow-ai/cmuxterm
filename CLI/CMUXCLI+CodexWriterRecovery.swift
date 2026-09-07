@@ -39,7 +39,24 @@ extension CMUXCLI {
             codexHome: codexHome,
             pid: orphan.pid
         ) else {
-            throw CLIError(message: Self.codexWriterReportMessage(sessionID: sessionID, report: report))
+            let refreshedReport = recovery.inspect(sessionID: sessionID, codexHome: codexHome)
+            switch refreshedReport.lock.state {
+            case .unavailable:
+                throw CLIError(message: Self.codexWriterUnavailableMessage(
+                    sessionID: sessionID,
+                    lockPath: refreshedReport.lock.lockPath
+                ))
+            case .available:
+                throw CLIError(message: String.localizedStringWithFormat(
+                    String(localized: "cli.codex.writer.recovery.notBlocked", defaultValue: "Codex thread %@ is not currently blocked by an active local writer lock."),
+                    sessionID
+                ))
+            case .active:
+                throw CLIError(message: Self.codexWriterReportMessage(
+                    sessionID: sessionID,
+                    report: refreshedReport
+                ))
+            }
         }
         print(String.localizedStringWithFormat(
             String(localized: "cli.codex.writer.recovery.terminated", defaultValue: "Terminated orphaned Codex app-server PID %d for thread %@. Retry resume."),
