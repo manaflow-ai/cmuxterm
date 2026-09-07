@@ -113,7 +113,7 @@ final class AgentChatTranscriptService {
     let registry: AgentChatSessionRegistry
     let resolver: AgentChatTranscriptResolver
     let sessionOutlineChangeBus = SessionOutlineChangeBus()
-    private var sessionOutlineCache = SessionOutlineCache()
+    var sessionOutlineCache = SessionOutlineCache()
     private var tailers: [String: AgentChatTranscriptTailer] = [:]
     private let hasEventSubscribers: @MainActor () -> Bool
     private let emitEventPayload: @MainActor ([String: Any]) -> Void
