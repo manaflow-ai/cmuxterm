@@ -85,12 +85,12 @@ struct TerminalCommandEquivalentRoutingTests {
 
         override var acceptsFirstResponder: Bool { true }
 
-        override func copy(_ sender: Any?) {
+        @objc func copyAction(_ sender: Any?) {
             _ = sender
             actions.append("copy")
         }
 
-        override func paste(_ sender: Any?) {
+        @objc func pasteAction(_ sender: Any?) {
             _ = sender
             actions.append("paste")
         }
@@ -247,8 +247,8 @@ struct TerminalCommandEquivalentRoutingTests {
         let (window, _, previousMenu) = try makeWindowWithTerminal(
             menuProbe: menuProbe,
             menuItems: [
-                ("Copy", "c", [.command], #selector(FocusProbeView.copy(_:))),
-                ("Paste", "v", [.command], #selector(FocusProbeView.paste(_:))),
+                ("Copy", "c", [.command], #selector(FocusProbeView.copyAction(_:))),
+                ("Paste", "v", [.command], #selector(FocusProbeView.pasteAction(_:))),
             ],
             firstResponder: responder,
             useMenuProbeTarget: false
