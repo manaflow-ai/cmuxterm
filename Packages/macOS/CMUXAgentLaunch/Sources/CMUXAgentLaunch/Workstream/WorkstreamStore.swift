@@ -10,6 +10,7 @@ import Glibc
 public let WorkstreamDefaultRingCapacity = 2_000
 public let WorkstreamDefaultInitialLoadLimit = 300
 public let WorkstreamDefaultHistoryPageSize = 300
+let WorkstreamDefaultReplayCapacity = 4_096
 
 public struct WorkstreamIngestResult: Sendable, Equatable {
     public let item: WorkstreamItem
@@ -63,6 +64,7 @@ public final class WorkstreamStore {
     private let ringCapacity: Int
     private let initialLoadLimit: Int
     private let historyPageSize: Int
+    private let replayStateCapacity: Int
     private let clock: @Sendable () -> Date
     private let titleProvider: (WorkstreamEvent) -> String?
     /// App-owned migration hook for versioned workstream identities.
@@ -110,6 +112,7 @@ public final class WorkstreamStore {
         self.ringCapacity = ringCapacity
         self.initialLoadLimit = initialLoadLimit
         self.historyPageSize = historyPageSize
+        self.replayStateCapacity = max(ringCapacity, WorkstreamDefaultReplayCapacity)
         self.clock = clock
         self.titleProvider = titleProvider
         self.workstreamIDNormalizer = workstreamIDNormalizer
@@ -399,6 +402,17 @@ public final class WorkstreamStore {
 
     private func rememberReplayState(for item: WorkstreamItem) {
         guard let key = sourceEventKey(item) else { return }
+        if replayStateBySourceEventKey[key] == nil,
+           replayStateBySourceEventKey.count >= replayStateCapacity,
+           let oldestKey = replayStateBySourceEventKey.min(by: { lhs, rhs in
+               if lhs.value.updatedAt != rhs.value.updatedAt {
+                   return lhs.value.updatedAt < rhs.value.updatedAt
+               }
+               return lhs.key < rhs.key
+           })?.key {
+            // ponytail: a bounded O(n) eviction avoids a second persistent index; replace with ordered storage only if profiling shows pressure.
+            replayStateBySourceEventKey.removeValue(forKey: oldestKey)
+        }
         replayStateBySourceEventKey[key] = WorkstreamReplayState(
             id: item.id,
             createdAt: item.createdAt,
@@ -429,37 +443,25 @@ public final class WorkstreamStore {
         from persistence: WorkstreamPersistence
     ) async -> [String: WorkstreamReplayState] {
         var result: [String: WorkstreamReplayState] = [:]
-        var endOffset: UInt64?
-        while true {
-            guard let page = try? await persistence.loadPage(
-                endingBefore: endOffset,
-                limit: 512
-            ), !page.items.isEmpty else {
-                break
-            }
-            for item in page.items.reversed().map(normalizedWorkstreamItem) {
-                guard let key = sourceEventKey(item), result[key] == nil else { continue }
-                result[key] = WorkstreamReplayState(
-                    id: item.id,
-                    createdAt: item.createdAt,
-                    updatedAt: item.updatedAt,
-                    cwd: item.cwd,
-                    title: item.title,
-                    status: item.status,
-                    requestId: Self.actionableRequestId(in: item.payload),
-                    sourceEventId: item.sourceEventId,
-                    sourceRevision: item.sourceRevision,
-                    causalChainId: item.causalChainId,
-                    actionRequestId: item.actionRequestId,
-                    ppid: item.ppid
-                )
-            }
-            guard page.hasMoreBefore,
-                  let nextOffset = page.startOffset,
-                  nextOffset != endOffset else {
-                break
-            }
-            endOffset = nextOffset
+        guard let page = try? await persistence.loadPage(limit: replayStateCapacity) else {
+            return result
+        }
+        for item in page.items.reversed().map(normalizedWorkstreamItem) {
+            guard let key = sourceEventKey(item), result[key] == nil else { continue }
+            result[key] = WorkstreamReplayState(
+                id: item.id,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                cwd: item.cwd,
+                title: item.title,
+                status: item.status,
+                requestId: Self.actionableRequestId(in: item.payload),
+                sourceEventId: item.sourceEventId,
+                sourceRevision: item.sourceRevision,
+                causalChainId: item.causalChainId,
+                actionRequestId: item.actionRequestId,
+                ppid: item.ppid
+            )
         }
         return result
     }

@@ -210,6 +210,7 @@ struct ClaudeHookFeedTelemetrySwiftTests {
         )
         #expect(event["is_error"] as? Bool == true)
         #expect(event["_source_revision"] as? String == "9")
+        #expect((event["_source_event_id"] as? String)?.hasPrefix("cmux-derived-") == true)
         let payload = try #require(event["tool_input"] as? [String: Any])
         #expect(payload["error_context"] as? String == "model_call")
         #expect(payload["recoverable"] as? Bool == true)

@@ -1,4 +1,5 @@
 import CmuxSettings
+import CryptoKit
 import Foundation
 
 enum CopilotHookContract {
@@ -19,8 +20,9 @@ struct FeedSourceIdentity: Equatable {
     let causalChainId: String?
     let actionRequestId: String?
 
-    init(payload: [String: Any]) {
+    init(payload: [String: Any], fallbackSourceEventId: String? = nil) {
         sourceEventId = Self.firstValue(in: payload, keys: ["event_id", "eventId", "eventID"])
+            ?? fallbackSourceEventId
         sourceRevision = Self.firstValue(
             in: payload,
             keys: ["source_revision", "sourceRevision", "event_revision", "eventRevision", "revision", "timestamp"]
@@ -38,6 +40,28 @@ struct FeedSourceIdentity: Equatable {
                 "call_id", "callId",
             ]
         )
+    }
+
+    static func derivedSourceEventId(
+        source: String,
+        sessionId: String,
+        event: String,
+        payload: [String: Any]
+    ) -> String? {
+        guard source == "copilot",
+              JSONSerialization.isValidJSONObject(payload),
+              let payloadData = try? JSONSerialization.data(
+                  withJSONObject: payload,
+                  options: [.sortedKeys]
+              ) else {
+            return nil
+        }
+        var input = Data("\(source)\u{0}\(sessionId)\u{0}\(event)\u{0}".utf8)
+        input.append(payloadData)
+        let digest = SHA256.hash(data: input)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "cmux-derived-\(digest)"
     }
 
     func apply(to event: inout [String: Any]) {

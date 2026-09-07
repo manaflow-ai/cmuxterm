@@ -124,6 +124,71 @@ struct WorkstreamStoreTests {
         }
     }
 
+    @Test("Replay state remains bounded during a long process lifetime")
+    func replayStateIsBoundedInMemory() {
+        let store = WorkstreamStore(ringCapacity: 1)
+        for index in 0...WorkstreamDefaultReplayCapacity {
+            store.ingest(WorkstreamEvent(
+                sessionId: "session-\(index)",
+                hookEventName: .stop,
+                source: "copilot",
+                sourceEventId: "event-\(index)"
+            ))
+        }
+
+        let oldest = store.ingest(WorkstreamEvent(
+            sessionId: "session-0",
+            hookEventName: .stop,
+            source: "copilot",
+            sourceEventId: "event-0"
+        ))
+        let newest = store.ingest(WorkstreamEvent(
+            sessionId: "session-\(WorkstreamDefaultReplayCapacity)",
+            hookEventName: .stop,
+            source: "copilot",
+            sourceEventId: "event-\(WorkstreamDefaultReplayCapacity)"
+        ))
+
+        #expect(oldest.inserted)
+        #expect(!newest.inserted)
+    }
+
+    @Test("Restart replay reconstruction reads only the bounded recent horizon")
+    func replayStateIsBoundedAcrossRestart() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-workstream-replay-bounded-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let persistence = WorkstreamPersistence(fileURL: tmp)
+        let source = WorkstreamStore(persistence: persistence, ringCapacity: 1)
+        for index in 0...WorkstreamDefaultReplayCapacity {
+            source.ingest(WorkstreamEvent(
+                sessionId: "session-\(index)",
+                hookEventName: .stop,
+                source: "copilot",
+                sourceEventId: "event-\(index)"
+            ))
+        }
+        await source.flushPersistence()
+
+        let restored = WorkstreamStore(persistence: persistence, ringCapacity: 1)
+        await restored.start()
+        let oldest = restored.ingest(WorkstreamEvent(
+            sessionId: "session-0",
+            hookEventName: .stop,
+            source: "copilot",
+            sourceEventId: "event-0"
+        ))
+        let newest = restored.ingest(WorkstreamEvent(
+            sessionId: "session-\(WorkstreamDefaultReplayCapacity)",
+            hookEventName: .stop,
+            source: "copilot",
+            sourceEventId: "event-\(WorkstreamDefaultReplayCapacity)"
+        ))
+
+        #expect(oldest.inserted)
+        #expect(!newest.inserted)
+    }
+
     @Test("Resolved source-event replay survives restart outside the initial page")
     func resolvedSourceEventReplaySurvivesRestart() async throws {
         let tmp = FileManager.default.temporaryDirectory

@@ -238,7 +238,7 @@ struct FeedEventClassificationTests {
             "userPromptSubmitted": "prompt-submit",
             "agentStop": "stop",
             "notification": "notification",
-            "errorOccurred": "notification",
+            "errorOccurred": "error",
             "sessionEnd": "session-end",
         ])
         #expect(CopilotHookContract.feedHookEvents == ["preToolUse"])
@@ -277,6 +277,45 @@ struct FeedEventClassificationTests {
             "traceparent": "00-00000000000000000000000000000000-c9e6580dd8fe7ea7-01"
         ])
         #expect(invalidTrace.causalChainId == nil)
+
+        let copilotPayload: [String: Any] = [
+            "sessionId": "copilot-session",
+            "timestamp": 9,
+            "errorContext": "model_call",
+        ]
+        let derived = FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "errorOccurred",
+            payload: copilotPayload
+        )
+        #expect(derived != nil)
+        #expect(derived == FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "errorOccurred",
+            payload: copilotPayload
+        ))
+        #expect(derived != FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "agentStop",
+            payload: copilotPayload
+        ))
+        #expect(FeedSourceIdentity(
+            payload: copilotPayload,
+            fallbackSourceEventId: derived
+        ).sourceEventId == derived)
+        #expect(FeedSourceIdentity(
+            payload: copilotPayload.merging(["eventId": "native"]) { _, new in new },
+            fallbackSourceEventId: derived
+        ).sourceEventId == "native")
+        #expect(FeedSourceIdentity.derivedSourceEventId(
+            source: "claude",
+            sessionId: "claude-session",
+            event: "Stop",
+            payload: copilotPayload
+        ) == nil)
     }
 
     // MARK: Kiro (camelCase events, no dedicated approval event)

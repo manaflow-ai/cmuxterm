@@ -4408,8 +4408,7 @@ struct CMUXCLI {
     // `vm_image_config_error`.
     /// `--size` spellings → memory in MB. The supported base-image ladder is
     /// 4 GB, 8 GB, 16 GB, 24 GB, 32 GB, and 64 GB of RAM, with disk sizes
-    /// following each image. Pricing separately describes 5 vCPU, 20 GB RAM,
-    /// and 200 GB disk as one pool shared across the plan's Cloud VMs.
+    /// following each image. Each machine has its own resources.
     private static let cloudVMSizeAliases: [String: Int] = [
         "4g": 4096, "4gb": 4096,
         "8g": 8192, "8gb": 8192,
@@ -4987,6 +4986,11 @@ struct CMUXCLI {
         if normalizedCommand == "restore" || normalizedCommand == "fork" {
             return false
         }
+        if normalizedCommand == "local-tmux" || normalizedCommand == "tmux" {
+            // The local-tmux command owns its explicit --focus decision; do
+            // not activate a window as a side effect of global --window parsing.
+            return false
+        }
         if normalizedCommand == "read-screen" || normalizedCommand == "read-selection" {
             return false
         }
@@ -5235,6 +5239,27 @@ struct CMUXCLI {
                 return
             }
             throw unknownCommandError(command)
+        }
+
+        // Registry inspection, cleanup, and direct headless attach must keep
+        // working while the GUI is quit (including during an app update).
+        if command == "local-tmux" || command == "tmux" {
+            let invocation = try LocalTmuxInvocation.parse(commandArgs)
+            if command == "tmux", invocation.action != .attach {
+                throw CLIError(message: String(
+                    localized: "cli.localTmux.error.tmuxAliasAttachOnly",
+                    defaultValue: "the tmux alias only supports attach; use local-tmux for other session operations"
+                ))
+            }
+            if invocation.canRunWithoutCmux {
+                try runLocalTmuxOfflineCommand(
+                    commandArgs: commandArgs,
+                    jsonOutput: jsonOutput,
+                    idFormat: try resolvedIDFormat(jsonOutput: jsonOutput, raw: idFormatArg),
+                    windowOverride: windowId
+                )
+                return
+            }
         }
 
         if command == "help" { print(usage()); return }; if command == "remote-daemon-status" { try runRemoteDaemonStatus(commandArgs: commandArgs, jsonOutput: jsonOutput); return }
@@ -7081,6 +7106,14 @@ struct CMUXCLI {
                 client: client,
                 jsonOutput: jsonOutput
             )
+        case "local-tmux", "tmux":
+            try runLocalTmuxCommand(
+                commandArgs: commandArgs,
+                client: client,
+                jsonOutput: jsonOutput,
+                idFormat: idFormat,
+                windowOverride: windowId
+            )
         case "ssh-pty-attach":
             let (requestedLifecycleID, attachArgsWithoutLifecycle) = parseOption(commandArgs, name: "--lifecycle-id")
             let stableLifecycleID = Self.normalizedEnvValue(requestedLifecycleID) ?? UUID().uuidString.lowercased()
@@ -7126,8 +7159,6 @@ struct CMUXCLI {
             try runVMPtyAttach(commandArgs: commandArgs, client: client)
         case "vm-tui-connect":
             try runVMTuiConnect(commandArgs: commandArgs, client: client)
-        case "vm-tui-approve":
-            try runVMTuiApprove(commandArgs: commandArgs, client: client)
         case "vm-ssh-attach":
             // Hidden compatibility alias for workspaces created before the split helper was
             // nested under `cmux vm`.
@@ -13321,7 +13352,7 @@ struct CMUXCLI {
             "window_id": opened.windowId ?? NSNull(),
             "transport": "cmux-remote",
             "session": opened.session,
-            "enrolling": opened.enrolling,
+            "trusted_carrier": opened.trustedCarrier,
             "terminal_id": opened.terminalId ?? NSNull(),
             "remote_workspace_id": opened.remoteWorkspaceId ?? NSNull(),
             "surface_id": opened.terminalSurfaceId ?? NSNull(),
@@ -19614,6 +19645,8 @@ struct CMUXCLI {
                 """
             )
             return "\(help)\n\n\(newWindowHelp)"
+        case "local-tmux", "tmux":
+            return LocalTmuxInvocation.usage
         case "ssh-session-list":
             return """
             Usage: cmux ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
@@ -37601,7 +37634,16 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
-        FeedSourceIdentity(payload: parsedInput.rawObject ?? parsedInput.object ?? [:]).apply(to: &event)
+        let identityPayload = parsedInput.rawObject ?? parsedInput.object ?? [:]
+        FeedSourceIdentity(
+            payload: identityPayload,
+            fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                source: source,
+                sessionId: sessionId,
+                event: hookEventName,
+                payload: identityPayload
+            )
+        ).apply(to: &event)
         let requestId = "\(source)-\(sessionId)-\(hookEventName)-\(Int(Date().timeIntervalSince1970 * 1000))"
         event["_opencode_request_id"] = requestId
 
@@ -39850,7 +39892,6 @@ export default CMUXSessionRestore;
                let environmentTraceparent {
                 identityPayload["traceparent"] = environmentTraceparent
             }
-            let identity = FeedSourceIdentity(payload: identityPayload)
             for (index, call) in toolCalls.enumerated() {
                 var event: [String: Any] = [
                     "session_id": workstreamID,
@@ -39869,8 +39910,20 @@ export default CMUXSessionRestore;
                 if let args = Self.copilotToolCallArguments(call["args"]) {
                     event["tool_input"] = args
                 }
-                identity.apply(to: &event)
                 let callId = firstString(in: call, keys: ["id", "toolCallId", "tool_call_id"])
+                FeedSourceIdentity(
+                    payload: identityPayload,
+                    fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                        source: source,
+                        sessionId: sessionId,
+                        event: rawEvent,
+                        payload: [
+                            "hook": identityPayload,
+                            "call": call,
+                            "index": index,
+                        ]
+                    )
+                ).apply(to: &event)
                 if let callId {
                     event["_source_event_id"] = callId
                     event["_action_request_id"] = callId
@@ -40123,7 +40176,15 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
-        FeedSourceIdentity(payload: stdinObj).apply(to: &eventDict)
+        FeedSourceIdentity(
+            payload: stdinObj,
+            fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                source: source,
+                sessionId: sessionId,
+                event: rawEvent,
+                payload: stdinObj
+            )
+        ).apply(to: &eventDict)
         let requestId = stdinObj["_opencode_request_id"] as? String
             ?? firstString(in: stdinObj, keys: ["request_id", "tool_use_id", "toolUseID"])
             ?? "\(source)-\(sessionId)-\(rawEvent)-\(toolName)-\(Int(Date().timeIntervalSince1970 * 1000))"
@@ -41601,6 +41662,8 @@ export default CMUXSessionRestore;
           mosh <destination> [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus] [-- <remote-command-args>]
           mosh-tmux <destination> [--session <name>] [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus]
           ssh-tmux <destination> [--port <n>] [--identity <path>] [--no-focus] [--new-window]
+          local-tmux <start|attach|list|status|detach|close|cleanup> [session] [options]
+          tmux attach [session] [options]                         (local-tmux alias)
           ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
           ssh-session-attach --session-id <id> [--workspace <id|ref|index>] [--pane <id|ref|index> | --split <left|right|up|down>]
           ssh-session-cleanup [--workspace <id|ref|index> | --all-workspaces] (--session-id <id> | --all)
