@@ -12,6 +12,11 @@ final class SessionOutlineModel {
 
     @ObservationIgnored private weak var panel: TerminalPanel?
     @ObservationIgnored private weak var transcriptService: AgentChatTranscriptService?
+    @ObservationIgnored private var jumpTask: Task<Void, Never>?
+
+    deinit {
+        jumpTask?.cancel()
+    }
 
     func observe(
         panel: TerminalPanel,
@@ -19,6 +24,7 @@ final class SessionOutlineModel {
     ) async {
         self.panel = panel
         self.transcriptService = transcriptService
+        defer { cancelJump() }
         let changes = transcriptService?.sessionOutlineChanges(for: panel.id)
         await refresh()
 
@@ -33,7 +39,28 @@ final class SessionOutlineModel {
     func togglePresentation() -> Bool {
         guard transcriptService != nil else { return false }
         isPresented.toggle()
+        if !isPresented {
+            cancelJump()
+        }
         return true
+    }
+
+    func dismissPresentation() {
+        isPresented = false
+        cancelJump()
+    }
+
+    func beginJump(to entry: ChatOutlineEntry) {
+        jumpTask?.cancel()
+        jumpTask = Task { [weak self] in
+            guard let self else { return }
+            _ = await self.jump(to: entry)
+        }
+    }
+
+    private func cancelJump() {
+        jumpTask?.cancel()
+        jumpTask = nil
     }
 
     @discardableResult
@@ -50,7 +77,7 @@ final class SessionOutlineModel {
                 in: history
             )
         }.value
-        guard let row else {
+        guard !Task.isCancelled, let row else {
             return false
         }
         let surfaceView = panel.hostedView.surfaceView
@@ -90,7 +117,7 @@ final class SessionOutlineModel {
         entries = nextEntries
         isAvailable = !nextEntries.isEmpty
         if !isAvailable {
-            isPresented = false
+            dismissPresentation()
         }
     }
 }

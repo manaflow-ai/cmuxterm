@@ -14,12 +14,10 @@ struct SessionOutlineTerminalOverlay: View {
                         SessionOutlinePanelView(
                             entries: model.entries,
                             onSelect: { entry in
-                                Task {
-                                    _ = await model.jump(to: entry)
-                                }
+                                model.beginJump(to: entry)
                             },
                             onDismiss: {
-                                model.isPresented = false
+                                model.dismissPresentation()
                             }
                         )
                     }
