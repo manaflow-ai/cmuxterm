@@ -1,13 +1,13 @@
 {
   "billingRecovery": {
     "message": "アカウントが見つかった場合は、メールで次の手順をご確認ください",
-    "metaTitle": "Founder 購入を接続",
-    "metaDescription": "Founder 購入時のメールアドレスを使って cmux アカウントを作成または復元します。",
-    "eyebrow": "Founder アクセス",
-    "title": "Founder 購入を接続",
-    "body": "Founder 購入時に使ったメールアドレスを入力してください。その購入に紐づく cmux アカウントを作成または復元するための安全なサインインリンクを送信します。",
-    "differentEmail": "別のメールアドレスで cmux アカウントをすでにお持ちですか？Founder のウェルカムメールに返信してください。両方のアドレスを確認して、安全にアクセスを移行します。",
-    "formAriaLabel": "Founder 購入を接続",
+    "metaTitle": "Founder's Edition を接続",
+    "metaDescription": "Founder's Edition 購入時のメールアドレスを使って cmux アカウントを作成または復元します。",
+    "eyebrow": "Founder's Edition アクセス",
+    "title": "Founder's Edition を接続",
+    "body": "Founder's Edition 購入時に使ったメールアドレスを入力してください。その購入に紐づく cmux アカウントを作成または復元するための安全なサインインリンクを送信します。",
+    "differentEmail": "別のメールアドレスで cmux アカウントをすでにお持ちですか？Founder's Edition のウェルカムメールに返信してください。両方のアドレスを確認して、安全にアクセスを移行します。",
+    "formAriaLabel": "Founder's Edition を接続",
     "emailLabel": "購入時のメールアドレス",
     "emailPlaceholder": "you@example.com",
     "submit": "サインインリンクを送信",
@@ -30,7 +30,7 @@
         "snapshot": "この Cloud VM は保存済み状態に対応していません。",
         "restore": "この Cloud VM 種別では保存済み状態の復元に対応していません。",
         "fork": "この Cloud VM は新しい VM へのコピーに対応していません。",
-        "openPort": "この Cloud VM のプロバイダーはマシンのポートをプレビュー URL として公開できません。",
+        "openPort": "この Cloud VM ではマシンのポートをプレビュー URL として公開できません。",
         "default": "この Cloud VM は要求された操作に対応していません。"
       },
       "action": {
@@ -161,6 +161,8 @@
   "dashboard": {
     "nav": {
       "brand": "cmux",
+      "cloudGroup": "クラウド",
+      "cloudDevices": "Macアクセス",
       "vaultGroup": "vault",
       "vaultOverview": "概要",
       "vaultSessions": "セッション",
@@ -177,6 +179,9 @@
     "home": {
       "title": "ダッシュボード",
       "description": "プロダクトのダッシュボードを選択します。",
+      "cloudName": "Cloud Macアクセス",
+      "cloudDescription": "プライベートCloud VMネットワークに接続できるMacを確認し、アクセスを取り消します。",
+      "cloudLink": "Macアクセスを管理",
       "vaultName": "vault",
       "vaultDescription": "同期済みエージェントセッションの閲覧とCLIアクセスの管理を行います。",
       "vaultLink": "vaultを開く",
@@ -186,6 +191,31 @@
       "iosAppName": "iOSアプリ",
       "iosAppDescription": "TestFlight（ベータ版）で cmux iOS アプリをインストール。",
       "iosLink": "iOSアプリを開く"
+    },
+    "cloud": {
+      "title": "Cloud Macアクセス",
+      "description": "これらのMacはプライベートCloud VMネットワークへのWireGuardアクセスを持っています。iPhoneとIrohのペアリング記録は別に管理されます。",
+      "empty": "Cloud VMアクセスが登録されたMacはありません。",
+      "cmux": "cmuxビルド",
+      "access": "ネットワークアクセス",
+      "lastContact": "最後のコントロールプレーン接続",
+      "deviceId": "デバイスID",
+      "unknown": "不明",
+      "none": "なし",
+      "purpose": {
+        "terminal": "ターミナル",
+        "browser": "ブラウザVPN"
+      },
+      "rename": "名前を変更",
+      "revoke": "アクセスを取り消す",
+      "renameTitle": "このMacの名前を変更",
+      "nameLabel": "名前",
+      "cancel": "キャンセル",
+      "save": "保存",
+      "renameError": "このMacの名前を変更できませんでした。",
+      "revokeTitle": "{name}のアクセスを取り消しますか？",
+      "revokeBody": "このMacをサインアウトし、すべてのCloud VMネットワークアクセスを削除します。",
+      "revokeError": "このMacのアクセスを取り消せませんでした。"
     },
     "coderouter": {
       "metaTitle": "coderouter — cmux",
@@ -766,7 +796,7 @@
     "metaDescriptionNoVault": "cmux はAIコーディングエージェント向けの無料・オープンソースの macOS ターミナルです。Pro では分離された Cloud VM が使えます。Enterprise は SSO とセルフホストに対応します。",
     "metaDescriptionNoVaultShort": "cmux は無料・オープンソースの macOS ターミナルです。Pro では Cloud VM を利用でき、Enterprise では SSO とセルフホストに対応します。",
     "title": "料金",
-    "alreadyPaid": "購入済みですか？購入を接続する",
+    "alreadyPaid": "購入済みですか？Founder's Edition を接続する",
     "perMonth": "/月",
     "perMonthBilledYearly": "/月（年払い）",
     "perUserMonth": "/ユーザー/月",
@@ -800,7 +830,7 @@
       "featuresLead": "Free のすべてに加えて:",
       "features": [
         "分離されたリモートサンドボックスの Cloud VM 上で動くクラウドエージェント",
-        "最大 50 台の Cloud VM、各 8 GB RAM / 32 GB ディスク（標準）。4～64 GB RAM のサイズを利用できます",
+        "最大 50 台の Cloud VM。各マシンに専用のリソースがあり、標準サイズは 8 GB RAM / 32 GB ディスク。RAM 4～64 GB のサイズを選べます",
         "ワークスペースは無制限",
         "cmux iOS アプリとメールサポート"
       ],
@@ -898,10 +928,10 @@
           "enterprise": "カスタム"
         },
         {
-          "label": "Cloud VM のサイズ",
+          "label": "Cloud VM 1 台あたりのリソース",
           "free": "false",
-          "pro": "8 GB RAM / 32 GB ディスク（標準）。4～64 GB RAM のサイズを利用できます",
-          "team": "8 GB RAM / 32 GB ディスク（標準）。4～64 GB RAM のサイズを利用できます",
+          "pro": "標準 8 GB RAM / 32 GB ディスク。RAM 4～64 GB、ディスクは最大 256 GB",
+          "team": "標準 8 GB RAM / 32 GB ディスク。RAM 4～64 GB、ディスクは最大 256 GB",
           "enterprise": "カスタム"
         },
         {
@@ -980,7 +1010,7 @@
         },
         {
           "q": "Cloud VM とは何ですか?",
-          "a": "クラウド上の永続的な Linux マシンで、使い捨て（cattle）ではなくペットです。Zen of cmux のとおり、マシンはソリューションではなくプリミティブです。ファイル、インストールしたツール、状態はそのまま保持され、その上に構築したものはあなたのものです。エージェントはそこでリポジトリをクローンし、コマンドを実行し、プルリクエストを開くため、お使いの Mac には触れません。Pro と Team ではユーザーごとに最大 50 台のマシンを利用でき、RAM は 4、8、16、24、32、64 GB、ディスクは 16、32、64、96、128 GB から選べます。"
+          "a": "クラウド上の永続的な Linux マシンで、使い捨て（cattle）ではなくペットです。Zen of cmux のとおり、マシンはソリューションではなくプリミティブです。ファイル、インストールしたツール、状態はそのまま保持され、その上に構築したものはあなたのものです。エージェントはそこでリポジトリをクローンし、コマンドを実行し、プルリクエストを開くため、お使いの Mac には触れません。Pro では最大 50 台、Team ではユーザーごとに最大 50 台の Cloud VM を利用できます。各マシンには独立した CPU、メモリ、ディスクがあります。標準サイズは 8 GB RAM / 32 GB ディスクで、RAM 4～64 GB のサイズを選べます。ディスクは最大 256 GB まで拡張できます。従量課金や超過料金はありません。"
         },
         {
           "q": "cmux Vault とは何ですか?",
@@ -993,7 +1023,7 @@
         },
         {
           "q": "課金はどのように行われますか?",
-          "a": "Pro は月払いで $50/月、年払いでは $40/月（20%割引）です。Team は月払いで $60/ユーザー/月、年払いでは $48/ユーザー/月です。有料プランではユーザーごとに最大 50 台の Cloud VM を利用でき、従量課金や超過料金はありません。ターミナルとローカルエージェントは無料のままです。"
+          "a": "Pro は月払いで $50/月、年払いでは $40/月（20%割引）です。Team は月払いで $60/ユーザー/月、年払いでは $48/ユーザー/月です。有料プランではユーザーごとに最大 50 台の Cloud VM を利用できます。各マシンには独立した CPU、メモリ、ディスクがあり、従量課金や超過料金はありません。ターミナルとローカルエージェントは無料のままです。"
         },
         {
           "q": "クラウドをセルフホストできますか?",
@@ -1080,9 +1110,9 @@
     "faqFeatureQ": "機能リクエストやバグ報告があります",
     "faqFeatureA": "ぜひ聞かせてください。GitHubで<issuesLink>イシュー</issuesLink>や<prLink>プルリクエスト</prLink>を開くか、<mailLink>メールでご連絡</mailLink>ください。",
     "faqIosQ": "iOSアプリはありますか？",
-    "faqIosA": "はい、ベータ版があります。Mobile ConnectウィンドウからiPhoneをMacとペアリングし、スマートフォンからターミナルにアタッチできます。ターミナル通知の転送もオプションで利用できます。TestFlightで「cmux BETA」として提供されています。早期アクセスは<foundersLink>cmux Founders Edition</foundersLink>に含まれます。",
+    "faqIosA": "はい、ベータ版があります。Mobile ConnectウィンドウからiPhoneをMacとペアリングし、スマートフォンからターミナルにアタッチできます。ターミナル通知の転送もオプションで利用できます。TestFlightで「cmux BETA」として提供されています。早期アクセスは<foundersLink>cmux Founder's Edition</foundersLink>に含まれます。",
     "faqSupportQ": "cmuxを支援するには？",
-    "faqSupportA": "cmuxは無料・オープンソースであり、これからもずっとそうです。開発を支援し、cmux AI、iOSアプリ、Cloud VMなど今後の機能に早期アクセスしたい方は、<foundersLink>cmux Founders Edition</foundersLink>をご覧ください。",
+    "faqSupportA": "cmuxは無料・オープンソースであり、これからもずっとそうです。開発を支援し、cmux AI、iOSアプリ、Cloud VMなど今後の機能に早期アクセスしたい方は、<foundersLink>cmux Founder's Edition</foundersLink>をご覧ください。",
     "faqBrowserQ": "組み込みブラウザでは何ができますか？",
     "faqBrowserA": "cmuxはターミナルの隣に本物のブラウザペインを分割表示でき、完全にプログラム可能です。同じsocket APIから、ナビゲート、DOMのスナップショット、クリック、入力、JavaScriptの評価、コンソールやネットワークの読み取りができます。エージェントはこれを使って、cmuxを離れずに自分のWeb変更を検証します。<link>ブラウザ自動化</link>をご覧ください。"
   },
@@ -2133,9 +2163,6 @@
           "textBoxSubmitActionBackgroundColorHex": "アクション色のメタデータを RGB または RGBA の 16 進数で指定します。送信ボタンの塗りは白のままで、有効状態と無効状態では不透明度だけが変わります。"
         },
         "browser": {
-          "defaultEngine": "新しく作成する組み込みブラウザペインのレンダリングエンジンです。「自動」はシステムのデフォルトブラウザに従い、WebKit または Chromium を明示指定できます。Chromium は別プロセスで実行されます。",
-          "chromiumExtensionDirectories": "新しい Chromium ペインで読み込む、展開済み Chromium 拡張機能ディレクトリの絶対パスを改行区切りで指定します。",
-          "remoteDebuggingPort": "ループバック専用の Chromium CDP ポートです。0 にすると外部からの CDP 接続を無効にし、それ以外は 1024〜65535 のポートを指定します。",
           "defaultSearchEngine": "ブラウザのアドレスバーでURLではない入力に使う既定の検索エンジンです。任意のプロバイダには custom と customSearchEngineURLTemplate を使います。",
           "customSearchEngineName": "defaultSearchEngine が custom のときに使う表示名です。",
           "customSearchEngineURLTemplate": "defaultSearchEngine が custom のときに使う検索URLです。エンコード済み検索語にはクエリ用プレースホルダーまたは %s を含めます。省略すると cmux が URL に q= を追加します。",
@@ -2159,7 +2186,12 @@
           "snappingEnabled": "ペインのドラッグやリサイズを隣のペインの端や間隔にスナップします。Commandキーを押している間はスナップを一時停止します。"
         },
         "fileEditor": {
-          "wordWrap": "横スクロールする代わりに、エディタの右端で長い行を折り返します。"
+          "wordWrap": "長い行を横スクロールせずにエディタの右端で折り返します。",
+          "syntaxHighlighting": "組み込みファイルエディタでソースのトークンに色を付けます。",
+          "lineNumbers": "組み込みファイルエディタに行番号ガターを表示します。",
+          "indentGuides": "組み込みファイルエディタに縦のインデントガイドを描画します。",
+          "currentLineHighlight": "選択範囲が空のとき、キャレットのある行をハイライトします。",
+          "tabWidth": "インデントとインデントガイドに使用するタブストップの幅（桁数）。"
         },
         "sidebar": {
           "notificationMessageLineLimit": "各ワークスペースタイトルの下に表示する最新通知の最大行数です。",
@@ -2198,7 +2230,7 @@
       "shortcutsWhenBooleanKeys": "boolean キー。未知または存在しないキーは false として扱われ、リテラル true / false も使えます。",
       "shortcutsWhenTypedKeys": "比較用の型付きキー。右サイドバーのアクティブモード（文字列）と、ペイン数・ワークスペース数（整数）です。",
       "shortcutsWhenOperators": "boolean 演算子、型付き比較、正規表現マッチ、リスト所属。比較は && や || より強く結合します。",
-      "shortcutsWhenExample": "例えば次の設定では、右サイドバーにフォーカスがある場合を除いて Ctrl+1–9 でワークスペースを選択し（Ctrl+1–5 はサイドバーのモード切り替えに残します）、ワークスペースに複数のペインがあるときはサーフェス選択を Find サイドバーに限定します。"
+      "shortcutsWhenExample": "例えば次の設定では、右サイドバーにフォーカスがある場合を除いて Ctrl+1–9 でワークスペースを選択し（Ctrl+数字 はサイドバーのモード切り替えに残します）、ワークスペースに複数のペインがあるときはサーフェス選択を Find サイドバーに限定します。"
     },
     "customCommands": {
       "title": "カスタムコマンド",
@@ -3026,7 +3058,7 @@
       "intro": "cmux iOSアプリはMacのコンパニオンです。cmuxを実行しているMacとiPhoneまたはiPadをペアリングし、スマートフォンからターミナルにアタッチできます。ターミナル通知の転送もオプションで利用できます。",
       "betaNote": "iOSアプリはベータ版です。TestFlightで「cmux BETA」として提供されています。",
       "accessTitle": "入手方法",
-      "accessDesc": "アプリはTestFlightで配布されています。早期アクセスは<foundersLink>cmux Founders Edition</foundersLink>に含まれ、他の早期機能も利用できます。",
+      "accessDesc": "アプリはTestFlightで配布されています。早期アクセスは<foundersLink>cmux Founder's Edition</foundersLink>に含まれ、他の早期機能も利用できます。",
       "prereqTitle": "前提条件",
       "prereqIntro": "始める前に、次のものが必要です：",
       "prereq1": "cmuxを実行し、サインイン済みのMac。",
@@ -5358,6 +5390,28 @@
         "body": "プラン、請求書、解約を確認できます。",
         "action": "プランを管理"
       }
+    }
+  },
+  "PublicationApi": {
+    "invalid_email": {
+      "message": "有効なメールアドレスを入力してください。",
+      "action": "受信者は、この確認済みメールアドレスでサインインする必要があります。"
+    },
+    "invalid_expiry": {
+      "message": "アクセス許可の有効期限には将来の日時を指定してください。",
+      "action": "ISO 8601形式の日時を使うか、expiresAtを省略してください。"
+    },
+    "public_confirmation_required": {
+      "message": "公開アクセスには確認が必要です。",
+      "action": "ホスト名、VM、ポートを確認してから、confirmPublic: trueを送信してください。"
+    },
+    "organization_slug": {
+      "message": "組織のスラッグが無効か、すでに予約されています。",
+      "action": "小文字の英数字と単一のハイフンを使い、1〜19文字にしてください。既存の組織は予約済みのスラッグを使用します。"
+    },
+    "grant_body": {
+      "message": "公開ポートのメールアクセス許可",
+      "action": "emailと、必要に応じてexpiresAtを送信してください。"
     }
   }
 }

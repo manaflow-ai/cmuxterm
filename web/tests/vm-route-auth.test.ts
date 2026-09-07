@@ -42,6 +42,7 @@ const deleteVmPublicationsForVmDeletion = mock(async () => ({
 const VM_ENV_KEYS = [
   "CMUX_VM_CREATE_ENABLED",
   "CMUX_VM_FREESTYLE_ENABLED",
+  "CMUX_VM_PRIVATE_NETWORK_ENABLED",
   "CMUX_VM_ALLOWED_ORIGINS",
   "CMUX_VM_ALLOW_UNMANIFESTED_IMAGES",
   "CMUX_VM_FREE_MAX_ACTIVE_VMS",
@@ -346,6 +347,28 @@ describe("VM REST auth", () => {
     expect(runVmWorkflow).not.toHaveBeenCalled();
   });
 
+  test("fresh publication membership ignores cached identities and stale selected teams", async () => {
+    const first = { id: "team-first", displayName: "First" };
+    const second = { id: "team-second", displayName: "Second" };
+    let removed = false;
+    const listTeams = async (options?: { cursor?: string }) => {
+      if (removed) return [];
+      return options?.cursor === "page-2" ? [second] : Object.assign([first], { nextCursor: "page-2" });
+    };
+    getUser.mockResolvedValue({
+      id: "user-1", displayName: null, primaryEmail: "user@example.com",
+      clientReadOnlyMetadata: {}, selectedTeam: first, listTeams,
+    });
+    const request = new Request("https://cmux.test/api/vm/publications", {
+      headers: { authorization: "Bearer access-token", "x-stack-refresh-token": "refresh-token" },
+    });
+    const options = { forceCompleteTeamList: true, requireFreshTeamMembership: true };
+    expect((await verifyRequest(request, options))?.teamIds).toEqual([first.id, second.id]);
+    removed = true;
+    expect((await verifyRequest(request, options))?.teamIds).toEqual([]);
+    expect(getUser).toHaveBeenCalledTimes(2);
+  });
+
   test("allows stale account-deleting metadata after tombstone lease expires", async () => {
     authTombstoneRows = [accountDeletionAuthTombstone("user-1", "pending", new Date(0))];
     getUser.mockResolvedValue({
@@ -589,17 +612,13 @@ describe("VM REST auth", () => {
       listVmImageKinds(defaultProviderId(), process.env, { memoryMb: defaultMemoryMbForPlan("pro", process.env) }),
     );
     expect(payload.limits.imageKinds.map((entry) => entry.kind)).toEqual(["desktop", "base"]);
-    expect(payload.limits.imageKinds.map((entry) => entry.image)).toEqual([
-      MANIFEST_BASE_DEFAULT.imageId,
-      MANIFEST_BASE_DEFAULT.imageId,
-    ]);
     for (const entry of payload.limits.imageKinds) {
       expect(["desktop", "base"]).toContain(entry.kind);
       expect(typeof entry.image).toBe("string");
     }
   });
 
-  test("passes configured plan active VM limits into the create workflow", async () => {
+  test("passes the advertised allowance despite a retired deployment override", async () => {
     process.env.CMUX_VM_PLAN_PRO_MAX_ACTIVE_VMS = "25";
     getUser.mockResolvedValue(authedStackUser());
     runVmWorkflow.mockResolvedValue({
@@ -622,7 +641,7 @@ describe("VM REST auth", () => {
     expect(createVm).toHaveBeenCalledWith(expect.objectContaining({
       billingTeamId: "team-1",
       billingPlanId: "pro",
-      maxActiveVms: 25,
+      maxActiveVms: 50,
     }));
   });
 
@@ -1594,7 +1613,7 @@ describe("VM REST auth", () => {
       token: "t",
       expiresAtUnix: 1_777_000_300,
       session: "cloud",
-      invitation: { uri: "cmux://enroll/abc", invitationId: "inv-1", expiresAtUnix: 1_777_000_200 },
+      trustedCarrier: true,
     });
     const response = await attachRoute.POST(
       new Request("https://cmux.test/api/vm/provider-vm-team-1/attach-endpoint", {
@@ -1613,11 +1632,13 @@ describe("VM REST auth", () => {
       deviceFingerprint: "fp-device-1",
       clientCapabilities: ["direct-ws-user-agent"],
       callerPlanId: "pro",
+      maxActiveVms: 50,
     });
     expect(openAttachEndpoint).not.toHaveBeenCalled();
     const payload = await response.json();
     expect(payload.transport).toBe("cmux-remote");
-    expect(payload.invitation.invitationId).toBe("inv-1");
+    expect(payload.trustedCarrier).toBe(true);
+    expect(payload.invitation).toBeUndefined();
   });
 
   test("attach-endpoint answers 409 vm_attach_transport_unsupported when the machine only runs cmux-tui", async () => {
@@ -1795,6 +1816,7 @@ describe("VM REST auth", () => {
       providerVmId: "provider-vm-team-1",
       callerPlanId: "pro",
       command: "true",
+      maxActiveVms: 50,
       timeoutMs: 30_000,
     });
   });

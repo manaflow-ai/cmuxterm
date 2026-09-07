@@ -29,12 +29,15 @@ final class ManagedPolicyEnforcementObserver {
     private let isBrowserDisabledByPolicy: () -> Bool
     private let browserURLAllowlistPolicy: () -> BrowserURLAllowlistPolicy
     private let isRemoteControlDisabledByPolicy: () -> Bool
+    private let isCloudDisabledByPolicy: () -> Bool
     private let enforceBrowserPolicy: () -> Void
     private let enforceBrowserURLAllowlistPolicy: () -> Void
     private let enforceRemoteControlPolicy: () -> Void
+    private let enforceCloudPolicy: () -> Void
     private var browserPolicyActive: Bool
     private var observedBrowserURLAllowlistPolicy: BrowserURLAllowlistPolicy
     private var remoteControlPolicyActive: Bool
+    private var cloudPolicyActive: Bool
     private var observationTasks: [Task<Void, Never>] = []
 
     init(
@@ -48,20 +51,32 @@ final class ManagedPolicyEnforcementObserver {
         isRemoteControlDisabledByPolicy: @escaping () -> Bool = {
             MobileRemoteControlPolicy.isDisabled
         },
+        isCloudDisabledByPolicy: @escaping () -> Bool = {
+            ManagedDevicePolicy().isEnforced(.disableCloud)
+        },
         enforceBrowserPolicy: @escaping () -> Void,
         enforceBrowserURLAllowlistPolicy: @escaping () -> Void,
-        enforceRemoteControlPolicy: @escaping () -> Void
+        enforceRemoteControlPolicy: @escaping () -> Void,
+        enforceCloudPolicy: @escaping () -> Void = {}
     ) {
         self.notificationCenter = notificationCenter
         self.isBrowserDisabledByPolicy = isBrowserDisabledByPolicy
         self.browserURLAllowlistPolicy = browserURLAllowlistPolicy
         self.isRemoteControlDisabledByPolicy = isRemoteControlDisabledByPolicy
+        self.isCloudDisabledByPolicy = isCloudDisabledByPolicy
         self.enforceBrowserPolicy = enforceBrowserPolicy
         self.enforceBrowserURLAllowlistPolicy = enforceBrowserURLAllowlistPolicy
         self.enforceRemoteControlPolicy = enforceRemoteControlPolicy
+        self.enforceCloudPolicy = enforceCloudPolicy
         browserPolicyActive = isBrowserDisabledByPolicy()
         observedBrowserURLAllowlistPolicy = browserURLAllowlistPolicy()
         remoteControlPolicyActive = isRemoteControlDisabledByPolicy()
+        cloudPolicyActive = isCloudDisabledByPolicy()
+        if cloudPolicyActive {
+            // A profile may already be installed before launch. Enforce it at
+            // startup so restored Cloud workspaces and providers are removed.
+            enforceCloudPolicy()
+        }
         observe(UserDefaults.didChangeNotification)
         observe(NSApplication.didBecomeActiveNotification)
         observationTasks.append(Task { @MainActor [weak self] in
@@ -121,6 +136,12 @@ final class ManagedPolicyEnforcementObserver {
             anyTransition = true
             // syncToSettings() handles both teardown and re-arming.
             enforceRemoteControlPolicy()
+        }
+        let cloudNow = isCloudDisabledByPolicy()
+        if cloudNow != cloudPolicyActive {
+            cloudPolicyActive = cloudNow
+            anyTransition = true
+            enforceCloudPolicy()
         }
         if anyTransition {
             // Settings UI re-reads the resolver on this signal.
