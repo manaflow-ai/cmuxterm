@@ -65,6 +65,13 @@ struct SidebarWorkspaceTableActions {
     let updateDragAutoscroll: () -> Void
     let setBonsplitDropTargetCollectionActive: (Bool) -> Void
     let setBonsplitDropIndicator: (SidebarDropIndicator?) -> Void
+    /// Creates one new workspace rooted at `workingDirectory`.
+    ///
+    /// - Parameters:
+    ///   - workingDirectory: Absolute directory path for the new workspace cwd.
+    ///   - topLevelInsertionSlot: Index into `rootWorkspaceIds` (or count to append).
+    ///   - rootWorkspaceIds: Ordered ungrouped root workspace ids used for planning.
+    let createWorkspaceFromExternalDirectory: (String, Int, [UUID]) -> Bool
     /// Returns the live group-to-anchor map captured at the beginning of a
     /// native drag. The table controller caches it for the whole drag so a
     /// multi-row drag does not rescan all groups for every item.
@@ -99,6 +106,7 @@ struct SidebarWorkspaceTableActions {
         updateDragAutoscroll: @escaping () -> Void,
         setBonsplitDropTargetCollectionActive: @escaping (Bool) -> Void,
         setBonsplitDropIndicator: @escaping (SidebarDropIndicator?) -> Void,
+        createWorkspaceFromExternalDirectory: @escaping (String, Int, [UUID]) -> Bool = { _, _, _ in false },
         workspaceIdForDrag: ((SidebarWorkspaceRenderItemID, UUID) -> UUID)? = nil,
         nativeWorkspaceDragLifecycle: NativeWorkspaceDragLifecycle? = nil
     ) {
@@ -124,6 +132,7 @@ struct SidebarWorkspaceTableActions {
         self.updateDragAutoscroll = updateDragAutoscroll
         self.setBonsplitDropTargetCollectionActive = setBonsplitDropTargetCollectionActive
         self.setBonsplitDropIndicator = setBonsplitDropIndicator
+        self.createWorkspaceFromExternalDirectory = createWorkspaceFromExternalDirectory
         self.workspaceIdForDrag = workspaceIdForDrag
         self.nativeWorkspaceDragLifecycle = nativeWorkspaceDragLifecycle
     }

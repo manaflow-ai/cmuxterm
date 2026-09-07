@@ -1,5 +1,6 @@
 import AppKit
 import Bonsplit
+import CmuxFoundation
 import Foundation
 import WebKit
 
@@ -9,6 +10,11 @@ extension FileDropOverlayView {
         let previousHitTest = dragUpdateHitTest
         dragUpdateHitTest = (loc, uncachedViewUnderPoint(loc))
         defer { dragUpdateHitTest = previousHitTest }
+
+        if let sidebarOperation = updateExternalDirectorySidebarRoute(sender) {
+            return sidebarOperation
+        }
+
         let hasLocalDraggingSource = sender.draggingSource != nil
         let types = sender.draggingPasteboard.types
         let shouldCapture = DragOverlayRoutingPolicy.shouldCaptureFileDropDestination(
@@ -404,6 +410,118 @@ extension FileDropOverlayView {
         guard let window else { return false }
         let windowPoint = convert(point, to: nil)
         return BonsplitTabBarHitRegionRegistry.containsWindowPoint(windowPoint, in: window)
+    }
+
+    /// Routes a validated Finder directory drag into the live workspace sidebar
+    /// insertion system. Returns a non-nil operation when this overlay should
+    /// stop here (including `[]` for illegal sidebar targets). Returns `nil`
+    /// when the drag should keep the existing terminal/browser file-drop path.
+    func updateExternalDirectorySidebarRoute(
+        _ sender: any NSDraggingInfo
+    ) -> NSDragOperation? {
+        guard let route = externalDirectorySidebarRoute(sender) else {
+            return nil
+        }
+
+        exitActiveDragTargets(sender)
+        preparedDragWebView = nil
+        preparedPaneDropTarget = nil
+        hintBadgeView.hide()
+
+        let plannedIndex = route.router.updateExternalDirectoryDrop(
+            atWindowPoint: route.windowPoint
+        )
+        isRoutingExternalDirectoryToSidebar = plannedIndex != nil
+        // Over sidebar with a valid directory payload: either `.copy` with a
+        // legal plan, or reject (group / illegal) without falling through to
+        // terminal/file-drop behavior under the list.
+        return plannedIndex != nil ? .copy : []
+    }
+
+    func prepareExternalDirectorySidebarRoute(_ sender: any NSDraggingInfo) -> Bool? {
+        guard let route = externalDirectorySidebarRoute(sender) else {
+            return nil
+        }
+        exitActiveDragTargets(sender)
+        preparedDragWebView = nil
+        preparedPaneDropTarget = nil
+        let plannedIndex = route.router.updateExternalDirectoryDrop(
+            atWindowPoint: route.windowPoint
+        )
+        isRoutingExternalDirectoryToSidebar = plannedIndex != nil
+        return plannedIndex != nil
+    }
+
+    func performExternalDirectorySidebarRoute(_ sender: any NSDraggingInfo) -> Bool? {
+        guard let route = externalDirectorySidebarRoute(sender) else {
+            return nil
+        }
+
+        exitActiveDragTargets(sender)
+        preparedDragWebView = nil
+        preparedPaneDropTarget = nil
+        hintBadgeView.hide()
+
+        let created = route.router.performExternalDirectoryDrop(
+            directoryPath: route.accepted.path,
+            atWindowPoint: route.windowPoint
+        )
+        isRoutingExternalDirectoryToSidebar = false
+        return created
+    }
+
+    private struct ExternalDirectorySidebarRoute {
+        let router: any SidebarExternalDirectoryDropRouting
+        let accepted: ExternalWorkspaceDirectoryDropValidator.AcceptedDirectory
+        let windowPoint: NSPoint
+    }
+
+    /// Shared preamble for sidebar routing: validated directory + pointer over
+    /// the live sidebar surface. Clears leftover indicator when the session
+    /// leaves the sidebar or the payload is not a v1 directory drop.
+    private func externalDirectorySidebarRoute(
+        _ sender: any NSDraggingInfo
+    ) -> ExternalDirectorySidebarRoute? {
+        guard let accepted = validatedExternalDirectory(from: sender) else {
+            clearExternalDirectorySidebarRoute()
+            return nil
+        }
+        guard let window,
+              let router = SidebarExternalDirectoryDropRouter.router(for: window) else {
+            clearExternalDirectorySidebarRoute()
+            return nil
+        }
+        let windowPoint = sender.draggingLocation
+        guard router.containsExternalDirectoryDropWindowPoint(windowPoint) else {
+            // Leaving the sidebar must clear unconditionally, including after
+            // a rejected hover that never set `isRouting… = true`.
+            clearExternalDirectorySidebarRoute()
+            return nil
+        }
+        return ExternalDirectorySidebarRoute(
+            router: router,
+            accepted: accepted,
+            windowPoint: windowPoint
+        )
+    }
+
+    private func validatedExternalDirectory(
+        from sender: any NSDraggingInfo
+    ) -> ExternalWorkspaceDirectoryDropValidator.AcceptedDirectory? {
+        // Prefer internal workspace reorder when both payloads are present.
+        if sender.draggingPasteboard.types?.contains(
+            SidebarWorkspaceReorderDropOverlay.pasteboardType
+        ) == true {
+            return nil
+        }
+        guard PasteboardFileURLReader.hasFileURLType(sender.draggingPasteboard.types ?? []) else {
+            return nil
+        }
+        let urls = PasteboardFileURLReader.fileURLs(from: sender.draggingPasteboard)
+        guard case .success(let accepted) = ExternalWorkspaceDirectoryDropValidator().validate(urls) else {
+            return nil
+        }
+        return accepted
     }
 
     func paneDropTargetUnderPoint(_ windowPoint: NSPoint) -> (any FileDropPaneTarget)? {

@@ -66,6 +66,8 @@ final class FileDropOverlayView: NSView {
     var lastDragRouteLogSignatureByPhase: [String: String] = [:]
     weak var hitTestReferenceView: NSView?
     var dragUpdateHitTest: (location: NSPoint, view: NSView?)?
+    /// True while the current Finder session is routed to sidebar workspace insertion.
+    var isRoutingExternalDirectoryToSidebar = false
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -201,6 +203,9 @@ final class FileDropOverlayView: NSView {
         if shouldDeferFileDropOverlayToBonsplitTabBar(at: point) {
             return nil
         }
+        // Finder / file-URL sessions stay on this window overlay. Sidebar
+        // workspace insertion is an adapter route inside updateDragTarget —
+        // do not defer hit-testing to a nested Finder destination.
 
         return super.hitTest(point)
     }
@@ -314,10 +319,25 @@ final class FileDropOverlayView: NSView {
         didPerformDragAsText = false
         performedTextDragWebView = nil
         performedTextPaneDropTarget = nil
+        clearExternalDirectorySidebarRoute()
         exitActiveDragTargets(sender)
     }
 
-    private func exitActiveDragTargets(_ sender: (any NSDraggingInfo)?) {
+    /// Escape / session teardown while the pointer is still over the overlay
+    /// often skips `draggingExited`. Match pane drop targets and clear the
+    /// sidebar insertion affordance here.
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        hintBadgeView.hide()
+        preparedDragWebView = nil
+        preparedPaneDropTarget = nil
+        didPerformDragAsText = false
+        performedTextDragWebView = nil
+        performedTextPaneDropTarget = nil
+        clearExternalDirectorySidebarRoute()
+        exitActiveDragTargets(sender)
+    }
+
+    func exitActiveDragTargets(_ sender: (any NSDraggingInfo)?) {
         if let prev = activeDragWebView {
             prev.draggingExited(sender)
             activeDragWebView = nil
@@ -325,6 +345,16 @@ final class FileDropOverlayView: NSView {
         if let prev = activePaneDropTarget {
             prev.fileDropDraggingExited(sender)
             activePaneDropTarget = nil
+        }
+    }
+
+    func clearExternalDirectorySidebarRoute() {
+        // Always clear sidebar external state on leave/cancel — not only when
+        // a prior update returned a legal plan. Rejected hover can still leave
+        // reusable drag state on the router.
+        isRoutingExternalDirectoryToSidebar = false
+        if let window {
+            SidebarExternalDirectoryDropRouter.router(for: window)?.clearExternalDirectoryDrop()
         }
     }
 
@@ -353,6 +383,9 @@ final class FileDropOverlayView: NSView {
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if let accepted = prepareExternalDirectorySidebarRoute(sender) {
+            return accepted
+        }
         let hasLocalDraggingSource = sender.draggingSource != nil
         let types = sender.draggingPasteboard.types
         let shouldCapture = DragOverlayRoutingPolicy.shouldCaptureFileDropDestination(
@@ -415,6 +448,9 @@ final class FileDropOverlayView: NSView {
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if let handled = performExternalDirectorySidebarRoute(sender) {
+            return handled
+        }
         let hasLocalDraggingSource = sender.draggingSource != nil
         let types = sender.draggingPasteboard.types
         let shouldCapture = DragOverlayRoutingPolicy.shouldCaptureFileDropDestination(
@@ -524,6 +560,7 @@ final class FileDropOverlayView: NSView {
             didPerformDragAsText = false
             performedTextDragWebView = nil
             performedTextPaneDropTarget = nil
+            clearExternalDirectorySidebarRoute()
         }
         guard let sender else { return }
         if didPerformDragAsText {

@@ -1,0 +1,351 @@
+import CoreGraphics
+import Foundation
+import Testing
+
+@testable import CmuxFoundation
+
+@Suite struct ExternalWorkspaceDirectoryDropValidatorTests {
+    @Test func acceptsExactlyOneLocalDirectory() {
+        let directory = URL(fileURLWithPath: "/tmp/Jimmy", isDirectory: true)
+        let validator = ExternalWorkspaceDirectoryDropValidator { url in
+            #expect(url.path == directory.path)
+            return .directory
+        }
+
+        let result = validator.validate([directory])
+        guard case .success(let accepted) = result else {
+            Issue.record("Expected success, got \(result)")
+            return
+        }
+        #expect(accepted.path == "/tmp/Jimmy")
+        #expect(accepted.url.standardizedFileURL == directory.standardizedFileURL)
+    }
+
+    @Test func rejectsRegularFile() {
+        let file = URL(fileURLWithPath: "/tmp/photo.png", isDirectory: false)
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .file }
+        #expect(validator.validate([file]) == .failure(.notDirectory))
+    }
+
+    @Test func rejectsMultipleURLs() {
+        let first = URL(fileURLWithPath: "/tmp/a", isDirectory: true)
+        let second = URL(fileURLWithPath: "/tmp/b", isDirectory: true)
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .directory }
+        #expect(validator.validate([first, second]) == .failure(.multipleItems))
+    }
+
+    @Test func rejectsEmptyPayload() {
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .directory }
+        #expect(validator.validate([]) == .failure(.emptyPayload))
+    }
+
+    @Test func rejectsMissingPath() {
+        let missing = URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString)", isDirectory: true)
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .missing }
+        #expect(validator.validate([missing]) == .failure(.missingPath))
+    }
+
+    @Test func rejectsNonFileURL() {
+        let remote = URL(string: "https://example.com/project")!
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .directory }
+        #expect(validator.validate([remote]) == .failure(.notLocalFileURL))
+    }
+
+    @Test func stripsTrailingSlashWithoutResolvingSymlinkIdentity() {
+        let directory = URL(fileURLWithPath: "/tmp/Jimmy/", isDirectory: true)
+        let validator = ExternalWorkspaceDirectoryDropValidator { _ in .directory }
+        let result = validator.validate([directory])
+        guard case .success(let accepted) = result else {
+            Issue.record("Expected success, got \(result)")
+            return
+        }
+        #expect(accepted.path == "/tmp/Jimmy")
+    }
+
+    @Test func liveFileManagerProbeAcceptsCreatedDirectoryAndRejectsFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-external-dir-drop-\(UUID().uuidString)", isDirectory: true)
+        let directory = root.appendingPathComponent("Jimmy", isDirectory: true)
+        let file = root.appendingPathComponent("notes.txt", isDirectory: false)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("hi".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let validator = ExternalWorkspaceDirectoryDropValidator()
+        guard case .success(let accepted) = validator.validate([directory]) else {
+            Issue.record("Expected live directory to be accepted")
+            return
+        }
+        #expect(accepted.path == directory.path)
+        #expect(validator.validate([file]) == .failure(.notDirectory))
+    }
+}
+
+@Suite struct ExternalWorkspaceInsertionPlannerTests {
+    private func targets(
+        _ ids: [UUID],
+        pinned: Set<UUID> = [],
+        height: CGFloat = 32,
+        gap: CGFloat = 8
+    ) -> [ExternalWorkspaceInsertionPlanner.RootTarget] {
+        ids.enumerated().map { index, id in
+            ExternalWorkspaceInsertionPlanner.RootTarget(
+                workspaceId: id,
+                isPinned: pinned.contains(id),
+                frame: CGRect(
+                    x: 0,
+                    y: CGFloat(index) * (height + gap),
+                    width: 180,
+                    height: height
+                )
+            )
+        }
+    }
+
+    @Test func emptyRootTargetsReturnNilFromPlan() {
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 2),
+            rootTargets: []
+        )
+        #expect(plan == nil)
+        let empty = ExternalWorkspaceInsertionPlanner().planForEmptySidebar()
+        #expect(empty.insertionIndex == 0)
+    }
+
+    @Test func insertsBeforeFirstOrdinaryWorkspace() {
+        let first = UUID()
+        let second = UUID()
+        let rootTargets = targets([first, second])
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 2),
+            rootTargets: rootTargets
+        )
+        #expect(plan?.insertionIndex == 0)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: first, edge: .top))
+    }
+
+    @Test func insertsBetweenOrdinaryWorkspaces() {
+        let first = UUID()
+        let second = UUID()
+        let rootTargets = targets([first, second])
+        // Top edge of second row (y=40..72): edge band → insert before second.
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 42),
+            rootTargets: rootTargets
+        )
+        #expect(plan?.insertionIndex == 1)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: second, edge: .top))
+    }
+
+    @Test func appendsAfterLastWorkspace() {
+        let first = UUID()
+        let second = UUID()
+        let rootTargets = targets([first, second])
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 65),
+            rootTargets: rootTargets
+        )
+        #expect(plan?.insertionIndex == 2)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: second, edge: .bottom))
+    }
+
+    @Test func rejectsRowCenterSoExistingWorkspaceIsNotImplied() {
+        let first = UUID()
+        let second = UUID()
+        let rootTargets = targets([first, second])
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 56),
+            rootTargets: rootTargets
+        )
+        #expect(plan == nil)
+    }
+
+    @Test func clampsUnpinnedInsertionAfterPinnedPrefix() {
+        let pinned = UUID()
+        let first = UUID()
+        let second = UUID()
+        let rootTargets = targets([pinned, first, second], pinned: [pinned])
+        // Point on the top edge of the pinned row would propose index 0; clamp
+        // keeps a new unpinned workspace after the pinned segment.
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 2),
+            rootTargets: rootTargets
+        )
+        #expect(plan?.insertionIndex == 1)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: first, edge: .top))
+    }
+
+    @Test func mapsTopLevelSlotToRawTabIndex() {
+        let a = UUID()
+        let b = UUID()
+        let c = UUID()
+        let planner = ExternalWorkspaceInsertionPlanner()
+        #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 1, topLevelIds: [a, b, c], tabIds: [a, b, c]) == 1)
+        #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 3, topLevelIds: [a, b, c], tabIds: [a, b, c]) == 3)
+        #expect(planner.rawTabInsertionIndex(forTopLevelSlot: 0, topLevelIds: [a, b], tabIds: [a, b, c]) == 0)
+    }
+
+    @Test func mapsVisibleSlotOntoCompleteOrderWhenRootsAreOffscreen() {
+        let ids = (0..<10).map { _ in UUID() }
+        // Viewport shows only D E F (indices 3,4,5).
+        let visible = Array(ids[3...5])
+        let planner = ExternalWorkspaceInsertionPlanner()
+
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 0,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 3
+        )
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 1,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 4
+        )
+        // After last visible (F) must land beside F in the complete order,
+        // not at the end after J.
+        #expect(
+            planner.completeTopLevelSlot(
+                fromVisibleSlot: 3,
+                visibleIds: visible,
+                completeTopLevelIds: ids
+            ) == 6
+        )
+    }
+
+    @Test func visibleGeometryDropBelowLastVisibleUsesCompleteOrderSlot() {
+        let ids = (0..<10).map { _ in UUID() }
+        let visibleIds = Array(ids[3...5])
+        let visibleTargets = targets(visibleIds)
+        // Bottom edge of last visible row (F): y near maxY of third visible frame.
+        // frames: 0→0..32, 1→40..72, 2→80..112 ⇒ bottom band of F around y=102.
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 102),
+            visibleRootTargets: visibleTargets,
+            completeTopLevelIds: ids,
+            completePinnedCount: 0
+        )
+        #expect(plan?.insertionIndex == 6)
+        #expect(plan?.indicator.tabId == ids[5])
+        #expect(plan?.indicator.edge == .bottom)
+    }
+
+    @Test func visibleGeometryDropAboveFirstVisibleUsesCompleteOrderSlot() {
+        let ids = (0..<10).map { _ in UUID() }
+        let visibleIds = Array(ids[3...5])
+        let visibleTargets = targets(visibleIds)
+        let plan = ExternalWorkspaceInsertionPlanner().plan(
+            point: CGPoint(x: 12, y: 2),
+            visibleRootTargets: visibleTargets,
+            completeTopLevelIds: ids,
+            completePinnedCount: 0
+        )
+        #expect(plan?.insertionIndex == 3)
+        #expect(plan?.indicator == SidebarDropIndicator(tabId: ids[3], edge: .top))
+    }
+
+    @Test func groupedSidebarRowsDoNotTrapPinnedLookup() {
+        let anchor = UUID()
+        let other = UUID()
+        let groupId = UUID()
+        // Mirrors production: group header reuses anchor workspace id; member
+        // shares that id under a groupId. Raw uniqueKeysWithValues would trap.
+        let rows: [(workspaceId: UUID, isPinned: Bool, isGroupHeader: Bool, groupId: UUID?)] = [
+            (anchor, false, true, nil),
+            (anchor, false, false, groupId),
+            (other, true, false, nil),
+        ]
+        let eligible = ExternalWorkspaceInsertionPlanner.eligibleUngroupedRoots(from: rows)
+        #expect(eligible.map(\.workspaceId) == [other])
+        let pinned = ExternalWorkspaceInsertionPlanner.pinnedFlagsByWorkspaceId(
+            fromEligibleUngroupedRoots: eligible
+        )
+        #expect(pinned[other] == true)
+        #expect(pinned[anchor] == nil)
+    }
+
+    @Test func pinnedLookupSurvivesDuplicateEligibleIdsWithoutTrapping() {
+        let id = UUID()
+        let pinned = ExternalWorkspaceInsertionPlanner.pinnedFlagsByWorkspaceId(
+            fromEligibleUngroupedRoots: [
+                (id, true),
+                (id, false),
+            ]
+        )
+        #expect(pinned[id] == false)
+    }
+}
+
+@Suite struct ExternalWorkspaceDropCommitResolverTests {
+    @Test func releaseDriftOntoRowCenterKeepsPaintedPlanWhenOrderUnchanged() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, second]
+        )
+        #expect(resolved == painted)
+    }
+
+    @Test func replannedPlanWinsOverPainted() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let replanned = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 2,
+            indicator: SidebarDropIndicator(tabId: second, edge: .bottom)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: replanned,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, second]
+        )
+        #expect(resolved == replanned)
+    }
+
+    @Test func rejectsPaintedPlanWhenCompleteOrderChanged() {
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, third, second]
+        )
+        #expect(resolved == nil)
+    }
+
+    @Test func rejectsPaintedPlanWhenIndicatorTabMissing() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first]
+        )
+        #expect(resolved == nil)
+    }
+}

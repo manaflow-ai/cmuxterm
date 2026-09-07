@@ -1320,6 +1320,7 @@ class TabManager: ObservableObject {
         select: Bool = true,
         eagerLoadTerminal: Bool = false,
         placementOverride: WorkspacePlacement? = nil,
+        insertionIndexOverride: Int? = nil,
         autoWelcomeIfNeeded: Bool = true,
         autoRefreshMetadata: Bool = true,
         normalizeWorkspaceGroupsAfterInsert: Bool = true,
@@ -1371,7 +1372,20 @@ class TabManager: ObservableObject {
             // Resolve placement against the pre-creation snapshot before Workspace init
             // boots terminal state. The ssh/new-workspace path can otherwise crash while
             // reading @Published placement state from existing workspaces mid-creation.
-            let insertIndex = newTabInsertIndex(snapshot: snapshot, placementOverride: placementOverride)
+            // `insertionIndexOverride` mirrors detached/new-workspace create-at-index:
+            // nil preserves every existing call site; an explicit index clamps into the
+            // unpinned region against the same reconciled live order used by
+            // `newTabInsertIndex` (new Finder sidebar drops always create unpinned workspaces).
+            let insertIndex: Int = {
+                if let insertionIndexOverride {
+                    let liveTabs = orderedLiveWorkspaceCreationTabs(from: snapshot) ?? snapshot.tabs
+                    return Self.clampedDetachedWorkspaceInsertIndex(
+                        insertionIndexOverride,
+                        tabs: liveTabs
+                    )
+                }
+                return newTabInsertIndex(snapshot: snapshot, placementOverride: placementOverride)
+            }()
             let ordinal = Self.nextPortOrdinal
             Self.nextPortOrdinal += 1
             let defaultTitle: String
@@ -1627,6 +1641,7 @@ class TabManager: ObservableObject {
         select: Bool = true,
         eagerLoadTerminal: Bool = false,
         placementOverride: WorkspacePlacement? = nil,
+        insertionIndexOverride: Int? = nil,
         autoWelcomeIfNeeded: Bool = true,
         autoRefreshMetadata: Bool = true,
         normalizeWorkspaceGroupsAfterInsert: Bool = true,
@@ -1651,6 +1666,7 @@ class TabManager: ObservableObject {
             select: select,
             eagerLoadTerminal: eagerLoadTerminal,
             placementOverride: placementOverride,
+            insertionIndexOverride: insertionIndexOverride,
             autoWelcomeIfNeeded: autoWelcomeIfNeeded,
             autoRefreshMetadata: autoRefreshMetadata,
             normalizeWorkspaceGroupsAfterInsert: normalizeWorkspaceGroupsAfterInsert,
@@ -1722,7 +1738,7 @@ class TabManager: ObservableObject {
         )
     }
 
-    private func orderedLiveWorkspaceCreationTabs(
+    func orderedLiveWorkspaceCreationTabs(
         from snapshot: WorkspaceCreationSnapshot
     ) -> [WorkspaceCreationTabSnapshot]? {
         let currentTabs = tabs
