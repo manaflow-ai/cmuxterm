@@ -5,13 +5,21 @@ public struct CodexWriterProcessEvidence: Equatable, Sendable {
     public let pid: Int32
     public let parentPID: Int32
     public let startTime: String?
-    public let command: String
+    let command: String
+    public let executablePath: String?
 
-    public init(pid: Int32, parentPID: Int32, command: String, startTime: String? = nil) {
+    public init(
+        pid: Int32,
+        parentPID: Int32,
+        command: String,
+        startTime: String? = nil,
+        executablePath: String? = nil
+    ) {
         self.pid = pid
         self.parentPID = parentPID
         self.startTime = startTime
         self.command = command
+        self.executablePath = executablePath
     }
 
     public var appServerPort: Int? {
@@ -33,11 +41,21 @@ public struct CodexWriterProcessEvidence: Equatable, Sendable {
     }
 
     public var isCodexAppServer: Bool {
+        guard executableBasename == "codex" else { return false }
         let parts = command.split(whereSeparator: \.isWhitespace).map { $0.lowercased() }
         guard parts.contains("app-server") else { return false }
-        return parts.contains {
-            URL(fileURLWithPath: $0).lastPathComponent.lowercased().hasPrefix("codex")
-        }
+        return true
+    }
+
+    public var validatedExecutableName: String? {
+        guard isCodexAppServer else { return nil }
+        return executableBasename
+    }
+
+    private var executableBasename: String? {
+        guard let executablePath else { return nil }
+        let basename = URL(fileURLWithPath: executablePath).lastPathComponent.lowercased()
+        return basename.isEmpty ? nil : basename
     }
 
     private func optionValue(named name: String, in parts: [String]) -> String? {

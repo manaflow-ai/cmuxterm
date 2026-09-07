@@ -89,10 +89,24 @@ public struct CodexWriterRecovery: Sendable {
         return false
     }
 
-    public static func isWriterConflict(errorText: String) -> Bool {
-        let normalized = errorText.lowercased()
+    public static func isWriterConflict(code: Int?, message: String?) -> Bool {
+        guard code == -32600, let message else { return false }
+        let normalized = message
+            .lowercased()
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
         return normalized.contains("already has an active writer")
-            || (normalized.contains("active writer") && normalized.contains("-32600"))
+    }
+
+    public static func codexResumeSessionID(arguments: [String]) -> String? {
+        guard let executable = arguments.first,
+              URL(fileURLWithPath: executable).lastPathComponent.lowercased() == "codex",
+              arguments.dropFirst().first?.lowercased() == "resume" else {
+            return nil
+        }
+        return arguments.dropFirst(2).compactMap { argument in
+            UUID(uuidString: argument)?.uuidString.lowercased()
+        }.first
     }
 
     private func processScan(lockPath: String) -> (
@@ -126,7 +140,8 @@ public struct CodexWriterRecovery: Sendable {
                 pid: pid,
                 parentPID: parentPID,
                 command: fields.dropFirst(7).joined(separator: " "),
-                startTime: startTime
+                startTime: startTime,
+                executablePath: lsofPIDs.contains(pid) ? executablePath(for: pid) : nil
             ))
         }
         let processes = allProcesses.filter { lsofPIDs.contains($0.pid) }
@@ -153,5 +168,15 @@ public struct CodexWriterRecovery: Sendable {
         } catch {
             return nil
         }
+    }
+
+    private func executablePath(for pid: Int32) -> String? {
+        guard pid > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        let length = buffer.withUnsafeMutableBytes { rawBuffer in
+            proc_pidpath(pid_t(pid), rawBuffer.baseAddress, UInt32(rawBuffer.count))
+        }
+        guard length > 0 else { return nil }
+        return String(decoding: buffer.prefix(Int(length)), as: UTF8.self)
     }
 }

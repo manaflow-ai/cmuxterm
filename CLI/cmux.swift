@@ -24163,6 +24163,14 @@ struct CMUXCLI {
         }
     }
 
+    private struct CodexTeamsAppServerRequestError: Error, CustomStringConvertible {
+        let code: Int?
+        let message: String
+        let data: Any?
+
+        var description: String { message }
+    }
+
     private final class CodexTeamsAppServerConnection {
         private let session: URLSession
         private let task: URLSessionWebSocketTask
@@ -24262,7 +24270,19 @@ struct CMUXCLI {
                 if CodexTeamsAppServerConnection.message(message, hasId: requestId) {
                     if let error = message["error"] as? [String: Any] {
                         let message = (error["message"] as? String) ?? "Codex app-server request failed"
-                        throw CLIError(message: message)
+                        let code: Int?
+                        if let integerCode = error["code"] as? Int {
+                            code = integerCode
+                        } else if let numberCode = error["code"] as? NSNumber {
+                            code = numberCode.intValue
+                        } else {
+                            code = nil
+                        }
+                        throw CodexTeamsAppServerRequestError(
+                            code: code,
+                            message: message,
+                            data: error["data"]
+                        )
                     }
                     if let result = message["result"] as? [String: Any] {
                         return result
@@ -24498,8 +24518,11 @@ struct CMUXCLI {
         }
 
         private func reportWriterConflictIfNeeded(threadID: String, error: Error) {
-            let errorText = String(describing: error)
-            guard CodexWriterRecovery.isWriterConflict(errorText: errorText),
+            guard let requestError = error as? CodexTeamsAppServerRequestError,
+                  CodexWriterRecovery.isWriterConflict(
+                      code: requestError.code,
+                      message: requestError.message
+                  ),
                   let diagnostic = CMUXCLI.codexWriterReportMessage(
                       sessionID: threadID,
                       codexHome: codexHome

@@ -89,16 +89,23 @@ extension CMUXCLI {
            let assessment = report.assessments.first(where: { $0.holder.pid == holder.pid }),
            assessment.classification == .orphanedAppServer {
             return String.localizedStringWithFormat(
-                String(localized: "cli.codex.writer.recovery.orphaned", defaultValue: "Codex thread %@ is blocked by an orphaned app-server (PID %d, parent PID %d): %@. Run `cmux codex-teams recover %@ --yes`, then retry resume. Lock: %@"),
-                sessionID, holder.pid, holder.parentPID, holder.command, sessionID, lock
+                String(localized: "cli.codex.writer.recovery.orphaned", defaultValue: "Codex thread %@ is blocked by an orphaned app-server (PID %d, parent PID %d, executable %@). Run `cmux codex-teams recover %@ --yes`, then retry resume. Lock: %@"),
+                sessionID,
+                holder.pid,
+                holder.parentPID,
+                holder.validatedExecutableName
+                    ?? String(localized: "cli.codex.writer.recovery.unknownExecutable", defaultValue: "unidentified process"),
+                sessionID,
+                lock
             )
         }
         let ownerText = report.holders.map {
             String.localizedStringWithFormat(
-                String(localized: "cli.codex.writer.recovery.owner", defaultValue: "PID %d, parent PID %d: %@"),
+                String(localized: "cli.codex.writer.recovery.owner", defaultValue: "PID %d, parent PID %d, executable %@"),
                 $0.pid,
                 $0.parentPID,
-                $0.command
+                $0.validatedExecutableName
+                    ?? String(localized: "cli.codex.writer.recovery.unknownExecutable", defaultValue: "unidentified process")
             )
         }.joined(separator: String(localized: "cli.codex.writer.recovery.ownerSeparator", defaultValue: "; "))
         return String.localizedStringWithFormat(

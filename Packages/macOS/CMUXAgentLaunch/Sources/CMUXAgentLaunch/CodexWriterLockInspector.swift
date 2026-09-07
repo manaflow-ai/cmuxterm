@@ -12,6 +12,10 @@ public struct CodexWriterLockInspector: Sendable {
         guard normalizedID != nil, codexHome.hasPrefix("/"), !codexHome.utf8.contains(0) else {
             return CodexWriterLockInspection(state: .unavailable, codexHome: home, lockPath: lockPath)
         }
+        let locksDirectory = home + "/thread-writer-locks"
+        guard directoryExists(atPath: home), directoryExists(atPath: locksDirectory) else {
+            return CodexWriterLockInspection(state: .unavailable, codexHome: home, lockPath: lockPath)
+        }
         let descriptor = open(lockPath, O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOFOLLOW)
         guard descriptor >= 0 else {
             return CodexWriterLockInspection(
@@ -59,5 +63,11 @@ public struct CodexWriterLockInspector: Sendable {
         }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+
+    private func directoryExists(atPath path: String) -> Bool {
+        var file = stat()
+        guard lstat(path, &file) == 0 else { return false }
+        return file.st_mode & S_IFMT == S_IFDIR
     }
 }
