@@ -74,7 +74,7 @@ final class SidebarRowSplitPaneCountView: NSView {
     private let iconView = NSImageView()
     private let countLabel = NSTextField(labelWithString: "")
     private(set) var configuredCount = 1
-    private var fontScale: CGFloat = 1
+    private var visualScale: CGFloat = 1
 
     override var isFlipped: Bool { true }
 
@@ -97,11 +97,10 @@ final class SidebarRowSplitPaneCountView: NSView {
         count: Int,
         color: NSColor,
         font: NSFont,
-        fontScale: CGFloat,
         helpText: String
     ) {
         configuredCount = count
-        self.fontScale = fontScale
+        visualScale = max(0.1, font.pointSize / 9)
         isHidden = count <= 1
         iconView.image = RenderableSystemSymbol.configuredAppKitImage(
             systemName: "rectangle.split.2x1",
@@ -120,24 +119,24 @@ final class SidebarRowSplitPaneCountView: NSView {
 
     override var intrinsicContentSize: NSSize {
         guard !isHidden else { return .zero }
-        let iconSide = max(9, 9 * fontScale)
+        let iconSide = 9 * visualScale
         let countWidth = countLabel.cell?.cellSize(forBounds: NSRect(
             x: 0, y: 0,
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )).width ?? 0
-        let contentWidth = iconSide + 3 * fontScale + countWidth
+        let contentWidth = iconSide + 3 * visualScale + countWidth
         return NSSize(
-            width: max(27 * fontScale, contentWidth) + 8 * fontScale,
-            height: max(15 * fontScale, fontScale * 15)
+            width: max(27 * visualScale, contentWidth) + 8 * visualScale,
+            height: 15 * visualScale
         )
     }
 
     override func layout() {
         super.layout()
-        let padding = 4 * fontScale
-        let spacing = 3 * fontScale
-        let iconSide = max(9, 9 * fontScale)
+        let padding = 4 * visualScale
+        let spacing = 3 * visualScale
+        let iconSide = 9 * visualScale
         let countWidth = countLabel.cell?.cellSize(forBounds: NSRect(
             x: 0, y: 0,
             width: CGFloat.greatestFiniteMagnitude,

@@ -446,7 +446,6 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
             count: splitPaneCount,
             color: palette.secondary(0.78),
             font: .systemFont(ofSize: model.scaled(9), weight: .semibold),
-            fontScale: model.fontScale,
             helpText: splitPaneHelpText
         )
         let media = snapshot.mediaActivity
