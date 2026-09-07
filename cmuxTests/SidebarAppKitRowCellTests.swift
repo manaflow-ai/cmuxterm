@@ -64,6 +64,7 @@ struct SidebarAppKitRowCellTests {
         isPinned: Bool = false,
         splitPaneCount: Int = 1,
         canClose: Bool = true,
+        globalFontMagnificationPercent: Int = 100,
         settings: SidebarTabItemSettingsSnapshot? = nil,
         customDescription: String? = nil,
         metadataEntries: [SidebarStatusEntry] = [],
@@ -101,7 +102,7 @@ struct SidebarAppKitRowCellTests {
             shortcutHintText: shortcutHintText,
             showsShortcutHints: shortcutHintText != nil,
             colorSchemeIsDark: true,
-            globalFontMagnificationPercent: 100,
+            globalFontMagnificationPercent: globalFontMagnificationPercent,
             isChecklistExpanded: false,
             checklistAddFieldActivationToken: 0,
             isChecklistPopoverPresented: false,
@@ -113,7 +114,7 @@ struct SidebarAppKitRowCellTests {
     }
 
     @Test
-    func splitPaneAffordanceAppearsOnlyForSplitWorkspaces() {
+    func splitPaneAffordanceAppearsOnlyForSplitWorkspaces() throws {
         let cell = SidebarWorkspaceRowTableCellView()
         let singlePane = makeModel()
         cell.configure(
@@ -135,7 +136,24 @@ struct SidebarAppKitRowCellTests {
             contextMenuDidClose: {}
         )
         _ = cell.layoutContent(model: splitPane, width: 300, apply: true)
-        #expect(allDescendants(of: cell).contains { $0.toolTip == "Split pane count: 2" })
+        let splitAffordance = try #require(
+            allDescendants(of: cell).first { $0.toolTip == "Split pane count: 2" }
+        )
+        let normalWidth = splitAffordance.frame.width
+
+        let magnifiedPane = makeModel(splitPaneCount: 2, globalFontMagnificationPercent: 200)
+        cell.configure(
+            model: magnifiedPane,
+            actions: makeActions(model: magnifiedPane),
+            isPointerHovering: false,
+            contextMenuDidOpen: {},
+            contextMenuDidClose: {}
+        )
+        _ = cell.layoutContent(model: magnifiedPane, width: 300, apply: true)
+        let magnifiedAffordance = try #require(
+            allDescendants(of: cell).first { $0.toolTip == "Split pane count: 2" }
+        )
+        #expect(magnifiedAffordance.frame.width > normalWidth)
     }
 
     private static func allDescendants(of view: NSView) -> [NSView] {
