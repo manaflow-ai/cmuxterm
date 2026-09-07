@@ -66,6 +66,102 @@ final class SidebarRowUnreadBadgeView: NSView {
     }
 }
 
+/// Split-pane count affordance (parity with the SwiftUI workspace row).
+/// Keeps the icon, count, and capsule background in one pooled view so the
+/// native sidebar row can update topology without rebuilding its hierarchy.
+@MainActor
+final class SidebarRowSplitPaneCountView: NSView {
+    private let iconView = NSImageView()
+    private let countLabel = NSTextField(labelWithString: "")
+    private(set) var configuredCount = 1
+    private var fontScale: CGFloat = 1
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        iconView.imageScaling = .scaleProportionallyDown
+        countLabel.alignment = .center
+        countLabel.lineBreakMode = .byClipping
+        countLabel.maximumNumberOfLines = 1
+        addSubview(iconView)
+        addSubview(countLabel)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(
+        count: Int,
+        color: NSColor,
+        font: NSFont,
+        fontScale: CGFloat,
+        helpText: String
+    ) {
+        configuredCount = count
+        self.fontScale = fontScale
+        isHidden = count <= 1
+        iconView.image = RenderableSystemSymbol.configuredAppKitImage(
+            systemName: "rectangle.split.2x1",
+            pointSize: font.pointSize,
+            weight: .semibold
+        )
+        iconView.contentTintColor = color
+        countLabel.stringValue = "\(count)"
+        countLabel.font = font
+        countLabel.textColor = color
+        layer?.backgroundColor = color.withAlphaComponent(0.12).cgColor
+        toolTip = helpText
+        setAccessibilityLabel(helpText)
+        needsLayout = true
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard !isHidden else { return .zero }
+        let iconSide = max(9, 9 * fontScale)
+        let countWidth = countLabel.cell?.cellSize(forBounds: NSRect(
+            x: 0, y: 0,
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )).width ?? 0
+        let contentWidth = iconSide + 3 * fontScale + countWidth
+        return NSSize(
+            width: max(27 * fontScale, contentWidth) + 8 * fontScale,
+            height: max(15 * fontScale, fontScale * 15)
+        )
+    }
+
+    override func layout() {
+        super.layout()
+        let padding = 4 * fontScale
+        let spacing = 3 * fontScale
+        let iconSide = max(9, 9 * fontScale)
+        let countWidth = countLabel.cell?.cellSize(forBounds: NSRect(
+            x: 0, y: 0,
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )).width ?? 0
+        let contentWidth = iconSide + spacing + countWidth
+        let contentStart = max(padding, (bounds.width - contentWidth) / 2)
+        let centerY = bounds.midY
+        iconView.frame = NSRect(
+            x: contentStart,
+            y: centerY - iconSide / 2,
+            width: iconSide,
+            height: iconSide
+        )
+        countLabel.frame = NSRect(
+            x: contentStart + iconSide + spacing,
+            y: centerY - countLabel.intrinsicContentSize.height / 2,
+            width: countWidth,
+            height: countLabel.intrinsicContentSize.height
+        )
+        layer?.cornerRadius = bounds.height / 2
+    }
+}
+
 /// Pull-request status icon (custom vector open/merged glyphs, SF closed).
 /// Ports PullRequestOpenIcon / PullRequestMergedIcon exactly: 13x13 design
 /// space, 1.2 stroke, 3.0 node circles, scaled by fontScale.
