@@ -223,7 +223,8 @@ struct FilePreviewTextEditorTextKitTests {
                 isVisibleInUI: true,
                 themeBackgroundColor: .white,
                 themeForegroundColor: .black,
-                drawsBackground: true
+                drawsBackground: true,
+                gutterBackgroundColor: .white
             )
             let hostingView = NSHostingView(rootView: editor)
             hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: 240)
