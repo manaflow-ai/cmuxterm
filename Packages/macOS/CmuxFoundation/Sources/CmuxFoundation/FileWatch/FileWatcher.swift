@@ -125,7 +125,8 @@ public actor FileWatcher {
         self.allowsFilesystemRootAncestor = allowsFilesystemRootAncestor
         let pathResolver = FileWatchPathResolver(fileManager: fileManager)
         self.pathResolver = pathResolver
-        self.queue = DispatchQueue(label: "com.cmux.file-watcher", qos: .utility)
+        let queue = DispatchQueue(label: "com.cmux.file-watcher", qos: .utility)
+        self.queue = queue
         let (events, eventsContinuation) = AsyncStream<Void>.makeStream(
             bufferingPolicy: .bufferingNewest(1)
         )
