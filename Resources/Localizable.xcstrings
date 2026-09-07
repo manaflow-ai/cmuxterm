@@ -216658,16 +216658,124 @@
     "settings.search.alias.setting.browser.capture-keyboard-shortcuts": {
       "extractionState": "manual",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts متصفح صفحة ويب لوحة المفاتيح اختصارات التقاط السماح cmux VS Code أمر P تركيز"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts preglednik web stranica tastatura prečice uhvatiti dozvoliti cmux VS Code naredba P fokus"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts browser webside tastatur genveje overtage tillade cmux VS Code kommando P fokus"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts Browser Webseite Tastatur Tastenkürzel erfassen übernehmen cmux VS Code Befehl P Fokus"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "browser.captureKeyboardShortcuts browser web page keyboard shortcuts capture cmux vscode command p focus"
           }
         },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts navegador página web teclado atajos capturar permitir cmux VS Code comando P foco"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts navigateur page web clavier raccourcis capturer autoriser cmux VS Code commande P focus"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts browser pagina web tastiera scorciatoie catturare consentire cmux VS Code comando P focus"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "browser.captureKeyboardShortcuts ブラウザ Webページ キーボード ショートカット キャプチャ cmux VS Code コマンド P フォーカス"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts កម្មវិធីរុករក ទំព័របណ្ដាញ ក្តារចុច ផ្លូវកាត់ ចាប់យក អនុញ្ញាត cmux VS Code ពាក្យបញ្ជា P ផ្តោត"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts 브라우저 웹 페이지 키보드 단축키 캡처 허용 cmux VS Code 명령 P 포커스"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts nettleser nettside tastatur snarveier fange tillate cmux VS Code kommando P fokus"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts przeglądarka strona internetowa klawiatura skróty przechwytywać zezwolić cmux VS Code polecenie P fokus"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts navegador página da web teclado atalhos capturar permitir cmux VS Code comando P foco"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts браузер веб-страница клавиатура сочетания клавиш перехватывать разрешить cmux VS Code команда P фокус"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts เบราว์เซอร์ หน้าเว็บ แป้นพิมพ์ แป้นพิมพ์ลัด ดักจับ อนุญาต cmux VS Code คำสั่ง P โฟกัส"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts tarayıcı web sayfası klavye kısayollar yakala izin ver cmux VS Code komut P odak"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts браузер вебсторінка клавіатура комбінації клавіш перехоплювати дозволити cmux VS Code команда P фокус"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts 浏览器 网页 键盘 快捷键 捕获 允许 cmux VS Code 命令 P 聚焦"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "browser.captureKeyboardShortcuts 瀏覽器 網頁 鍵盤 快速鍵 擷取 允許 cmux VS Code 指令 P 聚焦"
           }
         }
       }
