@@ -3167,6 +3167,11 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         restoredAgentLifecycle.snapshotsByPanelId
     }
     var surfaceResumeBindingsByPanelId: [UUID: SurfaceResumeBindingSnapshot] = [:]
+    /// Panels with a live restorable agent whose binding could not be derived at save time.
+    var unresolvedResumeBindingPanelIds: Set<UUID> = []
+    var unresolvedDockResumeBindingPanelIds: Set<UUID> = []
+    var unresolvedResumeBindingStatusUpdatedAt = Date.now
+    @Published private(set) var resumeBindingGapRevision: UInt64 = 0
     /// In-memory compare-and-claim state held while a CLI restore hands the
     /// validated binding to its child process.
     @ObservationIgnored var surfaceResumeRestoreClaimsByPanelId: [
@@ -6249,6 +6254,30 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         surfaceResumeBindingsByPanelId[panelId]
     }
 
+    func setResumeBindingGap(_ hasGap: Bool, panelId: UUID) {
+        let didChange: Bool
+        if hasGap {
+            didChange = unresolvedResumeBindingPanelIds.insert(panelId).inserted
+        } else {
+            didChange = unresolvedResumeBindingPanelIds.remove(panelId) != nil
+        }
+        if didChange {
+            unresolvedResumeBindingStatusUpdatedAt = Date.now
+            resumeBindingGapRevision &+= 1
+        }
+    }
+
+    func updateDockResumeBindingGaps(_ panelIds: Set<UUID>) {
+        guard unresolvedDockResumeBindingPanelIds != panelIds else { return }
+        unresolvedDockResumeBindingPanelIds = panelIds
+        unresolvedResumeBindingStatusUpdatedAt = Date.now
+        resumeBindingGapRevision &+= 1
+    }
+
+    var unresolvedResumeBindingGapCount: Int {
+        unresolvedResumeBindingPanelIds.union(unresolvedDockResumeBindingPanelIds).count
+    }
+
     func panelNeedsConfirmClose(panelId: UUID, fallbackNeedsConfirmClose: Bool) -> Bool {
         Self.resolveCloseConfirmation(
             shellActivityState: panelShellActivityStates[panelId],
@@ -6504,6 +6533,14 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         surfaceResumeBindingsByPanelId = surfaceResumeBindingsByPanelId.filter {
             validSurfaceIds.contains($0.key)
+        }
+        let previousUnresolvedResumeBindingPanelIds = unresolvedResumeBindingPanelIds
+        unresolvedResumeBindingPanelIds = unresolvedResumeBindingPanelIds.filter {
+            validSurfaceIds.contains($0)
+        }
+        if unresolvedResumeBindingPanelIds != previousUnresolvedResumeBindingPanelIds {
+            unresolvedResumeBindingStatusUpdatedAt = Date.now
+            resumeBindingGapRevision &+= 1
         }
         surfaceResumeRestoreClaimsByPanelId = surfaceResumeRestoreClaimsByPanelId.filter {
             validSurfaceIds.contains($0.key)
