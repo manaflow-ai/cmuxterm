@@ -318,7 +318,6 @@ public final class SidebarGitMetadataService: SidebarGitMetadataServing {
         workspaceGitHeadSignatureByKey.removeValue(forKey: key)
         cancelWorkspaceGitProbeTask(for: key)
         stopWorkspaceGitMetadataWatcher(for: key)
-        updateWorkspaceGitMetadataFallbackTimer()
         if clearRepositoryLink {
             host?.clearPanelRepositoryLink(workspaceId: key.workspaceId, panelId: key.panelId)
         }
