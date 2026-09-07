@@ -15306,6 +15306,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return handled
         }
 
+        if matchConfiguredShortcut(event: event, action: .toggleSessionOutline) {
+            if performFocusedDockShortcut(
+                .toggleSessionOutline,
+                action: .toggleSessionOutline,
+                event: event
+            ) {
+                return true
+            }
+            let routedManager = preferredMainWindowContextForShortcutRouting(event: event)?.tabManager ?? tabManager
+            let handled = routedManager?.toggleFocusedSessionOutline() ?? false
+#if DEBUG
+            cmuxDebugLog(
+                "shortcut.action name=toggleSessionOutline handled=\(handled ? 1 : 0) " +
+                "\(debugShortcutRouteSnapshot(event: event))"
+            )
+#endif
+            return handled
+        }
+
         // Workspace navigation: Cmd+Ctrl+] / Cmd+Ctrl+[
         if matchConfiguredShortcut(event: event, action: .nextSidebarTab) {
 #if DEBUG

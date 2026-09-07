@@ -8280,6 +8280,15 @@ struct ContentView: View {
         )
         contributions.append(
             CommandPaletteCommandContribution(
+                commandId: "palette.terminalToggleSessionOutline",
+                title: constant(String(localized: "command.terminalToggleSessionOutline.title", defaultValue: "Toggle Session Outline")),
+                subtitle: terminalPanelSubtitle,
+                keywords: ["terminal", "session", "outline", "transcript", "conversation", "toc", "jump", "agent"],
+                when: { $0.bool(CommandPaletteContextKeys.panelIsTerminal) }
+            )
+        )
+        contributions.append(
+            CommandPaletteCommandContribution(
                 commandId: "palette.terminalSplitRight",
                 title: constant(String(localized: "command.terminalSplitRight.title", defaultValue: "Split Right")),
                 subtitle: constant(String(localized: "command.terminalSplitRight.subtitle", defaultValue: "Terminal Layout")),
@@ -9208,6 +9217,11 @@ struct ContentView: View {
         }
         registry.register(commandId: "palette.terminalClearScreenKeepScrollback") {
             if !tabManager.clearFocusedTerminalKeepingScrollback() {
+                NSSound.beep()
+            }
+        }
+        registry.register(commandId: "palette.terminalToggleSessionOutline") {
+            if !tabManager.toggleFocusedSessionOutline() {
                 NSSound.beep()
             }
         }

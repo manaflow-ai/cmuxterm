@@ -112,6 +112,7 @@ final class AgentChatTranscriptService {
 
     let registry: AgentChatSessionRegistry
     let resolver: AgentChatTranscriptResolver
+    let sessionOutlineChangeBus = SessionOutlineChangeBus()
     private var tailers: [String: AgentChatTranscriptTailer] = [:]
     private let hasEventSubscribers: @MainActor () -> Bool
     private let emitEventPayload: @MainActor ([String: Any]) -> Void
@@ -556,7 +557,10 @@ final class AgentChatTranscriptService {
     }
 
     private func publishBatch(_ batch: AgentChatTranscriptTailer.Batch, sessionID: String) {
-        #if DEBUG
+        sessionOutlineChangeBus.yield(
+            surfaceID: registry.record(sessionID: sessionID)?.surfaceID
+        )
+#if DEBUG
         cmuxDebugLog(
             "agentChat.transcript.batch session=\(sessionID.prefix(8)) "
             + "appended=\(batch.appended.count) updated=\(batch.updated.count) "
@@ -624,6 +628,7 @@ final class AgentChatTranscriptService {
     }
 
     private func handleRecordChange(_ record: AgentChatSessionRecord, previous: AgentChatSessionRecord?) {
+        sessionOutlineChangeBus.yield(surfaceID: record.surfaceID)
         let endedRecordIsListable: Bool
         if record.state == .ended {
             endedRecordIsListable = record.agentKind == .codex

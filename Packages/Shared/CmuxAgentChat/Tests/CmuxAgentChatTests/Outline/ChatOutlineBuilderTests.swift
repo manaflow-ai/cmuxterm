@@ -39,5 +39,7 @@ struct ChatOutlineBuilderTests {
         #expect(entries.map(\.title) == ["Investigate the login flow", "Document the result"])
         #expect(entries.map(\.seq) == [10, 20])
         #expect(entries.map(\.hasAlert) == [true, false])
+        #expect(entries.map(\.id) == ["prompt-1", "prompt-2"])
+        #expect(entries.map(\.timestamp) == [timestamp, timestamp.addingTimeInterval(60)])
     }
 }

@@ -293601,5 +293601,10 @@
     "cloudTree.ports.unavailable": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Port discovery unavailable. Refresh to retry."}},"ja":{"stringUnit":{"state":"translated","value":"ポート検出を利用できません。更新して再試行してください。"}}}},
     "cloudTree.ports.empty": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No reachable ports"}},"ja":{"stringUnit":{"state":"translated","value":"到達可能なポートはありません"}}}},
     "cloud.managed.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud Machines are disabled by your administrator."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud Machines は管理者によって無効になっています。"}}}},
+    "command.terminalToggleSessionOutline.title": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Toggle Session Outline"}},"ja":{"stringUnit":{"state":"translated","value":"セッション概要を切り替え"}}}},
+    "sessionOutline.actionRequired": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Action required"}},"ja":{"stringUnit":{"state":"translated","value":"対応が必要です"}}}},
+    "sessionOutline.title": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Session Outline"}},"ja":{"stringUnit":{"state":"translated","value":"セッション概要"}}}},
+    "sessionOutline.toggle": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Session Outline"}},"ja":{"stringUnit":{"state":"translated","value":"セッション概要"}}}},
+    "shortcut.toggleSessionOutline.label": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Toggle Session Outline"}},"ja":{"stringUnit":{"state":"translated","value":"セッション概要を切り替え"}}}},
   "version": "1.0"
 }

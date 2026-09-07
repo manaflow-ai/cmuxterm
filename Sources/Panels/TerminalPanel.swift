@@ -23,6 +23,7 @@ final class TerminalPanel: Panel, ObservableObject {
 
     /// The underlying terminal surface
     let surface: TerminalSurface
+    let sessionOutlineModel = SessionOutlineModel()
     var fontSizePanelTransfer:
         WorkspaceTerminalFontSizePanelTransfer?
 

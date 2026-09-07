@@ -28,6 +28,7 @@ extension KeyboardShortcutSettings.Action {
              .focusTextBoxInput, .attachTextBoxFile,
              .sendCtrlFToTerminal,
              .clearScreenKeepScrollback,
+             .toggleSessionOutline,
              .focusLeft, .focusRight, .focusUp, .focusDown,
              .focusPreviousPane, .focusNextPane,
              .splitRight, .splitDown, .toggleSplitZoom,
