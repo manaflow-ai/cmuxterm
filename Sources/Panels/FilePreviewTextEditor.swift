@@ -27,20 +27,9 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     let themeBackgroundColor: NSColor
     let themeForegroundColor: NSColor
     let drawsBackground: Bool
-<<<<<<< HEAD
     /// Opaque Ghostty panel color. The ruler is not a hole onto that
     /// surface, so it always paints this even when the text view is clear.
     let gutterBackgroundColor: NSColor
-    /// Whether long lines soft-wrap at the editor's right edge. Sourced from
-    /// the persisted `fileEditor.wordWrap` setting; updates apply live.
-    let wordWrap: Bool
-    /// Default point size for newly opened editors. An existing editor follows
-    /// the default until the user has zoomed it independently.
-    let fontSize: Double
-    /// Default AppKit font family. Empty keeps the monospaced system font.
-    let fontFamily: String
-    /// Paragraph line-height multiplier. `1.0` keeps natural font leading.
-    let lineHeight: Double
     /// Absolute path used only to resolve a highlight.js language.
     var filePath: String = ""
 
@@ -49,7 +38,6 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     @LiveSetting(\.fileEditor.indentGuides) private var indentGuides
     @LiveSetting(\.fileEditor.currentLineHighlight) private var currentLineHighlight
     @LiveSetting(\.fileEditor.tabWidth) private var tabWidth
-=======
     /// Persisted editor settings are observed only while this text editor is mounted.
     /// Keeping them here prevents Settings changes from invalidating unrelated preview
     /// surfaces, especially the Markdown WebView while a font-family field is edited.
@@ -57,7 +45,6 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
     @AppStorage(FilePreviewFontSizeSettings.key) private var fileEditorFontSize = FilePreviewFontSizeSettings.defaultPointSize
     @AppStorage(FilePreviewFontFamilySettings.key) private var fileEditorFontFamily = FilePreviewFontFamilySettings.defaultFamily
     @AppStorage(FilePreviewLineHeightSettings.key) private var fileEditorLineHeight = FilePreviewLineHeightSettings.defaultMultiplier
->>>>>>> 92b2359a55 (perf(file-editor): scope settings observation to editor)
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -99,12 +86,8 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         panel.attachTextView(textView)
 
         scrollView.documentView = textView
-<<<<<<< HEAD
-        textView.applyFilePreviewWordWrap(wordWrap, scrollView: scrollView)
-        Self.installChrome(on: scrollView, textView: textView)
-=======
         textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
->>>>>>> 92b2359a55 (perf(file-editor): scope settings observation to editor)
+        Self.installChrome(on: scrollView, textView: textView)
         Self.applyTheme(
             to: scrollView,
             backgroundColor: themeBackgroundColor,
