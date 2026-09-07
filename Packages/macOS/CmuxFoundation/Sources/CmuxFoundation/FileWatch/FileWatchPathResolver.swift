@@ -1,8 +1,10 @@
 public import Foundation
 
 /// Resolves the nearest safe existing directory for a watched path.
-public struct FileWatchPathResolver {
-    private let fileManager: FileManager
+public struct FileWatchPathResolver: Sendable {
+    // Justification: FileManager documents its methods as thread-safe, and
+    // this injected reference is immutable for the lifetime of the resolver.
+    private nonisolated(unsafe) let fileManager: FileManager
 
     /// Creates a resolver with an injectable filesystem provider.
     public init(fileManager: FileManager) {
