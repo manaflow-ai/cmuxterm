@@ -8760,7 +8760,7 @@ class TerminalController {
 
                     switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
                     case .delivered:
-                        var payload: [String: Any] = [
+                        let payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
                             "surface_id": ctx.surfaceId.uuidString,
@@ -16003,7 +16003,7 @@ class TerminalController {
             "mobile.terminal.input workspace=\(resolved.workspace.id.uuidString.prefix(8)) surface=\(surfaceId.uuidString.prefix(8)) queued=\(sendResult == .queued ? 1 : 0) chars=\(text.count) ms=\(String(format: "%.2f", sendMs))"
         )
         #endif
-        var payload: [String: Any] = [
+        let payload: [String: Any] = [
             "workspace_id": resolved.workspace.id.uuidString,
             "surface_id": terminalPanel.id.uuidString,
             "queued": sendResult == .queued,

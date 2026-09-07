@@ -1,5 +1,8 @@
 import Darwin
 import XCTest
+#if canImport(cmux_cli)
+@testable import cmux_cli
+#endif
 
 extension CLINotifyProcessIntegrationRegressionTests {
     func testLocalTmuxLifecycleRejectsAttachmentOptions() throws {
