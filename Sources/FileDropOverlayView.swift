@@ -66,6 +66,8 @@ final class FileDropOverlayView: NSView {
     var lastDragRouteLogSignatureByPhase: [String: String] = [:]
     weak var hitTestReferenceView: NSView?
     var dragUpdateHitTest: (location: NSPoint, view: NSView?)?
+    /// True while the current Finder session is routed to sidebar workspace insertion.
+    var isRoutingExternalDirectoryToSidebar = false
 
     override var acceptsFirstResponder: Bool { false }
 
@@ -201,6 +203,9 @@ final class FileDropOverlayView: NSView {
         if shouldDeferFileDropOverlayToBonsplitTabBar(at: point) {
             return nil
         }
+        // Finder / file-URL sessions stay on this window overlay. Sidebar
+        // workspace insertion is an adapter route inside updateDragTarget —
+        // do not defer hit-testing to a nested Finder destination.
 
         return super.hitTest(point)
     }
@@ -314,10 +319,11 @@ final class FileDropOverlayView: NSView {
         didPerformDragAsText = false
         performedTextDragWebView = nil
         performedTextPaneDropTarget = nil
+        clearExternalDirectorySidebarRoute()
         exitActiveDragTargets(sender)
     }
 
-    private func exitActiveDragTargets(_ sender: (any NSDraggingInfo)?) {
+    func exitActiveDragTargets(_ sender: (any NSDraggingInfo)?) {
         if let prev = activeDragWebView {
             prev.draggingExited(sender)
             activeDragWebView = nil
@@ -326,6 +332,12 @@ final class FileDropOverlayView: NSView {
             prev.fileDropDraggingExited(sender)
             activePaneDropTarget = nil
         }
+    }
+
+    func clearExternalDirectorySidebarRoute() {
+        guard isRoutingExternalDirectoryToSidebar else { return }
+        isRoutingExternalDirectoryToSidebar = false
+        SidebarExternalDirectoryDropRouter.current?.clearExternalDirectoryDrop()
     }
 
     private func exitActiveDragTargets(
@@ -353,6 +365,9 @@ final class FileDropOverlayView: NSView {
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if let accepted = prepareExternalDirectorySidebarRoute(sender) {
+            return accepted
+        }
         let hasLocalDraggingSource = sender.draggingSource != nil
         let types = sender.draggingPasteboard.types
         let shouldCapture = DragOverlayRoutingPolicy.shouldCaptureFileDropDestination(
@@ -415,6 +430,9 @@ final class FileDropOverlayView: NSView {
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        if let handled = performExternalDirectorySidebarRoute(sender) {
+            return handled
+        }
         let hasLocalDraggingSource = sender.draggingSource != nil
         let types = sender.draggingPasteboard.types
         let shouldCapture = DragOverlayRoutingPolicy.shouldCaptureFileDropDestination(
@@ -524,6 +542,7 @@ final class FileDropOverlayView: NSView {
             didPerformDragAsText = false
             performedTextDragWebView = nil
             performedTextPaneDropTarget = nil
+            clearExternalDirectorySidebarRoute()
         }
         guard let sender else { return }
         if didPerformDragAsText {

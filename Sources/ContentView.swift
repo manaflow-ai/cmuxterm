@@ -12445,6 +12445,31 @@ struct VerticalTabsSidebar: View, Equatable {
             setBonsplitDropIndicator: { indicator in
                 dragState.setDropIndicator(indicator)
             },
+            createWorkspaceFromExternalDirectory: { workingDirectory, topLevelSlot, rootWorkspaceIds in
+                let tabIds = tabManager.tabs.map(\.id)
+                // `rootWorkspaceIds` is the same ordered root list the insertion
+                // planner used for the painted indicator. Mapping through the
+                // full `tabs` array converts that slot into a storage index
+                // without inventing a second ordering source of truth.
+                let rawIndex = ExternalWorkspaceInsertionPlanner().rawTabInsertionIndex(
+                    forTopLevelSlot: topLevelSlot,
+                    topLevelIds: rootWorkspaceIds,
+                    tabIds: tabIds
+                )
+                guard let workspace = tabManager.addWorkspaceIfActive(
+                    workingDirectory: workingDirectory,
+                    inheritWorkingDirectory: false,
+                    select: true,
+                    insertionIndexOverride: rawIndex,
+                    autoWelcomeIfNeeded: false
+                ) else {
+                    return false
+                }
+                selectedTabIds = [workspace.id]
+                lastSidebarSelectionIndex = tabManager.tabs.firstIndex { $0.id == workspace.id }
+                selection = .tabs
+                return true
+            },
             nativeWorkspaceDragLifecycle: SidebarWorkspaceTableActions.NativeWorkspaceDragLifecycle(
                 currentSessionId: { dragState.currentWorkspaceDragSessionId },
                 finish: { sessionId, capabilityValue in

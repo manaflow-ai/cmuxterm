@@ -127,7 +127,9 @@ extension TabManager {
         return Self.clampedDetachedWorkspaceInsertIndex(insertionIndexOverride, tabs: snapshot.tabs)
     }
 
-    private static func clampedDetachedWorkspaceInsertIndex(
+    /// Clamps a proposed create-at-index slot so a new unpinned workspace cannot
+    /// land inside the leading pinned segment.
+    static func clampedDetachedWorkspaceInsertIndex(
         _ proposedInsertion: Int,
         tabs: [WorkspaceCreationTabSnapshot]
     ) -> Int {
