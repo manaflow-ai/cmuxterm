@@ -13,6 +13,7 @@ struct SidebarAppKitRowCellTests {
         title: String = "Workspace",
         customDescription: String? = nil,
         isPinned: Bool = false,
+        splitPaneCount: Int = 1,
         metadataEntries: [SidebarStatusEntry] = [],
         metadataBlocks: [SidebarMetadataBlock] = []
     ) -> SidebarWorkspaceSnapshotBuilder.Snapshot {
@@ -44,7 +45,7 @@ struct SidebarAppKitRowCellTests {
             branchLinesContainBranch: false,
             pullRequestRows: [],
             listeningPorts: [],
-            splitPaneCount: 1,
+            splitPaneCount: splitPaneCount,
             finderDirectoryPath: nil,
             mediaActivity: BrowserMediaActivity(),
             taskStatus: nil,
@@ -61,6 +62,7 @@ struct SidebarAppKitRowCellTests {
         workspaceId: UUID = UUID(),
         isActive: Bool = false,
         isPinned: Bool = false,
+        splitPaneCount: Int = 1,
         canClose: Bool = true,
         settings: SidebarTabItemSettingsSnapshot? = nil,
         customDescription: String? = nil,
@@ -77,6 +79,7 @@ struct SidebarAppKitRowCellTests {
             snapshot: makeSnapshot(
                 customDescription: customDescription,
                 isPinned: isPinned,
+                splitPaneCount: splitPaneCount,
                 metadataEntries: metadataEntries,
                 metadataBlocks: metadataBlocks
             ),
@@ -107,6 +110,36 @@ struct SidebarAppKitRowCellTests {
             isMetadataExpanded: false,
             isMarkdownExpanded: isMarkdownExpanded
         )
+    }
+
+    @Test
+    func splitPaneAffordanceAppearsOnlyForSplitWorkspaces() {
+        let cell = SidebarWorkspaceRowTableCellView()
+        let singlePane = makeModel()
+        cell.configure(
+            model: singlePane,
+            actions: makeActions(model: singlePane),
+            isPointerHovering: false,
+            contextMenuDidOpen: {},
+            contextMenuDidClose: {}
+        )
+        _ = cell.layoutContent(model: singlePane, width: 300, apply: true)
+        #expect(!allDescendants(of: cell).contains { $0.toolTip == "Split pane count: 1" })
+
+        let splitPane = makeModel(splitPaneCount: 2)
+        cell.configure(
+            model: splitPane,
+            actions: makeActions(model: splitPane),
+            isPointerHovering: false,
+            contextMenuDidOpen: {},
+            contextMenuDidClose: {}
+        )
+        _ = cell.layoutContent(model: splitPane, width: 300, apply: true)
+        #expect(allDescendants(of: cell).contains { $0.toolTip == "Split pane count: 2" })
+    }
+
+    private static func allDescendants(of view: NSView) -> [NSView] {
+        view.subviews + view.subviews.flatMap(allDescendants)
     }
 
     private static func makeSwiftUIRow(
