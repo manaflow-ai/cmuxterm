@@ -232,6 +232,92 @@ struct FeedEventClassificationTests {
         #expect(classify("cursor", "beforeShellExecution", tool: "Bash").actionable == false)
     }
 
+    @Test func copilotUsesDocumentedLifecycleHooksAndKeepsPreToolTelemetryOnly() {
+        #expect(Dictionary(uniqueKeysWithValues: CopilotHookContract.lifecycleEvents.map { ($0.agentEvent, $0.cmuxSubcommand) }) == [
+            "sessionStart": "session-start",
+            "userPromptSubmitted": "prompt-submit",
+            "agentStop": "stop",
+            "notification": "notification",
+            "errorOccurred": "error",
+            "sessionEnd": "session-end",
+        ])
+        #expect(CopilotHookContract.feedHookEvents == ["preToolUse"])
+        let preTool = classify("copilot", "preToolUse", tool: "shell")
+        #expect(preTool.name == "PreToolUse")
+        #expect(preTool.actionable == false)
+        #expect(preTool.notifiesNativeApprovalPrompt == false)
+    }
+
+    @Test func sourceIdentityPreservesNativeFieldsWithoutPromotingCompatibilityRequestIds() {
+        let identity = FeedSourceIdentity(payload: [
+            "eventId": "event-1",
+            "timestamp": 7,
+            "turn_id": "turn-3",
+            "tool_call_id": "tool-9",
+            "_opencode_request_id": "compatibility-only",
+        ])
+        #expect(identity.sourceEventId == "event-1")
+        #expect(identity.sourceRevision == "7")
+        #expect(identity.causalChainId == "turn-3")
+        #expect(identity.actionRequestId == "tool-9")
+
+        let compatibilityOnly = FeedSourceIdentity(payload: [
+            "_opencode_request_id": "compatibility-only"
+        ])
+        #expect(compatibilityOnly.sourceEventId == nil)
+        #expect(compatibilityOnly.sourceRevision == nil)
+        #expect(compatibilityOnly.causalChainId == nil)
+        #expect(compatibilityOnly.actionRequestId == nil)
+
+        let lifecycle = FeedSourceIdentity(payload: [
+            "traceparent": "00-8327fe24c2bef682bc9aca2509a55783-c9e6580dd8fe7ea7-01"
+        ])
+        #expect(lifecycle.causalChainId == "8327fe24c2bef682bc9aca2509a55783")
+        let invalidTrace = FeedSourceIdentity(payload: [
+            "traceparent": "00-00000000000000000000000000000000-c9e6580dd8fe7ea7-01"
+        ])
+        #expect(invalidTrace.causalChainId == nil)
+
+        let copilotPayload: [String: Any] = [
+            "sessionId": "copilot-session",
+            "timestamp": 9,
+            "errorContext": "model_call",
+        ]
+        let derived = FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "errorOccurred",
+            payload: copilotPayload
+        )
+        #expect(derived != nil)
+        #expect(derived == FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "errorOccurred",
+            payload: copilotPayload
+        ))
+        #expect(derived != FeedSourceIdentity.derivedSourceEventId(
+            source: "copilot",
+            sessionId: "copilot-session",
+            event: "agentStop",
+            payload: copilotPayload
+        ))
+        #expect(FeedSourceIdentity(
+            payload: copilotPayload,
+            fallbackSourceEventId: derived
+        ).sourceEventId == derived)
+        #expect(FeedSourceIdentity(
+            payload: copilotPayload.merging(["eventId": "native"]) { _, new in new },
+            fallbackSourceEventId: derived
+        ).sourceEventId == "native")
+        #expect(FeedSourceIdentity.derivedSourceEventId(
+            source: "claude",
+            sessionId: "claude-session",
+            event: "Stop",
+            payload: copilotPayload
+        ) == nil)
+    }
+
     // MARK: Kiro (camelCase events, no dedicated approval event)
 
     /// Kiro has no dedicated approval event, so its `preToolUse` escalates

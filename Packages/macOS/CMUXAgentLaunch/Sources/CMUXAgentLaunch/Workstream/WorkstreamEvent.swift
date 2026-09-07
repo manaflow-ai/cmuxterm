@@ -6,7 +6,8 @@ import Foundation
 /// Field names mirror Vibe Island's hook payload format exactly so existing
 /// agent payloads pass through untouched: `session_id`, `hook_event_name`,
 /// `workspace_id`, `cwd`, `tool_name`, `tool_input`, `_source`, `_ppid`,
-/// `_opencode_request_id`. `context` is cmux-specific and optional.
+/// `_opencode_request_id`, and source-native identity fields. `context` is
+/// cmux-specific and optional.
 public struct WorkstreamEvent: Codable, Sendable, Equatable {
     public let sessionId: String
     public let hookEventName: HookEventName
@@ -21,6 +22,12 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
     public let isError: Bool?
     public let context: WorkstreamContext?
     public let requestId: String?
+    public let sourceEventId: String?
+    public let sourceRevision: String?
+    public let causalChainId: String?
+    public let actionRequestId: String?
+    /// Records the event in Feed without changing chat ownership or lifecycle.
+    public let telemetryOnly: Bool
     public let ppid: Int?
     public let receivedAt: Date
     public let extraFieldsJSON: String?
@@ -38,6 +45,11 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
         isError: Bool? = nil,
         context: WorkstreamContext? = nil,
         requestId: String? = nil,
+        sourceEventId: String? = nil,
+        sourceRevision: String? = nil,
+        causalChainId: String? = nil,
+        actionRequestId: String? = nil,
+        telemetryOnly: Bool = false,
         ppid: Int? = nil,
         receivedAt: Date = Date(),
         extraFieldsJSON: String? = nil
@@ -54,6 +66,11 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
         self.isError = isError
         self.context = context
         self.requestId = requestId
+        self.sourceEventId = sourceEventId
+        self.sourceRevision = sourceRevision
+        self.causalChainId = causalChainId
+        self.actionRequestId = actionRequestId
+        self.telemetryOnly = telemetryOnly
         self.ppid = ppid
         self.receivedAt = receivedAt
         self.extraFieldsJSON = extraFieldsJSON
@@ -98,6 +115,11 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
         case isError = "is_error"
         case context
         case requestId = "_opencode_request_id"
+        case sourceEventId = "_source_event_id"
+        case sourceRevision = "_source_revision"
+        case causalChainId = "_causal_chain_id"
+        case actionRequestId = "_action_request_id"
+        case telemetryOnly = "_telemetry_only"
         case ppid = "_ppid"
         case receivedAt = "_received_at"
     }
@@ -115,6 +137,11 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
         self.isError = try c.decodeIfPresent(Bool.self, forKey: .isError)
         self.context = try c.decodeIfPresent(WorkstreamContext.self, forKey: .context)
         self.requestId = try c.decodeIfPresent(String.self, forKey: .requestId)
+        self.sourceEventId = try c.decodeIfPresent(String.self, forKey: .sourceEventId)
+        self.sourceRevision = try c.decodeIfPresent(String.self, forKey: .sourceRevision)
+        self.causalChainId = try c.decodeIfPresent(String.self, forKey: .causalChainId)
+        self.actionRequestId = try c.decodeIfPresent(String.self, forKey: .actionRequestId)
+        self.telemetryOnly = try c.decodeIfPresent(Bool.self, forKey: .telemetryOnly) ?? false
         self.ppid = try c.decodeIfPresent(Int.self, forKey: .ppid)
         self.receivedAt = try c.decodeIfPresent(Date.self, forKey: .receivedAt) ?? Date()
         let knownKeys = Set(CodingKeys.allCases.map(\.stringValue))
@@ -148,6 +175,13 @@ public struct WorkstreamEvent: Codable, Sendable, Equatable {
         try c.encodeIfPresent(isError, forKey: .isError)
         try c.encodeIfPresent(context, forKey: .context)
         try c.encodeIfPresent(requestId, forKey: .requestId)
+        try c.encodeIfPresent(sourceEventId, forKey: .sourceEventId)
+        try c.encodeIfPresent(sourceRevision, forKey: .sourceRevision)
+        try c.encodeIfPresent(causalChainId, forKey: .causalChainId)
+        try c.encodeIfPresent(actionRequestId, forKey: .actionRequestId)
+        if telemetryOnly {
+            try c.encode(true, forKey: .telemetryOnly)
+        }
         try c.encodeIfPresent(ppid, forKey: .ppid)
         try c.encode(receivedAt, forKey: .receivedAt)
         if let extraFieldsJSON,

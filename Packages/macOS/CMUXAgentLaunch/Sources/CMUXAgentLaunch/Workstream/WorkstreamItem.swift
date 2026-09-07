@@ -47,6 +47,10 @@ public struct WorkstreamItem: Identifiable, Codable, Sendable, Equatable {
     public var status: WorkstreamStatus
     public var payload: WorkstreamPayload
     public var context: WorkstreamContext?
+    public var sourceEventId: String?
+    public var sourceRevision: String?
+    public var causalChainId: String?
+    public var actionRequestId: String?
     /// PID of the agent process that emitted the event (hook's parent
     /// pid). When non-nil, pending items get expired automatically as
     /// soon as the agent process is gone — a crashed/killed `claude`
@@ -67,6 +71,10 @@ public struct WorkstreamItem: Identifiable, Codable, Sendable, Equatable {
         status: WorkstreamStatus? = nil,
         payload: WorkstreamPayload,
         context: WorkstreamContext? = nil,
+        sourceEventId: String? = nil,
+        sourceRevision: String? = nil,
+        causalChainId: String? = nil,
+        actionRequestId: String? = nil,
         ppid: Int? = nil
     ) {
         self.id = id
@@ -83,6 +91,10 @@ public struct WorkstreamItem: Identifiable, Codable, Sendable, Equatable {
         self.status = kind.isActionable ? resolvedStatus : .telemetry
         self.payload = payload
         self.context = context?.isEmpty == true ? nil : context
+        self.sourceEventId = sourceEventId
+        self.sourceRevision = sourceRevision
+        self.causalChainId = causalChainId
+        self.actionRequestId = actionRequestId
         self.ppid = ppid
     }
 }

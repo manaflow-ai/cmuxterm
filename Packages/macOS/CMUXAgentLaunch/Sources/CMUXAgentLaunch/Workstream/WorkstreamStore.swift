@@ -10,6 +10,32 @@ import Glibc
 public let WorkstreamDefaultRingCapacity = 2_000
 public let WorkstreamDefaultInitialLoadLimit = 300
 public let WorkstreamDefaultHistoryPageSize = 300
+let WorkstreamDefaultReplayCapacity = 4_096
+
+public struct WorkstreamIngestResult: Sendable, Equatable {
+    public let item: WorkstreamItem
+    public let inserted: Bool
+
+    public init(item: WorkstreamItem, inserted: Bool) {
+        self.item = item
+        self.inserted = inserted
+    }
+}
+
+private struct WorkstreamReplayState: Sendable {
+    let id: UUID
+    let createdAt: Date
+    let updatedAt: Date
+    let cwd: String?
+    let title: String?
+    let status: WorkstreamStatus
+    let requestId: String?
+    let sourceEventId: String?
+    let sourceRevision: String?
+    let causalChainId: String?
+    let actionRequestId: String?
+    let ppid: Int?
+}
 
 /// Main-actor `@Observable` store that holds the Feed state.
 ///
@@ -38,6 +64,7 @@ public final class WorkstreamStore {
     private let ringCapacity: Int
     private let initialLoadLimit: Int
     private let historyPageSize: Int
+    private let replayStateCapacity: Int
     private let clock: @Sendable () -> Date
     private let titleProvider: (WorkstreamEvent) -> String?
     /// App-owned migration hook for versioned workstream identities.
@@ -48,6 +75,11 @@ public final class WorkstreamStore {
     /// usually arrive without the surrounding user prompt, so the store
     /// carries forward prompt/preamble context from nearby telemetry rows.
     private var lastContextByWorkstream: [String: WorkstreamContext] = [:]
+    /// Compact replay truth survives ring eviction and is rebuilt from the
+    /// append-only log at startup without retaining every historical payload.
+    private var replayStateBySourceEventKey: [String: WorkstreamReplayState] = [:]
+    /// Preserves append order across ingest and immediate resolution updates.
+    private var persistenceTail: Task<Void, Never>?
 
     /// Creates a store for Feed workstream items.
     ///
@@ -80,6 +112,7 @@ public final class WorkstreamStore {
         self.ringCapacity = ringCapacity
         self.initialLoadLimit = initialLoadLimit
         self.historyPageSize = historyPageSize
+        self.replayStateCapacity = max(ringCapacity, WorkstreamDefaultReplayCapacity)
         self.clock = clock
         self.titleProvider = titleProvider
         self.workstreamIDNormalizer = workstreamIDNormalizer
@@ -87,8 +120,10 @@ public final class WorkstreamStore {
 
     public func start() async {
         if let persistence {
+            replayStateBySourceEventKey = await loadPersistedReplayState(from: persistence)
             if let page = try? await persistence.loadPage(limit: min(initialLoadLimit, ringCapacity)) {
-                items = page.items.map(normalizedWorkstreamItem)
+                items = deduplicatedPersistedItems(page.items.map(normalizedWorkstreamItem))
+                    .filter(isLatestPersistedSourceEventVersion)
                 hasMorePersistedItems = page.hasMoreBefore
                 oldestLoadedPersistenceOffset = page.startOffset
                 rebuildContextIndex()
@@ -126,8 +161,11 @@ public final class WorkstreamStore {
         }
 
         let existingIds = Set(items.map(\.id))
-        let olderItems = page.items.map(normalizedWorkstreamItem).filter {
+        let existingSourceKeys = Set(items.compactMap(sourceEventKey))
+        let olderItems = deduplicatedPersistedItems(page.items.map(normalizedWorkstreamItem)).filter {
             !existingIds.contains($0.id)
+                && sourceEventKey($0).map { !existingSourceKeys.contains($0) } != false
+                && isLatestPersistedSourceEventVersion($0)
         }
         if !olderItems.isEmpty {
             items.insert(contentsOf: olderItems, at: 0)
@@ -142,15 +180,37 @@ public final class WorkstreamStore {
     /// Applies an inbound wire frame. Creates or updates a
     /// `WorkstreamItem`, enforces the ring-buffer cap, and appends to
     /// the JSONL log.
-    public func ingest(_ event: WorkstreamEvent) {
-        let item = makeItem(from: event)
-        insert(item)
-        updateContextIndex(with: item)
-        if let persistence {
-            Task { [persistence, item] in
-                try? await persistence.append(item)
-            }
+    @discardableResult
+    public func ingest(_ event: WorkstreamEvent) -> WorkstreamIngestResult {
+        let normalizedWorkstreamID = workstreamIDNormalizer(event.sessionId, event.source)
+        let incomingSourceKey = sourceEventKey(
+            producerID: event.source,
+            workstreamId: normalizedWorkstreamID,
+            sourceEventId: event.sourceEventId
+        )
+        let existingIndex = incomingSourceKey.flatMap { key in
+            items.firstIndex { sourceEventKey($0) == key }
         }
+        let existing = existingIndex.map { items[$0] }
+        let replayState = incomingSourceKey.flatMap { replayStateBySourceEventKey[$0] }
+        let item = makeItem(
+            from: event,
+            normalizedWorkstreamID: normalizedWorkstreamID,
+            replacing: existing,
+            replaying: replayState
+        )
+        if let existingIndex {
+            items[existingIndex] = item
+        } else {
+            insert(item)
+        }
+        updateContextIndex(with: item)
+        rememberReplayState(for: item)
+        persist(item)
+        return WorkstreamIngestResult(
+            item: item,
+            inserted: existing == nil && replayState == nil
+        )
     }
 
     // MARK: - Actions
@@ -171,6 +231,8 @@ public final class WorkstreamStore {
         let now = clock()
         items[idx].status = .resolved(decision, at: now)
         items[idx].updatedAt = now
+        rememberReplayState(for: items[idx])
+        persist(items[idx])
     }
 
     /// Marks one still-pending item expired.
@@ -180,6 +242,8 @@ public final class WorkstreamStore {
         let now = clock()
         items[idx].status = .expired(at: now)
         items[idx].updatedAt = now
+        rememberReplayState(for: items[idx])
+        persist(items[idx])
     }
 
     /// Marks every still-pending item created before `threshold` as
@@ -191,6 +255,8 @@ public final class WorkstreamStore {
             if now.timeIntervalSince(items[idx].createdAt) > threshold {
                 items[idx].status = .expired(at: now)
                 items[idx].updatedAt = now
+                rememberReplayState(for: items[idx])
+                persist(items[idx])
             }
         }
     }
@@ -219,31 +285,198 @@ public final class WorkstreamStore {
         }
     }
 
-    private func makeItem(from event: WorkstreamEvent) -> WorkstreamItem {
+    private func makeItem(
+        from event: WorkstreamEvent,
+        normalizedWorkstreamID: String,
+        replacing existing: WorkstreamItem? = nil,
+        replaying replayState: WorkstreamReplayState? = nil
+    ) -> WorkstreamItem {
         let parsedSource = WorkstreamSource(wireName: event.source)
         let source = parsedSource ?? .claude
         let sourceID = parsedSource == nil ? event.source : nil
-        let workstreamID = workstreamIDNormalizer(event.sessionId, event.source)
-        let (kind, payload) = decode(event: event, source: source)
+        let (kind, decodedPayload) = decode(event: event, source: source)
+        let preservedRequestId = existing.flatMap { Self.actionableRequestId(in: $0.payload) }
+            ?? replayState?.requestId
+        let payload = payloadPreservingRequestIdentity(
+            decodedPayload,
+            requestId: preservedRequestId
+        )
         let status: WorkstreamStatus = kind.isActionable ? .pending : .telemetry
         return WorkstreamItem(
-            workstreamId: workstreamID,
+            id: existing?.id ?? replayState?.id ?? UUID(),
+            workstreamId: normalizedWorkstreamID,
             source: source,
-            sourceID: sourceID,
+            sourceID: sourceID ?? existing?.sourceID,
             kind: kind,
-            createdAt: event.receivedAt,
+            createdAt: existing?.createdAt ?? replayState?.createdAt ?? event.receivedAt,
             updatedAt: event.receivedAt,
-            cwd: event.cwd,
-            title: defaultTitle(for: event),
-            status: status,
+            cwd: event.cwd ?? existing?.cwd ?? replayState?.cwd,
+            title: defaultTitle(for: event) ?? existing?.title ?? replayState?.title,
+            status: existing?.status ?? replayState?.status ?? status,
             payload: payload,
             context: context(
                 for: event,
                 payload: payload,
-                workstreamID: workstreamID
+                workstreamID: normalizedWorkstreamID
             ),
-            ppid: event.ppid
+            sourceEventId: event.sourceEventId ?? existing?.sourceEventId ?? replayState?.sourceEventId,
+            sourceRevision: event.sourceRevision ?? existing?.sourceRevision ?? replayState?.sourceRevision,
+            causalChainId: event.causalChainId ?? existing?.causalChainId ?? replayState?.causalChainId,
+            actionRequestId: event.actionRequestId ?? existing?.actionRequestId ?? replayState?.actionRequestId,
+            ppid: event.ppid ?? existing?.ppid ?? replayState?.ppid
         )
+    }
+
+    private func payloadPreservingRequestIdentity(
+        _ updated: WorkstreamPayload,
+        requestId: String?
+    ) -> WorkstreamPayload {
+        guard let requestId else { return updated }
+        switch updated {
+        case let .permissionRequest(_, toolName, toolInputJSON, pattern):
+            return .permissionRequest(
+                requestId: requestId,
+                toolName: toolName,
+                toolInputJSON: toolInputJSON,
+                pattern: pattern
+            )
+        case let .question(_, questions):
+            return .question(requestId: requestId, questions: questions)
+        case let .exitPlan(_, plan, defaultMode):
+            return .exitPlan(requestId: requestId, plan: plan, defaultMode: defaultMode)
+        default:
+            return updated
+        }
+    }
+
+    private static func actionableRequestId(in payload: WorkstreamPayload) -> String? {
+        switch payload {
+        case .permissionRequest(let requestId, _, _, _),
+             .question(let requestId, _),
+             .exitPlan(let requestId, _, _):
+            return requestId
+        default:
+            return nil
+        }
+    }
+
+    private func sourceEventKey(_ item: WorkstreamItem) -> String? {
+        sourceEventKey(
+            producerID: item.sourceID ?? item.source.rawValue,
+            workstreamId: item.workstreamId,
+            sourceEventId: item.sourceEventId
+        )
+    }
+
+    private func sourceEventKey(
+        producerID: String,
+        workstreamId: String,
+        sourceEventId: String?
+    ) -> String? {
+        guard let sourceEventId = sourceEventId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !sourceEventId.isEmpty else {
+            return nil
+        }
+        return "\(producerID)\u{0}\(workstreamId)\u{0}\(sourceEventId)"
+    }
+
+    private func deduplicatedPersistedItems(_ source: [WorkstreamItem]) -> [WorkstreamItem] {
+        var selected: [(item: WorkstreamItem, index: Int)] = []
+        for (index, item) in source.enumerated() {
+            let sourceKey = sourceEventKey(item)
+            if let existingIndex = selected.firstIndex(where: {
+                $0.item.id == item.id
+                    || (sourceKey != nil && sourceEventKey($0.item) == sourceKey)
+            }) {
+                let current = selected[existingIndex]
+                if item.updatedAt > current.item.updatedAt
+                    || (item.updatedAt == current.item.updatedAt && index > current.index) {
+                    selected[existingIndex] = (item, current.index)
+                }
+            } else {
+                selected.append((item, index))
+            }
+        }
+        return selected.sorted { $0.index < $1.index }.map(\.item)
+    }
+
+    private func rememberReplayState(for item: WorkstreamItem) {
+        guard let key = sourceEventKey(item) else { return }
+        if replayStateBySourceEventKey[key] == nil,
+           replayStateBySourceEventKey.count >= replayStateCapacity,
+           let oldestKey = replayStateBySourceEventKey.min(by: { lhs, rhs in
+               if lhs.value.updatedAt != rhs.value.updatedAt {
+                   return lhs.value.updatedAt < rhs.value.updatedAt
+               }
+               return lhs.key < rhs.key
+           })?.key {
+            // ponytail: a bounded O(n) eviction avoids a second persistent index; replace with ordered storage only if profiling shows pressure.
+            replayStateBySourceEventKey.removeValue(forKey: oldestKey)
+        }
+        replayStateBySourceEventKey[key] = WorkstreamReplayState(
+            id: item.id,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            cwd: item.cwd,
+            title: item.title,
+            status: item.status,
+            requestId: Self.actionableRequestId(in: item.payload),
+            sourceEventId: item.sourceEventId,
+            sourceRevision: item.sourceRevision,
+            causalChainId: item.causalChainId,
+            actionRequestId: item.actionRequestId,
+            ppid: item.ppid
+        )
+    }
+
+    private func isLatestPersistedSourceEventVersion(_ item: WorkstreamItem) -> Bool {
+        guard let key = sourceEventKey(item),
+              let latest = replayStateBySourceEventKey[key] else {
+            return true
+        }
+        return latest.id == item.id
+            && latest.updatedAt == item.updatedAt
+            && latest.status == item.status
+    }
+
+    private func loadPersistedReplayState(
+        from persistence: WorkstreamPersistence
+    ) async -> [String: WorkstreamReplayState] {
+        var result: [String: WorkstreamReplayState] = [:]
+        guard let page = try? await persistence.loadPage(limit: replayStateCapacity) else {
+            return result
+        }
+        for item in page.items.reversed().map(normalizedWorkstreamItem) {
+            guard let key = sourceEventKey(item), result[key] == nil else { continue }
+            result[key] = WorkstreamReplayState(
+                id: item.id,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                cwd: item.cwd,
+                title: item.title,
+                status: item.status,
+                requestId: Self.actionableRequestId(in: item.payload),
+                sourceEventId: item.sourceEventId,
+                sourceRevision: item.sourceRevision,
+                causalChainId: item.causalChainId,
+                actionRequestId: item.actionRequestId,
+                ppid: item.ppid
+            )
+        }
+        return result
+    }
+
+    private func persist(_ item: WorkstreamItem) {
+        guard let persistence else { return }
+        let previous = persistenceTail
+        persistenceTail = Task {
+            _ = await previous?.value
+            try? await persistence.append(item)
+        }
+    }
+
+    func flushPersistence() async {
+        _ = await persistenceTail?.value
     }
 
     /// Marks every pending item with `ppid` as `.expired`. Meant to
@@ -256,6 +489,8 @@ public final class WorkstreamStore {
                   items[idx].ppid == ppid else { continue }
             items[idx].status = .expired(at: now)
             items[idx].updatedAt = now
+            rememberReplayState(for: items[idx])
+            persist(items[idx])
         }
     }
 
@@ -275,6 +510,8 @@ public final class WorkstreamStore {
             if !isProcessAlive(ppid) {
                 items[idx].status = .expired(at: now)
                 items[idx].updatedAt = now
+                rememberReplayState(for: items[idx])
+                persist(items[idx])
             }
         }
     }
@@ -368,7 +605,10 @@ public final class WorkstreamStore {
         case .todoWrite:
             return (.todos, .todos(Self.todos(from: event.toolInputJSON)))
         case .notification:
-            return (.toolResult, .toolResult(toolName: "notification", resultJSON: toolInput, isError: false))
+            return (
+                .toolResult,
+                .toolResult(toolName: "notification", resultJSON: toolInput, isError: event.isError ?? false)
+            )
         }
     }
 

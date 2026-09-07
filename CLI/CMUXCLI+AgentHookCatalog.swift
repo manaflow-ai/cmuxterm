@@ -185,16 +185,15 @@ extension CMUXCLI {
         ),
         AgentHookDef(
             name: "copilot", displayName: "Copilot", statusKey: "copilot",
-            configDir: ".copilot", configFile: "config.json", configDirEnvOverride: "COPILOT_HOME",
+            configDir: ".copilot/hooks", configFile: "cmux.json",
+            configDirEnvOverride: "COPILOT_HOME", configDirEnvOverrideSubpath: "hooks",
+            createConfigDirIfMissing: true,
             sessionStoreSuffix: "copilot", disableEnvVar: "CMUX_COPILOT_HOOKS_DISABLED",
-            hookMarker: "cmux hooks copilot", format: .nested(timeoutMs: 5000),
-            events: [
-                .init(agentEvent: "SessionStart", cmuxSubcommand: "session-start"),
-                .init(agentEvent: "Stop", cmuxSubcommand: "stop"),
-                .init(agentEvent: "Notification", cmuxSubcommand: "stop"),
-                .init(agentEvent: "SessionEnd", cmuxSubcommand: "session-end"),
-            ],
-            feedHookEvents: ["PreToolUse"]
+            hookMarker: "cmux hooks copilot", format: .flat,
+            events: CopilotHookContract.lifecycleEvents.map {
+                .init(agentEvent: $0.agentEvent, cmuxSubcommand: $0.cmuxSubcommand)
+            },
+            feedHookEvents: CopilotHookContract.feedHookEvents
         ),
         AgentHookDef(
             name: "codebuddy", displayName: "CodeBuddy", statusKey: "codebuddy",

@@ -36,28 +36,43 @@ extension TerminalController {
                     }
 
                     var itemIds: [UUID] = []
+                    var insertedEvents: [WorkstreamEvent] = []
                     itemIds.reserveCapacity(authoritativeEvents.count)
+                    insertedEvents.reserveCapacity(authoritativeEvents.count)
                     for event in authoritativeEvents {
-                        self.v2ApplyIMessageModeSideEffects(for: event)
-                        guard let itemId = FeedCoordinator.shared.ingestRevalidatedOnMainActor(event) else {
+                        guard let ingestion = FeedCoordinator.shared.ingestRevalidatedOnMainActor(event) else {
                             continue
                         }
-                        itemIds.append(itemId)
+                        itemIds.append(ingestion.item.id)
+                        if ingestion.inserted {
+                            self.v2ApplyIMessageModeSideEffects(for: event)
+                            if !event.telemetryOnly {
+                                NotificationCenter.default.post(
+                                    name: .workstreamEventReceived,
+                                    object: event
+                                )
+                            }
+                            insertedEvents.append(event)
+                        }
                     }
                     if itemIds.count != authoritativeEvents.count {
                         return .unavailable
                     }
-                    return .accepted(events: authoritativeEvents, itemIds: itemIds)
+                    return .accepted(
+                        events: authoritativeEvents,
+                        itemIds: itemIds,
+                        insertedEvents: insertedEvents
+                    )
                 }
                 if let committed,
-                   case .accepted(let authoritativeEvents, _) = committed {
-                    self.v2NoteCoalescedFeedTranscriptEvents(authoritativeEvents)
+                   case .accepted(_, _, let insertedEvents) = committed {
+                    self.v2NoteCoalescedFeedTranscriptEvents(insertedEvents)
                 }
                 return committed
             }
 
             if let ingestion,
-               case .accepted(let authoritativeEvents, let authoritativeItemIds) = ingestion {
+               case .accepted(let authoritativeEvents, let authoritativeItemIds, _) = ingestion {
                 for (event, itemId) in zip(authoritativeEvents, authoritativeItemIds) {
                     CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
                         CmuxEventBus.shared.publishWorkstreamEvent(event, phase: "received")
@@ -76,7 +91,7 @@ extension TerminalController {
         let authoritativeEvents: [WorkstreamEvent]
         let authoritativeItemIds: [UUID]
         switch ingestion {
-        case .accepted(let events, let itemIds):
+        case .accepted(let events, let itemIds, _):
             authoritativeEvents = events
             authoritativeItemIds = itemIds
         case .notFound:
@@ -242,7 +257,11 @@ extension TerminalController {
 }
 
 private enum FeedBatchIngestion: Sendable {
-    case accepted(events: [WorkstreamEvent], itemIds: [UUID])
+    case accepted(
+        events: [WorkstreamEvent],
+        itemIds: [UUID],
+        insertedEvents: [WorkstreamEvent]
+    )
     case notFound
     case unavailable
 }
