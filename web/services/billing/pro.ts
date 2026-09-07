@@ -35,6 +35,23 @@ export const TEAM_PLAN_ID = "team";
 // provide Pro access without subscription-management controls.
 export const FOUNDERS_PLAN_ID = "founders";
 export const FREE_PLAN_ID = "free";
+/** Stack project used by the local cmux development server. */
+export const DEVELOPMENT_STACK_PROJECT_ID = "454ecd03-1db2-4050-845e-4ce5b0cd9895";
+
+/**
+ * Local development accounts are Pro by default. This is intentionally tied
+ * to the local launcher, Next's development runtime, and the non-production
+ * Stack project so a misconfigured preview or production process cannot grant
+ * access.
+ */
+export function isDevelopmentProAccessEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.NODE_ENV === "development" &&
+    env.CMUX_LOCAL_DEV_PRO === "1" &&
+    !env.VERCEL_ENV &&
+    env.NEXT_PUBLIC_STACK_PROJECT_ID === DEVELOPMENT_STACK_PROJECT_ID;
+}
 /**
  * Plan ids an operator may write to `clientReadOnlyMetadata.cmuxVmPlan` to
  * grant Pro without a Stripe subscription. Mirrors `isPaidVmPlan` in
@@ -275,6 +292,8 @@ export async function resolveProPlanStatus(
     stripeBillingStatus?: StripeBillingStatus | StripeBillingStatusQuery;
     withFreshMetadataUser?: FreshProMetadataUserMutation;
     claimPendingBilling?: PendingBillingClaimResolver;
+    /** Runtime environment override used by deterministic callers and tests. */
+    environment?: Record<string, string | undefined>;
   } = {},
 ): Promise<ProPlanStatus> {
   // Keep ordinary plan reads read-mostly. Mutation-capable callers (for
@@ -300,6 +319,16 @@ export async function resolveProPlanStatus(
   const metadata = proMetadataRecord(user.clientReadOnlyMetadata);
   const metadataFounderEntitlement = hasFounderEditionEntitlement(metadata);
   const metadataPlanId = planIdFromMetadata(metadata);
+  if (!user.isAnonymous && isDevelopmentProAccessEnabled(options.environment)) {
+    return {
+      planId: PRO_PLAN_ID,
+      isPro: true,
+      billingManagement: "none",
+      metadataPlanId,
+      hasManualVmPlanOverride,
+      metadataChanged: false,
+    };
+  }
   const hasLegacyQueryOverrides = Boolean(
     options.hasActiveStripeSubscription || options.hasStripeCustomer,
   );
@@ -827,7 +856,6 @@ function hasCoderouterFounderEntitlement(
     : { cmuxPlan: userBillingPlanId };
   return hasEffectiveFounderEntitlement(metadata, hasActiveFounderSubscription);
 }
-
 export async function isTestflightEligible(
   user: ProReconcileUser,
   options: {

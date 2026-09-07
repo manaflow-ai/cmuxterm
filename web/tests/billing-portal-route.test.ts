@@ -139,7 +139,7 @@ describe("billing portal route", () => {
     );
     expect(createPortalSession).toHaveBeenCalledWith({
       customer: "cus_123",
-      return_url: "https://cmux.test/pricing",
+      return_url: "https://cmux.test/dashboard/billing",
     });
     expect(getUser).toHaveBeenCalledWith({ or: "return-null" });
   });
@@ -261,7 +261,7 @@ describe("billing portal route", () => {
     expect(getUser).toHaveBeenCalledWith({ or: "anonymous-if-exists[deprecated]" });
     expect(createPortalSession).toHaveBeenCalledWith({
       customer: "cus_anonymous",
-      return_url: "https://cmux.test/pricing",
+      return_url: "https://cmux.test/dashboard/billing",
     });
   });
 
@@ -293,7 +293,7 @@ describe("billing portal route", () => {
     expect(response.status).toBe(302);
     expect(createPortalSession).toHaveBeenCalledWith({
       customer: "cus_user",
-      return_url: "https://cmux.test/pricing",
+      return_url: "https://cmux.test/dashboard/billing",
     });
   });
 
