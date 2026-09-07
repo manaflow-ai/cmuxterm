@@ -121,6 +121,73 @@ extension DockSplitStore {
         return hasher.finalize()
     }
 
+    /// Hashes persisted Dock UI, agent, and resume-binding state.
+    func sessionAutosaveFingerprint(
+        notificationStore: TerminalNotificationStore?,
+        restorableAgentIndex: RestorableAgentSessionIndex,
+        surfaceResumeBindingIndex: SurfaceResumeBindingIndex
+    ) -> Int {
+        self.notificationStore = notificationStore
+        var hasher = Hasher()
+        let panelIds = Array(
+            orderedSessionPanelIds()
+                .prefix(SessionPersistencePolicy.maxPanelsPerWorkspace)
+        )
+        hasher.combine(panelIds.count)
+        for panelId in panelIds {
+            hasher.combine(panelId)
+            hasher.combine(notificationStore?.hasManualUnread(
+                forTabId: workspaceId,
+                surfaceId: panelId
+            ) ?? false)
+            hasher.combine(TabManager.restorableAgentSnapshotFingerprint(
+                restorableAgentIndex.snapshot(workspaceId: workspaceId, panelId: panelId)
+            ))
+            TabManager.hashSurfaceResumeBindingSnapshot(
+                surfaceResumeBindingIndex.binding(workspaceId: workspaceId, panelId: panelId),
+                into: &hasher
+            )
+        }
+
+        let durablePanelIds = Array(
+            Set(restoredAgentLifecycle.snapshotsByPanelId.keys)
+                .union(surfaceResumeBindingsByPanelId.keys)
+                .union(managedAgentResumeBindingsByPanelId.keys)
+                .union(detachedSurfaceTransfersByPanelId.keys)
+                .union(unresolvedResumeBindingPanelIds)
+                .sorted { $0.uuidString < $1.uuidString }
+                .prefix(SessionPersistencePolicy.maxPanelsPerWorkspace)
+        )
+        hasher.combine(durablePanelIds.count)
+        for panelId in durablePanelIds {
+            hasher.combine(panelId)
+            hasher.combine(TabManager.restorableAgentSnapshotFingerprint(
+                restoredAgentLifecycle.snapshotsByPanelId[panelId]
+            ))
+            switch restoredAgentLifecycle.resumeStatesByPanelId[panelId] {
+            case .manualResumeAvailable: hasher.combine(0)
+            case .awaitingAutoResumeCommand: hasher.combine(1)
+            case .autoResumeCommandRunning: hasher.combine(2)
+            case .observedAgentCommandRunning: hasher.combine(3)
+            case .completedAgentExit: hasher.combine(4)
+            case nil: hasher.combine(-1)
+            }
+            TabManager.hashSurfaceResumeBindingSnapshot(
+                surfaceResumeBindingsByPanelId[panelId],
+                into: &hasher
+            )
+            TabManager.hashSurfaceResumeBindingSnapshot(
+                managedAgentResumeBindingsByPanelId[panelId],
+                into: &hasher
+            )
+            let transfer = detachedSurfaceTransfersByPanelId[panelId]
+            hasher.combine(TabManager.restorableAgentSnapshotFingerprint(transfer?.restorableAgent))
+            TabManager.hashSurfaceResumeBindingSnapshot(transfer?.resumeBinding, into: &hasher)
+            hasher.combine(unresolvedResumeBindingPanelIds.contains(panelId))
+        }
+        return hasher.finalize()
+    }
+
     /// Captures one Dock panel for the Dock-local closed-item history without
     /// walking every other panel in the split tree.
     func closedPanelSessionSnapshot(
