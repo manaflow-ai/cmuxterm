@@ -215,14 +215,23 @@ struct TerminalCommandEquivalentRoutingTests {
 
     @Test
     func activeConfiguredShortcutChordLeavesTerminalEquivalentUnclaimed() throws {
+        let previousAppDelegate = AppDelegate.shared
+        let appDelegate = AppDelegate.shared ?? AppDelegate()
+        AppDelegate.shared = appDelegate
+
         let menuProbe = MenuActionProbe()
         let (window, terminal, previousMenu) = try makeWindowWithTerminal(
             menuProbe: menuProbe,
             menuItems: [
                 ("Copy", "c", [.command], #selector(MenuActionProbe.copyAction(_:))),
-            ]
+            ],
+            useMenuProbeTarget: false
         )
-        defer { tearDown(window: window, previousMenu: previousMenu) }
+        defer {
+            appDelegate.configuredShortcutChordKeyEquivalentState = nil
+            AppDelegate.shared = previousAppDelegate
+            tearDown(window: window, previousMenu: previousMenu)
+        }
 
         let event = try #require(makeKeyDownEvent(
             key: "c",
@@ -230,12 +239,12 @@ struct TerminalCommandEquivalentRoutingTests {
             windowNumber: window.windowNumber
         ))
 
-        #expect(!TerminalCommandEquivalentRouter().route(
+        appDelegate.configuredShortcutChordKeyEquivalentState = .init(
             event: event,
-            terminalView: terminal,
-            firstResponder: terminal,
-            hasActiveShortcutChord: true
-        ))
+            firstStroke: ShortcutStroke(key: "q", command: true)
+        )
+
+        #expect(window.performKeyEquivalent(with: event))
         #expect(terminal.menuMissEvents.isEmpty)
         #expect(menuProbe.actions.isEmpty)
     }
