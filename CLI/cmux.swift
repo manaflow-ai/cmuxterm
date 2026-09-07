@@ -10489,6 +10489,19 @@ struct CMUXCLI {
         try applyFocusOption(focusOpt, defaultValue: false, to: &params)
         let response = try client.sendV2(method: "workspace.create", params: params)
         let wsId = (response["workspace_ref"] as? String) ?? (response["workspace_id"] as? String) ?? ""
+        if commandOpt != nil,
+           let commandDelivery = response["command_delivery"] as? [String: Any],
+           (commandDelivery["accepted"] as? Bool) == false {
+            throw CLIError(message: String(
+                format: String(
+                    localized: "cli.workspace.create.error.commandDeliveryFailed",
+                    defaultValue: "%@: created %@, but command delivery was not accepted"
+                ),
+                locale: .current,
+                commandName,
+                wsId.isEmpty ? "workspace" : wsId
+            ))
+        }
         if jsonOutput && honorJSONOutput {
             print(jsonString(formatIDs(response, mode: idFormat)))
         } else {

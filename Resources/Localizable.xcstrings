@@ -67674,6 +67674,23 @@
         }
       }
     },
+    "cli.workspace.create.error.commandDeliveryFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: created %@, but command delivery was not accepted"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@ を作成しましたが、コマンドの配信が受け付けられませんでした"
+          }
+        }
+      }
+    },
     "cli.workspace.create.error.unknownFlag": {
       "extractionState": "manual",
       "localizations": {

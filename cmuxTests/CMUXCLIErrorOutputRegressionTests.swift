@@ -3672,6 +3672,53 @@ import Testing
         XCTAssertFalse(openArguments.contains(workingDirectory.standardizedFileURL.path), openArguments.joined(separator: " "))
     }
 
+    @Test func testWorkspaceCreateCommandDeliveryFailureIsReported() throws {
+        let cliPath = try bundledCLIPath()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-cli-command-delivery-failure-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let socketPath = root.appendingPathComponent("cmux.sock").path
+        let response = #"{"ok":true,"result":{"workspace_ref":"workspace:failed","workspace_id":"failed","command_delivery":{"accepted":false}}}"#
+        let responder = try UnixSocketResponder(path: socketPath, response: response)
+        defer { responder.stop() }
+
+        var environment = ProcessInfo.processInfo.environment
+        for key in Array(environment.keys) where key.hasPrefix("CMUX_") {
+            environment.removeValue(forKey: key)
+        }
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: [
+                "--socket", socketPath,
+                "workspace", "create",
+                "--command", "echo hello",
+            ],
+            environment: environment,
+            currentDirectoryURL: root
+        )
+
+        XCTAssertFalse(result.timedOut, result.diagnostics)
+        XCTAssertEqual(result.status, 1, result.diagnostics)
+        XCTAssertTrue(
+            result.stderr.contains("command delivery was not accepted"),
+            result.diagnostics
+        )
+        XCTAssertFalse(result.stdout.contains("OK workspace:failed"), result.diagnostics)
+
+        let request = try #require(responder.receivedRequests.first)
+        let requestData = try #require(request.data(using: .utf8))
+        let requestObject = try #require(
+            JSONSerialization.jsonObject(with: requestData, options: []) as? [String: Any]
+        )
+        XCTAssertEqual(requestObject["method"] as? String, "workspace.create")
+        let params = try #require(requestObject["params"] as? [String: Any])
+        XCTAssertEqual(params["command"] as? String, "echo hello")
+    }
+
     func bundledCLIPath() throws -> String {
         try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
     }
