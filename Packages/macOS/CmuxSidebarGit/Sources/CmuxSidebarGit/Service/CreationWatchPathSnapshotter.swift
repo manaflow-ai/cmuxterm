@@ -3,7 +3,9 @@ internal import CmuxGit
 
 /// Collects bounded creation-watch filesystem state off the main actor.
 struct CreationWatchPathSnapshotter: Sendable {
-    private let fileManager: FileManager
+    // Justification: FileManager documents its methods as thread-safe, and
+    // this injected reference is immutable for the lifetime of the snapshotter.
+    private nonisolated(unsafe) let fileManager: FileManager
 
     /// Creates a snapshotter backed by an injectable filesystem provider.
     init(fileManager: FileManager) {

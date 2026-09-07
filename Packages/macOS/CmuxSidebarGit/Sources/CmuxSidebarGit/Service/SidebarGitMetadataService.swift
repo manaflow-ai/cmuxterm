@@ -48,7 +48,9 @@ public final class SidebarGitMetadataService: SidebarGitMetadataServing {
     // Drives the initial-probe retry gaps.
     let clock: any GitPollClock
     // Reads creation-watch targets off-main; injected for deterministic tests.
-    nonisolated let creationWatchFileManager: FileManager
+    // Justification: FileManager documents its methods as thread-safe, and
+    // this injected reference is immutable for the service lifetime.
+    nonisolated(unsafe) let creationWatchFileManager: FileManager
     // Home boundary for safe external creation watches; injected with the
     // process home by the composition root.
     nonisolated let creationWatchHomeDirectory: String
