@@ -210,13 +210,14 @@ extension GitMetadataService {
                 repository: repository
             ),
             metadataSentinelPaths: normalizedMetadataSentinelPaths,
-            creationWatchPaths: creationWatchPaths,
-            creationWatchAllowedRoots: creationWatchAllowedRoots,
             trackedEntryPaths: trackedEntryPaths,
+            forcedWorkTreeRoots: [],
             acceptsAllWorkTreeEvents: acceptsAllWorkTreeEvents,
             eventCoalescingInterval: eventCoalescingInterval,
             eventFilterIdentity: filterIdentity,
             degradation: degradation,
+            creationWatchPaths: creationWatchPaths,
+            creationWatchAllowedRoots: creationWatchAllowedRoots,
             creationWatchPathsAreComplete:
                 gitMetadataPathsAreComplete && creationWatchPlan.isComplete
         )
