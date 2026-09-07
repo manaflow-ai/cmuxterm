@@ -51,6 +51,14 @@ mock.module("next-intl/server", () => ({
   setRequestLocale: () => undefined,
 }));
 
+mock.module("next/headers", () => ({
+  headers: async () => new Headers(),
+}));
+
+mock.module("next/cache", () => ({
+  cacheLife: () => undefined,
+}));
+
 mock.module("@/i18n/navigation", () => ({
   Link: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...props}>
@@ -68,6 +76,15 @@ mock.module("../app/lib/stack", () => ({
   isStackConfigured: () => stackConfigured,
   stackServerApp: stackConfigured ? { getUser } : null,
 }));
+
+mock.module(
+  "../app/[locale]/dashboard/components/dashboard-page-headers",
+  () => ({
+    TestflightPageHeader: () => (
+      <h1 data-testid="testflight-page-header">iOS TestFlight</h1>
+    ),
+  }),
+);
 
 mock.module("../services/asc/client", () => ({
   AscApiError: class AscApiError extends Error {},
@@ -88,7 +105,9 @@ mock.module("@/services/billing/pro", () => ({
 }));
 
 const { PRO_TESTFLIGHT_GROUP_ID } = await import("../services/asc/testflight");
-const { default: DashboardTestflightPage } = await import("../app/[locale]/dashboard/testflight/page");
+const { DashboardTestflightContent } = await import(
+  "../app/[locale]/dashboard/testflight/page",
+);
 
 describe("dashboard TestFlight page", () => {
   beforeEach(() => {
@@ -154,9 +173,9 @@ describe("dashboard TestFlight page", () => {
 });
 
 async function renderTestflightPage(searchParams: Record<string, string> = {}) {
-  const element = await DashboardTestflightPage({
-    params: Promise.resolve({ locale: "en" }),
-    searchParams: Promise.resolve(searchParams),
+  const element = await DashboardTestflightContent({
+    locale: "en",
+    testflight: searchParams.testflight,
   });
   return renderToStaticMarkup(element);
 }

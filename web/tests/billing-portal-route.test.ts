@@ -196,7 +196,7 @@ describe("billing portal route", () => {
     );
     expect(createPortalSession).toHaveBeenCalledWith({
       customer: "cus_123",
-      return_url: "https://cmux.test/pricing",
+      return_url: "https://cmux.test/dashboard/billing",
     });
   });
 
