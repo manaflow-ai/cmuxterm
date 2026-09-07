@@ -982,6 +982,8 @@
 		E7E100000000000000000025 /* CmuxPluginProcessContainment.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000026 /* CmuxPluginProcessContainment.swift */; };
 		E7E100000000000000000021 /* CmuxPluginProcessIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000022 /* CmuxPluginProcessIdentity.swift */; };
 		E7E100000000000000000023 /* CmuxPluginProcessLauncherMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000024 /* CmuxPluginProcessLauncherMode.swift */; };
+		E7E100000000000000000027 /* CmuxPluginProcessSupervisor+Launch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000028 /* CmuxPluginProcessSupervisor+Launch.swift */; };
+		E7E100000000000000000029 /* CmuxPluginProcessSupervisor+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E10000000000000000002A /* CmuxPluginProcessSupervisor+Lifecycle.swift */; };
 		E7E100000000000000000001 /* CmuxPluginProcessSupervisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000002 /* CmuxPluginProcessSupervisor.swift */; };
 		E7E100000000000000000007 /* CmuxPluginRuntime+ProcessIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000008 /* CmuxPluginRuntime+ProcessIdentity.swift */; };
 		E7E10000000000000000000F /* CmuxPluginRuntime+Registry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E100000000000000000010 /* CmuxPluginRuntime+Registry.swift */; };
@@ -4300,6 +4302,8 @@
 		E7E100000000000000000026 /* CmuxPluginProcessContainment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxPluginProcessContainment.swift; sourceTree = "<group>"; };
 		E7E100000000000000000022 /* CmuxPluginProcessIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxPluginProcessIdentity.swift; sourceTree = "<group>"; };
 		E7E100000000000000000024 /* CmuxPluginProcessLauncherMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxPluginProcessLauncherMode.swift; sourceTree = "<group>"; };
+		E7E100000000000000000028 /* CmuxPluginProcessSupervisor+Launch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CmuxPluginProcessSupervisor+Launch.swift"; sourceTree = "<group>"; };
+		E7E10000000000000000002A /* CmuxPluginProcessSupervisor+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CmuxPluginProcessSupervisor+Lifecycle.swift"; sourceTree = "<group>"; };
 		E7E100000000000000000002 /* CmuxPluginProcessSupervisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxPluginProcessSupervisor.swift; sourceTree = "<group>"; };
 		E7E100000000000000000008 /* CmuxPluginRuntime+ProcessIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CmuxPluginRuntime+ProcessIdentity.swift"; sourceTree = "<group>"; };
 		E7E100000000000000000010 /* CmuxPluginRuntime+Registry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CmuxPluginRuntime+Registry.swift"; sourceTree = "<group>"; };
@@ -7916,6 +7920,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				E7E10000000000000000001A /* CmuxPluginRuntime+SocketAuthorization.swift */,
 				E7E10000000000000000001C /* CmuxPluginRuntimeEnvironment.swift */,
 				E7E100000000000000000002 /* CmuxPluginProcessSupervisor.swift */,
+				E7E100000000000000000028 /* CmuxPluginProcessSupervisor+Launch.swift */,
+				E7E10000000000000000002A /* CmuxPluginProcessSupervisor+Lifecycle.swift */,
 				E7E10000000000000000000C /* CmuxPluginShortcutBinding.swift */,
 				E7E100000000000000000006 /* CmuxPluginShortcutSettings.swift */,
 				E7E10000000000000000000E /* KeyboardShortcutSettings+PluginShortcuts.swift */,
@@ -11088,6 +11094,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				E7E100000000000000000025 /* CmuxPluginProcessContainment.swift in Sources */,
 				E7E100000000000000000021 /* CmuxPluginProcessIdentity.swift in Sources */,
 				E7E100000000000000000023 /* CmuxPluginProcessLauncherMode.swift in Sources */,
+				E7E100000000000000000027 /* CmuxPluginProcessSupervisor+Launch.swift in Sources */,
+				E7E100000000000000000029 /* CmuxPluginProcessSupervisor+Lifecycle.swift in Sources */,
 				E7E100000000000000000001 /* CmuxPluginProcessSupervisor.swift in Sources */,
 				E7E100000000000000000007 /* CmuxPluginRuntime+ProcessIdentity.swift in Sources */,
 				E7E10000000000000000000F /* CmuxPluginRuntime+Registry.swift in Sources */,

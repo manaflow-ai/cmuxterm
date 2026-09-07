@@ -496,10 +496,4 @@ final class CmuxPluginRuntime: @unchecked Sendable {
         subscriptions.forEach { $0.close() }
     }
 
-    private static func isoTimestamp(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
-    }
-
 }
