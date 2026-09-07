@@ -3125,6 +3125,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 
     private static let remoteErrorStatusKey = "remote.error"
     private static let remotePortConflictStatusKey = "remote.port_conflicts"
+    static let resumeBindingGapStatusKey = "resume_binding.gap"
     private static let remoteNotificationCooldown: TimeInterval = 5 * 60
     private static let remoteHeartbeatDateFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
