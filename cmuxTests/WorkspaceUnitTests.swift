@@ -1084,7 +1084,7 @@ final class KeyboardShortcutSettingsFileStoreTests: XCTestCase {
         let defaults = UserDefaults.standard
         let previousEngine = defaults.object(forKey: BrowserEngineSettings.engineKey)
         let previousDisabled = defaults.object(forKey: BrowserAvailabilitySettings.disabledKey)
-        let previousSearchEngine = defaults.object(forKey: BrowserSearchSettings.searchEngineKey)
+        let previousSearchEngine = defaults.object(forKey: BrowserSearchSettingsStore.searchEngineKey)
         let previousBackups = defaults.data(forKey: settingsFileBackupsDefaultsKey)
         defer {
             if let previousEngine {
@@ -1098,9 +1098,9 @@ final class KeyboardShortcutSettingsFileStoreTests: XCTestCase {
                 defaults.removeObject(forKey: BrowserAvailabilitySettings.disabledKey)
             }
             if let previousSearchEngine {
-                defaults.set(previousSearchEngine, forKey: BrowserSearchSettings.searchEngineKey)
+                defaults.set(previousSearchEngine, forKey: BrowserSearchSettingsStore.searchEngineKey)
             } else {
-                defaults.removeObject(forKey: BrowserSearchSettings.searchEngineKey)
+                defaults.removeObject(forKey: BrowserSearchSettingsStore.searchEngineKey)
             }
             if let previousBackups {
                 defaults.set(previousBackups, forKey: settingsFileBackupsDefaultsKey)
@@ -1114,7 +1114,7 @@ final class KeyboardShortcutSettingsFileStoreTests: XCTestCase {
         for invalidEngineJSON in ["\"chromium\"", "42"] {
             defaults.removeObject(forKey: BrowserEngineSettings.engineKey)
             defaults.removeObject(forKey: BrowserAvailabilitySettings.disabledKey)
-            defaults.removeObject(forKey: BrowserSearchSettings.searchEngineKey)
+            defaults.removeObject(forKey: BrowserSearchSettingsStore.searchEngineKey)
             defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
 
             let settingsFileURL = directoryURL.appendingPathComponent(
@@ -1142,7 +1142,7 @@ final class KeyboardShortcutSettingsFileStoreTests: XCTestCase {
             XCTAssertNil(defaults.string(forKey: BrowserEngineSettings.engineKey))
             XCTAssertNil(defaults.object(forKey: BrowserAvailabilitySettings.disabledKey))
             XCTAssertEqual(
-                defaults.string(forKey: BrowserSearchSettings.searchEngineKey),
+                defaults.string(forKey: BrowserSearchSettingsStore.searchEngineKey),
                 CmuxSettings.BrowserSearchEngine.duckduckgo.rawValue
             )
         }
