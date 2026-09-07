@@ -4549,7 +4549,7 @@
 		A9523F000000000000000004 /* CursorNativeApprovalFileObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeApprovalFileObserver.swift; sourceTree = "<group>"; };
 		A9523F000000000000000005 /* CursorNativeApprovalFileReadResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeApprovalFileReadResult.swift; sourceTree = "<group>"; };
 		A9523F000000000000000006 /* CursorNativeApprovalObservationOutcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeApprovalObservationOutcome.swift; sourceTree = "<group>"; };
-		A9523F0000000000000000B2 /* CursorNativeApprovalObserverLease+Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeApprovalObserverLease+Storage.swift; sourceTree = "<group>"; };
+		A9523F0000000000000000B2 /* CursorNativeApprovalObserverLease+Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CursorNativeApprovalObserverLease+Storage.swift"; sourceTree = "<group>"; };
 		A9523F0000000000000000A8 /* CursorNativeApprovalObserverLease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeApprovalObserverLease.swift; sourceTree = "<group>"; };
 		A9523F000000000000000007 /* CursorNativeAttentionIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorNativeAttentionIdentifiers.swift; sourceTree = "<group>"; };
 		C57B00080000000000000002 /* CustomSidebarPaneDataContextCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/CustomSidebarPaneDataContextCache.swift; sourceTree = "<group>"; };
