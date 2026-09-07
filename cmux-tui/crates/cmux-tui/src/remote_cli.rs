@@ -1959,11 +1959,8 @@ fn print_admin_response(action: &str, response: AdminResponse, json: bool) -> an
 /// app may reach private-network machines through a shared in-process tunnel.
 /// `exit-with-parent`: app-owned helper processes can terminate with their
 /// parent, so a crashed or replaced app cannot leave a stale hub behind.
-pub const PROBE_CAPABILITIES: &[&str] = &[
-    "direct-ws-user-agent",
-    "wireguard-hub",
-    "exit-with-parent",
-];
+pub const PROBE_CAPABILITIES: &[&str] =
+    &["direct-ws-user-agent", "wireguard-hub", "exit-with-parent"];
 
 fn run_probe(args: &[String]) -> anyhow::Result<()> {
     let value = serde_json::json!({
