@@ -2,15 +2,23 @@ import Foundation
 
 @MainActor
 final class SessionOutlineChangeBus {
-    private var continuations: [UUID: AsyncStream<String>.Continuation] = [:]
+    private struct Observer {
+        let surfaceID: String
+        let continuation: AsyncStream<Void>.Continuation
+    }
 
-    func stream() -> AsyncStream<String> {
+    private var observers: [UUID: Observer] = [:]
+
+    func stream(surfaceID: String) -> AsyncStream<Void> {
         let observerID = UUID()
-        return AsyncStream { [weak self] continuation in
-            self?.continuations[observerID] = continuation
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { [weak self] continuation in
+            self?.observers[observerID] = Observer(
+                surfaceID: surfaceID,
+                continuation: continuation
+            )
             continuation.onTermination = { [weak self] _ in
                 Task { @MainActor in
-                    self?.continuations.removeValue(forKey: observerID)
+                    self?.observers.removeValue(forKey: observerID)
                 }
             }
         }
@@ -18,8 +26,8 @@ final class SessionOutlineChangeBus {
 
     func yield(surfaceID: String?) {
         guard let surfaceID, !surfaceID.isEmpty else { return }
-        for continuation in continuations.values {
-            continuation.yield(surfaceID)
+        for observer in observers.values where observer.surfaceID == surfaceID {
+            observer.continuation.yield()
         }
     }
 }

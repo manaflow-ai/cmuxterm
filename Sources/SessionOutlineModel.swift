@@ -19,12 +19,12 @@ final class SessionOutlineModel {
     ) async {
         self.panel = panel
         self.transcriptService = transcriptService
-        let changes = transcriptService?.sessionOutlineChanges()
+        let changes = transcriptService?.sessionOutlineChanges(for: panel.id)
         await refresh()
 
         guard let changes else { return }
-        for await surfaceID in changes {
-            guard !Task.isCancelled, surfaceID == panel.id.uuidString else { continue }
+        for await _ in changes {
+            guard !Task.isCancelled else { break }
             await refresh()
         }
     }
@@ -37,16 +37,20 @@ final class SessionOutlineModel {
     }
 
     @discardableResult
-    func jump(to entry: ChatOutlineEntry) -> Bool {
+    func jump(to entry: ChatOutlineEntry) async -> Bool {
         guard let panel,
               let history = panel.surface.readText(region: .history) else {
             return false
         }
-        guard let row = ChatOutlineAnchorResolver().row(
-            for: entry,
-            among: entries,
-            in: history
-        ) else {
+        let entries = entries
+        let row = await Task.detached(priority: .userInitiated) {
+            ChatOutlineAnchorResolver().row(
+                for: entry,
+                among: entries,
+                in: history
+            )
+        }.value
+        guard let row else {
             return false
         }
         let surfaceView = panel.hostedView.surfaceView

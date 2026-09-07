@@ -17,6 +17,7 @@ public struct ChatOutlineBuilder: Sendable {
 
         for message in messages.sorted(by: { $0.seq < $1.seq }) {
             if message.role == .user {
+                lastEntryIndex = nil
                 guard let title = title(for: message), !title.isEmpty else {
                     continue
                 }

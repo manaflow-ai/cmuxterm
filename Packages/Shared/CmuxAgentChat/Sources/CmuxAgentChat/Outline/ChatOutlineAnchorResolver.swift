@@ -19,12 +19,12 @@ public struct ChatOutlineAnchorResolver: Sendable {
         among entries: [ChatOutlineEntry],
         in history: String
     ) -> Int? {
-        let occurrence = entries
-            .prefix { $0.id != entry.id }
-            .filter { $0.title == entry.title }
-            .count
         let target = normalized(entry.title)
         guard !target.isEmpty else { return nil }
+        let occurrence = entries
+            .prefix { $0.id != entry.id }
+            .filter { normalized($0.title) == target }
+            .count
 
         var matchingOccurrence = 0
         for (row, rawLine) in history.components(separatedBy: .newlines).enumerated() {
@@ -36,21 +36,53 @@ public struct ChatOutlineAnchorResolver: Sendable {
     }
 
     private func normalized(_ text: String) -> String {
+        enum EscapeState {
+            case none
+            case afterEscape
+            case csi
+            case osc
+            case oscEscape
+        }
+
         var result = ""
-        var isInEscapeSequence = false
+        var escapeState = EscapeState.none
         var needsSpace = false
 
         for scalar in text.unicodeScalars {
-            if isInEscapeSequence {
-                if (0x40...0x7E).contains(scalar.value) {
-                    isInEscapeSequence = false
+            switch escapeState {
+            case .afterEscape:
+                if scalar == "[" {
+                    escapeState = .csi
+                } else if scalar == "]" {
+                    escapeState = .osc
+                } else {
+                    escapeState = .none
                 }
                 continue
-            }
-            if scalar.value == 0x1B {
-                isInEscapeSequence = true
+            case .csi:
+                if (0x40...0x7E).contains(scalar.value) {
+                    escapeState = .none
+                } else if scalar.value == 0x1B {
+                    escapeState = .afterEscape
+                }
                 continue
+            case .osc:
+                if scalar.value == 0x07 {
+                    escapeState = .none
+                } else if scalar.value == 0x1B {
+                    escapeState = .oscEscape
+                }
+                continue
+            case .oscEscape:
+                escapeState = scalar == "\\" ? .none : .osc
+                continue
+            case .none:
+                if scalar.value == 0x1B {
+                    escapeState = .afterEscape
+                    continue
+                }
             }
+
             if CharacterSet.whitespacesAndNewlines.contains(scalar) {
                 needsSpace = !result.isEmpty
                 continue

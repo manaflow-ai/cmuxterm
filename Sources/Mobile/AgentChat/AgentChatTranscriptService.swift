@@ -113,6 +113,7 @@ final class AgentChatTranscriptService {
     let registry: AgentChatSessionRegistry
     let resolver: AgentChatTranscriptResolver
     let sessionOutlineChangeBus = SessionOutlineChangeBus()
+    private var sessionOutlineCache = SessionOutlineCache()
     private var tailers: [String: AgentChatTranscriptTailer] = [:]
     private let hasEventSubscribers: @MainActor () -> Bool
     private let emitEventPayload: @MainActor ([String: Any]) -> Void
@@ -557,6 +558,7 @@ final class AgentChatTranscriptService {
     }
 
     private func publishBatch(_ batch: AgentChatTranscriptTailer.Batch, sessionID: String) {
+        sessionOutlineCache.invalidate(sessionID: sessionID)
         sessionOutlineChangeBus.yield(
             surfaceID: registry.record(sessionID: sessionID)?.surfaceID
         )
@@ -678,6 +680,7 @@ final class AgentChatTranscriptService {
     }
 
     private func handleRecordRemoval(_ record: AgentChatSessionRecord) {
+        sessionOutlineCache.remove(sessionID: record.sessionID)
         fallbackResolutionCoordinator.cancel(sessionID: record.sessionID)
         endProseTurn(sessionID: record.sessionID)
         latestTranscriptSeqBySessionID[record.sessionID] = nil

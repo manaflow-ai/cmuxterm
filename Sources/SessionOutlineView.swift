@@ -14,7 +14,9 @@ struct SessionOutlineTerminalOverlay: View {
                         SessionOutlinePanelView(
                             entries: model.entries,
                             onSelect: { entry in
-                                _ = model.jump(to: entry)
+                                Task {
+                                    _ = await model.jump(to: entry)
+                                }
                             },
                             onDismiss: {
                                 model.isPresented = false

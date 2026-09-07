@@ -29,5 +29,18 @@ struct ChatOutlineAnchorResolverTests {
         )
 
         #expect(row == 3)
+
+        let escapePrefixEntry = ChatOutlineEntry(
+            id: "escape-prefix",
+            seq: 3,
+            timestamp: Date(timeIntervalSince1970: 3),
+            title: "mReview the login flow",
+            hasAlert: false
+        )
+        #expect(ChatOutlineAnchorResolver().row(
+            for: escapePrefixEntry,
+            among: [escapePrefixEntry],
+            in: "\u{1B}[31mReview the login flow\u{1B}[0m\n"
+        ) == nil)
     }
 }
