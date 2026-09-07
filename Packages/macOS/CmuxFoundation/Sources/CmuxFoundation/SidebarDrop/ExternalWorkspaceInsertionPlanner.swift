@@ -154,6 +154,33 @@ public struct ExternalWorkspaceInsertionPlanner: Sendable {
         return tabIds.count
     }
 
+    /// Filters raw sidebar row descriptors to ungrouped roots before pinned lookup.
+    ///
+    /// Group headers reuse an anchor ``workspaceId`` that can also appear on a
+    /// grouped member. Building `Dictionary(uniqueKeysWithValues:)` from raw
+    /// rows can therefore trap; callers must filter first.
+    public static func eligibleUngroupedRoots(
+        from rows: [(workspaceId: UUID, isPinned: Bool, isGroupHeader: Bool, groupId: UUID?)]
+    ) -> [(workspaceId: UUID, isPinned: Bool)] {
+        rows.compactMap { row in
+            guard !row.isGroupHeader, row.groupId == nil else { return nil }
+            return (row.workspaceId, row.isPinned)
+        }
+    }
+
+    /// Pinned flags for eligible ungrouped roots. Uses assignment (last write
+    /// wins) rather than `uniqueKeysWithValues`, so duplicate ids cannot trap.
+    public static func pinnedFlagsByWorkspaceId(
+        fromEligibleUngroupedRoots roots: [(workspaceId: UUID, isPinned: Bool)]
+    ) -> [UUID: Bool] {
+        var result: [UUID: Bool] = [:]
+        result.reserveCapacity(roots.count)
+        for root in roots {
+            result[root.workspaceId] = root.isPinned
+        }
+        return result
+    }
+
     private func remappedIndicator(
         visibleIndicator: SidebarDropIndicator,
         completeSlot: Int,

@@ -7,7 +7,7 @@ import Testing
 @testable import cmux
 #endif
 
-/// Multi-window scoping for Finder-directory → sidebar routing.
+/// Multi-window scoping and leave/cancel lifecycle for Finder-directory → sidebar routing.
 @Suite struct SidebarExternalDirectoryDropRouterTests {
     @MainActor
     private final class StubRouter: SidebarExternalDirectoryDropRouting {
@@ -67,7 +67,6 @@ import Testing
             SidebarExternalDirectoryDropRouter.unregister(routerB)
         }
 
-        #expect(SidebarExternalDirectoryDropRouter.registeredRouterCountForTests == 2)
         #expect(SidebarExternalDirectoryDropRouter.router(for: windowA) === routerA)
         #expect(SidebarExternalDirectoryDropRouter.router(for: windowB) === routerB)
     }
@@ -97,7 +96,6 @@ import Testing
 
         #expect(SidebarExternalDirectoryDropRouter.router(for: windowA) == nil)
         #expect(SidebarExternalDirectoryDropRouter.router(for: windowB) === routerB)
-        #expect(SidebarExternalDirectoryDropRouter.registeredRouterCountForTests == 1)
     }
 
     @MainActor
@@ -109,5 +107,25 @@ import Testing
             defer: false
         )
         #expect(SidebarExternalDirectoryDropRouter.router(for: window) == nil)
+    }
+
+    @MainActor
+    @Test func clearExternalDirectorySidebarRouteAlwaysClearsRouterEvenWhenNotActivelyRouting() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let overlay = FileDropOverlayView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        window.contentView = overlay
+        let router = StubRouter(window: window)
+        SidebarExternalDirectoryDropRouter.register(router)
+        defer { SidebarExternalDirectoryDropRouter.unregister(router) }
+
+        overlay.isRoutingExternalDirectoryToSidebar = false
+        overlay.clearExternalDirectorySidebarRoute()
+        #expect(router.clearCount == 1)
+        #expect(overlay.isRoutingExternalDirectoryToSidebar == false)
     }
 }

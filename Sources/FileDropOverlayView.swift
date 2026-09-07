@@ -349,7 +349,9 @@ final class FileDropOverlayView: NSView {
     }
 
     func clearExternalDirectorySidebarRoute() {
-        guard isRoutingExternalDirectoryToSidebar else { return }
+        // Always clear sidebar external state on leave/cancel — not only when
+        // a prior update returned a legal plan. Rejected hover can still leave
+        // reusable drag state on the router.
         isRoutingExternalDirectoryToSidebar = false
         if let window {
             SidebarExternalDirectoryDropRouter.router(for: window)?.clearExternalDirectoryDrop()

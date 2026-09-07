@@ -246,4 +246,106 @@ import Testing
         #expect(plan?.insertionIndex == 3)
         #expect(plan?.indicator == SidebarDropIndicator(tabId: ids[3], edge: .top))
     }
+
+    @Test func groupedSidebarRowsDoNotTrapPinnedLookup() {
+        let anchor = UUID()
+        let other = UUID()
+        let groupId = UUID()
+        // Mirrors production: group header reuses anchor workspace id; member
+        // shares that id under a groupId. Raw uniqueKeysWithValues would trap.
+        let rows: [(workspaceId: UUID, isPinned: Bool, isGroupHeader: Bool, groupId: UUID?)] = [
+            (anchor, false, true, nil),
+            (anchor, false, false, groupId),
+            (other, true, false, nil),
+        ]
+        let eligible = ExternalWorkspaceInsertionPlanner.eligibleUngroupedRoots(from: rows)
+        #expect(eligible.map(\.workspaceId) == [other])
+        let pinned = ExternalWorkspaceInsertionPlanner.pinnedFlagsByWorkspaceId(
+            fromEligibleUngroupedRoots: eligible
+        )
+        #expect(pinned[other] == true)
+        #expect(pinned[anchor] == nil)
+    }
+
+    @Test func pinnedLookupSurvivesDuplicateEligibleIdsWithoutTrapping() {
+        let id = UUID()
+        let pinned = ExternalWorkspaceInsertionPlanner.pinnedFlagsByWorkspaceId(
+            fromEligibleUngroupedRoots: [
+                (id, true),
+                (id, false),
+            ]
+        )
+        #expect(pinned[id] == false)
+    }
+}
+
+@Suite struct ExternalWorkspaceDropCommitResolverTests {
+    @Test func releaseDriftOntoRowCenterKeepsPaintedPlanWhenOrderUnchanged() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, second]
+        )
+        #expect(resolved == painted)
+    }
+
+    @Test func replannedPlanWinsOverPainted() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let replanned = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 2,
+            indicator: SidebarDropIndicator(tabId: second, edge: .bottom)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: replanned,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, second]
+        )
+        #expect(resolved == replanned)
+    }
+
+    @Test func rejectsPaintedPlanWhenCompleteOrderChanged() {
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first, third, second]
+        )
+        #expect(resolved == nil)
+    }
+
+    @Test func rejectsPaintedPlanWhenIndicatorTabMissing() {
+        let first = UUID()
+        let second = UUID()
+        let painted = ExternalWorkspaceInsertionPlanner.Plan(
+            insertionIndex: 1,
+            indicator: SidebarDropIndicator(tabId: second, edge: .top)
+        )
+        let resolved = ExternalWorkspaceDropCommitResolver.resolve(
+            replanned: nil,
+            painted: painted,
+            paintedCompleteTopLevelIds: [first, second],
+            currentCompleteTopLevelIds: [first]
+        )
+        #expect(resolved == nil)
+    }
 }

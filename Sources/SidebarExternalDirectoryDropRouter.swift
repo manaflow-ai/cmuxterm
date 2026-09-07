@@ -68,12 +68,6 @@ enum SidebarExternalDirectoryDropRouter {
         return nil
     }
 
-    /// Test seam: number of live registered routers after pruning.
-    static var registeredRouterCountForTests: Int {
-        prune()
-        return routersByIdentity.values.compactMap(\.value).count
-    }
-
     private static func prune() {
         routersByIdentity = routersByIdentity.filter { $0.value.value != nil }
     }

@@ -493,9 +493,9 @@ extension FileDropOverlayView {
         }
         let windowPoint = sender.draggingLocation
         guard router.containsExternalDirectoryDropWindowPoint(windowPoint) else {
-            if isRoutingExternalDirectoryToSidebar {
-                clearExternalDirectorySidebarRoute()
-            }
+            // Leaving the sidebar must clear unconditionally, including after
+            // a rejected hover that never set `isRouting… = true`.
+            clearExternalDirectorySidebarRoute()
             return nil
         }
         return ExternalDirectorySidebarRoute(
