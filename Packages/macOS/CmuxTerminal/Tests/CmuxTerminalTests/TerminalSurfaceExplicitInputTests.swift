@@ -89,22 +89,22 @@ struct TerminalSurfaceExplicitInputTests {
         )
     }
 
-    @Test func contextManagementInputWaitsForRuntimeClipboardRead() {
+    @Test func contextManagementInputRemainsRetryableDuringRuntimeClipboardRead() {
         let runtimeSurface = allocatedRuntimeSurface()
         let fixture = makeFixture(runtimeSurface: runtimeSurface)
         defer {
             fixture.surface.releaseSurfaceForTesting()
             runtimeSurface.deallocate()
         }
-        fixture.nativeView.shouldDeferRuntimeInput = true
+        fixture.nativeView.canAcceptImmediateContextManagementInput = false
+        fixture.nativeView.hasContextManagementInputDeferral = true
 
-        #expect(fixture.surface.sendContextManagementInput("/clear\n"))
-        #expect(fixture.nativeView.deferredRuntimeInputs.count == 1)
-        #expect(fixture.paneHost.explicitInputCount == 1)
-
-        fixture.nativeView.shouldDeferRuntimeInput = false
-        fixture.nativeView.deferredRuntimeInputs.removeFirst()()
-
+        #expect(
+            fixture.surface.sendContextManagementInputOutcome("/clear\n")
+                == .temporarilyDeferred
+        )
+        #expect(!fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(fixture.paneHost.explicitInputCount == 0)
         #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
     }
 
@@ -115,9 +115,13 @@ struct TerminalSurfaceExplicitInputTests {
             fixture.surface.releaseSurfaceForTesting()
             runtimeSurface.deallocate()
         }
-        fixture.nativeView.canAcceptContextManagementInput = false
+        fixture.nativeView.canAcceptImmediateContextManagementInput = false
 
         #expect(!fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(
+            fixture.surface.sendContextManagementInputOutcome("/clear\n")
+                == .rejected
+        )
         #expect(fixture.paneHost.explicitInputCount == 0)
         #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
     }

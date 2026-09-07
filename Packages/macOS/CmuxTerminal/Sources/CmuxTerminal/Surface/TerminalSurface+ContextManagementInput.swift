@@ -1,6 +1,17 @@
 import Foundation
 import GhosttyKit
 
+/// Outcome of attempting cmux-authored recovery input.
+public enum TerminalContextManagementInputOutcome: Equatable, Sendable {
+    /// Delivered synchronously to the live PTY.
+    case sent
+    /// Temporarily blocked by the clipboard sequencer; a later lifecycle
+    /// signal should retry without latching manual recovery.
+    case temporarilyDeferred
+    /// Rejected because the surface or host admission path is unavailable.
+    case rejected
+}
+
 extension TerminalSurface {
     /// Returns the generation of the provider-specific PTY output detectors.
     ///
@@ -62,33 +73,44 @@ extension TerminalSurface {
         }
     }
 
-    /// Sends cmux-authored recovery input to the live PTY, preserving the
-    /// clipboard sequencer's ordering when a runtime read is in flight.
-    ///
-    /// A temporary clipboard collision queues the recovery write behind the
-    /// read and still returns `true`: the sequencer owns the retry, so the
-    /// coordinator must not convert that transient wait into manual recovery.
-    /// Permanent surface/process failures still return `false`.
+    /// Sends cmux-authored recovery input only when it can reach the live PTY
+    /// immediately. A temporary clipboard collision is reported separately so
+    /// the coordinator can leave pressure retryable without queueing automation
+    /// behind user input.
     ///
     /// - Parameter text: Text, including a provider-specific Return character, to send.
-    /// - Returns: Whether the text was delivered or accepted for ordered replay.
+    /// - Returns: Whether the text was delivered synchronously to the live PTY.
     @MainActor
     @discardableResult
     public func sendContextManagementInput(_ text: String) -> Bool {
-        guard !text.isEmpty,
-              surface != nil,
-              surfaceView.canAcceptContextManagementInput else {
-            return false
+        sendContextManagementInputOutcome(text) == .sent
+    }
+
+    /// Reports whether context recovery was sent, temporarily blocked by an
+    /// active clipboard read, or rejected permanently at the surface boundary.
+    @MainActor
+    public func sendContextManagementInputOutcome(
+        _ text: String
+    ) -> TerminalContextManagementInputOutcome {
+        guard !text.isEmpty, surface != nil else {
+            return .rejected
+        }
+        guard surfaceView.canAcceptImmediateContextManagementInput else {
+            return surfaceView.hasContextManagementInputDeferral
+                ? .temporarilyDeferred
+                : .rejected
         }
         paneHost.terminalSurfaceDidReceiveExplicitInput()
-        let result = sendInputAfterExplicitInput(text)
-        if result.accepted {
-            hibernationRecorder.recordTerminalInput(
-                workspaceId: tabId,
-                panelId: id
-            )
-        }
-        return result.accepted
+        let result = sendInputToLiveSurfaceAfterExplicitInput(
+            text,
+            allowClipboardDeferral: false
+        )
+        guard result == .sent else { return .rejected }
+        hibernationRecorder.recordTerminalInput(
+            workspaceId: tabId,
+            panelId: id
+        )
+        return .sent
     }
 
     /// Requests a PTY-tee parser reset before the next output chunk.

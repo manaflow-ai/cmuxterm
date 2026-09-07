@@ -18,9 +18,10 @@ final class FakeTerminalSurfaceNativeView: NSView {
     var deferredRuntimeInputBytes: [Int] = []
     var mobileMouseButtonEvents: [String] = []
     // This fixture deliberately has no clipboard sequencer, so it opts into
-    // ordered context-management admission explicitly rather than relying on
-    // the production protocol's fail-closed default.
-    var canAcceptContextManagementInput = true
+    // immediate context-management admission explicitly rather than relying
+    // on the production protocol's fail-closed default.
+    var canAcceptImmediateContextManagementInput = true
+    var hasContextManagementInputDeferral = false
 
     func toggleKeyboardCopyMode() -> Bool { false }
     func cancelKeyboardCopyMode() {

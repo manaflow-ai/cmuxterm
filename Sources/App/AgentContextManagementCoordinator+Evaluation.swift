@@ -348,8 +348,19 @@ extension AgentContextManagementCoordinator {
         case .clear:
             text = state.provider.recoveryCommand(for: .clear)
         }
-        let accepted = terminal.surface.sendContextManagementInput(text + "\n")
-        guard accepted else {
+        let outcome = terminal.surface.sendContextManagementInputOutcome(text + "\n")
+        if outcome == .temporarilyDeferred {
+            state.injectionInFlight = false
+            states[surfaceID] = state
+            structuredLog(
+                "injection.deferred",
+                workspaceID: owner.workspaceID,
+                surfaceID: surfaceID,
+                detail: "step=\(step.rawValue) reason=clipboard-input-deferral"
+            )
+            return
+        }
+        guard outcome == .sent else {
             state.injectionInFlight = false
             if step == .preserveState {
                 state.preservationHandoffPath = nil
