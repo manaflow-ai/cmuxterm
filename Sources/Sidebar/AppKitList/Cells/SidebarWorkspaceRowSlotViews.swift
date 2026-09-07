@@ -112,8 +112,13 @@ final class SidebarRowSplitPaneCountView: NSView {
         countLabel.font = font
         countLabel.textColor = color
         layer?.backgroundColor = color.withAlphaComponent(0.12).cgColor
-        toolTip = helpText
-        setAccessibilityLabel(helpText)
+        if isHidden {
+            toolTip = nil
+            setAccessibilityLabel(nil)
+        } else {
+            toolTip = helpText
+            setAccessibilityLabel(helpText)
+        }
         needsLayout = true
     }
 
