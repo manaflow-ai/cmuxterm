@@ -273,6 +273,11 @@ final class CmuxPluginProcessSupervisor {
             for: executionSnapshot.entrypointExecution,
             entrypointPath: executionSnapshot.entrypointURL.path,
             interpreterPath: executionSnapshot.interpreterURL?.path,
+            interpreterSnapshotPath: executionSnapshot.interpreterFileDescriptor.map {
+                executionSnapshot.directoryURL
+                    .appendingPathComponent(".cmux-interpreter/executable", isDirectory: false)
+                    .path
+            },
             containmentMarkerPath: containment.markerURL.path
         ) else {
             containment.cleanup()
@@ -793,6 +798,7 @@ final class CmuxPluginProcessSupervisor {
         for execution: CmuxPluginEntrypointExecution,
         entrypointPath: String,
         interpreterPath: String?,
+        interpreterSnapshotPath: String?,
         containmentMarkerPath: String
     ) -> [String]? {
         switch execution {
@@ -803,12 +809,13 @@ final class CmuxPluginProcessSupervisor {
                 entrypointPath,
             ]
         case .interpreter(let interpreterArguments):
-            guard let interpreterPath else { return nil }
+            guard let interpreterPath, let interpreterSnapshotPath else { return nil }
             return [
                 "interpreter",
                 containmentMarkerPath,
                 entrypointPath,
                 interpreterPath,
+                interpreterSnapshotPath,
             ] + interpreterArguments
         }
     }

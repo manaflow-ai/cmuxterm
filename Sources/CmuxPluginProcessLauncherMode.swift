@@ -16,7 +16,9 @@ struct CmuxPluginProcessLauncherMode {
     /// and (for scripts) interpreter arguments as process arguments. Standard
     /// output is the pinned entrypoint descriptor and standard error is the
     /// pinned interpreter descriptor, allowing this final child-side check to
-    /// close the largest pathname replacement window before `execv`.
+    /// close the largest pathname replacement window before `execv`. Script
+    /// launches carry both the source interpreter path used by `execv` and
+    /// the copied snapshot path used for the descriptor identity check.
     ///
     /// - Returns: `nil` for a normal app launch, or a failure status when group
     ///   setup, marker acquisition, gate validation, or exec fails.
@@ -67,13 +69,15 @@ struct CmuxPluginProcessLauncherMode {
             return exec(path: entrypointPath, arguments: [entrypointPath])
 
         case "interpreter":
-            guard arguments.count >= 6 else {
+            guard arguments.count >= 7 else {
                 Darwin.close(markerDescriptor)
                 return 126
             }
             let interpreterPath = arguments[5]
+            let pinnedInterpreterPath = arguments[6]
             guard interpreterPath.hasPrefix("/"),
-                  sameFile(STDERR_FILENO, interpreterPath),
+                  pinnedInterpreterPath.hasPrefix("/"),
+                  sameFile(STDERR_FILENO, pinnedInterpreterPath),
                   let scriptDescriptor = duplicateDescriptor(STDOUT_FILENO) else {
                 Darwin.close(markerDescriptor)
                 return 126
@@ -83,7 +87,7 @@ struct CmuxPluginProcessLauncherMode {
                 Darwin.close(markerDescriptor)
                 return 126
             }
-            let interpreterArguments = Array(arguments.dropFirst(6))
+            let interpreterArguments = Array(arguments.dropFirst(7))
             return exec(
                 path: interpreterPath,
                 arguments: [interpreterPath] + interpreterArguments + ["/dev/fd/\(scriptDescriptor)"]

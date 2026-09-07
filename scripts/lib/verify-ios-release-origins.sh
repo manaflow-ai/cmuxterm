@@ -14,6 +14,7 @@ EOF
 }
 
 APP=""
+PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app) APP="${2:-}"; shift 2 ;;
