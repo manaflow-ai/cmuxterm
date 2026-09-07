@@ -259,7 +259,12 @@ extension Workspace {
         terminalStartupRestoreCoordinator.removeAllRestores()
         clearDeferredAgentResumeRestores(startRuntime: false)
         surfaceResumeBindingsByPanelId.removeAll(keepingCapacity: false)
+        surfaceResumeBindingGenerationsByPanelId.removeAll(keepingCapacity: false)
         surfaceResumeRestoreClaimsByPanelId.removeAll(keepingCapacity: false)
+        unresolvedResumeBindingPanelIds.removeAll(keepingCapacity: false)
+        unresolvedDockResumeBindingPanelIds.removeAll(keepingCapacity: false)
+        unresolvedResumeBindingStatusUpdatedAt = Date.now
+        sidebarMetadata.invalidateWorkspaceObservation()
         pendingPlainSSHRestorePanelIds.removeAll(keepingCapacity: false)
         observedPlainSSHPanelIds.removeAll(keepingCapacity: false)
         plainSSHDetectionMissesByPanelId.removeAll(keepingCapacity: false)
@@ -3171,7 +3176,6 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     var unresolvedResumeBindingPanelIds: Set<UUID> = []
     var unresolvedDockResumeBindingPanelIds: Set<UUID> = []
     var unresolvedResumeBindingStatusUpdatedAt = Date.now
-    @Published private(set) var resumeBindingGapRevision: UInt64 = 0
     /// In-memory compare-and-claim state held while a CLI restore hands the
     /// validated binding to its child process.
     @ObservationIgnored var surfaceResumeRestoreClaimsByPanelId: [
@@ -6263,7 +6267,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         if didChange {
             unresolvedResumeBindingStatusUpdatedAt = Date.now
-            resumeBindingGapRevision &+= 1
+            sidebarMetadata.invalidateWorkspaceObservation()
         }
     }
 
@@ -6271,7 +6275,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         guard unresolvedDockResumeBindingPanelIds != panelIds else { return }
         unresolvedDockResumeBindingPanelIds = panelIds
         unresolvedResumeBindingStatusUpdatedAt = Date.now
-        resumeBindingGapRevision &+= 1
+        sidebarMetadata.invalidateWorkspaceObservation()
     }
 
     var unresolvedResumeBindingGapCount: Int {
@@ -6540,7 +6544,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         if unresolvedResumeBindingPanelIds != previousUnresolvedResumeBindingPanelIds {
             unresolvedResumeBindingStatusUpdatedAt = Date.now
-            resumeBindingGapRevision &+= 1
+            sidebarMetadata.invalidateWorkspaceObservation()
         }
         surfaceResumeRestoreClaimsByPanelId = surfaceResumeRestoreClaimsByPanelId.filter {
             validSurfaceIds.contains($0.key)
