@@ -11982,7 +11982,7 @@ class TerminalController {
         switch executionContext.authorization {
         case .irohAdmission(let peer):
             guard let endpoint = try? CmxIrohPeerIdentity(
-                endpointID: lowercaseHex(deviceKey)
+                endpointID: HexEncoding().lowercase(deviceKey)
             ) else { return false }
             return peer.deviceID == deviceID
                 && peer.endpointID == endpoint
@@ -12002,16 +12002,6 @@ class TerminalController {
         }
     }
 
-    private nonisolated static func lowercaseHex(_ data: Data) -> String {
-        let digits = Array("0123456789abcdef".utf8)
-        var bytes = [UInt8]()
-        bytes.reserveCapacity(data.count * 2)
-        for byte in data {
-            bytes.append(digits[Int(byte >> 4)])
-            bytes.append(digits[Int(byte & 0x0F)])
-        }
-        return String(decoding: bytes, as: UTF8.self)
-    }
     #endif
     #endif
 

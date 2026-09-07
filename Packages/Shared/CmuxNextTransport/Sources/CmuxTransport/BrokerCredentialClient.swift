@@ -287,7 +287,7 @@ public struct BrokerCredentialClient: Sendable {
     @concurrent
     #endif
     public nonisolated func mint(preferredUrl: String?) async throws -> [Credential] {
-        let endpointId = HexEncoding.lowercase(identity.publicKeyData)
+        let endpointId = HexEncoding().lowercase(identity.publicKeyData)
         let mintStart = ContinuousClock.now
         if TransportDebugLog.enabled {
             TransportDebugLog.broker.notice(
@@ -326,7 +326,7 @@ public struct BrokerCredentialClient: Sendable {
         ])
         let payloadBytes = try JSONEncoder().encode(payload)
         let payloadB64 = base64url(payloadBytes)
-        let payloadSha = HexEncoding.lowercase(SHA256.hash(data: payloadBytes))
+        let payloadSha = HexEncoding().lowercase(SHA256.hash(data: payloadBytes))
 
         // 3. Challenge.
         let challenge = try await post(

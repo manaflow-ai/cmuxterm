@@ -296,7 +296,7 @@ struct NextTransportEnvironmentTests {
     func bootstrapGrantSkipsMint() async throws {
         let expiry: Int64 = 4_102_444_800
         let identity = Self.identity()
-        let bootToken = Self.token(endpointHex: HexEncoding.lowercase(identity.publicKeyData))
+        let bootToken = Self.token(endpointHex: HexEncoding().lowercase(identity.publicKeyData))
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let expiresAt = formatter.string(
@@ -347,7 +347,7 @@ struct NextTransportEnvironmentTests {
         let identity = Self.identity()
         let jwt = try Self.fakeJWT(
             exp: 4_102_444_800,
-            endpointHex: HexEncoding.lowercase(identity.publicKeyData))
+            endpointHex: HexEncoding().lowercase(identity.publicKeyData))
         let script = ScriptedBroker { request in
             switch request.url!.path {
             case "/api/devices/iroh/challenge":

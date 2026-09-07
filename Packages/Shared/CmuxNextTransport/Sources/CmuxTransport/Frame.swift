@@ -216,14 +216,21 @@ struct FrameEnvelope: Codable {
     var p: JSONValue?
 }
 
-/// Fast lowercase hex for the data-chunk digest, which runs per frame on BOTH
-/// hot paths (send-side mint in `Frame.dataChunk`, receive-side re-hash in
-/// `TrafficValidator.ingest`). A per-byte `String(format:)` trip through
-/// Foundation's formatter dominated those paths.
-enum HexEncoding {
+/// Encodes byte sequences as deterministic lowercase hexadecimal text.
+///
+/// The encoder is shared by frame digests and application identity bindings so
+/// every transport boundary uses the same byte-for-byte representation.
+public struct HexEncoding: Sendable {
     private static let digits = Array("0123456789abcdef".utf8)
 
-    static func lowercase<Bytes: Sequence>(_ bytes: Bytes) -> String
+    /// Creates a stateless byte encoder.
+    public init() {}
+
+    /// Returns the lowercase hexadecimal representation of `bytes`.
+    ///
+    /// - Parameter bytes: A sequence whose elements are raw bytes.
+    /// - Returns: Two hexadecimal characters for each input byte.
+    public func lowercase<Bytes: Sequence>(_ bytes: Bytes) -> String
     where Bytes.Element == UInt8 {
         var utf8 = [UInt8]()
         utf8.reserveCapacity(bytes.underestimatedCount * 2)
@@ -290,7 +297,7 @@ extension Frame {
 
     /// Sequence-numbered, checksummed data chunk (harness spec 1.4).
     public static func dataChunk(seq: Int64, data: Data) -> Frame {
-        let digest = HexEncoding.lowercase(SHA256.hash(data: data))
+        let digest = HexEncoding().lowercase(SHA256.hash(data: data))
         return Frame(
             type: FrameTypes.dataChunk,
             payload: [

@@ -45,7 +45,7 @@ enum TransportDebugLog {
     /// 8 hex chars (4 bytes) of a key/id blob.
     static func hex8(_ data: Data?) -> String {
         guard let data else { return "-" }
-        return HexEncoding.lowercase(data.prefix(4))
+        return HexEncoding().lowercase(data.prefix(4))
     }
 
     /// Elapsed whole milliseconds since `start`.

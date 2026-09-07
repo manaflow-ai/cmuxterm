@@ -13,23 +13,12 @@ import OSLog
 /// event writer — assembled over bridged raw streams. Features, quotas, and
 /// lifecycle ownership are the legacy code paths, unchanged.
 enum MobileHostNextTransportBridge {
-    private static func hex(_ bytes: Data) -> String {
-        let digits = Array("0123456789abcdef".utf8)
-        var output = [UInt8]()
-        output.reserveCapacity(bytes.count * 2)
-        for byte in bytes {
-            output.append(digits[Int(byte >> 4)])
-            output.append(digits[Int(byte & 0x0F)])
-        }
-        return String(decoding: output, as: UTF8.self)
-    }
-
     /// The admitted-peer tuple downstream authorization keys on, minted from
     /// the verified next-transport grant plus the QUIC-authenticated key.
     static func synthesizedPeer(
         grant: PairingGrant, deviceKey: Data
     ) -> CmxIrohAdmittedPeer? {
-        let hex = Self.hex(deviceKey)
+        let hex = HexEncoding().lowercase(deviceKey)
         guard let endpointID = try? CmxIrohPeerIdentity(endpointID: hex) else { return nil }
         // A grant is short-lived and rotates on every reconnect; binding
         // ownership to its ID would let the same device accumulate parallel
@@ -40,7 +29,7 @@ enum MobileHostNextTransportBridge {
         let bindingDigest = SHA256.hash(data: stableIdentity)
         return CmxIrohAdmittedPeer(
             peer: CmxIrohGrantPeer(
-                bindingID: "next:\(Self.hex(Data(bindingDigest)))",
+                bindingID: "next:\(HexEncoding().lowercase(Data(bindingDigest)))",
                 deviceID: grant.deviceID,
                 tag: grant.appIdentity,
                 platform: .ios,
@@ -75,7 +64,7 @@ enum MobileHostNextTransportBridge {
                 """
                 bridge: unusable device key; closing conn=\(connID, privacy: .public) \
                 device=\(devicePrefix, privacy: .private) \
-                key=\(Self.hex(Data(deviceKey.prefix(4))), privacy: .public)
+                key=\(HexEncoding().lowercase(deviceKey.prefix(4)), privacy: .public)
                 """)
             await connection.closeAll(reason: nil)
             return

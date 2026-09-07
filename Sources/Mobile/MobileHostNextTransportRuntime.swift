@@ -198,18 +198,6 @@ final class MobileHostNextTransportRuntime {
             + Int64(elapsed.components.attoseconds / 1_000_000_000_000_000)
     }
 
-    /// Deterministic lowercase hex for identity diagnostics; avoids the
-    /// locale-sensitive Foundation formatter on concurrent transport paths.
-    private nonisolated static func hex(_ bytes: Data) -> String {
-        let digits = Array("0123456789abcdef".utf8)
-        var output = [UInt8]()
-        output.reserveCapacity(bytes.count * 2)
-        for byte in bytes {
-            output.append(digits[Int(byte >> 4)])
-            output.append(digits[Int(byte & 0x0F)])
-        }
-        return String(decoding: output, as: UTF8.self)
-    }
     /// Scheduler for genuine connection deadlines and credential refresh
     /// delays. It is injected so tests can advance a virtual clock and so no
     /// runtime path relies on an unowned global sleeper.
@@ -573,7 +561,7 @@ final class MobileHostNextTransportRuntime {
             grant minted device=\(String(deviceID.prefix(8)), privacy: .public) \
             app=\(appIdentity, privacy: .public) \
             grantID=\(String(grant.grantID.prefix(8)), privacy: .public) \
-            key=\(Self.hex(Data(devicePublicKey.prefix(4))), privacy: .public)
+            key=\(HexEncoding().lowercase(devicePublicKey.prefix(4)), privacy: .public)
             """)
         return .success(json)
     }
@@ -685,7 +673,7 @@ final class MobileHostNextTransportRuntime {
             }
             self.endpoint = endpoint
             startGrantExpiryLoop(host: host, generation: gen)
-            endpointID = Self.hex(endpoint.id().toBytes())
+            endpointID = HexEncoding().lowercase(endpoint.id().toBytes())
             relayURL = usable.first?.relayUrl
             MobileHostNextTransportRuntime.logger.notice(
                 """
@@ -1240,7 +1228,7 @@ final class MobileHostNextTransportRuntime {
                 MobileHostNextTransportRuntime.logger.notice(
                     """
                     host signer LOADED (persisted; prior phone grants stay valid) \
-                    signerKey=\(Self.hex(Data(signer.publicKeyData.prefix(4))), privacy: .public)
+                    signerKey=\(HexEncoding().lowercase(signer.publicKeyData.prefix(4)), privacy: .public)
                     """)
                 return signer
             }
@@ -1253,7 +1241,7 @@ final class MobileHostNextTransportRuntime {
             """
             host signer CREATED (fresh; any previously minted phone grants \
             are now invalid) \
-            signerKey=\(Self.hex(Data(signer.publicKeyData.prefix(4))), privacy: .public)
+            signerKey=\(HexEncoding().lowercase(signer.publicKeyData.prefix(4)), privacy: .public)
             """)
         return signer
     }

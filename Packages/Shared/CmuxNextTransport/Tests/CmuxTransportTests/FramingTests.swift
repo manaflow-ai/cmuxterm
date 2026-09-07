@@ -137,11 +137,11 @@ struct FramingTests {
 extension FramingTests {
     @Test("Fast hex matches the reference encoding and the wire digest")
     func hexEncoding() {
-        #expect(HexEncoding.lowercase([]) == "")
-        #expect(HexEncoding.lowercase(Data([0x00, 0x0F, 0xAB, 0xFF])) == "000fabff")
+        #expect(HexEncoding().lowercase([]) == "")
+        #expect(HexEncoding().lowercase(Data([0x00, 0x0F, 0xAB, 0xFF])) == "000fabff")
         let bytes = (UInt8.min...UInt8.max).map { $0 }
         let reference = bytes.map { String(format: "%02x", $0) }.joined()
-        #expect(HexEncoding.lowercase(bytes) == reference)
+        #expect(HexEncoding().lowercase(bytes) == reference)
 
         // The digest a sender mints must still satisfy the receiving
         // validator (same helper on both hot paths).

@@ -81,7 +81,7 @@ struct BrokerSessionModeTests {
                 .replacingOccurrences(of: "=", with: "")
         }
         let header = encode(Data(#"{"alg":"EdDSA","typ":"JWT"}"#.utf8))
-        let endpoint = HexEncoding.lowercase(identity.publicKeyData)
+        let endpoint = HexEncoding().lowercase(identity.publicKeyData)
         let payload = encode(
             Data(#"{"endpoint_id":"\#(endpoint)","exp":4102444800}"#.utf8))
         return "\(header).\(payload).c2ln"

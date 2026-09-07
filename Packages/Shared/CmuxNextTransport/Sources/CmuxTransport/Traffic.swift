@@ -51,7 +51,7 @@ public struct TrafficValidator: Sendable {
             firstGap = (expected: expectedSeq, got: seq)
         }
         expectedSeq = seq + 1
-        let digest = HexEncoding.lowercase(SHA256.hash(data: data))
+        let digest = HexEncoding().lowercase(SHA256.hash(data: data))
         if digest != declaredDigest {
             checksumFailures += 1
         }
