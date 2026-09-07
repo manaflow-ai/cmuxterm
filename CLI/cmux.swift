@@ -459,6 +459,27 @@ final class ClaudeHookSessionStore {
         }
     }
 
+    func latestSession(
+        workspaceId: String,
+        surfaceId: String?,
+        deadline: Date? = nil
+    ) throws -> ClaudeHookSessionRecord? {
+        try withLockedState(deadline: deadline) { state in
+            guard var record = fallbackRecord(
+                sessions: Array(state.sessions.values),
+                workspaceId: normalizeOptional(workspaceId),
+                surfaceId: normalizeOptional(surfaceId)
+            ) else {
+                return nil
+            }
+            if record.runtimeStatus == .running, !Self.processExists(record.pid) {
+                record.runtimeStatus = nil
+                state.sessions[record.sessionId] = record
+            }
+            return record
+        }
+    }
+
     /// Records one Cursor shell command for atomic completion correlation.
     /// Cursor's after/failure hook payloads do not expose the native approval
     /// decision or a stable tool id, so the normalized command is the durable
@@ -32463,6 +32484,27 @@ struct CMUXCLI {
             .path
     }
 
+    func agentHookSessionStore(def: AgentHookDef, env: [String: String]) -> ClaudeHookSessionStore {
+        ClaudeHookSessionStore(
+            processEnv: env.merging(
+                [
+                    "CMUX_CLAUDE_HOOK_STATE_PATH": agentHookStatePath(
+                        sessionStoreSuffix: def.sessionStoreSuffix,
+                        env: env
+                    )
+                ],
+                uniquingKeysWith: { _, new in new }
+            )
+        )
+    }
+
+    func agentHookSessionStore(source: String, env: [String: String]) -> ClaudeHookSessionStore {
+        guard let def = Self.agentDef(named: source) else {
+            return ClaudeHookSessionStore(processEnv: env)
+        }
+        return agentHookSessionStore(def: def, env: env)
+    }
+
     private func sanitizedAgentLaunchArguments(
         _ arguments: [String],
         launcher: String,
@@ -33560,6 +33602,7 @@ export default CMUXSessionRestore;
         }
 
         try pruneLegacyGrokHookFileIfNeeded(def: def, configDir: configDir, primaryFilePath: filePath)
+        try pruneLegacyCopilotHookFileIfNeeded(def: def, configDir: configDir, primaryFilePath: filePath)
 
         // Post-install actions
         if let action = def.postInstallAction {
@@ -33704,6 +33747,59 @@ export default CMUXSessionRestore;
         print("Removed \(removed) legacy \(def.displayName) cmux hook(s) from \(legacyURL.path)")
     }
 
+    private func pruneLegacyCopilotHookFileIfNeeded(
+        def: AgentHookDef,
+        configDir: String,
+        primaryFilePath: String
+    ) throws {
+        guard def.name == "copilot" else { return }
+        let legacyURL = URL(fileURLWithPath: configDir, isDirectory: true)
+            .deletingLastPathComponent()
+            .appendingPathComponent("config.json", isDirectory: false)
+        guard legacyURL.path != primaryFilePath,
+              FileManager.default.fileExists(atPath: legacyURL.path),
+              let data = FileManager.default.contents(atPath: legacyURL.path),
+              let sanitized = try? JSONCParser.preprocess(data: data),
+              var json = try? JSONSerialization.jsonObject(with: sanitized) as? [String: Any],
+              var hooks = json["hooks"] as? [String: Any] else {
+            return
+        }
+
+        let isCmuxOwnedCommand: (String) -> Bool = { command in
+            Self.isCmuxOwnedHookCommand(command, for: def)
+        }
+        var removed = 0
+        for (event, value) in hooks {
+            guard let entries = value as? [[String: Any]] else { continue }
+            var rewrittenEntries: [[String: Any]] = []
+            for var entry in entries {
+                if isCmuxOwnedCommand(entry["command"] as? String ?? "") {
+                    removed += 1
+                    continue
+                }
+                if var nested = entry["hooks"] as? [[String: Any]] {
+                    let before = nested.count
+                    nested.removeAll { isCmuxOwnedCommand($0["command"] as? String ?? "") }
+                    removed += before - nested.count
+                    guard !nested.isEmpty else { continue }
+                    entry["hooks"] = nested
+                }
+                rewrittenEntries.append(entry)
+            }
+            if rewrittenEntries.isEmpty {
+                hooks.removeValue(forKey: event)
+            } else {
+                hooks[event] = rewrittenEntries
+            }
+        }
+
+        guard removed > 0 else { return }
+        json["hooks"] = hooks
+        let newData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        try newData.write(to: legacyURL, options: .atomic)
+        print("Removed \(removed) legacy \(def.displayName) cmux hook(s) from \(legacyURL.path)")
+    }
+
     private func uninstallAgentHooks(_ def: AgentHookDef) throws {
         if def.name == "opencode" { try uninstallOpenCodePluginHooks(def); return }
         if def.name == "pi" { try uninstallPiExtensionHooks(def); return }
@@ -33737,6 +33833,11 @@ export default CMUXSessionRestore;
         guard let data = fm.contents(atPath: filePath),
               var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             print("No \(def.configFile) found at \(filePath)")
+            try pruneLegacyCopilotHookFileIfNeeded(
+                def: def,
+                configDir: configDir,
+                primaryFilePath: filePath
+            )
             return
         }
 
@@ -33802,6 +33903,11 @@ export default CMUXSessionRestore;
         let newData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
         try newData.write(to: URL(fileURLWithPath: filePath), options: .atomic)
         print("Removed \(removed) cmux hook(s) from \(filePath)")
+        try pruneLegacyCopilotHookFileIfNeeded(
+            def: def,
+            configDir: configDir,
+            primaryFilePath: filePath
+        )
 
         // Post-uninstall actions
         if let action = def.postInstallAction {
@@ -34275,12 +34381,7 @@ export default CMUXSessionRestore;
         let persistedHookEventName = reportedHookEventName(from: input)
             ?? Self.feedEventName(forClaudeSubcommand: subcommand)
 
-        let store = ClaudeHookSessionStore(
-            processEnv: env.merging(
-                ["CMUX_CLAUDE_HOOK_STATE_PATH": agentHookStatePath(sessionStoreSuffix: def.sessionStoreSuffix, env: env)],
-                uniquingKeysWith: { _, new in new }
-            )
-        )
+        let store = agentHookSessionStore(def: def, env: env)
 
         let hookCwd = input.cwd
             ?? normalizedHookValue(env["CMUX_AGENT_LAUNCH_CWD"])
@@ -34692,7 +34793,11 @@ export default CMUXSessionRestore;
                 )
             }
         }
-        func sendAgentFeedTelemetry(workspaceId: String? = nil, surfaceId: String? = nil) {
+        func sendAgentFeedTelemetry(
+            workspaceId: String? = nil,
+            surfaceId: String? = nil,
+            telemetryOnly: Bool = false
+        ) {
             didSendFeedTelemetry = true
             sendFeedTelemetry(
                 client: client,
@@ -34701,7 +34806,8 @@ export default CMUXSessionRestore;
                 parsedInput: input,
                 workspaceId: workspaceId ?? workspaceArg(),
                 surfaceId: surfaceId,
-                socketPassword: socketPassword
+                socketPassword: socketPassword,
+                telemetryOnly: telemetryOnly
             )
         }
         func shouldSuppressGenericFeedTelemetry() -> Bool {
@@ -34722,6 +34828,52 @@ export default CMUXSessionRestore;
             } else {
                 sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
             }
+        }
+        func suppressCopilotChildSession(
+            target: (workspaceId: String, surfaceId: String),
+            allowIdleRootReplacement: Bool = false
+        ) -> Bool {
+            guard def.name == "copilot", !sessionId.isEmpty,
+                  let root = try? store.latestSession(
+                    workspaceId: target.workspaceId,
+                    surfaceId: target.surfaceId
+                  ),
+                  root.sessionId != sessionId else {
+                return false
+            }
+            if allowIdleRootReplacement, root.runtimeStatus != .running {
+                return false
+            }
+            telemetry.breadcrumb("\(def.name)-hook.\(subcommand).child-session-telemetry")
+            sendAgentFeedTelemetry(
+                workspaceId: target.workspaceId,
+                surfaceId: target.surfaceId,
+                telemetryOnly: true
+            )
+            print("{}")
+            return true
+        }
+        func suppressCopilotAsynchronousNotification(
+            target: (workspaceId: String, surfaceId: String)
+        ) -> Bool {
+            guard def.name == "copilot",
+                  let notificationType = input.rawObject.flatMap({
+                      firstString(in: $0, keys: ["notification_type", "notificationType"])
+                  }) else {
+                return false
+            }
+            guard notificationType != "permission_prompt",
+                  notificationType != "elicitation_dialog" else {
+                return false
+            }
+            telemetry.breadcrumb("\(def.name)-hook.notification.asynchronous-telemetry")
+            sendAgentFeedTelemetry(
+                workspaceId: target.workspaceId,
+                surfaceId: target.surfaceId,
+                telemetryOnly: true
+            )
+            print("{}")
+            return true
         }
         func notificationDedupeFingerprint(
             status: AgentHookNotificationStatus?,
@@ -35431,6 +35583,9 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
+            if suppressCopilotChildSession(target: target, allowIdleRootReplacement: true) {
+                return
+            }
             let pid = inferredPID
             if let codexLifecycle {
                 let ownership = codexLifecycle.sessionStart(
@@ -35613,6 +35768,9 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
+            if suppressCopilotChildSession(target: target) {
+                return
+            }
             if let codexLifecycle {
                 let ownership = codexLifecycle.promptSubmit(
                     sessionID: sessionId,
@@ -36106,6 +36264,9 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
+            if suppressCopilotChildSession(target: target) {
+                return
+            }
             if def.name == "omp", let mapped {
                 clearSupersededAgentHookSessions(
                     [],
@@ -36621,6 +36782,9 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
+            if suppressCopilotChildSession(target: target) {
+                return
+            }
             sendAgentFeedTelemetryUnlessSuppressed(workspaceId: workspaceId, surfaceId: surfaceId)
             let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
             let launchCommand = agentLaunchCommandFromEnvironment(
@@ -36713,6 +36877,10 @@ export default CMUXSessionRestore;
             }
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
+            if suppressCopilotChildSession(target: target)
+                || suppressCopilotAsynchronousNotification(target: target) {
+                return
+            }
 
             let notificationCwd = hookCwd ?? mapped?.cwd
 #if DEBUG
@@ -36992,7 +37160,7 @@ export default CMUXSessionRestore;
             // fallback, and a pending waiting-nag never claims needs-input.
             let mappedJournalKind = agentJournalNotificationKind(
                 def: def,
-                nativeEvent: reportedHookEventName(from: input),
+                nativeEvent: reportedHookEventName(from: input) ?? subcommand,
                 toolName: nil,
                 summary: summary
             )
@@ -37152,8 +37320,16 @@ export default CMUXSessionRestore;
             if def.name == "codex", !sessionId.isEmpty {
                 retireCodexMonitorLeases(sessionId: sessionId, turnId: nil, env: env)
             }
+            let endingSession = sessionId.isEmpty
+                ? nil
+                : (try? store.lookup(sessionId: sessionId, deadline: cursorShellDeadline))
+            if def.name == "copilot",
+               let target = resolveAgentHookTarget(mapped: endingSession),
+               suppressCopilotChildSession(target: target) {
+                return
+            }
             if def.sessionEndIsTurnBoundary {
-                if let mapped = sessionId.isEmpty ? nil : (try? store.lookup(sessionId: sessionId)) {
+                if let mapped = endingSession {
                     // These providers use session-end as their per-turn
                     // boundary (the cmux-tui mapping table's antigravity /
                     // hermes special case), so it journals as a completed
@@ -37192,9 +37368,6 @@ export default CMUXSessionRestore;
                 break
             }
             // A non-turn-boundary session-end is a genuine teardown.
-            let endingSession = sessionId.isEmpty
-                ? nil
-                : (try? store.lookup(sessionId: sessionId, deadline: cursorShellDeadline))
             if def.name == "cursor", !sessionId.isEmpty {
                 guard acquireCursorLifecycleLease(surfaceId: endingSession?.surfaceId) else {
                     print("{}")
@@ -37268,18 +37441,41 @@ export default CMUXSessionRestore;
     /// so session-start / prompt-submit / stop events show up in Feed's
     /// "All" view even when no permission/plan/question event fires.
     /// Failures are swallowed.
-    func sendBestEffortFeedTelemetry(socketPath: String, line: String, socketPassword: String?) {
-        let oneWayClient = SocketClient(path: socketPath)
-        defer { oneWayClient.close() }
+    func sendBestEffortFeedTelemetry(
+        socketPath: String,
+        line: String,
+        socketPassword: String?,
+        awaitResponse: Bool = false
+    ) {
+        let telemetryClient = SocketClient(path: socketPath)
+        defer { telemetryClient.close() }
         do {
-            try oneWayClient.connectWithoutRetry(responseTimeout: 0.05)
+            if !awaitResponse {
+                try telemetryClient.connectWithoutRetry(responseTimeout: 0.05)
+                try authenticateClientIfNeeded(
+                    telemetryClient,
+                    explicitPassword: socketPassword,
+                    socketPath: socketPath,
+                    responseTimeout: 0.05
+                )
+                try telemetryClient.sendOneWay(command: line, writeTimeout: 0.05)
+                return
+            }
+
+            let deadline = Date.now.addingTimeInterval(Self.feedTelemetryAcknowledgementTimeoutSeconds)
+            try telemetryClient.connect(deadline: deadline)
             try authenticateClientIfNeeded(
-                oneWayClient,
+                telemetryClient,
                 explicitPassword: socketPassword,
                 socketPath: socketPath,
-                responseTimeout: 0.05
+                responseTimeout: Self.feedTelemetryAcknowledgementTimeoutSeconds,
+                deadline: deadline
             )
-            try oneWayClient.sendOneWay(command: line, writeTimeout: 0.05)
+            _ = try telemetryClient.send(
+                command: line,
+                responseTimeout: Self.feedTelemetryAcknowledgementTimeoutSeconds,
+                deadline: deadline
+            )
         } catch {
             return
         }
@@ -37307,7 +37503,8 @@ export default CMUXSessionRestore;
         parsedInput: ClaudeHookParsedInput,
         workspaceId: String? = nil,
         surfaceId: String? = nil,
-        socketPassword: String? = nil
+        socketPassword: String? = nil,
+        telemetryOnly: Bool = false
     ) {
         let fallbackHookEventName = Self.feedEventName(forClaudeSubcommand: subcommand)
         let reportedEvent = reportedHookEventName(from: parsedInput)
@@ -37347,6 +37544,9 @@ export default CMUXSessionRestore;
             "_source": source,
             "_ppid": agentPid,
         ]
+        if telemetryOnly {
+            event["_telemetry_only"] = true
+        }
         if let workspaceId = feedWorkspaceId(rawObject: parsedInput.object, fallback: workspaceId) {
             event["workspace_id"] = workspaceId
         }
@@ -37406,6 +37606,14 @@ export default CMUXSessionRestore;
                 "command": "<redacted>"
             ]
         }
+        if hookEventName == "Notification", let notification = parsedInput.object {
+            event["tool_input"] = notification
+            if source == "copilot",
+               notification["error"] != nil,
+               firstString(in: notification, keys: ["error_context", "errorContext"]) != nil {
+                event["is_error"] = true
+            }
+        }
         if let failureDetailsForFeed {
             var toolInput = event["tool_input"] as? [String: Any] ?? [:]
             toolInput["failure"] = failureDetailsForFeed
@@ -37426,15 +37634,29 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
-        event["_opencode_request_id"] = "\(source)-\(sessionId)-\(hookEventName)-\(Int(Date().timeIntervalSince1970 * 1000))"
+        let identityPayload = parsedInput.rawObject ?? parsedInput.object ?? [:]
+        FeedSourceIdentity(
+            payload: identityPayload,
+            fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                source: source,
+                sessionId: sessionId,
+                event: hookEventName,
+                payload: identityPayload
+            )
+        ).apply(to: &event)
+        let requestId = "\(source)-\(sessionId)-\(hookEventName)-\(Int(Date().timeIntervalSince1970 * 1000))"
+        event["_opencode_request_id"] = requestId
 
-        let frame: [String: Any] = [
+        var frame: [String: Any] = [
             "method": "feed.push",
             "params": [
                 "event": event,
                 "wait_timeout_seconds": 0,
             ],
         ]
+        if source == "copilot" {
+            frame["id"] = requestId
+        }
         guard let data = try? JSONSerialization.data(withJSONObject: frame),
               let line = String(data: data, encoding: .utf8)
         else { return }
@@ -37447,7 +37669,12 @@ export default CMUXSessionRestore;
         // (`runFeedHook`), whose events arrive in codex's own order, emits
         // the clear; wrapper-path staleness self-heals at the next
         // `prompt-submit`, which already clears the pane.
-        sendBestEffortFeedTelemetry(socketPath: client.socketPath, line: line, socketPassword: socketPassword)
+        sendBestEffortFeedTelemetry(
+            socketPath: client.socketPath,
+            line: line,
+            socketPassword: socketPassword,
+            awaitResponse: source == "copilot"
+        )
     }
 
     private func sanitizedCursorFeedToolInput(_ value: Any) -> Any {
@@ -37510,7 +37737,6 @@ export default CMUXSessionRestore;
            ) {
             mergeFeedContext(&context, transcriptContext)
         }
-
         if let planContext = feedPlanContext(from: toolInput) {
             mergeFeedContext(&context, planContext, preferIncoming: true)
         }
@@ -37942,7 +38168,7 @@ export default CMUXSessionRestore;
         case "subagent-stop": return "SubagentStop"
         case "stop", "idle": return "Stop"
         case "session-end": return "SessionEnd"
-        case "notification", "notify": return "Notification"
+        case "notification", "notify", "error": return "Notification"
         default: return ""
         }
     }
@@ -39554,7 +39780,7 @@ export default CMUXSessionRestore;
         // decoding without changing other agents' actionable hook reads.
         let stdinData: Data
         let feedHookStdinLimit: Int? = switch source {
-        case "codex": Self.feedHookMaxStdinBytes
+        case "codex", "copilot": Self.feedHookMaxStdinBytes
         case "pi": Self.piFeedHookMaxStdinBytes
         default: nil
         }
@@ -39634,6 +39860,97 @@ export default CMUXSessionRestore;
             source: source,
             sessionID: sessionId
         ) else {
+            print("{}")
+            return
+        }
+        let copilotTelemetryOnly: Bool = {
+            guard source == "copilot",
+                  let workspaceId = feedWorkspaceId(
+                      rawObject: stdinObj,
+                      fallback: env["CMUX_WORKSPACE_ID"]
+                  ),
+                  let root = try? agentHookSessionStore(source: source, env: env).latestSession(
+                      workspaceId: workspaceId,
+                      surfaceId: env["CMUX_SURFACE_ID"]
+                  ) else {
+                return false
+            }
+            return root.runtimeStatus == .running && root.sessionId != sessionId
+        }()
+        if source == "copilot",
+           hookEventName == "PreToolUse",
+           let toolCalls = stdinObj["toolCalls"] as? [[String: Any]],
+           !toolCalls.isEmpty {
+            let workspaceId = feedWorkspaceId(rawObject: stdinObj, fallback: env["CMUX_WORKSPACE_ID"])
+            let cwd = firstString(in: stdinObj, keys: ["cwd", "working_directory", "workingDirectory"])
+                ?? firstWorkspacePath(in: stdinObj)
+            var identityPayload = stdinObj
+            let environmentTraceparent = ["TRACEPARENT", "traceparent", "OTEL_TRACEPARENT"]
+                .compactMap { env[$0]?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .first(where: { !$0.isEmpty })
+            if firstString(in: identityPayload, keys: ["traceparent"]) == nil,
+               let environmentTraceparent {
+                identityPayload["traceparent"] = environmentTraceparent
+            }
+            for (index, call) in toolCalls.enumerated() {
+                var event: [String: Any] = [
+                    "session_id": workstreamID,
+                    "hook_event_name": hookEventName,
+                    "_source": source,
+                    "_ppid": agentPid,
+                ]
+                if let workspaceId { event["workspace_id"] = workspaceId }
+                if let cwd { event["cwd"] = cwd }
+                if copilotTelemetryOnly {
+                    event["_telemetry_only"] = true
+                }
+                if let toolName = firstString(in: call, keys: ["name", "toolName", "tool_name"]) {
+                    event["tool_name"] = toolName
+                }
+                if let args = Self.copilotToolCallArguments(call["args"]) {
+                    event["tool_input"] = args
+                }
+                let callId = firstString(in: call, keys: ["id", "toolCallId", "tool_call_id"])
+                FeedSourceIdentity(
+                    payload: identityPayload,
+                    fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                        source: source,
+                        sessionId: sessionId,
+                        event: rawEvent,
+                        payload: [
+                            "hook": identityPayload,
+                            "call": call,
+                            "index": index,
+                        ]
+                    )
+                ).apply(to: &event)
+                if let callId {
+                    event["_source_event_id"] = callId
+                    event["_action_request_id"] = callId
+                }
+                event["_opencode_request_id"] = callId
+                    ?? "\(source)-\(sessionId)-\(rawEvent)-\(index)-\(Int(Date().timeIntervalSince1970 * 1000))"
+                let request: [String: Any] = [
+                    "method": "feed.push",
+                    "params": [
+                        "event": event,
+                        "wait_timeout_seconds": 0,
+                    ],
+                ]
+                guard let payload = try? JSONSerialization.data(withJSONObject: request),
+                      let line = String(data: payload, encoding: .utf8) else {
+                    continue
+                }
+                if let client {
+                    _ = try? client.sendOneWay(command: line, writeTimeout: 0.05)
+                } else if let socketPath {
+                    sendBestEffortFeedTelemetry(
+                        socketPath: socketPath,
+                        line: line,
+                        socketPassword: socketPassword
+                    )
+                }
+            }
             print("{}")
             return
         }
@@ -39756,7 +40073,7 @@ export default CMUXSessionRestore;
             // Do not let the generic feed frame below reuse stale ambient
             // workspace/surface metadata after this decision.
             guard feedLifecycleTarget != nil else {
-                let diagnosticStore = ClaudeHookSessionStore(processEnv: env)
+                let diagnosticStore = agentHookSessionStore(source: source, env: env)
                 let diagnosticKind: AgentJournalEventKind = hookEventName == "SubagentStart"
                     ? .childSpawned
                     : .childCompleted
@@ -39798,6 +40115,9 @@ export default CMUXSessionRestore;
             "_source": source,
             "_ppid": agentPid,
         ]
+        if copilotTelemetryOnly {
+            eventDict["_telemetry_only"] = true
+        }
         if let workspaceId = feedWorkspaceId(rawObject: stdinObj, fallback: env["CMUX_WORKSPACE_ID"]) {
             eventDict["workspace_id"] = workspaceId
         }
@@ -39805,7 +40125,10 @@ export default CMUXSessionRestore;
             eventDict["workspace_id"] = validatedCodexFeedTarget.workspaceId
             eventDict["surface_id"] = validatedCodexFeedTarget.surfaceId
         }
-        let toolRequestInput = stdinObj["tool_input"] ?? stdinObj["toolInput"] ?? toolCall?["args"]
+        let toolRequestInput = stdinObj["tool_input"]
+            ?? stdinObj["toolInput"]
+            ?? stdinObj["toolArgs"]
+            ?? toolCall?["args"]
         let postToolUseResponseInput = stdinObj["tool_response"]
             ?? stdinObj["toolResponse"]
             ?? stdinObj["tool_result"]
@@ -39853,6 +40176,15 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
+        FeedSourceIdentity(
+            payload: stdinObj,
+            fallbackSourceEventId: FeedSourceIdentity.derivedSourceEventId(
+                source: source,
+                sessionId: sessionId,
+                event: rawEvent,
+                payload: stdinObj
+            )
+        ).apply(to: &eventDict)
         let requestId = stdinObj["_opencode_request_id"] as? String
             ?? firstString(in: stdinObj, keys: ["request_id", "tool_use_id", "toolUseID"])
             ?? "\(source)-\(sessionId)-\(rawEvent)-\(toolName)-\(Int(Date().timeIntervalSince1970 * 1000))"
@@ -40063,6 +40395,19 @@ export default CMUXSessionRestore;
             return nil
         }
         return data
+    }
+
+    private static func copilotToolCallArguments(_ value: Any?) -> Any? {
+        if let string = value as? String {
+            let bounded = String(string.prefix(64 * 1024))
+            if let data = bounded.data(using: .utf8),
+               let decoded = try? JSONSerialization.jsonObject(with: data) {
+                return decoded
+            }
+            return bounded
+        }
+        guard let value, JSONSerialization.isValidJSONObject(value) else { return nil }
+        return value
     }
 
     private static let feedPostToolUseScalarStringLimitBytes = 512

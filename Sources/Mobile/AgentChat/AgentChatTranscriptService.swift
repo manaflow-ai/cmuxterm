@@ -298,6 +298,7 @@ final class AgentChatTranscriptService {
     ///
     /// - Parameter event: The hook event.
     func noteHookEvent(_ event: WorkstreamEvent) {
+        guard !event.telemetryOnly else { return }
         let record = registry.noteHookEvent(event)
         // A session (re)starting or receiving a prompt is the bounded
         // retry point for a transcript that didn't exist at first sight.

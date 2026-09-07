@@ -19,6 +19,10 @@ extension WorkstreamStore {
             status: item.status,
             payload: item.payload,
             context: item.context,
+            sourceEventId: item.sourceEventId,
+            sourceRevision: item.sourceRevision,
+            causalChainId: item.causalChainId,
+            actionRequestId: item.actionRequestId,
             ppid: item.ppid
         )
     }

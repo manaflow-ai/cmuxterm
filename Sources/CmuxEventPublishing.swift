@@ -449,6 +449,11 @@ extension CmuxEventBus {
             "tool_name": event.toolName ?? NSNull(),
             "is_error": event.isError ?? NSNull(),
             "_opencode_request_id": event.requestId ?? NSNull(),
+            "_source_event_id": event.sourceEventId ?? NSNull(),
+            "_source_revision": event.sourceRevision ?? NSNull(),
+            "_causal_chain_id": event.causalChainId ?? NSNull(),
+            "_action_request_id": event.actionRequestId ?? NSNull(),
+            "_telemetry_only": event.telemetryOnly,
             "_ppid": event.ppid ?? NSNull(),
             "_received_at": Self.isoTimestamp(event.receivedAt)
         ]

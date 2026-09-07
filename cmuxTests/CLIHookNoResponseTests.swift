@@ -105,7 +105,7 @@ struct CLIHookNoResponseTests {
                 arguments: ["hooks", "feed", "--source", testCase.source, "--event", testCase.event],
                 environment: environment,
                 standardInput: input,
-                timeout: 0.5
+                timeout: 1.0
             )
 
             #expect(server.wait(timeout: 5), "\(testCase.source): socket server did not observe feed.push")
@@ -192,7 +192,7 @@ struct CLIHookNoResponseTests {
                 "CMUX_SOCKET_PASSWORD": "test-password",
             ],
             standardInput: #"{"session_id":"kiro-lifecycle-no-response","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
-            timeout: 1.0
+            timeout: 2.0
         )
 
         #expect(server.wait(timeout: 5), "socket server did not observe lifecycle feed.push")

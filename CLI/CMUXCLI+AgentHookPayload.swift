@@ -89,6 +89,12 @@ extension CMUXCLI {
                 compact[key] = value
             }
         }
+        if let errorContext = firstString(in: object, keys: ["error_context", "errorContext"]) {
+            compact["error_context"] = errorContext
+        }
+        if let recoverable = object["recoverable"] as? Bool {
+            compact["recoverable"] = recoverable
+        }
 
         if let toolInput = object["tool_input"] as? [String: Any] {
             var compactToolInput: [String: Any] = [:]
@@ -203,6 +209,13 @@ extension CMUXCLI {
         let maxLength = claudeHookCompactFieldLimit(for: key)
         if let string = compactClaudeHookStringValue(rawValue, maxLength: maxLength) {
             return string
+        }
+        if key == "error", let error = rawValue as? [String: Any] {
+            let name = compactClaudeHookStringValue(error["name"], maxLength: 80)
+            let message = compactClaudeHookStringValue(error["message"], maxLength: maxLength)
+            if let message {
+                return name.map { "\($0): \(message)" } ?? message
+            }
         }
         guard let rawValue,
               JSONSerialization.isValidJSONObject(rawValue),

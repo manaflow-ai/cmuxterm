@@ -60,7 +60,7 @@ public struct AgentSemanticEventMapper: Sendable {
             return .turnCompleted
         case ("opencode", "sessiondeleted"):
             return .sessionEnded
-        case ("copilot", "notification"), ("codebuddy", "notification"), ("factory", "notification"):
+        case ("codebuddy", "notification"), ("factory", "notification"):
             // These Claude-compatible runtimes use Notification as their only
             // reliable completed-turn callback.
             return .turnCompleted
@@ -121,7 +121,7 @@ public struct AgentSemanticEventMapper: Sendable {
     ]
 
     private static let errorEvents: Set<String> = [
-        "stopfailure", "onerror", "error", "posttoolusefailure",
+        "stopfailure", "onerror", "error", "erroroccurred", "posttoolusefailure",
     ]
 
     private static let sessionEndEvents: Set<String> = [

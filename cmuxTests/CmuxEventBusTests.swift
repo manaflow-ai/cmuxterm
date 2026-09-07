@@ -475,6 +475,11 @@ final class CmuxEventBusTests: XCTestCase {
                 assistantPreamble: "secret answer"
             ),
             requestId: "request",
+            sourceEventId: "event-1",
+            sourceRevision: "revision-2",
+            causalChainId: "turn-3",
+            actionRequestId: "action-4",
+            telemetryOnly: true,
             ppid: 42,
             receivedAt: Date(timeIntervalSince1970: 0),
             extraFieldsJSON: #"{"message":"secret extra","result":"secret output"}"#
@@ -485,6 +490,11 @@ final class CmuxEventBusTests: XCTestCase {
         XCTAssertEqual(payload["session_id"] as? String, "session")
         XCTAssertEqual(payload["hook_event_name"] as? String, "PreToolUse")
         XCTAssertEqual(payload["tool_name"] as? String, "Bash")
+        XCTAssertEqual(payload["_source_event_id"] as? String, "event-1")
+        XCTAssertEqual(payload["_source_revision"] as? String, "revision-2")
+        XCTAssertEqual(payload["_causal_chain_id"] as? String, "turn-3")
+        XCTAssertEqual(payload["_action_request_id"] as? String, "action-4")
+        XCTAssertEqual(payload["_telemetry_only"] as? Bool, true)
         XCTAssertTrue(payload["tool_input"] is NSNull)
         XCTAssertTrue(payload["context"] is NSNull)
         XCTAssertTrue(payload["extra_fields"] is NSNull)
