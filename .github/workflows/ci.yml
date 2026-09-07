@@ -2277,6 +2277,12 @@ jobs:
         run: |
           ./scripts/install-rust-ci.sh
 
+      - name: Set up Go for the Cloud tunnel extension
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.x'
+          cache: false
+
       - name: Cache DerivedData
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
