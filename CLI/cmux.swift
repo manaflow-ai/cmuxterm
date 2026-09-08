@@ -5211,6 +5211,12 @@ struct CMUXCLI {
         // Check for --help/-h on subcommands before resolving sockets,
         // so help text is available even when cmux is not running.
         let preSeparatorArgs = commandArgs.firstIndex(of: "--").map { commandArgs[..<$0] } ?? commandArgs[...]
+        if command == "codex-teams",
+           commandArgs.first?.lowercased() == "recover",
+           preSeparatorArgs.contains(where: { $0 == "--help" || $0 == "-h" }) {
+            print(Self.codexWriterRecoveryUsage())
+            return
+        }
         if command != "__tmux-compat",
            shouldDispatchCmuxSubcommandHelp(command: command, commandArgs: commandArgs),
            preSeparatorArgs.contains(where: { $0 == "--help" || $0 == "-h" }) {
@@ -5438,6 +5444,10 @@ struct CMUXCLI {
         }
 
         if command == "codex-teams" {
+            if commandArgs.first?.lowercased() == "recover" {
+                try runCodexWriterRecovery(commandArgs: commandArgs)
+                return
+            }
             try runCodexTeams(
                 commandArgs: commandArgs,
                 socketPath: resolvedSocketPath,
@@ -8487,7 +8497,8 @@ struct CMUXCLI {
         case "claude-teams":
             return claudeTeamsIsNonLaunchInvocation(commandArgs: commandArgs)
         case "codex-teams":
-            return codexTeamsIsInformationalInvocation(commandArgs: commandArgs)
+            return commandArgs.first?.lowercased() == "recover"
+                || codexTeamsIsInformationalInvocation(commandArgs: commandArgs)
         case "omo":
             return omoIsNonLaunchInvocation(commandArgs: commandArgs)
         case "omx":
@@ -24188,6 +24199,14 @@ struct CMUXCLI {
         }
     }
 
+    private struct CodexTeamsAppServerRequestError: Error, CustomStringConvertible {
+        let code: Int?
+        let message: String
+        let data: Any?
+
+        var description: String { message }
+    }
+
     private final class CodexTeamsAppServerConnection {
         private let session: URLSession
         private let task: URLSessionWebSocketTask
@@ -24287,7 +24306,19 @@ struct CMUXCLI {
                 if CodexTeamsAppServerConnection.message(message, hasId: requestId) {
                     if let error = message["error"] as? [String: Any] {
                         let message = (error["message"] as? String) ?? "Codex app-server request failed"
-                        throw CLIError(message: message)
+                        let code: Int?
+                        if let integerCode = error["code"] as? Int {
+                            code = integerCode
+                        } else if let numberCode = error["code"] as? NSNumber {
+                            code = numberCode.intValue
+                        } else {
+                            code = nil
+                        }
+                        throw CodexTeamsAppServerRequestError(
+                            code: code,
+                            message: message,
+                            data: error["data"]
+                        )
                     }
                     if let result = message["result"] as? [String: Any] {
                         return result
@@ -24397,6 +24428,7 @@ struct CMUXCLI {
         private let maxAutoDepth: Int
         private let socketClient: SocketClient
         private let socketPassword: String?
+        private let codexHome: String
 
         private var knownThreadIds = Set<String>()
         private var parentByThreadId: [String: String] = [:]
@@ -24425,7 +24457,8 @@ struct CMUXCLI {
             launchPath: String?,
             maxAutoDepth: Int,
             socketClient: SocketClient,
-            socketPassword: String?
+            socketPassword: String?,
+            codexHome: String
         ) {
             self.appServerURL = appServerURL
             self.workspaceId = workspaceId
@@ -24435,6 +24468,7 @@ struct CMUXCLI {
             self.maxAutoDepth = max(0, maxAutoDepth)
             self.socketClient = socketClient
             self.socketPassword = socketPassword
+            self.codexHome = codexHome
         }
 
         func run() throws {
@@ -24479,7 +24513,7 @@ struct CMUXCLI {
                 do {
                     try subscribeToThreadIfNeeded(threadId, connection: connection)
                 } catch {
-                    cliWriteStderr("cmux codex-teams watcher skipped thread \(threadId): \(error)\n")
+                    reportWriterConflictIfNeeded(threadID: threadId, error: error)
                 }
             }
         }
@@ -24514,9 +24548,25 @@ struct CMUXCLI {
                 do {
                     try subscribeToThreadIfNeeded(thread.id, connection: connection)
                 } catch {
-                    cliWriteStderr("cmux codex-teams watcher skipped thread \(thread.id): \(error)\n")
+                    reportWriterConflictIfNeeded(threadID: thread.id, error: error)
                 }
             }
+        }
+
+        private func reportWriterConflictIfNeeded(threadID: String, error: Error) {
+            guard let requestError = error as? CodexTeamsAppServerRequestError,
+                  CodexWriterRecovery.isWriterConflict(
+                      code: requestError.code,
+                      message: requestError.message
+                  ),
+                  let diagnostic = CMUXCLI.codexWriterReportMessage(
+                      sessionID: threadID,
+                      codexHome: codexHome
+                  ) else {
+                cliWriteStderr("cmux codex-teams watcher skipped thread \(threadID): \(error)\n")
+                return
+            }
+            cliWriteStderr(diagnostic + "\n")
         }
 
         private func subscribeToThreadIfNeeded(
@@ -25263,6 +25313,11 @@ struct CMUXCLI {
             searchPath: launcherEnvironment["PATH"],
             includingExecutableAt: codexExecutablePath
         )
+        try guardCodexWriterBeforeResume(
+            arguments: [codexExecutablePath] + commandArgs,
+            environment: launcherEnvironment,
+            workingDirectory: launcherEnvironment["PWD"] ?? FileManager.default.currentDirectoryPath
+        )
         let codexExecutableForShell = codexExecutablePath
         let appServerPort = omoBindableLoopbackPort(0) ?? 0
         guard appServerPort > 0 else {
@@ -25726,7 +25781,13 @@ struct CMUXCLI {
             launchPath: launchPath,
             maxAutoDepth: maxDepth,
             socketClient: client,
-            socketPassword: socketPassword
+            socketPassword: socketPassword,
+            codexHome: CodexHomeResolver().resolve(
+                launchEnvironment: ProcessInfo.processInfo.environment,
+                launchWorkingDirectory: ProcessInfo.processInfo.environment["PWD"],
+                ambientEnvironment: ProcessInfo.processInfo.environment,
+                fallbackHomeDirectory: NSHomeDirectory()
+            )
         )
         withExtendedLifetime(ownerSource) {
             do {
