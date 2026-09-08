@@ -103,6 +103,7 @@ import {
   devboxFileBytes,
   devboxGhosttyDebSha256,
   devboxGhosttyDebUrl,
+  devboxGhosttyVersion,
   devboxIdentityCheckCommand,
   devboxIdentityInstallCommand,
   devboxJournalResetCommand,
@@ -441,6 +442,13 @@ try {
   await step(
     "cmux-tui-pin",
     `${cmuxTuiPinCheckCommand(cmuxTuiSource)} && mkdir -p /etc/cmux /root/.config/cmux && printf '%s %s\n' ${cmuxTuiSource.sha256} ${cmuxTuiSource.commit} > /etc/cmux/cmux-tui-pin && cat /etc/cmux/cmux-tui-pin`,
+  );
+
+  // The Ghostty generation panes announce as TERM_PROGRAM_VERSION (the
+  // supervisor exports it next to TERM_PROGRAM=ghostty; see cmux-devbox-boot).
+  await step(
+    "ghostty-version",
+    `mkdir -p /etc/cmux && printf '%s\n' ${devboxGhosttyVersion()} > /etc/cmux/ghostty-version && cat /etc/cmux/ghostty-version`,
   );
 
   // The cmux-tui daemon supervisor + its systemd unit (see the header).
