@@ -293793,8 +293793,8 @@
     "artifacts.cli.unknownSubcommand": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Unknown artifacts subcommand '%@'. Use list, search, or open." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "不明なアーティファクトサブコマンド '%@' です。list、search、open を使用してください。" } }
+        "en": { "stringUnit": { "state": "translated", "value": "Unknown artifacts subcommand '%@'. Use list, search, open, or add." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "不明なアーティファクトサブコマンド '%@' です。list、search、open、add を使用してください。" } }
       }
     },
     "artifacts.cli.failed": {
@@ -293851,6 +293851,27 @@
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Artifacts add requires exactly one supported input" } },
         "ja": { "stringUnit": { "state": "translated", "value": "artifacts add にはサポートされる入力を1つだけ指定してください" } }
+      }
+    },
+    "artifacts.cli.workspaceScopeRequiresWorkspace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Artifacts --scope workspace requires --workspace <id|ref|index>" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "artifacts --scope workspace には --workspace <id|ref|index> が必要です" } }
+      }
+    },
+    "artifacts.cli.projectScopeRequiresProject": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Artifacts --scope project requires --project <id>" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "artifacts --scope project には --project <id> が必要です" } }
+      }
+    },
+    "artifacts.cli.unknownScope": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unknown artifacts scope '%@'. Use global, workspace, or project." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "不明なアーティファクトスコープ '%@' です。global、workspace、project を使用してください。" } }
       }
     },
     "artifactsPane.workspaceUnavailable": {

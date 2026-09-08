@@ -10,8 +10,13 @@ extension CMUXCLI {
     ) throws {
         let subcommand = commandArgs.first?.lowercased() ?? "list"
         let workspaceRaw = optionValue(commandArgs, name: "--workspace")
-        let scopeRaw = optionValue(commandArgs, name: "--scope") ?? (workspaceRaw == nil ? "global" : "workspace")
-        var params: [String: Any] = ["scope": scopeRaw]
+        let projectRaw = optionValue(commandArgs, name: "--project")
+        let scope = try resolvedArtifactsScope(
+            explicit: optionValue(commandArgs, name: "--scope"),
+            hasWorkspace: workspaceRaw != nil,
+            hasProject: projectRaw != nil
+        )
+        var params: [String: Any] = ["scope": scope]
         if let workspaceRaw {
             let window = try normalizeWindowHandle(optionValue(commandArgs, name: "--window"), client: client)
             params["workspace_id"] = try resolveWorkspaceId(
@@ -20,7 +25,7 @@ extension CMUXCLI {
                 windowHandle: window
             )
         }
-        if let project = optionValue(commandArgs, name: "--project") { params["project_id"] = project }
+        if let projectRaw { params["project_id"] = projectRaw }
 
         let payload: [String: Any]
         switch subcommand {
@@ -63,7 +68,7 @@ extension CMUXCLI {
         default:
             throw CLIError(
                 message: String.localizedStringWithFormat(
-                    String(localized: "artifacts.cli.unknownSubcommand", defaultValue: "Unknown artifacts subcommand '%@'. Use list, search, or open."),
+                    String(localized: "artifacts.cli.unknownSubcommand", defaultValue: "Unknown artifacts subcommand '%@'. Use list, search, open, or add."),
                     subcommand
                 ),
                 exitCode: 2
@@ -89,5 +94,47 @@ extension CMUXCLI {
             ))
         }
         _ = idFormat
+    }
+
+    /// Resolves the catalog scope for one artifacts request.
+    ///
+    /// An explicit `--scope` wins. Otherwise `--workspace` selects the
+    /// workspace scope, `--project` selects the project scope, and the
+    /// global catalog is the default. A workspace or project scope without
+    /// its id would silently match nothing, so it is rejected up front.
+    private func resolvedArtifactsScope(
+        explicit: String?,
+        hasWorkspace: Bool,
+        hasProject: Bool
+    ) throws -> String {
+        let scope = explicit?.lowercased() ?? (hasWorkspace ? "workspace" : hasProject ? "project" : "global")
+        switch scope {
+        case "global":
+            return scope
+        case "workspace":
+            guard hasWorkspace else {
+                throw CLIError(
+                    message: String(localized: "artifacts.cli.workspaceScopeRequiresWorkspace", defaultValue: "Artifacts --scope workspace requires --workspace <id|ref|index>"),
+                    exitCode: 2
+                )
+            }
+            return scope
+        case "project":
+            guard hasProject else {
+                throw CLIError(
+                    message: String(localized: "artifacts.cli.projectScopeRequiresProject", defaultValue: "Artifacts --scope project requires --project <id>"),
+                    exitCode: 2
+                )
+            }
+            return scope
+        default:
+            throw CLIError(
+                message: String.localizedStringWithFormat(
+                    String(localized: "artifacts.cli.unknownScope", defaultValue: "Unknown artifacts scope '%@'. Use global, workspace, or project."),
+                    scope
+                ),
+                exitCode: 2
+            )
+        }
     }
 }
