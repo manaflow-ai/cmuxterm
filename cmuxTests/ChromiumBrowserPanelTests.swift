@@ -52,7 +52,7 @@ struct ChromiumBrowserPanelTests {
             timestamp: 0, windowNumber: 0, context: nil, characters: "!",
             charactersIgnoringModifiers: "1", isARepeat: false, keyCode: 18
         ))
-        let mapping = ChromiumKeyMapping.map(event)
+        let mapping = ChromiumKeyMapping().map(event)
         #expect(mapping.key == "!")
         #expect(mapping.code == "Digit1")
         #expect(mapping.text == "!")
