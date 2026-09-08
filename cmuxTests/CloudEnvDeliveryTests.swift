@@ -95,6 +95,29 @@ import Testing
         #expect(closed == ["temporary-marker"])
     }
 
+    @MainActor @Test(arguments: [false, true])
+    func combinedCleanupFailurePreservesCancellationAndRedactsUnknownErrors(cancelled: Bool) async throws {
+        let failure = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "private-sdk-sentinel"])
+        do {
+            _ = try await CloudEnvDelivery.withReceiverWorkspace(
+                existingWorkspaceID: nil,
+                createWorkspace: { "temporary-marker" },
+                closeWorkspace: { _ in throw failure },
+                operation: { _ in
+                    if cancelled { throw CancellationError() }
+                    throw failure
+                }
+            )
+            Issue.record("both failures must be reported")
+        } catch {
+            let combined = try #require(error as? CloudEnvDelivery.OperationAndCleanupError)
+            #expect(combined.cleanupError == .workspaceCleanupFailed("temporary-marker"))
+            #expect(cancelled ? combined.operationError is CancellationError : (combined.operationError as NSError) == failure)
+            #expect(!combined.localizedDescription.contains("private-sdk-sentinel"))
+            #expect(combined.localizedDescription.contains("temporary-marker"))
+        }
+    }
+
     @Test func payloadIsLiteralKeyValueLines() throws {
         let payload = try CloudEnvDelivery.payload([
             Entry(key: "A", value: "1"),

@@ -4104,6 +4104,9 @@ class TerminalController {
             if let deliveryError = error as? CloudEnvDelivery.DeliveryError {
                 return v2Error(id: id, code: "vm_env_delivery_failed", message: deliveryError.localizedDescription)
             }
+            if let combinedError = error as? CloudEnvDelivery.OperationAndCleanupError {
+                return v2Error(id: id, code: "vm_env_delivery_failed", message: combinedError.localizedDescription)
+            }
             if let catalogError = error as? SurfaceCatalogError {
                 switch catalogError {
                 case .nothingToOpen:

@@ -63,9 +63,13 @@ enum CloudEnvDelivery {
         let outcome: Outcome
         do {
             outcome = try await operation(workspaceID)
-        } catch {
-            try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
-            throw error
+        } catch let operationError {
+            do {
+                try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
+            } catch let cleanupError as DeliveryError {
+                throw OperationAndCleanupError(operationError: operationError, cleanupError: cleanupError)
+            }
+            throw operationError
         }
         try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
         return outcome
@@ -80,6 +84,23 @@ enum CloudEnvDelivery {
             try await Task { @MainActor in try await closeWorkspace(workspaceID) }.value
         } catch {
             throw DeliveryError.workspaceCleanupFailed(workspaceID)
+        }
+    }
+
+    struct OperationAndCleanupError: Error, LocalizedError {
+        let operationError: any Error
+        let cleanupError: DeliveryError
+
+        var errorDescription: String? {
+            let primaryDescription: String
+            if let deliveryError = operationError as? DeliveryError {
+                primaryDescription = deliveryError.localizedDescription
+            } else if operationError is CancellationError {
+                primaryDescription = String(localized: "cloudEnv.error.deliveryCancelled", defaultValue: "Environment delivery was cancelled.")
+            } else {
+                primaryDescription = String(localized: "cloudEnv.error.deliveryFailed", defaultValue: "Environment delivery failed.")
+            }
+            return "\(primaryDescription) \(cleanupError.localizedDescription)"
         }
     }
 

@@ -1,6 +1,8 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "cloudEnv.error.deliveryCancelled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Environment delivery was cancelled."}},"ja":{"stringUnit":{"state":"translated","value":"環境変数の送信がキャンセルされました。"}}}},
+    "cloudEnv.error.deliveryFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Environment delivery failed."}},"ja":{"stringUnit":{"state":"translated","value":"環境変数の送信に失敗しました。"}}}},
     "cloudEnv.error.workspaceCleanupFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The temporary environment receiver workspace %@ could not be removed. Inspect the machine before retrying."}},"ja":{"stringUnit":{"state":"translated","value":"環境変数の受信用に一時作成したワークスペース %@ を削除できませんでした。再試行する前にマシンの状態を確認してください。"}}}},
     "cli.vm.unsupportedProviderOverride": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"vm: unsupported Cloud VM service override. Omit --provider and retry the same command."}},"ja":{"stringUnit":{"state":"translated","value":"vm: この Cloud VM サービスの指定には対応していません。--provider を省略して同じコマンドを再実行してください。"}}}},
     "socket.cloudVM.requestFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The Cloud VM request failed. Retry, or check the machine's status with `cmux vm ls`."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud VM のリクエストに失敗しました。再試行するか、`cmux vm ls` でマシンの状態を確認してください。"}}}},
