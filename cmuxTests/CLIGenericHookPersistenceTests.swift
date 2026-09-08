@@ -11,6 +11,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let launchArguments: [String]
         let extraEnvironment: [String: String]
         let existingLaunchArguments: [String]?
+        let existingLaunchEnvironment: [String: String]?
+        let existingLaunchRejectionReason: String?
         let expectedArguments: [String]
         let expectedEnvironment: [String: String]?
         let expectedSource: String?
@@ -27,7 +29,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
             expectedEnvironment: [String: String]?,
             expectedSource: String? = nil,
             expectedRejectionReason: String? = nil,
-            existingLaunchArguments: [String]? = nil
+            existingLaunchArguments: [String]? = nil,
+            existingLaunchEnvironment: [String: String]? = nil,
+            existingLaunchRejectionReason: String? = nil
         ) {
             self.agent = agent
             self.subcommand = subcommand
@@ -36,6 +40,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
             self.launchArguments = launchArguments
             self.extraEnvironment = extraEnvironment
             self.existingLaunchArguments = existingLaunchArguments
+            self.existingLaunchEnvironment = existingLaunchEnvironment
+            self.existingLaunchRejectionReason = existingLaunchRejectionReason
             self.expectedArguments = expectedArguments
             self.expectedEnvironment = expectedEnvironment
             self.expectedSource = expectedSource
@@ -170,6 +176,25 @@ extension CLINotifyProcessIntegrationRegressionTests {
                     "--model",
                     "stable-model",
                 ]
+            ),
+            GenericHookPersistenceScenario(
+                agent: "gemini",
+                subcommand: "session-start",
+                sessionId: "gemini-rejected-preserves-env-only-fallback-session-123",
+                executable: "/Users/example/.bun/bin/gemini",
+                launchArguments: ["/Users/example/.bun/bin/gemini"],
+                extraEnvironment: [
+                    "CMUX_AGENT_LAUNCH_ARGV_B64": "not-base64",
+                    "GEMINI_CLI_HOME": "/tmp/gemini rejected home",
+                    "CMUX_GEMINI_PID": "999999999",
+                ],
+                expectedArguments: [],
+                expectedEnvironment: ["GEMINI_CLI_HOME": "/tmp/gemini stable home"],
+                expectedSource: "environment",
+                expectedRejectionReason: "argvUnavailable",
+                existingLaunchArguments: [],
+                existingLaunchEnvironment: ["GEMINI_CLI_HOME": "/tmp/gemini stable home"],
+                existingLaunchRejectionReason: "argvUnavailable"
             ),
             GenericHookPersistenceScenario(
                 agent: "kiro",
@@ -4529,15 +4554,21 @@ extension CLINotifyProcessIntegrationRegressionTests {
             try? FileManager.default.removeItem(at: root)
         }
 
-        if let existingLaunchArguments = scenario.existingLaunchArguments {
+        if scenario.existingLaunchArguments != nil || scenario.existingLaunchEnvironment != nil {
             let now = Date().timeIntervalSince1970
-            let existingLaunchCommand: [String: Any] = [
+            var existingLaunchCommand: [String: Any] = [
                 "launcher": scenario.agent,
                 "executablePath": scenario.executable,
-                "arguments": existingLaunchArguments,
+                "arguments": scenario.existingLaunchArguments ?? [],
                 "workingDirectory": workspace.path,
                 "source": "environment",
             ]
+            if let existingLaunchEnvironment = scenario.existingLaunchEnvironment {
+                existingLaunchCommand["environment"] = existingLaunchEnvironment
+            }
+            if let existingLaunchRejectionReason = scenario.existingLaunchRejectionReason {
+                existingLaunchCommand["rejectionReason"] = existingLaunchRejectionReason
+            }
             let existingStore: [String: Any] = [
                 "version": 1,
                 "sessions": [
@@ -4656,7 +4687,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         if let expectedRejectionReason = scenario.expectedRejectionReason {
             XCTAssertEqual(launchCommand["rejectionReason"] as? String, expectedRejectionReason)
         }
-        if scenario.existingLaunchArguments != nil {
+        if let existingLaunchArguments = scenario.existingLaunchArguments,
+           !existingLaunchArguments.isEmpty {
             XCTAssertNil(
                 launchCommand["rejectionReason"],
                 "a rejected follow-up must not add a rejection marker to the preserved argv"
@@ -4681,6 +4713,19 @@ extension CLINotifyProcessIntegrationRegressionTests {
                     self.jsonObject(command)?["method"] as? String == "surface.resume.clear"
                 },
                 "a rejected follow-up must not clear a richer existing binding: \(state.commands)"
+            )
+        }
+        if scenario.existingLaunchEnvironment != nil {
+            XCTAssertEqual(
+                launchCommand["rejectionReason"] as? String,
+                scenario.existingLaunchRejectionReason,
+                "a classified rejection must not replace a safe argv-less fallback"
+            )
+            XCTAssertFalse(
+                state.commands.contains { command in
+                    self.jsonObject(command)?["method"] as? String == "surface.resume.clear"
+                },
+                "a classified rejection must not clear an argv-less fallback binding: \(state.commands)"
             )
         }
 
