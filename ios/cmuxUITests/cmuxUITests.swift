@@ -3953,11 +3953,62 @@ final class cmuxUITests: XCTestCase {
         let systemBack = app.navigationBars.buttons.firstMatch
         XCTAssertTrue(waitForHittable(systemBack, timeout: 3))
         systemBack.tap()
-        XCTAssertTrue(searchField.waitForHittable(timeout: 3))
+        XCTAssertTrue(waitForHittable(searchField, timeout: 3))
         XCTAssertEqual(searchField.value as? String, "Tests passed")
-        XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
+        XCTAssertTrue(waitForNotHittable(matchingRow, timeout: 3))
         XCTAssertTrue(waitForNotHittable(nonmatchingRow, timeout: 3))
         XCTAssertGreaterThan(searchField.frame.midY, app.frame.midY)
+    }
+
+    @MainActor
+    func testNotificationSearchStaysAtBottomAfterOpeningWorkspaceAndReturningTwice() throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("The bottom search control requires iOS 26.")
+        }
+        let app = launchApp(mockData: false, environment: [
+            "CMUX_UITEST_NOTIFICATION_FEED_PREVIEW": "1",
+        ])
+        defer { app.terminate() }
+        let feed = app.descendants(matching: .any)["MobileNotificationFeed"]
+        XCTAssertTrue(feed.waitForExistence(timeout: 8))
+        let searchButton = app.tabBars.buttons["Search"]
+        XCTAssertTrue(waitForHittable(searchButton, timeout: 3))
+        tap(searchButton, in: app)
+        let searchField = app.searchFields["Search notifications"]
+        XCTAssertTrue(waitForHittable(searchField, timeout: 3))
+        searchField.typeText("Tests passed")
+        let matchingRow = app.descendants(matching: .any)["MobileNotificationFeedRow-macbook-tests-passed"]
+        XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
+        let initialFrame = searchField.frame
+        XCTAssertGreaterThan(initialFrame.midY, app.frame.midY)
+
+        func capture(_ name: String) {
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = name
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = name + "-hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+        }
+        capture("notification-search-before-open")
+        for cycle in 1...2 {
+            matchingRow.tap()
+            let detail = app.descendants(matching: .any)["MobileNotificationFeedPreviewWorkspaceDestination"]
+            XCTAssertTrue(detail.waitForExistence(timeout: 5))
+            capture("notification-search-workspace-\(cycle)")
+            let back = app.navigationBars.buttons.firstMatch
+            XCTAssertTrue(waitForHittable(back, timeout: 3))
+            back.tap()
+            XCTAssertTrue(waitForHittable(searchField, timeout: 5))
+            capture("notification-search-after-back-\(cycle)")
+            XCTAssertEqual(searchField.value as? String, "Tests passed")
+            XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
+            XCTAssertGreaterThan(searchField.frame.midY, app.frame.midY)
+            XCTAssertEqual(searchField.frame.minY, initialFrame.minY, accuracy: 4)
+            XCTAssertEqual(searchField.frame.height, initialFrame.height, accuracy: 4)
+        }
     }
 
     @MainActor
