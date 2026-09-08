@@ -228,8 +228,20 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let journal = try #require(
+            AgentJournalAppendCapture.first(
+                in: commands,
+                kind: "agent.turn.started",
+                agentKey: "claude_code",
+                sessionId: sessionId
+            )
+        )
+        #expect(journal.workspaceId == newWorkspaceId)
+        #expect(journal.surfaceId == Self.liveSurfaceId)
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications ") },
+            "PromptSubmit uses the semantic journal instead of a duplicate notification mutation; saw \(commands)"
+        )
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,8 +299,20 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let journal = try #require(
+            AgentJournalAppendCapture.first(
+                in: commands,
+                kind: "agent.state.changed",
+                agentKey: "claude_code",
+                sessionId: sessionId
+            )
+        )
+        #expect(journal.workspaceId == newWorkspaceId)
+        #expect(journal.surfaceId == Self.liveSurfaceId)
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications ") },
+            "PreToolUse uses the semantic journal instead of a duplicate notification mutation; saw \(commands)"
+        )
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)
