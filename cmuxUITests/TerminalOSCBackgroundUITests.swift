@@ -66,7 +66,7 @@ final class TerminalOSCBackgroundUITests: XCTestCase {
 
         let window = app.windows.firstMatch
         let terminal = app.textViews.firstMatch
-        let sidebar = app.otherElements["Sidebar"].firstMatch
+        let sidebar = app.descendants(matching: .any).matching(identifier: "Sidebar").firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "Expected main window")
         XCTAssertTrue(terminal.waitForExistence(timeout: 5), "Expected terminal accessibility surface")
         XCTAssertTrue(sidebar.waitForExistence(timeout: 5), "Expected shared-backdrop sidebar")
