@@ -145,4 +145,4 @@ async function main(): Promise<void> {
   console.log(`REACHABLE ${kind}/${size} ${target} in ${elapsed()}`);
 }
 
-if (import.meta.main) await main();
+if ((import.meta as ImportMeta & { main?: boolean }).main) await main();

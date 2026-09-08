@@ -51,10 +51,26 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         for surface in surfaces {
             try JSONSerialization.data(withJSONObject: ["pane": ["surfaces": [surface]]]).write(to: file)
             let result = try runWithoutSocket(["vm", "layout", "apply", "test-machine", file.path])
-            #expect(result.status != 0, result.text)
-            #expect(result.text.contains(".pane.surfaces[0].url"), result.text)
-            #expect(result.text.contains("browser surface needs url"), result.text)
+            #expect(result.status != 0, "\(result.text)")
+            #expect(result.text.contains(".pane.surfaces[0].url"), "\(result.text)")
+            #expect(result.text.contains("browser surface needs url"), "\(result.text)")
         }
+    }
+
+    @Test(arguments: [["--json"], ["--sync"], ["--no-open"], ["--machine", "vm-agent-test"]])
+    func aliasesAcceptLeadingCanonicalOptions(options: [String]) throws {
+        for command in [["vm", "agent"], ["agent"], ["coderouter", "agent"]] {
+            let result = try runWithoutSocket(command + options + ["--agent", "claude", "--size", "1", "--", "reply pong"])
+            #expect(result.status != 0, "\(command): \(result.text)")
+            #expect(result.text.contains("vm agent: unknown size '1'"), "\(command): \(result.text)")
+        }
+    }
+
+    @Test
+    func topLevelAgentAliasReachesCanonicalValidation() throws {
+        let result = try runWithoutSocket(["agent", "claude", "--size", "1", "reply pong"])
+        #expect(result.status != 0, "\(result.text)")
+        #expect(result.text.contains("vm agent: unknown size '1'"), "\(result.text)")
     }
 
     private func runWithoutSocket(_ arguments: [String]) throws -> (status: Int32, text: String) {
