@@ -1947,6 +1947,11 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 #endif
                 scheduleStateRecoveryRefresh()
             case .installSnapshot:
+                #if DEBUG
+                if let current = cloudState, cursor.revision != revision {
+                    cmuxDebugLog("cloud.state.deltaRejectReason reason=itemRevision cursor=\(cursor.revision) revision=\(revision) current=\(current.cursor?.revision ?? 0)")
+                }
+                #endif
                 guard let current = cloudState,
                       cursor.revision == revision,
                       let application = CmuxTuiSnapshotParser.applyingWithImpact(

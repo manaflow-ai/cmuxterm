@@ -591,15 +591,22 @@ struct CmuxTuiSnapshotParser: Sendable {
         cursor: CloudVMCursor,
         to state: CloudVMState
     ) -> CloudVMStateDeltaApplication? {
-        guard let currentCursor = state.cursor,
-              let delta = try? JSONSerialization.jsonObject(with: deltaPayload) as? [String: Any],
-              let changes = delta["changes"] as? [[String: Any]],
-              currentCursor.generation == cursor.generation,
-              currentCursor.revision < UInt64.max,
-              cursor.revision == currentCursor.revision + 1,
-              deltaEnvelopeMatches(delta, cursor: cursor, previousRevision: currentCursor.revision),
-              deltaSequencesAreValid(changes)
-        else { return rejectDelta("applyingWithImpact#1") }
+        guard let currentCursor = state.cursor else { return rejectDelta("noCurrentCursor") }
+        guard let delta = try? JSONSerialization.jsonObject(with: deltaPayload) as? [String: Any]
+        else { return rejectDelta("payloadNotObject") }
+        guard let changes = delta["changes"] as? [[String: Any]] else { return rejectDelta("noChanges") }
+        guard currentCursor.generation == cursor.generation else {
+            return rejectDelta("generation current=\(currentCursor.generation) delta=\(cursor.generation)")
+        }
+        guard currentCursor.revision < UInt64.max, cursor.revision == currentCursor.revision + 1 else {
+            return rejectDelta("revision current=\(currentCursor.revision) delta=\(cursor.revision)")
+        }
+        guard deltaEnvelopeMatches(delta, cursor: cursor, previousRevision: currentCursor.revision) else {
+            return rejectDelta("envelope kind=\(delta["kind"] ?? "nil") cursor=\(delta["cursor"] ?? "nil") previous=\(delta["previous_revision"] ?? "nil") revision=\(delta["revision"] ?? "nil")")
+        }
+        guard deltaSequencesAreValid(changes) else {
+            return rejectDelta("sequences \(changes.map { String(describing: $0["sequence"] ?? "nil") })")
+        }
 
         var document = state.document
         for change in changes {
