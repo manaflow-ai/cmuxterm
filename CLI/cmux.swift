@@ -1,6 +1,7 @@
 import Foundation
 import CMUXAgentLaunch
 import CmuxAgentJournal
+import CmuxControlSocket
 import CmuxFoundation
 import CmuxSettings
 import CmuxSimulator
@@ -4797,7 +4798,7 @@ struct CMUXCLI {
     // creation succeeds. Do not rotate it without a migration.
     private static let persistentCloudVMSlotID = "cmux-default-freestyle-sshd-v1"
     private static let persistentCloudVMWorkspaceName = "sshd"
-    private static let claudeCodeStatusKey = "claude_code"
+    static let claudeCodeStatusKey = "claude_code"
 
     static var allowedAgentLifecycleStatusKeys: Set<String> {
         var keys = Set(agentDefs.map(\.statusKey))
@@ -4977,8 +4978,6 @@ struct CMUXCLI {
         return parts.joined(separator: " · ")
     }
 
-    static let claudeCodeStatusKey = "claude_code"
-
     private static func agentNotificationMeta(
         category: AgentHookNotifyCategory,
         isError: Bool,
@@ -5017,12 +5016,6 @@ struct CMUXCLI {
         )?.rawValue
     }
 
-    private static var allowedAgentLifecycleStatusKeys: Set<String> {
-        var keys = Set(agentDefs.map(\.statusKey))
-        keys.formUnion(AgentHibernationLifecycleStatusKeys.allowedStatusKeys)
-        keys.insert(claudeCodeStatusKey)
-        return keys
-    }
     init(
         args: [String],
         initialSIGPIPEInspectionPayload: [String: Any]? = nil,
@@ -32042,73 +32035,6 @@ struct CMUXCLI {
             String(localized: "agent.generic.notification.status.needsInput", defaultValue: "%@ needs input"),
             def.displayName
         )
-    }
-
-    private func classifyClaudeNotification(signal: String, message: String) -> (subtitle: String, body: String) {
-        let lower = "\(signal) \(message)".lowercased()
-        if lower.contains("permission") || lower.contains("approve") || lower.contains("approval") || lower.contains("permission_prompt") {
-            let body = message.isEmpty ? "Approval needed" : message
-            return ("Permission", body)
-        }
-        if lower.contains("error") || lower.contains("failed") || lower.contains("exception") {
-            let body = message.isEmpty ? "Claude reported an error" : message
-            return ("Error", body)
-        }
-        if AgentHookNotificationClassifier.containsCompletionCue(lower) {
-            let body = message.isEmpty ? "Task completed" : message
-            return ("Completed", body)
-        }
-        if AgentHookNotificationClassifier.containsWaitingCue(lower) {
-            let body = message.isEmpty ? "Waiting for input" : message
-            return ("Waiting", body)
-        }
-        // Use the message directly when there is one. A payload with no
-        // usable message yields an empty body: callers reuse the stored
-        // session summary or skip the banner. The old "Claude needs your
-        // attention" fabrication (and the needs-input state it implied) is
-        // deliberately gone — an unparseable message is not a signal.
-        if !message.isEmpty {
-            return ("Attention", message)
-        }
-        return ("Attention", "")
-    }
-
-    private func sanitizeNotificationField(_ value: String) -> String {
-        return normalizedSingleLine(value)
-            .replacingOccurrences(of: "|", with: "¦")
-    }
-
-    func notificationPayload(
-        title: String,
-        subtitle: String,
-        body: String,
-        meta: String? = nil,
-        agentMutationGuardEnvelope: String? = nil
-    ) -> String {
-        let base = "\(sanitizeNotificationField(title))|\(sanitizeNotificationField(subtitle))|\(sanitizeNotificationField(body))"
-        // Metadata is a structured, delimiter-safe fourth field. User-authored
-        // fields are pipe-sanitized above, so guard framing never scans or
-        // removes arbitrary notification text.
-        let fields = [
-            meta.flatMap { $0.isEmpty ? nil : $0 },
-            agentMutationGuardEnvelope.map { "g=\($0)" },
-        ].compactMap { $0 }
-        return fields.isEmpty ? base : base + "|" + fields.joined(separator: ";")
-    }
-
-    /// True when a Claude `Stop`/`Notification` payload reports unfinished
-    /// background work: any `background_tasks` entry still `running`, or a
-    /// non-empty `session_crons`. A `nil` rawObject or absent keys (claude
-    /// < 2.1.145) yield `false`, so older clients behave exactly as before.
-    /// Pure over `rawObject` so both the notify gate and the hibernation
-    /// lifecycle decision can share it (mirrors `hasActiveAntigravityBackgroundWork`).
-    func hasActiveClaudeBackgroundWork(_ parsedInput: ClaudeHookParsedInput) -> Bool {
-        guard let obj = parsedInput.rawObject else { return false }
-        if let crons = obj["session_crons"] as? [Any], !crons.isEmpty { return true }
-        if let tasks = obj["background_tasks"] as? [[String: Any]] {
-            return tasks.contains { ($0["status"] as? String) == "running" }
-        }
-        return false
     }
 
     private func mergedNodeOptions(existing: String?, restoreModulePath: String) -> String {
