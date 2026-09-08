@@ -62,4 +62,18 @@ struct FeedWaiterRegistryTests {
         guard case .unavailable = finished.outcome.result else { Issue.record("Invalidated request remained actionable"); return }
         registry.cleanupStored(requestID: reply.requestID, groupID: reply.groupID)
     }
+
+    @Test func lateFailureCannotReplaceDecisionBeforeStoreCommit() throws {
+        let registry = FeedWaiterRegistry()
+        let registration = try #require(registry.register(requestID: "request", event: event()))
+        let reply = try #require(registry.resolve(requestID: "request", decision: .permission(.once)))
+        registry.fail(registration, result: .unavailable)
+        registry.accepted(registration, event: event(), item: item())
+        #expect(registration.semaphore.wait(timeout: .now()) == .success)
+        guard case .resolved = registry.finish(registration).outcome.result else {
+            Issue.record("A late failure replaced the resolved decision")
+            return
+        }
+        registry.replyStored(reply)
+    }
 }

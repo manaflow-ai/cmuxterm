@@ -54,12 +54,13 @@ struct AgentNotificationReconcilerTests {
     }
 
     @Test(arguments: ["claude", "codex"])
-    func lateStopCannotSettleContinuingTurn(source: String) {
+    func lateStopCannotSettleContinuingTurn(source: String) throws {
         var reconciler = AgentNotificationReconciler()
         _ = reconciler.apply(event(1, .turnStarted, source: source, notify: false))
         let first = reconciler.apply(event(2, .turnCompleted, source: source))
         let continuing = reconciler.apply(event(3, .turnStarted, source: source, turn: "turn-2", notify: false))
-        #expect(continuing.invalidatedCorrelationKeys == [first.identity!])
+        let firstIdentity = try #require(first.identity)
+        #expect(continuing.invalidatedCorrelationKeys == [firstIdentity])
         #expect(reconciler.apply(event(4, .turnCompleted, source: source)).disposition == .stale)
         let next = reconciler.apply(event(5, .questionRequested, source: source, turn: "turn-2", request: "question"))
         #expect(next.disposition == .accepted)
@@ -164,13 +165,15 @@ struct AgentNotificationReconcilerTests {
     }
 
     @Test(arguments: ["claude", "codex"])
-    func lateResolutionRetiresOnlyItsOwnImmutableRequest(source: String) {
+    func lateResolutionRetiresOnlyItsOwnImmutableRequest(source: String) throws {
         var reconciler = AgentNotificationReconciler()
         let old = reconciler.apply(event(1, .approvalRequested, source: source, request: "old", occurredAt: 10))
         let newer = reconciler.apply(event(2, .approvalRequested, source: source, request: "new", occurredAt: 30))
         let resolved = reconciler.apply(event(3, .attentionResolved, source: source, request: "old", notify: false, occurredAt: 20))
-        #expect(resolved.invalidatedCorrelationKeys == [old.identity!])
-        #expect(!resolved.invalidatedCorrelationKeys.contains(newer.identity!))
+        let oldIdentity = try #require(old.identity)
+        let newerIdentity = try #require(newer.identity)
+        #expect(resolved.invalidatedCorrelationKeys == [oldIdentity])
+        #expect(!resolved.invalidatedCorrelationKeys.contains(newerIdentity))
         #expect(reconciler.apply(event(4, .approvalRequested, source: source, request: "old")).disposition == .stale)
     }
 
@@ -285,4 +288,44 @@ struct AgentNotificationReconcilerTests {
         #expect(try store.events(afterSequence: 0, limit: 10).map(\.draft.eventId) == ["event-4", "event-5"])
         #expect(try !store.claimNotification(identity: "already-read"))
     }
+    @Test(arguments: ["claude", "codex"])
+    func identitylessResponseClearsOnlyMatchingCurrentTurn(source: String) throws {
+        var reconciler = AgentNotificationReconciler()
+        _ = reconciler.apply(event(1, .turnStarted, source: source, notify: false))
+        let wait = reconciler.apply(event(2, .approvalRequested, source: source))
+        let response = event(3, .attentionResolved, source: source, pending: true, notify: false)
+        let resolved = reconciler.apply(response)
+        #expect(resolved.invalidatedCorrelationKeys == [try #require(wait.identity)])
+        #expect(reconciler.lifecycleEvent(response).draft.declaredPhase == .running)
+        let later = reconciler.apply(event(4, .approvalRequested, source: source, turn: "turn-2"))
+        let replay = event(5, .attentionResolved, source: source, pending: true, notify: false)
+        #expect(reconciler.apply(replay).invalidatedCorrelationKeys.isEmpty)
+        #expect(reconciler.lifecycleEvent(replay).draft.declaredPhase == .needsInput)
+        #expect(later.identity != wait.identity)
+    }
+
+    @Test(arguments: ["claude", "codex"])
+    func ambiguousOrOlderIdentitylessResponsePreservesAttention(source: String) {
+        for responseTurn in [nil, "previous", "turn-1"] as [String?] {
+            var reconciler = AgentNotificationReconciler()
+            _ = reconciler.apply(event(1, .approvalRequested, source: source, request: "first", occurredAt: 10))
+            _ = reconciler.apply(event(2, .approvalRequested, source: source, request: "second", occurredAt: 20))
+            let response = event(3, .attentionResolved, source: source, turn: responseTurn,
+                                 pending: true, notify: false, occurredAt: 15)
+            #expect(reconciler.apply(response).invalidatedCorrelationKeys.isEmpty)
+            #expect(reconciler.lifecycleEvent(response).draft.declaredPhase == .needsInput)
+        }
+    }
+
+    @Test(arguments: ["claude", "codex"])
+    func lateResolutionCannotReopenCompletedTurn(source: String) {
+        var reconciler = AgentNotificationReconciler()
+        _ = reconciler.apply(event(1, .turnStarted, source: source, notify: false))
+        _ = reconciler.apply(event(2, .turnCompleted, source: source))
+        let late = event(3, .attentionResolved, source: source, request: "ordinary-tool",
+                         pending: true, notify: false, occurredAt: 1)
+        #expect(reconciler.apply(late).invalidatedCorrelationKeys.isEmpty)
+        #expect(reconciler.lifecycleEvent(late).draft.declaredPhase == .idle)
+    }
+
 }

@@ -38,4 +38,13 @@ struct WorkstreamIngestionIdentityTests {
         store.ingest(event(requestID: nil))
         #expect(store.items.count == 2)
     }
+
+    @Test func evictedRequestIdentityCanBeReused() throws {
+        let store = WorkstreamStore(ringCapacity: 1)
+        let first = try #require(store.ingestReturningItem(event(requestID: "first")))
+        _ = store.ingestReturningItem(event(requestID: "second"))
+        let reused = try #require(store.ingestReturningItem(event(requestID: "first")))
+        #expect(reused.id != first.id)
+        #expect(store.items.map(\.payload.requestID) == ["first"])
+    }
 }
