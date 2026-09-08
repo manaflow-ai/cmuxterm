@@ -8,6 +8,11 @@ private struct AgentPromptSubmissionRequest: Sendable {
     let text: String
 }
 
+private enum AgentPromptSubmissionRequestParseResult {
+    case success(AgentPromptSubmissionRequest)
+    case failure(TerminalController.V2CallResult)
+}
+
 extension TerminalController {
     nonisolated static var agentPromptComposerBusyMessage: String {
         String(
@@ -84,7 +89,7 @@ extension TerminalController {
 
     private nonisolated static func parseAgentPromptSubmissionRequest(
         _ params: [String: Any]
-    ) -> Result<AgentPromptSubmissionRequest, V2CallResult> {
+    ) -> AgentPromptSubmissionRequestParseResult {
         guard let rawWorkspaceID = params["workspace_id"] as? String else {
             return .failure(
                 .err(
