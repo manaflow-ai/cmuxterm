@@ -79,6 +79,9 @@ struct NotificationPopoverRow: View, Equatable {
                 Button(String(localized: "notifications.open", defaultValue: "Open")) {
                     onOpen()
                 }
+                Button(String(localized: "notifications.copy", defaultValue: "Copy")) {
+                    TerminalNotificationClipboard.copy(notification, workspaceTitle: workspaceTitle)
+                }
                 if notification.isRead {
                     Button(String(localized: "notifications.markAsUnread", defaultValue: "Mark as Unread")) {
                         onToggleRead()

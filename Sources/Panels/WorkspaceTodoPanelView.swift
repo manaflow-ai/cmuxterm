@@ -515,7 +515,8 @@ private struct WorkspaceTodoPaneItemRow: View {
             } label: {
                 CmuxSystemSymbolImage(
                     systemName: checkboxSymbolName(for: item.state),
-                    pointSize: checkboxPointSize
+                    pointSize: checkboxPointSize,
+                    tint: isCompleted ? .secondary : .primary
                 )
                 .foregroundColor(isCompleted ? (chromePalette[.textSecondary]).cmuxColor : (chromePalette[.textPrimary]).cmuxColor)
                 .contentShape(Rectangle())

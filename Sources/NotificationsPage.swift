@@ -13,6 +13,7 @@ struct NotificationsPage: View {
     @Environment(\.chromePalette) private var chromePalette
     @FocusState private var focusedNotificationId: UUID?
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
+    @State private var ghosttyBackgroundColor = Color(nsColor: GhosttyBackgroundTheme.currentColor())
     @State private var phonePushConfigurationState =
         PhonePushClient.shared.configurationState
 
@@ -48,6 +49,10 @@ struct NotificationsPage: View {
         .onChange(of: isVisibleInUI) {
             setInitialFocus()
         }
+    }
+
+    private func refreshGhosttyBackground() {
+        ghosttyBackgroundColor = Color(nsColor: GhosttyBackgroundTheme.currentColor())
     }
 
     private var notificationsList: some View {
@@ -389,6 +394,18 @@ struct NotificationRow: View, Equatable {
             RoundedRectangle(cornerRadius: 10)
                 .fill((chromePalette[.surfaceRaised]).cmuxColor)
         )
+        .contextMenu {
+            Button(String(localized: "notifications.open", defaultValue: "Open")) {
+                onOpen()
+            }
+            Button(String(localized: "notifications.copy", defaultValue: "Copy")) {
+                TerminalNotificationClipboard.copy(notification, workspaceTitle: tabTitle)
+            }
+            Divider()
+            Button(String(localized: "notifications.dismiss", defaultValue: "Dismiss"), role: .destructive) {
+                onClear()
+            }
+        }
     }
 }
 

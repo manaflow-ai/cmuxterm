@@ -14,8 +14,7 @@ struct SidebarMediaActivityIndicators: View {
                 localized: "sidebar.mediaActivity.audio.tooltip",
                 defaultValue: "Playing audio"
             )
-            CmuxSystemSymbolImage(magnified: "speaker.wave.2.fill", pointSize: symbolPointSize, weight: .semibold)
-                .foregroundColor(audioColor)
+            CmuxSystemSymbolImage(magnified: "speaker.wave.2.fill", pointSize: symbolPointSize, weight: .semibold, tint: audioColor)
                 .safeHelp(audioPlayingTooltip)
                 .accessibilityLabel(audioPlayingTooltip)
         }

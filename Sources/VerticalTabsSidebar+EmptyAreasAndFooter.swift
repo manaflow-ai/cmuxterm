@@ -191,6 +191,19 @@ enum SidebarFooterHelpIconDebugSettings {
 }
 #endif
 
+struct SidebarFooterCircularIcon: View {
+    let systemName: String
+    let style: SidebarFooterCircularIconStyle
+
+    var body: some View {
+        CmuxSystemSymbolImage(
+            systemName: systemName,
+            pointSize: style.pointSize,
+            weight: style.weight,
+            tint: .secondary
+        )
+    }
+}
 struct SidebarFooterHelpIcon: View {
     let style: SidebarFooterCircularIconStyle
 #if DEBUG
@@ -362,7 +375,7 @@ private struct SidebarAccountPopover: View {
                 }
                 Button {
                     dismiss()
-                    accountFlow?.openProUpgrade()
+                    accountFlow?.openProUpgrade(source: .sidebarAccountMenu)
                 } label: {
                     Label(
                         String(localized: "menu.help.upgradeToPro", defaultValue: "Upgrade to cmux Pro…"),
@@ -622,6 +635,9 @@ struct SidebarEmptyArea: View {
     @ViewBuilder
     private var hitTarget: some View {
         if expandsVertically {
+            // This full-height background extends behind the rows. Keep it
+            // SwiftUI-only so native hit testing cannot steal row presses;
+            // the AppKit table and clip view own native-sidebar window drags.
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())

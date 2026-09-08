@@ -247,7 +247,8 @@ struct SidebarWorkspaceChecklistPopover: View {
             } label: {
                 CmuxSystemSymbolImage(
                     systemName: checkboxSymbolName(for: item.state),
-                    pointSize: Self.checkboxPointSize
+                    pointSize: Self.checkboxPointSize,
+                    tint: isCompleted ? .secondary : .primary
                 )
                 .foregroundColor(isCompleted ? (chromePalette[.textSecondary]).cmuxColor : (chromePalette[.textPrimary]).cmuxColor)
                 .contentShape(Rectangle())
@@ -565,7 +566,7 @@ struct SidebarWorkspaceChecklistPopover: View {
             actions.openPane()
         } label: {
             HStack(spacing: 6) {
-                CmuxSystemSymbolImage(systemName: "rectangle.split.2x1", pointSize: 11)
+                CmuxSystemSymbolImage(systemName: "rectangle.split.2x1", pointSize: 11, tint: .secondary)
                 Text(String(localized: "sidebar.checklist.openAsPane", defaultValue: "Open as Pane"))
                     .font(.system(size: 12))
             }

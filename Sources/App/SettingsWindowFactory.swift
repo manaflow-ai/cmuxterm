@@ -21,7 +21,16 @@ enum SettingsWindowFactory {
     /// navigation consumer is installed (instance-scoped: never routed
     /// through the shared singleton, so test presenters using this real
     /// factory drain their own pending navigation).
-    static func makeSettingsWindow(onContentAppear: @escaping @MainActor () -> Void) -> NSWindow {
+    ///
+    /// `initialNavigationTarget` is the section a targeted show is about to
+    /// navigate to (`cmux settings open <target>`, sidebar deep links), so
+    /// the content can mount that section first instead of the last-viewed
+    /// one and then re-mounting on delivery
+    /// (https://github.com/manaflow-ai/cmux/issues/12134).
+    static func makeSettingsWindow(
+        initialNavigationTarget: SettingsNavigationTarget? = nil,
+        onContentAppear: @escaping @MainActor () -> Void
+    ) -> NSWindow {
         let appDelegate = AppDelegate.shared
         if appDelegate?.settingsRuntime == nil {
             // ``SettingsWindowHostRoot`` presents a visible, localized error
@@ -30,6 +39,7 @@ enum SettingsWindowFactory {
         }
         let hostingController = NSHostingController(
             rootView: SettingsWindowHostRoot(
+                initialSection: initialNavigationTarget.flatMap { SettingsSectionID(rawValue: $0.rawValue) },
                 onContentAppear: onContentAppear,
                 initialPalette: appDelegate?.chromePaletteSnapshot()
                     ?? ChromePaletteRuntimeResolver(runtime: appDelegate?.settingsRuntime).resolve(),
@@ -146,6 +156,10 @@ class SettingsHostWindow: NSWindow {
 /// inherit the App scene's SwiftUI environment — and delivers any pending
 /// navigation target once the content is live.
 struct SettingsWindowHostRoot: View {
+    /// Section mounted in the first layout pass when the show that built
+    /// this window carries a navigation target; `nil` restores the
+    /// last-viewed section.
+    let initialSection: SettingsSectionID?
     /// Readiness signal back to the presenter instance that owns this
     /// window. The presenter defers its pending-navigation post one
     /// main-actor hop (so the content's restore navigation cannot clobber
@@ -167,7 +181,7 @@ struct SettingsWindowHostRoot: View {
     @ViewBuilder
     private var content: some View {
         if let runtime = AppDelegate.shared?.settingsRuntime {
-            SettingsWindowRoot(runtime: runtime)
+            SettingsWindowRoot(runtime: runtime, initialSection: initialSection)
                 .chromePaletteHost(
                     initialPalette: initialPalette,
                     settingsRuntime: runtime,
