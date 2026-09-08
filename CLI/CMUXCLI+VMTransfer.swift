@@ -709,7 +709,7 @@ extension CMUXCLI {
         }
 
         if sync || pullPath != nil {
-            try throwIfFileTransferIsManagedOff()
+            try Self.throwIfFileTransferIsManagedOff()
         }
 
         let started = Date()
@@ -1330,6 +1330,11 @@ extension CMUXCLI {
         }
         let workDirectory = cwdOption.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
             ?? FileManager.default.currentDirectoryPath
+
+        if sync {
+            // Help stays readable; refuse the transfer before VM selection.
+            try Self.throwIfFileTransferIsManagedOff()
+        }
 
         let selection = try selectVMForRun(
             machineOverride: machineOverride,

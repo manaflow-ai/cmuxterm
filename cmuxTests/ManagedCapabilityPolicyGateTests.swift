@@ -122,4 +122,49 @@ struct ManagedCapabilityPolicyGateTests {
             #expect(error.localizedDescription == ManagedFileTransferPolicy.disabledMessage)
         }
     }
+
+    @Test(arguments: [
+        ManagedDevicePolicyKey.disableIrohNetworking,
+        ManagedDevicePolicyKey.disableRemoteControl
+    ])
+    func irohRuntimeStopsWhenACoveringPolicyIsForced(key: ManagedDevicePolicyKey) async {
+        let runtime = MobileHostIrxRuntime(managedDevicePolicy: policy(key, disabled: true))
+        #expect(!runtime.isNetworkingAllowed)
+        runtime.setSettingsPhase(.active)
+        await runtime.applyManagedNetworkingPolicy()
+        #expect(runtime.settingsPhase == .idle)
+        #expect(runtime.brokerService == nil)
+    }
+
+    @Test func irohRuntimeAllowsNetworkingWhenNoPolicyIsForced() {
+        let runtime = MobileHostIrxRuntime(
+            managedDevicePolicy: ManagedDevicePolicy(
+                releaseDomainDefaults: nil,
+                forcedObject: { _, _ in nil }
+            )
+        )
+        #expect(runtime.isNetworkingAllowed)
+    }
+
+    @Test func liftingIrohPolicyDoesNotSpawnAnEndpointWithoutAnAccount() async throws {
+        let suite = "ManagedCapabilityPolicyGateTests.iroh.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let resolver = ManagedDevicePolicy(
+            defaults: defaults,
+            releaseDomainDefaults: nil,
+            forcedObject: { store, key in store.object(forKey: key) }
+        )
+        let runtime = MobileHostIrxRuntime(managedDevicePolicy: resolver)
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableIrohNetworking.rawValue)
+        runtime.setSettingsPhase(.active)
+        await runtime.applyManagedNetworkingPolicy()
+        #expect(runtime.settingsPhase == .idle)
+
+        defaults.removeObject(forKey: ManagedDevicePolicyKey.disableIrohNetworking.rawValue)
+        #expect(runtime.isNetworkingAllowed)
+        await runtime.applyManagedNetworkingPolicy()
+        #expect(runtime.settingsPhase == .idle)
+        #expect(runtime.brokerService == nil)
+    }
 }
