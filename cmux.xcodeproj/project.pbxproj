@@ -6087,7 +6087,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		604500100000000000000008 /* TabManager+WindowTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabManager+WindowTitle.swift"; sourceTree = "<group>"; };
 		6FA1B7598E85578423ADBE3F /* TabManager+WorkspaceCustomizationPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabManager+WorkspaceCustomizationPersistence.swift"; sourceTree = "<group>"; };
 		736200000000000000000003 /* TabManager+WorkspaceCustomTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabManager+WorkspaceCustomTitle.swift"; sourceTree = "<group>"; };
-		919800060000000000000002 /* TabManager+WorkspaceGroupDisclosure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabManager+WorkspaceGroupDisclosure.swift; sourceTree = "<group>"; };
+		919800060000000000000002 /* TabManager+WorkspaceGroupDisclosure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TabManager+WorkspaceGroupDisclosure.swift"; sourceTree = "<group>"; };
 		A5001013 /* TabManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabManager.swift; sourceTree = "<group>"; };
 		481E6848F8513F27E496F7BE /* TabManagerBackgroundWorkspaceMountBoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabManagerBackgroundWorkspaceMountBoundTests.swift; sourceTree = "<group>"; };
 		C0DE71510000000000000002 /* TabManagerBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabManagerBootstrapTests.swift; sourceTree = "<group>"; };
@@ -6468,7 +6468,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		B3065740FDF6465298A754B6 /* VaultSessionSearchQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionSearchQueryTests.swift; sourceTree = "<group>"; };
 		D4476F0B0000000000000002 /* VaultSessionViewMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionViewMenu.swift; sourceTree = "<group>"; };
 		E8649C5174544BFFA8674D52 /* VaultSocketPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSocketPayloadTests.swift; sourceTree = "<group>"; };
-		919800040000000000000002 /* VerticalTabsSidebar+BulkToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerticalTabsSidebar+BulkToggle.swift; sourceTree = "<group>"; };
+		919800040000000000000002 /* VerticalTabsSidebar+BulkToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VerticalTabsSidebar+BulkToggle.swift"; sourceTree = "<group>"; };
 		F7216001000000000000002 /* VerticalTabsSidebar+EmptyAreasAndFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VerticalTabsSidebar+EmptyAreasAndFooter.swift"; sourceTree = "<group>"; };
 		C9A5720AC9A5720AC9A5720A /* VerticalTabsSidebar+WorkspaceGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VerticalTabsSidebar+WorkspaceGroups.swift"; sourceTree = "<group>"; };
 		A28B087F0000000000000006 /* ViewerNavigationKeyRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Panels/ViewerNavigationKeyRouter.swift; sourceTree = "<group>"; };
