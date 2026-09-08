@@ -167,7 +167,7 @@ private func defaultCloudVMMessage(status: Int) -> String {
     }
 }
 
-private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
+func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     switch errorCode {
     case "vm_active_limit_exceeded":
         return "Run `cmux vm ls`, then stop or delete an active VM with `cmux vm rm <id>` before retrying."
@@ -178,7 +178,7 @@ private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     case "vm_requires_pro":
         return String(
             localized: "cloudVM.error.requiresPro.action",
-            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing to create Cloud VMs."
+            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing?cmux_source=mac_vm_requires_pro_error&cmux_client=mac to create Cloud VMs."
         )
     case "vm_create_credits_insufficient":
         return "Ask a team admin to upgrade the plan or grant more Cloud VM create credits, then retry."
@@ -700,14 +700,10 @@ actor VMClient {
     @MainActor private(set) static var shared: VMClient!
 
     /// Build the shared client with its injected auth dependency. Call once at
-    /// the composition root. `privateNetwork` is used only for Cloud webviews.
+    /// the composition root.
     @MainActor
-    static func bootstrap(
-        auth: AuthCoordinator,
-        session: URLSession = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
-    ) {
-        shared = VMClient(session: session, auth: auth, privateNetwork: privateNetwork)
+    static func bootstrap(auth: AuthCoordinator, session: URLSession = .shared) {
+        shared = VMClient(session: session, auth: auth)
     }
 
     /// Revoke endpoint credentials issued by the Cloud VM service during sign-out.
@@ -747,28 +743,15 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
-    /// The browser-only private-network gate. Terminal and metadata traffic
-    /// uses the separate user-space WireGuard hub.
-    private let privateNetwork: any CloudPrivateNetworkGate
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
-        telemetry: VMClientTelemetry = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
+        telemetry: VMClientTelemetry = .shared
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
-        self.privateNetwork = privateNetwork
-    }
-
-    /// Do not let a Cloud webview navigate until the browser tunnel is ready.
-    /// Direct private URLs call this without a control-plane request.
-    func requireCloudBrowserAccess(machineID: String) async throws {
-        try await privateNetwork.requirePrivateNetworkUse(
-            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort)
-        )
     }
 
     func list() async throws -> [VMSummary] {
@@ -1793,9 +1776,11 @@ actor VMClient {
         )
     }
 
+    /// Asks the control plane to open (and, for a paused machine, resume)
+    /// `port`. This is a plain HTTPS request: it never involves the Mac's
+    /// private-network route, which Ports panes get from the user-space hub.
     func openPort(id: String, port: Int) async throws -> VMOpenPortEndpoint {
         let encodedID = try pathSegment(id, fieldName: "vm id")
-        try await requireCloudBrowserAccess(machineID: id)
         let (data, http) = try await request(
             "POST",
             path: "/api/vm/\(encodedID)/open-port",
