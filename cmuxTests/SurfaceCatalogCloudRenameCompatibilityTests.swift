@@ -73,4 +73,60 @@ struct SurfaceCatalogCloudRenameCompatibilityTests {
         catalog.rollbackCloudWorkspaceRename(token)
         #expect(catalog.machines[machine]?.remoteWorkspaces?.first?.name == "old")
     }
+
+    @Test("Typed cloud state retires a committed workspace rename overlay")
+    func typedCloudStateRetiresCommittedWorkspaceRenameOverlay() throws {
+        let machine = SurfaceMachineID.cloud("vivid-newt")
+        let catalog = SurfaceCatalog()
+        let provider = SurfaceCatalogTests.FakeProvider(machine: machine)
+        catalog.register(provider)
+
+        func state(cursorRevision: String, workspaceName: String) throws -> CloudVMState {
+            let snapshot: [String: Any] = [
+                "cursor": ["generation": "g1", "revision": cursorRevision],
+                "workspaces": [["id": "ws", "name": workspaceName]],
+                "screens": [],
+                "panes": [],
+                "tabs": [],
+                "terminals": [],
+                "browsers": [],
+                "agents": [],
+            ]
+            return try #require(CmuxTuiSnapshotParser.state(fromSnapshot: snapshot, machine: machine))
+        }
+
+        let initialState = try state(cursorRevision: "1", workspaceName: "old")
+        var initialInfo = provider.info
+        initialInfo.remoteWorkspaces = [
+            SurfaceRemoteWorkspace(id: "ws", name: "old", index: 0, focused: true),
+        ]
+        catalog.replaceCloudState(initialState, resources: [], info: initialInfo)
+
+        let token = try catalog.beginCloudWorkspaceRename(
+            machine: machine,
+            workspaceID: "ws",
+            name: "new"
+        )
+        catalog.commitCloudWorkspaceRename(
+            token,
+            receipt: CloudVMCursor(generation: "g1", revision: 2)
+        )
+
+        let acceptedState = try state(cursorRevision: "2", workspaceName: "new")
+        var acceptedInfo = provider.info
+        acceptedInfo.remoteWorkspaces = [
+            SurfaceRemoteWorkspace(id: "ws", name: "new", index: 0, focused: true),
+        ]
+        catalog.replaceCloudState(acceptedState, resources: [], info: acceptedInfo)
+
+        let laterState = try state(cursorRevision: "3", workspaceName: "remote")
+        var laterInfo = provider.info
+        laterInfo.remoteWorkspaces = [
+            SurfaceRemoteWorkspace(id: "ws", name: "remote", index: 0, focused: true),
+        ]
+        catalog.replaceCloudState(laterState, resources: [], info: laterInfo)
+
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: "ws") == nil)
+        #expect(catalog.machines[machine]?.remoteWorkspaces?.first?.name == "remote")
+    }
 }
