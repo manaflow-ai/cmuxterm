@@ -12,7 +12,20 @@ struct SurfaceNewWorkspaceMoveResult {
 
 @MainActor
 extension AppDelegate {
+    /// Resolves a live Dock owner for a panel id without creating a Dock.
+    /// Native terminal context menus use panel ids, so they must share the
+    /// same owner lookup as tab-strip, shortcut, and command-palette actions.
+    func dockContainingSurface(_ panelId: UUID) -> DockSplitStore? {
+        DockSplitStore.liveStores.first {
+            !$0.isRetired && $0.containsPanel(panelId)
+        }
+    }
+
     func canMoveSurfaceToNewWorkspace(panelId: UUID) -> Bool {
+        if let dock = dockContainingSurface(panelId) {
+            return dock.panels[panelId] != nil
+                && dockReferenceTabManager(for: dock) != nil
+        }
         guard let source = locateSurface(surfaceId: panelId),
               let sourceWorkspace = source.tabManager.tabs.first(where: { $0.id == source.workspaceId }),
               sourceWorkspace.panels[panelId] != nil else {
@@ -22,22 +35,42 @@ extension AppDelegate {
     }
 
     func canMoveBonsplitTabToNewWorkspace(tabId: UUID) -> Bool {
-        guard let located = locateBonsplitSurface(tabId: tabId) else { return false }
-        return canMoveSurfaceToNewWorkspace(panelId: located.panelId)
+        guard let source = locateContainerSurface(tabId: tabId) else { return false }
+        switch source {
+        case .workspace(_, _, let panelId, _), .dock(_, let panelId):
+            return canMoveSurfaceToNewWorkspace(panelId: panelId)
+        }
     }
 
     func canMoveBonsplitTab(tabId: UUID, toWorkspace targetWorkspaceId: UUID) -> Bool {
-        guard let located = locateBonsplitSurface(tabId: tabId),
-              let sourceWorkspace = located.tabManager.tabs.first(where: { $0.id == located.workspaceId }),
-              sourceWorkspace.panels[located.panelId] != nil,
-              let destinationManager = tabManagerFor(tabId: targetWorkspaceId),
-              destinationManager.tabs.contains(where: { $0.id == targetWorkspaceId }) else {
+        guard let destinationManager = tabManagerFor(tabId: targetWorkspaceId),
+              destinationManager.tabs.contains(where: { $0.id == targetWorkspaceId }),
+              let source = locateContainerSurface(tabId: tabId) else {
             return false
         }
-        return true
+        switch source {
+        case .workspace(_, let sourceWorkspace, let panelId, _):
+            return sourceWorkspace.panels[panelId] != nil
+        case .dock(let dock, let panelId):
+            return dock.panels[panelId] != nil &&
+                dockReferenceTabManager(for: dock) != nil
+        }
     }
 
     func workspaceMoveTargets(forSurface panelId: UUID) -> [WorkspaceMoveTarget] {
+        if let dock = dockContainingSurface(panelId) {
+            guard let referenceManager = dockReferenceTabManager(for: dock) else {
+                return []
+            }
+            let referenceWindowId = windowId(for: referenceManager)
+            let excludedWorkspaceId: UUID? = dock.scope == .workspace
+                ? dock.workspaceId
+                : nil
+            return workspaceMoveTargets(
+                excludingWorkspaceId: excludedWorkspaceId,
+                referenceWindowId: referenceWindowId
+            )
+        }
         guard let source = locateSurface(surfaceId: panelId) else { return [] }
         return workspaceMoveTargets(
             excludingWorkspaceId: source.workspaceId,
@@ -46,11 +79,13 @@ extension AppDelegate {
     }
 
     func workspaceMoveTargets(forBonsplitTab tabId: UUID) -> [WorkspaceMoveTarget] {
-        guard let located = locateBonsplitSurface(tabId: tabId) else { return [] }
-        return workspaceMoveTargets(
-            excludingWorkspaceId: located.workspaceId,
-            referenceWindowId: located.windowId
-        )
+        guard let source = locateContainerSurface(tabId: tabId) else { return [] }
+        let panelId: UUID
+        switch source {
+        case .workspace(_, _, let locatedPanelId, _), .dock(_, let locatedPanelId):
+            panelId = locatedPanelId
+        }
+        return workspaceMoveTargets(forSurface: panelId)
     }
 
     @discardableResult
@@ -63,16 +98,30 @@ extension AppDelegate {
         placementOverride: WorkspacePlacement? = nil,
         insertionIndexOverride: Int? = nil
     ) -> SurfaceNewWorkspaceMoveResult? {
-        guard let located = locateBonsplitSurface(tabId: tabId) else { return nil }
-        return moveSurfaceToNewWorkspace(
-            panelId: located.panelId,
-            destinationManager: destinationManager,
-            title: title,
-            focus: focus,
-            focusWindow: focusWindow,
-            placementOverride: placementOverride,
-            insertionIndexOverride: insertionIndexOverride
-        )
+        guard let source = locateContainerSurface(tabId: tabId) else { return nil }
+        switch source {
+        case .workspace(_, _, let panelId, _):
+            return moveSurfaceToNewWorkspace(
+                panelId: panelId,
+                destinationManager: destinationManager,
+                title: title,
+                focus: focus,
+                focusWindow: focusWindow,
+                placementOverride: placementOverride,
+                insertionIndexOverride: insertionIndexOverride
+            )
+        case .dock(let dock, let panelId):
+            return moveDockSurfaceToNewWorkspaceResult(
+                sourceDock: dock,
+                panelId: panelId,
+                destinationManager: destinationManager,
+                title: title,
+                focus: focus,
+                focusWindow: focusWindow,
+                placementOverride: placementOverride,
+                insertionIndexOverride: insertionIndexOverride
+            )
+        }
     }
 
     @discardableResult
@@ -165,7 +214,7 @@ extension AppDelegate {
         )
     }
 
-    private func focusIntentForNewWorkspaceMove(panel: any Panel) -> PanelFocusIntent {
+    func focusIntentForNewWorkspaceMove(panel: any Panel) -> PanelFocusIntent {
         if panel is BrowserPanel {
             // Moving a browser tab into a standalone workspace should expose browser chrome,
             // even if web content was the last in-panel responder before the drag.

@@ -565,6 +565,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         WorkspaceTerminalFontSizeArbiter()
     /// Owns the one process-local Vault drag capability registry.
     let sessionDragRegistry = SessionDragRegistry()
+    /// Composition-root owner for the single AppKit Dock pointer monitor.
+    /// Individual Dock hosts register with this injected router only while
+    /// their owning window is mounted.
+    let dockPointerEventRouter = DockPointerInteractionEventRouter()
     /// Owns pane-transfer capabilities shared by every window, workspace, and Dock.
     private var tabDragTransferRegistryStorage: TabDragTransferRegistry?
     var tabDragTransferRegistry: TabDragTransferRegistry {
@@ -637,7 +641,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             cmuxConfigStore: CmuxConfigStore?,
             window: NSWindow?,
             workspaceTerminalFontSizeArbiter:
-                WorkspaceTerminalFontSizeArbiter
+                WorkspaceTerminalFontSizeArbiter,
+            dockPanelResolver: @escaping @MainActor (UUID) -> DockSplitStore? = { _ in nil }
         ) {
             self.windowId = windowId
             self.tabManager = tabManager
@@ -652,7 +657,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 windowId: windowId,
                 window: window,
                 tabManager: tabManager,
-                fileExplorerState: fileExplorerState
+                fileExplorerState: fileExplorerState,
+                dockPanelResolver: dockPanelResolver
             )
         }
     }
@@ -5614,7 +5620,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 cmuxConfigStore: cmuxConfigStore,
                 window: window,
                 workspaceTerminalFontSizeArbiter:
-                    workspaceTerminalFontSizeArbiter
+                    workspaceTerminalFontSizeArbiter,
+                dockPanelResolver: { [weak self] panelId in
+                    guard let self,
+                          let dock = self.existingWindowDock(
+                              forWindowId: windowId
+                          ),
+                          dock.containsPanel(panelId) else {
+                        return nil
+                    }
+                    return dock
+                }
             )
             guard let context = mainWindowLifecycleCoordinator.register(
                 proposedContext,
@@ -5841,6 +5857,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             "split=\(splitLabel) focus=\(focus ? 1 : 0) focusWindow=\(focusWindow ? 1 : 0)"
         )
 #endif
+        // Dock panels live outside every Workspace's Bonsplit tree. Route them
+        // through the same detached-surface transfer used by Dock drops and
+        // tab context actions before attempting the workspace-only lookup.
+        if let sourceDock = dockContainingSurface(panelId) {
+            return moveDockSurfaceToWorkspace(
+                sourceDock: sourceDock,
+                panelId: panelId,
+                toWorkspace: targetWorkspaceId,
+                targetPane: targetPane,
+                targetIndex: targetIndex,
+                splitTarget: splitTarget,
+                focus: focus,
+                focusWindow: focusWindow
+            )
+        }
         guard let source = locateSurface(surfaceId: panelId) else {
 #if DEBUG
             cmuxDebugLog("surface.move.fail panel=\(panelId.uuidString.prefix(5)) reason=sourcePanelNotFound elapsedMs=\(elapsedMs(since: moveStart))")
@@ -7839,15 +7870,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func shouldRouteRightSidebarModeShortcut(in window: NSWindow?) -> Bool {
-        guard let window else { return false }
-        let sidebarIntentActive = keyboardFocusCoordinator(for: window)?.activeRightSidebarMode != nil
-        guard let responder = window.firstResponder else { return sidebarIntentActive }
-        if isRightSidebarFocusResponder(responder, in: window) { return true }
-        if sidebarIntentActive, responder is NSWindow { return true }
-        if terminalKeyboardFocusRequest(for: responder) != nil { return false }
-        guard let ghosttyView = responder.cmuxStrictOwningGhosttyView(),
-              let panelId = ghosttyView.terminalSurface?.id else { return false }
-        return GhosttyApp.terminalSurfaceRegistry.isRightSidebarDockSurface(id: panelId)
+        keyboardFocusCoordinator(for: window)?
+            .resolvedRightSidebarModeForShortcut(in: window) != nil
     }
 
     func allowsTerminalKeyboardFocus(
@@ -14123,14 +14147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: nil
         ) { [weak self] _ in
-            if Thread.isMainThread {
-                MainActor.assumeIsolated {
-                    self?.handleShortcutDefaultsDidChange()
-                }
-            } else {
-                Task { @MainActor [weak self] in
-                    self?.handleShortcutDefaultsDidChange()
-                }
+            Task { @MainActor [weak self] in
+                self?.handleShortcutDefaultsDidChange()
             }
         }
     }
@@ -14193,7 +14211,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshGhosttyGotoSplitShortcuts()
+            Task { @MainActor [weak self] in
+                self?.refreshGhosttyGotoSplitShortcuts()
+            }
         }
     }
 
@@ -14204,8 +14224,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            GhosttyConfig.invalidateLoadCache()
-            _ = MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
+                GhosttyConfig.invalidateLoadCache()
                 self?.reloadConfiguration(
                     source: "globalFontMagnificationDidChange",
                     reloadSettingsFromFile: false
@@ -17212,8 +17232,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Gates every focus-scoped shortcut, including the numbered workspace/surface
     /// handlers that previously ignored context (issue #5189).
     func shortcutWhenClauseAllows(action: KeyboardShortcutSettings.Action, event: NSEvent) -> Bool {
-        KeyboardShortcutSettings.effectiveWhenClause(for: action)
-            .evaluate(shortcutEventFocusContext(event).shortcutContext)
+        guard KeyboardShortcutSettings.effectiveWhenClause(for: action)
+            .evaluate(shortcutEventFocusContext(event).shortcutContext) else {
+            return false
+        }
+        guard !action.requiresFocusedTerminalSurface
+            || shortcutEventHasFocusedTerminalSurface(event) else {
+            return false
+        }
+        return true
     }
 
     /// Resolves a right-sidebar mode shortcut after applying the action's
@@ -18054,12 +18081,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard windowKeyObservers.isEmpty else { return }
         let center = NotificationCenter.default
         windowKeyObservers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] note in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.handleCmuxWindowBecameKey(note)
             }
         })
         windowKeyObservers.append(center.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] note in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.handleCmuxWindowResignedKey(note)
             }
         })
@@ -18075,14 +18102,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
-            guard let panelId = notification.object as? UUID else { return }
-            self.browserPanel(for: panelId)?.beginSuppressWebViewFocusForAddressBar()
-            self.browserAddressBarFocusedPanelId = panelId
-            self.stopBrowserOmnibarSelectionRepeat()
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let panelId = notification.object as? UUID else {
+                    return
+                }
+                self.browserPanel(for: panelId)?
+                    .beginSuppressWebViewFocusForAddressBar()
+                self.browserAddressBarFocusedPanelId = panelId
+                self.stopBrowserOmnibarSelectionRepeat()
 #if DEBUG
-            cmuxDebugLog("addressBar FOCUS panelId=\(panelId.uuidString.prefix(8))")
+                cmuxDebugLog("addressBar FOCUS panelId=\(panelId.uuidString.prefix(8))")
 #endif
+            }
         }
 
         browserAddressBarBlurObserver = NotificationCenter.default.addObserver(
@@ -18090,15 +18122,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self else { return }
-            guard let panelId = notification.object as? UUID else { return }
-            self.browserPanel(for: panelId)?.endSuppressWebViewFocusForAddressBar()
-            if self.browserAddressBarFocusedPanelId == panelId {
-                self.browserAddressBarFocusedPanelId = nil
-                self.stopBrowserOmnibarSelectionRepeat()
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let panelId = notification.object as? UUID else {
+                    return
+                }
+                self.browserPanel(for: panelId)?
+                    .endSuppressWebViewFocusForAddressBar()
+                if self.browserAddressBarFocusedPanelId == panelId {
+                    self.browserAddressBarFocusedPanelId = nil
+                    self.stopBrowserOmnibarSelectionRepeat()
 #if DEBUG
-                cmuxDebugLog("addressBar BLUR panelId=\(panelId.uuidString.prefix(8))")
+                    cmuxDebugLog("addressBar BLUR panelId=\(panelId.uuidString.prefix(8))")
 #endif
+                }
             }
         }
 
@@ -18107,7 +18144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.handleBrowserWebViewFirstResponderNotification(notification)
             }
         }
@@ -19214,6 +19251,9 @@ private extension NSWindow {
         // can honor the typing quiet period in release.
         if event.type == .keyDown, let app = AppDelegate.shared, cmuxCloseFocusedTerminalFindForEscape(event: event, appDelegate: app) { return }
         if event.type == .keyDown { AppDelegate.shared?.recordTypingActivity() }
+        if event.type == .keyDown {
+            AppDelegate.shared?.cancelDockPointerOriginForKeyEvent(in: self)
+        }
         if event.type == .leftMouseDown,
            AppDelegate.shared?.handleMinimalModeSidebarChromeMouseDown(window: self, event: event) == true {
             return

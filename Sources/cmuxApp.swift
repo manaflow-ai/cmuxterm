@@ -72,6 +72,7 @@ struct cmuxApp: App {
     @AppStorage(SocketControlSettings.appStorageKey) private var socketControlMode = SocketControlSettings.defaultMode.rawValue
     @AppStorage(BrowserToolbarAccessorySpacingDebugSettings.key) private var browserToolbarAccessorySpacingRaw = BrowserToolbarAccessorySpacingDebugSettings.defaultSpacing
     @State private var browserFocusModeMenuRevision = 0
+    @State private var dockMenuInvalidator: DockMenuInvalidator
     @State var historyMenuCoordinator: HistoryMenuCoordinator
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private var browserToolbarAccessorySpacing: Int {
@@ -271,10 +272,12 @@ struct cmuxApp: App {
                 }
             )
         )
+        let dockMenuInvalidator = DockMenuInvalidator()
         _tabManager = StateObject(wrappedValue: tabManager)
         _notificationStore = StateObject(wrappedValue: notificationStore)
         _closedItemHistoryStore = StateObject(wrappedValue: closedItemHistoryStore)
         _sidebarState = StateObject(wrappedValue: sidebarState)
+        _dockMenuInvalidator = State(initialValue: dockMenuInvalidator)
         let automationEngine = AutomationEngine(
             workspaceTagsResolver: { workspaceID in
                 // Resolve through the app delegate's live window-context index;
@@ -519,6 +522,11 @@ struct cmuxApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
+            // Rebuild menu capability snapshots when a Dock focus/topology
+            // mutation publishes an update. The Commands body itself only
+            // reads the bounded snapshot, never the Dock's tab collections.
+            let _ = dockMenuInvalidator.revision
+            let activeDockMenuTarget = activeDockForMenu
             CommandGroup(replacing: .appSettings) {
                 splitCommandButton(title: String(localized: "menu.app.settings", defaultValue: "Settings…"), shortcut: menuShortcut(for: .openSettings)) {
                     appDelegate.openPreferencesWindow(debugSource: "menu.cmdComma")
@@ -923,7 +931,10 @@ struct cmuxApp: App {
                 splitCommandButton(title: String(localized: "menu.file.closeOtherTabs", defaultValue: "Close Other Tabs in Pane"), shortcut: menuShortcut(for: .closeOtherTabsInPane)) {
                     closeOtherTabsInFocusedPane()
                 }
-                .disabled(!activeTabManager.canCloseOtherTabsInFocusedPane())
+                .disabled(
+                    !(activeDockMenuTarget?.menuCapabilities.canCloseOtherTabs
+                        ?? activeTabManager.canCloseOtherTabsInFocusedPane())
+                )
 
                 // The Close Workspace shortcut closes the current workspace with confirmation
                 // when needed. If this is the last workspace, it closes the window.
@@ -950,6 +961,13 @@ struct cmuxApp: App {
 #if DEBUG
                         cmuxDebugLog("find.menu Cmd+F fired")
 #endif
+                        if appDelegate.performFocusedDockCommand(
+                            .startFind,
+                            action: .find,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         if !performFocusedBrowserAction(.startFind) {
                             _ = AppDelegate.shared?.performFindShortcutInActiveMainWindow(
                                 preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
@@ -964,6 +982,13 @@ struct cmuxApp: App {
                     }
 
                     splitCommandButton(title: String(localized: "menu.find.findNext", defaultValue: "Find Next"), shortcut: menuShortcut(for: .findNext)) {
+                        if appDelegate.performFocusedDockCommand(
+                            .findNext,
+                            action: .findNext,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         if !performFocusedBrowserAction(.findNext) {
                             restoreFindTargetFocus()
                             activeTabManager.findNext()
@@ -971,6 +996,13 @@ struct cmuxApp: App {
                     }
 
                     splitCommandButton(title: String(localized: "menu.find.findPrevious", defaultValue: "Find Previous"), shortcut: menuShortcut(for: .findPrevious)) {
+                        if appDelegate.performFocusedDockCommand(
+                            .findPrevious,
+                            action: .findPrevious,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         if !performFocusedBrowserAction(.findPrevious) {
                             restoreFindTargetFocus()
                             activeTabManager.findPrevious()
@@ -980,24 +1012,51 @@ struct cmuxApp: App {
                     Divider()
 
                     splitCommandButton(title: String(localized: "menu.find.hideFindBar", defaultValue: "Hide Find Bar"), shortcut: menuShortcut(for: .hideFind)) {
+                        if appDelegate.performFocusedDockCommand(
+                            .hideFind,
+                            action: .hideFind,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         if !performFocusedBrowserAction(.hideFind) {
                             restoreFindTargetFocus()
                             activeTabManager.hideFind()
                         }
                     }
-                    .disabled(!activeFindIsVisible)
+                    .disabled(
+                        !(activeDockMenuTarget?.menuCapabilities.hasFindSession
+                            ?? activeTabManager.isFindVisible)
+                    )
 
                     Divider()
 
                     splitCommandButton(title: String(localized: "menu.find.useSelectionForFind", defaultValue: "Use Selection for Find"), shortcut: menuShortcut(for: .useSelectionForFind)) {
+                        if appDelegate.performFocusedDockCommand(
+                            .useSelectionForFind,
+                            action: .useSelectionForFind,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         restoreFindTargetFocus()
                         activeTabManager.searchSelection()
                     }
-                    .disabled(!(activeTabManager.canUseSelectionForFind))
+                    .disabled(
+                        !(activeDockMenuTarget?.menuCapabilities.canUseSelection
+                            ?? activeTabManager.canUseSelectionForFind)
+                    )
 
                     Divider()
 
                     splitCommandButton(title: String(localized: "menu.find.sendCtrlFToTerminal", defaultValue: "Send Ctrl-F to Terminal"), shortcut: menuShortcut(for: .sendCtrlFToTerminal)) {
+                        if appDelegate.performFocusedDockCommand(
+                            .sendCtrlFToTerminal,
+                            action: .sendCtrlFToTerminal,
+                            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+                        ) {
+                            return
+                        }
                         // Restore focus to the terminal if the right sidebar grabbed it, then
                         // forward a faithfully-encoded Ctrl-F (e.g. Claude Code force-stop).
                         restoreFindTargetFocus()
@@ -1005,7 +1064,10 @@ struct cmuxApp: App {
                             NSSound.beep()
                         }
                     }
-                    .disabled(activeTabManager.selectedTerminalPanel == nil)
+                    .disabled(
+                        !(activeDockMenuTarget?.menuCapabilities.isTerminal
+                            ?? (activeTabManager.selectedTerminalPanel != nil))
+                    )
                 }
             }
 
@@ -1307,6 +1369,17 @@ struct cmuxApp: App {
         return appDelegate.browserPanel(resolving: target)
     }
 
+    private var activeDockForMenu: DockSplitStore? {
+        // Keep this computed command dependency tied to the invalidator as
+        // well as the scene-level Commands read. Switching key windows can
+        // change the resolved Dock without changing either Dock's capability
+        // snapshot.
+        let _ = dockMenuInvalidator.revision
+        return appDelegate.focusedDockStoreForMenu(
+            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+        )
+    }
+
     @discardableResult
     private func performFocusedBrowserAction(
         _ action: BrowserAction
@@ -1314,13 +1387,6 @@ struct cmuxApp: App {
         guard let target = activeBrowserActionTarget else { return false }
         return BrowserActionDispatcher(appDelegate: appDelegate)
             .perform(action, on: target)
-    }
-
-    private var activeFindIsVisible: Bool {
-        if let activeBrowserPanel {
-            return activeBrowserPanel.searchState != nil
-        }
-        return activeTabManager.isFindVisible
     }
 
     var activeTabManager: TabManager {
@@ -1339,6 +1405,15 @@ struct cmuxApp: App {
     }
 
     private func performSplitFromMenu(direction: SplitDirection) {
+        let action: KeyboardShortcutSettings.Action? = nil
+        if appDelegate.routeSplitToFocusedDock(
+            kind: .terminal,
+            direction: direction,
+            action: action,
+            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+        ) {
+            return
+        }
         if AppDelegate.shared?.performSplitShortcut(direction: direction) == true {
             return
         }
@@ -1346,6 +1421,15 @@ struct cmuxApp: App {
     }
 
     private func performBrowserSplitFromMenu(direction: SplitDirection) {
+        let action: KeyboardShortcutSettings.Action? = nil
+        if appDelegate.routeSplitToFocusedDock(
+            kind: .browser,
+            direction: direction,
+            action: action,
+            preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
+        ) {
+            return
+        }
         if activeBrowserActionTarget != nil {
             if !performFocusedBrowserAction(.split(direction)) {
                 NSSound.beep()
@@ -1563,10 +1647,11 @@ struct cmuxApp: App {
     }
 
     private func closeOtherTabsInFocusedPane() {
-        if let dock = appDelegate.focusedDockStoreForShortcut(
+        if appDelegate.performFocusedDockCommand(
+            .closeOtherTabsInPane,
+            action: .closeOtherTabsInPane,
             preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow
         ) {
-            _ = dock.performShortcutCommand(.closeOtherTabsInPane)
             return
         }
         activeTabManager.closeOtherTabsInFocusedPaneWithConfirmation()
