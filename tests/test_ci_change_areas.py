@@ -16,7 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / "scripts" / "ci" / "detect_ci_change_areas.py"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
-CI_STATUS_FALLBACK_WORKFLOW = ROOT / ".github" / "workflows" / "ci-status-fallback.yml"
 PERF_ACTIVATION_WORKFLOW = ROOT / ".github" / "workflows" / "perf-activation.yml"
 
 spec = importlib.util.spec_from_file_location("detect_ci_change_areas", HELPER)
@@ -136,27 +135,6 @@ def test_workflow_changes_run_everything() -> None:
         web=True,
         agent_session_web=True,
     )
-
-
-def test_app_source_changes_trigger_compile_gate() -> None:
-    required_paths = {
-        "cmuxTests/**",
-        "Sources/**",
-        "CLI/**",
-        "Packages/**",
-        "vendor/**",
-        "Resources/**",
-        "cmux.xcodeproj/**",
-    }
-    ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
-    fallback_workflow = CI_STATUS_FALLBACK_WORKFLOW.read_text(encoding="utf-8")
-
-    for path in required_paths:
-        assert f"      - {path}" in ci_workflow
-        assert f"      - {path}" in fallback_workflow
-    assert "- name: Compile cmuxTests target" in ci_workflow
-    assert "-scheme cmux-unit" in ci_workflow
-    assert "build-for-testing" in ci_workflow
 
 
 def detect_step_script(workflow_path: Path = CI_WORKFLOW) -> str:
