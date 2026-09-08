@@ -373,7 +373,7 @@ private struct SidebarAccountPopover: View {
                 }
                 Button {
                     dismiss()
-                    accountFlow?.openProUpgrade()
+                    accountFlow?.openProUpgrade(source: .sidebarAccountMenu)
                 } label: {
                     Label(
                         String(localized: "menu.help.upgradeToPro", defaultValue: "Upgrade to cmux Pro…"),
