@@ -159,11 +159,25 @@ final class FakeTunnelEnroller: CloudTunnelEnrolling, @unchecked Sendable {
 
     private let lock = NSLock()
     private var count = 0
+    private var discards = 0
+    private var _onEnroll: (@Sendable () -> Void)?
     var enrollCount: Int { lock.withLock { count } }
+    var discardCount: Int { lock.withLock { discards } }
+    /// Runs inside `enroll()`, standing in for whatever happens during the
+    /// control-plane round trip (a toggle flipped off, for one).
+    var onEnroll: (@Sendable () -> Void)? {
+        get { lock.withLock { _onEnroll } }
+        set { lock.withLock { _onEnroll = newValue } }
+    }
 
     func enroll() async throws -> CloudTunnelEnrollment {
         lock.withLock { count += 1 }
+        onEnroll?()
         return CloudTunnelEnrollment(wgQuickConfig: Self.config, serverAddress: "vpn.example.com:51820")
+    }
+
+    func discardEnrollment() {
+        lock.withLock { discards += 1 }
     }
 }
 

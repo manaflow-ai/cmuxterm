@@ -299,6 +299,47 @@ struct CloudTunnelLaunchGateTests {
         #expect(enroller.enrollCount == 0)
     }
 
+    @Test("Cloud Machines turned off during enrollment: the enrollment is discarded and nothing is installed or started")
+    func refusalDuringEnrollmentDiscardsIt() async {
+        let controller = FakeTunnelController()
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        // The toggle flips while the control-plane round trip is in flight.
+        enroller.onEnroll = { gate.refusal = .cloudMachinesOff }
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
+
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await coordinator.requestUp(pin: true)
+        }
+        #expect(enroller.enrollCount == 1)
+        #expect(enroller.discardCount == 1)
+        #expect(controller.calls.isEmpty)
+        #expect(await coordinator.state == .off)
+        #expect(await coordinator.isInFailureBackoff == false)
+        #expect(await coordinator.recordedStartRefusal() == .cloudMachinesOff)
+    }
+
+    @Test("Cloud Machines turned off while the install waits for approval: the tunnel is never started")
+    @MainActor
+    func refusalDuringInstallPreventsStart() async throws {
+        let controller = FakeTunnelController()
+        controller.holdInstallForApproval = true
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
+        let start = Task { try await coordinator.requestUp(pin: false) }
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+        #expect(await coordinator.state == .awaitingApproval)
+
+        gate.refusal = .cloudMachinesOff
+        controller.approve()
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await start.value
+        }
+        #expect(controller.calls == ["install"])
+        #expect(await coordinator.state == .off)
+    }
+
     @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
     func refusalAfterSchedulingEndsOff() async {
         let controller = FakeTunnelController()

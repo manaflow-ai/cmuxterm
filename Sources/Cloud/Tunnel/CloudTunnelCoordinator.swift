@@ -335,6 +335,13 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             }
             let enrollment = try await enroller.enroll()
             try Task.checkCancellation()
+            // Enrollment is a control-plane round trip; the opt-in may have
+            // been turned off meanwhile. Nothing it wrote may survive a
+            // refusal, or the next launch would treat this Mac as configured.
+            if let refusal = admission.knownRefusal() {
+                enroller.discardEnrollment()
+                throw refusal.error
+            }
             let configuration = CloudTunnelProviderConfiguration(
                 wgQuickConfig: enrollment.wgQuickConfig,
                 serverAddress: enrollment.serverAddress,
@@ -344,6 +351,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 Task { await self?.noteAwaitingApproval(generation: generation) }
             }
             try Task.checkCancellation()
+            // The install can wait minutes for the user's extension approval.
+            if let refusal = admission.knownRefusal() {
+                throw refusal.error
+            }
             if state == .awaitingApproval { setState(.starting, generation: generation) }
             // The extension outlives the app: after a crash or `kill`, the
             // tunnel can already be connected, and `startVPNTunnel` on a live

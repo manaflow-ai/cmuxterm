@@ -35,6 +35,12 @@ extension TerminalController {
                 }
                 let manager = VMTunnelManager()
                 let state = try await manager.enroll(client: VMClient.shared)
+                // Enrollment is a control-plane round trip; a refusal that
+                // landed meanwhile must not leave the written config behind.
+                if let refusal = await coordinator.knownStartRefusal() {
+                    manager.removeLocalCredentials()
+                    throw refusal.error
+                }
                 var payload = await Self.cloudTunnelStatusPayload(manager: manager)
                 payload["tunnel_id"] = state.endpoint.tunnelId
                 payload["provider"] = state.endpoint.provider
