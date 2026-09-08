@@ -30,18 +30,33 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
 
     @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
     func providerHelpDoesNotBypassWrapperValidation(agent: String, help: String) throws {
+        for command in [["vm", "agent", "--agent", agent], ["agent", agent], ["coderouter", "agent", agent]] {
+            let result = try runWithoutSocket(command + ["--machine", "--", help])
+            #expect(result.status != 0, "\(command): \(result.text)")
+            #expect(result.text.contains("--machine requires a value"), "\(command): \(result.text)")
+        }
+    }
+
+    @Test(arguments: ["open", "project"], ["--left", "--right", "--up", "--down"])
+    func surfaceOpenRejectsTabAndSideBeforeTransport(subcommand: String, side: String) throws {
+        let result = try runWithoutSocket(["surface", subcommand, "vm/terminal/test", "--pane", "pane:1", "--tab", side])
+        #expect(result.status != 0, result.text)
+        #expect(result.text.contains("--tab and a pane side"), result.text)
+    }
+
+    private func runWithoutSocket(_ arguments: [String]) throws -> (status: Int32, text: String) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let binary = try BundledCLITestSupport.bundledCLIURL(for: BundleProbe.self)
-        for command in [["vm", "agent", "--agent", agent], ["agent", agent], ["coderouter", "agent", agent]] {
+        do {
             let output = directory.appendingPathComponent("output")
             try Data().write(to: output)
             let handle = try FileHandle(forWritingTo: output)
             defer { try? handle.close() }
             let process = Process()
             process.executableURL = binary
-            process.arguments = ["--socket", directory.appendingPathComponent("absent.sock").path] + command + ["--machine", "--", help]
+            process.arguments = ["--socket", directory.appendingPathComponent("absent.sock").path] + arguments
             var environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CMUX_") }
             environment["HOME"] = directory.path
             environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
@@ -55,9 +70,8 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             if !finished { Darwin.kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
             let text = try String(contentsOf: output, encoding: .utf8)
-            #expect(finished, "\(command): \(text)")
-            #expect(process.terminationStatus != 0, "\(command): \(text)")
-            #expect(text.contains("--machine requires a value"), "\(command): \(text)")
+            #expect(finished, "\(arguments): \(text)")
+            return (process.terminationStatus, text)
         }
     }
 
