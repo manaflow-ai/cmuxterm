@@ -1002,16 +1002,13 @@ final class ClaudeHookSessionStore {
             state.sessions[normalized] = record
         }
     }
-
     struct AutoNamingRecentMessagesSnapshot {
         var messages: [AutoNamingTranscriptMessage]
         var totalMessageCount: Int
     }
-
     func autoNamingRecentMessages(sessionId: String) throws -> [AutoNamingTranscriptMessage] {
         try autoNamingRecentMessagesSnapshot(sessionId: sessionId).messages
     }
-
     func autoNamingRecentMessagesSnapshot(sessionId: String) throws -> AutoNamingRecentMessagesSnapshot {
         let normalized = normalizeSessionId(sessionId)
         guard !normalized.isEmpty else {
@@ -1026,12 +1023,10 @@ final class ClaudeHookSessionStore {
             )
         }
     }
-
     struct AutoNamingBeginOutcome {
         var decision: AutoNamingThrottleDecision
         var lastTitle: String?
     }
-
     /// Atomically evaluates the auto-naming throttle for a session and, when
     /// the decision is to proceed, records the in-flight marker inside the
     /// same locked transaction so a concurrent Stop hook sees it and skips.
@@ -1083,7 +1078,6 @@ final class ClaudeHookSessionStore {
             return AutoNamingBeginOutcome(decision: decision, lastTitle: snapshot.lastTitle)
         }
     }
-
     /// Records a completed naming pass. On a confirmed apply, the durable
     /// baseline (title, line count, timestamp) advances; on failure only the
     /// in-flight marker clears, so the next qualifying Stop retries.
@@ -1110,7 +1104,6 @@ final class ClaudeHookSessionStore {
             state.sessions[normalized] = record
         }
     }
-
     func clearAgentLifecycleIfPresent(
         sessionId: String,
         workspaceId: String?,
@@ -1125,7 +1118,6 @@ final class ClaudeHookSessionStore {
             state.sessions[normalizedSessionId] = record
         }
     }
-
     @discardableResult
     func recordPromptSubmit(
         sessionId: String,
@@ -6693,6 +6685,9 @@ struct CMUXCLI {
             default:
                 throw CLIError(message: mobileUsage + "\n" + compatibleTagsUsage)
             }
+
+        case "terminal":
+            try runTerminalViewportCommand(commandArgs: commandArgs, client: client, jsonOutput: jsonOutput, idFormat: idFormat, windowOverride: windowId)
 
         case "rpc":
             guard let method = commandArgs.first?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -18393,6 +18388,8 @@ struct CMUXCLI {
 
             Print server capabilities as JSON.
             """
+        case "terminal":
+            return Self.terminalViewportUsage + "\n\n" + Self.terminalViewportHelp
         case "canvas":
             return """
             Usage: cmux canvas <subcommand> [args] [--workspace <id|ref>]
@@ -41016,7 +41013,8 @@ export default CMUXSessionRestore;
           login | logout                                      (aliases for auth login/logout)
           \(localizedCoderouterAliases())
           \(localizedCoderouterCommands())
-          vm <base|new|ls|domains|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|ssh|workspace|terminal|tab> [args...]    (alias: cloud)
+          \(Self.terminalViewportCommandLine)
+          vm <base|new|ls|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|ssh|workspace|terminal|tab> [args...]    (alias: cloud)
           remotes <list|add|remove> [--route <host:port>] [--tag <tag>] [--json]    (alias: remote)
           ai-accounts <list|upload|remove> [--team <id>] [--json]
           rpc <method> [json-params]
@@ -41084,6 +41082,7 @@ export default CMUXSessionRestore;
           current-workspace [--window <id|ref|index>]
           \(Self.readSelectionUsageLine)
           \(Self.readScreenUsageLine)
+          \(Self.terminalViewportCommandLine)
           send [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] <text>
           send-key [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] <key>
           send-panel --panel <id|ref|index> [--workspace <id|ref|index>] [--window <id|ref|index>] <text>
