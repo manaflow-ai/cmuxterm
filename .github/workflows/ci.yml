@@ -326,6 +326,9 @@ jobs:
       - name: Validate release-build timeout guard
         run: ./tests/test_ci_release_build_timeout.sh
 
+      - name: Validate reusable workflow permission grants
+        run: python3 tests/test_ci_reusable_workflow_permissions.py
+
       - name: Validate markdown viewer asset compression
         run: ./tests/test_compress_markdown_viewer_assets.sh
 
