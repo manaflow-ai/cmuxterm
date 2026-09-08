@@ -1,4 +1,5 @@
-/// A CLI failure with display text, exit status, and optional structured context.
+import Foundation
+
 struct CLIError: Error, CustomStringConvertible {
     enum SocketFailureKind: Equatable {
         case pathMissing
