@@ -28269,7 +28269,7 @@ struct CMUXCLI {
                         ?? mappedSession?.lastPermissionMode
                 )
             }
-            _ = try sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
+            _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
             emitAgentJournalEvent(
                 client: client,
                 kind: .turnStarted,

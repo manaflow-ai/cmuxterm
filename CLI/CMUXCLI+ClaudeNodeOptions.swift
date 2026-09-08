@@ -244,8 +244,14 @@ extension CMUXCLI {
             unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
         default:
             if let existing = processEnvironment["NODE_OPTIONS"] {
-                setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
-                setenv("CMUX_ORIGINAL_NODE_OPTIONS", normalizedNodeOptionsForRestore(existing), 1)
+                let normalized = normalizedNodeOptionsForRestore(existing)
+                if !normalized.isEmpty || !nodeOptionsContainOnlyManagedRestoreModules(existing) {
+                    setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
+                    setenv("CMUX_ORIGINAL_NODE_OPTIONS", normalized, 1)
+                } else {
+                    setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
+                    unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
+                }
             } else {
                 setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
                 unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
@@ -295,6 +301,34 @@ extension CMUXCLI {
             index += 1
         }
         return filtered.joined(separator: " ")
+    }
+
+    private func nodeOptionsContainOnlyManagedRestoreModules(_ existing: String) -> Bool {
+        guard let tokens = Self.nodeOptionsTokens(existing), !tokens.isEmpty else { return false }
+        var foundRestoreModule = false
+        var index = 0
+        while index < tokens.count {
+            let token = tokens[index]
+            if token == "--require" || token == "-r" {
+                guard index + 1 < tokens.count,
+                      isClaudeNodeOptionsRestorePath(Self.unquoteNodeOptionsPath(tokens[index + 1])) else {
+                    return false
+                }
+                foundRestoreModule = true
+                index += 2
+                continue
+            }
+            if token.hasPrefix("--require=") || token.hasPrefix("-r=") {
+                let separator = token.hasPrefix("--require=") ? "--require=" : "-r="
+                let path = Self.unquoteNodeOptionsPath(String(token.dropFirst(separator.count)))
+                guard isClaudeNodeOptionsRestorePath(path) else { return false }
+                foundRestoreModule = true
+                index += 1
+                continue
+            }
+            return false
+        }
+        return foundRestoreModule
     }
 
     func normalizedNodeOptionsForRestore(_ existing: String) -> String {
