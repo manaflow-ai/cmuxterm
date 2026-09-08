@@ -336,6 +336,7 @@ extension DockSplitStore {
             shellActivityState: transferredShellActivityState,
             restoredPanelTitleBoundary: transferredRestoredPanelTitleBoundary,
             restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectory,
+            restoredStartupInput: restoredAgentLifecycle.startupInput(panelId: panelId),
             resumeBinding: resumeBinding,
             resumeBindingEventTime: preservedResumeBindingEventTime,
             deferredAgentResumeRestore: deferredAgentResumeRestore,

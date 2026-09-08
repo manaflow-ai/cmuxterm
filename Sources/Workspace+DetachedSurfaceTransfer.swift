@@ -52,6 +52,9 @@ extension Workspace {
         let shellActivityState: PanelShellActivityState?
         var restoredPanelTitleBoundary: RestoredPanelTitleBoundary? = nil
         let restoredResumeSessionWorkingDirectory: String?
+        /// Typed restore selector still awaiting its shell, carried so the
+        /// idle-prompt replay survives a Workspace/Dock move.
+        var restoredStartupInput: String? = nil
         let resumeBinding: SurfaceResumeBindingSnapshot?
         /// Latest accepted resume-binding event time carried across transfers.
         var resumeBindingEventTime: TimeInterval? = nil
@@ -112,6 +115,7 @@ extension Workspace {
                 shellActivityState: shellActivityState,
                 restoredPanelTitleBoundary: restoredPanelTitleBoundary,
                 restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectory,
+                restoredStartupInput: restoredStartupInput,
                 resumeBinding: resumeBinding,
                 resumeBindingEventTime: resumeBindingEventTime,
                 deferredAgentResumeRestore: deferredAgentResumeRestore,
