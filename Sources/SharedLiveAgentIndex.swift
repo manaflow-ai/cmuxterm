@@ -889,8 +889,23 @@ final class SharedLiveAgentIndex {
             }
         }
         guard let identity = AgentPIDProcessIdentity(pid: pid_t(pid)) else {
-            sidebarProcessPanelIDsByPID.removeValue(forKey: pid)
-            sidebarProcessWorkspaceIDsByPID.removeValue(forKey: pid)
+            if let watcher = sidebarProcessExitWatchers.removeValue(forKey: pid) {
+                Self.cancelSidebarProcessExitWatcher(watcher)
+            }
+            let panelIDs = sidebarProcessPanelIDsByPID.removeValue(forKey: pid) ?? []
+            let workspaceIDs = sidebarProcessWorkspaceIDsByPID.removeValue(forKey: pid) ?? [:]
+            guard !panelIDs.isEmpty else { return }
+            // Missing identity at installation is a process event too. Defer
+            // the sync-to-async handoff until registration returns: the scoped
+            // refresh itself arms watchers before installing its task handle.
+            // Its existing worker/pending-panel machinery coalesces failures.
+            Task { @MainActor [weak self] in
+                self?.refreshCachedProcessLivenessForSidebar(
+                    panelIDs: panelIDs,
+                    currentWorkspaceIDByPanelID: workspaceIDs,
+                    force: true
+                )
+            }
             return
         }
         if let existing = sidebarProcessExitWatchers[pid] {

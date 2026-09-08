@@ -220,13 +220,15 @@ extension Workspace {
             let runtimeMatchesIndexGeneration = currentRuntimeForKind.contains {
                 $0.id == indexIdentityProbe.id
             }
-            let currentRuntimeForDifferentKind = runtimeStatusKeys.contains { runtimeStatusKey in
-                runtimeStatusKey != canonicalStatusKey
+            let currentRuntimeForDifferentKind = runtimeEvidence.contains { evidence in
+                SidebarWorkspaceAgentActivity.canonicalStatusKey(evidence.statusKey) != canonicalStatusKey
+                    && (evidence.hasLiveLifecycleSignal || evidence.hasExactProcessIdentity)
             }
-            // A current runtime bound to a different session/process generation
-            // supersedes this cached record. Never let the old SessionStart
-            // anchor leak into the replacement agent.
-            if currentRuntimeForDifferentKind
+            // Another kind's leftover PID/lifecycle maps cannot invalidate a
+            // live indexed generation or hide its SessionStart anchor. Live
+            // runtime evidence may still supersede a non-live cached kind;
+            // same-kind generation replacement retains its existing precedence.
+            if (indexEntry.processLiveness != .running && currentRuntimeForDifferentKind)
                 || (!currentRuntimeForKind.isEmpty && !runtimeMatchesIndexGeneration) {
                 continue
             }
