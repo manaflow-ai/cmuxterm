@@ -94,11 +94,12 @@ extension CMUXCLI {
                ) {
                 environment["CMUX_WORKSPACE_ID"] = binding.workspaceId
                 environment["CMUX_SURFACE_ID"] = binding.surfaceId
+                environment[Self.agentHookRouteSnapshotEnvironmentKey] = "1"
+            } else if environment[pidEnvironmentKey] != nil {
+                environment.removeValue(forKey: "CMUX_WORKSPACE_ID")
+                environment.removeValue(forKey: "CMUX_SURFACE_ID")
+                environment.removeValue(forKey: Self.agentHookRouteSnapshotEnvironmentKey)
             }
-            // Downstream replay must never promote a PID that may have exited
-            // or been reused after admission. A missing route snapshot fails
-            // closed at delivery instead of probing the old PID.
-            environment[Self.agentHookRouteSnapshotEnvironmentKey] = "1"
             return environment
         }
 

@@ -449,7 +449,6 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
       state.pendingCompletion = undefined;
       state.feedDeliveryFailed = false;
       state.stopped = false;
-      state.needsSessionFinalize = false;
     }
     if (!sessionId) return;
     enqueueLifecycleTask(sessionId, context, async () => {
@@ -502,11 +501,10 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
 
   pi.on("agent_end", (event, ctx) => {
     const context = snapshotContext(ctx);
-  const sessionId = context.sessionId;
-  if (!sessionId) return;
-  const state = stateFor(sessionStates, sessionId);
-  const assistantCompletion = assistantCompletionFrom(event);
-  state.needsSessionFinalize = !assistantCompletion.suppressNotification;
+    const sessionId = context.sessionId;
+    if (!sessionId) return;
+    const state = stateFor(sessionStates, sessionId);
+    const assistantCompletion = assistantCompletionFrom(event);
     // Preserve the latest low-level result until Pi confirms no automatic work remains.
     state.pendingCompletion = {
       lastAssistantMessage: assistantCompletion.lastAssistantMessage || state.pendingCompletion?.lastAssistantMessage,
@@ -544,7 +542,6 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
     const sessionId = context.sessionId;
     if (!sessionId) return;
     const state = stateFor(sessionStates, sessionId);
-    const shouldFinalize = !state.stopped || state.needsSessionFinalize;
     let stopPayload: HookExtra | undefined;
     if (!state.stopped) {
       const turnId = finishTurn(sessionStates, sessionId, event);
@@ -559,10 +556,8 @@ export default function cmuxPiSessionExtension(pi: ExtensionAPI) {
       state.feedDeliveryFailed = false;
       if (!feedDelivered) await warnFeedDeliveryDropped(context, sessionId);
       if (stopPayload) await sendHook(dispatcher, "stop", context, stopPayload);
-      if (shouldFinalize) {
-        const finalized = await sendHook(dispatcher, "session-finalize", context);
-        if (!finalized) sendDirectSessionFinalize(ctx, sessionId, context.cwd);
-      }
+      const finalized = await sendHook(dispatcher, "session-finalize", context);
+      if (!finalized) sendDirectSessionFinalize(ctx, sessionId, context.cwd);
       releaseSessionRuntime(dispatcher, sessionStates, sessionId);
     });
   });

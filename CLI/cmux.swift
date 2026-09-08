@@ -28557,22 +28557,6 @@ struct CMUXCLI {
                ),
                reportedSessionId == forkParentSessionId {
                 telemetry.breadcrumb("claude-hook.session-end.fork-parent-skipped")
-                let suppressForkVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                    currentAgentPID: hookAgentPID,
-                    env: ProcessInfo.processInfo.environment
-                )
-                if !suppressForkVisibleMutations,
-                   let forkTarget = try? resolveClaudeHookDeliveryTarget(
-                       mappedSession: nil,
-                       routing: hookRouting,
-                       client: client
-                   ),
-                   forkTarget.isAuthoritative {
-                    _ = try? sendV1Command(
-                        "clear_agent_pid \(Self.claudeCodeStatusKey) --tab=\(forkTarget.workspaceId)\(socketPanelOption(forkTarget.surfaceId)) --clear-status",
-                        client: client
-                    )
-                }
                 printClaudeHookAck()
                 return
             }

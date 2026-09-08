@@ -935,6 +935,8 @@ await waitForCompletionHookCount(completionCount);
         ]
         if [payload.get("session_id") for payload in finalizations] != [
             "pi-session-test",
+            "pi-session-aborted",
+            "pi-session-immediate-submit",
             "pi-session-interrupted",
             "pi-session-finalize-fallback",
             "pi-session-finalize-fallback",
@@ -946,7 +948,11 @@ await waitForCompletionHookCount(completionCount);
             for line in arg_lines
             if "hooks enqueue pi stop" in line or "hooks enqueue pi session-finalize" in line
         ]
-        if ordered_shutdown_hooks[:4] != [
+        if ordered_shutdown_hooks[:8] != [
+            "hooks enqueue pi stop",
+            "hooks enqueue pi session-finalize",
+            "hooks enqueue pi stop",
+            "hooks enqueue pi session-finalize",
             "hooks enqueue pi stop",
             "hooks enqueue pi session-finalize",
             "hooks enqueue pi stop",
