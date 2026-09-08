@@ -362,6 +362,15 @@ struct ClaudeBackgroundWorkNotifyTests {
                 notifyLine(snapshot, containing: "c=turn-complete") == nil,
                 "\(name) must not route a provider failure through the suppressible completion gate, saw \(snapshot)"
             )
+            let journalCaptures = AgentJournalAppendCapture.captures(in: snapshot)
+            #expect(
+                journalCaptures.contains { $0.kind == "agent.error.reported" && $0.sessionId == session },
+                "\(name) must journal the provider failure as an error, saw \(journalCaptures)"
+            )
+            #expect(
+                !journalCaptures.contains { $0.kind == "agent.turn.completed" && $0.sessionId == session },
+                "\(name) must not re-journal the provider failure as completion, saw \(journalCaptures)"
+            )
             let errorStatus = snapshot.first {
                 $0.hasPrefix("set_status claude_code ") && $0.contains("--color=#FF453A")
             }
