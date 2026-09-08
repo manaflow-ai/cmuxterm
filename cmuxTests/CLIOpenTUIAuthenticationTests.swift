@@ -11,7 +11,7 @@ struct CLIOpenTUIAuthenticationTests {
         let socketPath = root.appendingPathComponent("control.sock").path
         let success = #"{"ok":true,"result":{"items":[]}}"#
         let responses = requiresPassword
-            ? [#"{"ok":false,"error":{"code":"auth_required","message":"authenticate"}}"#,
+            ? [#"{"ok":false,"error":{"code":"auth_required","message":"Authentication required — send auth <password> first"}}"#,
                "OK: Authenticated", success]
             : [success]
         let server = try UnixSocketResponder(path: socketPath, responses: responses)
@@ -52,6 +52,28 @@ struct CLIOpenTUIAuthenticationTests {
             #expect(server.receivedRequests.count == 1)
             #expect(server.receivedRequests.first?.contains("feed.list") == true)
         }
+    }
+
+    @Test(arguments: [false, true])
+    func failedFeedRequestPreservesKnownPasswordForChild(explicit: Bool) throws {
+        let root = try makeHome()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let socketPath = root.appendingPathComponent("control.sock").path
+        let failure = #"{"ok":false,"error":{"code":"unavailable","message":"try again"}}"#
+        let responses = explicit ? ["OK: Authenticated", failure] : [
+            #"{"ok":false,"error":{"code":"auth_required","message":"Authentication required — send auth <password> first"}}"#,
+            "OK: Authenticated", failure
+        ]
+        let server = try UnixSocketResponder(path: socketPath, responses: responses)
+        defer { server.stop() }
+
+        let result = try runFeed(root: root, socketPath: socketPath, explicitPassword: explicit)
+        #expect(!result.timedOut, "\(result.diagnostics)")
+        try #require(result.status == 0, "\(result.diagnostics)")
+        #expect(try String(contentsOf: launchMarker(root), encoding: .utf8) == "opentui-test-password")
+        let requests = server.receivedRequests
+        #expect(requests.count == (explicit ? 2 : 3))
+        #expect(requests.filter { $0 == "auth opentui-test-password" }.count == 1)
     }
 
     @Test
@@ -95,7 +117,7 @@ struct CLIOpenTUIAuthenticationTests {
     }
 
     private func runFeed(
-        root: URL, socketPath: String, automatic: Bool = false
+        root: URL, socketPath: String, automatic: Bool = false, explicitPassword: Bool = false
     ) throws -> CMUXCLIErrorOutputRegressionTests.ProcessRunResult {
         let support = CMUXCLIErrorOutputRegressionTests()
         let cliPath = try support.bundledCLIPath()
@@ -106,6 +128,7 @@ struct CLIOpenTUIAuthenticationTests {
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
         environment["CMUX_FEED_TUI_BUN_PATH"] = root.appendingPathComponent("bun").path
         environment["CMUX_TEST_OPEN_TUI_LAUNCH_PATH"] = launchMarker(root).path
+        if explicitPassword { environment["CMUX_SOCKET_PASSWORD"] = "opentui-test-password" }
         return support.runProcess(
             executablePath: "/usr/bin/script",
             arguments: ["-q", "/dev/null", cliPath, "--socket", socketPath, "feed", "tui"]
