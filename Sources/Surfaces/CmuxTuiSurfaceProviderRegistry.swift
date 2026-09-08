@@ -6,6 +6,12 @@ import Foundation
 /// list in step with the control plane: registers a provider for every machine the
 /// account can see, unregisters deleted ones, and drives refreshes on the same 45 s
 /// cadence the Machines panel uses. Signing out tears everything down.
+///
+/// The periodic fleet read is the only Cloud API traffic an idle app makes, so it
+/// runs only while ``CloudActivationPolicy`` allows background Cloud work (Cloud
+/// Machines on, or this Mac used Cloud before) and follows the Beta Features
+/// toggle at runtime. Demand-driven reads (`refresh(force:)`, a `cmux vm` verb)
+/// are explicit user actions and are not gated here.
 @MainActor
 final class CmuxTuiSurfaceProviderRegistry {
     static let shared = CmuxTuiSurfaceProviderRegistry()
@@ -19,6 +25,9 @@ final class CmuxTuiSurfaceProviderRegistry {
     private var pollTask: Task<Void, Never>?
     private var accessObserver: NSObjectProtocol?
     private var themeObserver: NSObjectProtocol?
+    private var activationObserver: NSObjectProtocol?
+    /// Whether the periodic fleet read may run right now.
+    private let allowsBackgroundWork: @MainActor () -> Bool
     private var refreshInFlight: Task<Bool, Never>?
     /// A forced refresh waits for an existing pass instead of starting a second
     /// fleet read. This prevents an older page from unregistering a machine that
@@ -27,16 +36,29 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// Same cadence as the Machines panel's list refresh.
     private let pollInterval: Duration = .seconds(45)
 
-    init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
+    init(
+        links: CloudMachineLinkManager,
+        wireGuardHub: CloudWireGuardHub?,
+        allowsBackgroundWork: @escaping @MainActor () -> Bool = { true }
+    ) {
         self.links = links
         self.wireGuardHub = wireGuardHub
+        self.allowsBackgroundWork = allowsBackgroundWork
     }
 
-    /// The production registry: one hub over the bundled client, shared by every link.
+    /// The production registry: one hub over the bundled client, shared by every link,
+    /// polling only while the activation policy allows background Cloud work.
     convenience init() {
         let hub = CloudTuiClientPaths.clientURL().map { CloudWireGuardHub.production(clientURL: $0) }
-        self.init(links: CloudMachineLinkManager(hub: hub), wireGuardHub: hub)
+        self.init(
+            links: CloudMachineLinkManager(hub: hub),
+            wireGuardHub: hub,
+            allowsBackgroundWork: { CloudActivationPolicy.live().allowsBackgroundCloudWork }
+        )
     }
+
+    /// True while the periodic fleet read is scheduled.
+    var isPolling: Bool { pollTask != nil }
 
     /// Kills the hub child synchronously; for `applicationWillTerminate`, where nothing
     /// may await and an orphaned hub would keep a WireGuard session alive after quit.
@@ -74,7 +96,28 @@ final class CmuxTuiSurfaceProviderRegistry {
             guard let self else { return }
             Task { await self.links.pushHostThemeToConnectedLinks() }
         }
-        pollTask?.cancel()
+        // The Beta Features toggle can change while the app runs; the poll
+        // follows it without a relaunch in both directions.
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: RightSidebarBetaFeatureSettings.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.syncPollingToActivationPolicy() }
+        }
+        syncPollingToActivationPolicy()
+    }
+
+    /// Starts the periodic fleet read when background Cloud work is allowed and
+    /// not yet running; cancels it when it is no longer allowed.
+    func syncPollingToActivationPolicy() {
+        guard allowsBackgroundWork() else {
+            pollTask?.cancel()
+            pollTask = nil
+            return
+        }
+        guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh(force: false)

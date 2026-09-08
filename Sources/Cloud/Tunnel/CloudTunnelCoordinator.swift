@@ -16,6 +16,11 @@ nonisolated private let logger = Logger(subsystem: "com.cmuxterm.app", category:
 ///   it fires and no consumer is live (``CloudTunnelConsumerSource``), the
 ///   tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
 /// - **Stops with the session.** Sign-out, revoke, and app termination stop it.
+/// - **Off until admitted.** Every start path asks `refuseStart` first
+///   (``CloudActivationPolicy`` in production: Cloud Machines on, and the
+///   account has a machine). A refused start touches neither enrollment nor
+///   NetworkExtension; `down`, sign-out, quit, and `revoke` stay available so
+///   a tunnel from an earlier opted-in session is still cleaned up.
 /// - macOS never auto-connects it: no NetworkExtension on-demand rules are set.
 ///
 /// An unavailable backend rejects browser navigation before a private URL is
@@ -29,6 +34,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// `CloudTunnelCoordinator+Deadline.swift` reads it.
     let clock: any Clock<Duration>
     private let timing: CloudTunnelTiming
+    /// Why a start is refused right now, or nil. Read on every start path so
+    /// an opt-in flipped while the app runs is honored by the next use.
+    private let refuseStart: @Sendable () -> CloudTunnelStartRefusal?
 
     private(set) var state: CloudTunnelState = .off
     private(set) var isPinned = false
@@ -54,7 +62,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         enroller: any CloudTunnelEnrolling,
         consumers: any CloudTunnelConsumerSource,
         clock: any Clock<Duration> = ContinuousClock(),
-        timing: CloudTunnelTiming = CloudTunnelTiming()
+        timing: CloudTunnelTiming = CloudTunnelTiming(),
+        refuseStart: @escaping @Sendable () -> CloudTunnelStartRefusal? = { nil }
     ) {
         self.backend = backend
         self.controller = controller
@@ -62,12 +71,22 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         self.consumers = consumers
         self.clock = clock
         self.timing = timing
+        self.refuseStart = refuseStart
+    }
+
+    /// Why the next start would be refused, or nil when it would proceed.
+    func startRefusal() -> CloudTunnelStartRefusal? {
+        refuseStart()
     }
 
     // MARK: - CloudPrivateNetworkGate
 
     func prepareForPrivateNetworkUse(_ use: CloudPrivateNetworkUse) async {
         guard backend.isNetworkExtension else { return }
+        if let refusal = refuseStart() {
+            logger.notice("Cloud use refused: \(refusal.rawValue, privacy: .public)")
+            return
+        }
         if state == .up {
             restartIdleTimer()
             return
@@ -98,6 +117,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
+        if let refusal = refuseStart() {
+            throw refusal.error
+        }
         if state == .up {
             restartIdleTimer()
             return
@@ -116,6 +138,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
+        if let refusal = refuseStart() {
+            throw refusal.error
+        }
         if pin { isPinned = true }
         clearFailureBackoff()
         try await ensureUp()
@@ -123,7 +148,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
 
     /// Kick off a start without waiting for it; pair with ``waitForState``.
     func beginUp(pin: Bool) {
-        guard backend.isNetworkExtension else { return }
+        guard backend.isNetworkExtension, refuseStart() == nil else { return }
         if pin { isPinned = true }
         clearFailureBackoff()
         _ = startTaskIfNeeded()
@@ -255,6 +280,11 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 await stopTask.value
             }
             try Task.checkCancellation()
+            // A start coalesced behind a stop re-asks: the opt-in may have
+            // been turned off while the stop drained.
+            if let refusal = refuseStart() {
+                throw refusal.error
+            }
             let enrollment = try await enroller.enroll()
             try Task.checkCancellation()
             let configuration = CloudTunnelProviderConfiguration(

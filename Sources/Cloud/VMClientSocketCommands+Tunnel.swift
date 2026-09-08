@@ -8,6 +8,12 @@ import Foundation
 /// Trust boundary: the completed config never crosses the socket. `tunnel_config`
 /// returns only the path of the 0600 file the app wrote, the same boundary every
 /// other `vm.` verb already accepts.
+///
+/// `tunnel_config` and `tunnel_up` are the two verbs that would enroll or
+/// touch NetworkExtension, so both ask the coordinator's start policy first
+/// (``CloudActivationPolicy``: Cloud Machines on, and a machine exists) and
+/// fail closed with the same message the app shows. Status, down, wait, and
+/// revoke never start anything and stay available for cleanup.
 extension TerminalController {
     nonisolated func socketWorkerCloudTunnelResponse(
         method: String,
@@ -19,6 +25,9 @@ extension TerminalController {
             // Enrolls the browser role and writes its WireGuard config. The
             // Network Extension consumes it through `vm.tunnel_up`.
             return v2VmCall(id: id) {
+                if let refusal = await Self.cloudTunnelCoordinator()?.startRefusal() {
+                    throw refusal.error
+                }
                 let manager = VMTunnelManager()
                 let state = try await manager.enroll(client: VMClient.shared)
                 var payload = await Self.cloudTunnelStatusPayload(manager: manager)
@@ -50,6 +59,9 @@ extension TerminalController {
                     throw CloudTunnelError.backendUnavailable(
                         await Self.cloudTunnelCoordinator()?.backend.unavailableReason ?? .entitlementMissing
                     )
+                }
+                if let refusal = await coordinator.startRefusal() {
+                    throw refusal.error
                 }
                 await coordinator.beginUp(pin: true)
                 _ = await coordinator.waitForState(timeout: .seconds(60)) { state in
@@ -130,6 +142,10 @@ extension TerminalController {
         }
         if let failure = status?.state.failureMessage {
             payload["tunnel_error"] = failure
+        }
+        if backend.isNetworkExtension, let refusal = await coordinator?.startRefusal() {
+            payload["start_refusal"] = refusal.rawValue
+            payload["start_refusal_message"] = refusal.error.description
         }
         let terminalManager = VMTunnelManager(purpose: .terminal)
         let hub = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared.wireGuardHub }
