@@ -498,6 +498,52 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         }
     }
 
+    @Test func resolvedPrefixChordCanCommitSystemDefinedMediaSuffix() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", command: true),
+                second: ShortcutStroke(key: "media.playPause")
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let binding = try #require(ShortcutPrefixChordBinding(
+                actionID: KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue,
+                shortcut: chord.cmuxSettingsStoredShortcut
+            ))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let searchField = FileExplorerSearchField(frame: NSRect(x: 20, y: 40, width: 240, height: 28))
+            searchField.fileExplorerPanelPlacement = .pane
+            var commitCount = 0
+            searchField.onCommit = { commitCount += 1 }
+            window.contentView = searchField
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            #expect(window.makeFirstResponder(searchField))
+
+            let event = try #require(NSEvent.otherEvent(
+                with: .systemDefined,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                subtype: 8,
+                data1: Int((UInt32(16) << 16) | (UInt32(0x0A) << 8)),
+                data2: -1
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+
+            #expect(appDelegate.executeResolvedPrefixChordBinding(binding, event: event))
+            #expect(commitCount == 1)
+        }
+    }
+
     @Test func resolvedPrefixChordOnlyAllowsTheSelectedAuxiliaryMatcher() throws {
         try withIsolatedShortcutSettings {
             let appDelegate = try #require(AppDelegate.shared)
