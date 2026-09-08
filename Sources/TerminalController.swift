@@ -8059,7 +8059,7 @@ class TerminalController {
                     if let dict = value as? [String: Any],
                        let ok = dict["ok"] as? Bool,
                        ok {
-                        let payload: [String: Any] = [
+                        var payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "surface_id": surfaceId.uuidString,
                             "action": actionName,
@@ -8806,7 +8806,7 @@ class TerminalController {
 
                     switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
                     case .delivered:
-                        var payload: [String: Any] = [
+                        let payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
                             "surface_id": ctx.surfaceId.uuidString,
