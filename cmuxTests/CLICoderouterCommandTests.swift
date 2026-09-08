@@ -31,15 +31,15 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
     @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
     func providerHelpDoesNotBypassWrapperValidation(agent: String, help: String) throws {
         for command in [["vm", "agent", "--agent", agent], ["agent", agent], ["coderouter", "agent", agent]] {
-            let result = try runWithoutSocket(command + ["--machine", "--", help])
+            let result = try runWithoutMutationRequests(command + ["--machine", "--", help])
             #expect(result.status != 0, "\(command): \(result.text)")
             #expect(result.text.contains("--machine requires a value"), "\(command): \(result.text)")
         }
     }
 
     @Test(arguments: ["open", "project"], ["--left", "--right", "--up", "--down"])
-    func surfaceOpenRejectsTabAndSideBeforeTransport(subcommand: String, side: String) throws {
-        let result = try runWithoutSocket(["surface", subcommand, "vm/terminal/test", "--pane", "pane:1", "--tab", side])
+    func surfaceOpenRejectsTabAndSideBeforeMutation(subcommand: String, side: String) throws {
+        let result = try runWithoutMutationRequests(["surface", subcommand, "vm/terminal/test", "--pane", "pane:1", "--tab", side])
         #expect(result.status != 0, "\(result.text)")
         #expect(result.text.contains("--tab and a pane side"), "\(result.text)")
     }
@@ -47,7 +47,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
     @Test(arguments: [["--json"], ["--sync"], ["--no-open"], ["--machine", "vm-agent-test"]])
     func aliasesAcceptLeadingCanonicalOptions(options: [String]) throws {
         for command in [["vm", "agent"], ["agent"], ["coderouter", "agent"]] {
-            let result = try runWithoutSocket(command + options + ["--agent", "claude", "--size", "1", "--", "reply pong"])
+            let result = try runWithoutMutationRequests(command + options + ["--agent", "claude", "--size", "1", "--", "reply pong"])
             #expect(result.status != 0, "\(command): \(result.text)")
             #expect(result.text.contains("vm agent: unknown size '1'"), "\(command): \(result.text)")
         }
@@ -55,16 +55,33 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
 
     @Test
     func topLevelAgentAliasReachesCanonicalValidation() throws {
-        let result = try runWithoutSocket(["agent", "claude", "--size", "1", "reply pong"])
+        let result = try runWithoutMutationRequests(["agent", "claude", "--size", "1", "reply pong"])
         #expect(result.status != 0, "\(result.text)")
         #expect(result.text.contains("vm agent: unknown size '1'"), "\(result.text)")
     }
 
-    private func runWithoutSocket(_ arguments: [String]) throws -> (status: Int32, text: String) {
+    private func runWithoutMutationRequests(_ arguments: [String]) throws -> (status: Int32, text: String) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let binary = try BundledCLITestSupport.bundledCLIURL(for: BundleProbe.self)
+        let socketPath = "/tmp/cmux-args-\(UUID().uuidString).sock"
+        let listener = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        try #require(listener >= 0)
+        defer { Darwin.close(listener); unlink(socketPath) }
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { bytes in
+            bytes.copyBytes(from: socketPath.utf8CString.map { UInt8(bitPattern: $0) })
+        }
+        let bound = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(listener, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        try #require(bound == 0)
+        try #require(Darwin.listen(listener, 1) == 0)
+        try #require(fcntl(listener, F_SETFL, O_NONBLOCK) == 0)
         do {
             let output = directory.appendingPathComponent("output")
             try Data().write(to: output)
@@ -72,7 +89,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             defer { try? handle.close() }
             let process = Process()
             process.executableURL = binary
-            process.arguments = ["--socket", directory.appendingPathComponent("absent.sock").path] + arguments
+            process.arguments = ["--socket", socketPath] + arguments
             var environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CMUX_") }
             environment["HOME"] = directory.path
             environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
@@ -87,6 +104,15 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             process.waitUntilExit()
             let text = try String(contentsOf: output, encoding: .utf8)
             #expect(finished, "\(arguments): \(text)")
+            let connection = Darwin.accept(listener, nil, nil)
+            if connection >= 0 {
+                defer { Darwin.close(connection) }
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                let received = buffer.withUnsafeMutableBytes { bytes in
+                    Darwin.recv(connection, bytes.baseAddress, bytes.count, MSG_DONTWAIT)
+                }
+                #expect(received <= 0, "Unexpected socket request: \(String(decoding: buffer.prefix(max(received, 0)), as: UTF8.self))")
+            }
             return (process.terminationStatus, text)
         }
     }
