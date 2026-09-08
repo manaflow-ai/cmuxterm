@@ -109,6 +109,10 @@ extension RemoteTmuxController {
             targetManager.closeWorkspace(bootstrap, recordHistory: false)
         }
 
+        if windowTarget == .dedicatedNewWindow {
+            appDelegate.vaultHistoryEventLog?.commitWindowCreation(windowId: resolvedWindowId)
+        }
+
         if activate {
             selectFirstMirrorWorkspace(for: host, in: targetManager)
             _ = appDelegate.focusMainWindow(windowId: resolvedWindowId)

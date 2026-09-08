@@ -17,6 +17,8 @@ final class VaultHistoryEventLog {
     private let store: any VaultHistoryEventStoring
     private var pendingRecordTask: Task<Void, Never>?
     private var pendingRecordCount = 0
+    /// Uncommitted window operations cannot publish an open or any child event.
+    private var pendingWindowEvents: [UUID: [VaultHistoryEvent]] = [:]
 
     /// Whether accepted records are still queued or being persisted.
     var hasPendingRecords: Bool {
@@ -37,6 +39,10 @@ final class VaultHistoryEventLog {
 
     func record(_ event: VaultHistoryEvent) {
         guard phase == .active else { return }
+        if let windowId = event.subject.windowId, pendingWindowEvents[windowId] != nil {
+            pendingWindowEvents[windowId, default: []].append(event)
+            return
+        }
         let store = store
         let previous = pendingRecordTask
         pendingRecordCount += 1
@@ -57,6 +63,23 @@ final class VaultHistoryEventLog {
                 self.pendingRecordTask = nil
             }
         }
+    }
+
+    func beginWindowCreation(windowId: UUID) {
+        pendingWindowEvents[windowId] = []
+    }
+
+    /// Publishes the original event snapshots exactly once after the window is retained.
+    func commitWindowCreation(windowId: UUID) {
+        guard let events = pendingWindowEvents.removeValue(forKey: windowId) else { return }
+        for event in events {
+            record(event)
+        }
+    }
+
+    /// Failed bootstrap operations never enter the append-only store.
+    func discardWindowCreation(windowId: UUID) {
+        pendingWindowEvents.removeValue(forKey: windowId)
     }
 
     func recentEvents(limit: Int = Int.max) async -> [VaultHistoryEvent] {

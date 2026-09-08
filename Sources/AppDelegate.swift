@@ -5826,7 +5826,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @discardableResult
     func moveWorkspaceToNewWindow(workspaceId: UUID, focus: Bool = true) -> UUID? {
         let windowId = createMainWindow(initialWorkspaceHistoryContext: .bootstrap)
-        guard let destinationManager = tabManagerFor(windowId: windowId) else { return nil }
+        guard let destinationManager = tabManagerFor(windowId: windowId) else {
+            discardMainWindowWithoutClosedHistory(windowId: windowId)
+            return nil
+        }
         let bootstrapWorkspaceId = destinationManager.tabs.first?.id
 
         guard moveWorkspaceToWindow(workspaceId: workspaceId, windowId: windowId, focus: focus) else {
@@ -5841,6 +5844,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
            destinationManager.tabs.count > 1 {
             destinationManager.closeWorkspace(bootstrapWorkspace, recordHistory: false)
         }
+        vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
         return windowId
     }
 
@@ -6798,6 +6802,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func discardMainWindowWithoutClosedHistory(windowId: UUID) {
+        defer { vaultHistoryEventLog?.discardWindowCreation(windowId: windowId) }
         guard let window = mainWindowForClose(windowId: windowId) else { return }
         closedWindowHistorySuppressedWindowIds.insert(windowId)
         if !closeMainWindowWithoutInteractiveVeto(window) {
@@ -8666,6 +8671,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             )
 #endif
             let windowId = createMainWindow(initialWorkspaceHistoryContext: .bootstrap)
+            var retainedWindow = false
+            defer {
+                if retainedWindow {
+                    vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
+                } else {
+                    discardMainWindowWithoutClosedHistory(windowId: windowId)
+                }
+            }
             if let context = mainWindowContexts.values.first(where: { $0.windowId == windowId }) {
                 let initialWorkspace = context.tabManager.selectedWorkspace
                 switch initialSurface {
@@ -8708,8 +8721,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     )
                     context.tabManager.setPinned(workspace, pinned: true)
                 }
+                retainedWindow = !context.tabManager.isFinalizedForWindowClose
             }
-            return true
+            return retainedWindow
         }
 
         let context = livePreferredContext
@@ -9334,10 +9348,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let beforeIds = workspaceGroupTarget.map { _ in Set(context.tabManager.tabs.map(\.id)) }
         var asyncObserverId: UUID?
-        // Named workspace commands and inline workspace actions both create a
-        // workspace, so both must retire the throwaway initial workspace.
-        let actionCreatesWorkspace = action.workspaceCommandName != nil || action.action.inlineWorkspace != nil || action.action == .builtIn(.newAgentChat)
-        let onExecuted: (() -> Void)? = (!actionCreatesWorkspace && workspaceGroupTarget == nil) ? nil : { [weak self, weak context] in
+        var didFinishInitialWorkspace = false
+        // Inspect the action's actual result instead of maintaining a second list
+        // of workspace-producing actions. Cloud VM may complete after onExecuted.
+        let finishInitialWorkspace: (Bool) -> Void = { [weak self, weak context] mayRetainInitial in
+            guard !didFinishInitialWorkspace,
+                  let self,
+                  let context,
+                  let initialWorkspaceId,
+                  !context.tabManager.isFinalizedForWindowClose,
+                  let initial = context.tabManager.tabs.first(where: { $0.id == initialWorkspaceId }) else { return }
+            guard mayRetainInitial || context.tabManager.tabs.count > 1 else { return }
+            self.closeInitialWorkspaceIfNeeded(initialWorkspaceId: initialWorkspaceId, in: context)
+            if context.tabManager.tabs.contains(where: { $0.id == initialWorkspaceId }) {
+                context.tabManager.recordVaultHistoryWorkspaceCreated(initial)
+            }
+            didFinishInitialWorkspace = true
+        }
+        let onExecuted: () -> Void = { [weak context] in
             if let context,
                let workspaceGroupTarget,
                let beforeIds {
@@ -9363,35 +9391,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     )
                 }
             }
-            if actionCreatesWorkspace {
-                self?.closeInitialWorkspaceIfNeeded(
-                    initialWorkspaceId: initialWorkspaceId,
-                    in: context
+            finishInitialWorkspace(action.action != .builtIn(.cloudVM))
+        }
+        let onCloudVMCompletion: (CloudVMActionLauncher.Completion) -> Void = { [weak context] completion in
+            if let context, let asyncObserverId {
+                ConfiguredGroupActionAsyncWorkspaceObserver.finishPending(
+                    tabManager: context.tabManager,
+                    observerId: asyncObserverId,
+                    workspaceId: completion.succeeded ? completion.workspaceId : nil
                 )
             }
+            finishInitialWorkspace(true)
         }
-        let onCloudVMCompletion: ((CloudVMActionLauncher.Completion) -> Void)? = workspaceGroupTarget == nil ? nil : { [weak context] completion in
-            guard let context, let asyncObserverId else { return }
-            ConfiguredGroupActionAsyncWorkspaceObserver.finishPending(
-                tabManager: context.tabManager,
-                observerId: asyncObserverId,
-                workspaceId: completion.succeeded ? completion.workspaceId : nil
-            )
-        }
-        let didExecute = executeConfiguredCmuxAction(
+        return executeConfiguredCmuxAction(
             action,
             context: context,
             preferredWindow: window,
             onExecuted: onExecuted,
             onCloudVMCompletion: onCloudVMCompletion
         )
-        // Actions that operate inside the initial workspace keep it as their
-        // user-visible result. Workspace-producing actions retire it instead,
-        // possibly asynchronously, so their placeholder must stay unrecorded.
-        if didExecute, !actionCreatesWorkspace, let initialWorkspace {
-            context.tabManager.recordVaultHistoryWorkspaceCreated(initialWorkspace)
-        }
-        return didExecute
     }
 
     private func workspaceGroupNewWorkspaceTarget(in context: MainWindowContext) -> WorkspaceGroupNewWorkspaceTarget? {
@@ -10213,6 +10231,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         reserveInitialSocketPathIfNeeded()
         let requestedWindowId = preferredWindowId ?? sessionWindowSnapshot?.windowId
         let windowId = availableWindowIdForNewMainWindow(preferredWindowId: requestedWindowId) ?? UUID()
+        vaultHistoryEventLog?.beginWindowCreation(windowId: windowId)
+        defer {
+            if tabManagerFor(windowId: windowId) == nil {
+                vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
+            } else if initialWorkspaceHistoryContext != .bootstrap || sessionWindowSnapshot != nil {
+                vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
+            }
+        }
         let tabManager = TabManager(
             initialWorkspaceTitle: initialWorkspaceTitle,
             initialWorkingDirectory: initialWorkingDirectory,
@@ -18609,6 +18635,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         remoteTmuxController.handleWindowWorkspacesClosed(workspaceIds: closingWorkspaceIds)
         closingTabManager.finalizeAllWorkspacesForWindowClose(recordVaultHistory: recordWorkspaceHistory)
+        vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
         closingTabManager.window = nil
         windowConfigFrames.removeValue(forKey: windowId)
         publishCmuxWindowLifecycle(name: "window.closed", windowId: windowId, origin: "appkit_close")
