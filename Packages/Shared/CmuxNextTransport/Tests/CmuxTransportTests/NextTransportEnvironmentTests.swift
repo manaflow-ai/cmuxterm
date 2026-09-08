@@ -10,38 +10,6 @@ import Testing
 /// no network.
 @Suite("next-transport environment")
 struct NextTransportEnvironmentTests {
-    /// Records every request and answers from a per-path script.
-    private final class ScriptedBroker: @unchecked Sendable {
-        private let lock = NSLock()
-        private var recorded: [URLRequest] = []
-        private let respond: @Sendable (URLRequest) -> (Int, String)
-
-        init(respond: @escaping @Sendable (URLRequest) -> (Int, String)) {
-            self.respond = respond
-        }
-
-        var requests: [URLRequest] {
-            lock.lock()
-            defer { lock.unlock() }
-            return recorded
-        }
-
-        private func handle(_ request: URLRequest) -> (Data, URLResponse) {
-            lock.lock()
-            recorded.append(request)
-            lock.unlock()
-            let (status, body) = respond(request)
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: status,
-                httpVersion: "HTTP/1.1", headerFields: nil)!
-            return (Data(body.utf8), response)
-        }
-
-        var transport: BrokerCredentialClient.Transport {
-            { request in self.handle(request) }
-        }
-    }
-
     private static func identity() -> PeerIdentity {
         PeerIdentity.generate(
             appIdentity: "dev.cmux.next.test", deviceID: "device-env-1")
@@ -148,7 +116,7 @@ struct NextTransportEnvironmentTests {
                 return
             }
         }
-        #expect(script.requests.isEmpty)
+        #expect((await script.requests).isEmpty)
     }
 
     @Test("Environment password auth signs in at the environment's Stack deployment")
@@ -168,12 +136,12 @@ struct NextTransportEnvironmentTests {
         let credentials = try await client.mint(preferredUrl: nil)
         #expect(!credentials.isEmpty)
 
-        let signIn = try #require(script.requests.first)
+        let signIn = try #require((await script.requests).first)
         #expect(signIn.url!.host == "stack.example")
         #expect(signIn.value(forHTTPHeaderField: "x-stack-project-id") == "proj-env")
         #expect(signIn.value(forHTTPHeaderField: "x-stack-publishable-client-key") == "pck-env")
         let challenge = try #require(
-            script.requests.first { $0.url!.path == "/api/devices/iroh/challenge" })
+            (await script.requests).first { $0.url!.path == "/api/devices/iroh/challenge" })
         #expect(challenge.url!.host == "broker.example")
         #expect(challenge.value(forHTTPHeaderField: "authorization") == "Bearer stack-a")
     }
@@ -232,7 +200,7 @@ struct NextTransportEnvironmentTests {
             }
             #expect(step == "broker challenge")
         }
-        #expect(script.requests.isEmpty)
+        #expect((await script.requests).isEmpty)
     }
 
     @Test("Remote plaintext broker URLs are rejected before credentials leave the process")
@@ -254,7 +222,7 @@ struct NextTransportEnvironmentTests {
             }
             #expect(step == "broker challenge")
         }
-        #expect(script.requests.isEmpty)
+        #expect((await script.requests).isEmpty)
     }
 
     @Test("Structured endpoint_already_bound register still mints via /api/relay/token")
@@ -272,7 +240,7 @@ struct NextTransportEnvironmentTests {
 
         let credentials = try await client.mint(preferredUrl: nil)
         #expect(credentials.map(\.relayUrl) == ["https://r1.relay/"])
-        #expect(script.requests.map(\.url!.path).contains("/api/relay/token"))
+        #expect((await script.requests).map(\.url!.path).contains("/api/relay/token"))
     }
 
     @Test("Non-JSON already-bound body still succeeds via the substring fallback")
@@ -317,7 +285,7 @@ struct NextTransportEnvironmentTests {
             transport: script.transport)
 
         let credentials = try await client.mint(preferredUrl: "https://r2.relay/")
-        #expect(!script.requests.map(\.url!.path).contains("/api/relay/token"))
+        #expect(!(await script.requests).map(\.url!.path).contains("/api/relay/token"))
         #expect(credentials.map(\.relayUrl) == ["https://r2.relay/", "https://r1.relay/"])
         #expect(credentials.map(\.token) == [bootToken, bootToken])
         #expect(credentials.map(\.expiresAt) == [expiry, expiry])
@@ -337,7 +305,7 @@ struct NextTransportEnvironmentTests {
             transport: script.transport)
 
         let credentials = try await client.mint(preferredUrl: nil)
-        #expect(script.requests.map(\.url!.path).contains("/api/relay/token"))
+        #expect((await script.requests).map(\.url!.path).contains("/api/relay/token"))
         #expect(credentials.map(\.relayUrl) == ["https://r1.relay/"])
         #expect(credentials.first?.expiresAt == 4_102_444_800)
     }

@@ -10,38 +10,6 @@ import Testing
 /// transcript signatures, and credential shape with no network.
 @Suite("broker session mode")
 struct BrokerSessionModeTests {
-    /// Records every request and answers from a per-path script.
-    private final class ScriptedBroker: @unchecked Sendable {
-        private let lock = NSLock()
-        private var recorded: [URLRequest] = []
-        private let respond: @Sendable (URLRequest) -> (Int, String)
-
-        init(respond: @escaping @Sendable (URLRequest) -> (Int, String)) {
-            self.respond = respond
-        }
-
-        var requests: [URLRequest] {
-            lock.lock()
-            defer { lock.unlock() }
-            return recorded
-        }
-
-        private func handle(_ request: URLRequest) -> (Data, URLResponse) {
-            lock.lock()
-            recorded.append(request)
-            lock.unlock()
-            let (status, body) = respond(request)
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: status,
-                httpVersion: "HTTP/1.1", headerFields: nil)!
-            return (Data(body.utf8), response)
-        }
-
-        var transport: BrokerCredentialClient.Transport {
-            { request in self.handle(request) }
-        }
-    }
-
     private static func identity() -> PeerIdentity {
         PeerIdentity.generate(
             appIdentity: "dev.cmux.next.test", deviceID: "device-1")
@@ -105,13 +73,13 @@ struct BrokerSessionModeTests {
         let credentials = try await client.mint(preferredUrl: "https://r2.relay/")
 
         // No password sign-in leg: the first request is the broker challenge.
-        let paths = script.requests.map(\.url!.path)
+        let paths = (await script.requests).map(\.url!.path)
         #expect(paths == [
             "/api/devices/iroh/challenge",
             "/api/devices/iroh/register",
             "/api/relay/token",
         ])
-        for request in script.requests {
+        for request in (await script.requests) {
             #expect(request.value(forHTTPHeaderField: "authorization") == "Bearer access-1")
             #expect(request.value(forHTTPHeaderField: "x-stack-refresh-token") == "refresh-1")
         }
@@ -133,7 +101,7 @@ struct BrokerSessionModeTests {
         await #expect(throws: BrokerCredentialClient.BrokerError.self) {
             _ = try await client.mint(preferredUrl: nil)
         }
-        #expect(script.requests.isEmpty)
+        #expect((await script.requests).isEmpty)
     }
 
     @Test("Mint rejects credentials bound to another endpoint key")
@@ -187,7 +155,7 @@ struct BrokerSessionModeTests {
         _ = try await client.mint(preferredUrl: nil)
 
         let register = try #require(
-            script.requests.first { $0.url!.path == "/api/devices/iroh/register" })
+            (await script.requests).first { $0.url!.path == "/api/devices/iroh/register" })
         let registerBody = try #require(register.httpBody)
         let body = try #require(
             (try JSONDecoder().decode(JSONValue.self, from: registerBody)).objectValue)
@@ -262,7 +230,7 @@ struct BrokerSessionModeTests {
         _ = try await client.mint(preferredUrl: nil)
         _ = try await client.mint(preferredUrl: nil)
 
-        let bearers = Set(script.requests.compactMap {
+        let bearers = Set((await script.requests).compactMap {
             $0.value(forHTTPHeaderField: "authorization")
         })
         #expect(bearers == ["Bearer access-1", "Bearer access-2"])
@@ -302,11 +270,11 @@ struct BrokerSessionModeTests {
 
         _ = try await client.mint(preferredUrl: nil)
 
-        let first = try #require(script.requests.first)
+        let first = try #require((await script.requests).first)
         #expect(first.url!.host == "stack.example")
         #expect(first.url!.path == "/api/v1/auth/password/sign-in")
         let challenge = try #require(
-            script.requests.first { $0.url!.path == "/api/devices/iroh/challenge" })
+            (await script.requests).first { $0.url!.path == "/api/devices/iroh/challenge" })
         #expect(challenge.value(forHTTPHeaderField: "authorization") == "Bearer stack-a")
         #expect(challenge.value(forHTTPHeaderField: "x-stack-refresh-token") == "stack-r")
     }
