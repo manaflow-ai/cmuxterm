@@ -45,6 +45,8 @@ def run_cli(
     env.pop("CMUX_WORKSPACE_ID", None)
     env.pop("CMUX_SURFACE_ID", None)
     env.pop("CMUX_TAB_ID", None)
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         [cli_path, *args],
         text=True,
