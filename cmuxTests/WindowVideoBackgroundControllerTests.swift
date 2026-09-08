@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import CmuxSettings
 import Foundation
 import Testing
@@ -8,6 +9,95 @@ import Testing
 #elseif canImport(cmux)
 @testable import cmux
 #endif
+
+@Suite("Local video background playback", .serialized)
+@MainActor
+struct VideoBackgroundLocalPlaybackTests {
+    @MainActor
+    private final class PlaybackEvents {
+        var readyCount = 0
+        var endedCount = 0
+        var failures: [String] = []
+    }
+
+    @Test func loopingMediaReportsReadinessAndPlaysAtLeastThreeTimes() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-video-loop-\(UUID().uuidString).wav")
+        try silentAudio().write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let events = PlaybackEvents()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: nil,
+            queue: .main
+        ) { notification in
+            MainActor.assumeIsolated {
+                guard let item = notification.object as? AVPlayerItem,
+                      let asset = item.asset as? AVURLAsset,
+                      asset.url == fileURL else { return }
+                events.endedCount += 1
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let view = VideoBackgroundLocalPlayerView(
+            fileURL: fileURL,
+            onReady: { events.readyCount += 1 },
+            onFailure: { events.failures.append($0) }
+        )
+        defer { view.setPaused(true) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        while (events.endedCount < 3 || events.readyCount == 0), events.failures.isEmpty,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(events.failures.isEmpty)
+        #expect(events.readyCount == 1)
+        #expect(events.endedCount >= 3)
+        #expect(view.hitTest(.zero) == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func missingLocalMediaReportsFailure(loops: Bool) async throws {
+        let events = PlaybackEvents()
+        let view = VideoBackgroundLocalPlayerView(
+            fileURL: URL(fileURLWithPath: "/tmp/cmux-missing-video-\(UUID().uuidString).mp4"),
+            loops: loops,
+            onReady: { events.readyCount += 1 },
+            onFailure: { events.failures.append($0) }
+        )
+        defer { view.setPaused(true) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while events.failures.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        #expect(events.readyCount == 0)
+        #expect(events.failures == ["local-file-failed"])
+    }
+
+    private func silentAudio() -> Data {
+        let sampleCount: UInt32 = 4_000
+        let byteCount = sampleCount * 2
+        var data = Data()
+        func appendInteger<Value: FixedWidthInteger>(_ value: Value) {
+            var littleEndian = value.littleEndian
+            withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
+        }
+        data.append(contentsOf: "RIFF".utf8)
+        appendInteger(UInt32(36) + byteCount)
+        data.append(contentsOf: "WAVEfmt ".utf8)
+        appendInteger(UInt32(16))
+        appendInteger(UInt16(1))
+        appendInteger(UInt16(1))
+        appendInteger(UInt32(8_000))
+        appendInteger(UInt32(16_000))
+        appendInteger(UInt16(2))
+        appendInteger(UInt16(16))
+        data.append(contentsOf: "data".utf8)
+        appendInteger(byteCount)
+        data.append(Data(repeating: 0, count: Int(byteCount)))
+        return data
+    }
+}
 
 @Suite("Window video background controller", .serialized)
 @MainActor
