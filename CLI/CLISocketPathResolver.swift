@@ -296,7 +296,10 @@ struct CLISocketPathResolver {
 
         // Preserve legacy/user-scoped stable aliases after the primary and marker
         // candidates. They remain useful on machines migrating from older releases.
-        candidates.append(contentsOf: implicitFallbackCandidatePaths(for: variant))
+        candidates.append(contentsOf: Self.implicitFallbackCandidatePaths(
+            for: variant,
+            stablePaths: resolvedStableImplicitDefaultPaths()
+        ))
 
         // A caller that supplies a non-default implicit path still gets that path
         // tried, but it never displaces the current variant's own socket.
@@ -331,10 +334,13 @@ struct CLISocketPathResolver {
         }
     }
 
-    private func implicitFallbackCandidatePaths(for variant: SocketPathVariant) -> [String] {
+    private static func implicitFallbackCandidatePaths(
+        for variant: SocketPathVariant,
+        stablePaths: [String]
+    ) -> [String] {
         switch variant {
         case .stable:
-            return resolvedStableImplicitDefaultPaths()
+            return stablePaths
         case .nightly(let slug):
             return [slug.map { "/tmp/cmux-nightly-\($0).sock" } ?? Self.nightlySocketPath]
         case .staging(let slug):
@@ -825,7 +831,10 @@ struct CLISocketPathResolver {
         }
         return dedupe(
             [defaultPath]
-                + implicitFallbackCandidatePaths(for: variant)
+                + implicitFallbackCandidatePaths(
+                    for: variant,
+                    stablePaths: stableImplicitDefaultPaths()
+                )
                 + stableImplicitDefaultPaths()
         )
     }
