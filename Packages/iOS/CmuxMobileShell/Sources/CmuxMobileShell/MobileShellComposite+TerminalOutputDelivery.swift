@@ -525,7 +525,8 @@ extension MobileShellComposite {
               supportedHostCapabilities.contains(Self.terminalVerifiedReplayCapability) else {
             return false
         }
-        if let frame = delivery.sourceRenderGridFrame,
+        if usesScreenAnchoredRenderGrid,
+           let frame = delivery.sourceRenderGridFrame,
            !frame.full,
            frame.anchor == .screen,
            frame.activeScreen == .primary {

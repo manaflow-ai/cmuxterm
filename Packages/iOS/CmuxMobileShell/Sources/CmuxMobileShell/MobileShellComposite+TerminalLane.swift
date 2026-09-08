@@ -116,7 +116,21 @@ extension MobileShellComposite {
     func reconcileTerminalLanesForOutputTransport() {
         // Render-grid keeps its authoritative event stream for output, but
         // retains an input-only lane for fire-and-forget keystrokes.
-        restartTerminalLanesForMountedSurfaces()
+        guard let terminalLaneCoordinator else { return }
+        terminalLaneLifecycleID = UUID()
+        let lifecycleID = terminalLaneLifecycleID
+        terminalLaneOutputReadySurfaceIDs.removeAll()
+        let mountedSurfaceIDs = Array(terminalByteContinuationsBySurfaceID.keys)
+        Task { @MainActor [weak self] in
+            await terminalLaneCoordinator.deactivateAll()
+            guard let self,
+                  self.terminalLaneLifecycleID == lifecycleID,
+                  self.connectionState == .connected else { return }
+            for surfaceID in mountedSurfaceIDs
+            where self.terminalByteContinuationsBySurfaceID[surfaceID] != nil {
+                self.ensureTerminalLane(surfaceID: surfaceID)
+            }
+        }
     }
 
     private func consumeTerminalLaneFrame(
