@@ -191,7 +191,11 @@ public struct SocketControlSettings {
             return fallback
         }
 
-        if isTaggedDevBuild(bundleIdentifier: bundleIdentifier),
+        if case .dev(let slug) = SocketPathMarkerFiles.variant(
+            bundleIdentifier: bundleIdentifier,
+            environment: environment,
+            baseDebugBundleIdentifier: baseDebugBundleIdentifier
+        ), slug != nil,
            !isTruthy(environment[allowSocketPathOverrideKey]),
            !pathsMatch(override, fallback) {
             return fallback
