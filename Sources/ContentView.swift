@@ -16670,7 +16670,8 @@ struct TabItemView: View, Equatable {
                 HStack(alignment: .center, spacing: 4) {
                     CmuxSystemSymbolImage(
                         magnified: "shippingbox",
-                        pointSize: symbolPointSize
+                        pointSize: symbolPointSize,
+                        tint: color
                     )
                     Text(repositoryLink.displayName)
                         .underline()
