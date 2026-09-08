@@ -17,7 +17,11 @@ extension WorkspaceTabColorSettings {
     }
 
     static func paletteCacheFingerprint(defaults: UserDefaults = .standard) -> String {
-        resolvedPaletteMap(defaults: defaults)
+        paletteCacheFingerprint(resolvedPaletteMap(defaults: defaults))
+    }
+
+    static func paletteCacheFingerprint(_ palette: [String: String]) -> String {
+        palette
             .sorted { lhs, rhs in lhs.key.localizedStandardCompare(rhs.key) == .orderedAscending }
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: "\n")

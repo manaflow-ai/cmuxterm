@@ -36,12 +36,17 @@ final class CmuxConfigDecodeCache: @unchecked Sendable {
         self.entries = entries
     }
 
-    func key(path: String, data: Data, fileManager: FileManager) -> String {
+    func key(
+        path: String,
+        data: Data,
+        fileManager: FileManager,
+        contextFingerprint: String = ""
+    ) -> String {
         let attributes = try? fileManager.attributesOfItem(atPath: path)
         let fileSize = (attributes?[.size] as? NSNumber)?.uint64Value ?? UInt64(data.count)
         let modificationDate = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        return "\(path)|\(fileSize)|\(modificationDate)|\(digest)"
+        return "\(path)|\(fileSize)|\(modificationDate)|\(digest)|\(contextFingerprint)"
     }
 
     /// Returns a cached entry or claims ownership of a cold revision. A

@@ -193,7 +193,11 @@ struct CmuxConfigTypeValidator: Sendable {
                 return
             }
             if !Self.isSixDigitHexColor(normalizedColor), !workspaceColorNames.contains(normalizedColor.lowercased()) {
-                issues.append(issue(path: "\(path).color", key: "invalidValue", arguments: []))
+                issues.append(issue(
+                    path: "\(path).color",
+                    key: "invalidColor",
+                    arguments: [CmuxConfigTypeIssue.sanitizeText(normalizedColor, replacingNewlines: true)]
+                ))
             }
         }
         if let value = workspace["env"], !isNull(value) {
@@ -398,6 +402,11 @@ struct CmuxConfigTypeValidator: Sendable {
             localized = String(
                 localized: "config.validation.invalidValue",
                 defaultValue: "has an invalid value"
+            )
+        case "invalidColor":
+            localized = String(
+                localized: "config.validation.invalidColor",
+                defaultValue: "Invalid color \"%@\". Expected 6-digit hex format (#RRGGBB) or a workspace color name"
             )
         case "invalidCount":
             localized = String(

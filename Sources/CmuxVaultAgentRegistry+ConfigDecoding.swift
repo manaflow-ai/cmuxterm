@@ -18,8 +18,15 @@ extension CmuxVaultAgentRegistry {
             return nil
         }
 
-        _ = workspaceColorDefaults
-        let cacheKey = cache.key(path: path, data: data, fileManager: fileManager)
+        let workspaceColorPalette = WorkspaceTabColorSettings.resolvedPaletteMap(
+            defaults: workspaceColorDefaults
+        )
+        let cacheKey = cache.key(
+            path: path,
+            data: data,
+            fileManager: fileManager,
+            contextFingerprint: WorkspaceTabColorSettings.paletteCacheFingerprint(workspaceColorPalette)
+        )
         let lookup = cache.lookupOrClaim(cacheKey)
         if case .hit(let cached) = lookup {
             return cached.config
@@ -41,7 +48,7 @@ extension CmuxVaultAgentRegistry {
             let sanitized = try JSONCParser.preprocess(data: data)
             let decoded = try CmuxConfigFile.decodeAndValidate(
                 sanitizedData: sanitized,
-                workspaceColorPalette: WorkspaceTabColorSettings.resolvedPaletteMap()
+                workspaceColorPalette: workspaceColorPalette
             )
             if isFirstLoader, let failureMessage = decoded.typeIssueMessage {
                 Self.logDecodeFailure(path: path, message: failureMessage, key: cacheKey)

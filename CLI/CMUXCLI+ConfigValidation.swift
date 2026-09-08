@@ -7,7 +7,7 @@ extension CMUXCLI {
         byteCount: Int
     ) -> ConfigDoctorFinding {
         let issues = CmuxConfigTypeValidator(
-            workspaceColorNames: CmuxConfigTypeValidator.workspaceColorNames(from: .standard)
+            workspaceColorNames: CmuxConfigTypeValidator.workspaceColorNames(from: configDoctorAppDefaults())
         ).issues(in: dictionary)
         return ConfigDoctorFinding(
             label: target.label,
@@ -23,5 +23,17 @@ extension CMUXCLI {
             keys: dictionary.keys.sorted(),
             byteCount: byteCount
         )
+    }
+}
+
+
+private extension CMUXCLI {
+    func configDoctorAppDefaults() -> UserDefaults {
+        let environment = ProcessInfo.processInfo.environment
+        let bundleIdentifier = environment["CMUX_BUNDLE_ID"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 }
+            ?? CLISocketPathResolver.currentAppBundleIdentifier()
+        return bundleIdentifier.flatMap { UserDefaults(suiteName: $0) } ?? .standard
     }
 }
