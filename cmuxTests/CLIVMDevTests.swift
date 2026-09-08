@@ -546,6 +546,37 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(staged.stdout.contains("layout applied: 2 panes"), staged.stdout)
     }
 
+    func testVMDevKeepsAnExistingWorkspaceWhoseOnlyPaneExited() throws {
+        // A workspace whose dev server exited still owns that pane on the daemon;
+        // the shim refuses to lay out a non-empty workspace, so `vm dev` must keep
+        // the layout (and point at `workspace rm`) instead of applying a second one.
+        let fixture = try vmDevFixture("app", files: ["package.json": #"{"scripts": {"dev": "node server.js"}}"#])
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let (result, log) = try runVMDev(
+            "vm-dev-reuse-exited",
+            arguments: ["vm", "dev", "brave-otter", fixture.project.path, "--no-sync", "--no-open"],
+            home: fixture.home
+        ) { method, _ in
+            switch method {
+            case "vm.status": return ["status": "running"]
+            case "vm.tree":
+                return [
+                    "machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]],
+                    "resources": [[
+                        "id": "brave-otter/terminal/term_dev", "machine": "brave-otter", "kind": "terminal", "key": "term_dev",
+                        "title": "dev", "lifecycle": "exited",
+                        "remote_views": [["tab_id": "tab_1", "workspace": ["id": "ws_7", "name": "app"], "name": "dev", "focused": true]],
+                    ]],
+                ]
+            default: return nil
+            }
+        }
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.methods, ["vm.status", "vm.tree"], "an exited pane must not trigger a second layout: \(log.methods)")
+        XCTAssertTrue(result.stdout.contains("layout kept: ws_7 already has panes"), result.stdout)
+        XCTAssertFalse(result.stdout.contains("layout applied"), result.stdout)
+    }
+
     func testVMDevFailsClosedWhenExistingWorkspacePlacementIsUnavailable() throws {
         let fixture = try vmDevFixture("app", files: ["package.json": #"{"scripts": {"dev": "next dev"}}"#])
         defer { try? FileManager.default.removeItem(at: fixture.root) }

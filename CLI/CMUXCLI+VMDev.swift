@@ -305,6 +305,26 @@ extension CMUXCLI {
         return ids
     }
 
+    /// True when any terminal of the machine, live or exited, is placed in the
+    /// workspace: those panes exist on the daemon regardless of lifecycle.
+    static func vmDevWorkspaceHasPlacedTerminals(
+        _ resources: [[String: Any]],
+        machine: String,
+        workspaceID: String
+    ) -> Bool {
+        let resolver = VMRemoteWorkspaceResolver()
+        return resources.contains { resource in
+            guard (resource["kind"] as? String) == "terminal",
+                  Self.vmDevResourceBelongsToMachine(resource, machine: machine) else { return false }
+            switch resolver.resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
+            case .resolved, .legacy, .ambiguous, .unavailable:
+                return true
+            case .notFound:
+                return false
+            }
+        }
+    }
+
     private static func vmDevResourceBelongsToMachine(_ resource: [String: Any], machine: String) -> Bool {
         if let resourceMachine = resource["machine"] as? String {
             return resourceMachine == machine
@@ -700,7 +720,10 @@ extension CMUXCLI {
         case .resolved, .ambiguous:
             hasPanes = true
         case .none:
-            hasPanes = false
+            // The resolver counts live terminals only. Exited ones still hold
+            // their panes, and the shim refuses to lay out a non-empty
+            // workspace, so they keep the layout too (`workspace rm` rebuilds).
+            hasPanes = Self.vmDevWorkspaceHasPlacedTerminals(resources, machine: machine, workspaceID: remoteWorkspace)
         case .unavailable(let selector):
             throw CLIError(message: "vm dev: terminal placement for workspace \(remoteWorkspace) on \(machine) is unavailable (resource \(selector)); reconnect and retry")
         }
