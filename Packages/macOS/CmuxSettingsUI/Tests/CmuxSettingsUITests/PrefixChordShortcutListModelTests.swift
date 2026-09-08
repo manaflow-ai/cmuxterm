@@ -216,6 +216,39 @@ import CmuxSettings
         #expect(model.prefix.first == oldPrefix)
     }
 
+    @Test func resetAllKeepsOptimisticPrefixDuringQueuedBindingReset() async throws {
+        let (store, catalog, errorLog, tempDir) = makeStore()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let model = ShortcutListModel(jsonStore: store, catalog: catalog, errorLog: errorLog)
+        let oldPrefix = ShortcutStroke(key: "b", control: true)
+        await model.assignPrefix(oldPrefix)
+
+        // Hold the real persistence queue so Reset Defaults has cleared its
+        // optimistic state but has not yet reached the prefix reset operation.
+        let gate = AsyncStream<Void>.makeStream()
+        defer { gate.continuation.finish() }
+        model.shortcutWriteTail = Task { for await _ in gate.stream {} }
+
+        let prefixChanges = AsyncStream<Void>.makeStream()
+        defer { prefixChanges.continuation.finish() }
+        withObservationTracking {
+            _ = model.prefix
+        } onChange: {
+            prefixChanges.continuation.yield(())
+        }
+        let reset = Task { await model.resetAll() }
+        var prefixIterator = prefixChanges.stream.makeAsyncIterator()
+        await prefixIterator.next()
+
+        model.ingestPrefix(StoredShortcut(first: oldPrefix))
+        #expect(model.prefix.isUnbound)
+
+        gate.continuation.finish()
+        await reset.value
+        #expect(await store.value(for: catalog.shortcuts.prefix).isUnbound)
+        #expect(model.prefix.isUnbound)
+    }
+
     @Test func overlappingPrefixWritesLeaveTheNewestValuePersisted() async throws {
         let (store, catalog, errorLog, tempDir) = makeStore()
         defer { try? FileManager.default.removeItem(at: tempDir) }
