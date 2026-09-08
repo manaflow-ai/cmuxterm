@@ -486,10 +486,29 @@ final class ShortcutListModel {
         rejectedConflictShortcuts.removeAll()
         chordModeActions.removeAll()
         chordModeOverrides.removeAll()
+
+        // Claim prefix ownership before the binding reset can trigger a stale
+        // file-watch echo. The pending generation remains active through both
+        // persistence steps, so the old leader cannot retarget the model.
+        prefixWriteGeneration &+= 1
+        let prefixGeneration = prefixWriteGeneration
+        let previousPrefix = prefix
+        pendingPrefixWriteGeneration = prefixGeneration
         prefix = .unbound
         prefixRejection = nil
-        await write([:], resetAllLegacy: true)
-        await resetPrefix()
+
+        pendingWriteGeneration += 1
+        let bindingGeneration = pendingWriteGeneration
+        pendingBindings = [:]
+        bindings = [:]
+        managedBindingActionIDs.removeAll()
+
+        let request = enqueueResetAllPersistence(
+            previousPrefix: previousPrefix,
+            prefixGeneration: prefixGeneration,
+            bindingGeneration: bindingGeneration
+        )
+        await request.value
     }
 
     // MARK: - Prune helpers (moved verbatim from section)

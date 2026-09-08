@@ -170,6 +170,10 @@ extension ShortcutListModel {
             }
         }
         do {
+            // A newer prefix request owns persistence now. Do not let a
+            // superseded reset clobber the newer value while its task waits
+            // behind an earlier serialized mutation.
+            guard prefixWriteGeneration == generation else { return }
             try await jsonStore.reset(catalog.shortcuts.prefix)
             guard prefixWriteGeneration == generation else { return }
             prefix = .unbound
@@ -182,6 +186,29 @@ extension ShortcutListModel {
             guard prefixWriteGeneration == generation else { return }
             prefix = committed
             errorLog.record(error, keyID: catalog.shortcuts.prefix.id)
+        }
+    }
+
+    /// Serializes Reset Defaults as one mutation while prefix ownership spans
+    /// the binding reset and the final prefix reset.
+    @discardableResult
+    func enqueueResetAllPersistence(
+        previousPrefix: StoredShortcut,
+        prefixGeneration: UInt64,
+        bindingGeneration: Int
+    ) -> Task<Void, Never> {
+        enqueueShortcutPersistence { [weak self] in
+            guard let self else { return }
+            await self.persistBindings(
+                [:],
+                generation: bindingGeneration,
+                clearingLegacyFor: nil,
+                resetAllLegacy: true
+            )
+            await self.persistResetPrefix(
+                previous: previousPrefix,
+                generation: prefixGeneration
+            )
         }
     }
 
