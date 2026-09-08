@@ -48,9 +48,10 @@ ISSUE_EVENTS = [
     "PostToolUse",
     "PermissionRequest",
 ]
-# Awkward user handler commands: quotes, backslashes, a TOML triple quote, and
-# a newline. None of them may leak into the args cmux emits, and none of them
-# may break the cmux value shape.
+# Every hook event Codex 0.153 knows, so user handlers on events cmux never
+# injects are covered too. The issue events carry awkward commands: quotes,
+# backslashes, a TOML triple quote, and a newline. None of them may leak into
+# the args cmux emits, and none of them may break the cmux value shape.
 USER_COMMANDS = {
     "SessionStart": 'user-12081-session-start "quoted" back\\slash',
     "UserPromptSubmit": "user-12081-prompt-submit '''triple'''",
@@ -58,6 +59,12 @@ USER_COMMANDS = {
     "PreToolUse": "user-12081-pre-tool-use",
     "PostToolUse": "user-12081-post-tool-use",
     "PermissionRequest": "user-12081-permission-request",
+    "PreCompact": "user-12081-pre-compact",
+    "PostCompact": "user-12081-post-compact",
+    "SessionEnd": "user-12081-session-end",
+    "SubagentStart": "user-12081-subagent-start",
+    "SubagentStop": "user-12081-subagent-stop",
+    "Interrupt": "user-12081-interrupt",
 }
 LIVE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop"]
 
@@ -107,6 +114,16 @@ def hook_assignments(arguments: list[str]) -> dict[str, list[str]]:
     return assignments
 
 
+def assert_injection_shape(arguments: list[str], context: str) -> None:
+    """Activation flags, then nothing but ``-c hooks.<event>=...`` pairs."""
+    assert arguments[: len(ACTIVATION_PREFIX)] == ACTIVATION_PREFIX, f"{context}: {arguments}"
+    rest = arguments[len(ACTIVATION_PREFIX) :]
+    assert len(rest) % 2 == 0, f"{context}: dangling argument: {rest}"
+    for index in range(0, len(rest), 2):
+        assert rest[index] == "-c", f"{context}: unexpected argument {rest[index]!r}: {rest}"
+        assert rest[index + 1].startswith("hooks."), f"{context}: non-hook override: {rest[index + 1]!r}"
+
+
 def assert_single_cmux_group(event: str, values: list[str], context: str) -> None:
     assert len(values) == 1, f"{context}: {event} assigned {len(values)} times: {values}"
     value = values[0]
@@ -140,19 +157,20 @@ def test_injected_hooks_do_not_redeclare_user_hooks() -> None:
         expected_events = baseline_events(cli_path, root)
         codex_home = root / "codex"
         codex_home.mkdir()
-        (codex_home / "hooks.json").write_text(
-            json.dumps(user_hooks_json(USER_COMMANDS)),
-            encoding="utf-8",
-        )
+        hooks_path = codex_home / "hooks.json"
+        hooks_path.write_text(json.dumps(user_hooks_json(USER_COMMANDS)), encoding="utf-8")
+        original_bytes = hooks_path.read_bytes()
 
         arguments = run_inject_args(cli_path, codex_home, root / "home")
-        assert arguments[: len(ACTIVATION_PREFIX)] == ACTIVATION_PREFIX, arguments
+        assert_injection_shape(arguments, "inject-args")
         assignments = hook_assignments(arguments)
         # User hooks change nothing about which events cmux injects.
         assert set(assignments) == expected_events, (set(assignments), expected_events)
         for event, values in assignments.items():
             assert_single_cmux_group(event, values, "inject-args")
         assert_no_user_handlers(arguments, "inject-args")
+        # The wrapper reads the user's file; it never rewrites it.
+        assert hooks_path.read_bytes() == original_bytes, "inject-args rewrote hooks.json"
 
 
 def test_persistent_cmux_hook_is_not_duplicated() -> None:
@@ -174,15 +192,19 @@ def test_persistent_cmux_hook_is_not_duplicated() -> None:
         persistent["hooks"]["SessionStart"] = [
             {"hooks": [{"type": "command", "command": cmux_command}]}
         ]
-        (codex_home / "hooks.json").write_text(json.dumps(persistent), encoding="utf-8")
+        hooks_path = codex_home / "hooks.json"
+        hooks_path.write_text(json.dumps(persistent), encoding="utf-8")
+        original_bytes = hooks_path.read_bytes()
 
         arguments = run_inject_args(cli_path, codex_home, root / "home")
+        assert_injection_shape(arguments, "persistent")
         assignments = hook_assignments(arguments)
         assert "SessionStart" not in assignments, f"persistent SessionStart was duplicated: {assignments}"
         assert set(assignments) == set(baseline) - {"SessionStart"}, (set(assignments), set(baseline))
         for event, values in assignments.items():
             assert_single_cmux_group(event, values, "persistent")
         assert_no_user_handlers(arguments, "persistent")
+        assert hooks_path.read_bytes() == original_bytes, "inject-args rewrote hooks.json"
 
 
 class _FakeModelHandler(BaseHTTPRequestHandler):
@@ -360,7 +382,7 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                     for argument in argv_log.read_bytes().split(b"\0")
                     if argument
                 ]
-                assert arguments[: len(ACTIVATION_PREFIX)] == ACTIVATION_PREFIX, arguments
+                assert_injection_shape(arguments[: arguments.index("exec")], "live argv")
                 assignments = hook_assignments(arguments)
                 assert set(ISSUE_EVENTS) <= set(assignments), (set(assignments), arguments)
                 for event, values in assignments.items():
