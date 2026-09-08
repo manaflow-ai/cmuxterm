@@ -13,7 +13,7 @@ extension ClaudeHookWriteAmplificationTests {
     @Test(arguments: ["Needs input", "入力待ち", "Saisie requise"])
     func siblingAttentionDoesNotDependOnItsDisplayLanguage(_ status: String) throws {
         let manager = TabManager()
-        let workspace = manager.addWorkspace(select: false)
+        let workspace = try #require(manager.addWorkspaceIfActive(select: false))
         defer { manager.closeWorkspace(workspace) }
         let runningPanelID = try #require(workspace.focusedPanelId)
         let sibling = try #require(
