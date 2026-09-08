@@ -10,7 +10,10 @@ struct AgentSurfaceResumeBindingOwnership {
         self.sessionId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func evaluate(_ binding: [String: Any]) -> Match {
+    func evaluate(_ binding: [String: Any]?) -> Match {
+        guard let binding else {
+            return .missing
+        }
         guard let source = normalized(binding["source"] as? String)?.lowercased(),
               source == "agent-hook" else {
             return .doesNotMatch

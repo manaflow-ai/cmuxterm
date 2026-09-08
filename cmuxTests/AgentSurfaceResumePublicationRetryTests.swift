@@ -201,6 +201,7 @@ struct AgentSurfaceResumePublicationRetryTests {
                 "kind": "kiro",
             ]) == .unavailable
         )
+        #expect(ownership.evaluate(nil) == .missing)
         #expect(
             ownership.evaluate([
                 "source": "manual",

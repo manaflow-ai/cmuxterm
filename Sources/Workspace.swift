@@ -1221,6 +1221,16 @@ extension Workspace {
         return restorableAgent
     }
 
+    nonisolated static func resumeBindingGapRequired(
+        restorableAgent: SessionRestorableAgentSnapshot?,
+        resumeBinding: SurfaceResumeBindingSnapshot?,
+        managedResumeBinding: SurfaceResumeBindingSnapshot? = nil
+    ) -> Bool {
+        restorableAgent?.kind.restoreMode == .resumeSession &&
+            resumeBinding == nil &&
+            managedResumeBinding == nil
+    }
+
     nonisolated private static func normalizedResumeBindingValue(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else {
@@ -2139,6 +2149,13 @@ extension Workspace {
                     _ = removeStoredSurfaceResumeBinding(panelId: terminalPanel.id)
                 }
             }
+            setResumeBindingGap(
+                Self.resumeBindingGapRequired(
+                    restorableAgent: restorableAgent,
+                    resumeBinding: surfaceResumeBindingsByPanelId[terminalPanel.id]
+                ),
+                panelId: terminalPanel.id
+            )
             // A terminal whose startup command cds itself (agent resume, tmux attach, agent-hook)
             // is spawned without a working directory, so its shell starts in the default directory
             // and shell integration reports that directory (typically home) before the startup
@@ -11350,6 +11367,13 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: detached.panelId)
             }
         }
+        setResumeBindingGap(
+            Self.resumeBindingGapRequired(
+                restorableAgent: detached.restorableAgent,
+                resumeBinding: surfaceResumeBindingsByPanelId[detached.panelId]
+            ),
+            panelId: detached.panelId
+        )
         adoptDetachedAgentRuntimeState(detached.agentRuntime)
         if let markdownPanel = detached.panel as? MarkdownPanel {
             markdownPanel.updateWorkspaceId(

@@ -148,6 +148,14 @@ extension DockSplitStore {
         if let transferredManagedBinding = detached.resolvedManagedAgentResumeBinding {
             managedAgentResumeBindingsByPanelId[detached.panelId] = transferredManagedBinding
         }
+        setResumeBindingGap(
+            Workspace.resumeBindingGapRequired(
+                restorableAgent: detached.restorableAgent,
+                resumeBinding: surfaceResumeBindingsByPanelId[detached.panelId],
+                managedResumeBinding: managedAgentResumeBindingsByPanelId[detached.panelId]
+            ),
+            panelId: detached.panelId
+        )
         if let deferredRestore = detached.deferredAgentResumeRestore {
             deferAgentResumeRestore(
                 panelId: detached.panelId,

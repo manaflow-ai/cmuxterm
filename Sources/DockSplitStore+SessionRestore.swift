@@ -514,6 +514,14 @@ extension DockSplitStore {
         if let managedResumeBinding {
             managedAgentResumeBindingsByPanelId[terminal.id] = managedResumeBinding
         }
+        setResumeBindingGap(
+            Workspace.resumeBindingGapRequired(
+                restorableAgent: restorableAgent,
+                resumeBinding: surfaceResumeBindingsByPanelId[terminal.id],
+                managedResumeBinding: managedAgentResumeBindingsByPanelId[terminal.id]
+            ),
+            panelId: terminal.id
+        )
         if let restoredScrollback {
             restoredTerminalScrollbackByPanelId[terminal.id] = restoredScrollback
         }

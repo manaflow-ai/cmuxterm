@@ -395,6 +395,31 @@ import Testing
     }
 
     @Test @MainActor
+    func restoredAgentWithoutBindingReconstructsResumeBindingGap() throws {
+        let source = Workspace()
+        let sourcePanel = try #require(source.focusedTerminalPanel)
+        source.restoredAgentLifecycle.setSnapshot(SessionRestorableAgentSnapshot(
+            kind: .custom("agent-without-resume-command"),
+            sessionId: "restored-unrepairable-agent",
+            workingDirectory: "/tmp/restored-unrepairable-agent"
+        ), panelId: sourcePanel.id)
+        source.restoredAgentLifecycle.setResumeState(.manualResumeAvailable, panelId: sourcePanel.id)
+
+        let persisted = source.sessionSnapshot(
+            includeScrollback: false,
+            restorableAgentIndex: .empty,
+            surfaceResumeBindingIndex: .empty
+        )
+        let restored = Workspace()
+        let oldToNewPanelIds = restored.restoreSessionSnapshot(persisted)
+        let restoredPanelId = try #require(oldToNewPanelIds[sourcePanel.id])
+
+        #expect(restored.surfaceResumeBinding(panelId: restoredPanelId) == nil)
+        #expect(restored.unresolvedResumeBindingPanelIds.contains(restoredPanelId))
+        #expect(restored.unresolvedResumeBindingGapCount == 1)
+    }
+
+    @Test @MainActor
     func dockResumeBindingGapPublishesToOwningWorkspaceImmediately() throws {
         let workspace = Workspace()
         let dock = try #require(workspace.dockSplit)

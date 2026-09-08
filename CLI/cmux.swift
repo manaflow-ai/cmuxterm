@@ -31801,6 +31801,8 @@ struct CMUXCLI {
                     "Unable to verify existing agent resume binding; preserving it without mutation kind=\(kind, privacy: .public)"
                 )
                 return
+            case .missing:
+                shouldPreserveExistingBinding = false
             }
         } else {
             shouldPreserveExistingBinding = preserveExistingBindingWhenUnavailable
@@ -34042,24 +34044,19 @@ export default CMUXSessionRestore;
                     "surface_id": surfaceId,
                 ]
             )
-            switch payload["resume_binding"] {
-            case .some(let rawBinding as [String: Any]):
-                switch AgentSurfaceResumeBindingOwnership(
-                    kind: kind,
-                    sessionId: sessionId
-                ).evaluate(rawBinding) {
-                case .matches:
-                    return .matches
-                case .doesNotMatch:
-                    return .doesNotMatch
-                case .unavailable:
-                    return .unavailable
-                }
-            case .some(let value) where value is NSNull:
-                return .doesNotMatch
-            default:
+            guard let rawValue = payload["resume_binding"] else {
+                return .missing
+            }
+            if rawValue is NSNull {
+                return .missing
+            }
+            guard let rawBinding = rawValue as? [String: Any] else {
                 return .unavailable
             }
+            return AgentSurfaceResumeBindingOwnership(
+                kind: kind,
+                sessionId: sessionId
+            ).evaluate(rawBinding)
         } catch {
             return .unavailable
         }

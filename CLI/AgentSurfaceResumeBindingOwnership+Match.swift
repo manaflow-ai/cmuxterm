@@ -5,5 +5,6 @@ extension AgentSurfaceResumeBindingOwnership {
         case matches
         case doesNotMatch
         case unavailable
+        case missing
     }
 }

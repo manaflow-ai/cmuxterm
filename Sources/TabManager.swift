@@ -6274,6 +6274,7 @@ extension TabManager {
                     surfaceResumeBindingIndex: surfaceResumeBindingIndex
                 )
                 Self.hashSurfaceResumeBindingSnapshot(effectiveResumeBinding, into: &hasher)
+                hasher.combine(workspace.unresolvedResumeBindingPanelIds.contains(panelId))
                 if let terminalPanel = workspace.terminalPanel(for: panelId) {
                     Self.hashTextBoxDraftSnapshot(
                         terminalPanel.sessionTextBoxDraftSnapshot(),
