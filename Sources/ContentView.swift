@@ -2519,7 +2519,8 @@ struct ContentView: View {
     private var shouldSyncFileExplorerStore: Bool {
         FileExplorerRootSyncPolicy.shouldSyncFileExplorerStore(
             isRightSidebarVisible: fileExplorerState.isVisible,
-            mode: fileExplorerState.mode
+            mode: fileExplorerState.mode,
+            registry: fileExplorerState.panelRegistry
         )
     }
 

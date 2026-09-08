@@ -114,6 +114,7 @@ enum KeyboardShortcutSettings {
         case switchRightSidebarToSessions
         case switchRightSidebarToFeed
         case switchRightSidebarToDock
+        case switchRightSidebarToSourceControl
         case switchRightSidebarToMachines
         case triggerFlash
 
@@ -266,6 +267,7 @@ enum KeyboardShortcutSettings {
             case .switchRightSidebarToSessions: return String(localized: "shortcut.switchRightSidebarToSessions.label", defaultValue: "Show Sidebar Vault")
             case .switchRightSidebarToFeed: return String(localized: "shortcut.switchRightSidebarToFeed.label", defaultValue: "Show Sidebar Feed")
             case .switchRightSidebarToDock: return String(localized: "shortcut.switchRightSidebarToDock.label", defaultValue: "Show Sidebar Dock")
+            case .switchRightSidebarToSourceControl: return String(localized: "shortcut.switchRightSidebarToSourceControl.label", defaultValue: "Show Sidebar Source Control")
             case .switchRightSidebarToMachines: return String(localized: "shortcut.switchRightSidebarToMachines.label", defaultValue: "Show Sidebar Cloud")
             case .triggerFlash: return String(localized: "shortcut.flashFocusedPanel.label", defaultValue: "Flash Focused Panel")
             case .nextSurface: return String(localized: "shortcut.nextSurface.label", defaultValue: "Next Surface")
@@ -467,6 +469,8 @@ enum KeyboardShortcutSettings {
                 return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .feed)
             case .switchRightSidebarToDock:
                 return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .dock)
+            case .switchRightSidebarToSourceControl:
+                return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .sourceControl)
             case .switchRightSidebarToMachines:
                 return KeyboardShortcutSettings.rightSidebarPositionalDefaultShortcut(for: .machines)
             case .triggerFlash:

@@ -25,6 +25,8 @@ final class KeyboardShortcutSettingsObserver {
     private var recorderObserver: NSObjectProtocol?
     @ObservationIgnored
     private var inputSourceObserver: NSObjectProtocol?
+    @ObservationIgnored
+    private var featureFlagsObserver: NSObjectProtocol?
 
     init(
         notificationCenter: NotificationCenter = .default,
@@ -79,6 +81,20 @@ final class KeyboardShortcutSettingsObserver {
                 self?.reloadCachedShortcuts()
             }
         }
+        featureFlagsObserver = notificationCenter.addObserver(
+            forName: .cmuxFeatureFlagsDidChange,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Self.deliverOnMainActor { [weak self] in
+                guard let self else { return }
+                // Mode availability is registry-backed and can change when a
+                // remote rollout flag updates; refresh the cached matcher so
+                // a newly available tab is reachable without a shortcut edit.
+                self.rightSidebarModeShortcutMatcher.reload()
+                self.revision &+= 1
+            }
+        }
     }
 
     deinit {
@@ -93,6 +109,9 @@ final class KeyboardShortcutSettingsObserver {
         }
         if let inputSourceObserver {
             distributedNotificationCenter.removeObserver(inputSourceObserver)
+        }
+        if let featureFlagsObserver {
+            notificationCenter.removeObserver(featureFlagsObserver)
         }
     }
 

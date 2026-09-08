@@ -9,6 +9,7 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     let stableSurfaceIdentity = PanelStableSurfaceIdentity()
     let panelType: PanelType = .rightSidebarTool
     let mode: RightSidebarMode
+    private let panelRegistry = RightSidebarPanelRegistry()
 
     @Published private(set) var focusFlashToken: Int = 0
 
@@ -60,6 +61,9 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
 
     var displayTitle: String { mode.label }
     var displayIcon: String? { mode.symbolName }
+    var panelBehavior: RightSidebarPanelBehavior {
+        panelRegistry.descriptor(for: mode)?.behavior ?? .none
+    }
 
     func reattach(to workspace: Workspace) {
         self.workspace = workspace
@@ -76,14 +80,14 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     }
 
     func syncWorkspaceRoot(from workspace: Workspace) {
-        switch mode {
-        case .files, .find:
+        switch panelRegistry.descriptor(for: mode)?.behavior {
+        case .fileExplorerOutline, .fileExplorerSearch:
             guard let store = fileExplorerStoreStorage else { return }
             syncFileExplorerRoot(from: workspace, store: store)
-        case .sessions:
+        case .sessionIndex:
             guard let store = sessionIndexStoreStorage else { return }
             syncSessionIndexRoot(from: workspace, store: store)
-        case .feed, .dock, .machines, .customSidebar:
+        case .some(.feed), .some(.dock), .some(.sourceControl), .some(.host), .some(.none), nil:
             break
         }
     }
@@ -134,16 +138,16 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
     }
 
     func focus() {
-        switch mode {
-        case .files:
+        switch panelRegistry.descriptor(for: mode)?.behavior {
+        case .fileExplorerOutline:
             _ = fileExplorerContainerView?.focusOutline()
-        case .find:
+        case .fileExplorerSearch:
             _ = fileExplorerContainerView?.focusSearchField()
-        case .sessions:
+        case .sessionIndex:
             guard let anchor = sessionIndexFocusAnchorView,
                   let window = anchor.window else { return }
             _ = window.makeFirstResponder(anchor)
-        case .feed, .dock, .machines, .customSidebar:
+        case .some(.feed), .some(.dock), .some(.sourceControl), .some(.host), .some(.none), nil:
             break
         }
     }
@@ -158,14 +162,14 @@ final class RightSidebarToolPanel: Panel, ObservableObject {
 
     func ownedFocusIntent(for responder: NSResponder, in window: NSWindow) -> PanelFocusIntent? {
         _ = window
-        switch mode {
-        case .files, .find:
+        switch panelRegistry.descriptor(for: mode)?.behavior {
+        case .fileExplorerOutline, .fileExplorerSearch:
             guard fileExplorerContainerView?.ownsKeyboardFocus(responder) == true else { return nil }
             return .panel
-        case .sessions:
+        case .sessionIndex:
             guard sessionIndexFocusAnchorView?.ownsKeyboardFocus(responder) == true else { return nil }
             return .panel
-        case .feed, .dock, .machines, .customSidebar:
+        case .some(.feed), .some(.dock), .some(.sourceControl), .some(.host), .some(.none), nil:
             return nil
         }
     }
@@ -265,8 +269,8 @@ struct RightSidebarToolPanelView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch panel.mode {
-        case .files:
+        switch panel.panelBehavior {
+        case .fileExplorerOutline:
             FileExplorerPanelView(
                 store: panel.fileExplorerStore,
                 state: panel.fileExplorerState,
@@ -276,7 +280,7 @@ struct RightSidebarToolPanelView: View {
                 onFocus: requestPanelFocusIfNeeded,
                 onContainerChange: panel.attachFileExplorerContainer
             )
-        case .find:
+        case .fileExplorerSearch:
             FileExplorerPanelView(
                 store: panel.fileExplorerStore,
                 state: panel.fileExplorerState,
@@ -286,7 +290,7 @@ struct RightSidebarToolPanelView: View {
                 onFocus: requestPanelFocusIfNeeded,
                 onContainerChange: panel.attachFileExplorerContainer
             )
-        case .sessions:
+        case .sessionIndex:
             SessionIndexView(
                 store: panel.sessionIndexStore,
                 onResume: { entry in
@@ -304,7 +308,7 @@ struct RightSidebarToolPanelView: View {
                 RightSidebarToolFocusAnchor(onViewChange: panel.attachSessionIndexFocusAnchor)
                     .frame(width: 0, height: 0)
             )
-        case .feed, .dock, .machines, .customSidebar:
+        case .feed, .dock, .sourceControl, .host, .none:
             EmptyView()
         }
     }

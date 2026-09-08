@@ -3,35 +3,28 @@ import Foundation
 
 extension RightSidebarMode {
     static func from(cliArgument rawValue: String) -> RightSidebarMode? {
-        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "files":
-            return .files
-        case "find":
-            return .find
-        case "vault", "sessions":
-            return .sessions
-        case "feed":
-            return .feed
-        case "dock":
-            return .dock
-        case "cloud", "machines", "vms":
-            return .machines
-        case "custom", "custom-sidebar":
-            return .customSidebar
-        default:
-            return nil
-        }
+        RightSidebarPanelRegistry().mode(forCLIArgument: rawValue)
     }
 
     static func availableModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
-        availableModes(
-            feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
-            dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
-            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
-        )
+        RightSidebarPanelRegistry().availableModes(defaults: defaults)
     }
 
-    static func availableModes(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> [RightSidebarMode] {
+    func isAvailable(defaults: UserDefaults = .standard) -> Bool {
+        guard let descriptor = RightSidebarPanelRegistry().descriptor(for: self) else {
+            return false
+        }
+        return descriptor.isAvailable(defaults)
+    }
+
+    /// Compatibility overload for callers that already have the legacy beta
+    /// values. The registry-backed Source Control flag is intentionally not
+    /// inferred here; use `availableModes(defaults:)` for the complete catalog.
+    static func availableModes(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> [RightSidebarMode] {
         allCases.filter {
             $0.isAvailable(
                 feedEnabled: feedEnabled,
@@ -41,18 +34,34 @@ extension RightSidebarMode {
         }
     }
 
-    func isAvailable(defaults: UserDefaults = .standard) -> Bool {
-        isAvailable(
-            feedEnabled: RightSidebarBetaFeatureSettings.isFeedEnabled(defaults: defaults),
-            dockEnabled: RightSidebarBetaFeatureSettings.isDockEnabled(defaults: defaults),
-            machinesEnabled: CloudMachinesFeature.offMainIsEnabled(defaults: defaults)
-        )
+    func isAvailable(
+        feedEnabled: Bool,
+        dockEnabled: Bool,
+        machinesEnabled: Bool
+    ) -> Bool {
+        switch rawValue {
+        case RightSidebarMode.files.rawValue,
+             RightSidebarMode.find.rawValue,
+             RightSidebarMode.sessions.rawValue:
+            return true
+        case RightSidebarMode.feed.rawValue:
+            return feedEnabled
+        case RightSidebarMode.dock.rawValue:
+            return dockEnabled
+        case RightSidebarMode.machines.rawValue:
+            return machinesEnabled
+        case RightSidebarMode.customSidebar.rawValue:
+            return CmuxExtensionSidebarSelection.customSidebarsEnabled
+                && FileExplorerState.persistedCustomSidebarName() != nil
+        default:
+            return false
+        }
     }
 
     /// The tabs the mode bar actually shows: feature-available modes in the
     /// user's configured order, minus the ones the user hid. This list also
-    /// defines the positional `ctrl+1…9` digit-shortcut defaults, so the Nth
-    /// visible tab always answers ctrl+N unless the user rebound it.
+    /// defines the positional ctrl+1...9 defaults, so the Nth visible tab
+    /// always answers ctrl+N unless the user rebound it.
     nonisolated static func visibleModes(defaults: UserDefaults = .standard) -> [RightSidebarMode] {
         let hidden = RightSidebarTabPreferences.hiddenModes(defaults: defaults)
         let visible = RightSidebarTabPreferences.orderedModes(defaults: defaults)
@@ -62,10 +71,8 @@ extension RightSidebarMode {
         return visible.isEmpty ? availableModes(defaults: defaults) : visible
     }
 
-    /// 1-based `ctrl+digit` position of `mode` among the visible tabs, or nil
-    /// when the mode is hidden, unavailable, or past position 9. Single source
-    /// for the app's positional shortcut defaults and the CmuxSettings
-    /// default-stroke override.
+    /// 1-based ctrl+digit position of `mode` among the visible tabs, or nil
+    /// when the mode is hidden, unavailable, or past position 9.
     nonisolated static func positionalDigit(
         for mode: RightSidebarMode,
         defaults: UserDefaults = .standard
@@ -73,25 +80,6 @@ extension RightSidebarMode {
         let visible = visibleModes(defaults: defaults)
         guard let index = visible.firstIndex(of: mode), index < 9 else { return nil }
         return index + 1
-    }
-
-    func isAvailable(feedEnabled: Bool, dockEnabled: Bool, machinesEnabled: Bool) -> Bool {
-        switch self {
-        case .files, .find, .sessions:
-            return true
-        case .feed:
-            return feedEnabled
-        case .dock:
-            return dockEnabled
-        case .machines:
-            return machinesEnabled
-        case .customSidebar:
-            // Available once the custom-sidebars beta is on AND a right-side
-            // sidebar has been picked (right_sidebar set custom <name>); the
-            // mode bar then grows a Custom button.
-            return CmuxExtensionSidebarSelection.customSidebarsEnabled
-                && FileExplorerState.persistedCustomSidebarName() != nil
-        }
     }
 }
 

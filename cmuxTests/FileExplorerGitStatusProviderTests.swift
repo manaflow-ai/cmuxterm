@@ -10,6 +10,74 @@ import Testing
 @Suite(.serialized)
 struct FileExplorerGitStatusProviderTests {
     @Test
+    func statusSnapshotTracksTheQueriedRepositoryBranch() throws {
+        let repoURL = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try Self.initializeRepo(at: repoURL)
+        try Self.runGit(["symbolic-ref", "HEAD", "refs/heads/feature/root"], in: repoURL)
+        let provider = GitStatusProvider()
+
+        let initial = provider.fetchSnapshot(directory: repoURL.path)
+        #expect(initial.state == .available)
+        #expect(initial.branchName == "feature/root")
+        #expect(initial.displayableEntries.isEmpty)
+
+        let trackedURL = repoURL.appendingPathComponent("tracked.txt")
+        try "one\n".write(to: trackedURL, atomically: true, encoding: .utf8)
+        try Self.runGit(["add", "tracked.txt"], in: repoURL)
+        try Self.runGit(["-c", "commit.gpgsign=false", "commit", "-m", "initial"], in: repoURL)
+        try Self.runGit(["branch", "upstream"], in: repoURL)
+        try Self.runGit(["branch", "--set-upstream-to=upstream"], in: repoURL)
+        #expect(provider.fetchSnapshot(directory: repoURL.path).branchName == "feature/root")
+
+        try Self.runGit(["checkout", "-b", "second-repository"], in: repoURL)
+        try "two\n".write(to: trackedURL, atomically: true, encoding: .utf8)
+        let changed = provider.fetchSnapshot(directory: repoURL.path)
+        #expect(changed.branchName == "second-repository")
+        #expect(changed.statusesByPath[trackedURL.path] == .modified)
+
+        try Self.runGit(["checkout", "--detach"], in: repoURL)
+        #expect(provider.fetchSnapshot(directory: repoURL.path).branchName == "HEAD")
+
+        let nonRepository = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: nonRepository) }
+        #expect(provider.fetchSnapshot(directory: nonRepository.path) == .empty)
+    }
+
+    @Test(arguments: [
+        ("main...origin/main [ahead 1]", "main"),
+        ("No commits yet on feature/first", "feature/first"),
+        ("Initial commit on legacy", "legacy"),
+        ("HEAD (no branch)", "HEAD"),
+    ])
+    func sshStatusSnapshotIncludesBranchWithFileChanges(header: String, expectedBranch: String) throws {
+        let repoURL = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        let fakeSSHURL = try Self.writeExecutableScript(
+            #"""
+            #!/bin/sh
+            printf '%s\0## %s\0 M remote.txt\0' "$CMUX_TEST_REPO_ROOT" "$CMUX_TEST_BRANCH_HEADER"
+            """#,
+            named: "fake-ssh",
+            in: repoURL
+        )
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_TEST_REPO_ROOT"] = repoURL.path
+        environment["CMUX_TEST_BRANCH_HEADER"] = header
+        let snapshot = GitStatusProvider(sshExecutableURL: fakeSSHURL, environment: environment).fetchSnapshotSSH(
+            directory: repoURL.path,
+            destination: "example.invalid",
+            port: nil,
+            identityFile: nil,
+            sshOptions: []
+        )
+
+        #expect(snapshot.state == .available)
+        #expect(snapshot.branchName == expectedBranch)
+        #expect(snapshot.displayableEntries.map(\.path) == [repoURL.appendingPathComponent("remote.txt").path])
+    }
+
+    @Test
     func statusQueryDoesNotRefreshGitIndex() throws {
         let repoURL = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: repoURL) }
@@ -81,7 +149,58 @@ struct FileExplorerGitStatusProviderTests {
     }
 
     @Test
-    func statusQueryMapsTypeChangedAndUnmergedEntries() throws {
+    func statusSnapshotExcludesSynthesizedDeletedDirectoriesFromFileEntries() throws {
+        let repoURL = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try Self.initializeRepo(at: repoURL)
+
+        let deletedDirectoryURL = repoURL.appendingPathComponent("deleted-dir", isDirectory: true)
+        try FileManager.default.createDirectory(at: deletedDirectoryURL, withIntermediateDirectories: true)
+        let deletedFileURL = deletedDirectoryURL.appendingPathComponent("file.txt")
+        try "one\n".write(to: deletedFileURL, atomically: true, encoding: .utf8)
+        try Self.runGit(["add", "."], in: repoURL)
+        try Self.runGit(["commit", "-m", "initial"], in: repoURL)
+        try FileManager.default.removeItem(at: deletedDirectoryURL)
+
+        let snapshot = GitStatusProvider().fetchSnapshot(directory: repoURL.path)
+
+        #expect(snapshot.statusesByPath[deletedFileURL.path] == .some(.deleted))
+        #expect(snapshot.statusesByPath[deletedDirectoryURL.path] == .some(.modified))
+        #expect(snapshot.displayableEntries.map(\.path) == [deletedFileURL.path])
+    }
+
+    @Test
+    func statusSnapshotExpandsUntrackedDirectoriesIntoFileEntries() throws {
+        let repoURL = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: repoURL) }
+        try Self.initializeRepo(at: repoURL)
+        let untrackedDirectory = repoURL.appendingPathComponent("new-dir", isDirectory: true)
+        try FileManager.default.createDirectory(at: untrackedDirectory, withIntermediateDirectories: true)
+        let untrackedFile = untrackedDirectory.appendingPathComponent("file.txt")
+        try "new\n".write(to: untrackedFile, atomically: true, encoding: .utf8)
+
+        let snapshot = GitStatusProvider().fetchSnapshot(directory: repoURL.path)
+
+        #expect(snapshot.displayableEntries.map(\.path) == [untrackedFile.path])
+        #expect(snapshot.displayableEntries.allSatisfy { !$0.path.hasSuffix("/") })
+    }
+
+    @Test
+    func sourceControlSectionsStripExactlyOneSlashAtFilesystemRoot() {
+        let sections = SourceControlGroupSection.makeSections(
+            entries: [
+                GitStatusSnapshotEntry(path: "/changed.swift", status: .modified),
+                GitStatusSnapshotEntry(path: "/nested/added.swift", status: .added),
+            ],
+            root: "/"
+        )
+
+        let resources = sections.flatMap(\.resources)
+        #expect(resources.map(\.relativePath) == ["changed.swift", "nested/added.swift"])
+    }
+
+    @Test
+    func statusQueryMapsStagedUnstagedAndUntrackedEntries() throws {
         let repoURL = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: repoURL) }
 
@@ -99,7 +218,7 @@ struct FileExplorerGitStatusProviderTests {
                 printf '%s\n' "$CMUX_TEST_REPO_ROOT"
                 ;;
             "status --porcelain=v1")
-                printf ' T type-change.txt\0UU conflicted.txt\0'
+                printf 'M  staged.txt\0 M unstaged.txt\0?? new-dir/new.txt\0 T type-change.txt\0UU conflicted.txt\0'
                 ;;
             *)
                 exit 2
@@ -119,11 +238,21 @@ struct FileExplorerGitStatusProviderTests {
         ).fetchStatus(directory: repoURL.path)
 
         #expect(
-            status[repoURL.appendingPathComponent("type-change.txt").path] == .some(.modified)
+            status[repoURL.appendingPathComponent("staged.txt").path] == .some(.modified)
         )
         #expect(
-            status[repoURL.appendingPathComponent("conflicted.txt").path] == .some(.modified)
+            status[repoURL.appendingPathComponent("unstaged.txt").path] == .some(.modified)
         )
+        #expect(status[repoURL.appendingPathComponent("type-change.txt").path] == .some(.modified))
+        #expect(status[repoURL.appendingPathComponent("conflicted.txt").path] == .some(.modified))
+
+        let snapshot = GitStatusProvider(
+            gitExecutableURL: fakeGitURL,
+            environment: environment
+        ).fetchSnapshot(directory: repoURL.path)
+        #expect(snapshot.displayableEntries.first(where: { $0.path.hasSuffix("staged.txt") })?.diffSource == .staged)
+        #expect(snapshot.displayableEntries.first(where: { $0.path.hasSuffix("unstaged.txt") })?.diffSource == .unstaged)
+        #expect(snapshot.displayableEntries.first(where: { $0.path.hasSuffix("new.txt") })?.diffSource == .untracked)
     }
 
     @Test
@@ -137,7 +266,7 @@ struct FileExplorerGitStatusProviderTests {
             if [ "${CMUX_TEST_SSH_ENV:-}" != "expected" ]; then
                 exit 3
             fi
-            printf '%s\n---GIT_STATUS---\n M remote.txt\0' "$CMUX_TEST_REPO_ROOT"
+            printf '%s\0 M remote---GIT_STATUS---.txt\0' "$CMUX_TEST_REPO_ROOT"
             """#,
             named: "fake-ssh",
             in: repoURL
@@ -158,7 +287,7 @@ struct FileExplorerGitStatusProviderTests {
         )
 
         #expect(
-            status[repoURL.appendingPathComponent("remote.txt").path] == .some(.modified)
+            status[repoURL.appendingPathComponent("remote---GIT_STATUS---.txt").path] == .some(.modified)
         )
     }
 
@@ -176,7 +305,7 @@ struct FileExplorerGitStatusProviderTests {
             #"""
             #!/bin/sh
             for arg in "$@"; do printf '%s\n' "$arg"; done > "$CMUX_TEST_SSH_ARGV_LOG"
-            printf '%s\n---GIT_STATUS---\n M remote.txt\0' "$CMUX_TEST_REPO_ROOT"
+            printf '%s\0 M remote---GIT_STATUS---.txt\0' "$CMUX_TEST_REPO_ROOT"
             """#,
             named: "fake-ssh",
             in: repoURL
@@ -197,7 +326,7 @@ struct FileExplorerGitStatusProviderTests {
         )
 
         #expect(
-            status[repoURL.appendingPathComponent("remote.txt").path] == .some(.modified)
+            status[repoURL.appendingPathComponent("remote---GIT_STATUS---.txt").path] == .some(.modified)
         )
         let argv = try String(contentsOf: argvLog, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false)

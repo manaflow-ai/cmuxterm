@@ -1191,6 +1191,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         .switchRightSidebarToSessions,
         .switchRightSidebarToFeed,
         .switchRightSidebarToDock,
+        .switchRightSidebarToSourceControl,
         .switchRightSidebarToMachines,
     ]
     /// The digit defaults are positional over the visible tabs, so the
@@ -1200,10 +1201,14 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
     private let touchedTabEnvironmentKeys: [String] = [
         RightSidebarBetaFeatureSettings.feedEnabledKey,
         RightSidebarBetaFeatureSettings.dockEnabledKey,
+        RightSidebarBetaFeatureSettings.sourceControlEnabledKey,
         RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey,
         RightSidebarTabPreferences.orderKey,
         RightSidebarTabPreferences.hiddenKey,
     ]
+    private let feedEnabledKey = RightSidebarBetaFeatureSettings.feedEnabledKey
+    private let dockEnabledKey = RightSidebarBetaFeatureSettings.dockEnabledKey
+    private let sourceControlEnabledKey = RightSidebarBetaFeatureSettings.sourceControlEnabledKey
     private var originalSettingsFileStore: KeyboardShortcutSettingsFileStore!
     private var savedShortcutData: [KeyboardShortcutSettings.Action: Data?] = [:]
     private var savedTabEnvironment: [String: Any?] = [:]
@@ -1240,6 +1245,9 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         for action in touchedShortcutActions {
             UserDefaults.standard.removeObject(forKey: action.defaultsKey)
         }
+        UserDefaults.standard.set(true, forKey: feedEnabledKey)
+        UserDefaults.standard.set(true, forKey: dockEnabledKey)
+        UserDefaults.standard.set(true, forKey: sourceControlEnabledKey)
         KeyboardShortcutSettings.notifySettingsFileDidChange()
     }
 
@@ -1272,6 +1280,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         XCTAssertEqual(RightSidebarMode.sessions.shortcutAction, .switchRightSidebarToSessions)
         XCTAssertEqual(RightSidebarMode.feed.shortcutAction, .switchRightSidebarToFeed)
         XCTAssertEqual(RightSidebarMode.dock.shortcutAction, .switchRightSidebarToDock)
+        XCTAssertEqual(RightSidebarMode.sourceControl.shortcutAction, .switchRightSidebarToSourceControl)
         XCTAssertEqual(RightSidebarMode.machines.shortcutAction, .switchRightSidebarToMachines)
     }
 
@@ -1300,6 +1309,10 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22)),
             .machines
         )
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "7", modifiers: [.control], keyCode: 26)),
+            .sourceControl
+        )
     }
 
     /// The reported bug: Feed and Dock hidden leaves Cloud as the 4th visible
@@ -1313,8 +1326,12 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "4", modifiers: [.control], keyCode: 21)),
             .machines
         )
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23)),
+            .sourceControl
+        )
         XCTAssertNil(
-            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23))
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22))
         )
     }
 
