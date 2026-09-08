@@ -37,6 +37,7 @@ public struct BridgeLaneDescriptor: Sendable {
     private let control = "control"
     private let serverEvents = "server_events"
     private let terminal = "terminal"
+    private let terminalInput = "terminal_input"
     private let artifact = "artifact"
     private let simulatorStream = "simulator_stream"
 
@@ -53,8 +54,8 @@ public struct BridgeLaneDescriptor: Sendable {
             descriptor = Descriptor(lane: serverEvents, cursor: cursor)
         case .terminal(let resourceID, let cursor):
             descriptor = Descriptor(lane: terminal, resourceID: resourceID.value, cursor: cursor)
-        case .terminalInput:
-            throw BridgeLaneDescriptorError.unencodableDescriptor
+        case .terminalInput(let resourceID):
+            descriptor = Descriptor(lane: terminalInput, resourceID: resourceID.value)
         case .artifact(let resourceID, let offset):
             descriptor = Descriptor(lane: artifact, resourceID: resourceID.value, offset: offset)
         case .simulatorStream(let resourceID):
@@ -89,6 +90,11 @@ public struct BridgeLaneDescriptor: Sendable {
                 throw BridgeLaneDescriptorError.invalidDescriptor
             }
             return .terminal(resourceID: id, cursor: descriptor.cursor)
+        case terminalInput:
+            guard let id = try? CmxIrohResourceID(descriptor.resourceID ?? "") else {
+                throw BridgeLaneDescriptorError.invalidDescriptor
+            }
+            return .terminalInput(resourceID: id)
         case artifact:
             guard let id = try? CmxIrohResourceID(descriptor.resourceID ?? ""),
                 let offset = descriptor.offset

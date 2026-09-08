@@ -10,7 +10,7 @@ public struct BridgeLaneDialer: Sendable {
     /// Creates the stateless BridgeLaneDialer operation value.
     public init() {}
 
-    /// One legacy application lane (terminal, artifact, simulator stream).
+    /// One legacy application lane (terminal, terminal input, artifact, simulator stream).
     #if compiler(>=6.2)
     @concurrent
     #endif
@@ -20,9 +20,9 @@ public struct BridgeLaneDialer: Sendable {
         priority: Int32
     ) async throws -> CmxIrohBidirectionalStream {
         switch lane {
-        case .terminal, .artifact, .simulatorStream:
+        case .terminal, .terminalInput, .artifact, .simulatorStream:
             break
-        case .control, .serverEvents, .terminalInput:
+        case .control, .serverEvents:
             throw CmxIrohClientSessionError.invalidOutgoingLane
         }
         let preamble = try BridgeLaneDescriptor().preamble(for: lane)

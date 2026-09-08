@@ -163,9 +163,7 @@ public actor BridgeLaneAcceptor {
             } else {
                 pendingServerEvents.append(event)
             }
-        case .terminalInput:
-            await reject(stream)
-        case .terminal, .artifact, .simulatorStream:
+        case .terminal, .terminalInput, .artifact, .simulatorStream:
             if BridgeDebugLog.enabled {
                 BridgeDebugLog.lanes.notice(
                     """
