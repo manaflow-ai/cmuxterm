@@ -31397,61 +31397,6 @@ struct CMUXCLI {
         )
     }
 
-    private func mergedNodeOptions(existing: String?, restoreModulePath: String) -> String {
-        let requireOption = "--require=\(restoreModulePath)"
-        let memoryOption = "--max-old-space-size=4096"
-        let cleanedExisting = cleanedNodeOptions(existing)
-        guard !cleanedExisting.isEmpty else {
-            return "\(requireOption) \(memoryOption)"
-        }
-        return "\(requireOption) \(memoryOption) \(cleanedExisting)"
-    }
-
-    private func cleanedNodeOptions(_ existing: String?) -> String {
-        let tokens = (existing ?? "")
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-        guard !tokens.isEmpty else { return "" }
-
-        var filtered: [String] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            if token == "--max-old-space-size" {
-                index += min(2, tokens.count - index)
-                continue
-            }
-            if token.hasPrefix("--max-old-space-size=") {
-                index += 1
-                continue
-            }
-            filtered.append(token)
-            index += 1
-        }
-        return filtered.joined(separator: " ")
-    }
-
-    private func normalizedNodeOptionsForRestore(_ existing: String) -> String {
-        let tokens = existing
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-        guard !tokens.isEmpty else { return "" }
-
-        var normalized: [String] = []
-        var index = 0
-        while index < tokens.count {
-            let token = tokens[index]
-            if token == "--max-old-space-size", index + 1 < tokens.count {
-                normalized.append("--max-old-space-size=\(tokens[index + 1])")
-                index += 2
-                continue
-            }
-            normalized.append(token)
-            index += 1
-        }
-        return normalized.joined(separator: " ")
-    }
-
     // MARK: - Codex hooks
 
     /// The hooks.json content that cmux installs into ~/.codex/.
