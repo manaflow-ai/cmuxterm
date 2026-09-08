@@ -1226,7 +1226,7 @@ def test_codex_collision_keeps_project_skill_and_one_picker_row(failures: list[s
 
 
 def test_codex_explicit_install_retargets_other_agent_root(failures: list[str]) -> None:
-    code, args, stderr, skill = run_wrapper(
+    code, _args, stderr, skill = run_wrapper(
         ["hello"],
         install_global_skill=True,
         preexisting_valid_cmux_link=True,
@@ -1243,7 +1243,7 @@ def test_codex_explicit_install_retargets_other_agent_root(failures: list[str]) 
 
 
 def test_codex_explicit_install_preserves_other_user_path(failures: list[str]) -> None:
-    code, args, stderr, skill = run_wrapper(
+    code, _args, stderr, skill = run_wrapper(
         ["hello"],
         install_global_skill=True,
         preexisting_other_provider_unrelated_link=True,

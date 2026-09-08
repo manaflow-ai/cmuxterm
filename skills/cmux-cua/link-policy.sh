@@ -300,6 +300,50 @@ cmux_cua_skill_remove_legacy_links() {
     fi
 }
 
+cmux_cua_skill_home_lock_path() {
+    local home="$1"
+    local digest
+    digest="$(printf '%s' "$home" | /usr/bin/cksum | /usr/bin/awk '{print $1}')"
+    [[ -n "$digest" ]] || return 1
+    printf '/tmp/cmux-cua-skill-reconcile-%s.lock' "$digest"
+}
+
+cmux_cua_skill_acquire_home_lock() {
+    local lock_path="$1"
+    local owner attempts=0
+    while ! /bin/mkdir "$lock_path" 2>/dev/null; do
+        # A crashed wrapper can leave an empty directory or a PID marker. Only
+        # remove a lock we can prove is stale, and never follow a symlink.
+        if [[ -d "$lock_path" && ! -L "$lock_path" ]]; then
+            if [[ -f "$lock_path/pid" ]]; then
+                owner="$(/bin/cat "$lock_path/pid" 2>/dev/null || true)"
+                if [[ "$owner" =~ ^[0-9]+$ ]] && ! /bin/kill -0 "$owner" 2>/dev/null; then
+                    /bin/unlink "$lock_path/pid" 2>/dev/null || true
+                fi
+            fi
+            /bin/rmdir "$lock_path" 2>/dev/null || true
+        fi
+        attempts=$((attempts + 1))
+        (( attempts < 200 )) || return 1
+        /bin/sleep 0.05
+    done
+    if ! printf '%s\n' "$$" > "$lock_path/pid"; then
+        /bin/rmdir "$lock_path" 2>/dev/null || true
+        return 1
+    fi
+    return 0
+}
+
+cmux_cua_skill_release_home_lock() {
+    local lock_path="$1"
+    [[ -d "$lock_path" && ! -L "$lock_path" ]] || return 0
+    local owner
+    owner="$(/bin/cat "$lock_path/pid" 2>/dev/null || true)"
+    [[ "$owner" == "$$" ]] || return 1
+    /bin/unlink "$lock_path/pid" 2>/dev/null || true
+    /bin/rmdir "$lock_path" 2>/dev/null || true
+}
+
 cmux_cua_skill_retarget_managed_link() {
     local link="$1"
     local source_dir="$2"
@@ -330,6 +374,19 @@ cmux_cua_skill_reconcile() {
        && cmux_cua_skill_project_has_collision "$cwd" "$provider" "$source_document"; then
         project_collision=1
     fi
+
+    # Reconciliation can be invoked concurrently by Claude and Codex for the
+    # same HOME. Serialize the complete migration so one invocation cannot
+    # retarget the other root while another is updating its canonical root.
+    local lock_path
+    lock_path="$(cmux_cua_skill_home_lock_path "$home")" || return 1
+    if ! cmux_cua_skill_acquire_home_lock "$lock_path"; then
+        if [[ "${CMUX_CUA_DIAGNOSTICS:-0}" == 1 ]]; then
+            printf 'cmux-cua: skill-install=lock-unavailable home=%q\n' "$home" >&2
+        fi
+        return 1
+    fi
+
     cmux_cua_skill_remove_legacy_links "$home" "$provider"
 
     # A user can have one app-managed projection in each agent's global root
@@ -403,5 +460,7 @@ cmux_cua_skill_reconcile() {
     if [[ "$legacy_state" == managed ]]; then
         cmux_cua_skill_remove_managed_link "$legacy_root/cmux-cua" || true
     fi
+
+    cmux_cua_skill_release_home_lock "$lock_path" || true
     return 0
 }
