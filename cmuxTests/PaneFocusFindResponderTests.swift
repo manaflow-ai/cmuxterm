@@ -136,7 +136,8 @@ struct PaneFocusFindResponderTests {
         findField.isSelectable = true
         findField.isEnabled = true
         findField.cmuxSelectionOwner = searchState
-        window.contentView = findField
+        let webView = attachPreview(to: panel, in: window)
+        window.contentView?.addSubview(findField)
         window.makeKeyAndOrderFront(nil)
 
         #expect(window.makeFirstResponder(findField))
@@ -156,6 +157,146 @@ struct PaneFocusFindResponderTests {
             window.firstResponder !== findField,
             "Hiding the find bar must resign its field editor before removing ownership state"
         )
+        #expect(
+            responderChainContains(window.firstResponder, target: webView),
+            "Dismissing an active find field must return keyboard focus to its document"
+        )
+    }
+
+    /// Hiding find must not behave like leaving an otherwise focused preview.
+    @Test(arguments: [false, true])
+    func testMarkdownHideFindPreservesPreviewFocus(findVisible: Bool) throws {
+        let directoryURL = try makeMarkdownFixture()
+        let panel = MarkdownPanel(
+            workspaceId: UUID(), filePath: directoryURL.appendingPathComponent("README.md").path
+        )
+        let window = makeWindow()
+        defer {
+            window.orderOut(nil)
+            window.close()
+            panel.close()
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        let webView = attachPreview(to: panel, in: window)
+        if findVisible { panel.startFind() }
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(webView))
+        let capturedResponder = try #require(window.firstResponder)
+
+        panel.hideFind()
+
+        #expect(panel.searchState == nil)
+        #expect(window.firstResponder === capturedResponder)
+    }
+
+    /// Hide-find is a no-op for the raw-text editor's keyboard ownership.
+    @Test
+    func testMarkdownHideFindPreservesTextEditorFocus() throws {
+        let directoryURL = try makeMarkdownFixture()
+        let panel = MarkdownPanel(
+            workspaceId: UUID(), filePath: directoryURL.appendingPathComponent("README.md").path
+        )
+        let window = makeWindow()
+        defer {
+            window.orderOut(nil)
+            window.close()
+            panel.close()
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 420, height: 240))
+        window.contentView = editor
+        panel.attachTextView(editor)
+        panel.setDisplayMode(.text)
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(editor))
+
+        panel.hideFind()
+
+        #expect(window.firstResponder === editor)
+    }
+
+    /// A no-op dismissal must not cancel an activation waiting for view mount.
+    @Test
+    func testMarkdownHideFindPreservesPendingPreviewActivation() throws {
+        let directoryURL = try makeMarkdownFixture()
+        let panel = MarkdownPanel(
+            workspaceId: UUID(), filePath: directoryURL.appendingPathComponent("README.md").path
+        )
+        let window = makeWindow()
+        defer {
+            window.orderOut(nil)
+            window.close()
+            panel.close()
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        panel.focus()
+        panel.hideFind()
+        let webView = attachPreview(to: panel, in: window)
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(nil))
+
+        panel.replayPendingPreviewFocusAfterWindowAttach()
+
+        #expect(responderChainContains(window.firstResponder, target: webView))
+    }
+
+    /// Dismissing an inactive pane's find bar must not steal another pane's input.
+    @Test
+    func testMarkdownHideFindPreservesForeignResponder() throws {
+        let directoryURL = try makeMarkdownFixture()
+        let panel = MarkdownPanel(
+            workspaceId: UUID(), filePath: directoryURL.appendingPathComponent("README.md").path
+        )
+        let window = makeWindow()
+        defer {
+            window.orderOut(nil)
+            window.close()
+            panel.close()
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        _ = attachPreview(to: panel, in: window)
+        panel.startFind()
+        panel.unfocus()
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 200, height: 200))
+        window.contentView?.addSubview(editor)
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(editor))
+
+        panel.hideFind()
+        panel.replayPendingPreviewFocusAfterWindowAttach()
+
+        #expect(panel.searchState == nil)
+        #expect(window.firstResponder === editor)
+    }
+
+    private func makeMarkdownFixture() throws -> URL {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-find-dismiss-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try "# Find dismissal\n".write(
+            to: directoryURL.appendingPathComponent("README.md"), atomically: true, encoding: .utf8
+        )
+        return directoryURL
+    }
+
+    private func makeWindow() -> NSWindow {
+        NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
+            styleMask: [.titled, .closable], backing: .buffered, defer: false
+        )
+    }
+
+    private func attachPreview(to panel: MarkdownPanel, in window: NSWindow) -> MarkdownWebView {
+        let webView = MarkdownWebView(
+            frame: NSRect(x: 0, y: 0, width: 420, height: 240), configuration: WKWebViewConfiguration()
+        )
+        panel.rendererSession.coordinator(
+            panelId: panel.id, workspaceId: panel.workspaceId, filePath: panel.filePath
+        ).webView = webView
+        let container = NSView(frame: webView.frame)
+        container.addSubview(webView)
+        window.contentView = container
+        return webView
     }
 
     /// Verifies that a diff viewer WebView yields focus on pane leave.
