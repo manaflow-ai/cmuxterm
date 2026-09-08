@@ -22,6 +22,7 @@ import simplifiedChineseMessages from "../messages/zh-CN.json";
 import traditionalChineseMessages from "../messages/zh-TW.json";
 import { locales } from "../i18n/routing";
 import {
+  flattenCatalog,
   parityLocales,
   validateCatalog,
 } from "../tools/localization-catalog";
@@ -50,6 +51,10 @@ const messagesByLocale = {
 } as const;
 
 const supportEmail = "founders@manaflow.com";
+
+const traditionalChineseForbiddenCharacters = new Set(
+  [..."发帐复终运检销访云虚拟网浏览会话确认显码设备连团队楼库闭键证体执负载选项层优于环变导这过开关统实时间对纪仅转应为户响该线还标识组书电机盘继续断试级价计费审录读问无处们区条规则频现视许进评类题页个业专吗么让长别样后备宽"],
+);
 
 // Long-form sentences that any genuine translation must render differently
 // from the English catalog. Short labels ("Discord", "Support") may
@@ -150,6 +155,24 @@ describe("support page localization", () => {
     for (const fragment of ["发送", "帐户", "报告", "订阅", "文档", "请"]) {
       expect(traditional).not.toContain(fragment);
     }
+  });
+
+  test("zh-TW does not contain Simplified-only characters", () => {
+    const offenders = flattenCatalog(
+      traditionalChineseMessages as unknown as Json,
+    ).flatMap(({ path, value }) => {
+      if (typeof value !== "string") return [];
+      const characters = [
+        ...new Set(
+          [...value].filter((character) =>
+            traditionalChineseForbiddenCharacters.has(character),
+          ),
+        ),
+      ];
+      return characters.length > 0 ? [`${path}: ${characters.join(", ")}`] : [];
+    });
+
+    expect(offenders).toEqual([]);
   });
 });
 
