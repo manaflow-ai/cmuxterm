@@ -83,7 +83,9 @@ extension CMUXCLI {
     ) -> AgentHookLaunchCommandRecord? {
         if current?.isRejectedCapture == true {
             if let preserved = mappedLaunchAfterRejectedCapture(kind: kind, current: current, mapped: mapped) {
-                return preserved
+                return kind == "codex"
+                    ? repairedCodexLaunchCommand(preserved, transcriptPath: transcriptPath)
+                    : preserved
             }
             return current
         }
