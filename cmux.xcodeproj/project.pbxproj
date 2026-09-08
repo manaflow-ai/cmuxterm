@@ -2727,6 +2727,7 @@
 		93300003A1B2C3D4E5F60718 /* TerminalController+ControlTerminalBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93300004A1B2C3D4E5F60718 /* TerminalController+ControlTerminalBinding.swift */; };
 		C0DE00000000000000000C62 /* TerminalController+ControlWorkspaceContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000C61 /* TerminalController+ControlWorkspaceContext.swift */; };
 		C0DE00000000000000000C54 /* TerminalController+ControlWorkspaceGroupContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00000000000000000C53 /* TerminalController+ControlWorkspaceGroupContext.swift */; };
+		A11560000000000000000002 /* TerminalController+ControlWorkspacePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11560000000000000000001 /* TerminalController+ControlWorkspacePrompt.swift */; };
 		7371B0010000000000000001 /* TerminalController+ControlWorkspaceStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7371B0010000000000000002 /* TerminalController+ControlWorkspaceStrings.swift */; };
 		66B951C8D7A92BABC4A6FFB8 /* TerminalController+ControlWorkspaceTodoContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 466DEB47603469A59697D418 /* TerminalController+ControlWorkspaceTodoContext.swift */; };
 		C57B00040000000000000001 /* TerminalController+CustomSidebarCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = C57B00040000000000000002 /* TerminalController+CustomSidebarCommands.swift */; };
@@ -5982,6 +5983,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		93300004A1B2C3D4E5F60718 /* TerminalController+ControlTerminalBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlTerminalBinding.swift"; sourceTree = "<group>"; };
 		C0DE00000000000000000C61 /* TerminalController+ControlWorkspaceContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlWorkspaceContext.swift"; sourceTree = "<group>"; };
 		C0DE00000000000000000C53 /* TerminalController+ControlWorkspaceGroupContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlWorkspaceGroupContext.swift"; sourceTree = "<group>"; };
+		A11560000000000000000001 /* TerminalController+ControlWorkspacePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlWorkspacePrompt.swift"; sourceTree = "<group>"; };
 		7371B0010000000000000002 /* TerminalController+ControlWorkspaceStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlWorkspaceStrings.swift"; sourceTree = "<group>"; };
 		466DEB47603469A59697D418 /* TerminalController+ControlWorkspaceTodoContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+ControlWorkspaceTodoContext.swift"; sourceTree = "<group>"; };
 		C57B00040000000000000002 /* TerminalController+CustomSidebarCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TerminalController+CustomSidebarCommands.swift"; sourceTree = "<group>"; };
@@ -7925,6 +7927,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0DE00000000000000000C45 /* TerminalController+ControlNotificationContext.swift */,
 				C0DE1A040000000000000002 /* TerminalController+ControlLayoutContext.swift */,
 				C0DE00000000000000000C61 /* TerminalController+ControlWorkspaceContext.swift */,
+				A11560000000000000000001 /* TerminalController+ControlWorkspacePrompt.swift */,
 				81260000000000000000000A /* TerminalController+RemoteTerminalTransportErrors.swift */,
 				7371B0010000000000000002 /* TerminalController+ControlWorkspaceStrings.swift */,
 				D7AB00000000000000B000 /* TerminalController+MobileNotificationSync.swift */,
@@ -12219,6 +12222,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				93300003A1B2C3D4E5F60718 /* TerminalController+ControlTerminalBinding.swift in Sources */,
 				C0DE00000000000000000C62 /* TerminalController+ControlWorkspaceContext.swift in Sources */,
 				C0DE00000000000000000C54 /* TerminalController+ControlWorkspaceGroupContext.swift in Sources */,
+				A11560000000000000000002 /* TerminalController+ControlWorkspacePrompt.swift in Sources */,
 				7371B0010000000000000001 /* TerminalController+ControlWorkspaceStrings.swift in Sources */,
 				66B951C8D7A92BABC4A6FFB8 /* TerminalController+ControlWorkspaceTodoContext.swift in Sources */,
 				C57B00040000000000000001 /* TerminalController+CustomSidebarCommands.swift in Sources */,
