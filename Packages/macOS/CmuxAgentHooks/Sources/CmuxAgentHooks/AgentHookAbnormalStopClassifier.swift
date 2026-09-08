@@ -43,17 +43,9 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         }
 
         let normalizedMessageTrimmed = normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        let reasonOnlyMessage = Self.stripBannerMarker(
-            normalizedMessageTrimmed.hasPrefix("stop ")
-                ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
-                : normalizedMessageTrimmed
-        )
+        let reasonOnlyMessage = Self.normalizedStopReason(normalizedMessageTrimmed)
         let normalizedSignalTrimmed = normalizedSignal.trimmingCharacters(in: .whitespacesAndNewlines)
-        let signalReasonOnly = Self.stripBannerMarker(
-            normalizedSignalTrimmed.hasPrefix("stop ")
-                ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
-                : normalizedSignalTrimmed
-        )
+        let signalReasonOnly = Self.normalizedStopReason(normalizedSignalTrimmed)
 
         let overloadCue = (normalized.contains("overloaded") || normalized.contains("overload"))
             && (
@@ -63,8 +55,8 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
                     || normalized.contains("service")
                     || normalized.contains("api")
                     || normalized.contains("error")
-                    || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == "overloaded"
-                    || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == "overload"
+                    || reasonOnlyMessage == "overloaded"
+                    || reasonOnlyMessage == "overload"
             )
         let status529Cue = hasStatusCodeCue(
             "529",
@@ -77,7 +69,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("capacity error")
             || normalized.contains("model capacity")
             || normalized.contains("capacity exceeded")
-            || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == "capacity"
+            || reasonOnlyMessage == "capacity"
             || overloadCue
             || normalized.contains("server overloaded")
             || normalized.contains("overloaded error")
@@ -330,17 +322,24 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         lowercasedText.split { !$0.isLetter && !$0.isNumber }
     }
 
-    /// Removes the marker used by terminal error banners before exact-reason matching.
-    private static func stripBannerMarker(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("■") else { return trimmed }
-        return trimmed.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Normalizes an exact stop reason, including optional event and banner markers.
+    private static func normalizedStopReason(_ text: String) -> String {
+        var reason = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        while reason.hasPrefix("■") || reason.hasPrefix("stop ") {
+            if reason.hasPrefix("■") {
+                reason = String(reason.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                reason = String(reason.dropFirst("stop ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return reason
     }
 
     private static func isQuotaReason(_ reason: String) -> Bool {
         let reasons = [
             "quota", "quota exceeded", "quota exhausted", "usage limit", "usage exhausted",
-            "hit your limit", "limit reached", "quota limit", "credit limit", "credits exhausted",
+            "hit your limit", "you've hit your limit", "you have hit your limit", "limit reached",
+            "quota limit", "credit limit", "credits exhausted",
             "no remaining credits", "out of credits", "insufficient credits",
         ]
         return reasons.contains(reason)
@@ -419,11 +418,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         normalized: String,
         normalizedMessage: String
     ) -> Bool {
-        let messageTrimmed = normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        let reasonOnlyMessage = messageTrimmed.hasPrefix("stop ")
-            ? String(messageTrimmed.dropFirst("stop ".count))
-            : messageTrimmed
-        if reasonOnlyMessage == code { return true }
+        if Self.normalizedStopReason(normalizedMessage) == code { return true }
 
         let tokens = Self.notificationCueTokens(normalized)
         guard let index = tokens.firstIndex(where: { String($0) == code }) else { return false }

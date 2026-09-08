@@ -120,9 +120,13 @@ struct AgentHookAbnormalStopClassifierTests {
     @Test func recognizesBannerMarkersAndShortQuotaReasons() {
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ rate limited") == .rateLimit)
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ 429 Too Many Requests") == .rateLimit)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ capacity") == .capacity)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ overloaded") == .capacity)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ 529") == .capacity)
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "quota") == .quota)
         #expect(classifier.abnormalStopClass(signal: "Stop quota", message: "") == .quota)
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "hit your limit") == .quota)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "you've hit your limit") == .quota)
     }
 
     @Test func embeddedStatusCodesAndSensitiveDetailsFailClosed() {
