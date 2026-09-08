@@ -470,7 +470,7 @@ struct SidebarWorkspaceAgentActivityTests {
     }
 
     @Test(arguments: [RestorableAgentProcessLiveness.unknown, .exited], [false, true])
-    func hookLifecycleCannotOverrideUnverifiedOrExitedRuntimeProcess(
+    func unverifiedHookCannotReviveUnverifiedOrExitedRuntimeProcess(
         processLiveness: RestorableAgentProcessLiveness,
         hookFirst: Bool
     ) {
@@ -484,6 +484,8 @@ struct SidebarWorkspaceAgentActivityTests {
         let hook = Self.evidence(
             lifecycle: .running,
             startedAt: 100,
+            processLiveness: .unknown,
+            hasExactProcessIdentity: false,
             isRuntimeBound: false,
             hasLiveLifecycleSignal: false,
             isHookBacked: true
@@ -495,6 +497,43 @@ struct SidebarWorkspaceAgentActivityTests {
         #expect(activity.agents.count == 1)
         #expect(activity.primaryState == .unknown)
         #expect(activity.primaryElapsedStart == nil)
+    }
+
+    @Test(arguments: [
+        (RestorableAgentProcessLiveness.unknown, false), (.unknown, true),
+        (.exited, false), (.exited, true),
+    ], [AgentHibernationLifecycleState.running, .needsInput, .idle, .unknown])
+    func verifiedHookOutranksStaleSameSessionRuntime(
+        runtimeState: (RestorableAgentProcessLiveness, Bool),
+        lifecycle: AgentHibernationLifecycleState
+    ) {
+        let runtime = Self.evidence(
+            lifecycle: .needsInput,
+            startedAt: nil,
+            processLiveness: runtimeState.0,
+            hasExactProcessIdentity: false,
+            hasLiveLifecycleSignal: false
+        )
+        let hook = Self.evidence(
+            lifecycle: lifecycle,
+            startedAt: 100,
+            isRuntimeBound: false,
+            hasLiveLifecycleSignal: false,
+            isHookBacked: true
+        )
+        let activity = SidebarWorkspaceAgentActivity.resolve(
+            evidence: runtimeState.1 ? [hook, runtime] : [runtime, hook]
+        )
+        let expectedState: SidebarAgentResolvedState = switch lifecycle {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .idle: .idle
+        case .unknown: .unknown
+        }
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == expectedState)
+        #expect(activity.agents.first?.startedAt == 100)
+        #expect(activity.primaryElapsedStart == (lifecycle == .running ? 100 : nil))
     }
 
     @Test

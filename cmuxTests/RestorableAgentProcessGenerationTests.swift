@@ -124,6 +124,73 @@ struct RestorableAgentProcessGenerationTests {
         #expect(activity.agents.first { $0.statusKey == "claude_code" }?.startedAt == nil)
     }
 
+    @Test("Stale same-kind PID bindings cannot hide the current live hook generation",
+          arguments: ["same-session", "previous-session", "legacy-key", "missing-identity"],
+          [AgentHibernationLifecycleState.running, .needsInput, .idle, .unknown])
+    func liveHookSessionSurvivesStaleSameKindRuntime(
+        binding: String,
+        lifecycle: AgentHibernationLifecycleState
+    ) throws {
+        let fixture = try makeFixture(prefix: "cmux-same-kind-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: lifecycle, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        let runtimeKey = switch binding {
+        case "previous-session": "codex.previous-session"
+        case "legacy-key": "codex"
+        default: "codex.\(fixture.sessionID)"
+        }
+        workspace.agentPIDKeysByPanelId[fixture.panelID] = [runtimeKey]
+        if binding != "missing-identity" {
+            workspace.agentPIDProcessIdentitiesByKey[runtimeKey] = AgentPIDProcessIdentity(
+                pid: identity.pid, startSeconds: identity.startSeconds - 60, startMicroseconds: 0
+            )
+            // A delayed lifecycle cleanup must not override the new hook either.
+            workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .needsInput]
+        }
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let expectedState: SidebarAgentResolvedState = switch lifecycle {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .idle: .idle
+        case .unknown: .unknown
+        }
+        #expect(activity.agents.count == 1)
+        #expect(activity.activity(forStatusKey: "codex")?.state == expectedState)
+        #expect(activity.primaryState == expectedState)
+        #expect(activity.agents.first?.startedAt == startedAt)
+        #expect(activity.activeCodingAgentCount == (lifecycle == .running ? 1 : 0))
+        #expect(activity.primaryElapsedStart == (lifecycle == .running ? startedAt : nil))
+    }
+
+    @Test("An unverified index cannot promote a stale runtime PID to running")
+    func unverifiedHookCannotPromoteStaleSameKindRuntime() throws {
+        let fixture = try makeFixture(prefix: "cmux-unverified-same-kind-sidebar")
+        defer { cleanup(fixture) }
+        try writeHookTimingState(startedAt: fixture.updatedAt - 120, lifecycle: .running, to: fixture)
+        let index = loadHookFixture(fixture)
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentPIDKeysByPanelId[fixture.panelID] = ["codex.\(fixture.sessionID)"]
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .running]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == .unknown)
+        #expect(activity.primaryElapsedStart == nil)
+        #expect(activity.activeCodingAgentCount == 0)
+    }
+
     @Test("A live replacement kind still supersedes a non-live cached hook")
     func liveReplacementKindSupersedesNonLiveHook() throws {
         let fixture = try makeFixture(prefix: "cmux-replacement-kind-sidebar")
