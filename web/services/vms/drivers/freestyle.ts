@@ -92,9 +92,9 @@ import {
 // loopback nor the public NIC.
 //
 // Creates take NO ports field, NO create-time env, and NO systemd injection;
-// `firewall` is mandatory. The model-plane env is the static placeholder file
-// baked at /etc/cmux/model-plane.env; no per-machine credential or create-time
-// env is written into the guest.
+// `firewall` is mandatory. The model-plane env is baked into the snapshot at
+// /etc/cmux/model-plane.env (services/coderouter/vmGuestEnv.ts): the same
+// bytes for every machine, so create writes nothing into the guest.
 //
 // Create runs no guest bootstrap. The devbox snapshot carries the pinned
 // cmux-tui build and the cmux-tui-daemon systemd unit, and its supervisor
@@ -109,12 +109,12 @@ import {
 // and adds `x-coderouter-route-token` and `x-cmux-vm-id` to every request the
 // guest makes there. The platform steers the host to its edge (/etc/hosts) and
 // installs its CA at boot; rules added after boot never reach a running
-// guest, so the rule must be inline. The env file holds only base URLs and
-// placeholder keys: no token is ever written into the guest. Injection
-// becomes active 20-30 s after boot, so create ends with a guest-side probe
-// of https://<host>/api/coderouter/vm-usage/self (a 200 proves the injected
-// token is bound to this machine) and rolls the machine back if it never
-// succeeds.
+// guest, so the rule must be inline. The baked env file holds only base
+// URLs and placeholder keys: no token is ever written into the guest, and
+// create runs no exec and writes no file there (vms.create, the grow-only
+// resize, and a delete on rollback are its only provider calls). Injection
+// becomes active 20-30 s after boot; the first agent request before that
+// reaches the origin without the header and is rejected, then succeeds.
 //
 // The desktop and forwarded ports (`openPort`) travel the same private path
 // as the daemon: the URL is the machine's VPC address, reachable only through
@@ -150,9 +150,7 @@ export const FREESTYLE_PERSISTENT_IDLE_TIMEOUT_SECONDS = -1;
 const MAX_EXEC_TIMEOUT_MS = 300_000;
 const EXEC_OVERHEAD_TIMEOUT_MS = 15_000;
 const ROUTE_TOKEN_TTL_SECONDS = 12 * 60 * 60;
-/** Guest-side edge probe: 30 attempts x (5 s curl + 2 s sleep) worst case, under the 300 s exec cap. */
 const EDGE_DOMAIN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
-const ROUTE_TOKEN_GRAMMAR = /\bcrt_[A-Za-z0-9._-]+/;
 
 /**
  * The seams tests replace: the SDK client and the cmux-tui manifest read.
@@ -447,18 +445,6 @@ export function freestyleEdgeRules(edgeRules: readonly VmEdgeRule[] | undefined)
 }
 
 /**
- * Nothing that reaches the guest (env file, exec command) may carry a route
- * token: the token lives only in the edge rule. Throws on the `crt_` grammar.
- */
-export function assertNoRouteTokenInGuestPayload(values: Iterable<string>, what: string): void {
-  for (const value of values) {
-    if (ROUTE_TOKEN_GRAMMAR.test(value)) {
-      throw new ProviderError("freestyle", `refusing to write a coderouter route token into the guest (${what})`);
-    }
-  }
-}
-
-/**
  * Generated capability-domain suffixes retained for legacy preview leases.
  * Public VM publications use the account-managed publication workflow; these
  * helpers only recognize the older driver-minted capability URL format.
@@ -482,11 +468,6 @@ export function mintFreestylePortRuleDomain(suffix: string = FREESTYLE_PORT_RULE
   return `cmux-${randomBytes(12).toString("hex")}.${suffix}`;
 }
 
-/**
- * Freestyle has no create-time environment injection. The model-plane env is
- * therefore baked into the devbox image and sourced by the guest shell; the
- * driver only supplies the edge rule and refreshes the CLI adapter.
- */
 export function normalizeFreestyleExecTimeout(timeoutMs: number | undefined): number {
   if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return EXEC_DEFAULT_TIMEOUT_MS;
