@@ -18,7 +18,7 @@ import Foundation
 /// document BEFORE anything touches the machine and names the offending JSON path;
 /// the shim re-validates on its side (it is also reachable without a Mac).
 extension CMUXCLI {
-    static let vmLayoutUsage = """
+    static let vmLayoutUsage = String(localized: "cli.vm.layout.usage", defaultValue: """
         Usage:
           cmux vm layout export <machine> [<workspace-id|name>] [--raw]
                                                               Print a machine workspace's layout as a declarative layout
@@ -44,9 +44,9 @@ extension CMUXCLI {
         first child's share (0.1–0.9, default 0.5). Surface types: terminal (name, command, cwd, env),
         browser (url, name); project surfaces are Mac-only and skipped on a machine.
         Workspace ids come from `cmux vm tree`. Add --json for the raw result. Exit 2 = the document is invalid.
-        """
+        """)
 
-    static let vmEnvUsage = """
+    static let vmEnvUsage = String(localized: "cli.vm.env.usage", defaultValue: """
         Usage:
           cmux vm env set <machine> KEY=VALUE [KEY2=VALUE2 …] [--from-file <.env>] [-]
                                                               Set environment variables for every terminal, agent, and
@@ -66,7 +66,7 @@ extension CMUXCLI {
         and only names are ever printed back (use --show to see values). Forks, snapshots, and
         templates of the machine inherit the file; `cmux vm env rm` before you promote one.
         Keys match [A-Za-z_][A-Za-z0-9_]*. Add --json for the raw result.
-        """
+        """)
 
     /// `vm.exec` budgets. Export is one snapshot read; apply spawns a handful of shells
     /// and waits for their prompts; the control plane caps a single exec at five minutes.
@@ -89,7 +89,7 @@ extension CMUXCLI {
         case "apply", "set":
             try runVMLayoutApply(tail, client: client, jsonOutput: jsonOutput)
         default:
-            throw CLIError(message: "vm layout: unknown verb '\(verb)'\n\n\(Self.vmLayoutUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.unknownVerb", defaultValue: "vm layout: unknown verb '%1$@'\n\n%2$@"), String(describing: verb), String(describing: Self.vmLayoutUsage)))
         }
     }
 
@@ -97,7 +97,7 @@ extension CMUXCLI {
         let raw = hasFlag(args, name: "--raw")
         let known: Set<String> = ["--raw", "--json"]
         if let unknown = args.first(where: { $0.hasPrefix("-") && !known.contains($0) }) {
-            throw CLIError(message: "vm layout export: unknown flag '\(unknown)'\n\n\(Self.vmLayoutUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.exportUnknownFlag", defaultValue: "vm layout export: unknown flag '%1$@'\n\n%2$@"), String(describing: unknown), String(describing: Self.vmLayoutUsage)))
         }
         let positional = args.filter { !$0.hasPrefix("-") }
         guard let machine = positional.first, !machine.isEmpty, positional.count <= 2 else {
@@ -128,7 +128,7 @@ extension CMUXCLI {
         let open = hasFlag(r4, name: "--open")
         let known: Set<String> = ["--open", "--json"]
         if let unknown = r4.first(where: { $0.hasPrefix("-") && $0 != "-" && !known.contains($0) }) {
-            throw CLIError(message: "vm layout apply: unknown flag '\(unknown)'\n\n\(Self.vmLayoutUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyUnknownFlag", defaultValue: "vm layout apply: unknown flag '%1$@'\n\n%2$@"), String(describing: unknown), String(describing: Self.vmLayoutUsage)))
         }
         // `-` (stdin) is the one dash-led positional.
         let positional = r4.filter { !$0.hasPrefix("-") || $0 == "-" }
@@ -137,7 +137,7 @@ extension CMUXCLI {
         }
         let source = positional.count == 2 ? positional[1] : nil
         if source != nil, savedOpt != nil {
-            throw CLIError(message: "vm layout apply: pass a file (or -) OR --from-saved <name>, not both\n\n\(Self.vmLayoutUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyPassAFileOrORFromSaved", defaultValue: "vm layout apply: pass a file (or -) OR --from-saved <name>, not both\n\n%1$@"), String(describing: Self.vmLayoutUsage)))
         }
 
         let documentData = try readVMLayoutDocument(source: source, savedName: savedOpt, client: client)
@@ -147,7 +147,7 @@ extension CMUXCLI {
         do {
             document = try Self.parseVMLayoutDocument(documentData)
         } catch let error as VMLayoutDocumentError {
-            throw CLIError(message: "vm layout apply: invalid layout document: \(error.description)", exitCode: 2)
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyInvalidLayoutDocument", defaultValue: "vm layout apply: invalid layout document: %1$@"), String(describing: error.description)), exitCode: 2)
         }
 
         let result = try runVMShim(
@@ -163,7 +163,7 @@ extension CMUXCLI {
         var openedPayload: [String: Any]?
         if open {
             guard let remoteWorkspace else {
-                throw CLIError(message: "vm layout apply: the layout was applied but the machine reported no workspace id to open (output: \(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200)))")
+                throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyTheLayoutWasAppliedButTheMachine", defaultValue: "vm layout apply: the layout was applied but the machine reported no workspace id to open (output: %1$@)"), String(describing: result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))))
             }
             openedPayload = try openAppliedVMWorkspace(machine: machine, remoteWorkspace: remoteWorkspace, client: client)
         }
@@ -192,7 +192,7 @@ extension CMUXCLI {
             let opened = (openedPayload["opened"] as? Int) ?? 0
             print("OK opened workspace=\(local) opened=\(opened) machine=\(machine)")
         } else if let remoteWorkspace {
-            print("Open it: cmux vm workspace open \(machine) \(remoteWorkspace)")
+            print(String(format: String(localized: "cli.vm.layoutEnv.openItCmuxVmWorkspaceOpenValueValue", defaultValue: "Open it: cmux vm workspace open %1$@ %2$@"), String(describing: machine), String(describing: remoteWorkspace)))
         }
     }
 
@@ -229,7 +229,7 @@ extension CMUXCLI {
                 Thread.sleep(forTimeInterval: Self.vmLayoutOpenRetryDelay)
             }
         }
-        throw CLIError(message: "vm layout apply: the layout is applied to workspace \(remoteWorkspace) on \(machine), but it could not be opened here yet (\(lastFailure)). Open it with: cmux vm workspace open \(machine) \(remoteWorkspace)")
+        throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyTheLayoutIsAppliedToWorkspace", defaultValue: "vm layout apply: the layout is applied to workspace %1$@ on %2$@, but it could not be opened here yet (%3$@). Open it with: cmux vm workspace open %4$@ %5$@"), String(describing: remoteWorkspace), String(describing: machine), String(describing: lastFailure), String(describing: machine), String(describing: remoteWorkspace)))
     }
 
     /// The transient shapes of "the catalog has not caught up": a not-found code, or
@@ -250,27 +250,27 @@ extension CMUXCLI {
         if let savedName {
             let trimmed = savedName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else {
-                throw CLIError(message: "vm layout apply: --from-saved needs a layout name (see `cmux layout list`)")
+                throw CLIError(message: String(localized: "cli.vm.layout.applyFromSavedNeedsALayoutNameSee", defaultValue: "vm layout apply: --from-saved needs a layout name (see `cmux layout list`)"))
             }
             let payload = try client.sendV2(method: "layout.get", params: ["name": trimmed])
             guard JSONSerialization.isValidJSONObject(payload) else {
-                throw CLIError(message: "vm layout apply: saved layout \(trimmed) could not be encoded")
+                throw CLIError(message: String(format: String(localized: "cli.vm.layout.applySavedLayoutCouldNotBeEncoded", defaultValue: "vm layout apply: saved layout %1$@ could not be encoded"), String(describing: trimmed)))
             }
             return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         }
         if let source, source != "-" {
             let path = resolvePath(source)
             guard let data = FileManager.default.contents(atPath: path) else {
-                throw CLIError(message: "vm layout apply: cannot read \(path)")
+                throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyCannotRead", defaultValue: "vm layout apply: cannot read %1$@"), String(describing: path)))
             }
             return data
         }
         if source == nil, isatty(FileHandle.standardInput.fileDescriptor) != 0 {
-            throw CLIError(message: "vm layout apply: give a layout file, `-` for stdin, or --from-saved <name>\n\n\(Self.vmLayoutUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.layout.applyGiveALayoutFileForStdinOr", defaultValue: "vm layout apply: give a layout file, `-` for stdin, or --from-saved <name>\n\n%1$@"), String(describing: Self.vmLayoutUsage)))
         }
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard !data.isEmpty else {
-            throw CLIError(message: "vm layout apply: empty layout document on stdin", exitCode: 2)
+            throw CLIError(message: String(localized: "cli.vm.layout.applyEmptyLayoutDocumentOnStdin", defaultValue: "vm layout apply: empty layout document on stdin"), exitCode: 2)
         }
         return data
     }
@@ -296,22 +296,22 @@ extension CMUXCLI {
                     case .file(let file):
                         let path = resolvePath(file)
                         guard let data = FileManager.default.contents(atPath: path), let text = String(data: data, encoding: .utf8) else {
-                            throw CLIError(message: "vm env set: cannot read \(path)")
+                            throw CLIError(message: String(format: String(localized: "cli.vm.env.setCannotRead", defaultValue: "vm env set: cannot read %1$@"), String(describing: path)))
                         }
                         assignments += try Self.parseVMEnvFile(text)
                     case .standardInput:
                         let data = FileHandle.standardInput.readDataToEndOfFile()
                         guard let text = String(data: data, encoding: .utf8) else {
-                            throw VMEnvError(description: "stdin is not UTF-8 text")
+                            throw VMEnvError(description: String(localized: "cli.vm.layoutEnv.stdinIsNotUTF8Text", defaultValue: "stdin is not UTF-8 text"))
                         }
                         assignments += try Self.parseVMEnvFile(text)
                     }
                 }
             } catch let error as VMEnvError {
-                throw CLIError(message: "vm env set: \(error.description)", exitCode: 2)
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.set", defaultValue: "vm env set: %1$@"), String(describing: error.description)), exitCode: 2)
             }
             guard !assignments.isEmpty else {
-                throw CLIError(message: "vm env set: give KEY=VALUE pairs, --from-file <.env>, or - for stdin\n\n\(Self.vmEnvUsage)", exitCode: 2)
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.setGiveKEYVALUEPairsFromFileEnv", defaultValue: "vm env set: give KEY=VALUE pairs, --from-file <.env>, or - for stdin\n\n%1$@"), String(describing: Self.vmEnvUsage)), exitCode: 2)
             }
             let merged = Self.mergedVMEnvAssignments(assignments)
             // Values go to the app over the local socket and from there over the machine's
@@ -331,13 +331,16 @@ extension CMUXCLI {
                 return
             }
             // Names only: a value is a secret until proven otherwise.
-            print("OK set \(keys.count) variable\(keys.count == 1 ? "" : "s") on \(machine): \(keys.joined(separator: ", "))")
+            let format = keys.count == 1
+                ? String(localized: "cli.vm.env.set.one", defaultValue: "OK set %1$ld variable on %2$@: %3$@")
+                : String(localized: "cli.vm.env.set.many", defaultValue: "OK set %1$ld variables on %2$@: %3$@")
+            print(String(format: format, keys.count, machine, keys.joined(separator: ", ")))
 
         case "ls", "list":
             let show = hasFlag(tail, name: "--show")
             let known: Set<String> = ["--show"]
             if let unknown = tail.first(where: { $0.hasPrefix("-") && !known.contains($0) }) {
-                throw CLIError(message: "vm env ls: unknown flag '\(unknown)'\n\n\(Self.vmEnvUsage)")
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.lsUnknownFlag", defaultValue: "vm env ls: unknown flag '%1$@'\n\n%2$@"), String(describing: unknown), String(describing: Self.vmEnvUsage)))
             }
             let positional = tail.filter { !$0.hasPrefix("-") }
             guard let machine = positional.first, !machine.isEmpty, positional.count == 1 else {
@@ -354,15 +357,15 @@ extension CMUXCLI {
 
         case "rm", "remove", "unset":
             if let unknown = tail.first(where: { $0.hasPrefix("-") }) {
-                throw CLIError(message: "vm env rm: unknown flag '\(unknown)'\n\n\(Self.vmEnvUsage)")
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.rmUnknownFlag", defaultValue: "vm env rm: unknown flag '%1$@'\n\n%2$@"), String(describing: unknown), String(describing: Self.vmEnvUsage)))
             }
             guard let machine = tail.first, !machine.isEmpty else { throw CLIError(message: Self.vmEnvUsage) }
             let keys = Array(tail.dropFirst())
             guard !keys.isEmpty else {
-                throw CLIError(message: "vm env rm: give at least one KEY\n\n\(Self.vmEnvUsage)", exitCode: 2)
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.rmGiveAtLeastOneKEY", defaultValue: "vm env rm: give at least one KEY\n\n%1$@"), String(describing: Self.vmEnvUsage)), exitCode: 2)
             }
             if let bad = keys.first(where: { !Self.isValidVMEnvKey($0) }) {
-                throw CLIError(message: "vm env rm: invalid variable name '\(bad)' (keys match [A-Za-z_][A-Za-z0-9_]*)", exitCode: 2)
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.rmInvalidVariableNameKeysMatchA", defaultValue: "vm env rm: invalid variable name '%1$@' (keys match [A-Za-z_][A-Za-z0-9_]*)"), String(describing: bad)), exitCode: 2)
             }
             let result = try runVMShim(
                 Self.vmEnvRemoveCommand(keys: keys),
@@ -376,7 +379,10 @@ extension CMUXCLI {
                 return
             }
             if result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                print("OK removed \(keys.count) variable\(keys.count == 1 ? "" : "s") on \(machine): \(keys.joined(separator: ", "))")
+                let format = keys.count == 1
+                    ? String(localized: "cli.vm.env.remove.one", defaultValue: "OK removed %1$ld variable on %2$@: %3$@")
+                    : String(localized: "cli.vm.env.remove.many", defaultValue: "OK removed %1$ld variables on %2$@: %3$@")
+                print(String(format: format, keys.count, machine, keys.joined(separator: ", ")))
             } else {
                 Self.printVerbatim(result.stdout)
             }
@@ -387,7 +393,7 @@ extension CMUXCLI {
             Self.printVerbatim(result.stdout)
 
         default:
-            throw CLIError(message: "vm env: unknown verb '\(verb)'\n\n\(Self.vmEnvUsage)")
+            throw CLIError(message: String(format: String(localized: "cli.vm.env.unknownVerb", defaultValue: "vm env: unknown verb '%1$@'\n\n%2$@"), String(describing: verb), String(describing: Self.vmEnvUsage)))
         }
     }
 
@@ -425,7 +431,7 @@ extension CMUXCLI {
         if exitCode != 0 {
             let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             let fallback = stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            let text = detail.isEmpty ? (fallback.isEmpty ? "cmux \(feature) failed on \(machine) (exit \(exitCode))" : fallback) : detail
+            let text = detail.isEmpty ? (fallback.isEmpty ? String(format: String(localized: "cli.vm.layoutEnv.cmuxValueFailedOnValueExitValue", defaultValue: "cmux %1$@ failed on %2$@ (exit %3$@)"), String(describing: feature), String(describing: machine), String(describing: exitCode)) : fallback) : detail
             // The shim's exit status is part of its contract (2 = bad input); pass the
             // small ones through, and never let a timeout's 124 masquerade as ours.
             let passthrough: Int32 = (1...3).contains(exitCode) ? Int32(exitCode) : 1
@@ -453,7 +459,7 @@ extension CMUXCLI {
     }
 
     static func vmShimOutdatedMessage(machine: String, feature: String) -> String {
-        "this machine's cmux shim predates \(feature) support — reconnect it (cmux vm tree \(machine) --refresh) to heal, then retry"
+        String(format: String(localized: "cli.vm.layoutEnv.thisMachineSCmuxShimPredatesValueSupportReconnectIt", defaultValue: "this machine's cmux shim predates %1$@ support — reconnect it (cmux vm tree %2$@ --refresh) to heal, then retry"), String(describing: feature), String(describing: machine))
     }
 
     /// `cmux layout export --json [--workspace <ws>] [--raw]`, run on the machine.
@@ -525,15 +531,15 @@ extension CMUXCLI {
     /// caller's shell); it may be empty, never multi-line.
     static func parseVMEnvAssignment(_ raw: String) throws -> VMEnvAssignment {
         guard let separator = raw.firstIndex(of: "=") else {
-            throw VMEnvError(description: "expected KEY=VALUE, got '\(raw)'")
+            throw VMEnvError(description: String(format: String(localized: "cli.vm.layoutEnv.expectedKEYVALUEGotValue", defaultValue: "expected KEY=VALUE, got '%1$@'"), String(describing: raw)))
         }
         let key = String(raw[..<separator])
         let value = String(raw[raw.index(after: separator)...])
         guard isValidVMEnvKey(key) else {
-            throw VMEnvError(description: "invalid variable name '\(key)' (keys match [A-Za-z_][A-Za-z0-9_]*)")
+            throw VMEnvError(description: String(format: String(localized: "cli.vm.layoutEnv.invalidVariableNameValueKeysMatchAZaZA", defaultValue: "invalid variable name '%1$@' (keys match [A-Za-z_][A-Za-z0-9_]*)"), String(describing: key)))
         }
         guard !value.contains("\n"), !value.contains("\r") else {
-            throw VMEnvError(description: "value of \(key) must be a single line")
+            throw VMEnvError(description: String(format: String(localized: "cli.vm.layoutEnv.valueOfValueMustBeASingleLine", defaultValue: "value of %1$@ must be a single line"), String(describing: key)))
         }
         return VMEnvAssignment(key: key, value: value)
     }
@@ -565,7 +571,7 @@ extension CMUXCLI {
             } else if argument == "-" {
                 sources.append(.standardInput)
             } else if argument.hasPrefix("-") {
-                throw CLIError(message: "vm env set: unknown flag '\(argument)'\n\n\(vmEnvUsage)")
+                throw CLIError(message: String(format: String(localized: "cli.vm.env.setUnknownFlag", defaultValue: "vm env set: unknown flag '%1$@'\n\n%2$@"), String(describing: argument), String(describing: vmEnvUsage)))
             } else if machine == nil {
                 machine = argument
             } else {
@@ -610,11 +616,11 @@ extension CMUXCLI {
                 line = String(line.dropFirst("export".count)).trimmingCharacters(in: .whitespaces)
             }
             guard let separator = line.firstIndex(of: "=") else {
-                throw VMEnvError(description: "line \(index + 1): expected KEY=VALUE, got '\(rawLine.trimmingCharacters(in: .whitespaces))'")
+                throw VMEnvError(description: String(format: String(localized: "cli.vm.layoutEnv.lineValueExpectedKEYVALUEGotValue", defaultValue: "line %1$@: expected KEY=VALUE, got '%2$@'"), String(describing: index + 1), String(describing: rawLine.trimmingCharacters(in: .whitespaces))))
             }
             let key = line[..<separator].trimmingCharacters(in: .whitespaces)
             guard isValidVMEnvKey(key) else {
-                throw VMEnvError(description: "line \(index + 1): invalid variable name '\(key)' (keys match [A-Za-z_][A-Za-z0-9_]*)")
+                throw VMEnvError(description: String(format: String(localized: "cli.vm.layoutEnv.lineValueInvalidVariableNameValueKeysMatchAZa", defaultValue: "line %1$@: invalid variable name '%2$@' (keys match [A-Za-z_][A-Za-z0-9_]*)"), String(describing: index + 1), String(describing: key)))
             }
             let rawValue = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
             let value = parseVMEnvFileValue(rawValue)
@@ -626,7 +632,9 @@ extension CMUXCLI {
     struct VMLayoutDocumentError: Error, CustomStringConvertible {
         let path: String
         let reason: String
-        var description: String { "\(reason) at \(path)" }
+        var description: String {
+            String(format: String(localized: "cli.vm.layout.documentError", defaultValue: "%1$@ at %2$@"), reason, path)
+        }
     }
 
     /// A validated document: the layout node, where it sat in the wrapper, and the
@@ -640,10 +648,10 @@ extension CMUXCLI {
 
     static func parseVMLayoutDocument(_ data: Data) throws -> VMLayoutDocument {
         guard let object = try? JSONSerialization.jsonObject(with: data) else {
-            throw VMLayoutDocumentError(path: "$", reason: "not valid JSON")
+            throw VMLayoutDocumentError(path: "$", reason: String(localized: "cli.vm.layoutEnv.notValidJSON", defaultValue: "not valid JSON"))
         }
         guard let root = object as? [String: Any] else {
-            throw VMLayoutDocumentError(path: "$", reason: "layout document must be a JSON object")
+            throw VMLayoutDocumentError(path: "$", reason: String(localized: "cli.vm.layoutEnv.layoutDocumentMustBeAJSONObject", defaultValue: "layout document must be a JSON object"))
         }
         let document = try vmLayoutDocumentNode(root)
         try validateVMLayoutNode(document.node, path: document.nodePath)
@@ -659,13 +667,13 @@ extension CMUXCLI {
         }
         if let layout = root["layout"] {
             guard let node = layout as? [String: Any] else {
-                throw VMLayoutDocumentError(path: "$.layout", reason: "'layout' must be a layout node object")
+                throw VMLayoutDocumentError(path: "$.layout", reason: String(localized: "cli.vm.layoutEnv.layoutMustBeALayoutNodeObject", defaultValue: "'layout' must be a layout node object"))
             }
             return VMLayoutDocument(node: node, nodePath: "$.layout", name: root["name"] as? String, cwd: root["cwd"] as? String)
         }
         if let workspace = root["workspace"] as? [String: Any], let layout = workspace["layout"] {
             guard let node = layout as? [String: Any] else {
-                throw VMLayoutDocumentError(path: "$.workspace.layout", reason: "'layout' must be a layout node object")
+                throw VMLayoutDocumentError(path: "$.workspace.layout", reason: String(localized: "cli.vm.layoutEnv.layoutMustBeALayoutNodeObject", defaultValue: "'layout' must be a layout node object"))
             }
             return VMLayoutDocument(
                 node: node,
@@ -676,7 +684,7 @@ extension CMUXCLI {
         }
         throw VMLayoutDocumentError(
             path: "$",
-            reason: "no layout found: expected a node ({\"pane\": …} or {\"direction\": …}), {\"layout\": <node>}, or {\"workspace\": {\"layout\": <node>}}"
+            reason: String(localized: "cli.vm.layoutEnv.noLayoutFoundExpectedANodePaneOrDirectionLayout", defaultValue: "no layout found: expected a node ({\"pane\": …} or {\"direction\": …}), {\"layout\": <node>}, or {\"workspace\": {\"layout\": <node>}}")
         )
     }
 
@@ -689,22 +697,22 @@ extension CMUXCLI {
     /// allows them on the Mac.
     static func validateVMLayoutNode(_ value: Any, path: String) throws {
         guard let node = value as? [String: Any] else {
-            throw VMLayoutDocumentError(path: path, reason: "layout node must be an object")
+            throw VMLayoutDocumentError(path: path, reason: String(localized: "cli.vm.layoutEnv.layoutNodeMustBeAnObject", defaultValue: "layout node must be an object"))
         }
         let hasPane = node["pane"] != nil
         let hasDirection = node["direction"] != nil
         if hasPane && hasDirection {
-            throw VMLayoutDocumentError(path: path, reason: "layout node must not have both 'pane' and 'direction'")
+            throw VMLayoutDocumentError(path: path, reason: String(localized: "cli.vm.layoutEnv.layoutNodeMustNotHaveBothPaneAndDirection", defaultValue: "layout node must not have both 'pane' and 'direction'"))
         }
         if !hasPane && !hasDirection {
-            throw VMLayoutDocumentError(path: path, reason: "layout node needs 'pane' (a leaf) or 'direction' (a split)")
+            throw VMLayoutDocumentError(path: path, reason: String(localized: "cli.vm.layoutEnv.layoutNodeNeedsPaneALeafOrDirectionASplit", defaultValue: "layout node needs 'pane' (a leaf) or 'direction' (a split)"))
         }
         if hasPane {
             guard let pane = node["pane"] as? [String: Any] else {
-                throw VMLayoutDocumentError(path: "\(path).pane", reason: "'pane' must be an object")
+                throw VMLayoutDocumentError(path: "\(path).pane", reason: String(localized: "cli.vm.layoutEnv.paneMustBeAnObject", defaultValue: "'pane' must be an object"))
             }
             guard let surfaces = pane["surfaces"] as? [Any], !surfaces.isEmpty else {
-                throw VMLayoutDocumentError(path: "\(path).pane.surfaces", reason: "'surfaces' must be a non-empty array")
+                throw VMLayoutDocumentError(path: "\(path).pane.surfaces", reason: String(localized: "cli.vm.layoutEnv.surfacesMustBeANonEmptyArray", defaultValue: "'surfaces' must be a non-empty array"))
             }
             for (index, raw) in surfaces.enumerated() {
                 try validateVMLayoutSurface(raw, path: "\(path).pane.surfaces[\(index)]")
@@ -712,21 +720,21 @@ extension CMUXCLI {
             return
         }
         guard let direction = node["direction"] as? String, vmLayoutSplitDirections.contains(direction) else {
-            throw VMLayoutDocumentError(path: "\(path).direction", reason: "'direction' must be \"horizontal\" or \"vertical\"")
+            throw VMLayoutDocumentError(path: "\(path).direction", reason: String(localized: "cli.vm.layoutEnv.directionMustBeHorizontalOrVertical", defaultValue: "'direction' must be \"horizontal\" or \"vertical\""))
         }
         if let split = node["split"], !(split is NSNull) {
             // JSON booleans arrive as NSNumber too; only the CF type id tells them apart.
             guard let number = split as? NSNumber,
                   CFGetTypeID(number) != CFBooleanGetTypeID(),
                   number.doubleValue.isFinite else {
-                throw VMLayoutDocumentError(path: "\(path).split", reason: "'split' must be a number (the first child's share, 0.1–0.9)")
+                throw VMLayoutDocumentError(path: "\(path).split", reason: String(localized: "cli.vm.layoutEnv.splitMustBeANumberTheFirstChildSShare", defaultValue: "'split' must be a number (the first child's share, 0.1–0.9)"))
             }
         }
         guard let children = node["children"] as? [Any] else {
-            throw VMLayoutDocumentError(path: "\(path).children", reason: "'children' must be an array of exactly 2 layout nodes")
+            throw VMLayoutDocumentError(path: "\(path).children", reason: String(localized: "cli.vm.layoutEnv.childrenMustBeAnArrayOfExactly2LayoutNodes", defaultValue: "'children' must be an array of exactly 2 layout nodes"))
         }
         guard children.count == 2 else {
-            throw VMLayoutDocumentError(path: "\(path).children", reason: "split needs exactly 2 children (got \(children.count))")
+            throw VMLayoutDocumentError(path: "\(path).children", reason: String(format: String(localized: "cli.vm.layoutEnv.splitNeedsExactly2ChildrenGotValue", defaultValue: "split needs exactly 2 children (got %1$@)"), String(describing: children.count)))
         }
         for (index, child) in children.enumerated() {
             try validateVMLayoutNode(child, path: "\(path).children[\(index)]")
@@ -735,29 +743,29 @@ extension CMUXCLI {
 
     private static func validateVMLayoutSurface(_ value: Any, path: String) throws {
         guard let surface = value as? [String: Any] else {
-            throw VMLayoutDocumentError(path: path, reason: "surface must be an object")
+            throw VMLayoutDocumentError(path: path, reason: String(localized: "cli.vm.layoutEnv.surfaceMustBeAnObject", defaultValue: "surface must be an object"))
         }
         guard let type = surface["type"] as? String, vmLayoutSurfaceTypes.contains(type) else {
-            throw VMLayoutDocumentError(path: "\(path).type", reason: "'type' must be \"terminal\", \"browser\", or \"project\"")
+            throw VMLayoutDocumentError(path: "\(path).type", reason: String(localized: "cli.vm.layoutEnv.typeMustBeTerminalBrowserOrProject", defaultValue: "'type' must be \"terminal\", \"browser\", or \"project\""))
         }
         for key in ["name", "command", "cwd", "url"] {
             if let raw = surface[key], !(raw is NSNull), !(raw is String) {
-                throw VMLayoutDocumentError(path: "\(path).\(key)", reason: "'\(key)' must be a string")
+                throw VMLayoutDocumentError(path: "\(path).\(key)", reason: String(format: String(localized: "cli.vm.layoutEnv.valueMustBeAString", defaultValue: "'%1$@' must be a string"), String(describing: key)))
             }
         }
         if type == "browser", (surface["url"] as? String)?.isEmpty != false {
-            throw VMLayoutDocumentError(path: "\(path).url", reason: "browser surface needs url")
+            throw VMLayoutDocumentError(path: "\(path).url", reason: String(localized: "cli.vm.layoutEnv.browserSurfaceNeedsUrl", defaultValue: "browser surface needs url"))
         }
         if let env = surface["env"], !(env is NSNull) {
             guard let table = env as? [String: Any], table.values.allSatisfy({ $0 is String }) else {
-                throw VMLayoutDocumentError(path: "\(path).env", reason: "'env' must be an object of string values")
+                throw VMLayoutDocumentError(path: "\(path).env", reason: String(localized: "cli.vm.layoutEnv.envMustBeAnObjectOfStringValues", defaultValue: "'env' must be an object of string values"))
             }
             if let bad = table.keys.first(where: { !isValidVMEnvKey($0) }) {
-                throw VMLayoutDocumentError(path: "\(path).env.\(bad)", reason: "invalid variable name '\(bad)' (keys match [A-Za-z_][A-Za-z0-9_]*)")
+                throw VMLayoutDocumentError(path: "\(path).env.\(bad)", reason: String(format: String(localized: "cli.vm.layoutEnv.invalidVariableNameValueKeysMatchAZaZA", defaultValue: "invalid variable name '%1$@' (keys match [A-Za-z_][A-Za-z0-9_]*)"), String(describing: bad)))
             }
         }
         if let focus = surface["focus"], !(focus is NSNull), !(focus is Bool) {
-            throw VMLayoutDocumentError(path: "\(path).focus", reason: "'focus' must be true or false")
+            throw VMLayoutDocumentError(path: "\(path).focus", reason: String(localized: "cli.vm.layoutEnv.focusMustBeTrueOrFalse", defaultValue: "'focus' must be true or false"))
         }
     }
 

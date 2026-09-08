@@ -754,19 +754,19 @@ extension TerminalController {
     /// command line, or a terminal's visible screen. The result names keys only.
     nonisolated func socketWorkerVMEnvSetResponse(id: Any?, params: [String: Any]) -> String {
         guard let vmId = Self.surfaceString(params["id"]), !vmId.isEmpty else {
-            return v2Error(id: id, code: "invalid_params", message: "vm.env_set requires `id`. Run `cmux vm ls` to find one.")
+            return v2Error(id: id, code: "invalid_params", message: String(localized: "cli.vm.env.setRequiresIdRunCmuxVmLsTo", defaultValue: "vm.env_set requires `id`. Run `cmux vm ls` to find one."))
         }
         guard let rawEntries = params["entries"] as? [[String: Any]], !rawEntries.isEmpty else {
-            return v2Error(id: id, code: "invalid_params", message: "vm.env_set requires `entries`: a non-empty array of {key, value}.")
+            return v2Error(id: id, code: "invalid_params", message: String(localized: "cli.vm.env.setRequiresEntriesANonEmptyArrayOf", defaultValue: "vm.env_set requires `entries`: a non-empty array of {key, value}."))
         }
         var entries: [CloudEnvDelivery.Entry] = []
         for raw in rawEntries {
             // Raw strings: a value's whitespace is part of the value.
             guard let key = raw["key"] as? String, let value = raw["value"] as? String else {
-                return v2Error(id: id, code: "invalid_params", message: "vm.env_set: every entry needs a string `key` and a string `value`.")
+                return v2Error(id: id, code: "invalid_params", message: String(localized: "cli.vm.env.setEveryEntryNeedsAStringKeyAnd", defaultValue: "vm.env_set: every entry needs a string `key` and a string `value`."))
             }
             guard CloudEnvDelivery.isValidKey(key) else {
-                return v2Error(id: id, code: "invalid_params", message: "vm.env_set: invalid variable name '\(key)' (keys match [A-Za-z_][A-Za-z0-9_]*).")
+                return v2Error(id: id, code: "invalid_params", message: String(format: String(localized: "cli.vm.env.setInvalidVariableNameKeysMatchA", defaultValue: "vm.env_set: invalid variable name '%1$@' (keys match [A-Za-z_][A-Za-z0-9_]*)."), String(describing: key)))
             }
             entries.append(CloudEnvDelivery.Entry(key: key, value: value))
         }
