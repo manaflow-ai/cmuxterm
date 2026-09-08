@@ -249,3 +249,35 @@ describe("team account removal", () => {
     expect(result).toEqual({ removed: false });
   });
 });
+
+describe("team account removal misses", () => {
+  test("an id the vault does not hold is a miss, not an outage", async () => {
+    const { HostedSubrouterError } = await import("../services/subrouter/hostedClient");
+    const result = await removeTeamAccount({
+      teamId: "team_1",
+      accountId: "gone@example.com",
+      vault,
+      vaultClient: () =>
+        ({
+          tenantControlConfigured: true,
+          exchangeTeam: async () => ({
+            tenantId: "team_1",
+            tenantName: "Team",
+            tenantKey: "tenant-key",
+            proxyUrl: "https://example.invalid",
+            capabilities: ["use", "manage_accounts"],
+          }),
+          deleteAccount: async () => {
+            throw new HostedSubrouterError("account not found", 404);
+          },
+        }) as never,
+      removeNative: async () => ({
+        removed: false,
+        lastAccount: false,
+        legacyCleanupPending: false,
+      }),
+      removeClaude: async () => ({ removed: false }),
+    });
+    expect(result).toEqual({ removed: false });
+  });
+});

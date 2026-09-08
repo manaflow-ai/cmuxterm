@@ -14,6 +14,7 @@
  */
 import {
   createHostedSubrouterClient,
+  HostedSubrouterError,
   type HostedTeam,
 } from "../subrouter/hostedClient";
 import type { SubrouterAccount } from "../subrouter/types";
@@ -363,7 +364,17 @@ async function removeSharedAccount(
   const client = vaultClient();
   if (!client.tenantControlConfigured) return { removed: false };
   const tenant = await client.exchangeTeam(vault.accessToken, vault.team);
-  await client.deleteAccount(tenant.tenantKey, accountId);
+  try {
+    await client.deleteAccount(tenant.tenantKey, accountId);
+  } catch (error) {
+    // An id the vault does not hold is a miss, the same as a UUID that matches
+    // no row. Letting it escape would answer 503 and report an outage for what
+    // is only a stale id.
+    if (error instanceof HostedSubrouterError && error.status === 404) {
+      return { removed: false };
+    }
+    throw error;
+  }
   return {
     removed: true,
     source: "shared",
