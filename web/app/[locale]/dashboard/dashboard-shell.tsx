@@ -1,8 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
-import { ThemeToggle } from "@/app/[locale]/theme";
+import { Suspense, useState } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { DashboardAccountMenu } from "./dashboard-account-menu";
 
@@ -12,6 +11,7 @@ type DashboardNavGroup = {
     href: string;
     label: string;
     active: boolean;
+    prefetch?: boolean;
   }>;
 };
 
@@ -46,12 +46,26 @@ export function DashboardShell({
   }
   groups.push(
     {
+      label: t("cloudGroup"),
+      items: [
+        {
+          href: "/dashboard/cloud",
+          label: t("cloudDevices"),
+          active: pathname.startsWith("/dashboard/cloud"),
+        },
+      ],
+    },
+    {
       label: t("coderouterGroup"),
       items: [
         {
           href: "/dashboard/coderouter",
           label: t("coderouterOverview"),
           active: pathname.startsWith("/dashboard/coderouter"),
+          // These pages contain authorization-dependent data. Let the server
+          // check the session at click time instead of caching a private RSC
+          // snapshot in the browser before the click.
+          prefetch: false,
         },
       ],
     },
@@ -62,6 +76,7 @@ export function DashboardShell({
           href: "/dashboard/testflight",
           label: t("testflight"),
           active: pathname.startsWith("/dashboard/testflight"),
+          prefetch: false,
         },
       ],
     },
@@ -83,7 +98,10 @@ export function DashboardShell({
   );
 
   return (
-    <div className="min-h-screen bg-background text-sm text-foreground sm:grid sm:grid-cols-[13rem_minmax(0,1fr)]">
+    <div
+      data-testid="dashboard-shell"
+      className="min-h-screen bg-background text-sm text-foreground sm:grid sm:grid-cols-[13rem_minmax(0,1fr)]"
+    >
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-border bg-background sm:flex">
         <div className="flex h-11 shrink-0 items-center border-b border-border px-3">
           <Link
@@ -93,7 +111,10 @@ export function DashboardShell({
             {t("brand")}
           </Link>
         </div>
-        <DashboardNav groups={groups} className="flex-1 overflow-y-auto px-2 py-3 pb-28" />
+        <DashboardNav
+          groups={groups}
+          className="flex-1 overflow-y-auto px-2 py-3 pb-28"
+        />
       </aside>
 
       <div className="min-w-0">
@@ -116,8 +137,9 @@ export function DashboardShell({
               >
                 <DashboardMenuIcon open={mobileNavOpen} />
               </button>
-              <DashboardAccountMenu />
-              <ThemeToggle />
+              <Suspense fallback={<DashboardAccountMenuFallback />}>
+                <DashboardAccountMenu />
+              </Suspense>
             </div>
           </div>
           <DashboardNav
@@ -132,6 +154,10 @@ export function DashboardShell({
       </div>
     </div>
   );
+}
+
+function DashboardAccountMenuFallback() {
+  return <div aria-hidden="true" className="min-w-0 flex-1" />;
 }
 
 function DashboardNav({
@@ -151,31 +177,44 @@ function DashboardNav({
     <nav id={id} className={className} hidden={hidden}>
       <div className="space-y-4">
         {groups.map((group) => (
-          <div key={group.label}>
-            <p className="px-2 text-[11px] font-semibold text-foreground">
-              {group.label}
-            </p>
-            <div className="mt-1 space-y-0.5">
-              {group.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onNavigate}
-                  aria-current={item.active ? "page" : undefined}
-                  className={`block border-l px-2 py-1.5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground ${
-                    item.active
-                      ? "border-foreground bg-code-bg text-foreground"
-                      : "border-transparent text-muted hover:border-border hover:text-foreground"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
+          <DashboardNavGroupView key={group.label} group={group} onNavigate={onNavigate} />
         ))}
       </div>
     </nav>
+  );
+}
+
+function DashboardNavGroupView({
+  group,
+  onNavigate,
+}: {
+  group: DashboardNavGroup;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div>
+      <p className="px-2 text-[11px] font-semibold text-foreground">
+        {group.label}
+      </p>
+      <div className="mt-1 space-y-0.5">
+        {group.items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={item.prefetch}
+            onClick={onNavigate}
+            aria-current={item.active ? "page" : undefined}
+            className={`block border-l px-2 py-1.5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground ${
+              item.active
+                ? "border-foreground bg-code-bg text-foreground"
+                : "border-transparent text-muted hover:border-border hover:text-foreground"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 

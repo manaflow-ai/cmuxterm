@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type React from "react";
 
+const linkPrefetch = new Map<string, boolean | undefined>();
+
 mock.module("../app/[locale]/dashboard/dashboard-account-menu", () => ({
   DashboardAccountMenu: () => <span data-testid="account-control" />,
 }));
@@ -13,18 +15,19 @@ mock.module("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-mock.module("@/app/[locale]/theme", () => ({
-  ThemeToggle: () => <span data-testid="theme-control" />,
-}));
-
 mock.module("@/i18n/navigation", () => ({
   Link: ({
     href,
     children,
+    prefetch,
     ...props
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>{children}</a>
-  ),
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string;
+    prefetch?: boolean;
+  }) => {
+    linkPrefetch.set(href, prefetch);
+    return <a href={href} {...props}>{children}</a>;
+  },
   usePathname: () => "/dashboard/testflight",
 }));
 
@@ -33,7 +36,7 @@ const { DashboardShell } = await import(
 );
 
 describe("dashboard shell", () => {
-  test("mounts one account control and one theme control across responsive layouts", () => {
+  test("mounts one account control across responsive layouts", () => {
     const html = renderToStaticMarkup(
       <DashboardShell vaultEnabled>
         <p>Dashboard content</p>
@@ -41,7 +44,8 @@ describe("dashboard shell", () => {
     );
 
     expect(html.match(/data-testid="account-control"/g)).toHaveLength(1);
-    expect(html.match(/data-testid="theme-control"/g)).toHaveLength(1);
+    // The theme toggle lives inside the account menu, not in the shell footer.
+    expect(html).not.toContain("theme-control");
     expect(html).toContain('href="/dashboard/coderouter"');
     const billingIndex = html.indexOf('href="/dashboard/billing"');
     const teamIndex = html.indexOf('href="/dashboard/team"');
@@ -73,6 +77,7 @@ describe("dashboard shell", () => {
   });
 
   test("renders iOS TestFlight in its own section below coderouter", () => {
+    linkPrefetch.clear();
     const html = renderToStaticMarkup(
       <DashboardShell vaultEnabled>
         <p>Dashboard content</p>
@@ -88,5 +93,8 @@ describe("dashboard shell", () => {
     expect(coderouterIndex).toBeGreaterThan(-1);
     expect(testflightIndex).toBeGreaterThan(coderouterIndex);
     expect(billingIndex).toBeGreaterThan(testflightIndex);
+    // Auth-dependent pages must not be prefetched into a client snapshot.
+    expect(linkPrefetch.get("/dashboard/coderouter")).toBe(false);
+    expect(linkPrefetch.get("/dashboard/testflight")).toBe(false);
   });
 });

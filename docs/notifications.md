@@ -50,8 +50,21 @@ cmux notify --title "Build Complete"
 # With subtitle and body
 cmux notify --title "Claude Code" --subtitle "Permission" --body "Approval needed"
 
-# Notify specific tab/panel
+# Notify a specific workspace/surface
+cmux notify --title "Done" --workspace workspace:1 --surface surface:1
+
+# Compatibility form for older scripts
 cmux notify --title "Done" --tab 0 --panel 1
+
+# Capture the returned id and dismiss exactly that notification
+notification_id="$(cmux notify --title "Done" --body "Task complete" --id-format uuids | awk '$1 == "OK" {print $2}')"
+cmux dismiss-notification --id "$notification_id"
+
+# Clear notifications for the posting surface (same caller resolution as notify)
+cmux notify --clear
+
+# Clear a workspace or surface in a specific window
+cmux clear-notifications --window window:1 --workspace workspace:1 --surface surface:1
 ```
 
 ## Navigation
@@ -261,6 +274,34 @@ export const CmuxNotificationPlugin = async ({ $, }) => {
 };
 ```
 
+## Cloud machines
+
+Notifications from a cmux Cloud machine are owned by the machine. The
+cmux-tui daemon inside it posts a durable notification when an agent finishes
+a turn, needs approval, asks a question, requests plan review, or reports an
+error, and for `cmux-tui notify`. Every attached Mac receives those rows on the
+same state feed the Cloud tree uses, so a notification posted while the link
+was down arrives on reconnect, and a daemon restart does not lose it.
+
+Inside a machine, `cmux notify` takes the same flags as the local command
+(`--title`, `--subtitle`, `--body`, `--clear`, `--surface`, `--workspace`,
+`--json`) and posts to the machine's own ledger, so scripts and hooks written
+for a local terminal work unchanged. `--reply` is not available there.
+
+Read state is per client. Each row carries `read_by`, the client ids that
+acknowledged it. Reading the notification on this Mac (focusing the pane,
+marking it read, dismissing it) sends `notification.ack` under this Mac's
+client id. A second Mac attached to the same machine keeps its own unread
+state, and the machine's own TUI keeps its shared console marker.
+
+Locally these notifications behave like any other: they light the workspace
+and tab, appear in the notifications list and `cmux list-notifications`, post
+a system notification when cmux is in the background, and the Cloud tree
+shows a dot on the terminal until this Mac reads it. When no pane on this Mac
+shows the terminal, the notification lands on the local workspace bound to
+the machine; when no local workspace is bound, only the Cloud tree dot shows
+and delivery waits for a placement.
+
 ## Environment Variables
 
 cmux sets these in child shells:
@@ -274,13 +315,13 @@ cmux sets these in child shells:
 ## CLI Commands
 
 ```
-cmux notify --title <text> [--subtitle <text>] [--body <text>] [--tab <id|index>] [--panel <id|index>]
+cmux notify [--title <text>] [--subtitle <text>] [--body <text>] [--reply] [--clear] [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]
 cmux list-notifications
-cmux dismiss-notification (--id <notification-id> | --all-read)
-cmux mark-notification-read (--id <notification-id> | --workspace <id|ref> [--surface <id|ref>] | --all)
-cmux open-notification --id <notification-id>
+cmux dismiss-notification (--id <uuid|notification:<uuid>> | --all-read)
+cmux mark-notification-read (--id <uuid|notification:<uuid>> | --workspace <id|ref> [--surface <id|ref>] | --all)
+cmux open-notification --id <uuid|notification:<uuid>>
 cmux jump-to-unread
-cmux clear-notifications
+cmux clear-notifications [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]
 cmux set-status <key> <value>
 cmux clear-status <key>
 cmux ping
