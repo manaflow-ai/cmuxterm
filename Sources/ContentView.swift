@@ -11919,20 +11919,19 @@ struct VerticalTabsSidebar: View, Equatable {
             }
             if let panelIdsByWorkspaceId = notification.userInfo?["panelIdsByWorkspaceId"] as? [UUID: Set<UUID>] {
                 guard !panelIdsByWorkspaceId.isEmpty else { return }
-                // Use one current-owner projection for both watcher arming
-                // and snapshots, including stable panel IDs whose workspace
-                // owner rotated during restore or changed during a move.
-                let ownerByPanelID = sidebarPanelOwnership(
-                    in: renderContext,
+                // One projection supplies unique watcher owners and every row
+                // that must refresh, even if restored panel ownership is ambiguous.
+                let eventScope = Workspace.sidebarIndexEventScope(
+                    in: renderContext.tabs,
+                    workspaceByID: renderContext.workspaceById,
                     scopedTo: panelIdsByWorkspaceId
                 )
-                armSidebarProcessExitWatchers(for: ownerByPanelID)
-                // A notified owner may have just lost its final agent panel;
-                // refresh that row too, even when it has no watcher to arm.
-                let workspaceIDsToRefresh = Set(ownerByPanelID.values).union(
-                    panelIdsByWorkspaceId.keys.filter { renderContext.workspaceById[$0] != nil }
-                )
-                for workspaceID in workspaceIDsToRefresh {
+                if CmuxExtensionSidebarSelection.resolvesToDefaultSidebar(
+                    effectiveProviderId: effectiveExtensionSidebarProviderId
+                ) {
+                    armSidebarProcessExitWatchers(for: eventScope.ownerByPanelID)
+                }
+                for workspaceID in eventScope.workspaceIDsToRefresh {
                     scheduleWorkspaceSnapshotRefresh(workspaceId: workspaceID)
                 }
             } else if let workspaceId = notification.userInfo?["workspaceId"] as? UUID,

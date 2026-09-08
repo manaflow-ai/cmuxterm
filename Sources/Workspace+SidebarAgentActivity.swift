@@ -290,8 +290,12 @@ extension Workspace {
     ) -> (ownerByPanelID: [UUID: UUID], workspaceIDsToRefresh: Set<UUID>) {
         var ownerByPanelID: [UUID: UUID] = [:]
         var ambiguousPanelIDs = Set<UUID>()
+        var workspaceIDsToRefresh = Set<UUID>()
 
         func recordOwner(panelID: UUID, workspaceID: UUID) {
+            // Ambiguity forbids a watcher binding, not row invalidation. Both
+            // possible owners must discard a previously confident snapshot.
+            workspaceIDsToRefresh.insert(workspaceID)
             guard !ambiguousPanelIDs.contains(panelID) else { return }
             if let previousOwner = ownerByPanelID[panelID], previousOwner != workspaceID {
                 ownerByPanelID.removeValue(forKey: panelID)
@@ -308,6 +312,10 @@ extension Workspace {
             guard let workspaceByID else { return ([:], []) }
             var unmatchedPanelIDs = Set<UUID>()
             for (workspaceID, panelIDs) in panelIdsByWorkspaceId {
+                if workspaceByID[workspaceID] != nil {
+                    // An existing row may have just lost its final panel.
+                    workspaceIDsToRefresh.insert(workspaceID)
+                }
                 for panelID in panelIDs {
                     if workspaceByID[workspaceID]?.panels[panelID] != nil {
                         recordOwner(panelID: panelID, workspaceID: workspaceID)
@@ -332,9 +340,6 @@ extension Workspace {
             }
         }
 
-        let workspaceIDsToRefresh = Set(ownerByPanelID.values).union(
-            (panelIdsByWorkspaceId ?? [:]).keys.filter { workspaceByID?[$0] != nil }
-        )
         return (ownerByPanelID, workspaceIDsToRefresh)
     }
 
