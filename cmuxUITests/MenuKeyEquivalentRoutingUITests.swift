@@ -127,7 +127,7 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
 
         app.typeKey("f", modifierFlags: [.command, .shift])
 
-        let findField = app.textFields["FileExplorerSearchField"].firstMatch
+        let findField = app.searchFields["FileExplorerSearchField"].firstMatch
         XCTAssertTrue(findField.waitForExistence(timeout: 6.0), "Expected right sidebar file search after Cmd+Shift+F")
 
         app.typeText("needle")
