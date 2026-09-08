@@ -103,6 +103,25 @@ import Testing
     #expect(lines.last == "x")
 }
 
+@Test func textProjectionCapsScrollbackWhileWrapping() {
+    let maximumLines = MobileTerminalRenderGridFrame.maximumProjectedScrollbackLines
+    let source = (Array(repeating: "old!!", count: 257)
+        + Array(repeating: "new!!", count: maximumLines))
+        .joined(separator: "\n")
+
+    let projected = source.projectedTerminalText(
+        columns: 6,
+        rows: 1,
+        keepAllRows: true,
+        maximumLines: maximumLines
+    )
+    let lines = projected.split(separator: "\n", omittingEmptySubsequences: false)
+
+    #expect(lines.count == maximumLines)
+    #expect(lines.first == "new!!")
+    #expect(lines.last == "new!!")
+}
+
 @Test func viewportProjectionHonorsExplicitSpanWidthsAndWideGlyphs() throws {
     let style = MobileTerminalRenderGridFrame.Style(id: 1, bold: true)
     let frame = try MobileTerminalRenderGridFrame(
