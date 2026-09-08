@@ -287,6 +287,44 @@ struct TerminalArtifactChipCountStateTests {
         #expect(retry.localCount == 2)
     }
 
+    @Test("a failed scan retries after a queued count returns to the original")
+    func failedScanRetriesAfterQueuedCountRoundTrip() throws {
+        var state = TerminalArtifactChipCountState()
+        let first = try request(from: state.trigger(
+            localCount: 1,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+        #expect(state.trigger(
+            localCount: 2,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 2, surfaceGeneration: 1)))
+        #expect(state.trigger(
+            localCount: 1,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 1, surfaceGeneration: 1)))
+
+        _ = state.complete(
+            first,
+            sessionTotal: nil,
+            scanSucceeded: false,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 1
+        )
+
+        guard case .reportAndRequest(_, let retry) = state.trigger(
+            localCount: 1,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ) else {
+            Issue.record("Expected the failed round-trip scan to be retried")
+            throw UnexpectedAction()
+        }
+        #expect(retry.localCount == 1)
+    }
+
     @Test("a failed scan with fresh local evidence drops a held authoritative zero")
     func failedScanDropsHeldZero() throws {
         var state = TerminalArtifactChipCountState()
