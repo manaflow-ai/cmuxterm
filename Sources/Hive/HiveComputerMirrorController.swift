@@ -79,14 +79,18 @@ final class HiveComputerMirrorController {
     static func presentViewer(deviceID: String) {
         Task { @MainActor in
             guard HiveComputersService.shared.viewerTransportAvailable else { return }
+            #if DEBUG
             cmuxDebugLog("hive.presentViewer.begin device=\(deviceID.prefix(8))")
+            #endif
             let presentation: ComputersPresentationMode
             if let runtime = AppDelegate.shared?.settingsRuntime {
                 presentation = await runtime.jsonStore.value(for: runtime.catalog.computers.presentation)
             } else {
                 presentation = .windows
             }
+            #if DEBUG
             cmuxDebugLog("hive.presentViewer.mode \(presentation)")
+            #endif
             switch presentation {
             case .sidebar:
                 guard let appDelegate = AppDelegate.shared,
@@ -112,7 +116,9 @@ final class HiveComputerMirrorController {
                 let windowId = appDelegate.createMainWindow(shouldActivate: true)
                 let context = appDelegate.mainWindowContexts.values.first { $0.windowId == windowId }
                 guard let context else {
+                    #if DEBUG
                     cmuxDebugLog("hive.presentViewer.windowContextMissing windowId=\(windowId)")
+                    #endif
                     return
                 }
                 context.tabManager.hiveSidebarScopeModel.scope = .device(deviceID)
@@ -120,7 +126,10 @@ final class HiveComputerMirrorController {
                     deviceID: deviceID,
                     into: context.tabManager
                 )
+                _ = attached
+                #if DEBUG
                 cmuxDebugLog("hive.presentViewer.attached workspace=\(attached?.uuidString.prefix(8) ?? "nil")")
+                #endif
             }
         }
     }
@@ -146,7 +155,9 @@ final class HiveComputerMirrorController {
             )
         }
         guard let session = await HiveComputersService.shared.embeddedSession(deviceID: deviceID) else {
+            #if DEBUG
             cmuxDebugLog("hive.mirror.attach.noSession device=\(deviceID.prefix(8))")
+            #endif
             return nil
         }
         // A failed session remains cached so every window shares one transport,

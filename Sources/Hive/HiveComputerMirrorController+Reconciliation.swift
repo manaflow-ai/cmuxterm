@@ -87,12 +87,12 @@ extension HiveComputerMirrorController {
                 remoteTitle: remote.title,
                 computerName: mirror.computerName
             )
-            let workspace = tabManager.addWorkspace(
+            guard let workspace = tabManager.addWorkspaceIfActive(
                 title: title,
                 select: false,
                 autoWelcomeIfNeeded: false,
                 autoRefreshMetadata: false
-            )
+            ) else { continue }
             // Reuses the remote-tmux mirror behavior set: manual-I/O display
             // tabs, restore exclusion, no local browser panes. Remote-tmux
             // command routing no-ops for this workspace (no tmux mirror is
