@@ -54,6 +54,60 @@ import Testing
         #expect(await rejectedLog.recentEvents().isEmpty)
     }
 
+    @Test func interactiveHistoryDoesNotWaitForStartupSigningSecret() async throws {
+        var signingSecretReady = false
+        var resumeCallbacks: [@MainActor @Sendable () -> Void] = []
+        try await withWindowHistory(
+            initialPhase: .launching,
+            startupSessionRestoreDeferral: { resume in
+                guard !signingSecretReady else { return false }
+                resumeCallbacks.append(resume)
+                return true
+            }
+        ) { app, log in
+            let firstWindowId = app.createMainWindow(shouldActivate: false)
+            let manager = try #require(app.tabManagerFor(windowId: firstWindowId))
+            let startupWorkspace = try #require(manager.selectedWorkspace)
+            #expect(!app.didAttemptStartupSessionRestore)
+            #expect(log.phase == .active)
+
+            let workspace = manager.addWorkspace(select: false, autoWelcomeIfNeeded: false)
+            #expect(manager.setCustomTitle(tabId: workspace.id, title: "While restore is waiting"))
+            manager.closeWorkspace(workspace)
+            let secondWindowId = app.createMainWindow(shouldActivate: false)
+            let secondWorkspace = try #require(app.tabManagerFor(windowId: secondWindowId)?.selectedWorkspace)
+            await log.flushPendingRecords()
+
+            let events = await log.recentEvents()
+            #expect(events.count == 5)
+            #expect(events.filter { $0.kind == .windowOpened }.map(\.subject.windowId) == [secondWindowId])
+            #expect(Set(events.filter { $0.kind == .workspaceCreated }.compactMap(\.subject.workspaceId))
+                == Set([workspace.id, secondWorkspace.id]))
+            #expect(events.filter { $0.kind == .workspaceRenamed }.map(\.subject.workspaceId) == [workspace.id])
+            #expect(events.filter { $0.kind == .workspaceClosed }.map(\.subject.workspaceId) == [workspace.id])
+            #expect(!events.contains { $0.subject.workspaceId == startupWorkspace.id })
+            #expect(!app.didAttemptStartupSessionRestore)
+
+            // The external callback may be delayed indefinitely. When it does
+            // arrive, the real startup continuation must not add restore noise.
+            let resume = try #require(resumeCallbacks.first)
+            signingSecretReady = true
+            resume()
+            #expect(app.didAttemptStartupSessionRestore)
+            #expect(log.phase == .active)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().map(\.id) == events.map(\.id))
+
+            app.isApplyingSessionRestore = true
+            #expect(log.phase == .restoring)
+            #expect(manager.setCustomTitle(tabId: startupWorkspace.id, title: "Restored title"))
+            app.isApplyingSessionRestore = false
+            #expect(log.phase == .active)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().map(\.id) == events.map(\.id))
+        }
+    }
+
     @Test func workspaceRecordingDistinguishesSemanticCreationFromBootstrapAndRestore() async {
         let store = VaultHistoryEventStore(fileURL: nil)
         let log = VaultHistoryEventLog(store: store, phase: .active)
@@ -320,6 +374,8 @@ import Testing
     private func withWindowHistory(
         configuredActionId: String? = nil,
         configuredActionExecutor: AppDelegate.ConfiguredActionExecutor? = nil,
+        initialPhase: VaultHistoryRecordingPhase = .active,
+        startupSessionRestoreDeferral: AppDelegate.StartupSessionRestoreDeferral? = nil,
         _ body: (AppDelegate, VaultHistoryEventLog) async throws -> Void
     ) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("vault-history-actions-\(UUID())")
@@ -332,11 +388,12 @@ import Testing
             _ = NSApplication.shared
             let previousDelegate = AppDelegate.shared
             let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
-            let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: .active)
+            let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: initialPhase)
             let app = AppDelegate(
                 vaultHistoryEventLog: log,
                 windowConfigStoreFactory: { CmuxConfigStore(globalConfigPath: configURL.path) },
-                configuredActionExecutor: configuredActionExecutor
+                configuredActionExecutor: configuredActionExecutor,
+                startupSessionRestoreDeferral: startupSessionRestoreDeferral
             )
             defer {
                 for windowId in app.mainWindowContexts.values.map(\.windowId) {
