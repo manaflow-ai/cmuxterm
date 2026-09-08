@@ -344,12 +344,12 @@ struct CmxIrohEndpointServerTests {
             connection,
             generation,
             admission in
-            await recorder.record(
+            #expect(await admission())
+            let admissionOrder = await recorder.record(
                 identity: await connection.remoteIdentity(),
                 generation: generation
             )
-            #expect(await admission())
-            if await recorder.recordedCount() == 2 {
+            if admissionOrder == 2 {
                 #expect(await admission.markUsable())
             }
             await blocker.wait()
@@ -447,14 +447,16 @@ actor EndpointServerRecorder {
     private var waiters: [CheckedContinuation<Event, Never>] = []
     private var totalRecordedCount = 0
 
-    func record(identity: CmxIrohPeerIdentity, generation: UInt64) {
+    func record(identity: CmxIrohPeerIdentity, generation: UInt64) -> Int {
         totalRecordedCount += 1
+        let admissionOrder = totalRecordedCount
         let event = (identity, generation)
         if waiters.isEmpty {
             events.append(event)
         } else {
             waiters.removeFirst().resume(returning: event)
         }
+        return admissionOrder
     }
 
     func next() async -> Event {
