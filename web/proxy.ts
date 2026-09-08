@@ -17,6 +17,7 @@ import {
   DASHBOARD_RETURN_PATH_HEADER,
   dashboardReturnPathForRequest,
 } from "./app/lib/dashboard-return-path";
+import { localizedVaultPath, vaultSignInHref } from "./app/lib/vault-auth";
 import {
   VM_REFLECTION_ALIAS_HEADER,
   VM_REFLECTION_ALIAS_VALUE,
@@ -33,61 +34,7 @@ export default function middleware(incomingRequest: NextRequest) {
     routing.locales,
   );
   const host = request.headers.get("host") ?? "";
-  const { pathname } = request.nextUrl;
 
-  let response = handleHostAndMachineRoutes(request, host, pathname);
-  if (response) return response;
-
-  response = handlePageRoutes(request, pathname);
-  if (response) return response;
-
-  const featureWorkflowDocRequest =
-    featureWorkflowDocRequestForPathname(pathname);
-  const fallbackContentRequest = fallbackContentRequestForPathname(pathname);
-
-  response = handleLocalizedContentRoutes(
-    request,
-    featureWorkflowDocRequest,
-    fallbackContentRequest,
-  );
-  if (response) return response;
-
-  response = handleLegalAndDocsRoutes(request, pathname);
-  if (response) return response;
-
-  response = intlMiddleware(request);
-  if (featureWorkflowDocRequest) {
-    setFeatureWorkflowDocLinkHeader(
-      response,
-      request,
-      featureWorkflowDocRequest.path,
-    );
-  }
-  if (fallbackContentRequest) {
-    setFallbackContentLinkHeader(
-      response,
-      request,
-      fallbackContentRequest.path,
-      fallbackContentRequest.locales,
-    );
-  }
-
-  if (dashboardReturnPath) {
-    setRequestHeaderOverride(
-      response,
-      DASHBOARD_RETURN_PATH_HEADER,
-      dashboardReturnPath,
-    );
-  }
-
-  return response;
-}
-
-function handleHostAndMachineRoutes(
-  request: NextRequest,
-  host: string,
-  pathname: string,
-): NextResponse | undefined {
   // 301 redirect cmux.dev (and www.cmux.dev) to cmux.com, preserving path and query
   if (host === "cmux.dev" || host === "www.cmux.dev") {
     const url = new URL(request.url);
@@ -95,6 +42,8 @@ function handleHostAndMachineRoutes(
     url.protocol = "https:";
     return NextResponse.redirect(url.toString(), 301);
   }
+
+  const { pathname } = request.nextUrl;
 
   // A cmux Cloud machine dialing its reflection alias
   // (`https://reflection.cmux.internal/<path>`): the platform edge marks the
@@ -124,7 +73,10 @@ function handleHostAndMachineRoutes(
   // OpenAI-compatible coderouter traffic is a machine endpoint, never a
   // localized page. Keep this explicit in addition to the matcher exclusion
   // so direct middleware tests and future matcher edits fail safely.
-  if (pathname === "/v1/responses" || pathname === "/v1/codex/responses") {
+  if (
+    pathname === "/v1/responses" ||
+    pathname === "/v1/codex/responses"
+  ) {
     return NextResponse.next();
   }
 
@@ -138,9 +90,7 @@ function handleHostAndMachineRoutes(
   // cmux consumes this marker before navigation. If an ordinary browser
   // reaches the server, canonicalize the URL while preserving every public
   // query parameter.
-  if (
-    request.nextUrl.searchParams.get("cmux_open_in_browser") === "split-right"
-  ) {
+  if (request.nextUrl.searchParams.get("cmux_open_in_browser") === "split-right") {
     const url = request.nextUrl.clone();
     url.searchParams.delete("cmux_open_in_browser");
     return NextResponse.redirect(url, 307);
@@ -168,22 +118,7 @@ function handleHostAndMachineRoutes(
     url.pathname = `${changelogMatch[1] ?? ""}/docs/changelog${changelogMatch[2] ?? ""}`;
     return NextResponse.redirect(url, 307);
   }
-  return undefined;
-}
 
-function handlePageRoutes(
-  request: NextRequest,
-  pathname: string,
-): NextResponse | undefined {
-  const specialPageResponse = handleSpecialPageRoutes(request, pathname);
-  if (specialPageResponse) return specialPageResponse;
-  return handleBillingAndAssetBypasses(request, pathname);
-}
-
-function handleSpecialPageRoutes(
-  request: NextRequest,
-  pathname: string,
-): NextResponse | undefined {
   if (isAgentPageVariantPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/agent-page-variant";
@@ -223,7 +158,10 @@ function handleSpecialPageRoutes(
 
   if (pathname === "/app-pro-welcome" || pathname === "/app-pro-welcome/") {
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-next-intl-locale", preferredAppRouteLocale(request));
+    requestHeaders.set(
+      "x-next-intl-locale",
+      preferredAppRouteLocale(request),
+    );
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -256,13 +194,6 @@ function handleSpecialPageRoutes(
     });
   }
 
-  return undefined;
-}
-
-function handleBillingAndAssetBypasses(
-  request: NextRequest,
-  pathname: string,
-): NextResponse | undefined {
   // Other post-checkout pages still live outside the [locale] tree, like
   // /app-pricing. Without this bypass next-intl rewrites them into /<locale>/
   // billing/... which has no route and 404s through the pass-through layout.
@@ -281,7 +212,10 @@ function handleBillingAndAssetBypasses(
   // opaque auth transaction URL stable while still selecting localized copy.
   if (pathname === "/cloud/access" || pathname === "/cloud/access/") {
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-next-intl-locale", preferredAppRouteLocale(request));
+    requestHeaders.set(
+      "x-next-intl-locale",
+      preferredAppRouteLocale(request),
+    );
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -292,21 +226,15 @@ function handleBillingAndAssetBypasses(
   }
 
   const isChangelogVersionPath =
-    /^(?:\/[a-z]{2}(?:-[A-Z]{2})?)?\/docs\/changelog\/[^/]+\/?$/.test(pathname);
+    /^(?:\/[a-z]{2}(?:-[A-Z]{2})?)?\/docs\/changelog\/[^/]+\/?$/.test(
+      pathname,
+    );
   if (pathname.includes(".") && !isChangelogVersionPath) {
     return NextResponse.next();
   }
 
-  return undefined;
-}
-
-function handleLocalizedContentRoutes(
-  request: NextRequest,
-  featureWorkflowDocRequest: ReturnType<
-    typeof featureWorkflowDocRequestForPathname
-  >,
-  fallbackContentRequest: ReturnType<typeof fallbackContentRequestForPathname>,
-): NextResponse | undefined {
+  const featureWorkflowDocRequest =
+    featureWorkflowDocRequestForPathname(pathname);
   if (featureWorkflowDocRequest && !featureWorkflowDocRequest.locale) {
     const url = request.nextUrl.clone();
     url.pathname = `/en${featureWorkflowDocRequest.path}`;
@@ -319,6 +247,7 @@ function handleLocalizedContentRoutes(
     return response;
   }
 
+  const fallbackContentRequest = fallbackContentRequestForPathname(pathname);
   if (fallbackContentRequest && !fallbackContentRequest.locale) {
     const preferredLocale = preferredFallbackContentLocale(
       request,
@@ -349,13 +278,7 @@ function handleLocalizedContentRoutes(
     url.pathname = fallbackContentRequest.path;
     return NextResponse.redirect(url, 301);
   }
-  return undefined;
-}
 
-function handleLegalAndDocsRoutes(
-  request: NextRequest,
-  pathname: string,
-): NextResponse | undefined {
   // The remaining legal pages are English-only. Redirect
   // /<locale>/legal-page to /legal-page, and skip next-intl for /legal-page so
   // locale detection can't redirect back. The privacy policy has complete
@@ -436,7 +359,73 @@ function handleLegalAndDocsRoutes(
     url.pathname = "/en/docs/managed-policies";
     return NextResponse.rewrite(url);
   }
-  return undefined;
+
+  const response = intlMiddleware(request);
+  if (featureWorkflowDocRequest) {
+    setFeatureWorkflowDocLinkHeader(
+      response,
+      request,
+      featureWorkflowDocRequest.path,
+    );
+  }
+  if (fallbackContentRequest) {
+    setFallbackContentLinkHeader(
+      response,
+      request,
+      fallbackContentRequest.path,
+      fallbackContentRequest.locales,
+    );
+  }
+
+  return dashboardReturnPath
+    ? dashboardResponse(request, response, dashboardReturnPath)
+    : response;
+}
+
+/**
+ * A visitor with no Stack session cookie cannot be signed in. Redirect at the
+ * edge so a cold dashboard entry never renders the shell for them, and so the
+ * server components only meet sessions worth verifying. Otherwise forward the
+ * destination for the server-side sign-in redirect.
+ */
+function dashboardResponse(
+  request: NextRequest,
+  response: NextResponse,
+  dashboardReturnPath: string,
+): NextResponse {
+  if (!hasStackSessionCookie(request)) {
+    const url = request.nextUrl.clone();
+    const target = vaultSignInHref(
+      localizedVaultPath(requestPathLocale(request), dashboardReturnPath),
+    );
+    url.pathname = target.slice(0, target.indexOf("?"));
+    url.search = target.slice(target.indexOf("?"));
+    return NextResponse.redirect(url, 307);
+  }
+  setRequestHeaderOverride(
+    response,
+    DASHBOARD_RETURN_PATH_HEADER,
+    dashboardReturnPath,
+  );
+  return response;
+}
+
+/** The locale already in the path, else the visitor's preferred locale. */
+function requestPathLocale(
+  request: NextRequest,
+): (typeof routing.locales)[number] {
+  const [, first] = request.nextUrl.pathname.split("/");
+  if (first && localeSet.has(first)) {
+    return first as (typeof routing.locales)[number];
+  }
+  return preferredAppRouteLocale(request);
+}
+
+function hasStackSessionCookie(request: NextRequest): boolean {
+  const projectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID?.trim();
+  // Without Stack the dashboard redirects home on the server instead.
+  if (!projectId) return true;
+  return Boolean(request.cookies.get(`stack-refresh-${projectId}`)?.value);
 }
 
 /**
@@ -471,7 +460,11 @@ function setFallbackContentLinkHeader(
 ) {
   response.headers.set(
     "Link",
-    buildAlternateLinkHeader(requestOrigin(request), path, availableLocales),
+    buildAlternateLinkHeader(
+      requestOrigin(request),
+      path,
+      availableLocales,
+    ),
   );
 }
 
@@ -483,10 +476,7 @@ function preferredFallbackContentLocale(
   if (cookieLocale && hasFallbackContent(cookieLocale, availableLocales)) {
     return cookieLocale as (typeof routing.locales)[number];
   }
-  if (
-    cookieLocale &&
-    routing.locales.some((locale) => locale === cookieLocale)
-  ) {
+  if (cookieLocale && routing.locales.some((locale) => locale === cookieLocale)) {
     return "en";
   }
 
@@ -501,10 +491,7 @@ function preferredAppRouteLocale(
   request: NextRequest,
 ): (typeof routing.locales)[number] {
   const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value;
-  if (
-    cookieLocale &&
-    routing.locales.some((locale) => locale === cookieLocale)
-  ) {
+  if (cookieLocale && routing.locales.some((locale) => locale === cookieLocale)) {
     return cookieLocale as (typeof routing.locales)[number];
   }
   return preferredLocaleFromAcceptLanguage(
