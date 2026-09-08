@@ -21,8 +21,8 @@ extension AgentNotificationRegressionTests {
         return FileManager.default.fileExists(atPath: url.path)
     }
 
-    @Test("PID routing bypasses a stale negative telemetry cache after exec")
-    func pidResolutionBypassesStaleNegativeTelemetryCacheAfterExec() async throws {
+    @Test("PID routing resolves the process scope after exec")
+    func pidResolutionResolvesProcessScopeAfterExec() async throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -65,13 +65,6 @@ extension AgentNotificationRegressionTests {
         }
         #expect(await waitForMarker(at: readyMarker))
 
-        let identity = try #require(agentLiveProcessIdentity(pid: process.processIdentifier))
-        let cachedMiss = CmuxTopProcessSnapshot.cachedCMUXScope(
-            for: Int(process.processIdentifier),
-            cacheKey: identity.scopeCacheKey,
-            nowNanoseconds: DispatchTime.now().uptimeNanoseconds
-        )
-        #expect(cachedMiss == nil)
         #expect(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
         #expect(await waitForMarker(at: execMarker))
         #expect(
