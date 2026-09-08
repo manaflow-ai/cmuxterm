@@ -107,3 +107,45 @@ import Testing
     #expect(state.hydrationNeeded)
     #expect(state.requiresHydration(for: replacement))
 }
+
+/// Verifies normal history growth after a retained replay does not invalidate
+/// an otherwise healthy same-producer mirror.
+@Test func sameProducerHistoryGrowthAfterRetainedReplayStaysHydrated() throws {
+    var state = MobileTerminalMirrorState()
+    let delivered = try MobileTerminalRenderGridFrame(
+        surfaceID: "surface",
+        stateSeq: 10,
+        renderEpoch: "epoch-1",
+        renderRevision: 1,
+        columns: 80,
+        rows: 4,
+        full: true,
+        rowSpans: [],
+        scrollbackRows: 20,
+        anchor: .screen,
+        historyRows: 20,
+        rowSpaceRevision: 1
+    )
+    state.record(delivered)
+    state.prepareForReconnect(hasDeliveredFrame: true)
+
+    var replay = delivered
+    replay.stateSeq = 11
+    replay.renderRevision = 2
+    replay.scrollbackRows = 0
+    replay.scrollbackSpans = []
+    state.record(replay)
+    #expect(!state.hydrationNeeded)
+
+    var historyGrowth = replay
+    historyGrowth.stateSeq = 12
+    historyGrowth.renderRevision = 3
+    historyGrowth.historyRows = 21
+    historyGrowth.rowSpaceRevision = 2
+    historyGrowth.scrollbackRows = 0
+    historyGrowth.scrollbackSpans = []
+    state.record(historyGrowth)
+
+    #expect(!state.hydrationNeeded)
+    #expect(!state.requiresHydration(for: historyGrowth))
+}

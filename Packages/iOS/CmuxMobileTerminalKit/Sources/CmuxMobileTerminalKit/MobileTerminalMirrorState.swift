@@ -45,6 +45,9 @@ public struct MobileTerminalMirrorState: Sendable {
     /// identity and history metadata still match the visible mirror. If those
     /// values changed, the visible screen may still be useful, but its
     /// scrollback must be rehydrated before a zero-row repaint is trusted.
+    /// Once a retained replay has completed, normal history growth and
+    /// row-space changes are accepted; a producer identity change still
+    /// invalidates the local scrollback baseline.
     /// - Parameter frame: The accepted authoritative frame.
     public mutating func record(_ frame: MobileTerminalRenderGridFrame) {
         if retainedAcrossReconnect {
@@ -61,7 +64,7 @@ public struct MobileTerminalMirrorState: Sendable {
             || frame.activeScreen == .alternate
         if frame.full,
            hasKnownProducerMetadata,
-           !matchesRetainedBaseline(frame),
+           !matchesRetainedProducer(frame),
            !hydrationSatisfied {
             // A producer change after a retained replay is still unsafe even
             // after the replay cleared `retainedAcrossReconnect`. A live full
@@ -105,6 +108,16 @@ public struct MobileTerminalMirrorState: Sendable {
         return renderEpoch == frame.renderEpoch
             && historyRows == frameHistoryRows
             && rowSpaceRevision == frameRowSpaceRevision
+    }
+
+    private func matchesRetainedProducer(
+        _ frame: MobileTerminalRenderGridFrame
+    ) -> Bool {
+        guard let renderEpoch,
+              !frame.renderEpoch.isEmpty else {
+            return false
+        }
+        return renderEpoch == frame.renderEpoch
     }
 
     private var hasKnownProducerMetadata: Bool {
