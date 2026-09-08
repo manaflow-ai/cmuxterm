@@ -79,6 +79,29 @@ import Testing
         #expect(CloudEnvDelivery.outcome(fromScreen: "CMUX-ENV-READY\n$ ") == nil)
     }
 
+    @Test(arguments: [false, true])
+    func receiverPhasesAcceptDaemonReplies(wrapped: Bool) throws {
+        let ready: [String: Any] = ["matched": true, "text": "CMUX-ENV-READY\n"]
+        let result: [String: Any] = ["matched": true, "text": "CMUX-ENV-OK keys=2 path=/root/.config/cmux/env\n"]
+        try CloudEnvDelivery.requireReady(wrapped ? ["value": ready] : ready, machineID: "test-machine")
+        #expect(try CloudEnvDelivery.requireOutcome(wrapped ? ["value": result] : result) == .ok(keys: 2, path: "/root/.config/cmux/env"))
+    }
+
+    @Test func wrappedReceiverFailuresKeepTheirDiagnostics() {
+        #expect(throws: CloudEnvDelivery.DeliveryError.outdatedShim("test-machine")) {
+            try CloudEnvDelivery.requireReady(["value": ["matched": false, "text": "unknown resource scope env"]], machineID: "test-machine")
+        }
+        #expect(throws: CloudEnvDelivery.DeliveryError.receiverNotReady("still starting")) {
+            try CloudEnvDelivery.requireReady(["value": ["matched": false, "text": "still starting"]], machineID: "test-machine")
+        }
+        #expect(throws: CloudEnvDelivery.DeliveryError.receiverFailed("invalid-key 1BAD")) {
+            try CloudEnvDelivery.requireOutcome(["value": ["matched": true, "text": "CMUX-ENV-ERR invalid-key 1BAD\n"]])
+        }
+        #expect(throws: CloudEnvDelivery.DeliveryError.noResult("CMUX-ENV-READY")) {
+            try CloudEnvDelivery.requireOutcome(["value": ["matched": false, "text": "CMUX-ENV-READY"]])
+        }
+    }
+
     @Test func outdatedShimIsRecognizedFromTheScreen() {
         #expect(CloudEnvDelivery.looksLikeOutdatedShim("error: unknown resource scope \"env\"\n"))
         #expect(CloudEnvDelivery.looksLikeOutdatedShim("cmux: unknown env command 'receive'"))

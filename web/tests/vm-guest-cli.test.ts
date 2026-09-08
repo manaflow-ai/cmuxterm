@@ -918,12 +918,23 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(run.stderr).toContain("warning");
     });
 
+    test.each([false, true])("uses the saved layout name without workspace metadata (explicit override: %s)", (override) => {
+      const dir = makeStatefulDir();
+      const saved = { name: "saved-dev", workspace: { layout: { pane: { surfaces: [{ type: "terminal" }] } } } };
+      const args = ["layout", "apply", "--json", ...(override ? ["--name", "explicit"] : []), "-"];
+      const run = runStateful(dir, args, {}, JSON.stringify(saved));
+      expect(run.status).toBe(0);
+      const expectedName = override ? "explicit" : "saved-dev";
+      expect(run.calls.map(stripRoute)[0]).toEqual(["--json", "workspace", "create", "--empty", "--name", expectedName]);
+      expect(JSON.parse(run.stdout).workspace_name).toBe(expectedName);
+    });
+
     test("accepts a saved layout wrapper and a bare node; rejects malformed documents with the JSON path", () => {
       const dir = makeStatefulDir();
       const saved = { name: "dev", description: "x", workspace: { name: "from-saved", cwd: "~/src", layout: { pane: { surfaces: [{ type: "terminal", cwd: "app" }] } } } };
       const savedRun = runStateful(dir, ["layout", "apply", "-"], {}, JSON.stringify(saved));
       expect(savedRun.status).toBe(0);
-      expect(savedRun.calls.map(stripRoute)[0]).toEqual(["--json", "workspace", "create", "--empty", "--name", "from-saved"]);
+      expect(savedRun.calls.map(stripRoute)[0]).toEqual(["--json", "workspace", "create", "--empty", "--name", "dev"]);
       expect(savedRun.calls.map(stripRoute)[1]).toEqual(["--json", "workspace", "ws_new1", "run", "--on-exit", "keep", "--cwd", `${dir}/src/app`, "--", "bash", "-l"]);
 
       const bare = runStateful(dir, ["layout", "apply", "-"], {}, JSON.stringify({ pane: { surfaces: [{ type: "terminal" }] } }));
