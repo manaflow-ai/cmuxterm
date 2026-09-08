@@ -16659,7 +16659,7 @@ struct TabItemView: View, Equatable {
     }
 
     private struct SidebarRepositoryLinkRow: View {
-        let repositoryLink: SidebarRepositoryLinkState
+        let repositoryLink: SidebarWorkspaceSnapshotBuilder.RepositoryLinkDisplay
         let font: Font
         let symbolPointSize: CGFloat
         let color: Color
