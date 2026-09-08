@@ -28229,6 +28229,10 @@ struct CMUXCLI {
                 store: sessionStore,
                 telemetry: telemetry
             )
+            _ = try? sendV1Command(
+                "clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                client: client
+            )
             try setClaudeStatus(
                 client: client,
                 workspaceId: workspaceId,
@@ -28891,6 +28895,10 @@ struct CMUXCLI {
             } else {
                 statusValue = "Running"
             }
+            _ = try? sendV1Command(
+                "clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                client: client
+            )
             try setClaudeStatus(
                 client: client,
                 workspaceId: workspaceId,

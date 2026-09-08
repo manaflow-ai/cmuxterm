@@ -108,7 +108,7 @@ final class SessionIndexTableController: NSObject, NSTableViewDataSource, NSTabl
             forName: NSView.boundsDidChangeNotification,
             object: scrollView.contentView,
             queue: .main
-        ) { [weak self, weak table] _ in
+        ) { @MainActor [weak self, weak table] _ in
             guard let self, let table, !self.isApplyingRows else { return }
             self.reconcilePresentation(in: table)
         }
