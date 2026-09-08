@@ -7,10 +7,8 @@ struct GitConfigLogicalLineReader {
         var logicalLines: [String] = []
         var pendingLine: String?
 
-        for rawPhysicalLine in config.components(separatedBy: "\n") {
-            let physicalLine = rawPhysicalLine.last == "\r"
-                ? String(rawPhysicalLine.dropLast())
-                : rawPhysicalLine
+        let normalizedConfig = config.replacingOccurrences(of: "\r\n", with: "\n")
+        for physicalLine in normalizedConfig.components(separatedBy: .newlines) {
             if pendingLine == nil {
                 pendingLine = physicalLine
             } else {
