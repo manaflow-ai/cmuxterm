@@ -159,6 +159,22 @@ import Testing
     #expect(projected.cursor == nil)
 }
 
+@Test func viewportProjectionDropsCursorInCroppedWrappedPrefix() throws {
+    let frame = try MobileTerminalRenderGridFrame.fromPlainRows(
+        surfaceID: "surface-a",
+        stateSeq: 1,
+        columns: 8,
+        rows: 1,
+        text: "abcdefgh",
+        cursor: .init(row: 0, column: 1)
+    )
+
+    let projected = frame.projectedViewport(columns: 4, rows: 1)
+
+    #expect(projected.plainRows() == ["efgh"])
+    #expect(projected.cursor == nil)
+}
+
 @Test func viewportProjectionPreservesCursorInTrimmedTrailingCells() throws {
     let frame = try MobileTerminalRenderGridFrame.fromPlainRows(
         surfaceID: "surface-a",

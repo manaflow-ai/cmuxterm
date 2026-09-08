@@ -99,18 +99,23 @@ extension MobileTerminalRenderGridFrame {
                 let isEmptyRow = line.cells.allSatisfy {
                     $0.styleID == 0 && $0.width == 1 && $0.text == " "
                 }
-                var mapped = cursor
-                mapped.row = lineIndex - firstVisibleLine
-                if isEmptyRow {
-                    mapped.column = 0
-                } else {
-                    let lineStart = line.cells.first?.sourceColumn ?? cursor.column
-                    mapped.column = min(
-                        max(0, cursor.column - lineStart),
-                        columns - 1
-                    )
+                let lineStart = line.cells.first?.sourceColumn ?? cursor.column
+                let lineEnd = line.cells.last.map {
+                    $0.sourceColumn + max($0.width, 1)
+                } ?? lineStart
+                if isEmptyRow || cursor.column >= lineEnd {
+                    var mapped = cursor
+                    mapped.row = lineIndex - firstVisibleLine
+                    if isEmptyRow {
+                        mapped.column = 0
+                    } else {
+                        mapped.column = min(
+                            max(0, cursor.column - lineStart),
+                            columns - 1
+                        )
+                    }
+                    projectedCursor = mapped
                 }
-                projectedCursor = mapped
             }
         }
 
