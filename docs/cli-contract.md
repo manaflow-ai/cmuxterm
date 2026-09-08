@@ -140,7 +140,7 @@ Environment:
 | `rename-workspace`, `rename-window` | Rename a workspace. `rename-window` is a compatibility alias. |
 | `current-workspace` | Print current workspace information. |
 | `read-screen` | Read terminal text from a surface. |
-| `send` | Send text to a terminal surface. |
+| `send` | Send text to a terminal surface, optionally waiting atomically for an agent lifecycle state. |
 | `send-key` | Send one key to a terminal surface. |
 | `send-panel` | Send text to a panel/surface. |
 | `send-key-panel` | Send one key to a panel/surface. |
@@ -568,6 +568,28 @@ Its params are `surface_id`, `until`, and optional `timeout_ms`. Like
 a dedicated connection. Dock surfaces return `live_lifecycle_unavailable`
 instead of waiting on their transfer-time lifecycle snapshot; a wait that starts
 in a workspace returns the same error if the surface moves into the Dock.
+
+### Atomic send-and-wait
+
+```bash
+cmux send --surface <id|ref|index> \
+  --wait-until <idle|needs-input|exit> \
+  [--timeout <ms>] [--json] -- <text>
+```
+
+When `--wait-until` is present, `send` uses one server-owned request for both
+operations. cmux admits the lifecycle subscription, pins the current occupant,
+and only then delivers the text through the same `surface.send_text` mutation
+path. Events queued before the send completes are ignored, so an already-idle
+occupant cannot satisfy the wait before the submitted work starts. The response
+has the normal wait result fields plus `sent: true`, `queued`, and the send
+identity fields. It uses the same exit codes as `cmux wait` (`0` satisfied,
+`124` timed out, `3` surface closed).
+
+The corresponding v2 method is `agent.send_and_wait`, with `surface_id`,
+`text`, `until`, and optional `timeout_ms` params. Like `agent.wait`, it owns
+the socket connection until a terminal result and must run on a dedicated
+connection. A send failure is returned before any wait result is produced.
 
 ## Workspace todos
 

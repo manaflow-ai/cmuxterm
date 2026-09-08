@@ -371,7 +371,10 @@ cannot provide a session id. A replacement publishes `exit` for the prior
 occupant before publishing the replacement's state. Consumers that need the
 race-free snapshot-plus-stream behavior should use the server-owned
 `agent.wait` method through `cmux wait`; subscribing to the event stream and
-then taking a separate snapshot is otherwise the consumer's responsibility.
+then taking a separate snapshot is otherwise the consumer's responsibility. To
+submit terminal input and wait without a submit/attach race, use
+`cmux send --wait-until ...`, which is backed by the atomic
+`agent.send_and_wait` method.
 
 ```json
 {

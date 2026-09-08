@@ -1842,6 +1842,14 @@ class TerminalController {
                         authorizationRevocationSignal: authorizationRevocationSignal,
                         passwordAuthorization: passwordAuthorization
                     )
+                } else if isAgentSendAndWaitRequest(trimmed) {
+                    handleAgentSendAndWaitRequest(
+                        trimmed,
+                        socket: socket,
+                        authorizationGeneration: authorizationGeneration,
+                        authorizationRevocationSignal: authorizationRevocationSignal,
+                        passwordAuthorization: passwordAuthorization
+                    )
                 } else {
                     handleEventsStreamRequest(
                         trimmed,
@@ -2806,6 +2814,7 @@ class TerminalController {
             "system.tree",
             "events.stream",
             "agent.wait",
+            "agent.send_and_wait",
             "sidebar.custom.open",
             "system.top",
             "system.memory",

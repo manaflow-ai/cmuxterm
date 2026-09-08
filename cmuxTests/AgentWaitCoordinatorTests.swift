@@ -215,6 +215,64 @@ struct AgentWaitCoordinatorTests {
     }
 
     @Test
+    func atomicWaitDoesNotAcceptThePreSendSatisfiedState() throws {
+        let fixture = Fixture(state: .idle)
+        fixture.publish(
+            record: fixture.original,
+            state: .idle,
+            previous: .running
+        )
+        let coordinator = AgentWaitCoordinator(eventBus: fixture.bus)
+        let subscription = coordinator.subscribe(
+            surfaceID: fixture.surfaceID,
+            afterSequence: 0
+        )
+        let sendCompletionSequence = fixture.bus.latestSequence
+
+        let result = coordinator.wait(
+            until: .idle,
+            timeoutMilliseconds: 0,
+            surface: fixture.snapshot(occupant: fixture.original),
+            subscriptionSnapshot: subscription,
+            minimumEventSequence: sendCompletionSequence,
+            requirePostSubscriptionEvent: true
+        )
+
+        let value = try result.get()
+        #expect(value.status == .timedOut)
+        #expect(value.state == .idle)
+    }
+
+    @Test
+    func atomicWaitAcceptsAStatePublishedAfterSendCompletion() throws {
+        let fixture = Fixture(state: .idle)
+        let coordinator = AgentWaitCoordinator(eventBus: fixture.bus)
+        let subscription = coordinator.subscribe(
+            surfaceID: fixture.surfaceID,
+            afterSequence: fixture.bus.latestSequence
+        )
+        let sendCompletionSequence = fixture.bus.latestSequence
+        fixture.publish(
+            record: fixture.original,
+            state: .idle,
+            previous: .running
+        )
+
+        let result = coordinator.wait(
+            until: .idle,
+            timeoutMilliseconds: 1_000,
+            surface: fixture.snapshot(occupant: fixture.original),
+            subscriptionSnapshot: subscription,
+            minimumEventSequence: sendCompletionSequence,
+            requirePostSubscriptionEvent: true
+        )
+
+        let value = try result.get()
+        #expect(value.status == .satisfied)
+        #expect(value.state == .idle)
+    }
+
+    @Test
     func unrelatedEventsCannotStarveTimeout() throws {
         let fixture = Fixture(state: .running)
 
@@ -572,8 +630,8 @@ struct AgentWaitCoordinatorTests {
 
     @Test
     func subscriptionAdmissionBoundsConcurrentWaitsAndRecoversAfterRelease() throws {
-        let fixture = Fixture(state: .running)
-        var reservations = (0..<32).map { _ in
+        let fixture = Fixture(state: .running, maxActiveSubscriptions: 2)
+        var reservations = (0..<2).map { _ in
             fixture.bus.subscribe(
                 afterSequence: nil,
                 names: ["agent.state.changed"],
@@ -623,11 +681,13 @@ struct AgentWaitCoordinatorTests {
 
         init(
             state: AgentHibernationLifecycleState,
-            maxPendingEvents: Int = CmuxEventBus.defaultMaxPendingEventsPerSubscription
+            maxPendingEvents: Int = CmuxEventBus.defaultMaxPendingEventsPerSubscription,
+            maxActiveSubscriptions: Int = CmuxEventBus.defaultMaxActiveSubscriptions
         ) {
             bus = CmuxEventBus(
                 retainedEventLimit: 16,
-                maxPendingEventsPerSubscription: maxPendingEvents
+                maxPendingEventsPerSubscription: maxPendingEvents,
+                maxActiveSubscriptions: maxActiveSubscriptions
             )
             original = AgentLifecycleRecord(
                 agent: "codex",

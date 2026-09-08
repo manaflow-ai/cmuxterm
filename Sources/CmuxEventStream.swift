@@ -11,7 +11,9 @@ extension TerminalController {
               let method = object["method"] as? String else {
             return false
         }
-        return method == "events.stream" || method == "agent.wait"
+        return method == "events.stream"
+            || method == "agent.wait"
+            || method == "agent.send_and_wait"
     }
 
     nonisolated func handleEventsStreamRequest(

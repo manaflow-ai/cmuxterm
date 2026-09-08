@@ -156,8 +156,19 @@ extension TerminalController {
         switch waitResult {
         case .success(let result):
             response = v2Ok(id: id, result: result.payload)
-        case .failure(.surfaceNotFound):
-            response = v2Error(
+        case .failure(let error):
+            response = agentWaitErrorResponse(id: id, error: error)
+        }
+        writeAgentWaitResponse(response, socket: socket)
+    }
+
+    nonisolated func agentWaitErrorResponse(
+        id: Any?,
+        error: AgentWaitError
+    ) -> String {
+        switch error {
+        case .surfaceNotFound:
+            return v2Error(
                 id: id,
                 code: "not_found",
                 message: String(
@@ -165,8 +176,8 @@ extension TerminalController {
                     defaultValue: "Surface not found"
                 )
             )
-        case .failure(.noAgent):
-            response = v2Error(
+        case .noAgent:
+            return v2Error(
                 id: id,
                 code: "no_agent",
                 message: String(
@@ -174,8 +185,8 @@ extension TerminalController {
                     defaultValue: "No agent lifecycle is recorded for this surface"
                 )
             )
-        case .failure(.liveLifecycleUnavailable):
-            response = v2Error(
+        case .liveLifecycleUnavailable:
+            return v2Error(
                 id: id,
                 code: "live_lifecycle_unavailable",
                 message: String(
@@ -183,8 +194,8 @@ extension TerminalController {
                     defaultValue: "Live agent lifecycle is unavailable for this surface"
                 )
             )
-        case .failure(.subscriptionClosed):
-            response = v2Error(
+        case .subscriptionClosed:
+            return v2Error(
                 id: id,
                 code: "wait_cancelled",
                 message: String(
@@ -193,14 +204,13 @@ extension TerminalController {
                 )
             )
         }
-        writeAgentWaitResponse(response, socket: socket)
     }
 
-    private nonisolated func writeAgentWaitResponse(_ response: String, socket: Int32) {
+    nonisolated func writeAgentWaitResponse(_ response: String, socket: Int32) {
         _ = transport.writeAll(Data((response + "\n").utf8), to: socket)
     }
 
-    private func agentWaitSurfaceSnapshot(surfaceID: UUID) -> AgentWaitSurfaceSnapshot? {
+    func agentWaitSurfaceSnapshot(surfaceID: UUID) -> AgentWaitSurfaceSnapshot? {
         if let dock = DockSplitStore.liveStores.first(where: { $0.containsPanel(surfaceID) }) {
             return dock.agentWaitSurfaceSnapshot(panelID: surfaceID)
         }

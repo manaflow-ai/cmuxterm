@@ -35,9 +35,9 @@ class FakeCmuxState:
 
     def handle(self, method: str, params: dict[str, object]) -> dict[str, object]:
         self.calls.append((method, params))
-        if method != "agent.wait":
+        if method not in {"agent.wait", "agent.send_and_wait"}:
             raise RuntimeError(f"unsupported fake cmux method: {method}")
-        return {
+        result = {
             "status": self.status,
             "until": params["until"],
             "state": self.state,
@@ -47,6 +47,9 @@ class FakeCmuxState:
             "surface_id": SURFACE_ID,
             "pane_id": PANE_ID,
         }
+        if method == "agent.send_and_wait":
+            result.update({"sent": True, "queued": False})
+        return result
 
 
 class FakeCmuxHandler(socketserver.StreamRequestHandler):
@@ -228,6 +231,41 @@ def main() -> int:
                 f"missing surface-closed JSON: {result}",
             )
             expect(result.stderr == "", f"JSON surface closure duplicated stderr: {result.stderr!r}")
+
+            state.status = "satisfied"
+            state.state = "idle"
+            result = run_cli(
+                cli,
+                socket_path,
+                [
+                    "--json",
+                    "send",
+                    "--surface",
+                    SURFACE_ID,
+                    "--wait-until",
+                    "idle",
+                    "--timeout",
+                    "2500",
+                    "echo",
+                    "hello",
+                ],
+            )
+            expect(result.returncode == 0, f"atomic send-and-wait failed: {result}")
+            expect(result.stderr == "", f"atomic send-and-wait wrote stderr: {result.stderr!r}")
+            expect(json.loads(result.stdout)["sent"] is True, f"missing sent marker: {result}")
+            expect(
+                state.calls[-1]
+                == (
+                    "agent.send_and_wait",
+                    {
+                        "surface_id": SURFACE_ID,
+                        "until": "idle",
+                        "timeout_ms": 2500,
+                        "text": "echo hello",
+                    },
+                ),
+                f"unexpected atomic send-and-wait request: {state.calls[-1]!r}",
+            )
         finally:
             server.shutdown()
             server.server_close()

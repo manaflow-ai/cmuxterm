@@ -5248,7 +5248,7 @@ struct CMUXCLI {
         "--provider", "--relay-port", "--script", "--selector", "--session",
         "--shell", "--source", "--subtitle", "--surface", "--tab", "--target-pane", "--team",
         "--text", "--timeout", "--timeout-ms", "--title", "--transcript",
-        "--turn", "--type", "--until", "--url", "--url-contains", "--value", "--window",
+        "--turn", "--type", "--until", "--wait-until", "--url", "--url-contains", "--value", "--window",
         "--workspace", "--checkpoint", "--checkpoint-id",
     ]
 
@@ -7910,7 +7910,8 @@ struct CMUXCLI {
             }
 
         case "send":
-            let (wsArg, rem0) = parseOption(commandArgs, name: "--workspace")
+            let sendWaitOptions = try parseSendWaitOptions(commandArgs)
+            let (wsArg, rem0) = parseOption(sendWaitOptions.remaining, name: "--workspace")
             let (sfArg, rem1) = parseOption(rem0, name: "--surface")
             let (windowOpt, rem2) = parseOption(rem1, name: "--window")
             let windowRaw = windowOpt ?? windowId
@@ -7926,8 +7927,70 @@ struct CMUXCLI {
             if let wsId { params["workspace_id"] = wsId }
             let sfId = try normalizeSurfaceHandle(surfaceArg, client: client, workspaceHandle: wsId, windowHandle: winId)
             if let sfId { params["surface_id"] = sfId }
-            let payload = try client.sendV2(method: "surface.send_text", params: params)
-            printV2Payload(payload, jsonOutput: jsonOutput, idFormat: idFormat, fallbackText: v2SendSummary(payload, idFormat: idFormat))
+            if let waitUntil = sendWaitOptions.until {
+                params["until"] = waitUntil
+                if let timeoutMilliseconds = sendWaitOptions.timeoutMilliseconds {
+                    params["timeout_ms"] = NSNumber(value: timeoutMilliseconds)
+                }
+                let responseTimeout = sendWaitOptions.timeoutMilliseconds.map {
+                    max(15, Double($0) / 1_000 + 5)
+                } ?? 365 * 24 * 60 * 60
+                let payload = try client.sendV2(
+                    method: "agent.send_and_wait",
+                    params: params,
+                    responseTimeout: responseTimeout
+                )
+                if jsonOutput {
+                    print(jsonString(formatIDs(payload, mode: idFormat)))
+                }
+                guard let status = payload["status"] as? String else {
+                    throw CLIError(
+                        message: String(
+                            localized: "cli.wait.error.invalidResponse",
+                            defaultValue: "agent.send_and_wait returned an invalid response"
+                        )
+                    )
+                }
+                switch status {
+                case "satisfied":
+                    if !jsonOutput {
+                        printV2Payload(
+                            payload,
+                            jsonOutput: false,
+                            idFormat: idFormat,
+                            fallbackText: v2SendSummary(payload, idFormat: idFormat)
+                        )
+                    }
+                case "timed_out":
+                    throw CLIError(
+                        message: String(
+                            localized: "cli.wait.error.timedOut",
+                            defaultValue: "Timed out waiting for the requested agent state"
+                        ),
+                        exitCode: 124,
+                        shouldPrint: !jsonOutput
+                    )
+                case "surface_closed":
+                    throw CLIError(
+                        message: String(
+                            localized: "cli.wait.error.surfaceClosed",
+                            defaultValue: "Surface closed before the requested agent state was reached"
+                        ),
+                        exitCode: 3,
+                        shouldPrint: !jsonOutput
+                    )
+                default:
+                    throw CLIError(
+                        message: String(
+                            localized: "cli.wait.error.invalidResponse",
+                            defaultValue: "agent.send_and_wait returned an invalid response"
+                        )
+                    )
+                }
+            } else {
+                let payload = try client.sendV2(method: "surface.send_text", params: params)
+                printV2Payload(payload, jsonOutput: jsonOutput, idFormat: idFormat, fallbackText: v2SendSummary(payload, idFormat: idFormat))
+            }
 
         case "send-key":
             let (wsArg, rem0) = parseOption(commandArgs, name: "--workspace")
@@ -20333,7 +20396,7 @@ struct CMUXCLI {
               cmux read-screen --surface surface:2 --scrollback --lines 200
             """
         case "send":
-            return """
+            return String(localized: "cli.help.send", defaultValue: """
             Usage: cmux send [flags] [--] <text>
 
             Send text to a terminal surface. Escape sequences: \\n and \\r send Enter, \\t sends Tab.
@@ -20342,11 +20405,15 @@ struct CMUXCLI {
               --workspace <id|ref|index>   Target workspace (default: $CMUX_WORKSPACE_ID)
               --surface <id|ref|index>     Target surface (default: $CMUX_SURFACE_ID)
               --window <id|ref|index>      Window context for workspace/surface refs and indexes
+              --wait-until <state>         Atomically send, then wait for idle, needs-input, or exit
+              --timeout <ms>               Stop an atomic wait after this many milliseconds
+              --json                       Print the atomic wait result as JSON
 
             Example:
               cmux send "echo hello"
               cmux send --surface surface:2 "ls -la\\n"
-            """
+              cmux send --surface surface:2 --wait-until idle "run task\\n"
+            """)
         case "send-key":
             return """
             Usage: cmux send-key [flags] [--] <key>

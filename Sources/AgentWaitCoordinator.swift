@@ -31,6 +31,25 @@ struct AgentWaitCoordinator {
         self.monotonicNow = monotonicNow
     }
 
+    /// Creates the surface-scoped subscription used by an agent wait.
+    ///
+    /// The subscription is admitted and handed to ``onSubscribe`` before the
+    /// caller performs any operation whose lifecycle transition must not be
+    /// missed (for example, an atomic send-and-wait request).
+    func subscribe(
+        surfaceID: UUID,
+        afterSequence: Int64
+    ) -> CmuxEventSubscriptionSnapshot {
+        let snapshot = eventBus.subscribe(
+            afterSequence: afterSequence,
+            names: Self.eventNames,
+            categories: [],
+            surfaceIDs: [surfaceID.uuidString]
+        )
+        onSubscribe(snapshot.subscription)
+        return snapshot
+    }
+
     func wait(
         until: AgentWaitUntil,
         timeoutMilliseconds: Int64?,
@@ -38,20 +57,42 @@ struct AgentWaitCoordinator {
         routingSnapshot: ((UUID) -> AgentWaitSurfaceSnapshot?)? = nil
     ) -> Result<AgentWaitResult, AgentWaitError> {
         let preparation = prepare()
-        guard var surface = preparation.surface else {
+        guard let surface = preparation.surface else {
             return .failure(.surfaceNotFound)
         }
         guard surface.hasAuthoritativeLiveLifecycle else {
             return .failure(.liveLifecycleUnavailable)
         }
-        let lifecycleSurfaceID = surface.surfaceID
-        let subscriptionSnapshot = eventBus.subscribe(
-            afterSequence: preparation.afterSequence,
-            names: Self.eventNames,
-            categories: [],
-            surfaceIDs: [lifecycleSurfaceID.uuidString]
+        let subscriptionSnapshot = subscribe(
+            surfaceID: surface.surfaceID,
+            afterSequence: preparation.afterSequence
         )
-        onSubscribe(subscriptionSnapshot.subscription)
+        return wait(
+            until: until,
+            timeoutMilliseconds: timeoutMilliseconds,
+            surface: surface,
+            subscriptionSnapshot: subscriptionSnapshot,
+            routingSnapshot: routingSnapshot
+        )
+    }
+
+    /// Waits on a subscription that was admitted before a related mutation.
+    ///
+    /// ``minimumEventSequence`` lets an atomic producer ignore replayed or
+    /// queued lifecycle events that occurred before the producer completed.
+    /// Set ``requirePostSubscriptionEvent`` when an already-satisfied snapshot
+    /// must not complete the wait (the `send --wait-until` contract).
+    func wait(
+        until: AgentWaitUntil,
+        timeoutMilliseconds: Int64?,
+        surface initialSurface: AgentWaitSurfaceSnapshot,
+        subscriptionSnapshot: CmuxEventSubscriptionSnapshot,
+        minimumEventSequence: Int64? = nil,
+        requirePostSubscriptionEvent: Bool = false,
+        routingSnapshot: ((UUID) -> AgentWaitSurfaceSnapshot?)? = nil
+    ) -> Result<AgentWaitResult, AgentWaitError> {
+        var surface = initialSurface
+        let lifecycleSurfaceID = surface.surfaceID
         defer {
             eventBus.unsubscribe(subscriptionSnapshot.subscription)
         }
@@ -83,7 +124,7 @@ struct AgentWaitCoordinator {
         }
 
         var pinnedState = occupant.publicState
-        if until.isSatisfied(by: pinnedState) {
+        if !requirePostSubscriptionEvent, until.isSatisfied(by: pinnedState) {
             return .success(
                 result(
                     status: .satisfied,
@@ -123,6 +164,13 @@ struct AgentWaitCoordinator {
             }
 
             if let event = nextEvent(timeout: waitInterval) {
+                if let minimumEventSequence,
+                   !eventIsAfter(sequence: minimumEventSequence, event: event) {
+                    if let timeout = timeoutResultIfExpired() {
+                        return .success(timeout)
+                    }
+                    continue
+                }
                 if event["name"] as? String == "surface.closed" {
                     guard let closedRouting = routing(from: event),
                           closedRouting.surfaceID == lifecycleSurfaceID else {
@@ -206,6 +254,13 @@ struct AgentWaitCoordinator {
                 return .success(timeout)
             }
         }
+    }
+
+    private func eventIsAfter(sequence: Int64, event: [String: Any]) -> Bool {
+        guard let eventSequence = CmuxEventBus.int64(event["seq"]) else {
+            return false
+        }
+        return eventSequence > sequence
     }
 
     private func transition(

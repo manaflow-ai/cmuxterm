@@ -178,4 +178,89 @@ extension CMUXCLI {
         }
         return options
     }
+
+    /// Extracts the optional atomic wait flags from `cmux send` while leaving
+    /// ordinary send arguments untouched when `--wait-until` is absent.
+    func parseSendWaitOptions(
+        _ args: [String]
+    ) throws -> (until: String?, timeoutMilliseconds: Int64?, remaining: [String]) {
+        let optionTokens = Array(args.prefix { $0 != "--" })
+        let hasWaitUntil = optionTokens.contains {
+            $0 == "--wait-until" || $0.hasPrefix("--wait-until=")
+        }
+        guard hasWaitUntil else {
+            return (nil, nil, args)
+        }
+
+        let (rawUntil, afterUntil) = parseOption(args, name: "--wait-until")
+        guard let rawUntil else {
+            throw CLIError(
+                message: String(
+                    localized: "cli.wait.error.missingValue",
+                    defaultValue: "--wait-until requires a value"
+                ),
+                exitCode: 2
+            )
+        }
+        let normalizedUntil = rawUntil
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacing("_", with: "-")
+        guard ["idle", "needs-input", "exit"].contains(normalizedUntil) else {
+            throw CLIError(
+                message: String(
+                    localized: "cli.wait.error.invalidUntil",
+                    defaultValue: "--wait-until must be idle, needs-input, or exit"
+                ),
+                exitCode: 2
+            )
+        }
+
+        let (rawTimeout, afterTimeout) = parseOption(afterUntil, name: "--timeout")
+        let (rawTimeoutMS, remaining) = parseOption(afterTimeout, name: "--timeout-ms")
+        let timeoutTokens = Array(afterUntil.prefix { $0 != "--" })
+        let hasTimeout = timeoutTokens.contains {
+            $0 == "--timeout" || $0.hasPrefix("--timeout=")
+        }
+        let timeoutMSTokens = Array(afterTimeout.prefix { $0 != "--" })
+        let hasTimeoutMS = timeoutMSTokens.contains {
+            $0 == "--timeout-ms" || $0.hasPrefix("--timeout-ms=")
+        }
+        guard rawTimeout == nil || rawTimeoutMS == nil else {
+            throw CLIError(
+                message: String(
+                    localized: "cli.wait.error.invalidTimeout",
+                    defaultValue: "Use only one of --timeout or --timeout-ms"
+                ),
+                exitCode: 2
+            )
+        }
+        let timeoutRaw = rawTimeout ?? rawTimeoutMS
+        let timeoutMilliseconds: Int64?
+        if hasTimeout || hasTimeoutMS {
+            guard let timeoutRaw else {
+                throw CLIError(
+                    message: String(
+                        localized: "cli.wait.error.invalidTimeout",
+                        defaultValue: "--timeout must be followed by a non-negative integer in milliseconds"
+                    ),
+                    exitCode: 2
+                )
+            }
+            guard let value = Int64(timeoutRaw), value >= 0 else {
+                throw CLIError(
+                    message: String(
+                        localized: "cli.wait.error.invalidTimeout",
+                        defaultValue: "--timeout must be a non-negative integer in milliseconds"
+                    ),
+                    exitCode: 2
+                )
+            }
+            timeoutMilliseconds = value
+        } else {
+            timeoutMilliseconds = nil
+        }
+
+        return (normalizedUntil, timeoutMilliseconds, remaining)
+    }
 }

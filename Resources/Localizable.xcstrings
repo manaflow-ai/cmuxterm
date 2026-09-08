@@ -40642,6 +40642,23 @@
         }
       }
     },
+    "cli.help.send": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage: cmux send [flags] [--] <text>\n\nSend text to a terminal surface. Escape sequences: \\n and \\r send Enter, \\t sends Tab.\n\nFlags:\n  --workspace <id|ref|index>   Target workspace (default: $CMUX_WORKSPACE_ID)\n  --surface <id|ref|index>     Target surface (default: $CMUX_SURFACE_ID)\n  --window <id|ref|index>      Window context for workspace/surface refs and indexes\n  --wait-until <state>         Atomically send, then wait for idle, needs-input, or exit\n  --timeout <ms>               Stop an atomic wait after this many milliseconds\n  --json                       Print the atomic wait result as JSON\n\nExample:\n  cmux send \"echo hello\"\n  cmux send --surface surface:2 \"ls -la\\\\n\"\n  cmux send --surface surface:2 --wait-until idle \"run task\\\\n\""
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用方法: cmux send [flags] [--] <text>\n\nテキストをターミナルサーフェスに送信します。エスケープシーケンス: \\n と \\r は Enter、\\t は Tab を送信します。\n\nオプション:\n  --workspace <id|ref|index>   対象ワークスペース（既定: $CMUX_WORKSPACE_ID）\n  --surface <id|ref|index>     対象サーフェス（既定: $CMUX_SURFACE_ID）\n  --window <id|ref|index>      ワークスペース/サーフェスのコンテキスト\n  --wait-until <state>         送信後に idle、needs-input、または exit までアトミックに待機\n  --timeout <ms>               アトミック待機のタイムアウト（ミリ秒）\n  --json                       アトミック待機の結果を JSON で出力\n\n例:\n  cmux send \"echo hello\"\n  cmux send --surface surface:2 \"ls -la\\\\n\"\n  cmux send --surface surface:2 --wait-until idle \"run task\\\\n\""
+          }
+        }
+      }
+    },
     "cli.help.wait": {
       "extractionState": "manual",
       "localizations": {
@@ -243990,6 +244007,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cloud VMを利用するにはサインインが必要です。`cmux auth login`を実行してから再試行してください。"
+          }
+        }
+      }
+    },
+    "socket.agentSendAndWait.error.invalidRequest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait requires a JSON object and valid parameters"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait には JSON オブジェクトと有効なパラメータが必要です"
+          }
+        }
+      }
+    },
+    "socket.agentSendAndWait.error.surfaceRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait requires surface_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait には surface_id が必要です"
+          }
+        }
+      }
+    },
+    "socket.agentSendAndWait.error.textRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait requires text"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "agent.send_and_wait には text が必要です"
           }
         }
       }
