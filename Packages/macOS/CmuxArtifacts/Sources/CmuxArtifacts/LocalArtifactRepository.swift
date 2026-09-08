@@ -1,3 +1,4 @@
+import CmuxFoundation
 import Foundation
 
 /// Actor-backed durable catalog shared by all cmux workspaces in one process.
@@ -18,6 +19,8 @@ public actor LocalArtifactRepository: ArtifactStoring {
     let now: @Sendable () -> Date
     let identity = ArtifactIdentity()
     let pathPolicy = ArtifactPathPolicy()
+    /// Shared with terminal link capture so both apply one ignore-list contract.
+    let hostPolicy = NetworkHostKeyPolicy()
     var recordsByIdentity: [String: ArtifactRecord] = [:]
     var loaded = false
     var loadFailure: ArtifactStoreError?

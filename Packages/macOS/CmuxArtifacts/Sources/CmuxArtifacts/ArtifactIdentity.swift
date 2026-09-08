@@ -12,18 +12,37 @@ public struct ArtifactIdentity: Sendable {
         guard let url = URL(string: trimmed),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
-              let host = url.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let host = Self.normalizedHost(components.host ?? url.host),
               !host.isEmpty else {
             return nil
         }
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.scheme = scheme
-        components?.host = host
+        components.scheme = scheme
         if (scheme == "http" && url.port == 80) || (scheme == "https" && url.port == 443) {
-            components?.port = nil
+            components.port = nil
         }
-        guard let canonical = components?.url?.absoluteString else { return nil }
-        return canonical
+        // Foundation reports IPv6 literals with or without brackets depending
+        // on the OS release, and rejects whichever spelling it did not
+        // produce. Try the bracketed authority form first and keep the first
+        // spelling that parses back to the same host.
+        let spellings = host.contains(":") ? ["[\(host)]", host] : [host]
+        for spelling in spellings {
+            components.host = spelling
+            guard let canonical = components.url?.absoluteString,
+                  Self.normalizedHost(URLComponents(string: canonical)?.host) == host else {
+                continue
+            }
+            return canonical
+        }
+        return nil
+    }
+
+    private static func normalizedHost(_ rawHost: String?) -> String? {
+        guard let rawHost else { return nil }
+        return rawHost
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
     }
 
     /// Returns the identity key for a URL, path, or content digest.

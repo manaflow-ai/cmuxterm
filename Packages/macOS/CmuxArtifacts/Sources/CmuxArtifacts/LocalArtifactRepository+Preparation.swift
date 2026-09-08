@@ -1,3 +1,4 @@
+import CmuxFoundation
 import Foundation
 
 extension LocalArtifactRepository {
@@ -217,11 +218,13 @@ extension LocalArtifactRepository {
     }
 
     private func isIgnoredHost(_ canonicalURL: String) -> Bool {
-        guard let host = URL(string: canonicalURL)?.host?.lowercased() else { return false }
-        return configuration.ignoreHosts.contains { pattern in
-            if pattern.hasPrefix("*.") { return host.hasSuffix(String(pattern.dropFirst(1))) }
-            return host == pattern || host.hasPrefix(pattern + ":")
-        }
+        // `host:port` entries (such as the default cmux preview host) and
+        // bracketed IPv6 keys only match through the shared host-key policy;
+        // `URL.host` never carries a port.
+        hostPolicy.matchesIgnoreList(
+            hostPort: hostPolicy.hostKey(for: canonicalURL),
+            list: configuration.ignoreHosts
+        )
     }
 
     private func writePayload(data: Data, fileName: String, digest: String) throws -> String {

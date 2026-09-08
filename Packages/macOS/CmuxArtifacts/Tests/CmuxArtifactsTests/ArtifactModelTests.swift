@@ -13,6 +13,15 @@ struct ArtifactModelTests {
         #expect(identity.key(kind: .url, value: first) == identity.key(kind: .url, value: second))
     }
 
+    @Test("URL identity keeps IPv6 literals bracketed")
+    func canonicalURLKeepsIPv6Brackets() {
+        let identity = ArtifactIdentity()
+        #expect(identity.canonicalURL("HTTP://[::1]:8080/x") == "http://[::1]:8080/x")
+        #expect(identity.canonicalURL("http://[fe80::1]/") == "http://[fe80::1]/")
+        #expect(identity.canonicalURL("https://[2001:DB8::1]:443/a") == "https://[2001:db8::1]/a")
+        #expect(identity.key(kind: .url, value: "http://[::1]:8080/x") == identity.key(kind: .url, value: "HTTP://[::1]:8080/x"))
+    }
+
     @Test("search covers title, metadata, and inline content")
     func searchCoversMetadata() throws {
         let owner = ArtifactOwnership(workspaceID: "w1", projectRoot: "/tmp/project")
