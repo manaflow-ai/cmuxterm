@@ -58,6 +58,200 @@ struct ManagedCapabilityPolicyGateTests {
         #expect(workspace.configureRemoteConnection(remoteConfiguration(), autoConnect: true))
     }
 
+    @Test func aRetainedConfigurationCannotRedialUnderThePolicy() throws {
+        let suite = "ManagedCapabilityPolicyGateTests.reconnect.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let resolver = ManagedDevicePolicy(defaults: defaults, releaseDomainDefaults: nil, forcedObject: { store, key in
+            store.object(forKey: key)
+        })
+        let workspace = Workspace(managedDevicePolicy: resolver)
+        #expect(workspace.configureRemoteConnection(remoteConfiguration(), autoConnect: true))
+        // A user-initiated disconnect keeps the configuration for "Reconnect".
+        workspace.disconnectRemoteConnection(clearConfiguration: false)
+        #expect(workspace.remoteConfiguration != nil)
+        #expect(workspace.remoteConnectionState == .disconnected)
+
+        // The policy lands while the workspace is disconnected: the retained
+        // configuration must not dial, whichever affordance asks.
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableRemoteConnections.rawValue)
+        #expect(!workspace.reconnectRemoteConnection())
+        #expect(workspace.remoteConnectionState == .disconnected)
+
+        // The enforcement path drops the configuration and says why.
+        workspace.disconnectRemoteConnection(
+            clearConfiguration: true,
+            disconnectedDetail: ManagedRemoteConnectionsPolicy.disabledMessage
+        )
+        #expect(workspace.remoteConfiguration == nil)
+        #expect(workspace.remoteConnectionDetail == ManagedRemoteConnectionsPolicy.disabledMessage)
+
+        // Lifting the policy restores the reconnect path without a relaunch.
+        defaults.removeObject(forKey: ManagedDevicePolicyKey.disableRemoteConnections.rawValue)
+        #expect(workspace.configureRemoteConnection(remoteConfiguration(), autoConnect: true))
+        workspace.disconnectRemoteConnection(clearConfiguration: false)
+        _ = workspace.reconnectRemoteConnection()
+        // The websocket transport with no daemon endpoint reports connected
+        // as soon as it is configured; the point is that it dialed at all.
+        #expect(workspace.remoteConnectionState != .disconnected)
+    }
+
+    @Test func theObserverEndsLiveRemoteConnectionsOnActivationOnly() throws {
+        let suite = "ManagedCapabilityPolicyGateTests.observer.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let resolver = ManagedDevicePolicy(defaults: defaults, releaseDomainDefaults: nil, forcedObject: { store, key in
+            store.object(forKey: key)
+        })
+        let center = NotificationCenter()
+        let recorder = RemoteConnectionsEnforcementRecorder()
+        let token = center.addObserver(
+            forName: ManagedDevicePolicy.didChangeNotification,
+            object: nil,
+            queue: nil
+        ) { _ in recorder.recordChangeSignal() }
+        defer { center.removeObserver(token) }
+        let observer = ManagedPolicyEnforcementObserver(
+            notificationCenter: center,
+            isBrowserDisabledByPolicy: { false },
+            isRemoteControlDisabledByPolicy: { false },
+            isCloudDisabledByPolicy: { false },
+            isIrohDisabledByPolicy: { false },
+            capabilityPolicy: resolver,
+            enforceBrowserPolicy: {},
+            enforceBrowserURLAllowlistPolicy: {},
+            enforceRemoteControlPolicy: {},
+            enforceRemoteConnectionsPolicy: { recorder.recordEnforcement() }
+        )
+        #expect(recorder.enforcements == 0)
+
+        // A mid-session push enforces once and tells Settings.
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableRemoteConnections.rawValue)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+        #expect(recorder.changeSignals == 1)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+
+        // The lift is a Settings-visible transition but tears nothing down.
+        defaults.removeObject(forKey: ManagedDevicePolicyKey.disableRemoteConnections.rawValue)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+        #expect(recorder.changeSignals == 2)
+
+        // A file-transfer flip is its own transition and never touches
+        // remote connections.
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableFileTransfer.rawValue)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+        #expect(recorder.changeSignals == 3)
+        withExtendedLifetime(observer) {}
+    }
+
+    @Test func aProfileForcedBeforeLaunchEndsRemoteConnectionsAtConstruction() {
+        let recorder = RemoteConnectionsEnforcementRecorder()
+        let observer = ManagedPolicyEnforcementObserver(
+            notificationCenter: NotificationCenter(),
+            isBrowserDisabledByPolicy: { false },
+            isRemoteControlDisabledByPolicy: { false },
+            isCloudDisabledByPolicy: { false },
+            isIrohDisabledByPolicy: { false },
+            capabilityPolicy: policy(.disableRemoteConnections, disabled: true),
+            enforceBrowserPolicy: {},
+            enforceBrowserURLAllowlistPolicy: {},
+            enforceRemoteControlPolicy: {},
+            enforceRemoteConnectionsPolicy: { recorder.recordEnforcement() }
+        )
+        #expect(recorder.enforcements == 1)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+        withExtendedLifetime(observer) {}
+    }
+
+    @Test func aCustomUploadCommandCannotBypassTheFileTransferGate() async throws {
+        // A `terminal.uploadCommands` rule takes ownership of detected-SSH
+        // uploads before the built-in transport. Under the policy it must
+        // refuse — without consulting rules, and without spawning anything.
+        let spawned = SpawnRecorder()
+        let runner = TerminalCustomUploadRunner(
+            runProcess: { _, _, _, _ in
+                spawned.record()
+                return (status: 0, stdout: "", stderr: "")
+            },
+            isFileTransferDisabled: { true }
+        )
+        let session = DetectedSSHSession(
+            destination: "user@example.com",
+            port: nil,
+            identityFile: nil,
+            configFile: nil,
+            jumpHost: nil,
+            controlPath: nil,
+            useIPv4: false,
+            useIPv6: false,
+            forwardAgent: false,
+            compressionEnabled: false,
+            sshOptions: []
+        )
+        let operation = TerminalImageTransferOperation()
+        let outcome = await withCheckedContinuation { (continuation: CheckedContinuation<Result<String, Error>, Never>) in
+            let handled = runner.handleIfMatched(
+                plan: .uploadFiles([URL(fileURLWithPath: "/tmp/managed-policy-payload.txt")], .detectedSSH(session)),
+                operation: operation,
+                cleanup: { _ in },
+                completion: { continuation.resume(returning: $0) }
+            )
+            #expect(handled)
+        }
+        guard case .failure(let error) = outcome else {
+            Issue.record("custom upload ran under DisableFileTransfer")
+            return
+        }
+        #expect(ManagedFileTransferPolicy.isRefusal(error))
+        #expect(spawned.count == 0)
+
+        // With the policy off and no rule configured, the runner declines and
+        // the built-in transport keeps ownership, exactly as before.
+        let permissive = TerminalCustomUploadRunner(
+            runProcess: { _, _, _, _ in (status: 0, stdout: "", stderr: "") },
+            isFileTransferDisabled: { false }
+        )
+        #expect(!permissive.handleIfMatched(
+            plan: .uploadFiles([URL(fileURLWithPath: "/tmp/managed-policy-payload.txt")], .detectedSSH(session)),
+            operation: TerminalImageTransferOperation(),
+            cleanup: { _ in },
+            completion: { _ in }
+        ))
+    }
+
+    @Test(arguments: [
+        ("mobile.task.attachment.upload", true),
+        ("mobile.workspace.changes.file_fetch", true),
+        ("mobile.terminal.paste_image", true),
+        ("terminal.paste_image", true),
+        ("mobile.terminal.artifact.fetch", true),
+        ("mobile.panel.artifact.thumbnail", true),
+        ("mobile.terminal.input", false),
+        ("mobile.workspace.changes.summary", false),
+        ("mobile.directory.list", false),
+        ("mobile.host.status", false),
+    ])
+    func phoneFileMovesAreClassifiedForTheFileTransferPolicy(method: String, transfersFiles: Bool) {
+        #expect(MobileHostService.methodTransfersFiles(method) == transfersFiles)
+    }
+
+    @Test func closedHistoryPurgeRecognizesBothCloudTransports() {
+        let local = Workspace()
+        let localSnapshot = local.sessionSnapshot(includeScrollback: false)
+        #expect(!ClosedItemHistoryStore.workspaceSnapshotHostsCloudVM(localSnapshot))
+
+        var tuiBound = localSnapshot
+        tuiBound.cloudVM = SessionCloudVMBindingSnapshot(vmID: "policy-purge", isBase: true)
+        #expect(ClosedItemHistoryStore.workspaceSnapshotHostsCloudVM(tuiBound))
+        // The same predicate session restore uses under `DisableCloud`.
+        #expect(TabManager.isCloudVMWorkspaceSnapshotForManagedPolicy(tuiBound))
+    }
+
     @Test func closedCloudWorkspaceCannotBeRestoredUnderPolicy() {
         let manager = TabManager(createInitialWorkspace: false, managedDevicePolicy: policy(.disableCloud, disabled: true))
         let workspace = Workspace()
@@ -146,6 +340,39 @@ struct ManagedCapabilityPolicyGateTests {
         #expect(runtime.isNetworkingAllowed)
     }
 
+    /// `MobileHostService.stop()` and `syncToSettings()` both fire IRX policy
+    /// work from unstructured tasks. Interleaved stops and reconciles must
+    /// drain in order and leave one consistent state, never a lift that
+    /// no-ops against a half-finished teardown or a late stop that clears the
+    /// account after a re-arm.
+    @Test func concurrentPolicyTransitionsDrainInOrder() async throws {
+        let suite = "ManagedCapabilityPolicyGateTests.irohRace.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let resolver = ManagedDevicePolicy(
+            defaults: defaults,
+            releaseDomainDefaults: nil,
+            forcedObject: { store, key in store.object(forKey: key) }
+        )
+        let runtime = MobileHostIrxRuntime(managedDevicePolicy: resolver)
+        let key = ManagedDevicePolicyKey.disableIrohNetworking.rawValue
+
+        for iteration in 0..<8 {
+            defaults.set(iteration.isMultiple(of: 2), forKey: key)
+            runtime.setSettingsPhase(.active)
+            async let stopped: Void = runtime.stopHost()
+            async let reconciled: Void = runtime.applyManagedNetworkingPolicy()
+            _ = await (stopped, reconciled)
+            // No account is signed in, so every settled state is idle. The
+            // assertion that matters is that the pair always settles.
+            #expect(runtime.settingsPhase == .idle)
+            #expect(runtime.brokerService == nil)
+        }
+
+        defaults.removeObject(forKey: key)
+        #expect(runtime.isNetworkingAllowed)
+    }
+
     @Test func liftingIrohPolicyDoesNotSpawnAnEndpointWithoutAnAccount() async throws {
         let suite = "ManagedCapabilityPolicyGateTests.iroh.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -167,4 +394,25 @@ struct ManagedCapabilityPolicyGateTests {
         #expect(runtime.settingsPhase == .idle)
         #expect(runtime.brokerService == nil)
     }
+}
+
+/// Counts process spawns the custom upload runner attempted.
+private final class SpawnRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var spawnCount = 0
+    var count: Int { lock.withLock { spawnCount } }
+    func record() { lock.withLock { spawnCount += 1 } }
+}
+
+/// Counts remote-connections enforcement runs and Settings change signals.
+private final class RemoteConnectionsEnforcementRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var enforcementCount = 0
+    private var changeSignalCount = 0
+
+    var enforcements: Int { lock.withLock { enforcementCount } }
+    var changeSignals: Int { lock.withLock { changeSignalCount } }
+
+    func recordEnforcement() { lock.withLock { enforcementCount += 1 } }
+    func recordChangeSignal() { lock.withLock { changeSignalCount += 1 } }
 }

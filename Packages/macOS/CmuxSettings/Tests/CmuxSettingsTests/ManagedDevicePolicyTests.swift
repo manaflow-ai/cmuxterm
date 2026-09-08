@@ -75,6 +75,25 @@ struct ManagedDevicePolicyTests {
         #expect(policy.isKeyForcedInAppDomain(ManagedDevicePolicyKey.disableCloud.rawValue))
     }
 
+    @Test func allowStyleKeysAreOnlyOffWhenForcedFalse() throws {
+        let (defaults, cleanup) = try makeSuite("allowStyle")
+        defer { cleanup() }
+        let policy = ManagedDevicePolicy(
+            defaults: defaults,
+            releaseDomainDefaults: nil,
+            forcedObject: Self.probe
+        )
+
+        #expect(policy.isAllowed(.browserAllowLocalhost))
+        defaults.set(true, forKey: Self.forcedMirrorPrefix + ManagedDevicePolicyKey.browserAllowLocalhost.rawValue)
+        #expect(policy.isAllowed(.browserAllowLocalhost))
+        defaults.set("off", forKey: Self.forcedMirrorPrefix + ManagedDevicePolicyKey.browserAllowLocalhost.rawValue)
+        #expect(policy.isAllowed(.browserAllowLocalhost))
+        defaults.set(false, forKey: Self.forcedMirrorPrefix + ManagedDevicePolicyKey.browserAllowLocalhost.rawValue)
+        #expect(!policy.isAllowed(.browserAllowLocalhost))
+        #expect(policy.isKeyForcedInAppDomain(ManagedDevicePolicyKey.browserAllowLocalhost.rawValue))
+    }
+
     @Test func forcedFalseLocksTheKeyWithoutEnforcingThePolicy() throws {
         let (defaults, cleanup) = try makeSuite("forcedFalse")
         defer { cleanup() }
@@ -175,6 +194,9 @@ struct ManagedDevicePolicyTests {
         #expect(ManagedDevicePolicyKey.disableFileTransfer.rawValue == "DisableFileTransfer")
         #expect(ManagedDevicePolicyKey.disableIrohNetworking.rawValue == "DisableIrohNetworking")
         #expect(ManagedDevicePolicyKey.browserURLAllowlist.rawValue == "BrowserURLAllowlist")
+        #expect(ManagedDevicePolicyKey.browserAllowLocalhost.rawValue == "BrowserAllowLocalhost")
+        #expect(ManagedDevicePolicyKey.browserAllowLocalFiles.rawValue == "BrowserAllowLocalFiles")
+        #expect(ManagedDevicePolicyKey.allowStyleKeys == [.browserAllowLocalhost, .browserAllowLocalFiles])
         #expect(ManagedDevicePolicy.releasePayloadDomain == "com.cmuxterm.app")
     }
 }
