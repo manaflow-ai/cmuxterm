@@ -134,7 +134,10 @@ extension AppDelegate {
             characters: "",
             charactersIgnoringModifiers: "",
             isARepeat: false,
-            keyCode: 0
+            // Key code 0 is ANSI A on macOS. Use an intentionally unmapped
+            // sentinel so fallback layout matching can never impersonate a
+            // printable key while the resolved action is dispatched.
+            keyCode: UInt16.max
         )
     }
 
