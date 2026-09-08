@@ -13,8 +13,20 @@
  * drift is the diff between the image inputs at that commit and the ones in the
  * working tree. No manifest schema change and no provider credential needed.
  *
+ * Two failures live here, and they are not the same severity:
+ *
+ *   PIN   the manifest itself is wrong. A default was baked from a commit that
+ *         is not in main's history (a branch bake), or one kind's size ladder
+ *         mixes bakes (the shape a hand-resolved manifest conflict takes). Both
+ *         mean the deployed image is not the one main describes, so `--pin`
+ *         is safe to make a required check.
+ *   DRIFT main's image source moved past the pinned bake. Expected right after
+ *         an image source PR merges, and only a bake clears it, so this reports
+ *         and never gates.
+ *
  * Usage:
- *   bun scripts/check-devbox-image-drift.ts            # exit 1 when drifted
+ *   bun scripts/check-devbox-image-drift.ts            # pin + drift, exit 1 on either
+ *   bun scripts/check-devbox-image-drift.ts --pin      # pin only
  *   bun scripts/check-devbox-image-drift.ts --warn     # always exit 0
  */
 import { execFileSync } from "node:child_process";
@@ -71,6 +83,87 @@ export function driftedInputs(
   return [...paths].filter((p) => baked.get(p) !== tree.get(p)).sort();
 }
 
+/**
+ * The ref a bake must have landed on. A feature branch is usually behind main,
+ * so testing against HEAD alone would call every recent bake a branch bake.
+ * CI checks out the PR's merge commit, where HEAD already contains the base.
+ */
+function landedRef(): string {
+  for (const ref of [process.env.CMUX_DEVBOX_BASE_REF, "origin/main", "main"]) {
+    if (!ref) continue;
+    try {
+      execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: repoRoot, stdio: "ignore" });
+      return ref;
+    } catch {
+      continue;
+    }
+  }
+  return "HEAD";
+}
+
+/** True when `commit` is in the landed history (or in this checkout's HEAD). */
+function isLanded(commit: string, ref = landedRef()): boolean | null {
+  for (const target of [ref, "HEAD"]) {
+    try {
+      execFileSync("git", ["merge-base", "--is-ancestor", commit, target], { cwd: repoRoot, stdio: "ignore" });
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  try {
+    execFileSync("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd: repoRoot, stdio: "ignore" });
+  } catch {
+    // A commit this clone does not have is a shallow checkout, not a branch
+    // bake, and must not be reported as one.
+    return null;
+  }
+  return false;
+}
+
+/**
+ * Manifest problems that no bake can fix, so they must not reach main.
+ *
+ * A promote PR writes twelve entries at once. Two agents promoting in parallel
+ * therefore collide in one file, and resolving that conflict by hand is how a
+ * ladder ends up half from each bake: valid JSON, one default per kind and
+ * size, and machines of different sizes running different images.
+ */
+export function pinProblems(
+  defaults: readonly { version: string; kind?: string; repoCommit?: string }[],
+  ancestry: (commit: string) => boolean | null,
+): string[] {
+  const problems: string[] = [];
+  const byKind = new Map<string, Map<string, string[]>>();
+  for (const entry of defaults) {
+    const kind = entry.kind ?? "base";
+    if (!entry.repoCommit) continue;
+    const lineages = byKind.get(kind) ?? new Map<string, string[]>();
+    lineages.set(entry.repoCommit, [...(lineages.get(entry.repoCommit) ?? []), entry.version]);
+    byKind.set(kind, lineages);
+  }
+  for (const [kind, lineages] of byKind) {
+    if (lineages.size > 1) {
+      const shown = [...lineages]
+        .map(([commit, versions]) => `${commit.slice(0, 10)} (${versions.join(", ")})`)
+        .join(" and ");
+      problems.push(
+        `${kind}: the size ladder mixes bakes: ${shown}. ` +
+          "One bake feeds one ladder; re-run the promotion instead of merging two.",
+      );
+    }
+    for (const commit of lineages.keys()) {
+      if (ancestry(commit) === false) {
+        problems.push(
+          `${kind}: default baked from ${commit.slice(0, 10)}, which is not in this history. ` +
+            "A branch bake (CMUX_BAKE_ALLOW_BRANCH=1) must not be promoted: rebake from main.",
+        );
+      }
+    }
+  }
+  return problems;
+}
+
 function main(): void {
   const warnOnly = process.argv.includes("--warn");
   const manifest = readImageManifest();
@@ -79,6 +172,15 @@ function main(): void {
     console.error("devbox image drift: the manifest has no default entry to check");
     process.exit(1);
   }
+  const pin = pinProblems(defaults, (commit) => isLanded(commit));
+  if (pin.length > 0) {
+    console.error(`devbox image pin is invalid:\n  ${pin.join("\n  ")}`);
+    if (!warnOnly) process.exit(1);
+  } else {
+    console.log(`devbox image pin ok: ${defaults.length} defaults, one bake per kind, all in this history`);
+  }
+  if (process.argv.includes("--pin")) return;
+
   const inputs = devboxImageInputPaths();
   const tree = new Map(inputs.map((p) => [p, readFromTree(p)] as const));
 
