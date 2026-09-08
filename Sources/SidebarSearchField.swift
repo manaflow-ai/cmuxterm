@@ -4,6 +4,9 @@ import CmuxFoundation
 /// Native search control shared by Find and Vault.
 @MainActor
 class SidebarSearchField: NSSearchField {
+    static let leadingPadding: CGFloat = 4
+    static let verticalPadding: CGFloat = 3
+
     var onCommandSubmit: (() -> Void)?
 
     override class var cellClass: AnyClass? {
