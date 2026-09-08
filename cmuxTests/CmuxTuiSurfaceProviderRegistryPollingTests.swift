@@ -66,6 +66,25 @@ struct CmuxTuiSurfaceProviderRegistryPollingTests {
         #expect(await waitUntil { !registry.isPolling })
     }
 
+    @Test("sign-out re-syncs the poll: with the opt-in gone it stops instead of listing the next account")
+    @MainActor
+    func signOutStopsPollingWhenNoLongerAllowed() async {
+        let allowed = Switch()
+        allowed.isOn = true
+        let registry = CmuxTuiSurfaceProviderRegistry(
+            links: CloudMachineLinkManager(clientURL: nil, hub: nil, hostThemeColors: { nil }),
+            wireGuardHub: nil,
+            allowsBackgroundWork: { allowed.isOn }
+        )
+        registry.start(catalog: SurfaceCatalog())
+        #expect(registry.isPolling)
+
+        // Sign-out clears the marker and enrollment files (the policy now says no).
+        allowed.isOn = false
+        NotificationCenter.default.post(name: .cmuxCloudVMAccessDidEnd, object: nil)
+        #expect(await waitUntil { !registry.isPolling })
+    }
+
     @Test("a registry that is allowed background work polls from start")
     @MainActor
     func allowedRegistryPollsImmediately() async {

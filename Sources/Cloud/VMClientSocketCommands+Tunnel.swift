@@ -143,7 +143,9 @@ extension TerminalController {
         if let failure = status?.state.failureMessage {
             payload["tunnel_error"] = failure
         }
-        if backend.isNetworkExtension, let refusal = await coordinator?.startRefusal() {
+        // Status stays read-only: it reports the refusal local state knows
+        // about and never resolves an unknown machine count.
+        if backend.isNetworkExtension, let refusal = await coordinator?.knownStartRefusal() {
             payload["start_refusal"] = refusal.rawValue
             payload["start_refusal_message"] = refusal.error.description
         }

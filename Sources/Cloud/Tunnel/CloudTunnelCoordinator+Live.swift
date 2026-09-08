@@ -22,7 +22,7 @@ extension CloudTunnelCoordinator {
             controller: controller,
             enroller: VMTunnelEnroller(manager: tunnelManager),
             consumers: consumers,
-            refuseStart: { activation.tunnelStartRefusal() }
+            admission: activation.tunnelAdmission
         )
     }
 

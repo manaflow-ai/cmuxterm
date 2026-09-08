@@ -52,6 +52,18 @@ struct CloudTunnelLaunchGateTests {
         enroller: FakeTunnelEnroller,
         gate: Gate
     ) -> CloudTunnelCoordinator {
+        makeCoordinator(
+            controller: controller,
+            enroller: enroller,
+            admission: .constant { gate.refusal }
+        )
+    }
+
+    private func makeCoordinator(
+        controller: any CloudTunnelControlling,
+        enroller: FakeTunnelEnroller,
+        admission: CloudTunnelAdmission
+    ) -> CloudTunnelCoordinator {
         CloudTunnelCoordinator(
             backend: Self.networkExtension,
             controller: controller,
@@ -59,8 +71,38 @@ struct CloudTunnelLaunchGateTests {
             consumers: FakeTunnelConsumers(),
             clock: SidebarTestManualClock(),
             timing: CloudTunnelTiming(),
-            refuseStart: { gate.refusal }
+            admission: admission
         )
+    }
+
+    /// The control plane plus the machine cache it refills: counts
+    /// resolutions, answers with a settable fleet, and remembers the answer
+    /// the way `VMClient.listPage` writes `CloudMachineCache`.
+    private final class Resolver: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fleetHasMachine: Bool?
+        private var cached: Bool?
+        private var resolutions = 0
+
+        init(fleetHasMachine: Bool?) {
+            self.fleetHasMachine = fleetHasMachine
+        }
+
+        var hasMachine: Bool? {
+            get { lock.withLock { fleetHasMachine } }
+            set { lock.withLock { fleetHasMachine = newValue } }
+        }
+        /// What local state knows: nil until the first resolution answers.
+        var known: Bool? { lock.withLock { cached } }
+        var count: Int { lock.withLock { resolutions } }
+
+        func resolve() -> Bool? {
+            lock.withLock {
+                resolutions += 1
+                if let fleetHasMachine { cached = fleetHasMachine }
+                return fleetHasMachine
+            }
+        }
     }
 
     @Test("a refused start touches neither enrollment nor the controller, and says why")
@@ -161,14 +203,84 @@ struct CloudTunnelLaunchGateTests {
         #expect(enroller.enrollCount == 1)
     }
 
+    @Test("an unknown machine count is resolved through the control plane before the first start, and a known answer is never re-asked")
+    @MainActor
+    func unknownMachineCountIsResolvedBeforeStarting() async throws {
+        let factory = ControllerFactory()
+        let deferred = CloudTunnelDeferredController { factory.make() }
+        let enroller = FakeTunnelEnroller()
+        let resolver = Resolver(fleetHasMachine: false)
+        // Cloud Machines on, machine count unknown (fresh opt-in or just signed in).
+        let policy = CloudActivationPolicy(
+            isCloudMachinesEnabled: { true },
+            hasCloudMachine: { resolver.known },
+            isTunnelConfigured: { false },
+            resolveCloudMachine: { resolver.resolve() }
+        )
+        let coordinator = makeCoordinator(controller: deferred, enroller: enroller, admission: policy.tunnelAdmission)
+
+        // Status never resolves: unknown is not a known refusal.
+        #expect(await coordinator.knownStartRefusal() == nil)
+        #expect(resolver.count == 0)
+
+        // The account turns out to have no machine: refused, nothing built.
+        await #expect(throws: CloudTunnelError.noCloudMachine) {
+            try await coordinator.requestUp(pin: true)
+        }
+        #expect(resolver.count == 1)
+        #expect(factory.builds.isEmpty)
+        #expect(enroller.enrollCount == 0)
+        #expect(await coordinator.state == .off)
+
+        // A machine appears (created elsewhere): the count last seen as zero
+        // is re-asked on the next explicit use, which then comes up. The
+        // in-start re-check finds the refilled cache and asks nothing.
+        resolver.hasMachine = true
+        try await coordinator.requestUp(pin: true)
+        #expect(await coordinator.state == .up)
+        #expect(resolver.count == 2)
+        #expect(factory.builds.count == 1)
+        #expect(factory.controller.calls == ["install", "start"])
+
+        // Now known: status and later uses need no resolution.
+        #expect(await coordinator.knownStartRefusal() == nil)
+        await coordinator.prepareForPrivateNetworkUse(Self.use)
+        #expect(resolver.count == 2)
+    }
+
+    @Test("a start that is refused after being scheduled ends off, without failure backoff")
+    func refusalAfterSchedulingEndsOff() async {
+        let controller = FakeTunnelController()
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        // Admit the scheduling check, refuse the in-start re-check: the toggle
+        // was turned off in between.
+        let asks = Resolver(fleetHasMachine: nil)
+        let admission = CloudTunnelAdmission(
+            knownRefusal: { gate.refusal },
+            resolvedRefusal: {
+                _ = asks.resolve()
+                return asks.count >= 2 ? CloudTunnelStartRefusal.cloudMachinesOff : nil
+            }
+        )
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, admission: admission)
+        await coordinator.beginUp(pin: false)
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { !$0.isSettling }
+        #expect(await coordinator.state == .off)
+        #expect(await coordinator.isInFailureBackoff == false)
+        #expect(controller.calls.isEmpty)
+        #expect(enroller.enrollCount == 0)
+    }
+
     @Test("launch composition: a saved VPN configuration gets the eager controller, otherwise construction waits; an unavailable build is inert")
     @MainActor
     func launchCompositionDefersWithoutASavedConfiguration() {
         let factory = ControllerFactory()
         let fresh = CloudActivationPolicy(
             isCloudMachinesEnabled: { false },
-            hasCloudMachine: { false },
-            isTunnelConfigured: { false }
+            hasCloudMachine: { nil },
+            isTunnelConfigured: { false },
+            resolveCloudMachine: { nil }
         )
         let deferred = CloudTunnelCoordinator.liveController(for: Self.networkExtension, activation: fresh) { identifier in
             factory.make(identifier)
@@ -179,7 +291,8 @@ struct CloudTunnelLaunchGateTests {
         let inherited = CloudActivationPolicy(
             isCloudMachinesEnabled: { true },
             hasCloudMachine: { true },
-            isTunnelConfigured: { true }
+            isTunnelConfigured: { true },
+            resolveCloudMachine: { true }
         )
         let eager = CloudTunnelCoordinator.liveController(for: Self.networkExtension, activation: inherited) { identifier in
             factory.make(identifier)

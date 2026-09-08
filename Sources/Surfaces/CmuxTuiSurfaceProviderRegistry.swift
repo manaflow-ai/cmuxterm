@@ -234,5 +234,9 @@ final class CmuxTuiSurfaceProviderRegistry {
         await links.disconnectAll()
         // Signing out drops the tunnel too: the next account enrolls its own.
         await wireGuardHub?.stop()
+        // Sign-out also cleared the machine marker and enrollment files: with
+        // Cloud Machines off the poll must stop here, or it would list the
+        // next account's fleet and re-mark a user who never opted in.
+        syncPollingToActivationPolicy()
     }
 }

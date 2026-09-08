@@ -16,9 +16,10 @@ nonisolated private let logger = Logger(subsystem: "com.cmuxterm.app", category:
 ///   it fires and no consumer is live (``CloudTunnelConsumerSource``), the
 ///   tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
 /// - **Stops with the session.** Sign-out, revoke, and app termination stop it.
-/// - **Off until admitted.** Every start path asks `refuseStart` first
-///   (``CloudActivationPolicy`` in production: Cloud Machines on, and the
-///   account has a machine). A refused start touches neither enrollment nor
+/// - **Off until admitted.** Every start path awaits ``CloudTunnelAdmission``
+///   first (``CloudActivationPolicy`` in production: Cloud Machines on, and
+///   the account has a machine, resolved through the control plane when local
+///   state cannot say). A refused start touches neither enrollment nor
 ///   NetworkExtension; `down`, sign-out, quit, and `revoke` stay available so
 ///   a tunnel from an earlier opted-in session is still cleaned up.
 /// - macOS never auto-connects it: no NetworkExtension on-demand rules are set.
@@ -34,9 +35,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// `CloudTunnelCoordinator+Deadline.swift` reads it.
     let clock: any Clock<Duration>
     private let timing: CloudTunnelTiming
-    /// Why a start is refused right now, or nil. Read on every start path so
+    /// Why a start is refused right now, or nil. Asked on every start path so
     /// an opt-in flipped while the app runs is honored by the next use.
-    private let refuseStart: @Sendable () -> CloudTunnelStartRefusal?
+    private let admission: CloudTunnelAdmission
 
     private(set) var state: CloudTunnelState = .off
     private(set) var isPinned = false
@@ -63,7 +64,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         consumers: any CloudTunnelConsumerSource,
         clock: any Clock<Duration> = ContinuousClock(),
         timing: CloudTunnelTiming = CloudTunnelTiming(),
-        refuseStart: @escaping @Sendable () -> CloudTunnelStartRefusal? = { nil }
+        admission: CloudTunnelAdmission = .open
     ) {
         self.backend = backend
         self.controller = controller
@@ -71,19 +72,25 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         self.consumers = consumers
         self.clock = clock
         self.timing = timing
-        self.refuseStart = refuseStart
+        self.admission = admission
     }
 
-    /// Why the next start would be refused, or nil when it would proceed.
-    func startRefusal() -> CloudTunnelStartRefusal? {
-        refuseStart()
+    /// Why the next start would be refused, or nil when it would proceed;
+    /// resolves an unknown machine count first. For the verbs that start.
+    func startRefusal() async -> CloudTunnelStartRefusal? {
+        await admission.resolvedRefusal()
+    }
+
+    /// The refusal local state already knows about, for status reporting.
+    func knownStartRefusal() -> CloudTunnelStartRefusal? {
+        admission.knownRefusal()
     }
 
     // MARK: - CloudPrivateNetworkGate
 
     func prepareForPrivateNetworkUse(_ use: CloudPrivateNetworkUse) async {
         guard backend.isNetworkExtension else { return }
-        if let refusal = refuseStart() {
+        if let refusal = await admission.resolvedRefusal() {
             logger.notice("Cloud use refused: \(refusal.rawValue, privacy: .public)")
             return
         }
@@ -117,7 +124,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
-        if let refusal = refuseStart() {
+        if let refusal = await admission.resolvedRefusal() {
             throw refusal.error
         }
         if state == .up {
@@ -138,7 +145,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
-        if let refusal = refuseStart() {
+        if let refusal = await admission.resolvedRefusal() {
             throw refusal.error
         }
         if pin { isPinned = true }
@@ -147,8 +154,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     }
 
     /// Kick off a start without waiting for it; pair with ``waitForState``.
-    func beginUp(pin: Bool) {
-        guard backend.isNetworkExtension, refuseStart() == nil else { return }
+    func beginUp(pin: Bool) async {
+        guard backend.isNetworkExtension, await admission.resolvedRefusal() == nil else { return }
         if pin { isPinned = true }
         clearFailureBackoff()
         _ = startTaskIfNeeded()
@@ -282,7 +289,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             try Task.checkCancellation()
             // A start coalesced behind a stop re-asks: the opt-in may have
             // been turned off while the stop drained.
-            if let refusal = refuseStart() {
+            if let refusal = await admission.resolvedRefusal() {
                 throw refusal.error
             }
             let enrollment = try await enroller.enroll()
@@ -318,6 +325,11 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         } catch is CancellationError {
             setState(.off, generation: generation)
             throw CancellationError()
+        } catch let error as CloudTunnelError where error.isActivationRefusal {
+            // A policy refusal is not a failure to back off from: the next
+            // use re-asks the policy, and nothing was started.
+            setState(.off, generation: generation)
+            throw error
         } catch {
             let message = Self.userMessage(for: error)
             setState(.failed(message), generation: generation)

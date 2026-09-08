@@ -70,9 +70,12 @@ the single decision every tunnel consumer (browser navigation, `cmux vpn up`,
   forced on by a managed `DisableCloud` profile) **and** the account has at
   least one machine. "Has a machine" is answered from a cached marker written
   by every machine list and create (`cloud.machines.cachedHasAny`), or from
-  this Mac's own tunnel enrollment files. A refused start touches neither
-  enrollment nor NetworkExtension and reports `cloud-machines-off` or
-  `no-cloud-machine` (`start_refusal` in `vm.tunnel_status`).
+  this Mac's own tunnel enrollment files. When neither can say (the marker
+  is cleared on sign-out and absent on a fresh opt-in), an explicit start
+  lists the fleet once to find out; launch-time decisions never do. A
+  refused start touches neither enrollment nor NetworkExtension and reports
+  `cloud-machines-off` or `no-cloud-machine` (`start_refusal` in
+  `vm.tunnel_status`, from local state only).
 - The NetworkExtension controller, whose construction reads
   `NETunnelProviderManager` preferences, is built at launch only when the
   browser-role config already exists on this Mac (a previous opted-in session

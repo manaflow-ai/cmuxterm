@@ -26,6 +26,14 @@ enum CloudTunnelError: Error, CustomStringConvertible, Equatable {
     /// The account has no Cloud machine yet; the tunnel has nothing to reach.
     case noCloudMachine
 
+    /// A ``CloudActivationPolicy`` refusal, as opposed to a start that ran and failed.
+    var isActivationRefusal: Bool {
+        switch self {
+        case .cloudMachinesOff, .noCloudMachine: return true
+        default: return false
+        }
+    }
+
     var description: String {
         switch self {
         case .backendUnavailable:

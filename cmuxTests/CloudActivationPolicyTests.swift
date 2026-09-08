@@ -15,35 +15,77 @@ import Testing
 /// never opens the tunnel without the toggle.
 @Suite
 struct CloudActivationPolicyTests {
-    private func policy(enabled: Bool, machine: Bool, configured: Bool) -> CloudActivationPolicy {
+    private func policy(
+        enabled: Bool,
+        machine: Bool?,
+        configured: Bool,
+        resolved: Bool? = nil
+    ) -> CloudActivationPolicy {
         CloudActivationPolicy(
             isCloudMachinesEnabled: { enabled },
             hasCloudMachine: { machine },
-            isTunnelConfigured: { configured }
+            isTunnelConfigured: { configured },
+            resolveCloudMachine: { resolved }
         )
     }
 
     @Test("a fresh install is inert: no background work, no adoption, every start refused")
-    func freshInstallIsInert() {
-        let policy = policy(enabled: false, machine: false, configured: false)
+    func freshInstallIsInert() async {
+        let policy = policy(enabled: false, machine: nil, configured: false)
         #expect(policy.allowsBackgroundCloudWork == false)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
         #expect(policy.tunnelStartRefusal() == .cloudMachinesOff)
+        #expect(await policy.resolvedTunnelStartRefusal() == .cloudMachinesOff)
     }
 
-    @Test("the toggle alone is not enough: the account needs a machine")
-    func toggleWithoutMachine() {
+    @Test("the toggle alone is not enough: a machine count known to be zero refuses")
+    func toggleWithoutMachine() async {
         let policy = policy(enabled: true, machine: false, configured: false)
         #expect(policy.allowsBackgroundCloudWork)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
         #expect(policy.tunnelStartRefusal() == .noCloudMachine)
+        #expect(await policy.resolvedTunnelStartRefusal() == .noCloudMachine)
     }
 
     @Test("the toggle plus a machine admits the tunnel")
-    func toggleWithMachine() {
+    func toggleWithMachine() async {
         let policy = policy(enabled: true, machine: true, configured: false)
         #expect(policy.tunnelStartRefusal() == nil)
+        #expect(await policy.resolvedTunnelStartRefusal() == nil)
         #expect(policy.allowsBackgroundCloudWork)
+    }
+
+    @Test("an unknown machine count is resolved through the control plane by a start, never by launch-time decisions")
+    func unknownMachineCountIsResolvedOnDemand() async {
+        let hasMachines = policy(enabled: true, machine: nil, configured: false, resolved: true)
+        #expect(hasMachines.allowsBackgroundCloudWork)
+        #expect(hasMachines.tunnelStartRefusal() == nil)
+        #expect(await hasMachines.resolvedTunnelStartRefusal() == nil)
+
+        let noMachines = policy(enabled: true, machine: nil, configured: false, resolved: false)
+        #expect(noMachines.tunnelStartRefusal() == nil)
+        #expect(await noMachines.resolvedTunnelStartRefusal() == .noCloudMachine)
+
+        // Signed out or offline: no answer, no refusal; enrollment reports why.
+        let unanswered = policy(enabled: true, machine: nil, configured: false, resolved: nil)
+        #expect(await unanswered.resolvedTunnelStartRefusal() == nil)
+
+        // A count last seen as zero is re-asked: a machine created elsewhere
+        // admits the start; an unanswerable ask keeps the known refusal.
+        let created = policy(enabled: true, machine: false, configured: false, resolved: true)
+        #expect(created.tunnelStartRefusal() == .noCloudMachine)
+        #expect(await created.resolvedTunnelStartRefusal() == nil)
+        let stillNone = policy(enabled: true, machine: false, configured: false, resolved: nil)
+        #expect(await stillNone.resolvedTunnelStartRefusal() == .noCloudMachine)
+
+        // A known machine is never re-asked.
+        let known = policy(enabled: true, machine: true, configured: false, resolved: false)
+        #expect(await known.resolvedTunnelStartRefusal() == nil)
+
+        // The toggle still wins before anything is asked.
+        let off = policy(enabled: false, machine: nil, configured: false, resolved: true)
+        #expect(off.allowsBackgroundCloudWork == false)
+        #expect(await off.resolvedTunnelStartRefusal() == .cloudMachinesOff)
     }
 
     @Test("prior Cloud use keeps the fleet alive and lets an inherited tunnel be adopted, but a start still needs the toggle")
@@ -100,7 +142,8 @@ struct CloudActivationPolicyTests {
                 defaults: defaults,
                 machineCache: cache,
                 browserTunnel: browser,
-                terminalTunnel: terminal
+                terminalTunnel: terminal,
+                resolveCloudMachine: { nil }
             )
         }
 
@@ -136,7 +179,9 @@ struct CloudActivationPolicyTests {
 
         harness.turnCloudMachines(on: true)
         #expect(policy.allowsBackgroundCloudWork)
-        #expect(policy.tunnelStartRefusal() == .noCloudMachine)
+        // Nothing has listed the fleet yet: unknown, so not a known refusal.
+        #expect(policy.hasCloudMachine() == nil)
+        #expect(policy.tunnelStartRefusal() == nil)
 
         // The machine list came back empty, then a machine was created.
         harness.cache.record(hasAnyMachine: false)
@@ -145,10 +190,14 @@ struct CloudActivationPolicyTests {
         #expect(policy.tunnelStartRefusal() == nil)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
 
-        // Sign-out clears the cache: the next account starts over.
+        // Sign-out clears the cache: the next account starts from unknown,
+        // and unknown never opens background work on its own.
         harness.cache.clear()
         #expect(harness.cache.hasAnyMachine == nil)
-        #expect(policy.tunnelStartRefusal() == .noCloudMachine)
+        #expect(policy.hasCloudMachine() == nil)
+        harness.turnCloudMachines(on: false)
+        #expect(policy.allowsBackgroundCloudWork == false)
+        harness.turnCloudMachines(on: true)
 
         harness.turnCloudMachines(on: false)
         #expect(policy.allowsBackgroundCloudWork == false)
@@ -161,14 +210,19 @@ struct CloudActivationPolicyTests {
         defer { harness.tearDown() }
         let policy = harness.policy
         harness.turnCloudMachines(on: true)
+        harness.cache.record(hasAnyMachine: false)
         #expect(policy.tunnelStartRefusal() == .noCloudMachine)
+        harness.cache.clear()
+        #expect(policy.hasCloudMachine() == nil)
 
         // The user-space hub enrolled the terminal role (a link to a machine).
         _ = try harness.terminal.deviceFingerprint()
+        #expect(policy.hasCloudMachine() == true)
         #expect(policy.tunnelStartRefusal() == nil)
+        #expect(policy.allowsBackgroundCloudWork)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
         harness.terminal.removeLocalCredentials()
-        #expect(policy.tunnelStartRefusal() == .noCloudMachine)
+        #expect(policy.hasCloudMachine() == nil)
 
         // A previous session saved the browser-role config.
         try harness.saveBrowserConfig()
