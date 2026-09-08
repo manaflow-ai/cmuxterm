@@ -72,6 +72,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && echo 'LANG=C.UTF-8' > /etc/default/locale \
   && fd --version && jq --version && fzf --version && sqlite3 --version && tmux -V && ss -V
 
+# The work user: the base's uid-1000 account renamed to `cmux`
+# (web/services/vms/images/workUser.ts). ONE account owns the desktop session,
+# the terminals the cmux-tui daemon opens, the provider's default exec user
+# and anything an agent writes; it is not root, because coding agents refuse
+# root (`claude --dangerously-skip-permissions` exits before it starts), and
+# it holds passwordless sudo so root stays one word away. Renamed rather than
+# added: a provider whose exec default is "the account holding uid 1000" then
+# lands in the same home as cmux's terminals.
+# (A container's hostname belongs to whoever runs it; the VM bake sets `cmux`.)
+RUN if ! id -u cmux >/dev/null 2>&1; then \
+      old="$(getent passwd 1000 | cut -d: -f1)" && test -n "$old" \
+      && usermod -l cmux -d /home/cmux -m "$old" && groupmod -n cmux "$old"; \
+    fi \
+  && for f in /etc/sudoers.d/*; do [ -f "$f" ] || continue; grep -q '^cmux[[:space:]]' "$f" || rm -f "$f"; done \
+  && echo "cmux ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/91-cmux-work-user && chmod 0440 /etc/sudoers.d/91-cmux-work-user \
+  && [ "$(id -u cmux)" = 1000 ] && [ "$(getent passwd cmux | cut -d: -f6)" = /home/cmux ] \
+  && sudo -n -u cmux sudo -n true
+
 # GitHub CLI from the official apt repo (not in the Ubuntu archive).
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -209,19 +227,21 @@ RUN npm install -g --foreground-scripts \
   && mise reshim \
   && claude --version && codex --version && opencode --version && pi --version && agent-browser --version
 
-# Keep Claude Code session transcripts effectively forever (chatmux parity).
-RUN mkdir -p /etc/claude-code \
-  && echo '{ "cleanupPeriodDays": 99999 }' > /etc/claude-code/managed-settings.json \
-  && node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))'
-
-# The work user is the uid-1000 account (`ubuntu` on the Ubuntu base, as on
-# Freestyle): the desktop session runs as it, and it gets passwordless sudo
-# so a person shelling in through the provider's own surfaces can still
-# administer the machine and coding agents' root-refusing modes work
-# (cmux sessions run as root via the cmux-tui daemon).
-RUN work_user="$(getent passwd 1000 | cut -d: -f1)" && test -n "$work_user" \
-  && echo "$work_user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/91-work-user-nopasswd && chmod 0440 /etc/sudoers.d/91-work-user-nopasswd \
-  && sudo -n -u "$work_user" sudo -n true
+# Claude Code machine policy (transcripts kept effectively forever, chatmux
+# parity; auto-updater off because the image pins the version into a
+# root-owned prefix) and the pre-answered first run, so the first
+# `claude --dangerously-skip-permissions` in a terminal lands on the prompt
+# instead of the theme picker, the login chooser, the bypass-risk dialog, the
+# custom-API-key dialog and the folder-trust dialog. Both files are generated
+# from the constants they depend on; vm-devbox-image.test.ts fails if the
+# checked-in bytes drift from devboxClaudeOnboardingSeed().
+RUN mkdir -p /etc/claude-code /etc/skel
+COPY claude-managed-settings.json /etc/claude-code/managed-settings.json
+COPY claude-onboarding.json /etc/skel/.claude.json
+RUN node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))' \
+  && install -m 600 -o cmux -g cmux /etc/skel/.claude.json /home/cmux/.claude.json \
+  && chmod 600 /etc/skel/.claude.json \
+  && node -e 'const s=JSON.parse(require("fs").readFileSync("/home/cmux/.claude.json","utf8")); if(!s.hasCompletedOnboarding||!s.bypassPermissionsModeAccepted||!s.customApiKeyResponses.approved.length) throw new Error("seed incomplete")'
 
 # Interactive shell polish: bash IS the shell (chatmux parity); it
 # borrows the oh-my-zsh half-life theme colors and ble.sh supplies

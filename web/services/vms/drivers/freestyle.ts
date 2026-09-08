@@ -49,7 +49,6 @@ import {
 } from "../images/desktop";
 import { recordSpanError, setSpanAttributes, withVmSpan } from "../telemetry";
 import {
-  CMUX_TUI_BINARY_PATH,
   CMUX_TUI_INSTALL_TIMEOUT_MS,
   CMUX_TUI_PORT,
   CMUX_TUI_SESSION,
@@ -59,6 +58,8 @@ import {
   cmuxTuiDaemonBuild,
   cmuxTuiDaemonCommand,
   cmuxTuiInstallCommand,
+  cmuxTuiLayoutSelector,
+  cmuxTuiRunCommand,
   cmuxTuiPinCheckCommand,
   parseCmuxTuiAttachBundle,
   resolveCmuxTuiSource,
@@ -134,11 +135,12 @@ const DESKTOP_HEAL_TIMEOUT_MS = 90_000;
 export const FREESTYLE_ATTACH_TRANSPORT: AttachTransport = "cmux-remote";
 
 /**
- * Every guest command runs as root. The 0.2 API's `linuxUser` default is not
- * root but "the account holding uid 1000, or root in an image with no such
- * account", and the cmux devbox image ships a uid-1000 user — so leaving this
- * off would silently move the daemon, its install, and the model-plane write
- * off the root layout they are baked around.
+ * Every guest command the driver runs is administrative — systemd, sudoers, the
+ * daemon install — so it runs as root. The 0.2 API's `linuxUser` default is
+ * "the account holding uid 1000, or root in an image with no such account",
+ * which on a cmux devbox image is the work user; leaving this off would run
+ * the driver's own maintenance unprivileged. Sessions are a different thing:
+ * the daemon drops to the work user itself (cmuxTuiLayoutSelector).
  */
 const GUEST_LINUX_USER = "root";
 
@@ -638,7 +640,8 @@ export function mapFreestyleState(state: VmData["state"] | null | undefined): VM
 export function freestylePinCheckCommand(source: CmuxTuiSource): string {
   return (
     "if [ -s /etc/cmux/cmux-tui-pin ]; then " +
-    `test -x ${CMUX_TUI_BINARY_PATH} && printf '%s  %s\\n' "$(cut -d' ' -f1 /etc/cmux/cmux-tui-pin)" ${CMUX_TUI_BINARY_PATH} | sha256sum -c >/dev/null 2>&1; ` +
+    `${cmuxTuiLayoutSelector()} && ` +
+    `test -x "$CMUX_TUI_BIN" && printf '%s  %s\\n' "$(cut -d' ' -f1 /etc/cmux/cmux-tui-pin)" "$CMUX_TUI_BIN" | sha256sum -c >/dev/null 2>&1; ` +
     `else ${cmuxTuiPinCheckCommand(source)}; fi`
   );
 }
@@ -1572,7 +1575,7 @@ export class FreestyleProvider implements VMProvider {
 
   private cmuxTuiInvoke(vm: Vm): CmuxTuiInvoke {
     return async (args, timeoutMs) => {
-      const r = await this.execResult(vm, `env HOME=/root /root/.cmux/bin/cmux-tui ${args}`, timeoutMs ?? EXEC_DEFAULT_TIMEOUT_MS);
+      const r = await this.execResult(vm, cmuxTuiRunCommand(args), timeoutMs ?? EXEC_DEFAULT_TIMEOUT_MS);
       return r ?? { exitCode: 124, stdout: "", stderr: "exec failed" };
     };
   }
