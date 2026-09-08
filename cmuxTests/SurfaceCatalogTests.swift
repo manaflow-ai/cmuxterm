@@ -1447,5 +1447,25 @@ struct SurfaceCatalogTests {
         ))
         catalog.rollbackCloudWorkspaceRename(first)
         #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "main")
+        let committed = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "committed")
+        let pending = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "pending")
+        catalog.commitCloudWorkspaceRename(committed, receipt: CloudVMCursor(generation: "g", revision: 2))
+        var committedInfo = info
+        committedInfo.remoteWorkspaces = [SurfaceRemoteWorkspace(id: workspace.id, name: "committed", index: 0, focused: true)]
+        for revision: UInt64 in [2, 3] {
+            #expect(!catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: revision)))
+            #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "pending")
+        }
+        catalog.rollbackCloudWorkspaceRename(pending)
+        #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "committed")
+        #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 3)))
+        let older = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "older")
+        let sameName = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "committed")
+        #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 3)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == "committed")
+        catalog.commitCloudWorkspaceRename(older, receipt: CloudVMCursor(generation: "g", revision: 4))
+        catalog.commitCloudWorkspaceRename(sameName, receipt: CloudVMCursor(generation: "g", revision: 5))
+        #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 5)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == nil)
     }
 }
