@@ -4,7 +4,7 @@ import Testing
 
 extension CmuxPluginSystemTests {
     @Test
-    func snapshotCanonicalPathsIgnoreDirectoryURLHint() throws {
+    func snapshotCanonicalPathsIgnoreDirectoryURLHint() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -12,7 +12,9 @@ extension CmuxPluginSystemTests {
         let directoryURL = URL(fileURLWithPath: root.path, isDirectory: true)
         let fileURL = URL(fileURLWithPath: root.path, isDirectory: false)
 
-        #expect(snapshotter.canonicalURL(directoryURL) == snapshotter.canonicalURL(fileURL))
+        let canonicalDirectoryURL = await snapshotter.canonicalURL(directoryURL)
+        let canonicalFileURL = await snapshotter.canonicalURL(fileURL)
+        #expect(canonicalDirectoryURL == canonicalFileURL)
     }
 
     @Test
