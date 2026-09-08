@@ -19,7 +19,7 @@ extension SettingsNavigationTarget {
         case .mobile:
             return "\(title) ios iphone ipad mobile pairing local network sync"
         case .computers:
-            return "\(title) computers devices macs remote pair unpair presence online offline tailscale hive"
+            return "\(title) \(SettingsSearchAliasIndex.sectionAliases(for: self))"
         case .cloudMachines:
             return "\(title) cloud machines vm virtual machine persistent computer plan upgrade fleet"
         case .networking:
@@ -34,6 +34,8 @@ extension SettingsNavigationTarget {
             return "\(title) beta experimental unstable feed dock right sidebar"
         case .automation:
             return "\(title) socket integrations hooks ports claude cursor gemini kiro naming auto naming workspace tabs"
+        case .computerUse:
+            return "\(title) computer use cua accessibility screen recording permissions cursor mcp agents driver menu bar onboarding"
         case .browser:
             return "\(title) search engine links history theme"
         case .browserImport:
