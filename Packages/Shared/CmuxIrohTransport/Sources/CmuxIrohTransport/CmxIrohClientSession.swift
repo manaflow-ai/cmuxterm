@@ -488,7 +488,7 @@ public actor CmxIrohClientSession {
             return lhs == rhs
         }
         guard lhsHost == rhsHost else { return false }
-        return lhs.cmxIrohSocketPort == rhs.cmxIrohSocketPort
+        return true
     }
 
     /// Observes redacted path lifecycle events on the admitted connection.

@@ -166,6 +166,40 @@ struct CmxIrohClientSessionTests {
     }
 
     @Test
+    func directModeAllowsPortRewritingForAnAuthorizedHost() async throws {
+        let endpoint = TestDialingIrohEndpoint(
+            localIdentity: localIdentity,
+            dialResults: []
+        )
+        let directHint = try CmxIrohPathHint(
+            kind: .directAddress,
+            value: "10.0.0.8:4242",
+            source: .customVPN,
+            privacyScope: .privateNetwork,
+            observedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_300),
+            networkProfile: CmxIrohNetworkProfileKey(
+                source: .customVPN,
+                profileID: String(repeating: "b", count: 64)
+            )
+        )
+        let session = try CmxIrohClientSession(
+            endpoint: endpoint,
+            targetIdentity: remoteIdentity,
+            dialPlan: try CmxIrohDialPlan.directOnly(pinnedPaths: [directHint]),
+            credential: credential,
+            transportMode: .direct
+        )
+
+        #expect(await session.pathIsAllowed(.direct(address: "10.0.0.8:61234")))
+        #expect(
+            await session.pathIsAllowed(
+                .privateNetwork(address: "10.0.0.8:61234")
+            )
+        )
+    }
+
+    @Test
     func publicDialAdmitsControlAndPreservesFollowingRPCBytes() async throws {
         let events = TestIrohEventRecorder()
         let control = controlStream(
