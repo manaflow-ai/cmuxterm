@@ -300,6 +300,10 @@ struct PaneFocusFindResponderTests {
         window.contentView?.addSubview(foreignEditor)
         window.makeKeyAndOrderFront(nil)
         #expect(window.makeFirstResponder(findField))
+        // Keep the field-editor resignation deterministic. Without an
+        // explicit destination, AppKit may choose the preview WebView as the
+        // next key view before the direct focus attempt below.
+        window.resignationDestination = foreignEditor
 
         panel.hideFind()
         #expect(window.rejectedFocusAttempts == 1)
