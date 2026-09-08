@@ -10647,7 +10647,15 @@ final class GhosttySurfaceScrollView: NSView {
 #if DEBUG
         logLayoutDuringActiveDrag(targetSize: targetSize)
 #endif
-        let targetSurfaceFrame = CGRect(origin: contentFrame.origin, size: targetSize)
+        // The clip view can have a non-zero origin inside the scroll view (for
+        // example, when AppKit places a legacy scroller on the leading edge in
+        // right-to-left layout). Keep the sibling renderer aligned to that
+        // actual viewport origin instead of the outer pane frame.
+        let targetSurfaceOrigin = scrollView.convert(
+            scrollView.contentView.frame.origin,
+            to: self
+        )
+        let targetSurfaceFrame = CGRect(origin: targetSurfaceOrigin, size: targetSize)
         _ = setFrameIfNeeded(surfaceView, to: targetSurfaceFrame)
         let targetDocumentFrame = CGRect(
             origin: documentView.frame.origin,

@@ -107,6 +107,41 @@ struct GhosttyScrollViewTests {
         )
     }
 
+    @Test func rendererTracksLeadingClipViewInset() throws {
+        let surfaceView = GhosttyNSView(
+            frame: NSRect(x: 0, y: 0, width: 320, height: 160)
+        )
+        let hostedView = GhosttySurfaceScrollView(surfaceView: surfaceView)
+        hostedView.frame = NSRect(x: 0, y: 0, width: 320, height: 160)
+        hostedView.layoutSubtreeIfNeeded()
+
+        let scrollView = try #require(
+            hostedView.subviews.compactMap { $0 as? GhosttyScrollView }.first
+        )
+        scrollView.scrollerStyle = .legacy
+        scrollView.autohidesScrollers = false
+        scrollView.tile()
+        hostedView.layoutSubtreeIfNeeded()
+
+        // AppKit may inset the clip view when a leading-edge legacy scroller is
+        // present. Reproduce that viewport geometry without depending on the
+        // machine's global interface direction preference.
+        var clipViewFrame = scrollView.contentView.frame
+        clipViewFrame.origin.x += 11
+        scrollView.contentView.frame = clipViewFrame
+
+        hostedView.setSessionContentWidthPresentation(SessionContentWidthPresentation(
+            storedMaximumWidth: 319,
+            storedAlignment: SessionContentAlignment.left.rawValue
+        ))
+
+        let expectedOrigin = scrollView.convert(scrollView.contentView.frame.origin, to: hostedView)
+        #expect(
+            surfaceView.frame.origin == expectedOrigin,
+            "the renderer must follow the clip view's converted origin when AppKit insets the viewport"
+        )
+    }
+
     private func waitForMainRunLoop(
         timeout: TimeInterval = 1,
         condition: () -> Bool
