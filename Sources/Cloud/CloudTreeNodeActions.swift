@@ -350,10 +350,16 @@ struct CloudTreeNodeActions {
                     guard let provider = catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider else {
                         throw SurfaceCatalogError.unsupported(SurfaceCatalog.portPreviewUnavailableMessage(machineID: resource.machine.rawValue))
                     }
-                    guard let url = try await provider.localPortURL(port: port) ?? catalog.resources[resource]?.url else {
+                    if let url = try await provider.localPortURL(port: port) {
+                        Self.copyToPasteboard(url)
+                        return
+                    }
+                    // No private address: the control plane's tokened preview URL
+                    // is the link that works for this machine's ports.
+                    guard let machineID = resource.machine.cloudMachineID, let client = VMClient.shared else {
                         throw SurfaceCatalogError.unsupported(SurfaceCatalog.portPreviewUnavailableMessage(machineID: resource.machine.rawValue))
                     }
-                    Self.copyToPasteboard(url)
+                    Self.copyToPasteboard(try await client.openPort(id: machineID, port: port).openUrl)
                 }
             },
             refresh: refresh
