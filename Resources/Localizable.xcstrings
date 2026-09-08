@@ -293600,6 +293600,9 @@
     "cloudTree.ports.asleep": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Open the machine to discover ports"}},"ja":{"stringUnit":{"state":"translated","value":"マシンを開いてポートを検出"}}}},
     "cloudTree.ports.unavailable": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Port discovery unavailable. Refresh to retry."}},"ja":{"stringUnit":{"state":"translated","value":"ポート検出を利用できません。更新して再試行してください。"}}}},
     "cloudTree.ports.empty": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No reachable ports"}},"ja":{"stringUnit":{"state":"translated","value":"到達可能なポートはありません"}}}},
+    "shortcut.newCloudWorkspace.label": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"New Cloud Workspace"}},"ja":{"stringUnit":{"state":"translated","value":"新規クラウドワークスペース"}}}},
+    "command.newCloudWorkspace.title": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"New Cloud Workspace"}},"ja":{"stringUnit":{"state":"translated","value":"新規クラウドワークスペース"}}}},
+    "menu.file.newCloudWorkspace": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"New Cloud Workspace"}},"ja":{"stringUnit":{"state":"translated","value":"新規クラウドワークスペース"}}}},
     "cloud.managed.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud Machines are disabled by your administrator."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud Machines は管理者によって無効になっています。"}}}},
   "version": "1.0"
 }

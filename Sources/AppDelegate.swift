@@ -9287,7 +9287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     newlyCreatedId = id
                     break
                 }
-                if newlyCreatedId == nil, case .builtIn(.cloudVM) = action.action {
+                if newlyCreatedId == nil, case .builtIn(let builtIn) = action.action, builtIn.createsWorkspaceAsynchronously {
                     asyncObserverId = ConfiguredGroupActionAsyncWorkspaceObserver.install(
                         tabManager: context.tabManager,
                         groupId: workspaceGroupTarget.groupId,
@@ -15109,6 +15109,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return true
         }
 
+        if matchConfiguredShortcut(event: event, action: .newCloudWorkspace) {
+#if DEBUG
+            cmuxDebugLog("shortcut.action name=newCloudWorkspace \(debugShortcutRouteSnapshot(event: event))")
+#endif
+            performNewCloudWorkspaceAction(event: event, debugSource: "shortcut.cmdY")
+            return true
+        }
+
         // New Window: Cmd+Shift+N
         // Handled here instead of relying on SwiftUI's CommandGroup menu item because
         // after a browser panel has been shown, SwiftUI's menu dispatch can silently
@@ -17488,7 +17496,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             // it, so watch the tab list while the process is running. Process
             // completion also reports the created workspace UUID as an exact
             // fallback.
-            if newlyCreatedId == nil, case .builtIn(.cloudVM) = action.action {
+            if newlyCreatedId == nil, case .builtIn(let builtIn) = action.action, builtIn.createsWorkspaceAsynchronously {
                 asyncObserverId = ConfiguredGroupActionAsyncWorkspaceObserver.install(
                     tabManager: tabManager,
                     groupId: groupId,
@@ -17561,6 +17569,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     preferredWindow: resolvedWindow(for: context) ?? preferredWindow,
                     debugSource: "configured.cmux.cloudvm",
                     onCompletion: onCloudVMCompletion
+                )
+                if didStart { onExecuted?() }
+                return didStart
+            case .newCloudWorkspace:
+                let didStart = performNewCloudWorkspaceAction(
+                    tabManager: context.tabManager,
+                    preferredWindow: resolvedWindow(for: context) ?? preferredWindow,
+                    debugSource: "configured.cmux.newCloudWorkspace"
                 )
                 if didStart { onExecuted?() }
                 return didStart
