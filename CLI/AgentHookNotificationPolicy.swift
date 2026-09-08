@@ -35,14 +35,16 @@ enum AgentHookNotifyCategory: String {
     func metaSegment(
         pending: Bool,
         approvalID: String? = nil,
-        approvalIDIsDerived: Bool = false
+        approvalIDIsDerived: Bool = false,
+        approvalSource: String? = nil
     ) -> String? {
         metaSegment(
             pending: pending,
             approvalID: approvalID,
             approvalIDIsDerived: approvalIDIsDerived,
             agentKind: nil,
-            isSubagent: nil
+            isSubagent: nil,
+            approvalSource: approvalSource
         )
     }
 
@@ -79,7 +81,8 @@ enum AgentHookNotifyCategory: String {
         approvalIDIsDerived: Bool = false,
         agentKind: String?,
         isSubagent: Bool?,
-        correlationKey: String? = nil
+        correlationKey: String? = nil,
+        approvalSource: String? = nil
     ) -> String? {
         guard self != .other else { return nil }
         var segment = "c=\(rawValue);p=\(pending ? 1 : 0)"
@@ -87,6 +90,9 @@ enum AgentHookNotifyCategory: String {
             segment += ";a=\(approvalID)"
             if approvalIDIsDerived {
                 segment += ";d=1"
+                if let approvalSource, Self.isValidApprovalSource(approvalSource) {
+                    segment += ";o=\(approvalSource)"
+                }
             }
         } else if let agentKind, Self.isValidAgentKindTag(agentKind) {
             segment += ";a=\(agentKind)"
@@ -98,6 +104,10 @@ enum AgentHookNotifyCategory: String {
             segment += ";k=\(UUID(uuidString: correlationKey)?.uuidString.lowercased() ?? correlationKey)"
         }
         return segment
+    }
+
+    static func isValidApprovalSource(_ value: String) -> Bool {
+        value == "hook" || value == "feed"
     }
 
     /// Mirror of the app-side `AgentNotificationMeta` slug grammar: 1-64 ASCII
@@ -281,7 +291,7 @@ struct CodexApprovalNotificationIdentity: Equatable, Sendable {
         if let direct = firstNonemptyString(in: object, keys: keys) {
             return direct
         }
-        for containerKey in ["notification", "data", "context", "extra", "params", "toolCall", "tool_call", "tool_input", "toolInput"] {
+        for containerKey in ["notification", "data", "context", "extra", "params", "toolCall", "tool_call"] {
             guard let nested = object[containerKey] as? [String: Any] else { continue }
             if let value = firstNonemptyStringDeep(in: nested, keys: keys, depth: depth + 1) {
                 return value

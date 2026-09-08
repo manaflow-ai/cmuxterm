@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// A delimiter-safe correlation identifier for one native agent approval.
 ///
@@ -27,6 +28,14 @@ struct AgentApprovalCorrelationID: Hashable, RawRepresentable, Sendable {
         }
         self.rawValue = rawValue
         self.scope = scope
+    }
+
+    static func journal(sessionID: String, correlationKey: String) -> Self? {
+        func digest(_ value: String) -> String {
+            SHA256.hash(data: Data(value.utf8)).prefix(12)
+                .map { String(format: "%02x", $0) }.joined()
+        }
+        return Self(rawValue: "\(digest("codex-journal:\(sessionID)")).\(digest(correlationKey))")
     }
 
     private static func isDigest(_ value: String) -> Bool {

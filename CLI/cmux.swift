@@ -2601,9 +2601,7 @@ final class ClaudeHookSessionStore {
         if let deadline, Date.now >= deadline {
             throw CLIError(message: "Claude hook state deadline exceeded: \(lockPath)")
         }
-        // Preserve expiry semantics without encoding and replacing the state
-        // file for a read-only lookup.
-        var state = try loadUnlocked(deadline: deadline)
+        var state = try loadUnlocked(deadline: deadline, allowsRecovery: false)
         if let deadline, Date.now >= deadline {
             throw CLIError(message: "Claude hook state deadline exceeded: \(lockPath)")
         }
@@ -2611,7 +2609,7 @@ final class ClaudeHookSessionStore {
         return try body(state)
     }
 
-    private func loadUnlocked(deadline: Date? = nil) throws -> ClaudeHookSessionStoreFile {
+    private func loadUnlocked(deadline: Date? = nil, allowsRecovery: Bool = true) throws -> ClaudeHookSessionStoreFile {
 
         guard fileManager.fileExists(atPath: statePath) else {
             return ClaudeHookSessionStoreFile()
@@ -2626,10 +2624,12 @@ final class ClaudeHookSessionStore {
             throw CLIError(message: "Claude hook state file is too large for the hook deadline: \(statePath)")
         }
         if fileSize > Self.maxRecoverableHookStateFileBytes {
+            guard allowsRecovery else { return ClaudeHookSessionStoreFile() }
             return try quarantineOversizedState(at: stateURL)
         }
         let data = try Data(contentsOf: stateURL)
         guard var decoded = try? decoder.decode(ClaudeHookSessionStoreFile.self, from: data) else {
+            guard allowsRecovery else { return ClaudeHookSessionStoreFile() }
             return try quarantineOversizedState(at: stateURL)
         }
         if fileSize > Self.maxHookStateFileBytes {
@@ -36819,9 +36819,6 @@ export default CMUXSessionRestore;
                 category: summary.notifyCategory,
                 body: summary.body
             )
-            let shouldRouteThroughApprovalCoordinator = def.name == "codex"
-                && summary.notifyCategory == .needsPermission
-                && approvalIdentity != nil
             if !summary.body.isEmpty || approvalIdentity != nil {
                 // One ancestry walk per delivered notification, feeding the
                 // notify payload's subagent tag below.
@@ -36851,7 +36848,8 @@ export default CMUXSessionRestore;
                     notificationMeta = summary.notifyCategory.metaSegment(
                         pending: notificationPending,
                         approvalID: approvalIdentity.approvalID,
-                        approvalIDIsDerived: !approvalIdentity.isAuthoritative
+                        approvalIDIsDerived: !approvalIdentity.isAuthoritative,
+                        approvalSource: "hook"
                     )
                 } else if def.name == "codex", summary.notifyCategory == .needsPermission {
                     // Preserve the pre-correlation Codex wire form when the
@@ -37083,13 +37081,14 @@ export default CMUXSessionRestore;
             }
 
         case .noop:
-            if def.name == "codex", subcommand == "post-tool-use",
-               let approvalIdentity = CodexApprovalNotificationIdentity.make(
-                   rawObject: input.rawObject ?? input.object,
-                   fallbackSessionID: input.sessionId
-               ) {
+            if def.name == "codex", subcommand == "post-tool-use" {
                 let mapped = sessionId.isEmpty ? nil : (try? store.lookup(sessionId: sessionId))
                 if let target = resolveAgentHookTarget(mapped: mapped) {
+                    emitJournal(.attentionResolved, workspaceId: target.workspaceId, surfaceId: target.surfaceId,
+                        responseTimeout: Self.codexApprovalResolutionResponseTimeoutSeconds)
+                    guard let approvalIdentity = CodexApprovalNotificationIdentity.make(
+                        rawObject: input.rawObject ?? input.object, fallbackSessionID: input.sessionId
+                    ) else { break }
                     // This wrapper path runs in a detached fire-and-forget
                     // worker. Never let a stalled daemon hold one worker for
                     // the SocketClient's 15-second default; Codex can emit a

@@ -32,6 +32,7 @@ struct AgentNotificationDelivery: Sendable {
         soundContext: NotificationSoundOverrideContext? = nil,
         approvalID: AgentApprovalCorrelationID? = nil,
         approvalIDIsDerived: Bool = false,
+        approvalSource: String? = nil,
         agentKind: String? = nil,
         isSubagent: Bool? = nil,
         correlationKey: String? = nil,
@@ -48,11 +49,13 @@ struct AgentNotificationDelivery: Sendable {
                 body: body,
                 approvalID: approvalID,
                 approvalIDIsDerived: approvalIDIsDerived,
+                approvalSource: approvalSource,
                 agent: Self.agentContext(
                     category: category,
                     pending: pending,
                     agentKind: agentKind,
-                    isSubagent: isSubagent
+                    isSubagent: isSubagent,
+                    sessionId: sessionId
                 ),
                 producerCorrelationKey: correlationKey
             )

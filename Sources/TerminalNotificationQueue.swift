@@ -16,6 +16,7 @@ fileprivate struct QueuedAgentApprovalStage {
     let body: String
     let approvalID: AgentApprovalCorrelationID
     let approvalIDIsDerived: Bool
+    let approvalSource: String?
     let agent: TerminalNotificationPolicyAgentContext?
     let producerCorrelationKey: String?
 }
@@ -273,6 +274,7 @@ final class TerminalMutationBus: @unchecked Sendable {
         body: String,
         approvalID: AgentApprovalCorrelationID,
         approvalIDIsDerived: Bool = false,
+        approvalSource: String? = nil,
         agent: TerminalNotificationPolicyAgentContext? = nil,
         producerCorrelationKey: String? = nil
     ) {
@@ -286,12 +288,6 @@ final class TerminalMutationBus: @unchecked Sendable {
             approvalSurfaceGenerations[surfaceId, default: 0] &+= 1
             approvalWorkspaceGenerations[previousWorkspaceID, default: 0] &+= 1
         }
-        // If the mapping was retired, a resolution token captured just before
-        // this stage must not be admitted into the new episode that reclaims
-        // the same surface identity.
-        if approvalWorkspaceBySurface[surfaceId] == nil {
-            approvalSurfaceGenerations[surfaceId, default: 0] &+= 1
-        }
         approvalWorkspaceBySurface[surfaceId] = tabId
         let token = approvalMutationToken(workspaceID: tabId, surfaceID: surfaceId)
         lock.unlock()
@@ -303,6 +299,7 @@ final class TerminalMutationBus: @unchecked Sendable {
             body: body,
             approvalID: approvalID,
             approvalIDIsDerived: approvalIDIsDerived,
+            approvalSource: approvalSource,
             agent: agent,
             producerCorrelationKey: producerCorrelationKey
         ), token))
@@ -692,9 +689,9 @@ final class TerminalMutationBus: @unchecked Sendable {
     ) {
         lock.lock()
         approvalCorrelationAliases = approvalCorrelationAliases.filter { key, value in
-            if let surfaceID, key.surfaceID != surfaceID { return false }
-            if let episodeCorrelationKey, value != episodeCorrelationKey { return false }
-            return true
+            let matchesSurface = surfaceID.map { key.surfaceID == $0 } ?? true
+            let matchesEpisode = episodeCorrelationKey.map { value == $0 } ?? true
+            return !(matchesSurface && matchesEpisode)
         }
         lock.unlock()
     }
@@ -706,46 +703,6 @@ final class TerminalMutationBus: @unchecked Sendable {
         })
         approvalCorrelationAliases = approvalCorrelationAliases.filter { key, _ in
             !surfaceIDs.contains(key.surfaceID)
-        }
-        lock.unlock()
-    }
-
-    private func retireApprovalSurface(_ surfaceID: UUID, afterSequence: UInt64) {
-        removeApprovalCorrelationAliases(surfaceID: surfaceID, episodeCorrelationKey: nil)
-        lock.lock()
-        ensureApprovalGenerationCapacityLocked(workspaceID: nil, surfaceID: surfaceID)
-        approvalSurfaceGenerations[surfaceID, default: 0] &+= 1
-        let nextSurfaceGeneration = approvalSurfaceGenerations[surfaceID] ?? 0
-        var latestWorkspaceID: UUID?
-        // A resolution can drain before a newer stage that was already queued
-        // behind it. Rebase those stage tokens to the newly retired surface
-        // generation so the valid later stage is admitted while older
-        // resolution tokens remain fenced.
-        for index in pending.indices {
-            let existingEntry = pending[index]
-            guard existingEntry.sequence > afterSequence,
-                  case .stageAgentApproval(let stage, let token) = existingEntry.mutation,
-                  stage.surfaceID == surfaceID else { continue }
-            latestWorkspaceID = stage.workspaceID
-            let rebasedToken = AgentApprovalMutationToken(
-                global: token.global,
-                workspace: token.workspace,
-                surface: nextSurfaceGeneration,
-                workspaceID: token.workspaceID,
-                surfaceID: token.surfaceID
-            )
-            pending[index] = TerminalSocketMutationEntry(
-                sequence: existingEntry.sequence,
-                mutation: .stageAgentApproval(stage, rebasedToken),
-                notificationGeneration: existingEntry.notificationGeneration,
-                notificationCoalescingKey: existingEntry.notificationCoalescingKey,
-                performReplaceKey: existingEntry.performReplaceKey
-            )
-        }
-        if let latestWorkspaceID {
-            approvalWorkspaceBySurface[surfaceID] = latestWorkspaceID
-        } else {
-            approvalWorkspaceBySurface.removeValue(forKey: surfaceID)
         }
         lock.unlock()
     }
@@ -826,6 +783,8 @@ final class TerminalMutationBus: @unchecked Sendable {
                 guard case .stageAgentApproval(let existing, _) = entry.mutation else { return false }
                 return existing.surfaceID == stage.surfaceID
                     && existing.approvalID == stage.approvalID
+                    && !existing.approvalIDIsDerived
+                    && !stage.approvalIDIsDerived
             }
             pendingApprovalMutationCount -= beforeCount - pending.count
         case .resolveAgentApproval(let surfaceID, let approvalID, _):
@@ -1043,16 +1002,7 @@ final class TerminalMutationBus: @unchecked Sendable {
 
     private func takeNextBatch() -> [TerminalSocketMutationEntry] {
         lock.lock()
-        var count = min(maxMutationsPerDrain, pending.count)
-        // Keep a resolution at the end of its own batch. A resolution may
-        // retire a surface generation and rebase later stage tokens still in
-        // `pending`; taking both into one batch would remove those stages
-        // before the rebase can run and incorrectly drop a valid replacement.
-        if let resolutionIndex = pending.prefix(count).firstIndex(where: {
-            Self.isApprovalResolution($0.mutation)
-        }) {
-            count = resolutionIndex + 1
-        }
+        let count = min(maxMutationsPerDrain, pending.count)
         let batch = Array(pending.prefix(count))
         if !batch.isEmpty {
             pending.removeFirst(count)
@@ -1198,6 +1148,7 @@ final class TerminalMutationBus: @unchecked Sendable {
                     body: stage.body,
                     approvalID: stage.approvalID,
                     isDerived: stage.approvalIDIsDerived,
+                    approvalSource: stage.approvalSource,
                     agent: stage.agent,
                     producerCorrelationKey: stage.producerCorrelationKey
                 )
@@ -1205,13 +1156,13 @@ final class TerminalMutationBus: @unchecked Sendable {
                 guard approvalTokenIsCurrent(token, workspaceID: nil, surfaceID: surfaceID) else { continue }
                 agentApprovalNotifications.resolve(surfaceID: surfaceID, approvalID: approvalID)
                 if !agentApprovalNotifications.hasEpisode(surfaceID: surfaceID) {
-                    retireApprovalSurface(surfaceID, afterSequence: entry.sequence)
+                    removeApprovalCorrelationAliases(surfaceID: surfaceID, episodeCorrelationKey: nil)
                 }
             case .resolveAgentApprovalScope(let surfaceID, let approvalScope, let token):
                 guard approvalTokenIsCurrent(token, workspaceID: nil, surfaceID: surfaceID) else { continue }
                 agentApprovalNotifications.resolve(surfaceID: surfaceID, approvalScope: approvalScope)
                 if !agentApprovalNotifications.hasEpisode(surfaceID: surfaceID) {
-                    retireApprovalSurface(surfaceID, afterSequence: entry.sequence)
+                    removeApprovalCorrelationAliases(surfaceID: surfaceID, episodeCorrelationKey: nil)
                 }
             case .perform(let mutation):
                 mutation()

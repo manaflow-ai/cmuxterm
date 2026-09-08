@@ -44,6 +44,7 @@ final class AgentApprovalNotificationCoordinator {
         let body: String
         let approvalID: AgentApprovalCorrelationID
         let isDerived: Bool
+        let approvalSources: Set<String>
         let agent: TerminalNotificationPolicyAgentContext?
         let producerCorrelationKey: String?
         let readyAt: TimeInterval
@@ -130,6 +131,7 @@ final class AgentApprovalNotificationCoordinator {
         body: String,
         approvalID: AgentApprovalCorrelationID,
         isDerived: Bool = false,
+        approvalSource: String? = nil,
         agent: TerminalNotificationPolicyAgentContext? = nil,
         producerCorrelationKey: String? = nil
     ) {
@@ -149,6 +151,7 @@ final class AgentApprovalNotificationCoordinator {
             body: body,
             approvalID: approvalID,
             isDerived: isDerived,
+            approvalSources: Set(approvalSource.flatMap { ["hook", "feed"].contains($0) ? [$0] : nil } ?? []),
             agent: agent,
             producerCorrelationKey: producerCorrelationKey,
             readyAt: timestamp + settleDelay,
@@ -167,7 +170,12 @@ final class AgentApprovalNotificationCoordinator {
             // only the latest display text may have changed. If no provider
             // discriminator exists, an exact completion is intentionally
             // treated as ambiguous and waits for a scope-level resolution.
-            if isDerived || existing.isDerived {
+            let duplicateFromDistinctHookPaths = isDerived
+                && existing.isDerived
+                && !candidate.approvalSources.isEmpty
+                && !existing.approvalSources.isEmpty
+                && candidate.approvalSources.isDisjoint(with: existing.approvalSources)
+            if (isDerived || existing.isDerived) && !duplicateFromDistinctHookPaths {
                 state.ambiguousApprovalIDs.insert(approvalID.rawValue)
             }
             state.candidates[approvalID.rawValue] = Candidate(
@@ -177,6 +185,7 @@ final class AgentApprovalNotificationCoordinator {
                 body: candidate.body,
                 approvalID: candidate.approvalID,
                 isDerived: candidate.isDerived,
+                approvalSources: existing.approvalSources.union(candidate.approvalSources),
                 agent: candidate.agent,
                 producerCorrelationKey: candidate.producerCorrelationKey,
                 readyAt: min(existing.readyAt, candidate.readyAt),
@@ -283,10 +292,6 @@ final class AgentApprovalNotificationCoordinator {
         }
     }
 
-    /// Indicates whether a surface still owns an approval episode. The
-    /// mutation bus uses this at resolution boundaries to retire the surface
-    /// generation when the last candidate is gone, fencing stale resolutions
-    /// from a later episode that reuses the same surface id.
     func hasEpisode(surfaceID: UUID) -> Bool {
         panes[surfaceID] != nil
     }
@@ -309,6 +314,7 @@ final class AgentApprovalNotificationCoordinator {
                 body: candidate.body,
                 approvalID: candidate.approvalID,
                 isDerived: candidate.isDerived,
+                approvalSources: candidate.approvalSources,
                 agent: candidate.agent,
                 producerCorrelationKey: candidate.producerCorrelationKey,
                 readyAt: candidate.readyAt,

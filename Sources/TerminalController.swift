@@ -13512,6 +13512,7 @@ class TerminalController {
             soundContext: meta?.soundContext,
             approvalID: meta?.approvalID,
             approvalIDIsDerived: meta?.approvalIDIsDerived ?? false,
+            approvalSource: meta?.approvalSource,
             agentKind: meta?.agentKind,
             isSubagent: meta?.isSubagent,
             correlationKey: meta?.correlationKey

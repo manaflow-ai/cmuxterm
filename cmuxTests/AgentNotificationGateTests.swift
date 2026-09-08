@@ -530,6 +530,22 @@ import Testing
         #expect(fixture.deliveries.first?.body == "new tool needs approval")
     }
 
+    @Test(arguments: [false, true])
+    func derivedTransportDuplicatesOnlyBecomeAmbiguousOnRepeatedSource(repeatSource: Bool) {
+        let fixture = Fixture()
+        let sources = repeatSource ? ["hook", "feed", "hook", "feed"] : ["hook", "feed"]
+        for source in sources {
+            fixture.coordinator.stage(workspaceID: Self.workspaceID, surfaceID: Self.surfaceID,
+                title: "Codex", subtitle: "Permission", body: "approval", approvalID: Self.firstApprovalID,
+                isDerived: true, approvalSource: source)
+        }
+        fixture.coordinator.resolve(surfaceID: Self.surfaceID, approvalID: Self.firstApprovalID)
+        fixture.scheduler.advance(by: 0.2)
+        #expect(fixture.deliveries.count == (repeatSource ? 1 : 0))
+        fixture.coordinator.resolve(surfaceID: Self.surfaceID, approvalScope: Self.firstApprovalID.scope)
+        #expect(fixture.clears.count == (repeatSource ? 1 : 0))
+    }
+
     @Test func duplicateApprovalSignalsRequireScopeResolution() {
         let fixture = Fixture()
 

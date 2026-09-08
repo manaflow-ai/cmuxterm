@@ -26,7 +26,7 @@ enum AgentTurnCompleteMode: String {
     case never
 }
 
-/// Parsed `c=<category>;p=<0|1>[;a=<agent-kind-or-approval-id>][;d=1][;n=<0|1>][;s=<alert>][;k=<uuid>]` meta segment.
+/// Parsed `c=<category>;p=<0|1>[;a=<agent-kind-or-approval-id>][;d=1][;o=<approval-source>][;n=<0|1>][;s=<alert>][;k=<uuid>]` meta segment.
 /// Returns `nil` unless BOTH a KNOWN category literal and a valid `p=0|1`
 /// pending flag are present, so the reserved suffix grammar stays exactly the
 /// three known categories — any other `c=...` tail stays part of the legacy
@@ -43,6 +43,7 @@ struct AgentNotificationMeta {
     let pending: Bool
     let approvalID: AgentApprovalCorrelationID?
     let approvalIDIsDerived: Bool
+    let approvalSource: String?
     let agentKind: String?
     let isSubagent: Bool?
     let soundContext: NotificationSoundOverrideContext?
@@ -52,12 +53,12 @@ struct AgentNotificationMeta {
 
     init?(meta: String) {
         // Accept ONLY the canonical serialization the CLI emits (`c=` then
-        // `p=`, optionally followed by `a=`, `d=`, `n=`, `s=`, then `k=`, this
+        // `p=`, optionally followed by `a=`, `d=`, `o=`, `n=`, `s=`, then `k=`, this
         // order, no duplicates or extras). Anything else — reordered,
         // duplicated, or unknown trailing fields — is not metadata and stays
         // part of the legacy notification body.
         let fields = meta.split(separator: ";", omittingEmptySubsequences: false)
-        guard (2...7).contains(fields.count),
+        guard (2...8).contains(fields.count),
               fields[0].hasPrefix("c="),
               fields[1].hasPrefix("p=") else { return nil }
         guard let known = AgentNotifyCategory(rawValue: String(fields[0].dropFirst(2))) else {
@@ -98,6 +99,15 @@ struct AgentNotificationMeta {
             approvalIDIsDerived = true
             index += 1
         }
+        var approvalSource: String? = nil
+        if index < fields.count, fields[index].hasPrefix("o=") {
+            let value = String(fields[index].dropFirst(2))
+            guard approvalID != nil,
+                  approvalIDIsDerived,
+                  Self.isValidApprovalSource(value) else { return nil }
+            approvalSource = value
+            index += 1
+        }
         if index < fields.count, fields[index].hasPrefix("n=") {
             switch fields[index].dropFirst(2) {
             case "1": isSubagent = true
@@ -133,10 +143,15 @@ struct AgentNotificationMeta {
         self.pending = pending
         self.approvalID = approvalID
         self.approvalIDIsDerived = approvalIDIsDerived
+        self.approvalSource = approvalSource
         self.agentKind = agentKind
         self.isSubagent = isSubagent
         self.soundContext = soundContext
         self.correlationKey = correlationKey
+    }
+
+    private static func isValidApprovalSource(_ value: String) -> Bool {
+        value == "hook" || value == "feed"
     }
 
     /// Mirror of the CLI's `AgentHookNotifyCategory.isValidAgentKindTag` slug
