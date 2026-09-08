@@ -16,12 +16,18 @@ enum RestoredAgentForegroundProcess {
     /// The identity validator applies the same executable, launch-kind, and
     /// session checks the live agent index uses for hook-recorded PIDs, so a
     /// shell (or an unrelated command) never counts as the agent. Pi overwrites
-    /// its argv with a bare title, so the pane scope vouches for a missing
-    /// session identity the way a hook record does; a contradicting session
-    /// identity still rejects the process.
+    /// its argv with a bare title, so a foreground process that shows no
+    /// session identity is vouched for only while the session has registered
+    /// no process of its own, or when it is that registered process; once a
+    /// different process sits in the pane it must name this session in argv.
+    /// A contradicting session identity always rejects.
+    ///
+    /// - Parameter recordedProcessID: the hook-registered PID for `agent`'s
+    ///   session on this pane, if any.
     static func matches(
         _ agent: SessionRestorableAgentSnapshot,
         foregroundProcessID: Int?,
+        recordedProcessID: Int? = nil,
         processArguments: (Int) -> CmuxTopProcessArguments? =
             CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for:),
         validator: CachedAgentProcessIdentityValidator = CachedAgentProcessIdentityValidator()
@@ -32,10 +38,11 @@ enum RestoredAgentForegroundProcess {
               let process = processArguments(foregroundProcessID) else {
             return false
         }
+        let vouchesForMissingIdentity = recordedProcessID == nil || recordedProcessID == foregroundProcessID
         return validator.currentProcess(
             process,
             matches: agent,
-            hermesSessionValidation: .paneForegroundProcess
+            hermesSessionValidation: vouchesForMissingIdentity ? .paneForegroundProcess : .cachedSnapshot
         )
     }
 }

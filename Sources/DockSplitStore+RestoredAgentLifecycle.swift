@@ -245,10 +245,8 @@ extension DockSplitStore {
     /// Dock twin of `Workspace.restoredAgentHasLiveProcess(_:panelId:)`.
     ///
     /// Without a restored snapshot, the hook-published binding supplies the
-    /// agent identity. Evidence order matches the workspace: the
-    /// hook-registered `<kind>.<session>` PID whose process generation still
-    /// matches, the live agent index with revalidated process evidence, then
-    /// the pane's foreground process validated against the agent identity.
+    /// agent identity; the Dock's runtime table supplies the hook-registered
+    /// process. The evidence order itself lives in `RestoredAgentLiveness`.
     private func restoredAgentHasLiveProcess(
         panelId: UUID,
         restoredAgent: SessionRestorableAgentSnapshot?
@@ -260,31 +258,22 @@ extension DockSplitStore {
         else {
             return false
         }
-        let pidKey = "\(agent.kind.rawValue).\(agent.sessionId)"
+        let pidKey = RestoredAgentLiveness.pidKey(for: agent)
         let runtime = agentRuntimeByPanelId[panelId]
             ?? detachedSurfaceTransfersByPanelId[panelId]?.agentRuntime
-        // Claude's PID key identifies only a panel, not a session; it cannot
-        // vouch for this session generation.
-        if agent.kind != .claude,
-           let runtime,
-           let pid = runtime.agentPIDs[pidKey],
-           pid > 0,
-           let recordedIdentity = runtime.agentPIDProcessIdentities[pidKey],
-           recordedIdentity.pid == pid,
-           Workspace.agentPIDProcessIdentity(pid: pid) == recordedIdentity {
-            return true
+        let recordedProcess = runtime?.agentPIDs[pidKey].map { pid in
+            RestoredAgentLiveness.RecordedProcess(
+                pid: pid,
+                identity: runtime?.agentPIDProcessIdentities[pidKey]
+            )
         }
-        if SharedLiveAgentIndex.shared.index?.hasCurrentLiveProcessForStablePanel(
+        return RestoredAgentLiveness.hasLiveProcess(
+            agent,
             workspaceId: detachedSurfaceTransfersByPanelId[panelId]?.sessionRestoreWorkspaceId
                 ?? workspaceId,
             panelId: panelId,
-            expectedKind: agent.kind.rawValue,
-            expectedSessionId: agent.sessionId
-        ) == true {
-            return true
-        }
-        return RestoredAgentForegroundProcess.matches(
-            agent,
+            recordedProcess: recordedProcess,
+            liveIndex: SharedLiveAgentIndex.shared.index,
             foregroundProcessID: (panels[panelId] as? TerminalPanel)?.surface.foregroundProcessID()
         )
     }

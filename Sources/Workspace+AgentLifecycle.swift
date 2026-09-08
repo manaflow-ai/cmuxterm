@@ -359,40 +359,29 @@ extension Workspace {
         }
     }
 
-    /// Whether `restoredAgent` is verifiably still running in `panelId`.
-    ///
-    /// Pi-compatible TUIs emit OSC 133 prompt and command marks while the
-    /// agent keeps running, so a shell-activity flip alone cannot prove that
-    /// the agent exited or was replaced (#12084). Cheapest evidence first: the
-    /// hook-registered `<kind>.<session>` PID whose process generation still
-    /// matches, the live agent index with revalidated process evidence, and
-    /// the pane's foreground process validated against the agent identity,
-    /// which covers the window before the session-start hook registers a PID.
+    /// Whether `restoredAgent` is verifiably still running in `panelId`; see
+    /// `RestoredAgentLiveness` for the evidence order shared with the Dock.
     func restoredAgentHasLiveProcess(
         _ restoredAgent: SessionRestorableAgentSnapshot,
         panelId: UUID
     ) -> Bool {
-        let currentProcessIdentity: (Int) -> AgentPIDProcessIdentity? = { pid in
-            guard pid > 0, pid <= Int(Int32.max) else { return nil }
-            return Self.agentPIDProcessIdentity(pid: pid_t(pid))
-        }
-        if !confirmedRuntimeAgentProcessIdentities(
-            for: restoredAgent,
-            panelId: panelId,
-            currentProcessIdentity: currentProcessIdentity
-        ).isEmpty {
-            return true
-        }
-        if SharedLiveAgentIndex.shared.index?.hasCurrentLiveProcessForStablePanel(
+        let key = RestoredAgentLiveness.pidKey(for: restoredAgent)
+        let recordedProcess: RestoredAgentLiveness.RecordedProcess? = {
+            guard agentPIDKeysByPanelId[panelId]?.contains(key) == true,
+                  let pid = agentPIDs[key] else {
+                return nil
+            }
+            return RestoredAgentLiveness.RecordedProcess(
+                pid: pid,
+                identity: agentPIDProcessIdentitiesByKey[key]
+            )
+        }()
+        return RestoredAgentLiveness.hasLiveProcess(
+            restoredAgent,
             workspaceId: id,
             panelId: panelId,
-            expectedKind: restoredAgent.kind.rawValue,
-            expectedSessionId: restoredAgent.sessionId
-        ) == true {
-            return true
-        }
-        return RestoredAgentForegroundProcess.matches(
-            restoredAgent,
+            recordedProcess: recordedProcess,
+            liveIndex: SharedLiveAgentIndex.shared.index,
             foregroundProcessID: terminalPanel(for: panelId)?.surface.foregroundProcessID()
         )
     }

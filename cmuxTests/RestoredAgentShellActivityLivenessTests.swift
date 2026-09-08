@@ -270,4 +270,106 @@ struct RestoredAgentShellActivityLivenessTests {
             processArguments: { _ in nil }
         ))
     }
+
+    /// Once the session has registered its own process, a different bare Pi
+    /// in the pane is another agent unless its argv names this session.
+    @Test
+    func foregroundVouchingIsBoundToTheSessionsRecordedProcess() {
+        let agent = SessionRestorableAgentSnapshot(
+            kind: .pi,
+            sessionId: Self.sessionID,
+            workingDirectory: Self.projectDirectory,
+            launchCommand: nil
+        )
+        let barePi = CmuxTopProcessArguments(arguments: ["pi"], environment: [:])
+        let sameSessionPi = CmuxTopProcessArguments(
+            arguments: ["pi", "--session", Self.sessionID],
+            environment: [:]
+        )
+
+        #expect(RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 4242,
+            recordedProcessID: 4242,
+            processArguments: { _ in barePi }
+        ))
+        #expect(!RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 9999,
+            recordedProcessID: 4242,
+            processArguments: { _ in barePi }
+        ))
+        #expect(RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 9999,
+            recordedProcessID: 4242,
+            processArguments: { _ in sameSessionPi }
+        ))
+    }
+
+    // MARK: - Shared evaluator
+
+    @Test
+    func sharedEvaluatorOrdersRecordedProcessThenIndexThenForeground() {
+        let agent = SessionRestorableAgentSnapshot(
+            kind: .pi,
+            sessionId: Self.sessionID,
+            workingDirectory: Self.projectDirectory,
+            launchCommand: nil
+        )
+        let identity = AgentPIDProcessIdentity(pid: 4242, startSeconds: 100, startMicroseconds: 0)
+        let recorded = RestoredAgentLiveness.RecordedProcess(pid: 4242, identity: identity)
+        let workspaceId = UUID()
+        let panelId = UUID()
+
+        // The recorded process is alive with its recorded generation.
+        #expect(RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: nil,
+            currentProcessIdentity: { _ in identity }
+        ))
+        // The recorded process exited and the pane's foreground is something
+        // that cannot be inspected.
+        #expect(!RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: RestorableAgentSessionIndex.empty,
+            foregroundProcessID: nil,
+            currentProcessIdentity: { _ in nil }
+        ))
+        // A PID reused by another generation is not this session's process.
+        #expect(!RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: nil,
+            currentProcessIdentity: { _ in
+                AgentPIDProcessIdentity(pid: 4242, startSeconds: 200, startMicroseconds: 0)
+            }
+        ))
+        // Claude's key is panel-scoped and never vouches for a session.
+        let claude = SessionRestorableAgentSnapshot(
+            kind: .claude,
+            sessionId: Self.sessionID,
+            workingDirectory: Self.projectDirectory,
+            launchCommand: nil
+        )
+        #expect(!RestoredAgentLiveness.hasLiveProcess(
+            claude,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: nil,
+            currentProcessIdentity: { _ in identity }
+        ))
+    }
 }
