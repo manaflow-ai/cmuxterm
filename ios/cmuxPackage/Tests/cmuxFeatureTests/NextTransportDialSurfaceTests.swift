@@ -72,14 +72,19 @@ struct NextTransportDialSurfaceTests {
         #expect(!NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: nil))
     }
 
-    @Test("the display string round-trips through the string policy")
-    func displayStringRoundTrips() {
-        let closed = NextTransportDialState.closed(code: "expired", denial: nil)
+    @Test("display descriptions and bootstrap policy preserve typed close reasons")
+    func displayDescriptionPreservesTypedDenial() {
+        let closed = NextTransportDialState.closed(code: "expired", denial: .expired)
         #expect(closed.displayDescription == "closed (expired)")
-        #expect(NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: .expired))
         let lost = NextTransportDialState.closed(code: "connection-lost", denial: nil)
         #expect(lost.displayDescription == "closed (connection-lost)")
-        #expect(!NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: lost.denial))
+        guard case .closed(_, let credentialDenial) = closed,
+              case .closed(_, let transportDenial) = lost else {
+            Issue.record("expected both states to preserve their closed payload")
+            return
+        }
+        #expect(NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: credentialDenial))
+        #expect(!NextTransportDenialPolicy().shouldInvalidateBootstrap(denial: transportDenial))
     }
 
     // MARK: probe error classifier
