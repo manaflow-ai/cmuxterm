@@ -135,7 +135,6 @@ extension TerminalController {
                     )
                 }
             }
-            }
         }
 
         let parts = trimmed.split(separator: " ", maxSplits: 1).map(String.init)
@@ -496,7 +495,6 @@ extension TerminalController {
                 request: request,
                 session: localViewportSession
             )
-        }
         }
         let bridgedParams = request.params.mapValues(\.foundationObject)
         let method = request.method

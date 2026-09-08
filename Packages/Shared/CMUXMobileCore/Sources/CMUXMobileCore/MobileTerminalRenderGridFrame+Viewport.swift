@@ -390,7 +390,25 @@ extension String {
         let sourceLines = replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
+        let retentionLimit: Int? = if keepAllRows {
+            if let maximumLines, maximumLines > 0 { maximumLines } else { nil }
+        } else {
+            min(rows, maximumLines.flatMap { $0 > 0 ? $0 : nil } ?? rows)
+        }
         var projected: [String] = []
+        var projectedStart = 0
+        func appendProjected(_ line: String) {
+            projected.append(line)
+            guard let retentionLimit,
+                  projected.count - projectedStart > retentionLimit else { return }
+            projectedStart += projected.count - projectedStart - retentionLimit
+            // Keep the temporary buffer bounded while avoiding an O(n) shift for
+            // every wrapped row in a large scrollback export.
+            if projectedStart >= 1024, projectedStart * 2 >= projected.count {
+                projected.removeFirst(projectedStart)
+                projectedStart = 0
+            }
+        }
         for sourceLine in sourceLines {
             var line = ""
             var width = 0
@@ -400,28 +418,25 @@ extension String {
                     columns
                 )
                 if width > 0, width + characterWidth > columns {
-                    projected.append(line)
+                    appendProjected(line)
                     line = ""
                     width = 0
                 }
                 line.append(character)
                 width += characterWidth
                 if width == columns {
-                    projected.append(line)
+                    appendProjected(line)
                     line = ""
                     width = 0
                 }
             }
             if !line.isEmpty || sourceLine.isEmpty {
-                projected.append(line)
+                appendProjected(line)
             }
         }
-        if !keepAllRows, projected.count > rows {
-            projected = Array(projected.suffix(rows))
-        }
-        if let maximumLines, maximumLines > 0, projected.count > maximumLines {
-            projected = Array(projected.suffix(maximumLines))
-        }
-        return projected.joined(separator: "\n")
+        let retained = projectedStart == 0
+            ? projected[...]
+            : projected[projectedStart...]
+        return retained.joined(separator: "\n")
     }
 }
