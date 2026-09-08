@@ -27,6 +27,8 @@ actor ScriptedHostTransport: CmxByteTransport {
     enum WaitError: Error { case methodNotReceived(String) }
     private var methodWaiters: [UUID: MethodWaiter] = [:]
     private var responseEvents: [ResponseEvent] = []
+    private var failingResponseOccurrences: [String: Set<Int>] = [:]
+    private var droppedResponseOccurrences: [String: Set<Int>] = [:]
 
     init(handler: @escaping Handler) {
         self.handler = handler
@@ -60,17 +62,36 @@ actor ScriptedHostTransport: CmxByteTransport {
                 sentInputTexts.append(text)
             }
             resolveMethodWaiters(method: method)
+            let occurrence = sentMethods.filter { $0 == method }.count
             let result = handler(method, params)
-            let envelope: [String: Any] = ["id": id, "ok": true, "result": result]
-            if let payload = try? JSONSerialization.data(withJSONObject: envelope),
+            let envelope: [String: Any]
+            if failingResponseOccurrences[method]?.contains(occurrence) == true {
+                envelope = [
+                    "id": id, "ok": false,
+                    "error": ["code": "scripted_failure", "message": "Scripted RPC failure"],
+                ]
+            } else {
+                envelope = ["id": id, "ok": true, "result": result]
+            }
+            if droppedResponseOccurrences[method]?.contains(occurrence) != true,
+               let payload = try? JSONSerialization.data(withJSONObject: envelope),
                let framed = try? MobileSyncFrameCodec.encodeFrame(payload) {
                 deliver(framed)
             }
-            let occurrence = sentMethods.filter { $0 == method }.count
             for event in responseEvents where event.method == method && event.occurrence == occurrence {
                 deliver(event.frame)
             }
         }
+    }
+
+    /// Reject one RPC while preserving the byte connection for recovery tests.
+    func failResponse(to method: String, occurrence: Int) {
+        failingResponseOccurrences[method, default: []].insert(occurrence)
+    }
+
+    /// Leave one RPC pending until caller cancellation or disconnect.
+    func dropResponse(to method: String, occurrence: Int) {
+        droppedResponseOccurrences[method, default: []].insert(occurrence)
     }
 
     func close() async {
