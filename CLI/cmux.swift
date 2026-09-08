@@ -27799,14 +27799,7 @@ struct CMUXCLI {
                 observedPermissionMode: observedHookPermissionMode,
                 telemetry: telemetry,
                 preserveExistingBindingWhenUnavailable:
-                    rejectedRestoreBindingReconciliation?.preservesExistingBinding == true &&
-                    shouldApplyClaudeHookVisibleMutation(
-                        sessionStore: sessionStore,
-                        parsedInput: parsedInput,
-                        workspaceId: workspaceId,
-                        surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
-                        telemetry: telemetry
-                    )
+                    rejectedRestoreBindingReconciliation?.preservesExistingBinding == true
             )
             emitAgentJournalEvent(
                 client: client,
@@ -31782,8 +31775,20 @@ struct CMUXCLI {
         telemetry: CLISocketSentryTelemetry? = nil,
         preserveExistingBindingWhenUnavailable: Bool = false
     ) {
-        let shouldPreserveExistingBinding: Bool
-        if preserveExistingBindingWhenUnavailable, kind != "claude" {
+        var existingBindingPreservation: Bool?
+        func shouldPreserveExistingBindingWhenUnavailable() -> Bool {
+            if let existingBindingPreservation {
+                return existingBindingPreservation
+            }
+            guard preserveExistingBindingWhenUnavailable else {
+                existingBindingPreservation = false
+                return false
+            }
+            guard kind != "claude" else {
+                existingBindingPreservation = true
+                return true
+            }
+            let shouldPreserve: Bool
             switch existingAgentResumeBindingCheck(
                 client: client,
                 workspaceId: workspaceId,
@@ -31792,22 +31797,22 @@ struct CMUXCLI {
                 sessionId: sessionId
             ) {
             case .matches:
-                shouldPreserveExistingBinding = true
+                shouldPreserve = true
             case .doesNotMatch:
                 resumeBindingDeliveryLogger.notice(
                     "Skipping unavailable agent resume publication because the surface has a different owner kind=\(kind, privacy: .public)"
                 )
-                return
+                shouldPreserve = true
             case .unavailable:
                 resumeBindingDeliveryLogger.notice(
                     "Unable to verify existing agent resume binding; preserving it without mutation kind=\(kind, privacy: .public)"
                 )
-                return
+                shouldPreserve = true
             case .missing:
-                shouldPreserveExistingBinding = false
+                shouldPreserve = false
             }
-        } else {
-            shouldPreserveExistingBinding = preserveExistingBindingWhenUnavailable
+            existingBindingPreservation = shouldPreserve
+            return shouldPreserve
         }
         if kind == "hermes-agent" {
             var stateEnvironment = ProcessInfo.processInfo.environment
@@ -31822,7 +31827,7 @@ struct CMUXCLI {
             case .exists:
                 break
             case .missing:
-                if shouldPreserveExistingBinding {
+                if shouldPreserveExistingBindingWhenUnavailable() {
                     resumeBindingDeliveryLogger.notice(
                         "Preserving existing Hermes resume binding because checkpoint is missing session=\(sessionId, privacy: .private(mask: .hash))"
                     )
@@ -31852,7 +31857,7 @@ struct CMUXCLI {
                 kind: kind,
                 launchCommand: launchCommand
             ) else {
-                if shouldPreserveExistingBinding {
+                if shouldPreserveExistingBindingWhenUnavailable() {
                     resumeBindingDeliveryLogger.notice(
                         "Preserving existing Codex resume binding because launch evidence is unavailable session=\(sessionId, privacy: .private(mask: .hash))"
                     )
@@ -31892,7 +31897,7 @@ struct CMUXCLI {
                     existing: nil,
                     telemetry: telemetry
                 )
-                if shouldPreserveExistingBinding {
+                if shouldPreserveExistingBindingWhenUnavailable() {
                     resumeBindingDeliveryLogger.notice(
                         "Preserving existing Codex resume binding because rollout evidence is missing session=\(sessionId, privacy: .private(mask: .hash))"
                     )
@@ -31918,7 +31923,7 @@ struct CMUXCLI {
                 return
             }
         } else if !agentHookSessionHasDurableResumeEvidence(kind: kind, launchCommand: launchCommand) {
-            if shouldPreserveExistingBinding {
+            if shouldPreserveExistingBindingWhenUnavailable() {
                 resumeBindingDeliveryLogger.notice(
                     "Preserving existing agent resume binding because launch evidence is unavailable kind=\(kind, privacy: .public)"
                 )
@@ -31949,7 +31954,7 @@ struct CMUXCLI {
             environment: resumeEnvironment,
             observedPermissionMode: observedPermissionMode
         ) else {
-            if shouldPreserveExistingBinding {
+            if shouldPreserveExistingBindingWhenUnavailable() {
                 resumeBindingDeliveryLogger.notice(
                     "Preserving existing agent resume binding because no command was derived kind=\(kind, privacy: .public)"
                 )
