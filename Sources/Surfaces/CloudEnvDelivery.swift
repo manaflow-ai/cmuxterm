@@ -88,6 +88,27 @@ enum CloudEnvDelivery {
         }
     }
 
+    static func requireReady(_ response: [String: Any], machineID: String) throws {
+        guard (response["matched"] as? Bool) == true else {
+            let screen = (response["text"] as? String) ?? ""
+            if looksLikeOutdatedShim(screen) {
+                throw DeliveryError.outdatedShim(machineID)
+            }
+            throw DeliveryError.receiverNotReady(screen)
+        }
+    }
+
+    static func requireOutcome(_ response: [String: Any]) throws -> Outcome {
+        let screen = (response["text"] as? String) ?? ""
+        guard let outcome = outcome(fromScreen: screen) else {
+            throw DeliveryError.noResult(screen)
+        }
+        if case .failed(let reason) = outcome {
+            throw DeliveryError.receiverFailed(reason)
+        }
+        return outcome
+    }
+
     static func isValidKey(_ key: String) -> Bool {
         key.range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) != nil
     }

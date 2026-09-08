@@ -27,13 +27,7 @@ extension CmuxTuiSurfaceProvider {
                 pattern: CloudEnvDelivery.readyMarker,
                 timeoutMs: CloudEnvDelivery.readyTimeoutMs
             )
-            guard (ready["matched"] as? Bool) == true else {
-                let screen = (ready["text"] as? String) ?? ""
-                if CloudEnvDelivery.looksLikeOutdatedShim(screen) {
-                    throw CloudEnvDelivery.DeliveryError.outdatedShim(machineID)
-                }
-                throw CloudEnvDelivery.DeliveryError.receiverNotReady(screen)
-            }
+            try CloudEnvDelivery.requireReady(ready, machineID: machineID)
             // Echo is off on the receiver's PTY from here on; the daemon never journals
             // input, so the payload exists on the machine only inside the receiver.
             for chunk in CloudEnvDelivery.chunks(wire) {
@@ -44,14 +38,8 @@ extension CmuxTuiSurfaceProvider {
                 pattern: CloudEnvDelivery.resultPattern,
                 timeoutMs: CloudEnvDelivery.resultTimeoutMs
             )
-            let screen = (result["text"] as? String) ?? ""
-            guard let outcome = CloudEnvDelivery.outcome(fromScreen: screen) else {
-                throw CloudEnvDelivery.DeliveryError.noResult(screen)
-            }
+            let outcome = try CloudEnvDelivery.requireOutcome(result)
             try? await closeTerminal(receiver.id)
-            if case .failed(let reason) = outcome {
-                throw CloudEnvDelivery.DeliveryError.receiverFailed(reason)
-            }
             return outcome
         } catch {
             // Whatever happened, the receiver must not linger as a pool row.
