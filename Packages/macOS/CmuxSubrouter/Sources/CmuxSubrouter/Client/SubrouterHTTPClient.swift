@@ -104,10 +104,10 @@ public struct SubrouterHTTPClient: SubrouterClienting {
     }
 
     private func perform<Payload: Decodable>(_ request: URLRequest) async throws -> Payload {
-        let bytes: URLSession.AsyncBytes
+        let data: Data
         let response: URLResponse
         do {
-            (bytes, response) = try await session.bytes(for: request)
+            (data, response) = try await session.data(for: request)
         } catch {
             Self.logger.error(
                 "Subrouter request failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
@@ -131,27 +131,9 @@ public struct SubrouterHTTPClient: SubrouterClienting {
             )
             throw SubrouterClientError.responseTooLarge
         }
-        var data = Data()
-        data.reserveCapacity(min(
-            (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Length").flatMap(Int.init)
-                ?? 64 * 1_024,
-            Self.maximumResponseBytes
-        ))
-        do {
-            for try await byte in bytes {
-                guard data.count < Self.maximumResponseBytes else {
-                    Self.logger.error("Subrouter response exceeded byte budget while streaming")
-                    throw SubrouterClientError.responseTooLarge
-                }
-                data.append(byte)
-            }
-        } catch let error as SubrouterClientError {
-            throw error
-        } catch {
-            Self.logger.error(
-                "Subrouter response stream failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
-            )
-            throw SubrouterClientError.unreachable(description: "transport failure")
+        guard data.count <= Self.maximumResponseBytes else {
+            Self.logger.error("Subrouter response exceeded byte budget: \(data.count, privacy: .public)")
+            throw SubrouterClientError.responseTooLarge
         }
         do {
             return try decoder.decode(Payload.self, from: data)
