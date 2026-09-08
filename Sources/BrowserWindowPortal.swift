@@ -477,20 +477,22 @@ final class WindowBrowserHostView: NSView {
         // same BrowserPaneDropTargetView router. Sidebar reorder and stale or
         // unknown transfer payloads still pass through to the SwiftUI layers.
         let dragPasteboardTypes = dragPasteboard.types
+        let hasLiveTabTransfer = DragOverlayRoutingPolicy.hasLiveTabTransfer(
+            in: dragPasteboard,
+            pasteboardTypes: dragPasteboardTypes,
+            resolver: AppDelegate.shared?.liveTabDragCapabilityResolver
+        )
+        let hasLiveFileDropPayload = DragOverlayRoutingPolicy.hasLiveFileDropPayload(
+            from: dragPasteboard,
+            pasteboardTypes: dragPasteboardTypes,
+            resolver: AppDelegate.shared?.liveTabDragCapabilityResolver
+        )
         if Self.shouldPassThroughToDragTargets(
             pasteboardTypes: dragPasteboardTypes,
             eventType: eventType,
             hasActiveDropDrag: hasActivePaneDropDrag,
-            hasLiveTabTransfer: DragOverlayRoutingPolicy.hasLiveTabTransfer(
-                in: dragPasteboard,
-                pasteboardTypes: dragPasteboardTypes,
-                resolver: AppDelegate.shared?.liveTabDragCapabilityResolver
-            ),
-            hasLiveFileDropPayload: DragOverlayRoutingPolicy.hasLiveFileDropPayload(
-                from: dragPasteboard,
-                pasteboardTypes: dragPasteboardTypes,
-                resolver: AppDelegate.shared?.liveTabDragCapabilityResolver
-            )
+            hasLiveTabTransfer: hasLiveTabTransfer,
+            hasLiveFileDropPayload: hasLiveFileDropPayload
         ) {
             if routingContext.eventKind == .pointerUp,
                Self.shouldRoutePointerUpToPaneDropTarget(
