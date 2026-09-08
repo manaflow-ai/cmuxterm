@@ -1494,6 +1494,80 @@ struct AgentLifecycleEventTests {
         )
     }
 
+    @Test
+    func clearingDockLifecyclePublishesExitForPinnedWait() throws {
+        let fixture = try Fixture()
+        fixture.workspace.setAgentLifecycle(
+            key: "codex",
+            panelId: fixture.surfaceID,
+            lifecycle: .running,
+            sessionID: "session-dock-clear",
+            startsNewOccupant: true
+        )
+        let detached = try #require(
+            fixture.workspace.detachSurface(panelId: fixture.surfaceID)
+        )
+        let dock = DockSplitStore(
+            workspaceId: UUID(),
+            baseDirectoryProvider: { nil }
+        )
+        defer { dock.closeAllPanels() }
+        let paneID = try #require(dock.bonsplitController.allPaneIds.first)
+        try #require(
+            dock.attachDetachedSurface(detached, inPane: paneID, focus: false)
+        )
+        dock.setAgentLifecycle(
+            key: "codex",
+            panelId: fixture.surfaceID,
+            lifecycle: .running,
+            sessionID: "session-dock-clear"
+        )
+
+        var didClear = false
+        let coordinator = AgentWaitCoordinator(
+            eventBus: .shared,
+            shouldContinue: {
+                if !didClear {
+                    didClear = true
+                    #expect(
+                        dock.clearAgentLifecycle(
+                            key: "codex",
+                            panelId: fixture.surfaceID
+                        )
+                    )
+                }
+                return true
+            }
+        )
+        let waitResult = coordinator.wait(
+            until: .exit,
+            timeoutMilliseconds: 1_000,
+            prepare: {
+                AgentWaitCoordinator.Preparation(
+                    afterSequence: CmuxEventBus.shared.latestSequence,
+                    surface: dock.agentWaitSurfaceSnapshot(
+                        panelID: fixture.surfaceID
+                    )
+                )
+            }
+        )
+        let value = try waitResult.get()
+        #expect(value.status == .satisfied)
+        #expect(value.state == .exit)
+        #expect(
+            dock.agentRuntimeByPanelId[fixture.surfaceID]?
+                .authoritativeAgentLifecycleRecords["codex"] == nil
+        )
+        #expect(
+            dock.agentWaitSurfaceSnapshot(panelID: fixture.surfaceID)?.occupant == nil
+        )
+        let exitPayloads = fixture.agentEvents()
+            .compactMap { $0["payload"] as? [String: Any] }
+            .filter { ($0["state"] as? String) == "exit" }
+        #expect(exitPayloads.count == 1)
+        #expect(exitPayloads.first?["session_id"] as? String == "session-dock-clear")
+    }
+
     private struct Fixture {
         let workspace: Workspace
         let surfaceID: UUID
