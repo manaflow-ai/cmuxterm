@@ -110,6 +110,102 @@ struct SidebarJSRuntimeTests {
         #expect(captured == [.cmux(method: "workspace.select", params: ["workspace_id": "w1"])])
     }
 
+    @Test func buttonTapPreservesStructuredWorkspaceCreateParams() async throws {
+        let runtime = SidebarJSRuntime()
+        var captured: [ActionCommand] = []
+        runtime.dispatch = SidebarActionDispatch { action in
+            captured.append(contentsOf: action.commands)
+        }
+        runtime.start(source: """
+        sidebar(() => Button("Create", () => cmux("workspace.create", {
+            name: "Checks",
+            cwd: ".",
+            command: "echo hello",
+            workspace_env: { MODE: "test" },
+            layout: { direction: "horizontal" },
+        })))
+        """)
+        let rootId = try #require(runtime.store.rootId)
+        runtime.dispatchEvent(nodeId: rootId, event: "tap")
+        await pumpActions()
+        #expect(captured.count == 1)
+        guard case let .cmux(method, params) = captured.first else {
+            Issue.record("structured workspace.create action was not captured")
+            return
+        }
+        #expect(method == "workspace.create")
+        #expect(params["name"] == "Checks")
+        #expect(params["cwd"] == ".")
+        #expect(params["command"] == "echo hello")
+        #expect(params["workspace_env"] == #"{"MODE":"test"}"#)
+        #expect(params["layout"] == #"{"direction":"horizontal"}"#)
+    }
+
+    @Test func buttonTapReportsCyclicParameterSerializationFailure() async throws {
+        let runtime = SidebarJSRuntime()
+        var captured: [ActionCommand] = []
+        runtime.dispatch = SidebarActionDispatch { action in
+            captured.append(contentsOf: action.commands)
+        }
+        runtime.start(source: """
+        sidebar(() => Button("Create", () => {
+            const value = {};
+            value.self = value;
+            cmux("workspace.create", { workspace_env: value });
+        }))
+        """)
+        let rootId = try #require(runtime.store.rootId)
+        runtime.dispatchEvent(nodeId: rootId, event: "tap")
+        await pumpActions()
+        #expect(captured.count == 1)
+        #expect(captured.allSatisfy { command in
+            if case .cmux = command { return false }
+            return true
+        })
+    }
+
+    @Test func buttonTapReportsBigIntParameterSerializationFailure() async throws {
+        let runtime = SidebarJSRuntime()
+        var captured: [ActionCommand] = []
+        runtime.dispatch = SidebarActionDispatch { action in
+            captured.append(contentsOf: action.commands)
+        }
+        runtime.start(source: """
+        sidebar(() => Button("Create", () =>
+            cmux("workspace.create", { workspace_env: 1n })
+        ))
+        """)
+        let rootId = try #require(runtime.store.rootId)
+        runtime.dispatchEvent(nodeId: rootId, event: "tap")
+        await pumpActions()
+        #expect(captured.count == 1)
+        #expect(captured.allSatisfy { command in
+            if case .cmux = command { return false }
+            return true
+        })
+    }
+
+    @Test func buttonTapReportsUndefinedJSONParameterSerializationFailure() async throws {
+        let runtime = SidebarJSRuntime()
+        var captured: [ActionCommand] = []
+        runtime.dispatch = SidebarActionDispatch { action in
+            captured.append(contentsOf: action.commands)
+        }
+        runtime.start(source: """
+        sidebar(() => Button("Create", () =>
+            cmux("workspace.create", { workspace_env: { toJSON: () => undefined } })
+        ))
+        """)
+        let rootId = try #require(runtime.store.rootId)
+        runtime.dispatchEvent(nodeId: rootId, event: "tap")
+        await pumpActions()
+        #expect(captured.count == 1)
+        #expect(captured.allSatisfy { command in
+            if case .cmux = command { return false }
+            return true
+        })
+    }
+
     @Test func reorderableCarriesItemKeysAndMoveHandler() async {
         let runtime = SidebarJSRuntime()
         var captured: [ActionCommand] = []

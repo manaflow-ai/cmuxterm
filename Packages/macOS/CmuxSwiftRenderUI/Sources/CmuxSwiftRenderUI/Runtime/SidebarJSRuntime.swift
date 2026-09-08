@@ -120,8 +120,24 @@ public final class SidebarJSRuntime {
         switch kind {
         case "cmux":
             guard let method = object["method"] as? String else { return }
-            let params = (object["params"] as? [String: String]) ?? [:]
+            let rawParams = (object["params"] as? [String: Any]) ?? [:]
+            let params = rawParams.reduce(into: [String: String]()) { result, pair in
+                if let value = pair.value as? String {
+                    result[pair.key] = value
+                } else if JSONSerialization.isValidJSONObject(pair.value),
+                          let data = try? JSONSerialization.data(withJSONObject: pair.value),
+                          let encoded = String(data: data, encoding: .utf8) {
+                    result[pair.key] = encoded
+                } else {
+                    result[pair.key] = String(describing: pair.value)
+                }
+            }
             action = ButtonAction(commands: [.cmux(method: method, params: params)])
+        case "invalidParameters":
+            guard let method = object["method"] as? String else { return }
+            action = ButtonAction(commands: [
+                .invalidParameters(method: method, parameter: object["parameter"] as? String)
+            ])
         case "openURL":
             guard let url = object["url"] as? String else { return }
             action = ButtonAction(commands: [.openURL(url)])

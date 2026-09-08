@@ -17,9 +17,6 @@
 //   __mount(fn)                  - internal: run the sidebar program
 
 (function () {
-  // ---------------------------------------------------------------------
-  // Reactive core
-  // ---------------------------------------------------------------------
   let currentEffect = null;
   let currentScope = null;
   const pendingEffects = new Set();
@@ -444,15 +441,30 @@
 
   g.cmux = (method, params) => {
     const p = {};
-    for (const k of Object.keys(params || {})) p[k] = String(params[k]);
-    __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
+    try {
+      for (const k of Object.keys(params || {})) {
+        const value = params[k];
+        if (value !== null && (typeof value === "object" || typeof value === "bigint")) {
+          const encoded = JSON.stringify(value);
+          if (encoded === undefined) throw new TypeError("Unsupported parameter value");
+          p[k] = encoded;
+        } else {
+          p[k] = String(value);
+        }
+      }
+      __host_action(JSON.stringify({ kind: "cmux", method, params: p }));
+    } catch (_) {
+      // Keep author errors in the normal host diagnostic path. In particular,
+      // cyclic objects and BigInt values must not disappear before validation.
+      __host_action(JSON.stringify({
+        kind: "invalidParameters",
+        method: typeof method === "string" ? method : "cmux",
+      }));
+    }
   };
   g.openURL = (url) => __host_action(JSON.stringify({ kind: "openURL", url: String(url) }));
   g.log = (message) => __host_action(JSON.stringify({ kind: "log", message: String(message) }));
 
-  // ---------------------------------------------------------------------
-  // Host entry points
-  // ---------------------------------------------------------------------
   g.__setData = (key, json) => {
     dataSignal(key)[1](JSON.parse(json));
     runPending();

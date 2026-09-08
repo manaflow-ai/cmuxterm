@@ -15,6 +15,49 @@ private let cmuxSidebarWorkerQueue = DispatchQueue(label: "com.cmux.sidebar-acti
 /// (CmuxSwiftRenderUI), where its FIFO/newest-wins semantics are unit-tested.
 private let sidebarSelectCoalescer = SidebarSelectCoalescer()
 
+private let cmuxSidebarJSONParameterNames: Set<String> = [
+    "layout", "workspace_env", "initial_env", "env", "workspace_ids",
+    "child_workspace_ids", "surface_ids", "ids", "image_paths", "paths",
+    "args", "topics", "diff_viewer_files", "attachments", "delivered_ids",
+    "notification_ids", "selections", "tags", "cookies", "event", "events",
+    "caller", "daemon_websocket_headers", "comment",
+]
+
+private let cmuxSidebarBooleanParameterNames: Set<String> = [
+    "focus", "select", "open", "enabled", "clear", "dry_run", "base",
+    "eager_load_terminal", "auto_refresh_metadata",
+]
+
+private let cmuxSidebarIntegerParameterNames: Set<String> = [
+    "index", "to_index", "priority", "port", "amount", "count", "limit",
+    "offset", "row", "column", "width", "height",
+]
+
+/// Restores the typed values that the sidebar interpreter serializes into its
+/// string-only action IR. Structured values are selected by parameter name,
+/// rather than by looking at their text shape, so a string such as "[1]"
+/// remains a string for commands like `surface.send_text`.
+func cmuxSidebarTypedParameters(_ params: [String: String]) -> [String: Any] {
+    var typed: [String: Any] = [:]
+    for (key, value) in params {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cmuxSidebarJSONParameterNames.contains(key),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) {
+            typed[key] = json
+        } else if cmuxSidebarBooleanParameterNames.contains(key),
+                  let boolValue = Bool(trimmed.lowercased()) {
+            typed[key] = boolValue
+        } else if cmuxSidebarIntegerParameterNames.contains(key),
+                  let intValue = Int(trimmed) {
+            typed[key] = intValue
+        } else {
+            typed[key] = value
+        }
+    }
+    return typed
+}
+
 // The custom-sidebar rendering, interpreter, JSON DSL, resizable split, and
 // the file-watching model now live in the `CmuxSwiftRender` (logic) and
 // `CmuxSwiftRenderUI` (SwiftUI) packages. The app target keeps only the
@@ -47,32 +90,64 @@ func makeCmuxSidebarActionDispatch() -> SidebarActionDispatch {
             }
             for command in commands {
                 switch command {
+                case let .invalidParameters(method, parameter):
+                    var diagnostic: [String: Any] = [
+                        "method": method,
+                        "code": "invalid_parameters",
+                        "message": String(localized: "sidebar.action.serializationFailed", defaultValue: "A sidebar action parameter could not be serialized."),
+                    ]
+                    if let parameter {
+                        diagnostic["parameter"] = parameter
+                    }
+                    CmuxEventBus.shared.publish(
+                        name: "sidebar.action.failed",
+                        category: "sidebar",
+                        source: "custom-sidebar",
+                        payload: diagnostic
+                    )
                 case let .cmux(method, params):
                     var payload: [String: Any] = ["method": method, "id": UUID().uuidString]
                     if !params.isEmpty {
-                        // Params arrive as strings; coerce integer-looking values
-                        // (e.g. a reorder `index`) to numbers so typed v2 params
-                        // like v2Int decode them.
-                        var typed: [String: Any] = [:]
-                        for (key, value) in params {
-                            if let intValue = Int(value) {
-                                typed[key] = intValue
-                            } else if value.hasPrefix("["),
-                                      let data = value.data(using: .utf8),
-                                      let array = (try? JSONSerialization.jsonObject(with: data)) as? [Any] {
-                                // Array-typed v2 params (e.g. child_workspace_ids)
-                                // travel as JSON strings through the string-only
-                                // action pipe; inflate them here.
-                                typed[key] = array
-                            } else {
-                                typed[key] = value
-                            }
-                        }
-                        payload["params"] = typed
+                        payload["params"] = cmuxSidebarTypedParameters(params)
                     }
                     guard let data = try? JSONSerialization.data(withJSONObject: payload),
                           let line = String(data: data, encoding: .utf8) else { continue }
-                    _ = controller.handleSocketLine(line)
+                    let response = controller.handleSocketLine(line)
+                    guard let responseData = response.data(using: .utf8),
+                          let envelope = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+                        continue
+                    }
+                    let error: [String: Any]
+                    if (envelope["ok"] as? Bool) == false {
+                        error = envelope["error"] as? [String: Any] ?? [:]
+                    } else if method == "workspace.create",
+                              let result = envelope["result"] as? [String: Any],
+                              let delivery = result["command_delivery"] as? [String: Any],
+                              (delivery["accepted"] as? Bool) == false {
+                        // workspace.create commits the workspace even when its
+                        // secondary terminal-input delivery fails. Surface that
+                        // nested failure through the same sidebar diagnostic
+                        // channel as an ordinary rejected command.
+                        error = delivery["error"] as? [String: Any]
+                            ?? ["code": "command_delivery_failed"]
+                    } else {
+                        continue
+                    }
+                    var diagnostic: [String: Any] = [
+                        "method": method,
+                        "code": error["code"] as? String ?? "command_failed",
+                    ]
+                    diagnostic["message"] = String(localized: "sidebar.action.failed", defaultValue: "The sidebar action could not be completed.")
+                    if let errorData = error["data"] as? [String: Any],
+                       let unsupported = errorData["unsupported_param"] as? String {
+                        diagnostic["unsupported_param"] = unsupported
+                    }
+                    CmuxEventBus.shared.publish(
+                        name: "sidebar.action.failed",
+                        category: "sidebar",
+                        source: "custom-sidebar",
+                        payload: diagnostic
+                    )
                 case let .openURL(urlString):
                     // NSWorkspace.open is main-only; run it synchronously to keep the
                     // command's position in the sequence.
