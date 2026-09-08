@@ -1,11 +1,5 @@
 import Foundation
 
-/// Outcome of one connect attempt performed by the owner's dialer closure.
-public enum ConnectAttemptResult: Sendable {
-    case admitted(any PeerConnection, sessionID: String)
-    case denied(DenialCode)
-}
-
 /// The SINGLE RECONNECT OWNER (contract 4.3, 4.6): the only component in the
 /// system that dials. Every trigger (foreground, push, network change, timer,
 /// user tap) is an input to it; automatic triggers JOIN the in-flight
@@ -17,20 +11,6 @@ public enum ConnectAttemptResult: Sendable {
 public actor ReconnectOwner {
     public typealias ConnectOnce = @Sendable () async throws -> ConnectAttemptResult
 
-    public struct Config: Sendable {
-        public var initialBackoff: Duration
-        public var maxBackoff: Duration
-
-        public init(
-            initialBackoff: Duration = .milliseconds(400),
-            maxBackoff: Duration = .seconds(30)
-        ) {
-            self.initialBackoff = initialBackoff
-            self.maxBackoff = maxBackoff
-        }
-    }
-
-    /// Close codes that must NOT trigger automatic redial: another device of
     /// ours took over, or the user asked for the close.
     private static let terminalCloseCodes: Set<String> = [
         CloseReason.superseded.code,

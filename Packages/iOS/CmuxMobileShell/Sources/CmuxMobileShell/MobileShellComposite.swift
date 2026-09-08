@@ -55,67 +55,6 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     static let maxTerminalReplayFailureRetries = 2
     static let maxTerminalReplayBarrierFollowUps = 1
 
-    enum TerminalOutputTransport: Equatable {
-        case hybrid
-        case renderGrid
-        case rawBytes
-
-        var eventTopics: [String] {
-            switch self {
-            case .hybrid:
-                return [
-                    "workspace.updated", "mobile.sync.delta",
-                    "terminal.bytes", "terminal.render_grid", "terminal.set_font",
-                    "notification.dismissed", "notification.badge", "notification.feed.changed",
-                    "phone_push.status.changed", "caffeine.status.changed",
-                    "mobile.compatible_tags.changed",
-                    "browser.frame", "browser.state", "browser.closed", "browser.dialog", "browser.dialog.resolved",
-                    "simulator.frame", "simulator.state", "simulator.closed",
-                ]
-            case .renderGrid:
-                return [
-                    "workspace.updated", "mobile.sync.delta",
-                    "terminal.render_grid", "terminal.set_font",
-                    "notification.dismissed", "notification.badge", "notification.feed.changed",
-                    "phone_push.status.changed", "caffeine.status.changed",
-                    "mobile.compatible_tags.changed",
-                    "browser.frame", "browser.state", "browser.closed", "browser.dialog", "browser.dialog.resolved",
-                    "simulator.frame", "simulator.state", "simulator.closed",
-                ]
-            case .rawBytes:
-                return [
-                    "workspace.updated", "mobile.sync.delta",
-                    "terminal.bytes", "terminal.set_font",
-                    "notification.dismissed", "notification.badge", "notification.feed.changed",
-                    "phone_push.status.changed", "caffeine.status.changed",
-                    "mobile.compatible_tags.changed",
-                    "browser.frame", "browser.state", "browser.closed", "browser.dialog", "browser.dialog.resolved",
-                    "simulator.frame", "simulator.state", "simulator.closed",
-                ]
-            }
-        }
-
-        var debugName: String {
-            switch self {
-            case .hybrid:
-                return "hybrid"
-            case .renderGrid:
-                return "render_grid"
-            case .rawBytes:
-                return "raw_bytes"
-            }
-        }
-
-        var usesRenderGrid: Bool {
-            switch self {
-            case .hybrid, .renderGrid:
-                return true
-            case .rawBytes:
-                return false
-            }
-        }
-    }
-
     private static let hasKnownPairedMacDefaultsKey = "cmux.mobile.hasKnownPairedMac"
     /// Max seconds a stored-Mac reconnect may own its attempt flags before the
     /// onboarding connection scene exposes retry and QR fallback. The launch
@@ -1372,13 +1311,13 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     private var createTerminalTaskID: UUID?
     var connectionGeneration: UUID
     var connectionAttemptGeneration: UUID
-    private let nextTransportBootstrapProbe: NextTransportBootstrapProbe?
-    private var nextTransportBootstrapProbeTask: Task<Void, Never>?
+    let nextTransportBootstrapProbe: NextTransportBootstrapProbe?
+    var nextTransportBootstrapProbeTask: Task<Void, Never>?
     /// A healthy connection gets at most one capability probe. Server-event
     /// envelopes arrive at terminal frame rate; tying this marker to the
     /// connection generation keeps that hot path allocation-free after the
     /// initial probe while still retrying on a genuinely new connection.
-    private var nextTransportBootstrapProbeGeneration: UUID?
+    var nextTransportBootstrapProbeGeneration: UUID?
     @ObservationIgnored var macSwitchAttemptID: UUID?
     @ObservationIgnored var macSwitchAttemptSignInGeneration: Int?
     @ObservationIgnored var macSwitchRestorePreviousOnCancelAttemptIDs: Set<UUID> = []
@@ -11871,39 +11810,6 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
             macConnectionStatus = .unavailable
             return
         }
-        #if DEBUG
-        // Graduation bootstrap probe runs over THIS composite's live RPC client
-        // after a connection turns healthy. It is owned by the connection
-        // generation and cancelled when that client is replaced.
-        if let probe = nextTransportBootstrapProbe,
-            let client = remoteClient,
-            let macDeviceID = activeTicket?.macDeviceID,
-            !macDeviceID.isEmpty,
-            !Self.isSyntheticManualDeviceID(macDeviceID)
-        {
-            let generation = connectionGeneration
-            if nextTransportBootstrapProbeGeneration != generation {
-                nextTransportBootstrapProbeGeneration = generation
-                nextTransportBootstrapProbeTask = Task { [weak self] in
-                    await probe(client, macDeviceID, generation)
-                    guard !Task.isCancelled else { return }
-                    guard let self,
-                        self.connectionGeneration == generation,
-                        self.remoteClient === client
-                    else { return }
-                    self.nextTransportBootstrapProbeTask = nil
-                }
-            }
-        }
-        #endif
-        let subscriptionIsValidated =
-            terminalEventListenerID.map { listenerID in
-                lastSuccessfulTerminalSubscription
-                    == MobileTerminalSubscriptionValidation(
-                        connectionGeneration: connectionGeneration,
-                        listenerID: listenerID
-                    )
-            } ?? false
         if pendingMacCompatibilityPolicyRevalidation {
             revalidateActiveMacCompatibilityPolicy()
             guard connectionState == .connected else { return }
@@ -11933,6 +11839,9 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         isRecoveringConnection = false
         connectionRecoveryFailed = false
         connectionRequiresReauth = false
+        #if DEBUG
+        probeNextTransportBootstrapIfNeeded()
+        #endif
     }
 
     @discardableResult
