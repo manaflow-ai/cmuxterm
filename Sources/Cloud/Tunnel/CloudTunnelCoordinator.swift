@@ -69,10 +69,12 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// before enrolling, so the cleanup can never delete the newer start's
     /// configuration.
     private var pendingDiscard: Task<Void, Never>?
-    /// A configuration saved by a superseded start that the policy refused,
-    /// left in place because a newer start was in flight at the time. That
-    /// start takes the obligation over: its own install overwrites the
-    /// configuration, and if it ends without installing it discards it.
+    /// What a superseded start left behind because a newer start was in
+    /// flight when it ended: an enrollment written to disk, and a VPN
+    /// configuration saved in NetworkExtension. The newer start takes the
+    /// obligation over: its own install overwrites both, and if it ends
+    /// without installing it settles them (``settleRefusedStart``).
+    private var orphanedEnrollment = false
     private var orphanedInstall = false
 
     init(
@@ -329,8 +331,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         defer {
             if startGeneration == generation { startTask = nil }
         }
-        // True once `install` returned: a VPN configuration is saved and must
-        // not outlive a policy refusal, whichever way that refusal arrives.
+        // What this start has written so far: an enrollment on disk, then a
+        // VPN configuration in NetworkExtension. Neither may outlive a policy
+        // refusal, whichever way that refusal arrives.
+        var enrolled = false
         var installed = false
         do {
             // A stop may still be draining (idle timer, `vpn down`, sign-out);
@@ -350,12 +354,13 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 throw refusal.error
             }
             let enrollment = try await enroller.enroll()
+            enrolled = true
             try Task.checkCancellation()
             // Enrollment is a control-plane round trip; the opt-in may have
             // been turned off meanwhile. Nothing it wrote may survive a
-            // refusal, or the next launch would treat this Mac as configured.
+            // refusal (the refusal handler settles it), or the next launch
+            // would treat this Mac as configured.
             if let refusal = admission.knownRefusal() {
-                enroller.discardEnrollment()
                 throw refusal.error
             }
             let configuration = CloudTunnelProviderConfiguration(
@@ -367,7 +372,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 Task { await self?.noteAwaitingApproval(generation: generation) }
             }
             installed = true
-            // Whatever a superseded start left saved is overwritten now.
+            // Whatever a superseded start left behind is overwritten now.
+            orphanedEnrollment = false
             orphanedInstall = false
             try Task.checkCancellation()
             // The install can wait minutes for the user's extension approval.
@@ -401,19 +407,19 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // The production opt-out cancels the start before the policy is
             // re-read here (the observer's `requestDown`), so a late install
             // that saved the configuration is cleaned up on this path too.
-            await settleRefusedInstall(installedByThisStart: installed, generation: generation)
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
             setState(.off, generation: generation)
             throw CancellationError()
         } catch let error as CloudTunnelError where error.isActivationRefusal {
             // A policy refusal is not a failure to back off from: the next
             // use re-asks the policy, and nothing was started. Record it
             // before the state changes so every waiter sees the real reason.
-            await settleRefusedInstall(installedByThisStart: installed, generation: generation)
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
             if startGeneration == generation { lastStartRefusal = CloudTunnelStartRefusal(error: error) }
             setState(.off, generation: generation)
             throw error
         } catch {
-            await settleRefusedInstall(installedByThisStart: installed, generation: generation)
+            await settleRefusedStart(enrolled: enrolled, installed: installed, generation: generation)
             let message = Self.userMessage(for: error)
             setState(.failed(message), generation: generation)
             logger.error("tunnel start failed: \(message, privacy: .public)")
@@ -427,31 +433,39 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         }
     }
 
-    /// A start is ending without owning a running tunnel, with a saved
-    /// configuration on the line: this start's own, or one a superseded
-    /// start handed over. While a newer start is in flight the obligation
-    /// passes to it, whatever the policy says right now: its install
-    /// overwrites the configuration, and if it ends without installing it
-    /// settles here in turn. Otherwise the policy decides: refused, the VPN
-    /// configuration and this Mac's enrollment are taken back out; admitted,
-    /// the configuration stays for the next use, as before this gate.
-    private func settleRefusedInstall(installedByThisStart: Bool, generation: Int) async {
-        guard installedByThisStart || orphanedInstall else { return }
+    /// A start is ending without owning a running tunnel, with something on
+    /// the line: the enrollment and VPN configuration it wrote itself, or
+    /// ones a superseded start handed over. While a newer start is in flight
+    /// the obligation passes to it, whatever the policy says right now: its
+    /// install overwrites both, and if it ends without installing it settles
+    /// here in turn. Otherwise the policy decides: refused, the VPN
+    /// configuration (only if one was ever saved, so a Mac that never
+    /// installed never calls NetworkExtension) and this Mac's enrollment are
+    /// taken back out; admitted, they stay for the next use, as before this
+    /// gate.
+    private func settleRefusedStart(enrolled: Bool, installed: Bool, generation: Int) async {
+        let owesEnrollment = enrolled || orphanedEnrollment
+        let owesInstall = installed || orphanedInstall
+        guard owesEnrollment || owesInstall else { return }
         let newerStartInFlight = startTask != nil && startGeneration != generation
         if newerStartInFlight {
-            orphanedInstall = true
+            orphanedEnrollment = owesEnrollment
+            orphanedInstall = owesInstall
             return
         }
+        orphanedEnrollment = false
         orphanedInstall = false
         guard admission.knownRefusal() != nil else { return }
-        let discard = Task { await self.discardInstalled() }
+        let discard = Task { await self.discard(install: owesInstall) }
         pendingDiscard = discard
         await discard.value
         if pendingDiscard == discard { pendingDiscard = nil }
     }
 
-    private func discardInstalled() async {
-        try? await controller.remove()
+    private func discard(install: Bool) async {
+        if install {
+            try? await controller.remove()
+        }
         enroller.discardEnrollment()
     }
 

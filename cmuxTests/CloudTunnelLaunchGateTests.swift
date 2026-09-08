@@ -443,9 +443,10 @@ struct CloudTunnelLaunchGateTests {
         // hand-off time), then the policy refuses again. Whether the first
         // start's resumption runs before the second start's refusal (the
         // hand-off: the second start inherits and discards) or after it (the
-        // first start discards on its own), exactly one discard happens and
-        // nothing is left behind. The yields let the first start's
-        // continuation run on the actor while the second is suspended here.
+        // first start discards on its own), the configuration is removed
+        // once, the enrollment is gone, and nothing is left behind. The
+        // yields let the first start's continuation run on the actor while
+        // the second is suspended here.
         enroller.onEnroll = {
             controller.approve()
             _ = try? await first.value
