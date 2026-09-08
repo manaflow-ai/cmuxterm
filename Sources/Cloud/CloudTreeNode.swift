@@ -576,6 +576,7 @@ enum CloudTreeNodeBuilder {
                 provider: "",
                 image: info.image ?? "",
                 isDesktop: info.hasDesktop,
+                capabilities: VMCapabilities(snapshot: false, restore: false, fork: false, ports: false),
                 activity: MachineSnapshotBuilder.activity(fromStatus: info.status),
                 createdAt: nil,
                 label: info.name == id ? nil : info.name
