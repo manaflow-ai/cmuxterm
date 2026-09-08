@@ -608,13 +608,14 @@ private struct GroupingButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: RightSidebarChromeMetrics.contentIconTextSpacing) {
                 CmuxSystemSymbolImage(
                     magnified: mode.symbolName,
                     pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
                     weight: RightSidebarChromeControlStyle.iconWeight,
                     tint: RightSidebarChromeControlStyle.pillForegroundColor(isSelected: isSelected, isHovered: isHovered)
                 )
+                .frame(width: RightSidebarChromeMetrics.contentIconFrameSize)
                 Text(mode.label)
                     .cmuxFont(
                         size: RightSidebarChromeControlStyle.labelSize,

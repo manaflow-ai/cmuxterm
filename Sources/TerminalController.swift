@@ -119,6 +119,11 @@ nonisolated private func v2RemotePTYUserFacingErrorMessage(_ message: String) ->
 @MainActor
 class TerminalController {
     static let shared = TerminalController()
+    private enum ReloadConfigurationWaitResult: Sendable {
+        case committed
+        case failed
+        case busy
+    }
     /// The app-managed Cloud tunnel, set by the AppDelegate composition root
     /// next to `VMClient.bootstrap`. Nil only before startup finishes; the
     /// `vm.tunnel_*` socket verbs report browser access as unavailable until then.
@@ -1461,28 +1466,39 @@ class TerminalController {
                 reloadConfigurationWaiterAdmission.claim() else {
             return "ERROR: reload_config busy"
         }
-        let reloadDidComplete: Bool? = socketAwaitCallback(
+        let reloadResult: ReloadConfigurationWaitResult? = socketAwaitCallback(
             timeout: 30
         ) { completion in
             Task { @MainActor in
                 let completionWasAdmitted =
-                    self.controlSidebarReloadConfigWithAdmission {
-                        completion(true)
-                        waiterLease.retire()
-                    }
+                    self.controlSidebarReloadConfigWithAdmission(
+                        commitCompletion: { committed in
+                            completion(
+                                committed ? .committed : .failed
+                            )
+                            waiterLease.retire()
+                        }
+                    )
                 if !completionWasAdmitted {
-                    completion(false)
+                    // The reload request is still queued even when this
+                    // caller's optional commit callback could not be retained.
+                    // Report backpressure, not a false configuration failure.
+                    completion(.busy)
                     waiterLease.retire()
                 }
             }
         }
-        guard let reloadDidComplete else {
+        guard let reloadResult else {
             return "ERROR: reload_config timed out"
         }
-        guard reloadDidComplete else {
+        switch reloadResult {
+        case .committed:
+            return "OK Reloaded config"
+        case .failed:
+            return "ERROR: reload_config failed"
+        case .busy:
             return "ERROR: reload_config busy"
         }
-        return "OK Reloaded config"
     }
 
     private nonisolated static func feedPushWaitTimeoutSeconds(params: [String: Any]) -> TimeInterval? {
@@ -3166,6 +3182,8 @@ class TerminalController {
             "surface.resume.set",
             "surface.resume.get",
             "surface.resume.clear",
+            "agent.restore.admit",
+            "agent.restore.release",
             "debug.terminals",
             "surface.send_text",
             "surface.send_key",
