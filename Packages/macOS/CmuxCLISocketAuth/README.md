@@ -9,7 +9,10 @@ and one-way authentication.
 An expired operation must not authenticate with a late provider result. A fresh
 operation may retry the resolver, including when the previous provider returned
 `nil` after its deadline. An in-budget result, including `nil`, completes the
-client's attempt. Synchronous provider calls cannot be forcibly cancelled.
+client's attempt. Deadline misses throw `Failure.deadlineExceeded`, distinct from
+an in-budget missing password. The CLI translates this to its localized timeout
+error, so readiness delivery retries instead of treating it as a permanent
+`auth_required` rejection. Synchronous provider calls cannot be forcibly cancelled.
 
 ## Deterministic tests
 
@@ -37,6 +40,9 @@ public boundary, and separate shipped-CLI socket tests cover protocol framing.
 
 期限を過ぎた処理は、遅れて取得した認証情報で認証を行いません。次の処理は、
 前回の取得結果が期限後の `nil` だった場合も含め、リゾルバーを再度呼び出せます。
-期限内の取得は、結果が `nil` でも完了として扱います。同期的な取得処理を強制的に
+期限内の取得は、結果が `nil` でも完了として扱います。期限切れの場合は、パスワードが
+見つからない場合と区別して `Failure.deadlineExceeded` を送出します。CLI はこれを
+ローカライズされたタイムアウトエラーに変換するため、準備完了の通知は永続的な
+`auth_required` エラーとして終了せずに再試行できます。同期的な取得処理を強制的に
 キャンセルするものではありません。テストでは上記のように時計を注入し、実際の
 ファイルやキーチェーンの読み取りを遅延させずに、期限をまたぐ動作を検証します。

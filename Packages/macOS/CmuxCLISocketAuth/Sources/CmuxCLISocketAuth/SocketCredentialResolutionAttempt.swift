@@ -35,14 +35,16 @@ public struct SocketCredentialResolutionAttempt: Sendable {
     ///   - provider: The source resolver shared by clients on this socket route.
     ///   - deadline: The operation's absolute deadline, or `nil` if unbounded.
     /// - Returns: The provider's result when it completes within the deadline.
+    /// - Throws: ``Failure/deadlineExceeded`` when the operation expires, so
+    ///   callers can retry instead of treating the result as missing credentials.
     public mutating func resolve(
         provider: (Date?) -> String?,
         deadline: Date?
     ) throws(Failure) -> String? {
         guard !isCompleted else { return nil }
-        if let deadline, now() >= deadline { return nil }
+        if let deadline, now() >= deadline { throw .deadlineExceeded }
         let password = provider(deadline)
-        if let deadline, now() >= deadline { return nil }
+        if let deadline, now() >= deadline { throw .deadlineExceeded }
         isCompleted = true
         return password
     }
