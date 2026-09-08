@@ -12,6 +12,7 @@ actor ScriptedHostTransport: CmxByteTransport {
     private var receiveWaiters: [CheckedContinuation<Data?, Never>] = []
     private var pendingResponses: [Data] = []
     private var isClosed = false
+    private(set) var connectCount = 0
     private(set) var sentMethods: [String] = []
     private(set) var sentInputTexts: [String] = []
     private struct MethodWaiter {
@@ -37,6 +38,7 @@ actor ScriptedHostTransport: CmxByteTransport {
     }
 
     func connect() async throws {
+        connectCount += 1
         isClosed = false
     }
 

@@ -23,10 +23,13 @@ struct HiveDisconnectAdmissionTests {
             workspaceID: "ws-1", terminalID: "term-1", retryDelay: { _ in }
         ) == nil)
         #expect(!fixture.session.reconnectIfNeeded())
-        let beforeRetiredRequest = await fixture.transport.sentMethods.count
+        let connectionsBeforeRetiredRequest = await fixture.transport.connectCount
         let request = try MobileCoreRPCClient.requestData(method: "mobile.workspace.list")
-        await #expect(throws: (any Error).self) { try await retiringClient.sendRequest(request) }
-        #expect(await fixture.transport.sentMethods.count == beforeRetiredRequest)
+        // Retirement forbids another dial, not completion on an installed
+        // transport before its asynchronous teardown has run.
+        do { _ = try await retiringClient.sendRequest(request) }
+        catch MobileShellConnectionError.connectionClosed { }
+        #expect(await fixture.transport.connectCount == connectionsBeforeRetiredRequest)
 
         await gate.release()
         await disconnect.value

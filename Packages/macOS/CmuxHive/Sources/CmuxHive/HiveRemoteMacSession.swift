@@ -173,10 +173,10 @@ public final class HiveRemoteMacSession {
         workspaceRefreshTask = nil
         workspaceRefreshPending = false
         let teardown = Task<Void, Never> {
+            await retiringClient?.disconnect()
             await pendingConnect?.value
             await pendingEvents?.value
             await pendingRefresh?.value
-            await retiringClient?.disconnect()
         }
         disconnectTask = teardown
         await teardown.value
