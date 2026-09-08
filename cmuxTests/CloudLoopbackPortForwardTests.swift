@@ -419,6 +419,7 @@ struct CloudLoopbackPortForwardTests {
         let addressed = CmuxTuiSurfaceProvider(summary: summary(address: "10.0.0.7"), links: links, catalog: catalog, portForwards: forwarder)
         let url = try #require(try await addressed.localPortURL(port: 3000))
         #expect(url.hasPrefix("http://127.0.0.1:"))
+        #expect(try await addressed.portLinkURL(port: 3000) == url, "Copy Link and vm.port_open hand out the pane's loopback URL")
         #expect(await forwarder.localPort(machineID: "vm-1", port: 3000) != nil)
 
         let unaddressed = CmuxTuiSurfaceProvider(summary: summary(address: nil), links: links, catalog: catalog, portForwards: forwarder)
@@ -437,6 +438,9 @@ struct CloudLoopbackPortForwardTests {
         #expect(!provider.capabilities.ports)
         await #expect(throws: (any Error).self) {
             _ = try await provider.localPortURL(port: 3000)
+        }
+        await #expect(throws: (any Error).self, "no route is an error, never an empty link") {
+            _ = try await provider.portLinkURL(port: 3000)
         }
     }
 

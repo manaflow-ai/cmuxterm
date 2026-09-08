@@ -311,16 +311,16 @@ extension TerminalController {
             )
             var payload = Self.surfaceProjectPayload(opened.projection, reused: opened.reused)
             // `url` is what the pane loads and what works from any app on this
-            // Mac: the loopback forward over the user-space hub. The machine's
-            // private address stays available as `private_url` for callers
-            // with their own route into the network (`cmux vpn up`).
+            // Mac: the loopback forward over the user-space hub, or, for a
+            // machine without a private address, the control plane's preview
+            // URL. A route that cannot be made is an error for the caller,
+            // never a silent fall-back to an address only `cmux vpn up` can
+            // reach; that address stays available as `private_url`.
             let privateURL = await catalog.resources[resource]?.url
-            // A forward that cannot be made is an error for the caller, never a
-            // silent fall-back to an address only `cmux vpn up` can reach. A
-            // machine with no private address has no forward (its pane loads
-            // the control plane's preview URL) and reports no local url.
-            let localURL = try await (catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider)?.localPortURL(port: port) ?? nil
-            let url = localURL ?? privateURL ?? ""
+            guard let provider = await catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider else {
+                throw SurfaceCatalogError.unsupported(SurfaceCatalog.portPreviewUnavailableMessage(machineID: resource.machine.rawValue))
+            }
+            let url = try await provider.portLinkURL(port: port)
             payload["url"] = url
             payload["open_url"] = url
             payload["private_url"] = privateURL ?? NSNull()

@@ -72,11 +72,8 @@ extension CmuxTuiSurfaceProvider {
                 defer { self.browserPaneTasks[pane.panelID] = nil }
                 do {
                     try Task.checkCancellation()
-                    guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
-                    let endpoint = try await client.openPort(id: self.machineID, port: port)
+                    let url = try await self.controlPlanePreviewURL(port: port)
                     try Task.checkCancellation()
-                    guard let url = URL(string: endpoint.openUrl),
-                          ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw ProviderError.invalidPreviewURL }
                     guard self.isCurrentLifecycleGeneration(generation) else { return }
                     SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: url)
                 } catch {
@@ -89,11 +86,32 @@ extension CmuxTuiSurfaceProvider {
         }
     }
 
+    /// The link `port` opens as, shared by the pane, Copy Link, and
+    /// `vm.port_open`: the loopback forward when the machine has a private
+    /// address, else the control plane's tokened preview URL. Throws when the
+    /// machine supports neither route or the route it has cannot be made;
+    /// never falls back to an address only `cmux vpn up` can reach.
+    func portLinkURL(port: Int) async throws -> String {
+        if let local = try await localPortURL(port: port) { return local }
+        return try await controlPlanePreviewURL(port: port).absoluteString
+    }
+
+    /// The control plane's tokened preview URL for `port`, the route for a
+    /// machine without a private address. Only a web URL may reach a pane or
+    /// the pasteboard, so anything else is refused here for every caller.
+    func controlPlanePreviewURL(port: Int) async throws -> URL {
+        guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
+        let endpoint = try await client.openPort(id: machineID, port: port)
+        guard let url = URL(string: endpoint.openUrl),
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { throw ProviderError.invalidPreviewURL }
+        return url
+    }
+
     /// The loopback URL that reaches `port` on this machine from any app on
-    /// this Mac (Copy Link, `vm.port_open`), starting the forward if needed.
-    /// Nil when the machine has no private address, so its ports are only
-    /// reachable through the control plane's preview URL; throws only when a
-    /// forward should exist and could not be made.
+    /// this Mac, starting the forward if needed. Nil when the machine has no
+    /// private address, so its ports are only reachable through the control
+    /// plane's preview URL; throws only when a forward should exist and could
+    /// not be made.
     func localPortURL(port: Int) async throws -> String? {
         let plan = CloudPortRoutePlan.plan(
             resource: CmuxTuiSnapshotParser.portBrowser(machine: machine, port: port),
