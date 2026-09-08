@@ -1543,6 +1543,7 @@ class TerminalController {
             let semaphore = DispatchSemaphore(value: 0)
             Task { @MainActor [weak self] in
                 await self?.accountFlow?.signOut(timeout: 5)
+                await HiveComputersService.shared.disconnectAll()
                 semaphore.signal()
             }
             semaphore.wait()
@@ -8760,7 +8761,7 @@ class TerminalController {
 
                     switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
                     case .delivered:
-                        var payload: [String: Any] = [
+                        let payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
                             "surface_id": ctx.surfaceId.uuidString,
