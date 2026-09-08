@@ -1,6 +1,7 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "cli.vm.unsupportedProviderOverride": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"vm: unsupported Cloud VM service override. Omit --provider and retry the same command."}},"ja":{"stringUnit":{"state":"translated","value":"vm: この Cloud VM サービスの指定には対応していません。--provider を省略して同じコマンドを再実行してください。"}}}},
     "socket.cloudVM.requestFailed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"The Cloud VM request failed. Retry, or check the machine's status with `cmux vm ls`."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud VM のリクエストに失敗しました。再試行するか、`cmux vm ls` でマシンの状態を確認してください。"}}}},
     "surfaceCatalog.error.unknownResource": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Unknown surface %@."}},"ja":{"stringUnit":{"state":"translated","value":"サーフェス %@ が見つかりません。"}}}},
     "surfaceCatalog.error.noProvider": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"This machine is not connected: %@."}},"ja":{"stringUnit":{"state":"translated","value":"このマシンは接続されていません: %@。"}}}},
