@@ -223,6 +223,43 @@ struct TerminalArtifactChipCountStateTests {
         ) == .provisionalReport(.init(count: 0, surfaceGeneration: 2)))
     }
 
+    @Test("a repeated queued count keeps its follow-up scan")
+    func repeatedQueuedCountKeepsTrailingScan() throws {
+        var state = TerminalArtifactChipCountState()
+        let first = try request(from: state.trigger(
+            localCount: 1,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+        #expect(state.trigger(
+            localCount: 2,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 2, surfaceGeneration: 1)))
+
+        // Render-grid can report the same changed count repeatedly while the
+        // first session scan is in flight. The queued follow-up must survive
+        // those observations so the post-change count is eventually scanned.
+        #expect(state.trigger(
+            localCount: 2,
+            surfaceGeneration: 2,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 2, surfaceGeneration: 2)))
+
+        let completion = state.complete(
+            first,
+            sessionTotal: 1,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 2
+        )
+        guard let nextRequest = completion.nextRequest else {
+            Issue.record("Expected the changed count to remain queued")
+            throw UnexpectedAction()
+        }
+        #expect(nextRequest.localCount == 2)
+        #expect(nextRequest.surfaceGeneration == 1)
+    }
+
     @Test("a failed scan with fresh local evidence drops a held authoritative zero")
     func failedScanDropsHeldZero() throws {
         var state = TerminalArtifactChipCountState()

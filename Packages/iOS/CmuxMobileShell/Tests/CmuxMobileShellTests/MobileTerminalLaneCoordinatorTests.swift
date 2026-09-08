@@ -99,6 +99,33 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     @Test
+    func inputOnlyLaneDoesNotValidateAgainstOutputCursor() async throws {
+        let lane = TerminalLaneTestConnection(
+            frames: [Self.frame(kind: .replay, sequence: 12, bytes: "")],
+            waitsAfterFrames: true
+        )
+        let provider = TerminalLaneTestProvider(lanes: [lane])
+        let coordinator = MobileTerminalLaneCoordinator { request, surfaceID, cursor in
+            try await provider.callAsFunction(request, surfaceID, cursor: cursor)
+        }
+        let readiness = TerminalLaneReadinessRecorder()
+        var readinessIterator = await readiness.stream().makeAsyncIterator()
+
+        await coordinator.ensure(Self.configuration(
+            mode: .inputOnly,
+            providerRequest: try Self.request(),
+            cursor: { 5 },
+            consume: { _ in .accepted(outputReady: true) },
+            readinessChanged: { await readiness.append($0) }
+        ))
+
+        #expect(await readinessIterator.next() == true)
+        #expect(await provider.requestedCursors() == [nil])
+        #expect(await coordinator.sendInput("echo fast\\n", surfaceID: Self.surfaceID) == .sent)
+        await coordinator.deactivateAll()
+    }
+
+    @Test
     func sequenceGapSuspendsUntilAuthoritativeCursorThenReopens() async throws {
         let firstLane = TerminalLaneTestConnection(
             frames: [
@@ -259,6 +286,7 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     private static func configuration(
+        mode: MobileTerminalLaneCoordinator.LaneMode = .output,
         providerRequest: CmxByteTransportRequest,
         cursor: @escaping @Sendable () async -> UInt64?,
         consume: @escaping @Sendable (MobileTerminalLaneOutputFrame) async -> MobileTerminalLaneCoordinator.FrameDisposition,
@@ -267,6 +295,7 @@ struct MobileTerminalLaneCoordinatorTests {
         MobileTerminalLaneCoordinator.Configuration(
             request: providerRequest,
             surfaceID: surfaceID,
+            mode: mode,
             cursor: cursor,
             consume: consume,
             readinessChanged: readinessChanged
