@@ -1169,6 +1169,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var previousSessionLaunchWasUnclean = false
     private var didCaptureSessionLaunchState = false
     private var didArmSessionLaunchSentinel = false
+    /// History may record user actions once a window exists, even while restore
+    /// is waiting for external readiness. Actual restoration has its own phase.
+    private var didRegisterInitialMainWindow = false
     var didAttemptStartupSessionRestore = false
     var isApplyingSessionRestore = false {
         didSet {
@@ -3954,7 +3957,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             phase = .terminating
         } else if isApplyingSessionRestore {
             phase = .restoring
-        } else if didAttemptStartupSessionRestore {
+        } else if didRegisterInitialMainWindow || didAttemptStartupSessionRestore {
             phase = .active
         } else {
             phase = .launching
@@ -5725,6 +5728,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             setActiveMainWindow(window)
         }
 
+        didRegisterInitialMainWindow = true
         attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: window)
     }
 
