@@ -14513,6 +14513,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         if shouldCaptureBrowserKeyboardShortcuts(for: event) {
+            event.cmuxBrowserWebViewCache?.commitCapture()
             // Capture evaluation may have materialized the broader focus
             // snapshot. Release that event-scoped snapshot before the local
             // monitor returns; the browser ownership cache is attached to the
@@ -18211,10 +18212,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         for event: NSEvent,
         webView expectedWebView: CmuxWebView? = nil
     ) -> Bool {
+        let hasCommittedCapture = event.cmuxBrowserWebViewCache?.captureIsCommitted == true
         // Do not resolve or associate browser ownership for ordinary
         // unmodified text. Space is the one supported bare shortcut key, and
         // an active chord prefix can make an otherwise plain key relevant.
-        guard browserCaptureEventCanHaveShortcut(event) else {
+        guard hasCommittedCapture || browserCaptureEventCanHaveShortcut(event) else {
             return false
         }
 
@@ -18232,7 +18234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // before ownership resolution so ordinary spaces do not allocate an
         // event cache; modified printable keys resolve the responder first so
         // terminal Shift/Option typing does not pay matcher work at all.
-        let shouldPreflightCandidate = browserCaptureShouldRunCandidatePreflight(event)
+        let shouldPreflightCandidate = !hasCommittedCapture
+            && browserCaptureShouldRunCandidatePreflight(event)
         let isBareSpace = event.modifierFlags
             .intersection(.deviceIndependentFlagsMask)
             .subtracting([.numericPad, .function, .capsLock])

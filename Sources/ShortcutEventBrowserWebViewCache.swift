@@ -17,6 +17,7 @@ final class ShortcutEventBrowserWebViewCache {
     weak var webView: CmuxWebView?
     let activeChordPrefix: ShortcutStroke?
     var captureDecision: Bool?
+    private(set) var captureIsCommitted = false
 
     init(
         eventWindow: NSWindow,
@@ -32,15 +33,31 @@ final class ShortcutEventBrowserWebViewCache {
 
     deinit {}
 
+    /// Marks a positive capture decision as the owner of this AppKit event.
+    ///
+    /// The local application monitor can evaluate a chord suffix while its
+    /// temporary active prefix is set, then clear that prefix before AppKit
+    /// asks the window/web view to handle the same event. Once the monitor has
+    /// yielded the event, ownership must survive that routing-state cleanup.
+    func commitCapture() {
+        guard captureDecision == true else { return }
+        captureIsCommitted = true
+    }
+
     func matches(
         window: NSWindow,
         responder: NSResponder,
         activeChordPrefix: ShortcutStroke?
     ) -> Bool {
         guard let eventWindow, let firstResponder else { return false }
-        return eventWindow === window
-            && firstResponder === responder
-            && self.activeChordPrefix == activeChordPrefix
+        guard eventWindow === window,
+              firstResponder === responder else {
+            return false
+        }
+        // A committed capture decision owns the event beyond the temporary
+        // chord-prefix scope used by the local monitor. Provisional matches
+        // remain prefix-sensitive so a stale cache cannot cross chord state.
+        return captureIsCommitted || self.activeChordPrefix == activeChordPrefix
     }
 }
 
