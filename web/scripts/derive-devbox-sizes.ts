@@ -31,6 +31,7 @@ import {
   type VmImageSize,
   type VmImageSizeName,
 } from "../services/vms/images/sizes";
+import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 import { argValue, cmuxTuiWebsocketSmokeCommand, devboxParkDaemonCommand, hasFlag } from "./devbox-image-common";
 
 const apiKey = process.env.FREESTYLE_API_KEY;
@@ -70,16 +71,23 @@ async function sh(vm: Exec, command: string, timeoutMs = 120_000): Promise<{ cod
   return { code: r.statusCode ?? 124, out: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() };
 }
 
-/** What the guest sees; disk is the root filesystem after the grow. */
-async function measure(vm: Exec): Promise<{ cpu: number; memoryMb: number; rootMb: number; units: string }> {
-  const r = await sh(vm, "echo cpu=$(nproc); echo mem=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo); echo root=$(df -BM --output=size / | tail -1 | tr -dc 0-9); echo units=$(systemctl is-active cmux-tui-daemon cmux-desktop 2>/dev/null | tr '\\n' ',')");
+/** What the guest sees; disk is the root filesystem after the grow; host is the machine's own name. */
+async function measure(vm: Exec): Promise<{ cpu: number; memoryMb: number; rootMb: number; units: string; host: string }> {
+  const r = await sh(vm, "echo cpu=$(nproc); echo mem=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo); echo root=$(df -BM --output=size / | tail -1 | tr -dc 0-9); echo units=$(systemctl is-active cmux-tui-daemon cmux-desktop 2>/dev/null | tr '\\n' ','); echo host=$(hostname)");
   if (r.code !== 0) throw new Error(`could not measure VM: ${r.out.slice(-300)}`);
   const get = (key: string) => r.out.match(new RegExp(`${key}=([^\\n]*)`))?.[1] ?? "";
-  const measured = { cpu: Number(get("cpu")), memoryMb: Number(get("mem")), rootMb: Number(get("root")), units: get("units") };
-  if (![measured.cpu, measured.memoryMb, measured.rootMb].every((value) => Number.isFinite(value) && value > 0)) {
+  const measured = { cpu: Number(get("cpu")), memoryMb: Number(get("mem")), rootMb: Number(get("root")), units: get("units"), host: get("host") };
+  if (![measured.cpu, measured.memoryMb, measured.rootMb].every((value) => Number.isFinite(value) && value > 0) || !measured.host) {
     throw new Error(`VM measurement was incomplete: ${JSON.stringify(measured)}`);
   }
   return measured;
+}
+
+/** The identity contract (services/vms/images/identity.ts) must ride through every resize and snapshot. */
+function assertIdentity(label: string, measured: { host: string }): void {
+  if (measured.host !== DEVBOX_HOSTNAME) {
+    throw new Error(`${label}: hostname is ${measured.host}, not ${DEVBOX_HOSTNAME} (the identity contract did not survive)`);
+  }
 }
 
 /** Guest memory is a little under the allocation (kernel reservations); the root fs a little under the disk. */
@@ -118,7 +126,8 @@ try {
 } finally {
   await probe.vm.delete().catch(() => {});
 }
-console.log(`master ${master}: ${masterShape.cpu} vCPU, ${masterShape.memoryMb} MiB, root ${masterShape.rootMb} MiB`);
+assertIdentity(`master ${master}`, masterShape);
+console.log(`master ${master}: ${masterShape.cpu} vCPU, ${masterShape.memoryMb} MiB, root ${masterShape.rootMb} MiB, host ${masterShape.host}`);
 
 // The master's own slug: a derived md keeps the bare prefix only when that
 // is not already the master's name (a branch bake prefixed with its own slug
@@ -177,6 +186,7 @@ for (const name of sizes) {
     measured = await measure(check.vm);
     const problem = fits(measured, size);
     if (problem) throw new Error(`${name}: derived snapshot ${imageId} boots wrong: ${problem}`);
+    assertIdentity(`${name}: derived snapshot ${imageId}`, measured);
     if (!measured.units.includes("active")) throw new Error(`${name}: units not active after boot: ${measured.units}`);
     // The parked daemon must come back by itself on the derived shape, bound
     // to this machine and listening dual-stack.
@@ -194,7 +204,7 @@ for (const name of sizes) {
 
   const assigned = imageId === master ? null : await assignSlug(imageId, slug);
   result[name] = { imageId, slug: assigned, size, measured };
-  console.log(`${name}: ${imageId} (${measured.cpu} vCPU, ${measured.memoryMb} MiB, root ${measured.rootMb} MiB, units ${measured.units}) ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+  console.log(`${name}: ${imageId} (${measured.cpu} vCPU, ${measured.memoryMb} MiB, root ${measured.rootMb} MiB, units ${measured.units}, host ${measured.host}) ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 }
 
 const out = { master, sizes: result };
