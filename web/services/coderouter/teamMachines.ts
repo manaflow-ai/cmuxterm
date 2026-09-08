@@ -3,7 +3,7 @@
 // or, for personal organizations (whose team id is the Stack user id), when
 // the row has no billing team and was created by that user. Destroyed rows
 // stay visible so usage a machine spent before deletion remains attributable.
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { cloudDb } from "../../db/client";
 import { cloudVms } from "../../db/schema";
@@ -79,9 +79,16 @@ export async function findTeamMachine(
   return row ? machineFromRow(row) : null;
 }
 
+/** Rows a guest may see: live machines only, so destroyed history never eats the cap. */
+const LIVE_STATUSES = ["provisioning", "running", "paused"] as const;
+
 export async function listTeamMachines(
   teamId: string,
+  options?: { readonly liveOnly?: boolean },
 ): Promise<readonly TeamMachine[]> {
+  const scope = options?.liveOnly
+    ? and(teamScope(teamId), inArray(cloudVms.status, [...LIVE_STATUSES]))
+    : teamScope(teamId);
   const rows = await cloudDb()
     .select({
       id: cloudVms.id,
@@ -92,7 +99,7 @@ export async function listTeamMachines(
       createdAt: cloudVms.createdAt,
     })
     .from(cloudVms)
-    .where(teamScope(teamId))
+    .where(scope)
     .orderBy(desc(cloudVms.createdAt))
     .limit(MAX_TEAM_MACHINES);
   return rows.map(machineFromRow);

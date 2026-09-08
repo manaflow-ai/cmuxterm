@@ -20,10 +20,20 @@ const machines = [
 
 let listFailure: Error | null = null;
 const listCalls: string[] = [];
+const findCalls: Array<[string, string]> = [];
+// A live row the capped list never returns: the self lookup must still find it.
+const uncapped = { vmId: foreignVm, providerVmId: "fs-uncapped", displayName: null, slug: "old-grey-heron", status: "running", destroyed: false, createdAt: "2020-01-01T00:00:00.000Z" };
 mock.module("../services/coderouter/teamMachines", () => ({
-  listTeamMachines: async (teamId: string) => {
+  findTeamMachine: async (teamId: string, vmId: string) => {
+    findCalls.push([teamId, vmId]);
+    if (listFailure) throw listFailure;
+    if (teamId === "team-2" && vmId === foreignVm) return uncapped;
+    return teamId === "team-1" ? machines.find((machine) => machine.vmId === vmId) ?? null : null;
+  },
+  listTeamMachines: async (teamId: string, options?: { liveOnly?: boolean }) => {
     listCalls.push(teamId);
     if (listFailure) throw listFailure;
+    expect(options).toEqual({ liveOnly: true });
     return teamId === "team-1" ? machines : [];
   },
 }));
@@ -51,6 +61,7 @@ describe("GET /api/vm/self", () => {
   beforeEach(() => {
     listFailure = null;
     listCalls.length = 0;
+    findCalls.length = 0;
   });
 
   test("rejects the placeholder bearer without an edge-injected token", async () => {
@@ -130,10 +141,23 @@ describe("GET /api/vm/self", () => {
     expect(listCalls).toEqual(["team-1"]);
   });
 
-  test("answers 404 when the bound machine is no longer in its team's list", async () => {
+  test("finds the caller by id even when the capped team list omits it", async () => {
     const response = await GET(edgeRequest("crt_foreign", foreignVm));
-    expect(response.status).toBe(404);
-    expect((await response.json()).error).toBe("vm_not_found");
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.machine).toMatchObject({ id: "fs-uncapped", name: "old-grey-heron", self: true });
+    expect(body.machines).toEqual([body.machine]);
+    expect(findCalls).toEqual([["team-2", foreignVm]]);
+  });
+
+  test("answers 404 when the bound row is gone", async () => {
+    routeTokens.set("crt_gone", { teamId: "team-1", stackUserId: "user-1", vmId: destroyedVm });
+    const destroyed = await GET(edgeRequest("crt_gone", destroyedVm));
+    expect(destroyed.status).toBe(404);
+    expect((await destroyed.json()).error).toBe("vm_not_found");
+    routeTokens.set("crt_missing", { teamId: "team-1", stackUserId: "user-1", vmId: "5e5e5e5e-7777-4888-8999-000011112222" });
+    const missing = await GET(edgeRequest("crt_missing", "5e5e5e5e-7777-4888-8999-000011112222"));
+    expect(missing.status).toBe(404);
   });
 
   test("fails closed with a retryable 503 when the lookup is unavailable", async () => {
@@ -147,11 +171,13 @@ describe("GET /api/vm/self", () => {
 
 describe("vmSelfResponse", () => {
   test("names a machine by displayName, then slug, then provider id", () => {
-    const body = vmSelfResponse({ teamId: "t", vmId: "b" }, [
-      { vmId: "a", providerVmId: "fs-a", displayName: "  ", slug: null, status: "running", destroyed: false, createdAt: "x" },
-      { vmId: "b", providerVmId: "fs-b", displayName: null, slug: null, status: "running", destroyed: false, createdAt: "y" },
-    ]);
+    const a = { vmId: "a", providerVmId: "fs-a", displayName: "  ", slug: null, status: "running", destroyed: false, createdAt: "2026-01-02T00:00:00.000Z" };
+    const b = { vmId: "b", providerVmId: "fs-b", displayName: null, slug: null, status: "running", destroyed: false, createdAt: "2026-01-01T00:00:00.000Z" };
+    const body = vmSelfResponse({ teamId: "t", vmId: "b" }, b, [a, b]);
     expect(body?.machines.map((machine) => machine.name)).toEqual(["  ", "fs-b"]);
     expect(body?.machine.id).toBe("fs-b");
+    // The own row is never listed twice and a mis-bound self is refused.
+    expect(body?.machines.filter((machine) => machine.self)).toHaveLength(1);
+    expect(vmSelfResponse({ teamId: "t", vmId: "b" }, a, [a, b])).toBeNull();
   });
 });

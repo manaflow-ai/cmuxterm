@@ -1,6 +1,6 @@
 # cmux vm command reference
 
-`cloud` is an alias for `vm` (`cmux cloud ls` == `cmux vm ls`). The global `--json` flag works on every subcommand and may appear before or after the subcommand. All of this requires the cmux app running and a signed-in account.
+`cloud` is an alias for `vm` (`cmux cloud ls` == `cmux vm ls`). The global `--json` flag works on every subcommand and may appear before or after the subcommand. All of this requires the cmux app running and a signed-in account, except the guest `cmux self` and `cmux vm ls`, which run inside a machine on its edge-injected credential.
 
 ## Discovery: the cloud tree
 

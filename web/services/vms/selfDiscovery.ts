@@ -52,20 +52,25 @@ function selfMachine(machine: TeamMachine, selfVmId: string): VmSelfMachine | nu
 }
 
 /**
- * The guest-facing view of a team's machines. Destroyed rows and rows with no
- * provider id are hidden, the same filter the Mac's `cmux vm ls` applies.
- * Returns null when the caller's own row is not among them (destroyed while
- * its token was still in flight, or a mis-bound token): the route answers 404.
+ * The guest-facing view of a team's machines. `self` is the caller's own row,
+ * looked up by id so a large team's list cap can never drop it; `owned` is
+ * the team's live list. Destroyed rows and rows with no provider id are
+ * hidden, the same filter the Mac's `cmux vm ls` applies. Returns null when
+ * the caller's row is gone or destroyed (its token still in flight, or
+ * mis-bound): the route answers 404.
  */
 export function vmSelfResponse(
   identity: { readonly teamId: string; readonly vmId: string },
+  self: TeamMachine | null,
   owned: readonly TeamMachine[],
 ): VmSelfResponse | null {
-  const machines = owned
-    .filter((machine) => !machine.destroyed)
-    .map((machine) => selfMachine(machine, identity.vmId))
-    .filter((machine): machine is VmSelfMachine => machine !== null);
-  const machine = machines.find((entry) => entry.self);
+  if (!self || self.destroyed || self.vmId !== identity.vmId) return null;
+  const machine = selfMachine(self, identity.vmId);
   if (!machine) return null;
+  const siblings = owned
+    .filter((entry) => !entry.destroyed && entry.vmId !== self.vmId)
+    .map((entry) => selfMachine(entry, identity.vmId))
+    .filter((entry): entry is VmSelfMachine => entry !== null);
+  const machines = [...siblings, machine].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
   return { schema: VM_SELF_SCHEMA, machine, team: { id: identity.teamId }, machines };
 }

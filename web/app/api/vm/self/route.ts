@@ -7,7 +7,7 @@ import {
   authenticateRequestRouteToken,
   type RouteTokenAuthFailure,
 } from "../../../../services/coderouter/routeTokenAuth";
-import { listTeamMachines } from "../../../../services/coderouter/teamMachines";
+import { findTeamMachine, listTeamMachines } from "../../../../services/coderouter/teamMachines";
 import { vmSelfResponse } from "../../../../services/vms/selfDiscovery";
 
 const JSON_HEADERS = {
@@ -40,16 +40,20 @@ export async function GET(request: Request): Promise<Response> {
       { status: 403, headers: JSON_HEADERS },
     );
   }
+  let self;
   let owned;
   try {
-    owned = await listTeamMachines(teamId);
+    [self, owned] = await Promise.all([
+      findTeamMachine(teamId, vmId),
+      listTeamMachines(teamId, { liveOnly: true }),
+    ]);
   } catch {
     return Response.json(
       { error: "machine_lookup_unavailable", retryable: true },
       { status: 503, headers: { ...JSON_HEADERS, "retry-after": "5" } },
     );
   }
-  const body = vmSelfResponse({ teamId, vmId }, owned);
+  const body = vmSelfResponse({ teamId, vmId }, self, owned);
   if (!body) {
     return Response.json({ error: "vm_not_found", retryable: false }, { status: 404, headers: JSON_HEADERS });
   }
