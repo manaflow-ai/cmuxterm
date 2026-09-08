@@ -524,13 +524,6 @@ enum CloudTreeNodeBuilder {
         return [RemoteResourcePlacement(resource: resource, workspace: workspace, view: nil)]
     }
 
-    private static func uniqueResources(_ placements: [RemoteResourcePlacement]) -> [SurfaceResource] {
-        var seen = Set<SurfaceResourceID>()
-        return placements.compactMap { placement in
-            seen.insert(placement.resource.id).inserted ? placement.resource : nil
-        }
-    }
-
     static func nodes(
         machines: [MachineSnapshot],
         pendingCreates: [MachineCreateOperation] = [],
@@ -916,6 +909,16 @@ enum CloudTreeNodeBuilder {
                 projectionIndex: projectionIndex,
                 openInLocal: openInLocal
             )
+            // The group keeps its members (a workspace's own placements; the implicit
+            // pool display stays out) but takes the rows' order.
+            let realPlacementSet = Set(realPlacements)
+            let orderedRealPlacements = layout.placements.map { placement in
+                SurfaceResourcePlacement(
+                    resource: placement.resource.id,
+                    remoteView: placement.view,
+                    remoteWorkspaceID: workspace.id
+                )
+            }.filter { realPlacementSet.contains($0) }
             return CloudTreeNode(
                 id: nodeID(workspace: workspace.id, machine: machine),
                 kind: .workspace(
@@ -928,7 +931,7 @@ enum CloudTreeNodeBuilder {
                 children: layout.rows,
                 dragGroup: SurfaceResourceGroup(
                     title: workspace.name,
-                    placements: realPlacements,
+                    placements: orderedRealPlacements,
                     remoteWorkspaceID: workspace.id
                 )
             )
@@ -956,6 +959,10 @@ enum CloudTreeNodeBuilder {
 
     private struct WorkspaceLayoutRows {
         var rows: [CloudTreeNode] = []
+        /// Every placement in row order: each pane's shown tab, then its hidden tabs,
+        /// then the pane-less rows. The workspace's open/drag group follows this order
+        /// so "Open Workspace" and a row drag lay panes out the way the tree lists them.
+        var placements: [RemoteResourcePlacement] = []
         /// Terminal rows the layout shows: one per pane whose shown tab is a terminal,
         /// plus placements that name no pane.
         var terminalCount = 0
@@ -1010,6 +1017,8 @@ enum CloudTreeNodeBuilder {
                 placement, workspace: workspace, machine: machine, info: info, snapshot: snapshot,
                 projectionIndex: projectionIndex, openInLocal: openInLocal, hiddenTabCount: hiddenTabs.count, children: nested
             ))
+            result.placements.append(placement)
+            result.placements.append(contentsOf: hiddenTabs)
             if placement.resource.kind == .terminal { result.terminalCount += 1 }
             result.hiddenTabCount += hiddenTabs.count
         }
