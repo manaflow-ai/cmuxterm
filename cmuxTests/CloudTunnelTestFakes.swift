@@ -137,7 +137,10 @@ final class FakeTunnelController: CloudTunnelControlling, @unchecked Sendable {
     }
 
     func remove() async throws {
-        lock.withLock { recorded.append("remove") }
+        lock.withLock {
+            recorded.append("remove")
+            configurations.removeAll()
+        }
     }
 
     nonisolated func stopForTermination() {

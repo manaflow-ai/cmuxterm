@@ -254,11 +254,18 @@ final class CmuxTuiSurfaceProviderRegistry {
             // A machine listed again after a delete waits for that delete's
             // teardown, so the teardown cannot close the new provider's
             // forwards or link.
-            if let teardown = machineTeardowns.removeValue(forKey: summary.id) {
+            // `machineWasDeleted` keys teardowns by the id it resolved
+            // case-insensitively; look the teardown up the same way.
+            let registeredID = registeredMachineID(matching: summary.id)
+            if let teardown = machineTeardowns.removeValue(forKey: registeredID) {
                 await teardown.value
                 guard generation == refreshGeneration else { return false }
             }
             await links.setPrivateAddress(summary.preferredPrivateAddress, for: summary.id)
+            // A delete that ran while that await was suspended bumped the
+            // generation; creating a provider now would hand its link and
+            // forwards to the teardown that delete scheduled.
+            guard generation == refreshGeneration else { return false }
             if let provider = providers[summary.id] {
                 provider.update(summary: summary)
             } else {

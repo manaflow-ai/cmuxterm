@@ -336,7 +336,10 @@ struct CloudTunnelLaunchGateTests {
         await #expect(throws: CloudTunnelError.cloudMachinesOff) {
             try await start.value
         }
-        #expect(controller.calls == ["install"])
+        // The saved configuration and the enrollment are taken back out.
+        #expect(controller.calls == ["install", "remove"])
+        #expect(controller.installedConfigurations.isEmpty)
+        #expect(enroller.discardCount == 1)
         #expect(await coordinator.state == .off)
     }
 
