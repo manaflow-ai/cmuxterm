@@ -79,6 +79,7 @@ describe("devbox image template", () => {
       "cmux-motd",
       "cmux-terminfo.sh",
       "cmux-terminfo.src",
+      "codex-managed.toml",
       // The desktop layer (Freestyle only); pinned by vm-devbox-desktop.test.ts.
       "desktop",
       "seed-history",
@@ -93,6 +94,7 @@ describe("devbox image template", () => {
       "cmux-motd",
       "cmux-terminfo.sh",
       "cmux-terminfo.src",
+      "codex-managed.toml",
       "seed-history",
     ]);
   });
@@ -597,8 +599,8 @@ describe("devbox image template", () => {
   });
 
   test("claude transcript retention is pinned everywhere", () => {
-    expect(dockerfile).toContain('{ "cleanupPeriodDays": 99999 }');
-    expect(readScript("build-devbox-freestyle.ts")).toContain('{ "cleanupPeriodDays": 99999 }');
+    expect(dockerfile).toContain('{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }');
+    expect(readScript("build-devbox-freestyle.ts")).toContain('{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }');
   });
 
   test("never installs docker (deliberate image-scope choice)", () => {
