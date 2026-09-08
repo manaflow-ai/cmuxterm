@@ -11195,14 +11195,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 surfaceResumeRestoreClaimsByPanelId.removeValue(forKey: detached.panelId)
             }
         }
-        adoptDetachedAgentRuntimeState(
-            detached.agentRuntime,
-            isRemoteTerminal: detached.isRemoteTerminal
-        )
-        FeedCoordinator.shared.retargetAgentAttention(
-            panelId: detached.panelId,
-            to: .workspace(self)
-        )
+        adoptDetachedAgentRuntimeState(detached.agentRuntime, isRemoteTerminal: detached.isRemoteTerminal); FeedCoordinator.shared.retargetAgentAttention(panelId: detached.panelId, to: .workspace(self))
         if let markdownPanel = detached.panel as? MarkdownPanel {
             markdownPanel.updateWorkspaceId(
                 id,

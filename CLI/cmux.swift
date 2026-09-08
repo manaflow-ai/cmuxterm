@@ -30801,7 +30801,7 @@ struct CMUXCLI {
                         transcriptPath: currentTranscriptPath,
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
-                        lastAssistantMessage: lastAssistantMessage
+                        lastAssistantMessage: lastAssistantMessage, boundary: .turnEnd
                     ) {
                         try replayStop(replay)
                     }
