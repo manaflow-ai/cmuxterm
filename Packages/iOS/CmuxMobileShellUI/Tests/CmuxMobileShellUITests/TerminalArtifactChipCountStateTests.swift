@@ -226,11 +226,17 @@ struct TerminalArtifactChipCountStateTests {
     @Test("an unchanged visible count refreshes after the dedupe window")
     func unchangedVisibleCountRefreshesAfterDedupeWindow() throws {
         var state = TerminalArtifactChipCountState()
-        _ = try request(from: state.trigger(
+        let first = try request(from: state.trigger(
             localCount: 0,
             surfaceGeneration: 1,
             supportsSessionCount: true
         ))
+        _ = state.complete(
+            first,
+            sessionTotal: 0,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 0
+        )
 
         let refreshGeneration = TerminalArtifactChipCountState.maxDedupeSurfaceGenerationGap + 1
         guard case .reportAndRequest(_, let refresh) = state.trigger(
