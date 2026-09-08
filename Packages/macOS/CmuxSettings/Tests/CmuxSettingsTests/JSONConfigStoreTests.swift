@@ -152,6 +152,36 @@ struct JSONConfigStoreTests {
         #expect(persisted == unreadable)
     }
 
+    @Test func updateRefusesToOverwriteUndecodableValue() async throws {
+        let (store, fileURL, catalog) = makeStore()
+        let key = catalog.chrome.overrides
+        let persisted = Data(#"{"chrome":{"overrides":{"accent":"#112233","unknown":"#445566"}},"app":{"appearance":"dark"}}"#.utf8)
+        try persisted.write(to: fileURL)
+
+        await #expect(throws: (any Error).self) {
+            try await store.update(key) { current in
+                current
+            }
+        }
+
+        #expect(try Data(contentsOf: fileURL) == persisted)
+    }
+
+    @Test func updateUsesDefaultWhenKeyIsAbsent() async throws {
+        let (store, fileURL, catalog) = makeStore()
+
+        let updated = try await store.update(catalog.chrome.overrides) { current in
+            var values = current.values
+            values[.accent] = ChromeColor(hex: "#112233")!
+            return ChromeTokenOverrides(values)
+        }
+
+        #expect(updated[.accent] == ChromeColor(hex: "#112233"))
+        let root = try JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [String: Any]
+        let chrome = root?["chrome"] as? [String: Any]
+        #expect(chrome?["overrides"] as? [String: String] == ["accent": "#112233"])
+    }
+
     @Test func snapshotMatchesAsyncRead() async throws {
         let (store, _, _) = makeStore()
         let key = JSONKey<String>(id: "automation.socketPassword", defaultValue: "")
