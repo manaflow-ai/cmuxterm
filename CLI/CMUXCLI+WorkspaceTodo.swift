@@ -309,8 +309,8 @@ extension CMUXCLI {
     /// `todo queue` listing; UUID selectors remain independent of the filter.
     private func workspaceTodoQueueSelectorParams(
         _ rest: [String],
-        usageKey: String,
-        usage: String
+        usageKey: StaticString,
+        usage: String.LocalizationValue
     ) throws -> [String: Any] {
         let (statusArg, remainder) = parseOption(rest, name: "--status")
         let positional = remainder.filter { $0 != "--" && !$0.hasPrefix("--") }
