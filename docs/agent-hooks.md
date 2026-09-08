@@ -135,6 +135,41 @@ You can also set the same preference in `~/.config/cmux/cmux.json`:
 When this is off, cmux still restores the saved window, workspace, pane, scrollback,
 and browser state. Restored agent terminals stay idle until you resume them manually.
 
+## Codex wrapper precedence
+
+When cmux launches Codex and at least one cmux event is not already covered by
+a persistent cmux handler in `hooks.json`, the wrapper adds `--enable hooks`,
+`--dangerously-bypass-hook-trust`, and one `-c hooks.<event>=...` value per
+uncovered event, for that invocation only. When `cmux hooks codex install` has
+already installed every cmux handler, the wrapper adds nothing, which also
+keeps an intentional `features.hooks = false` intact.
+
+Codex discovers hooks per configuration layer and appends them from lowest to
+highest precedence: the user `hooks.json` and `[hooks]` table in `config.toml`
+(under `~/.codex` or `$CODEX_HOME`), a trusted project's `.codex/hooks.json`
+and `.codex/config.toml`, and finally the session flags cmux injects. A
+`-c hooks.<event>=` value only defines that session-flags layer, so user and
+project handlers are registered before cmux's handler and nothing in
+`hooks.json` or `config.toml` is replaced or rewritten. Codex dispatches an
+event's handlers together and orders only their results, so nothing may depend
+on cmux's handler running first or last. cmux deliberately does not copy user
+handlers into its own value: Codex would discover the copy as a second handler
+and run it twice. This contract was verified by hand against codex-cli 0.146.0
+and 0.153.4, and `tests/test_codex_wrapper_hook_append.py` repeats the check
+against the installed `codex` binary with a local fake model provider.
+
+Two trade-offs apply whenever the wrapper injects. `--dangerously-bypass-hook-trust`
+skips Codex's hook review for the whole process, so user and project handlers
+run without the trust prompt. Session flags form one layer, so a
+`-c hooks.<event>=` value you pass to `codex` yourself is applied after cmux's
+and replaces cmux's handler for that event only; use `cmux hooks codex install`
+when you need both.
+
+Set `CMUX_CODEX_HOOKS_DISABLED=1` for a launch to keep Codex's configuration
+entirely untouched. This preserves user hook behavior and Codex's own trust
+review, but also disables cmux's Codex lifecycle registration, Feed and
+notification bridge, rebinding, and hibernation integration for that process.
+
 ## Environment overrides
 
 | Agent | Config directory override | Disable cmux hooks for one process |

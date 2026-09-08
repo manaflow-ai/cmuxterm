@@ -16,6 +16,8 @@ struct CloudTreeOutlineView: NSViewRepresentable {
     var pendingCreates: [MachineCreateOperation] = []
     let snapshot: SurfaceCatalogSnapshot
     let localWorkspaces: [CloudTreeLocalWorkspace]
+    /// Machine id to terminal ids with a notification this Mac has not read.
+    var unreadTerminalIDs: [String: Set<String>] = [:]
     let machineActions: MachineRowActions
     let nodeActions: CloudTreeNodeActions
     let expansionStore: CloudTreeExpansionStore
@@ -65,7 +67,8 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             machines: machines,
             pendingCreates: pendingCreates,
             snapshot: snapshot,
-            localWorkspaces: localWorkspaces
+            localWorkspaces: localWorkspaces,
+            unreadTerminalIDs: unreadTerminalIDs
         ))
     }
 
@@ -248,6 +251,13 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             }
             let nextStructure = CloudTreeNodeBuilder.structureSignature(nodes)
             let nextContent = CloudTreeNodeBuilder.contentSignature(nodes)
+            #if DEBUG
+            let unreadRows = CloudTreeNodeBuilder.flattened(nodes).filter {
+                if case .terminal(let row) = $0.kind { return row.hasUnreadNotification }
+                return false
+            }.count
+            cmuxDebugLog("cloudTree.apply structureChanged=\(nextStructure != structureSignature) contentChanged=\(nextContent != contentSignature) unreadRows=\(unreadRows) rows=\(outlineView?.numberOfRows ?? -1)")
+            #endif
             guard nextStructure != structureSignature || nextContent != contentSignature else { return }
             contentSignature = nextContent
             if nextStructure == structureSignature, !self.nodes.isEmpty {
@@ -780,26 +790,6 @@ struct CloudTreeOutlineView: NSViewRepresentable {
                     })
                 }
                 items.append(item(String(localized: "cloudTree.menu.openFullClient", defaultValue: "Open Full cmux-tui Client")) { actions.runCommand(id, ["vm", "tui"]) })
-            }
-            if machine.freeAccess != .expired {
-                let diskMenu = NSMenu()
-                diskMenu.autoenablesItems = false
-                for gib in [64, 128, 256] {
-                    let diskItem = item(String(format: String(localized: "machines.menu.increaseDiskTo", defaultValue: "Increase to %d GiB"), gib)) {
-                        actions.resizeDisk(id, gib)
-                    }
-                    if let current = machine.stats?.diskTotalMb, current >= gib * 1024 {
-                        diskItem.isEnabled = false
-                    }
-                    diskMenu.addItem(diskItem)
-                }
-                let diskRoot = NSMenuItem(
-                    title: String(localized: "machines.menu.increaseDisk", defaultValue: "Increase Disk"),
-                    action: nil,
-                    keyEquivalent: ""
-                )
-                diskRoot.submenu = diskMenu
-                items.append(diskRoot)
             }
             items.append(item(String(localized: "cloudTree.menu.refresh", defaultValue: "Refresh")) { nodeActions.refresh() })
             items.append(.separator())

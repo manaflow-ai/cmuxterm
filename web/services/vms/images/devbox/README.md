@@ -80,6 +80,16 @@ on 6901. The contract (`web/services/vms/images/desktop.ts`;
   (`claude --dangerously-skip-permissions`) work. The Freestyle driver still
   runs the cmux-tui daemon as root; moving sessions to `ubuntu` is a driver
   change.
+- Agents are trusted everywhere. codex: `codex-managed.toml` is baked to
+  `/etc/codex/managed_config.toml` with `trust_level = "trusted"` for `/root`
+  and `/home/ubuntu`, and the `codex()` function in `agent-config.sh` adds the
+  launch directory's git root per invocation (codex trust is exact-path).
+  claude: `agent-config.sh` seeds `~/.claude.json` (onboarding done, bypass
+  accepted, the placeholder API key approved, `/` trusted) and exports `CLAUDE_CODE_SANDBOXED=1` (trust gate)
+  and `IS_SANDBOX=1` (root gate for `--dangerously-skip-permissions`), plus
+  `DISABLE_AUTOUPDATER=1` so the pinned Claude Code does not reinstall itself
+  on first launch;
+  `managed-settings.json` sets `skipDangerousModePermissionPrompt`.
 - Ghostty comes from a pinned community `.deb` for Ubuntu 24.04
   (`ARG CMUX_IMAGE_GHOSTTY_DEB_URL` in the Dockerfile, verified against
   `ARG CMUX_IMAGE_GHOSTTY_DEB_SHA256` before dpkg runs); the apt list is
@@ -106,11 +116,61 @@ a public URL. `desktopWrapper.ts` stays the seam for a future public TLS
 edge. The daemon still runs as root, so root shells get `DISPLAY` but not
 the session bus.
 
+## Identity: the machine is `cmux`
+
+`web/services/vms/images/identity.ts` is the contract. The Freestyle base
+calls every VM `freestyle-vm` (static in `/etc/hostname`, the `127.0.1.1`
+alias in `/etc/hosts`, the comment on its SSH host keys), so before this
+contract a cmux machine introduced itself as the provider's in every pane
+(`root@freestyle-vm in ~ λ`), in `hostname`, `$HOSTNAME`, `uname -n`, the
+journal, and the host-key comments. The bake's `identity` step, right after
+the base inventory, renames it:
+
+- **Hostname `cmux`**, static and live (`hostnamectl set-hostname`, with a
+  file-plus-`sethostname` fallback), and the `127.0.1.1 cmux` alias so
+  `getent hosts cmux` and sudo resolve it. Only the alias line of
+  `/etc/hosts` changes; the provider's `# BEGIN freestyle-tls-egress` block
+  and every other line stay byte for byte.
+- **SSH host keys regenerated** under the new name (the base's keys were
+  generated when Freestyle built its rootfs and are shared by every VM booted
+  from that base). `cmux-devbox-boot` regenerates them again on every clone,
+  in a detached subshell so the daemon start never waits, so no two machines
+  from one snapshot share a host key.
+- **The journal starts over** in the cleanup step, so a machine's log begins
+  under its own name instead of with the base's boot as `freestyle-vm`.
+
+The `identity-final` step before the stamp re-runs the check plus a
+whole-word residue audit (`freestyle-vm` under `/etc`, `/home`, `/root`,
+`/usr/local`, `/opt`, package trees skipped). `verify-devbox-image.ts` proves
+the same on a machine booted from the snapshot, plus the prompt a person sees
+in a real pty for both accounts, a journal that knows no other name, and
+different host keys on a second machine; `derive-devbox-sizes.ts` checks the
+hostname on the master and on every derived size after its own boot.
+
+What stays the provider's, on purpose, because the exec/fs API and the
+transport run on it: the guest agent (`freestyle-vms-agent.service`,
+`/sbin/freestyle-vms-agent`), its first-boot host-key unit
+(`freestyle-vms-hostkeys.service`, inert once keys exist), the resolver
+drop-in `/etc/systemd/resolved.conf.d/60-freestyle-vms.conf`, the power-off
+wrappers in `/usr/local/sbin`, the TLS-egress block in `/etc/hosts`, the
+metadata service at 169.254.169.254, and the gateway endpoints
+(`vm-ssh.freestyle.sh`, `*.vm.freestyle.sh`). Those name the platform
+(`freestyle-vms`), never the machine, and the whole-word audit leaves them
+alone. The container recipe has no identity step: `docker build` mounts
+`/etc/hostname` and `/etc/hosts` from the daemon and the runtime names each
+container, so the hostname there is the runtime's.
+
 ## Terminal capabilities (`cmux-terminfo.src`)
 
 Daemon-spawned shells get the TERM the Mac exports (`xterm-256color`, or
-`xterm-ghostty` when passed through) plus `COLORTERM=truecolor`, but
-programs resolve TERM against the guest's terminfo. Stock ncurses
+`xterm-ghostty` when passed through) plus `COLORTERM=truecolor`, and inherit
+`TERM_PROGRAM=ghostty` with `TERM_PROGRAM_VERSION` from
+`/etc/cmux/ghostty-version` (the Ghostty .deb pin, written by the bake and
+the Dockerfile) via the supervisor's environment, the same identity the app
+exports to local and SSH shells. Claude Code and other agents gate
+synchronized output, progress reporting, strikethrough, and Cmd-click on
+`TERM_PROGRAM`; `verify-devbox-image.ts` reads the daemon's environ to prove
+it. Programs still resolve TERM against the guest's terminfo. Stock ncurses
 `xterm-256color` advertises no truecolor (`Tc`) or styled underlines (`Su`)
 and emits SGR 90 for `setaf 8`, which the cmux renderer shows as invisible
 ghost text. `cmux-terminfo.src` is the app's `Resources/terminfo-overlay`
