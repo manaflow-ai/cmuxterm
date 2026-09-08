@@ -1,3 +1,10 @@
+#if CMUX_CLI_TESTS
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+#endif
 import CMUXAgentLaunch
 import Foundation
 import CryptoKit

@@ -1,16 +1,6 @@
 import XCTest
 import Darwin
 
-// The shared CLI store sources need the app-owned lifecycle type in this
-// module. Alias its identity instead of compiling a second enum into tests.
-#if canImport(cmux_DEV)
-@testable import cmux_DEV
-typealias AgentHibernationLifecycleState = cmux_DEV.AgentHibernationLifecycleState
-#elseif canImport(cmux)
-@testable import cmux
-typealias AgentHibernationLifecycleState = cmux.AgentHibernationLifecycleState
-#endif
-
 extension CLINotifyProcessIntegrationRegressionTests {
     struct ProcessRunResult {
         let status: Int32

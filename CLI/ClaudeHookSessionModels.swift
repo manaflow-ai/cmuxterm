@@ -1,3 +1,12 @@
+#if CMUX_CLI_TESTS
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+typealias AgentHibernationLifecycleState = cmux_DEV.AgentHibernationLifecycleState
+#elseif canImport(cmux)
+@testable import cmux
+typealias AgentHibernationLifecycleState = cmux.AgentHibernationLifecycleState
+#endif
+#endif
 import CMUXAgentLaunch
 import CryptoKit
 import Foundation
