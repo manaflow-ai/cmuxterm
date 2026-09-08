@@ -360,6 +360,7 @@ import Testing
 
         #expect(plan.owner == .surfaceHostLayer)
         #expect(plan.hostLayerColor.hexString(includeAlpha: true) == "#D2EEF9FF")
+        #expect(!plan.excludesSharedRootBackdrop)
     }
 
     /// Verifies translucent OSC colors use one host-layer fill with configured opacity.
@@ -376,6 +377,7 @@ import Testing
         #expect(plan.owner == .surfaceHostLayer)
         #expect(plan.hostLayerColor.hexString() == "#E2D2F0")
         #expect(abs(plan.hostLayerColor.alphaComponent - 0.42) < 0.0001)
+        #expect(plan.excludesSharedRootBackdrop)
     }
 
     /// Verifies default backgrounds remain owned by the shared root backdrop.
@@ -391,6 +393,7 @@ import Testing
 
         #expect(plan.owner == .sharedWindowBackdrop)
         #expect(plan.hostLayerColor.hexString(includeAlpha: true) == "#00000000")
+        #expect(!plan.excludesSharedRootBackdrop)
     }
 
     /// Verifies Bonsplit-owned pane backdrops stay authoritative for OSC overrides.
@@ -406,6 +409,7 @@ import Testing
 
         #expect(plan.owner == .bonsplitPaneBackdrop)
         #expect(plan.hostLayerColor.hexString(includeAlpha: true) == "#00000000")
+        #expect(!plan.excludesSharedRootBackdrop)
     }
 
     /// Verifies non-shared window backdrops let OSC colors paint directly on the host layer.
@@ -422,6 +426,7 @@ import Testing
         #expect(plan.owner == .surfaceHostLayer)
         #expect(plan.hostLayerColor.hexString() == "#B5EAD7")
         #expect(abs(plan.hostLayerColor.alphaComponent - 0.73) < 0.0001)
+        #expect(!plan.excludesSharedRootBackdrop)
     }
 
     /// Verifies renderer-owned backgrounds keep cmux host layers clear.
@@ -437,6 +442,7 @@ import Testing
 
         #expect(plan.owner == .ghosttyNativeRenderer)
         #expect(plan.hostLayerColor.hexString(includeAlpha: true) == "#00000000")
+        #expect(!plan.excludesSharedRootBackdrop)
     }
 
     /// A translucent terminal theme does not own the rendered pixels: the
