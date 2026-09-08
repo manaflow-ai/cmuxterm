@@ -202,9 +202,24 @@ extension ClaudeHookLiveDeliveryHarness {
         state: ServerState,
         handler: @escaping @Sendable (String) -> String
     ) -> DispatchSemaphore {
+        state.markServerStarted()
         let handled = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
+            defer { state.signalServerStopped() }
             while true {
+                if state.serverIsStopped() { return }
+                var readiness = pollfd(
+                    fd: listenerFD,
+                    events: Int16(POLLIN),
+                    revents: 0
+                )
+                let pollResult = Darwin.poll(&readiness, 1, 100)
+                if pollResult < 0 {
+                    if errno == EINTR { continue }
+                    return
+                }
+                if pollResult == 0 { continue }
+                if state.serverIsStopped() { return }
                 var clientAddr = sockaddr_un()
                 var clientAddrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
                 let clientFD = withUnsafeMutablePointer(to: &clientAddr) { ptr in
@@ -214,6 +229,12 @@ extension ClaudeHookLiveDeliveryHarness {
                 }
                 guard clientFD >= 0 else {
                     if errno == EINTR { continue }
+                    if state.serverIsStopped() { return }
+                    return
+                }
+
+                if state.serverIsStopped() {
+                    Darwin.close(clientFD)
                     return
                 }
 

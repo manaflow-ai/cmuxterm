@@ -105,7 +105,11 @@ extension ClaudeTaskSyncHookTests {
             at: context.storeURL.deletingLastPathComponent(),
             includingPropertiesForKeys: nil
         ).filter { $0.lastPathComponent.hasPrefix(taskSyncLockPrefix) }
-        #expect(taskSyncLockFiles.count == 1)
+        // First-sighting hooks briefly hold the identity-qualified scan slot,
+        // then retarget to the resolved task-list slot. Those scopes may hash
+        // to one or two bounded lock files; they must never create one file
+        // per task list or per hook invocation.
+        #expect((1...2).contains(taskSyncLockFiles.count))
     }
 
     @Test("A personal task list clears its prior workspace after its pane moves")

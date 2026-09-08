@@ -16,7 +16,7 @@ enum ClaudeHookLiveDeliveryHarness {
         let storeURL: URL
 
         func cleanup() {
-            Darwin.close(listenerFD)
+            state.stopServer()
             unlink(socketPath)
             try? FileManager.default.removeItem(at: root)
         }
@@ -45,11 +45,12 @@ enum ClaudeHookLiveDeliveryHarness {
         let socketPath = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("cli-\(name.prefix(6))-\(shortID).sock")
             .path
+        let listenerFD = try bindUnixSocket(at: socketPath)
         return Context(
             cliPath: try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self),
             socketPath: socketPath,
-            listenerFD: try bindUnixSocket(at: socketPath),
-            state: ServerState(),
+            listenerFD: listenerFD,
+            state: ServerState(listenerFD: listenerFD),
             root: root,
             storeURL: root.appendingPathComponent("claude-hook-sessions.json")
         )
