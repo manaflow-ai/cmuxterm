@@ -194,7 +194,16 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
                     || normalized.contains("request")
             ))
             || (normalized.contains("etimedout") && normalized.contains("error"))
-        if timeoutCue {
+        let timeoutReasonOnly = reasonOnlyMessage == "timeout" || reasonOnlyMessage == "etimedout"
+        let timeoutSignalReason = signalReasonOnly == "timeout" || signalReasonOnly == "etimedout"
+        let timeoutProviderContext: Set<Substring> = [
+            "api", "connection", "endpoint", "error", "failed", "failure", "gateway", "http",
+            "network", "provider", "response", "server", "service", "status", "stream",
+        ]
+        let timeoutHasProviderContext = messageTokens.contains {
+            timeoutProviderContext.contains($0)
+        }
+        if timeoutReasonOnly || timeoutSignalReason || (timeoutCue && timeoutHasProviderContext) {
             return .timeout
         }
         let authenticationCue = normalized.contains("authentication error")
@@ -362,17 +371,12 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("received sigint")
             || normalized.contains("terminated by sigint")
             || normalized.contains("keyboard interrupt received")
-            || (normalized.contains("turn aborted") && (
-                normalized.contains("user")
-                    || normalized.contains("interrupt")
-                    || normalized.contains("cancel")
-            ))
             || normalized.trimmingCharacters(in: .whitespacesAndNewlines) == "user abort"
     }
 
     private func containsStrongProviderFailureCue(_ lowercasedText: String) -> Bool {
         lowercasedText.contains("■")
-            || lowercasedText.contains("api error")
+            || containsExplicitAPIErrorCue(lowercasedText)
             || lowercasedText.contains("error:")
             || lowercasedText.contains("failed:")
             || lowercasedText.contains("failure:")
@@ -433,7 +437,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
               !lowercasedText.contains("error-free") else {
             return false
         }
-        return lowercasedText.contains("api error")
+        return containsExplicitAPIErrorCue(lowercasedText)
             || lowercasedText.contains("error:")
             || lowercasedText.contains("failed:")
             || lowercasedText.contains("failure:")
@@ -442,6 +446,21 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || lowercasedText.contains("fatal error")
             || lowercasedText.contains("stop failure")
             || lowercasedText.contains("stopfailure")
+    }
+
+    private func containsExplicitAPIErrorCue(_ lowercasedText: String) -> Bool {
+        let tokens = Self.notificationCueTokens(lowercasedText)
+        guard let apiIndex = tokens.firstIndex(of: "api"),
+              apiIndex + 1 < tokens.endIndex,
+              tokens[apiIndex + 1] == "error" else {
+            return false
+        }
+        let trailing = tokens.dropFirst(apiIndex + 2)
+        guard let firstTrailing = trailing.first else { return true }
+        let explicitTrailingCues: Set<Substring> = [
+            "occurred", "returned", "request", "response", "failed", "failure",
+        ]
+        return explicitTrailingCues.contains(firstTrailing)
     }
 
 }

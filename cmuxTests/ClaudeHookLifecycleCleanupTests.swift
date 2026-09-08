@@ -48,7 +48,6 @@ struct ClaudeHookLifecycleCleanupTests {
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
         environment["CMUX_CLAUDE_PID"] = "43218"
-
         let result = Harness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "session-end"],
@@ -57,7 +56,6 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
-
         let commands = context.state.snapshot()
         #expect(
             commands.contains {
@@ -106,12 +104,10 @@ struct ClaudeHookLifecycleCleanupTests {
             pidTarget: nil,
             surfaceTargets: [Self.liveSurfaceId: newWorkspaceId]
         )
-
         var environment = Harness.hookEnvironment(context: context)
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
         environment["CMUX_CLAUDE_PID"] = "43215"
-
         let result = Harness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "session-end"],
@@ -120,7 +116,6 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
-
         let commands = context.state.snapshot()
         #expect(
             commands.contains {
@@ -143,7 +138,6 @@ struct ClaudeHookLifecycleCleanupTests {
             "SessionEnd must not wipe the stale workspace's notifications; saw \(commands)"
         )
     }
-
     @Test func sessionEndClearStaysPaneScopedAfterRecordIsHealed() throws {
         let context = try Harness.makeContext(name: "session-end-healed-target")
         defer { context.cleanup() }
@@ -171,7 +165,6 @@ struct ClaudeHookLifecycleCleanupTests {
             environment: environment,
             standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"SessionEnd","cwd":"\#(context.root.path)"}"#
         )
-
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
@@ -489,6 +482,13 @@ struct ClaudeHookLifecycleCleanupTests {
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
         #expect(!commands.contains { $0.hasPrefix("set_status ") || $0.hasPrefix("clear_notifications ") })
+    }
+
+    @Test func stopPayloadUsesHighestPriorityReason() {
+        let inputs = CMUXCLI(args: []).abnormalStopPayloadInputs(from: [
+            "terminationReason": "capacity", "type": "completed", "kind": "success",
+        ])
+        #expect(inputs.signal == "Stop capacity")
     }
 
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {

@@ -25,6 +25,8 @@ struct AgentHookAbnormalStopClassifierTests {
             "The local job queue is at capacity",
             "The report says quota exceeded for a previous run.",
             "The first request timed out, but the retry completed successfully.",
+            "request timeout handling",
+            "API error handling",
         ]
         for message in messages {
             #expect(classifier.abnormalStopClass(signal: "Stop", message: message) == nil)
@@ -62,6 +64,14 @@ struct AgentHookAbnormalStopClassifierTests {
             signal: "Stop",
             message: "The provider cancelled the request"
         ))
+        #expect(!classifier.isUserInitiatedStop(
+            signal: "Stop provider interrupted turn_aborted",
+            message: "API error: interrupted by provider"
+        ))
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop provider interrupted turn_aborted",
+            message: "API error: interrupted by provider"
+        ) == .generic)
     }
 
     @Test func requiresProviderContextForAmbiguousFailureProse() {
