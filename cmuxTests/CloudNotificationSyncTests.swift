@@ -381,7 +381,10 @@ struct CloudNotificationSyncTests {
             case 9:
                 effects.declineDelivery.toggle()
             case 8:
-                // Restart: a fresh sync over the durable store.
+                // Restart: the provider retires the old sync (its in-flight
+                // flush must not write again), then a fresh one loads the
+                // durable store.
+                sync.retire()
                 sync = makeSync()
             default:
                 break
@@ -406,6 +409,7 @@ struct CloudNotificationSyncTests {
         }
         // Final drain: the link is healthy, everything pending must flush.
         effects.sendFails = false
+        effects.declineDelivery = false
         sync.linkDidConnect()
         for _ in 0..<20 { await Task.yield() }
         #expect(sync.state.pendingAcks.isEmpty, "pending acks after a healthy flush: \(sync.state.pendingAcks)")
