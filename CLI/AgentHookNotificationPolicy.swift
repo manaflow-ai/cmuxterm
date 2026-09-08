@@ -1,4 +1,3 @@
-import CmuxAgentHooks
 import CmuxSettings
 import Foundation
 
@@ -106,16 +105,6 @@ enum AgentHookNotifyCategory: String {
 }
 
 struct AgentHookNotificationSummary {
-    /// Maximum number of characters retained in a notification body.
-    static let maxBodyLength = 180
-
-    /// Keeps notification bodies bounded while preserving a readable suffix marker.
-    static func truncatedBody(_ value: String) -> String {
-        guard value.count > maxBodyLength else { return value }
-        let index = value.index(value.startIndex, offsetBy: max(0, maxBodyLength - 1))
-        return String(value[..<index]) + "…"
-    }
-
     let subtitle: String
     let body: String
     let status: AgentHookNotificationStatus?
@@ -135,29 +124,17 @@ enum AgentHookNotificationClassifier {
         isFallback: Bool,
         neutralErrorBody: String? = nil
     ) -> AgentHookNotificationSummary {
-        // Stop banners are the only place where a provider error can replace a
-        // completion classification. Notification hooks also carry free-form
-        // assistant text, so keep this promotion scoped to an explicit stop
-        // signal to avoid turning ordinary prose into an error alert.
-        let abnormalStopClassifier = AgentHookAbnormalStopClassifier()
-        if abnormalStopClassifier.isStopSignal(signal),
-           let abnormal = abnormalStopClassifier.summary(
-               displayName: displayName,
-               signal: signal,
-               message: message,
-               isFallback: isFallback
-           ) {
+        if let abnormal = abnormalStopSummary(
+            displayName: displayName,
+            signal: signal,
+            message: message,
+            isFallback: isFallback
+        ) {
             return abnormal
         }
 
         let lower = "\(signal) \(message)".lowercased()
-        // Only a stop event can be a user abort. Notification and pre-tool
-        // events may contain permission prose mentioning a user's request.
-        let isUserInitiatedStop = abnormalStopClassifier.isStopSignal(signal)
-            && abnormalStopClassifier.isUserInitiatedStop(
-                signal: signal,
-                message: message
-            )
+        let isUserInitiatedStop = Self.isUserInitiatedStop(signal: signal, message: message)
         if !isUserInitiatedStop,
            (lower.contains("permission") || lower.contains("approve") || lower.contains("approval") || lower.contains("permission_prompt")) {
             let body = message.isEmpty
@@ -445,38 +422,6 @@ enum AgentHookNotificationPolicy {
             patternIndex += 1
         }
         return patternIndex == patternScalars.count
-    }
-
-    /// Redacts credentials before a command reaches durable hook state or UI.
-    static func redactSensitiveCommand(_ value: String) -> String {
-        let boundedValue = value.utf8.count > 8_192
-            ? String(decoding: value.utf8.prefix(8_191), as: UTF8.self) + "…"
-            : value
-        let patterns: [(pattern: String, replacement: String)] = [
-            (#"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#, "<email>"),
-            (#"(?:~|/)[^\s\"']+"#, "<path>"),
-            (#"(?i)\b(?:authorization|proxy-authorization)\s*:\s*[^\s'\";&|]+(?:\s+[^\s'\";&|]+)*"#, "<credential>:<token>"),
-            (#"(?i)\b(?:x[-_])?(?:api[-_]?key|password|passwd|secret|token|authorization|cookie|pass)\s*:\s*(?:Bearer\s+)?(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, "<credential>:<token>"),
-            (#"(?i)(?:^|\s)--?[A-Za-z0-9]*(?:api[-_]?key|access[-_]?key|password|passwd|secret|token|authorization|cookie|passphrase|pass)[A-Za-z0-9_-]*(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, " <credential>"),
-            (#"(?i)--?(?:api[-_]?key|password|passwd|secret|token|authorization|cookie|passphrase|pass)(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, "<credential>=<token>"),
-            (#"(?i)(?:^|\s)(?:-u|--user)(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, " <credential>"),
-            (#"(?i)(?:^|\s)(?:--passphrase|--password|--passwd|--pass|--auth|--credential)(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, " <credential>"),
-            (#"(?i)(?:^|\s)(?:-a|-p|-pass)(?:=|\s+|(?=[^\s]))(?:'[^']*'|\"[^\"]*\"|[^\s'\";&|]+)"#, " <credential>"),
-            (#"(?i)\b[A-Za-z_]*(?:api[_-]?key|access[_-]?key|password|passwd|secret|token|authorization|cookie|passphrase|pass)[A-Za-z0-9_]*\s*=\s*(?:'[^']*'|\"[^\"]*\"|[^\s;&|]+)"#, "<credential>=<token>"),
-            (#"(?i)\b(?:api[_-]?key|access[_-]?key|password|passwd|secret|token|authorization|cookie|passphrase|pass)\s*=\s*[^\s;&|]+"#, "<credential>=<token>"),
-            (#"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16})\b"#, "<token>"),
-            (#"\b(?:sk|rk|sess|token|key|secret|api[_-]?key)[A-Za-z0-9._:-]{8,}\b"#, "<token>"),
-            (#"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"#, "Bearer <token>"),
-            (#"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"#, "<token>"),
-            (#"\b[A-Za-z0-9_-]{24,}\b"#, "<token>"),
-        ]
-        return patterns.reduce(boundedValue) { partial, entry in
-            partial.replacingOccurrences(
-                of: entry.pattern,
-                with: entry.replacement,
-                options: [.regularExpression, .caseInsensitive]
-            )
-        }
     }
 
     static let cursorNativeApprovalResponse = #"{"permission":"ask"}"#

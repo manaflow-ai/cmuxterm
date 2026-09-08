@@ -818,8 +818,7 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // Install the handler before launch so an immediately exiting child
-        // cannot race registration and leave the test waiting for a timeout.
+        // Register termination before launch to avoid an immediate-exit race.
         let exitSignal = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exitSignal.signal() }
 
@@ -833,11 +832,7 @@ struct ClaudeHookSurfaceResolutionSwiftTests {
             try? stdinPipe.fileHandleForWriting.close()
         }
 
-        // Use Process' termination callback instead of dispatching a blocking
-        // waitUntilExit() onto the global pool. These tests launch the bundled
-        // CLI repeatedly and can otherwise starve that pool: the process has
-        // already exited, but the waiter does not get scheduled before the
-        // timeout, producing a spurious `timedOut` result.
+        // Await the callback instead of blocking a global-pool waiter.
         let timedOut = exitSignal.wait(timeout: .now() + timeout) == .timedOut
         if timedOut {
             process.terminate()
