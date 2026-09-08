@@ -84,11 +84,13 @@ extension CmxIrohHostRuntime {
     public func reconcileConnectivityRevision(
         _ hintedRevision: UInt64
     ) async -> CmxIrohLiveDiscoveryRefreshOutcome {
+        guard !Task.isCancelled else {
+            return .failed(.superseded)
+        }
         guard lifecyclePhase == .active,
               let connectivityEngine,
               let admissionController,
-              localBinding != nil,
-              !Task.isCancelled else {
+              localBinding != nil else {
             return .failed(.endpointUnavailable)
         }
         while let refresh = registrationRefreshTask {
@@ -97,9 +99,11 @@ extension CmxIrohHostRuntime {
                 return .failed(.superseded)
             }
         }
+        guard !Task.isCancelled else {
+            return .failed(.superseded)
+        }
         guard lifecyclePhase == .active,
-              self.connectivityEngine === connectivityEngine,
-              !Task.isCancelled else {
+              self.connectivityEngine === connectivityEngine else {
             return .failed(.endpointUnavailable)
         }
         if let installed = await connectivityEngine.snapshot().routeRevision,
