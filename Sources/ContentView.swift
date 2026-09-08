@@ -16298,27 +16298,7 @@ struct TabItemView: View, Equatable {
                 }
             }
 
-            if let repositoryLink = workspaceSnapshot.repositoryLink {
-                Button(action: { actions.openRepository(repositoryLink.url) }) {
-                    HStack(alignment: .center, spacing: 4) {
-                        CmuxSystemSymbolImage(
-                            magnified: "shippingbox",
-                            pointSize: scaledFontSize(9)
-                        )
-                        Text(repositoryLink.displayName)
-                            .underline()
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Spacer(minLength: 0)
-                    }
-                    .font(magnifiedFont(scaledFontSize(10)))
-                    .foregroundColor(activeSecondaryColor(0.75))
-                }
-                .buttonStyle(.plain)
-                .safeHelp(repositoryLink.openTooltip)
-                .accessibilityLabel(repositoryLink.openTooltip)
-                .accessibilityIdentifier("SidebarRepositoryLinkRow")
-            }
+            repositoryLinkRow
 
             // Pull request rows
             if detailVisibility.showsPullRequests, !workspaceSnapshot.pullRequestRows.isEmpty {
@@ -16662,6 +16642,49 @@ struct TabItemView: View, Equatable {
                 CmuxSystemSymbolImage(magnified: "xmark.circle", pointSize: 7 * fontScale, weight: .regular, tint: color)
                     .frame(width: closedFrameSize, height: closedFrameSize)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var repositoryLinkRow: some View {
+        if let repositoryLink = workspaceSnapshot.repositoryLink {
+            SidebarRepositoryLinkRow(
+                repositoryLink: repositoryLink,
+                font: magnifiedFont(scaledFontSize(10)),
+                symbolPointSize: scaledFontSize(9),
+                color: activeSecondaryColor(0.75),
+                onOpen: { actions.openRepository(repositoryLink.url) }
+            )
+        }
+    }
+
+    private struct SidebarRepositoryLinkRow: View {
+        let repositoryLink: SidebarRepositoryLinkState
+        let font: Font
+        let symbolPointSize: CGFloat
+        let color: Color
+        let onOpen: () -> Void
+
+        var body: some View {
+            Button(action: onOpen) {
+                HStack(alignment: .center, spacing: 4) {
+                    CmuxSystemSymbolImage(
+                        magnified: "shippingbox",
+                        pointSize: symbolPointSize
+                    )
+                    Text(repositoryLink.displayName)
+                        .underline()
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+                .font(font)
+                .foregroundColor(color)
+            }
+            .buttonStyle(.plain)
+            .safeHelp(repositoryLink.openTooltip)
+            .accessibilityLabel(repositoryLink.openTooltip)
+            .accessibilityIdentifier("SidebarRepositoryLinkRow")
         }
     }
 
