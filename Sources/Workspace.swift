@@ -3949,8 +3949,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         self.surfaceTabBarDirectory = initialDirectory
 
         // Preserve terminal state and inherit tab-strip sizing without repeated config parsing.
-        let initialGhosttyConfig = GhosttyConfig.loadForCmux(
-            globalFontMagnificationPercent: GlobalFontMagnification.storedPercent
+        let initialGhosttyConfig = WorkspaceContentView.resolveGhosttyAppearanceConfig(
+            reason: "workspace.init"
         )
         let appearance = Self.bonsplitAppearance(
             from: initialGhosttyConfig.backgroundColor,

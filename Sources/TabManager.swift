@@ -3583,8 +3583,8 @@ class TabManager: ObservableObject {
     }
 
     func applyWindowBackdropModeForAllTabs(reason: String) {
-        let config = GhosttyConfig.loadForCmux(
-            globalFontMagnificationPercent: GlobalFontMagnification.storedPercent
+        let config = WorkspaceContentView.resolveGhosttyAppearanceConfig(
+            reason: reason
         )
         for tab in tabs {
             tab.applyGhosttyChrome(
