@@ -1682,8 +1682,11 @@ struct CmuxTuiSnapshotParser: Sendable {
         Set(listeningPortBindings(fromSocketListing: text).map(\.port)).sorted()
     }
 
-    /// Transport ports reserved for the daemon and the machine's noVNC display.
-    static let internalPorts: Set<Int> = [1337, 5901, 6901, 8080]
+    /// Listeners that are never web previews, so the Ports scan does not
+    /// publish them: SSH (22), the cmux-tui daemon (1337), the VNC server
+    /// (5901) and its noVNC front end (6901, the Desktop surface), and the
+    /// image's internal 8080 listener.
+    static let internalPorts: Set<Int> = [22, 1337, 5901, 6901, 8080]
 
     static let desktopPort = 6901
 
