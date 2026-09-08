@@ -2,6 +2,7 @@ import CmuxNotifications
 import CmuxSidebar
 import CmuxWorkspaces
 import Darwin
+import AppKit
 import Foundation
 
 extension DockSplitStore {
@@ -271,7 +272,12 @@ extension DockSplitStore {
             workspaceId: workspaceId,
             panelId: panelId
         )
-        if focus { focusPanel(panelId) }
+        if focus {
+            focusPanelFromDockInteraction(
+                panelId,
+                window: NSApp.keyWindow ?? NSApp.mainWindow
+            )
+        }
         return true
     }
 
@@ -1098,6 +1104,57 @@ extension DockSplitStore {
             }
             let ownershipPanelID = restore.stablePanelID
             let expectedSessionId = restore.restorableAgent?.sessionId ?? restore.resumeBinding?.checkpointId
+            let liveSessionOwner: LiveAgentSessionOwner? = if let expectedKind,
+                let expectedSessionId {
+                index.liveSessionOwner(
+                    kind: expectedKind,
+                    sessionID: expectedSessionId,
+                    revalidateProcessEvidence: true
+                )
+            } else {
+                nil
+            }
+            if let liveSessionOwner {
+                let noticeInput = AgentRestoreLiveOwnerNotice(
+                    processID: liveSessionOwner.processID
+                ).startupInput(
+                    dialect: restore.restoresRemoteWorkspaceTerminalSnapshot
+                        ? .remoteHost
+                        : .loginShell
+                )
+                removeDeferredAgentResumeRestore(panelId: panelId)
+                restoredAgentLifecycle.setResumeState(
+                    .manualResumeAvailable,
+                    panelId: panelId
+                )
+                if restore.remoteResumeCommandEmbedded {
+                    if let noticeAttachCommand = detachedRemoteLiveOwnerNoticeAttachCommand(
+                        panelID: panelId,
+                        restore: restore,
+                        noticeInput: noticeInput
+                    ) {
+                        terminal.surface.setStartupRestoreAdmissionFallbackCommand(
+                            noticeAttachCommand
+                        )
+                    }
+                    // The original remote attach command contains the agent
+                    // resume payload. Cancel admission so it is replaced by
+                    // the attach-only/notice fallback and can never execute.
+                    terminal.surface.cancelStartupRestoreAdmission()
+                } else {
+                    _ = terminal.surface.admitStartupRestoreRuntime(
+                        initialInput: noticeInput
+                    )
+                }
+                AgentRestoreSuppressionJournal().record(
+                    kind: liveSessionOwner.kind,
+                    sessionID: liveSessionOwner.sessionID,
+                    workspaceID: workspaceId,
+                    surfaceID: panelId,
+                    processID: liveSessionOwner.processID
+                )
+                continue
+            }
             // Deferred admission has no exact-owner snapshot that can override a
             // stable-panel tie, so structural ambiguity remains fail-closed even
             // after the old owners' PIDs have exited.
@@ -1173,16 +1230,19 @@ extension DockSplitStore {
                 cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
-            if let claim,
+            let ownedClaim = restore.restoresRemoteWorkspaceTerminalSnapshot
+                ? claim
+                : nil
+            if let ownedClaim,
                !AgentResumeLaunchGuard.shared.claimResumeLaunch(
-                   kind: claim.kind,
-                   sessionId: claim.sessionId
+                   kind: ownedClaim.kind,
+                   sessionId: ownedClaim.sessionId
                ) {
                 cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
-            if let claim {
-                deferredAgentResumeClaimsByPanelId[panelId] = claim
+            if let ownedClaim {
+                deferredAgentResumeClaimsByPanelId[panelId] = ownedClaim
             }
             if let restoreWorkingDirectory = restore.resumeWorkingDirectory {
                 restoredResumeSessionWorkingDirectoriesByPanelId[panelId] = restoreWorkingDirectory
@@ -1195,10 +1255,10 @@ extension DockSplitStore {
                 initialInput: restore.remoteResumeCommandEmbedded ? nil : startupInput
             )
             if !admitted {
-                if let claim {
+                if let ownedClaim {
                     AgentResumeLaunchGuard.shared.releaseResumeLaunch(
-                        kind: claim.kind,
-                        sessionId: claim.sessionId
+                        kind: ownedClaim.kind,
+                        sessionId: ownedClaim.sessionId
                     )
                 }
                 deferredAgentResumeClaimsByPanelId.removeValue(forKey: panelId)
@@ -1221,16 +1281,58 @@ extension DockSplitStore {
                 )
                 clearDeferredAgentResumeRestoreTransfer(panelId: panelId)
                 deferredAgentResumeRestoresByPanelId.removeValue(forKey: panelId)
-                if let claim,
+                if let ownedClaim,
                    let pendingClaim = deferredAgentResumeClaimsByPanelId[panelId],
-                   pendingClaim.kind == claim.kind,
-                   pendingClaim.sessionId == claim.sessionId {
+                   pendingClaim.kind == ownedClaim.kind,
+                   pendingClaim.sessionId == ownedClaim.sessionId {
                     // After admission the guard's bounded TTL owns this claim;
                     // do not let later panel teardown release a newer claimant.
                     deferredAgentResumeClaimsByPanelId.removeValue(forKey: panelId)
                 }
             }
         }
+    }
+
+    /// Builds a transfer-scoped persistent-SSH attach that prints the live-owner
+    /// notice without replaying the embedded agent command.
+    private func detachedRemoteLiveOwnerNoticeAttachCommand(
+        panelID: UUID,
+        restore: DeferredAgentResumeRestore,
+        noticeInput: String
+    ) -> String? {
+        guard let transfer = detachedSurfaceTransfersByPanelId[panelID],
+              transfer.isRemoteTerminal,
+              let sessionID = restore.remoteResumeContext?.persistentPTYSessionID
+                  ?? transfer.remotePTYSessionID,
+              let configuration = transfer.remoteCleanupConfiguration
+                  ?? AppDelegate.shared?.workspaceFor(tabId: transfer.sessionRestoreWorkspaceId)?.remoteConfiguration,
+              configuration.transport == .ssh,
+              configuration.preserveAfterTerminalExit,
+              !configuration.skipDaemonBootstrap,
+              configuration.persistentDaemonSlot != nil,
+              let relayPort = configuration.relayPort else {
+            return nil
+        }
+        let remoteNoticeCommand = SSHPTYAttachStartupCommandBuilder.restoredRemoteShellCommand(
+            relayPort: relayPort,
+            initialCommand: noticeInput,
+            configuredRemoteCommand: configuration.configuredRemoteCommand
+        )
+        let foregroundAuth = configuration.foregroundAuthToken.map {
+            SSHPTYAttachStartupCommandBuilder.ForegroundAuth(
+                destination: configuration.destination,
+                port: configuration.port,
+                identityFile: configuration.identityFile,
+                sshOptions: configuration.sshOptions,
+                token: $0
+            )
+        }
+        return SSHPTYAttachStartupCommandBuilder.command(
+            sessionID: sessionID,
+            foregroundAuth: foregroundAuth,
+            remoteCommand: remoteNoticeCommand,
+            requireExisting: true
+        )
     }
 
     func removeDeferredAgentResumeRestore(panelId: UUID) {

@@ -74,6 +74,32 @@ enum SurfacePaneFactory {
         _ = TerminalController.shared.controlSurfaceClose(routing: routing(workspaceID: workspaceID), surfaceID: panelID, hasSurfaceIDParam: true)
     }
 
+    /// Closes a pane whose process has ended, the way a local terminal pane
+    /// disappears when its shell exits.
+    ///
+    /// This is not ``close(panelID:in:)``: the socket close refuses a
+    /// workspace's last surface, so an agent cannot empty a workspace by
+    /// accident. A shell that ended is not an accident, and a cloud workspace
+    /// opened by `cmux vm workspace new` holds exactly one pane, so the socket
+    /// rule would leave the dead pane on screen forever.
+    static func closeExited(panelID: UUID, in workspaceID: UUID) {
+        guard let appDelegate = AppDelegate.shared,
+              let workspace = appDelegate.workspace(containingSurfaceID: panelID) else { return }
+        // A workspace whose only pane is the dead terminal goes with it, which
+        // is what a local workspace does when its last shell exits. Closing
+        // only the pane there leaves the workspace to open a fresh local shell
+        // in the cloud pane's place.
+        if workspace.panels.count <= 1 {
+            let manager = workspace.owningTabManager ?? TerminalController.shared.tabManager
+            if manager?.closeWorkspaceNonInteractively(workspace) == true { return }
+            // The workspace refused to close (pinned, or the window's last one
+            // during teardown). Close the pane anyway: a replacement local
+            // shell is still better than a frozen pane that swallows input.
+        }
+        workspace.markCloseHistoryEligible(panelId: panelID)
+        _ = workspace.closePanel(panelID, force: true)
+    }
+
     /// A fresh local workspace (⌘N) titled `title`, returned with the id of the starter
     /// pane it opened with so a caller projecting a group can take that pane's place.
     static func createLocalWorkspace(title: String) throws -> (workspaceID: UUID, starterPanelID: UUID?) {
@@ -135,17 +161,28 @@ enum SurfacePaneFactory {
         guard let workspace = workspace(id: workspaceID) else { throw FactoryError.workspaceNotFound(workspaceID) }
         let controller = TerminalController.shared
         let routing = routing(workspaceID: workspaceID)
-        switch destination {
-        case .tab(_, let paneID, _):
-            guard let requestedPane = UUID(uuidString: paneID) else { throw FactoryError.paneNotFound(paneID) }
-            return try tab(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, requestedPane: requestedPane, focus: focus)
-        case .workspace(_, .tab):
-            return try tab(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, requestedPane: nil, focus: focus)
-        case .split(_, let paneID, let direction):
-            let anchor = try anchorSurface(paneID: paneID, in: workspace)
-            return try split(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, direction: direction, anchor: anchor, focus: focus)
-        case .workspace(_, .split):
-            return try split(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, direction: .right, anchor: nil, focus: focus)
+        // The create/split handlers honor a focus request only inside a socket command
+        // whose policy allows focus (`v2FocusAllowed`); with no command active the
+        // stack is empty and the request is dropped, so a Cmd+T / Cmd+D / sidebar
+        // gesture would add the tab without selecting it. `focus` is the caller's
+        // already-decided intent, so run the handler under a frame carrying it. A
+        // frame already on the stack is a socket command's policy and still wins: a
+        // command that may not move focus cannot regain it through the factory.
+        // Activation stays suppressed either way (`shouldSuppressSocketCommandActivation`).
+        let outerAllowsFocus = TerminalController.currentSocketCommandFocusAllowanceStack().last ?? true
+        return try TerminalController.withSocketCommandPolicyStack([focus && outerAllowsFocus]) {
+            switch destination {
+            case .tab(_, let paneID, _):
+                guard let requestedPane = UUID(uuidString: paneID) else { throw FactoryError.paneNotFound(paneID) }
+                return try tab(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, requestedPane: requestedPane, focus: focus)
+            case .workspace(_, .tab):
+                return try tab(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, requestedPane: nil, focus: focus)
+            case .split(_, let paneID, let direction):
+                let anchor = try anchorSurface(paneID: paneID, in: workspace)
+                return try split(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, direction: direction, anchor: anchor, focus: focus)
+            case .workspace(_, .split):
+                return try split(controller: controller, routing: routing, typeRaw: typeRaw, url: url, initialCommand: initialCommand, workingDirectory: workingDirectory, direction: .right, anchor: nil, focus: focus)
+            }
         }
     }
 
@@ -233,16 +270,23 @@ enum SurfaceBrowserPlaceholder {
         return page(title: title, detail: nil, spinner: true)
     }
 
-    /// "Couldn't open <label>" with the typed error and the way back.
-    static func failed(_ label: String, error: String) -> String {
+    /// "Couldn't open <label>" with the typed error and an appropriate next step.
+    /// Unsupported providers deliberately omit the retry instruction: the pane is
+    /// truthful about a permanent capability gap instead of inviting a retry loop.
+    static func failed(_ label: String, error: String, retryable: Bool = true) -> String {
         let title = String(
             format: String(localized: "cloudTree.pane.failed", defaultValue: "Couldn’t open %@"),
             label
         )
-        let hint = String(
-            localized: "cloudTree.pane.retryHint",
-            defaultValue: "Close this pane and open it again from the sidebar."
-        )
+        let hint = retryable
+            ? String(
+                localized: "cloudTree.pane.retryHint",
+                defaultValue: "Close this pane and open it again from the sidebar."
+            )
+            : String(
+                localized: "cloudTree.pane.unsupportedHint",
+                defaultValue: "This provider cannot open port previews. Do not retry; use `cmux vm exec` inside the machine or choose another machine."
+            )
         return page(title: title, detail: "\(error)\n\(hint)", spinner: false)
     }
 

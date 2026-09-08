@@ -1814,7 +1814,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 "HOME": root.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
                 "CMUX_BUNDLED_CLI_PATH": root.path,
-                "CMUX_SOCKET_PATH": root.appendingPathComponent("cmux-test.sock").path,
+                "CMUX_SOCKET_PATH": makeSocketPath("agy-install"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 5
@@ -3905,7 +3905,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             environment: [
                 "HOME": root.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_SOCKET_PATH": root.appendingPathComponent("cmux-test.sock").path,
+                "CMUX_SOCKET_PATH": makeSocketPath("grok-install"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 5
@@ -4068,7 +4068,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             environment: [
                 "HOME": root.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_SOCKET_PATH": root.appendingPathComponent("cmux-test.sock").path,
+                "CMUX_SOCKET_PATH": makeSocketPath("grok-preserve"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 5
@@ -4130,7 +4130,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             environment: [
                 "HOME": root.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_SOCKET_PATH": root.appendingPathComponent("cmux-test.sock").path,
+                "CMUX_SOCKET_PATH": makeSocketPath("grok-metadata"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 5
@@ -4261,7 +4261,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 "HOME": root.path,
                 "GROK_HOME": grokRoot.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_SOCKET_PATH": root.appendingPathComponent("cmux-test.sock").path,
+                "CMUX_SOCKET_PATH": makeSocketPath("grok-file-dir"),
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
             timeout: 5

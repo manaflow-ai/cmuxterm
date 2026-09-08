@@ -182,7 +182,7 @@ public struct SettingsWindowRoot: View {
     @ViewBuilder
     private var sidebar: some View {
         List(selection: sidebarSelectionBinding) {
-            let matches = sidebarEntries(matching: searchText).filter(isEntryVisible)
+            let matches = sidebarEntries(matching: searchText).filter { isEntryVisible($0) }
             if matches.isEmpty {
                 Text(String(localized: "settings.search.noResults", defaultValue: "No Results"))
                     .foregroundStyle(.secondary)
@@ -515,7 +515,8 @@ public struct SettingsWindowRoot: View {
             defaultsStore: defaultsStore,
             jsonStore: jsonStore,
             catalog: catalog, errorLog: runtime.errorLog,
-            hostActions: hostActions
+            hostActions: hostActions,
+            defaultShortcutResolver: runtime.shortcutDefaultResolver
         )
         .id(anchorID(for: .globalHotkey))
 
@@ -523,7 +524,8 @@ public struct SettingsWindowRoot: View {
             jsonStore: jsonStore, userDefaultsStore: defaultsStore,
             catalog: catalog,
             errorLog: runtime.errorLog,
-            hostActions: hostActions
+            hostActions: hostActions,
+            defaultShortcutResolver: runtime.shortcutDefaultResolver
         )
         .id(anchorID(for: .keyboardShortcuts))
 

@@ -208,6 +208,33 @@ describe("billing checkout route", () => {
     expect(createStripeSession).not.toHaveBeenCalled();
   });
 
+  test("redirects to the direct dev-backend origin when Next reports the bind address", async () => {
+    userResponses = [null, anonymousUser];
+    const previousTransport = process.env.CMUX_DEV_BACKEND_TRANSPORT;
+    const previousOrigin = process.env.CMUX_WWW_ORIGIN;
+    const previousHost = process.env.CMUX_DEV_BACKEND_TAILSCALE_HOST;
+    process.env.CMUX_DEV_BACKEND_TRANSPORT = "direct";
+    process.env.CMUX_DEV_BACKEND_TAILSCALE_HOST = "cmux-dev-backend-1.tail137216.ts.net";
+    process.env.CMUX_WWW_ORIGIN = "https://cmux-dev-backend-1.tail137216.ts.net:3916/";
+    try {
+      const response = await GET(
+        new NextRequest("https://0.0.0.0:3916/api/billing/checkout?plan=pro&interval=month"),
+      );
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe(
+        "https://cmux-dev-backend-1.tail137216.ts.net:3916/pricing?billing=unavailable",
+      );
+    } finally {
+      if (previousTransport === undefined) delete process.env.CMUX_DEV_BACKEND_TRANSPORT;
+      else process.env.CMUX_DEV_BACKEND_TRANSPORT = previousTransport;
+      if (previousOrigin === undefined) delete process.env.CMUX_WWW_ORIGIN;
+      else process.env.CMUX_WWW_ORIGIN = previousOrigin;
+      if (previousHost === undefined) delete process.env.CMUX_DEV_BACKEND_TAILSCALE_HOST;
+      else process.env.CMUX_DEV_BACKEND_TAILSCALE_HOST = previousHost;
+    }
+  });
+
   test("redirects team checkout to billing unavailable when Stripe is not configured", async () => {
     userResponses = [signedInUser];
 
@@ -460,6 +487,9 @@ describe("billing checkout route", () => {
       subject: { scope: "user", stackUserId: ANONYMOUS_USER_ID },
       plan: "pro",
       billingInterval: "month",
+      attribution: expect.objectContaining({ source: "unknown", client: "web" }),
+      signedIn: false,
+      existingStripeCustomer: false,
     });
   });
 
@@ -529,15 +559,32 @@ describe("billing checkout route", () => {
     userResponses = [signedInUser];
 
     await GET(
-      new NextRequest("https://cmux.test/api/billing/checkout?interval=year"),
+      new NextRequest(
+        "https://cmux.test/api/billing/checkout?interval=year" +
+          "&cmux_source=mac_sidebar_badge&cmux_placement=Hero&cmux_client=mac" +
+          "&cmux_channel=nightly&cmux_app_version=0.65.1&cmux_app_build=2026090101" +
+          "&utm_source=newsletter",
+        { headers: { referer: "https://cmux.test/app-pricing?cmux_app=1" } },
+      ),
     );
 
     expect(resolveProPrice).toHaveBeenCalledWith("year");
+    const attributionMetadata = {
+      cmuxSource: "mac_sidebar_badge",
+      cmuxPlacement: "hero",
+      cmuxClient: "mac",
+      cmuxChannel: "nightly",
+      cmuxAppVersion: "0.65.1",
+      cmuxAppBuild: "2026090101",
+      cmuxReferrerHost: "cmux.test",
+      cmuxReferrerPath: "/app-pricing",
+      utmSource: "newsletter",
+    };
     expect(createdStripeSessions[0]).toMatchObject({
       customer_email: "signed@example.com",
       line_items: [{ price: "price_year", quantity: 1 }],
-      metadata: { billingInterval: "year" },
-      subscription_data: { metadata: { billingInterval: "year" } },
+      metadata: { billingInterval: "year", ...attributionMetadata },
+      subscription_data: { metadata: { billingInterval: "year", ...attributionMetadata } },
       cancel_url: "https://cmux.test/pricing?billing=cancelled&interval=year",
     });
     expect(captureBillingCheckoutStarted).toHaveBeenCalledTimes(1);
@@ -546,6 +593,23 @@ describe("billing checkout route", () => {
       subject: { scope: "user", stackUserId: SIGNED_IN_USER_ID },
       plan: "pro",
       billingInterval: "year",
+      attribution: {
+        source: "mac_sidebar_badge",
+        placement: "hero",
+        client: "mac",
+        channel: "nightly",
+        appVersion: "0.65.1",
+        appBuild: "2026090101",
+        referrerHost: "cmux.test",
+        referrerPath: "/app-pricing",
+        utmSource: "newsletter",
+        utmMedium: null,
+        utmCampaign: null,
+        utmContent: null,
+        utmTerm: null,
+      },
+      signedIn: true,
+      existingStripeCustomer: false,
     });
   });
 
@@ -667,6 +731,9 @@ describe("billing checkout route", () => {
       subject: { scope: "team", stackTeamId: TEAM_ID },
       plan: "team",
       billingInterval: "month",
+      attribution: expect.objectContaining({ source: "unknown", client: "web" }),
+      signedIn: true,
+      existingStripeCustomer: false,
     });
   });
 
