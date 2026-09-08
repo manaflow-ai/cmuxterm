@@ -21057,16 +21057,18 @@ struct CMUXCLI {
             Usage: cmux vpn <up|down|status|revoke>
 
             The WireGuard tunnel between this Mac and your private Cloud VM
-            network. Terminal and metadata access uses a user-space WireGuard
-            tunnel. Browser access uses the signed Network Extension tunnel.
+            network. cmux's own terminals, Ports, and Desktop panes use a
+            user-space WireGuard tunnel that starts automatically and needs no
+            system approval. `cmux vpn up` adds a system-wide route through the
+            signed Network Extension so other apps on this Mac (your browser,
+            ssh, `.internal` hostnames) can reach VM addresses too.
 
-            Terminal and metadata access starts automatically and does not need
-            system approval. The app starts the browser tunnel only when you
-            open a private Cloud URL. The first browser use can require macOS
-            approval. macOS can ask for Touch ID or an administrator password,
-            based on system policy. cmux does not run sudo.
+            Only `cmux vpn up` ever asks macOS to load the extension. The first
+            time, macOS asks you to allow it in System Settings › General ›
+            Login Items & Extensions; the Machines panel shows that wait with a
+            button to the right pane. cmux does not run sudo.
 
-            up      Start the browser tunnel now and keep it up until
+            up      Start the system-wide tunnel now and keep it up until
                     `cmux vpn down`.
             down    Take the tunnel down. Enrollment is kept.
             status  Show tunnel state, config path, and backend.
@@ -21075,8 +21077,8 @@ struct CMUXCLI {
             `on` and `off` are aliases for `up` and `down`.
 
             Each role has its own key, generated on this Mac. The private keys
-            never leave this Mac. Signed builds fail closed if the browser
-            Network Extension is absent. There is no privileged fallback.
+            never leave this Mac. Signed builds fail closed if the Network
+            Extension is absent. There is no privileged fallback.
             """
         case "auth":
             return """
