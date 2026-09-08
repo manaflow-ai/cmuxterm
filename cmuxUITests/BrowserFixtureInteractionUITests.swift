@@ -4,8 +4,8 @@ import Darwin
 
 /// Shared harness for socket-driven browser fixture tests.
 ///
-/// Launches the app with a unique tagged debug socket (same conventions as
-/// `AutomationSocketUITests`), exposes V2 request helpers (newline-delimited
+/// Launches the app with a unique debug socket in the test runner's sandbox,
+/// exposes V2 request helpers (newline-delimited
 /// `{id, method, params}` JSON over the unix socket; responses carry
 /// `ok`/`result`/`error`), and helpers to open a browser split and navigate
 /// it to a local fixture page under `cmuxUITests/BrowserFixtures/`.
@@ -19,15 +19,27 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     private var launchTag = ""
     private(set) var app: XCUIApplication?
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         continueAfterFailure = false
-        socketPath = "/tmp/cmux-debug-\(UUID().uuidString).sock"
-        diagnosticsPath = "/tmp/cmux-ui-test-browser-fixtures-\(UUID().uuidString).json"
+        // Xcode's UI-test runner is sandboxed. A global /tmp socket can be
+        // readable but still reject connect(2) with EPERM. The app is not
+        // sandboxed, so pass it a path in the runner's writable temp directory.
+        // Keep the basename short: sockaddr_un.sun_path includes the terminator.
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+        let identifier = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        socketPath = temporaryDirectory.appendingPathComponent("c\(identifier.prefix(12))").path
+        diagnosticsPath = temporaryDirectory.appendingPathComponent("cmux-\(identifier).json").path
+        let address = sockaddr_un()
+        guard socketPath.utf8CString.count <= MemoryLayout.size(ofValue: address.sun_path) else {
+            throw NSError(
+                domain: NSPOSIXErrorDomain,
+                code: Int(ENAMETOOLONG),
+                userInfo: [NSLocalizedDescriptionKey: "Browser fixture socket path is too long: \(socketPath)"]
+            )
+        }
         launchTag = "ui-tests-browser-\(UUID().uuidString.prefix(8))"
-        try? FileManager.default.removeItem(atPath: socketPath)
-        try? FileManager.default.removeItem(atPath: diagnosticsPath)
-        try? FileManager.default.removeItem(atPath: taggedSocketPath())
+        print("Browser fixture runner temporary directory: \(temporaryDirectory.path)")
     }
 
     override func tearDown() {
@@ -45,7 +57,6 @@ class BrowserFixtureSocketTestCase: XCTestCase {
         app = nil
         try? FileManager.default.removeItem(atPath: socketPath)
         try? FileManager.default.removeItem(atPath: diagnosticsPath)
-        try? FileManager.default.removeItem(atPath: taggedSocketPath())
         super.tearDown()
     }
 
@@ -307,40 +318,12 @@ class BrowserFixtureSocketTestCase: XCTestCase {
         waitForControlSocketReady(
             pingTimeout: timeout,
             socketFileExists: {
-                self.socketCandidates().contains { FileManager.default.fileExists(atPath: $0) }
+                FileManager.default.fileExists(atPath: self.socketPath)
             },
             pingReturnsPong: {
-                for candidate in self.socketCandidates() {
-                    guard FileManager.default.fileExists(atPath: candidate) else { continue }
-                    if ControlSocketClient(path: candidate, responseTimeout: 1.0).sendLine("ping") == "PONG" {
-                        self.socketPath = candidate
-                        return true
-                    }
-                }
-                return false
+                ControlSocketClient(path: self.socketPath, responseTimeout: 1.0).sendLine("ping") == "PONG"
             }
         )
-    }
-
-    private func socketCandidates() -> [String] {
-        var candidates = [socketPath, taggedSocketPath()]
-        if let expectedPath = loadDiagnostics()["socketExpectedPath"], !expectedPath.isEmpty {
-            candidates.append(expectedPath)
-        }
-        var seen = Set<String>()
-        candidates.removeAll { !seen.insert($0).inserted }
-        return candidates
-    }
-
-    private func taggedSocketPath() -> String {
-        let slug = launchTag
-            .lowercased()
-            .replacingOccurrences(of: ".", with: "-")
-            .replacingOccurrences(of: "_", with: "-")
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-        return "/tmp/cmux-debug-\(slug).sock"
     }
 
     private func loadDiagnostics() -> [String: String] {

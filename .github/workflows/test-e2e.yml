@@ -806,6 +806,25 @@ jobs:
             exit 1
           fi
 
+      - name: Verify browser test runner sandbox capabilities
+        if: ${{ always() && inputs.verify_browser_runtime == true }}
+        run: |
+          set -euo pipefail
+          runner_app="$CMUX_DERIVED_DATA_PATH/Build/Products/Debug/cmuxUITests-Runner.app"
+          entitlements_path="$CMUX_DERIVED_DATA_PATH/Logs/Test/browser-runner-entitlements.plist"
+          mkdir -p "$CMUX_DERIVED_DATA_PATH/Logs/Test"
+          codesign --display --entitlements - "$runner_app" > "$entitlements_path"
+          # Inspect the signed runner, not just project settings. Xcode merges
+          # our loopback-server entitlement with its own sandbox capabilities.
+          for capability in app-sandbox network.client network.server; do
+            value="$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.$capability" "$entitlements_path")"
+            if [ "$value" != true ]; then
+              echo "::error::browser test runner is missing $capability"
+              exit 1
+            fi
+          done
+          echo "Browser runner sandbox and fixture network capabilities verified."
+
       - name: Preserve browser test results and diagnostics
         if: ${{ always() && inputs.verify_browser_runtime == true }}
         run: |
