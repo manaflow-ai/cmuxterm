@@ -83,7 +83,16 @@ final class FakeSidebarV1ControlCommandContext: ControlCommandContext {
         hookFailureEvidence: Bool,
         identity: ControlSidebarLifecycleIdentity?
     ) {
-        agentLifecycleCall = (target, key, lifecycleRawValue, panelID, promptBoundary, normalCompletion, hookFailureEvidence, identity)
+        agentLifecycleCall = (
+            target: target,
+            key: key,
+            lifecycleRawValue: lifecycleRawValue,
+            panelID: panelID,
+            promptBoundary: promptBoundary,
+            normalCompletion: normalCompletion,
+            hookFailureEvidence: hookFailureEvidence,
+            identity: identity
+        )
     }
 
     nonisolated func controlSidebarScheduleAgentLifecycle(

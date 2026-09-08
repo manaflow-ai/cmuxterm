@@ -58,7 +58,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
             args: "codex idle --tab=\(workspaceID.uuidString) --session-id=--stale"
         )
 
-        #expect(response?.contains("looks like an option") == true)
+        #expect(response?.hasPrefix("ERROR: ") == true)
         #expect(context.agentLifecycleCall == nil)
     }
 

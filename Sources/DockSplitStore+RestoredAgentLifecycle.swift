@@ -278,9 +278,7 @@ extension DockSplitStore {
     /// runtime map. Callers use this for a batch so the dock is not rescanned
     /// once per panel being cancelled.
     func clearAgentRuntimeStatusEntries(keysByPanelID: [UUID: String]) {
-        let ownedPanelIDs = agentRuntimeByPanelId.keys.filter { keysByPanelID[$0] != nil }
-        for panelID in ownedPanelIDs {
-            guard let key = keysByPanelID[panelID] else { continue }
+        for (panelID, key) in keysByPanelID where agentRuntimeByPanelId[panelID] != nil {
             clearAgentRuntimeStatusEntry(key: key, panelId: panelID)
         }
     }

@@ -30,7 +30,7 @@ public struct AgentHookCompletionProof {
         payload: [String: Any]?
     ) -> Bool {
         guard let assistantMessage,
-              !normalizedAgentHookLine(assistantMessage).isEmpty else {
+              !normalizedAgentStallOutput(assistantMessage).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return false
         }
         let hasStructuredFailureEvidence = agentHookPayloadContainsStructuredFailure(payload)
@@ -47,35 +47,6 @@ public struct AgentHookCompletionProof {
             hasStructuredEvidence: hasStructuredFailureEvidence
         ) == nil
     }
-}
-
-private func normalizedAgentHookLine(_ value: String) -> String {
-    var text = value
-    text = text.replacingOccurrences(
-        of: "\u{001B}\\][^\u{0007}\u{001B}]*(?:\u{0007}|\u{001B}\\\\)",
-        with: " ",
-        options: .regularExpression
-    )
-    text = text.replacingOccurrences(
-        of: "\u{001B}\\[[0-?]*[ -/]*[@-~]",
-        with: " ",
-        options: .regularExpression
-    )
-    // Keep the emptiness check fail-closed even if a platform regex engine
-    // leaves an ANSI introducer behind.
-    text = text.replacingOccurrences(of: "\u{001B}", with: "")
-    text = text.replacingOccurrences(
-        of: "\\[[0-?]*[ -/]*[@-~]",
-        with: " ",
-        options: .regularExpression
-    )
-    text = text.unicodeScalars.reduce(into: String()) { result, scalar in
-        if scalar.value >= 0x20 || scalar.value == 0x09 || scalar.value == 0x0A || scalar.value == 0x0D {
-            result.unicodeScalars.append(scalar)
-        }
-    }
-    let collapsed = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-    return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func agentHookPayloadContainsStructuredFailure(_ value: Any?) -> Bool {
@@ -110,7 +81,9 @@ private func agentHookStructuredFailureValueIsPresent(_ value: Any) -> Bool {
     if let bool = value as? Bool { return bool }
     if let number = value as? NSNumber { return number.boolValue || number.intValue != 0 }
     if let string = value as? String {
-        let normalized = normalizedAgentHookLine(string).lowercased()
+        let normalized = normalizedAgentStallOutput(string)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return !normalized.isEmpty
             && !["false", "null", "none", "0", "ok", "success"].contains(normalized)
     }

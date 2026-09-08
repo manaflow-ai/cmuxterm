@@ -7,12 +7,18 @@ import CmuxSimulator
 import CoreFoundation
 import CryptoKit
 import Darwin
+import OSLog
 #if canImport(LocalAuthentication)
 import LocalAuthentication
 #endif
 #if canImport(Security)
 import Security
 #endif
+
+nonisolated private let agentLifecycleLogger = Logger(
+    subsystem: "com.cmuxterm.cli",
+    category: "AgentLifecycle"
+)
 
 struct CLIError: Error, CustomStringConvertible {
     enum SocketFailureKind: Equatable {
@@ -29222,7 +29228,9 @@ struct CMUXCLI {
         deadline: Date? = nil
     ) {
         guard AgentHibernationLifecycleStatusKeys.isAllowed(key) else {
-            cliWriteStderr("Warning: unsupported agent lifecycle key\n")
+            agentLifecycleLogger.warning(
+                "Unsupported agent lifecycle key: \(key, privacy: .public)"
+            )
             return
         }
         do {
@@ -29243,7 +29251,9 @@ struct CMUXCLI {
                 deadline: deadline
             )
         } catch {
-            cliWriteStderr("Warning: failed to set agent lifecycle\n")
+            agentLifecycleLogger.error(
+                "Failed to set agent lifecycle: \(String(reflecting: error), privacy: .public)"
+            )
         }
     }
 

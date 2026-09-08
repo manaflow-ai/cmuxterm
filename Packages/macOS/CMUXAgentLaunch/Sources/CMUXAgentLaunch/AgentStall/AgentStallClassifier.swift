@@ -128,7 +128,7 @@ private func canonicalizeAgentStallProvider(_ provider: String) -> String {
     }
 }
 
-private func normalizedAgentStallOutput(_ output: String) -> String {
+func normalizedAgentStallOutput(_ output: String) -> String {
     var text = output
     text = text.replacingOccurrences(
         of: "\u{001B}\\][^\u{0007}\u{001B}]*(?:\u{0007}|\u{001B}\\\\)",
@@ -140,6 +140,19 @@ private func normalizedAgentStallOutput(_ output: String) -> String {
         with: " ",
         options: .regularExpression
     )
+    // Keep normalization fail-closed even if a platform regex engine leaves
+    // an ANSI introducer or bracket sequence behind.
+    text = text.replacingOccurrences(of: "\u{001B}", with: "")
+    text = text.replacingOccurrences(
+        of: "\\[[0-?]*[ -/]*[@-~]",
+        with: " ",
+        options: .regularExpression
+    )
+    text = text.unicodeScalars.reduce(into: String()) { result, scalar in
+        if scalar.value >= 0x20 || scalar.value == 0x09 || scalar.value == 0x0A || scalar.value == 0x0D {
+            result.unicodeScalars.append(scalar)
+        }
+    }
     let normalizedLines = text
         .replacingOccurrences(of: "\r\n", with: "\n")
         .replacingOccurrences(of: "\r", with: "\n")
