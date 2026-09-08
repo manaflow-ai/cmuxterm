@@ -1,3 +1,4 @@
+import AppKit
 import CmuxVaultHistory
 import Foundation
 import Testing
@@ -9,7 +10,7 @@ import Testing
 #endif
 
 @MainActor
-@Suite struct VaultHistoryEventLogTests {
+@Suite(.serialized) struct VaultHistoryEventLogTests {
     @Test func lifecyclePhasesOnlyAcceptActiveEvents() async {
         let store = VaultHistoryEventStore(fileURL: nil)
         let log = VaultHistoryEventLog(store: store)
@@ -120,6 +121,79 @@ import Testing
         )
         #expect(renameEvent.subject.workspaceId == renamedWorkspace.id)
         #expect(renameEvent.title == "Renamed")
+    }
+
+    @Test func movingWorkspaceToNewWindowDoesNotRecordItsTemporaryWorkspace() async throws {
+        try await withWindowHistory { app, log in
+            let sourceWindowId = app.createMainWindow(shouldActivate: false)
+            let source = try #require(app.tabManagerFor(windowId: sourceWindowId))
+            let workspace = try #require(source.selectedWorkspace)
+
+            let destinationId = try #require(app.moveWorkspaceToNewWindow(workspaceId: workspace.id, focus: false))
+            let destination = try #require(app.tabManagerFor(windowId: destinationId))
+            #expect(destination.tabs.map(\.id) == [workspace.id])
+            await log.flushPendingRecords()
+
+            let creations = await log.recentEvents().filter { $0.kind == .workspaceCreated }
+            #expect(creations.map(\.subject.workspaceId) == [workspace.id])
+        }
+    }
+
+    @Test func browserWorkspaceWithNoWindowsRecordsOnlyTheBrowserWorkspace() async throws {
+        try await withWindowHistory { app, log in
+            #expect(app.performNewBrowserWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let workspace = try #require(context.tabManager.selectedWorkspace)
+            #expect(context.tabManager.tabs.count == 1)
+            #expect(workspace.panels.values.contains { $0 is BrowserPanel })
+            await log.flushPendingRecords()
+
+            let creations = await log.recentEvents().filter { $0.kind == .workspaceCreated }
+            #expect(creations.map(\.subject.workspaceId) == [workspace.id])
+        }
+    }
+
+    @Test func ordinaryNewWindowStillRecordsItsInitialWorkspace() async throws {
+        try await withWindowHistory { app, log in
+            let windowId = app.createMainWindow(shouldActivate: false)
+            let workspace = try #require(app.tabManagerFor(windowId: windowId)?.selectedWorkspace)
+            await log.flushPendingRecords()
+
+            let creations = await log.recentEvents().filter { $0.kind == .workspaceCreated }
+            #expect(creations.map(\.subject.workspaceId) == [workspace.id])
+            #expect(creations.first?.subject.windowId == windowId)
+        }
+    }
+
+    @Test func terminalWorkspaceWithNoWindowsRecordsItsRetainedInitialWorkspace() async throws {
+        try await withWindowHistory { app, log in
+            #expect(app.performNewWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let workspace = try #require(context.tabManager.selectedWorkspace)
+            #expect(context.tabManager.tabs.count == 1)
+            await log.flushPendingRecords()
+
+            let creations = await log.recentEvents().filter { $0.kind == .workspaceCreated }
+            #expect(creations.map(\.subject.workspaceId) == [workspace.id])
+        }
+    }
+
+    private func withWindowHistory(
+        _ body: (AppDelegate, VaultHistoryEventLog) async throws -> Void
+    ) async rethrows {
+        _ = NSApplication.shared
+        let previousDelegate = AppDelegate.shared
+        let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
+        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: .active)
+        let app = AppDelegate(vaultHistoryEventLog: log)
+        defer {
+            for windowId in app.mainWindowContexts.values.map(\.windowId) {
+                _ = app.closeMainWindow(windowId: windowId, recordHistory: false)
+            }
+            TerminalController.shared.setActiveTabManager(previousManager)
+            AppDelegate.shared = previousDelegate
+        }
+        try await body(app, log)
     }
 
     private func event(id: String) -> VaultHistoryEvent {

@@ -1307,6 +1307,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 #endif
 
+    /// Allows lifecycle consumers to supply an isolated History store before any window is created.
+    convenience init(vaultHistoryEventLog: VaultHistoryEventLog) {
+        self.init()
+        self.vaultHistoryEventLog = vaultHistoryEventLog
+    }
+
     override init() {
         let fileManager = FileManager.default
         let hangDirectory = fileManager.urls(
