@@ -14,6 +14,48 @@ import Testing
 typealias CMUXCLI = CmuxTuiRemoteRouting
 
 @Suite struct AgentAliasArgumentTests {
+    final class BundleProbe {}
+
+    @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
+    func helpKeepsTheProviderArgumentBoundary(agent: String, help: String) {
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, help]) == ["--agent", agent, help])
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "--", help]) == ["--agent", agent, "--", help])
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "prompt", help]) == ["--agent", agent, "--", "prompt", help])
+    }
+
+    @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
+    func providerHelpDoesNotBypassWrapperValidation(agent: String, help: String) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = try BundledCLITestSupport.bundledCLIURL(for: BundleProbe.self)
+        for command in [["vm", "agent", "--agent", agent], ["agent", agent], ["coderouter", "agent", agent]] {
+            let output = directory.appendingPathComponent("output")
+            try Data().write(to: output)
+            let handle = try FileHandle(forWritingTo: output)
+            defer { try? handle.close() }
+            let process = Process()
+            process.executableURL = binary
+            process.arguments = ["--socket", directory.appendingPathComponent("absent.sock").path] + command + ["--machine", "--", help]
+            var environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("CMUX_") }
+            environment["HOME"] = directory.path
+            environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+            process.environment = environment
+            process.standardOutput = handle
+            process.standardError = handle
+            let ended = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in ended.signal() }
+            try process.run()
+            let finished = ended.wait(timeout: .now() + 10) == .success
+            if !finished { Darwin.kill(process.processIdentifier, SIGKILL) }
+            process.waitUntilExit()
+            let text = try String(contentsOf: output, encoding: .utf8)
+            #expect(finished, "\(command): \(text)")
+            #expect(process.terminationStatus != 0, "\(command): \(text)")
+            #expect(text.contains("--machine requires a value"), "\(command): \(text)")
+        }
+    }
+
     @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--machine", "--size", "--cwd", "--name", "--remote-workspace"])
     func incompleteVMOptionRemainsAnOption(agent: String, option: String) {
         #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, option]) == ["--agent", agent, option])
