@@ -186,7 +186,7 @@ extension Workspace {
         var didClearOtherStructuredAgentRuntime = false
         if let panelId { didClearOtherStructuredAgentRuntime = clearOtherStructuredAgentRuntimes(onPanel: panelId, keeping: key) }
         let processIdentity = Self.agentPIDProcessIdentity(pid: pid)
-        if let panelId { AgentHibernationController.shared.disarmSessionEndPreservationIfSuperseded(panelKey: AgentHibernationPanelKey(workspaceId: id, panelId: panelId), processIdentity: processIdentity) }
+        if let panelId, let processIdentity { AgentHibernationController.shared.disarmSessionEndPreservationIfSuperseded(panelKey: AgentHibernationPanelKey(workspaceId: id, panelId: panelId), processIdentity: processIdentity) }
         agentPIDs[key] = pid
         agentPIDProcessIdentitiesByKey[key] = processIdentity
         if let panelId { recordAgentPIDOwnership(key: key, panelId: panelId) } else { removeAgentPIDOwnership(key: key) }
