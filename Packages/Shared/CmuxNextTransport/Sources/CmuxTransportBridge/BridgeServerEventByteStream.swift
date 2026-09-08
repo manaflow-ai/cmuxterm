@@ -17,9 +17,17 @@ public struct BridgeServerEventByteStream: Sendable {
     public func bytes(from receiveStream: any CmxIrohReceiveStream) -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream(bufferingPolicy: .bufferingOldest(bufferLimit)) { continuation in
             let pump = Task { await run(receiveStream, continuation: continuation) }
-            continuation.onTermination = { _ in
+            continuation.onTermination = { reason in
                 pump.cancel()
-                Task { await receiveStream.stop(errorCode: 0) }
+                let code: UInt64
+                switch reason {
+                case .finished(let error): code = error == nil ? 0 : 1
+                case .cancelled: code = 0
+                @unknown default: code = 1
+                }
+                // AsyncStream invokes this once. Owning STOP_SENDING here
+                // avoids contradictory terminal codes from competing paths.
+                Task { await receiveStream.stop(errorCode: code) }
             }
         }
     }
@@ -38,11 +46,9 @@ public struct BridgeServerEventByteStream: Sendable {
                 case .terminated: return
                 case .dropped:
                     continuation.finish(throwing: CmxIrohClientServerEventReceiverError.backpressureExceeded)
-                    await receiveStream.stop(errorCode: 1)
                     return
                 @unknown default:
                     continuation.finish(throwing: CmxIrohClientServerEventReceiverError.backpressureExceeded)
-                    await receiveStream.stop(errorCode: 1)
                     return
                 }
             }

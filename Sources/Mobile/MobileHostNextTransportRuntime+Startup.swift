@@ -27,14 +27,14 @@ extension MobileHostNextTransportRuntime {
                 return
             }
             await grantRevocationTask?.value
-            let revokedGrantIDs = await grantRevocationStore.load()
+            let revokedGrantIDs = try await grantRevocationStore.load()
             // Keys live in the Keychain (one-time migration from the legacy
             // UserDefaults copies); identity is stable per install, separate
             // from the legacy transport's identity (parallel hosts, parallel
             // keys), and the signer persists so previously minted phone
             // grants survive Mac restarts.
-            let identity = await Self.loadOrCreateIdentity()
-            let signer = await Self.loadOrCreateSigner()
+            let identity = try await Self.loadOrCreateIdentity()
+            let signer = try await Self.loadOrCreateSigner()
             guard generation == gen else { return }
             self.signer = signer
             let revocationStore = grantRevocationStore
@@ -47,7 +47,10 @@ extension MobileHostNextTransportRuntime {
                 },
                 initialRevokedGrantIDs: revokedGrantIDs,
                 onGrantRevoked: { id in
-                    await revocationStore.revoke([id])
+                    do { try await revocationStore.revoke([id]) }
+                    catch {
+                        Self.logger.error("grant revocation persistence failed; restart remains blocked: \(String(describing: error), privacy: .public)")
+                    }
                 })
             self.host = host
 
@@ -116,24 +119,20 @@ extension MobileHostNextTransportRuntime {
 
             var cachedRelayConfirmed = relays.isEmpty
             if !relays.isEmpty {
-                // online() waits for the relay handshake. A cached token the
-                // fleet has stopped honoring hangs it with no client-visible
-                // error, so it is raced against a deadline instead of
-                // trusted; the loser is abandoned, not joined (uniffi
-                // futures do not observe Swift task cancellation).
-                let cameOnline = await Self.raceDeadline(
-                    seconds: NextTransportHostTiming.onlineDeadlineSeconds,
-                    sleep: sleep
-                ) {
-                    await endpoint.online()
-                } onTimeout: {
+                // Keep the uncancellable FFI observation owned until endpoint
+                // teardown, but apply the deadline to its cancellable signal.
+                let onlineWait = IrohEndpointOnlineWait(endpoint: endpoint)
+                endpointOnlineWait = onlineWait
+                let cameOnline = await onlineWait.value(
+                    timeout: .seconds(NextTransportHostTiming.onlineDeadlineSeconds), sleep: sleep)
+                if !cameOnline {
                     // Abort only the unconfirmed relay legs. Keeping the
                     // endpoint alive preserves direct LAN candidates while a
                     // later broker mint repairs the relay map.
                     for relay in relays {
                         _ = try? await endpoint.removeRelay(url: relay.url)
                     }
-                }
+                } else { endpointOnlineWait = nil }
                 guard generation == gen else { return }
                 cachedRelayConfirmed = cameOnline
                 if !cameOnline {

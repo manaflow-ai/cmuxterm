@@ -32,7 +32,10 @@ let package = Package(
     targets: [
         .target(
             name: "CmuxNextTransport",
-            dependencies: [.product(name: "IrohLib", package: "iroh-ffi")],
+            dependencies: [
+                .product(name: "IrohLib", package: "iroh-ffi"),
+                .product(name: "CMUXMobileCore", package: "CMUXMobileCore"),
+            ],
             path: "Sources/CmuxTransport"),
         // Graduation lane bridge: adapters that let the legacy application
         // router and byte-transport consumers run unchanged over this

@@ -91,6 +91,7 @@ public actor IrohPeerConnection: PeerConnection {
     public func onRawStream(
         _ handler: @escaping @Sendable (String, RawByteStream) async -> Void
     ) async {
+        guard !closedFlag else { return }
         if TransportDebugLog.enabled {
             TransportDebugLog.core.notice(
                 """
@@ -118,11 +119,15 @@ public actor IrohPeerConnection: PeerConnection {
             }
             throw TransportError.pipeClosed
         }
+        var openedStream: BiStream?
         do {
             let stream = try await connection.openBi()
+            openedStream = stream
+            guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
             let channel = IrohLaneChannel(send: stream.send(), recv: stream.recv())
             try await channel.sendFrame(
                 Frame(type: Self.rawOpenType, payload: ["preamble": .string(preamble)]))
+            guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
                     """
@@ -132,6 +137,7 @@ public actor IrohPeerConnection: PeerConnection {
             }
             return RawByteStream(send: stream.send(), recv: stream.recv(), buffered: Data())
         } catch {
+            if let openedStream { await closeUnadoptedStream(openedStream) }
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.error(
                     """
@@ -165,8 +171,11 @@ public actor IrohPeerConnection: PeerConnection {
                 }
                 return DeadLane(name: name)
             }
+            var openedStream: BiStream?
             do {
                 let stream = try await connection.openBi()
+                openedStream = stream
+                guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
                 // Re-check after the suspension: a concurrent caller may have
                 // opened the same lane while we awaited. The loser must CLOSE
                 // the stream it already opened — dropping the handle leaks a
@@ -184,6 +193,12 @@ public actor IrohPeerConnection: PeerConnection {
                     })
                 try await channel.sendFrame(
                     Frame(type: Self.laneOpenType, payload: ["name": .string(name)]))
+                guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
+                if let existing = lanes[name] {
+                    await closeUnadoptedStream(stream)
+                    return existing
+                }
+                guard lanes.count < Self.maxLaneCount else { throw TransportError.pipeClosed }
                 let lane = makeLane(name: name, channel: channel)
                 lanes[name] = lane
                 if TransportDebugLog.enabled {
@@ -195,6 +210,7 @@ public actor IrohPeerConnection: PeerConnection {
                 }
                 return lane
             } catch {
+                if let openedStream { await closeUnadoptedStream(openedStream) }
                 if TransportDebugLog.enabled {
                     TransportDebugLog.core.error(
                         """

@@ -140,11 +140,11 @@ extension TransportHostLifecycleTests {
         // Queue a credential while it is still valid, then advance the
         // admission timeline so the host exercises its pending-credential
         // expiry/drop branch rather than rejecting the token at insert time.
-        let queued = await host.pushRelayCredential(
+        let delivered = await host.pushRelayCredential(
             deviceID: identity.deviceID, appIdentity: identity.appIdentity,
             url: "https://usc1.relay.cmux.dev/", token: expiringToken(exp: now + 1),
             now: now)
-        #expect(!queued)
+        #expect(!delivered)
 
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)

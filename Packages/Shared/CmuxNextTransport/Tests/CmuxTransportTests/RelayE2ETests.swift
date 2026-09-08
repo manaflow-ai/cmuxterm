@@ -17,6 +17,7 @@ struct RelayE2ETests {
     private enum ConfigurationError: Error {
         case invalidSecretHex
     }
+    private enum WrongKeyDialOutcome: Sendable { case connected, failed, deadline, cancelled }
 
     struct Peer: Decodable {
         let secretHex: String
@@ -170,24 +171,27 @@ struct RelayE2ETests {
             identity: imposter,
             relays: [IrohSubstrate.RelayAccess(url: config.relayUrl, authToken: config.client.token)])
 
-        let established = await withTaskGroup(of: Bool.self) { group in
+        let addr = try IrohSubstrate.relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl)
+        let outcome = await withTaskGroup(of: WrongKeyDialOutcome.self) { group in
             group.addTask {
-                guard
-                    let addr = try? IrohSubstrate.relayAddr(
-                        id: mac.publicKeyData, relayUrl: config.relayUrl),
-                    (try? await IrohSubstrate.dial(endpoint: client, to: addr)) != nil
-                else { return false }
-                return true
+                do {
+                    _ = try await IrohSubstrate.dial(endpoint: client, to: addr)
+                    return .connected
+                } catch { return .failed }
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(10))
-                return false
+                do { try await Task.sleep(for: .seconds(10)) }
+                catch { return .cancelled }
+                return .deadline
             }
-            let first = await group.next() ?? false
+            let first = await group.next() ?? .cancelled
             group.cancelAll()
+            // Native dial cancellation is released by endpoint shutdown,
+            // before the structured group joins its losing child.
+            try? await client.close()
             return first
         }
-        #expect(!established)
+        #expect(outcome == .deadline)
 
         serveLoop.cancel()
         try await server.close()

@@ -3,7 +3,10 @@ import Darwin
 
 extension CMUXCLI {
     func runNextTransportTicket(commandArgs: [String], client: SocketClient) throws {
-        _ = try nextTransportMaterialArguments(commandArgs)
+        let materialArgs = try nextTransportMaterialArguments(commandArgs)
+        guard materialArgs.arguments.isEmpty else {
+            throw CLIError(message: nextTransportHelp("next-transport-ticket"))
+        }
         let response = try sendV1Command("next_transport_ticket", client: client)
         try presentNextTransportMaterial(
             response: response, command: "next-transport-ticket", commandArgs: commandArgs)

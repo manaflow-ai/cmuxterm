@@ -95,6 +95,26 @@ struct NextTransportDialSurfaceTests {
 
     // MARK: configure() atomicity
 
+    @Test("hint refresh preserves the failed-relay fallback and attempt history")
+    func hintRefreshPreservesFallback() async throws {
+        let client = makeClient()
+        let hostKey = Data("host-key".utf8).base64EncodedString()
+        let original = ticketJSON(keyB64: hostKey)
+        let refreshed = ticketJSON(keyB64: hostKey, addrs: ["192.168.1.30:4433"])
+        let grant = matchingGrantJSON(for: client)
+        try client.configure(ticketJSON: original, grantJSON: grant)
+        client.dialAttemptIndex = 3
+        client.relayOnlyAttemptFailed = true
+        client.hintRefresher = { (refreshed, grant, true) }
+        await client.refreshHints()
+        #expect(client.dialAttemptIndex == 3)
+        #expect(client.relayOnlyAttemptFailed)
+        #expect(client.hostAddrs == ["192.168.1.30:4433"])
+        try client.configure(ticketJSON: refreshed, grantJSON: grant)
+        #expect(client.dialAttemptIndex == 0)
+        #expect(!client.relayOnlyAttemptFailed)
+    }
+
     private func ticketJSON(keyB64: String, addrs: [String] = ["192.168.1.20:4433"]) -> String {
         let addrList = addrs.map { "\"\($0)\"" }.joined(separator: ",")
         return #"{"key":"\#(keyB64)","addrs":[\#(addrList)],"relay":"https://relay.example"}"#

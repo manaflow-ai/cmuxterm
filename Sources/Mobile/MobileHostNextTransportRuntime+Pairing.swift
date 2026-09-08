@@ -145,13 +145,16 @@ extension MobileHostNextTransportRuntime {
     /// Explicitly revokes one issued grant and records the denylist in the
     /// device-only store. This seam is used by future unpair/debug controls;
     /// stop and account transitions revoke all grants issued by this runtime.
-    func revokeGrant(id: String) async {
+    func revokeGrant(id: String) async throws {
         issuedGrantIDs.insert(id)
         if let host {
             await host.revokeGrant(id: id)
         } else {
-            await grantRevocationStore.revoke([id])
+            try await grantRevocationStore.revoke([id])
         }
+        // Surface any persistence failure even when the host closed the live
+        // session successfully; an in-memory revoke alone is not durable.
+        _ = try await grantRevocationStore.load()
     }
 
 }

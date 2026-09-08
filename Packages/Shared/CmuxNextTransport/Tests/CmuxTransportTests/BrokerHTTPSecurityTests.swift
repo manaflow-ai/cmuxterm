@@ -7,16 +7,24 @@ struct BrokerHTTPSecurityTests {
     @Test("Credentialed POST redirects are rejected", arguments: [307, 308])
     func rejectsRedirect(status: Int) async throws {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [CredentialRedirectFixture.self]
+        configuration.timeoutIntervalForRequest = 5
         let transport = BrokerCredentialClient.liveTransport(configuration: configuration)
-        var request = URLRequest(url: URL(string: "https://broker.example/\(status)")!)
+        let server = try CredentialRedirectServer()
+        let origin = try await server.start()
+        var request = URLRequest(url: origin.appendingPathComponent(String(status)))
         request.httpMethod = "POST"
         request.setValue("access-secret", forHTTPHeaderField: "Authorization")
         request.setValue("refresh-secret", forHTTPHeaderField: "X-Stack-Refresh-Token")
         request.httpBody = Data(#"{"password":"password-secret"}"#.utf8)
-        let (_, response) = try await transport(request)
-        #expect((response as? HTTPURLResponse)?.statusCode == status)
-        #expect(response.url == request.url)
+        do {
+            let (_, response) = try await transport(request)
+            #expect((response as? HTTPURLResponse)?.statusCode == status)
+            #expect(response.url == request.url)
+            await server.stop()
+        } catch {
+            await server.stop()
+            throw error
+        }
     }
 
     @Test("Malformed origins never retain credentials in errors", arguments: [

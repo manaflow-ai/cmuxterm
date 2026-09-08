@@ -57,7 +57,9 @@ extension IrohPeerConnection {
             onProtocolError: { [weak self] in
                 await self?.protocolViolation()
             })
-        guard let open = await receiveOpenFrameWithDeadline(channel: channel) else {
+        guard let open = await receiveOpenFrameWithDeadline(channel: channel),
+            !closedFlag, !Task.isCancelled
+        else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
                     """
@@ -78,6 +80,10 @@ extension IrohPeerConnection {
             let raw = RawByteStream(
                 send: stream.send(), recv: stream.recv(),
                 buffered: await channel.drainBufferedBytes())
+            guard !closedFlag, !Task.isCancelled else {
+                await closeUnadoptedStream(stream)
+                return
+            }
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice(
                     """
@@ -197,8 +203,8 @@ extension IrohPeerConnection {
         }
     }
 
-    private func closeUnadoptedStream(_ stream: BiStream) async {
-        try? await stream.send().finish()
+    func closeUnadoptedStream(_ stream: BiStream) async {
+        try? await stream.send().reset(errorCode: 1)
         try? await stream.recv().stop(errorCode: 1)
     }
 

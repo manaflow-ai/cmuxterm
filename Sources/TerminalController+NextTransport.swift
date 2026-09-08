@@ -61,6 +61,11 @@ extension TerminalController {
     }
 
     #if DEBUG
+    enum NextTransportPairAuthorization: Sendable {
+        case localControlSocket
+        case mobileRPC(MobileHostRPCExecutionContext)
+    }
+
     /// Serves `mobile.next_transport.pair` (graduation slice 2): the phone
     /// requests its next-transport ticket + grant over the ALREADY
     /// authenticated channel, replacing the dev-screen paste flow. Params
@@ -68,7 +73,7 @@ extension TerminalController {
     @MainActor
     func v2MobileNextTransportPair(
         params: [String: Any],
-        executionContext: MobileHostRPCExecutionContext? = nil
+        authorization: NextTransportPairAuthorization?
     ) -> V2CallResult {
         guard
             let deviceID = params["device_id"] as? String,
@@ -86,7 +91,7 @@ extension TerminalController {
             deviceKey: key,
             appIdentity: appIdentity,
             proofBase64: params["device_proof"] as? String,
-            executionContext: executionContext
+            authorization: authorization
         ) else {
             return .err(
                 code: "forbidden",
@@ -137,14 +142,19 @@ extension TerminalController {
     /// Network sessions must either prove possession of the supplied private
     /// key or match the key/device tuple authenticated by Iroh; the local
     /// control socket remains an explicitly trusted composition-root path.
-    private nonisolated static func nextTransportPairRequesterIsBound(
+    nonisolated static func nextTransportPairRequesterIsBound(
         deviceID: String,
         deviceKey: Data,
         appIdentity: String,
         proofBase64: String?,
-        executionContext: MobileHostRPCExecutionContext?
+        authorization: NextTransportPairAuthorization?
     ) -> Bool {
-        guard let executionContext else { return true }
+        guard let authorization else { return false }
+        let executionContext: MobileHostRPCExecutionContext
+        switch authorization {
+        case .localControlSocket: return true
+        case .mobileRPC(let context): executionContext = context
+        }
         // The network bootstrap is exclusively for the signed iOS next-
         // transport client. Other app identities remain available only through
         // the explicitly trusted local control-socket grant command.

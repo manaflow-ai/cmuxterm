@@ -10,7 +10,7 @@ extension BrokerCredentialClient {
         /// they are never stored, logged, or rendered.
         case http(step: String, status: Int, path: String, code: String?)
         /// A request URL could not be built from the configured base URL.
-        /// Carries the offending URL up to (never including) any query.
+        /// Carries only a sanitized origin, or a fixed invalid-origin marker.
         case malformedURL(step: String, url: String)
         case shape(String)
         /// Session mode only: the token provider reported no signed-in

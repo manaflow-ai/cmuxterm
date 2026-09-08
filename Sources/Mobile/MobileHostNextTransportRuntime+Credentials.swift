@@ -51,14 +51,15 @@ extension MobileHostNextTransportRuntime {
                 return
             }
             guard let self, self.generation == gen, !Task.isCancelled else { return }
-            let oldRelayURL = self.relayURL
             self.relayURL = nil
             self.refreshStateDescription()
             if self.readiness == .published {
                 self.publishPresenceRoute()
             }
-            if let oldRelayURL {
-                _ = try? await endpoint.removeRelay(url: oldRelayURL)
+            // Withdraw the whole cache-backed route set at its earliest
+            // validity bound. No installed credential may outlive this lease.
+            for relayURL in Set(entries.map(\.relayUrl)) {
+                _ = try? await endpoint.removeRelay(url: relayURL)
             }
             self.cachedCredentialExpiryTask = nil
             MobileHostNextTransportRuntime.logger.notice(

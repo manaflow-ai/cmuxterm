@@ -916,6 +916,7 @@
 		C8923639133F158AF1B6A0FB /* CMUXCLI+VPN.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA475616EA96D1D0624FC0A1 /* CMUXCLI+VPN.swift */; };
 		7A0CE1000000000000000102 /* CMUXCLI+VPNAppManaged.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000101 /* CMUXCLI+VPNAppManaged.swift */; };
 		06CC2F6C1340C7424D1C7E0A /* CMUXCLI+WorkspaceTodo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5D35CC62B0F252F9EC2AD1 /* CMUXCLI+WorkspaceTodo.swift */; };
+		ED29D3771DAFD013B8B780B3 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */; };
 		C0DE31390000000000000105 /* CMUXCLIErrorOutputRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE31390000000000000106 /* CMUXCLIErrorOutputRegressionTests.swift */; };
 		112950000000000000000012 /* CMUXCLIForkLegacyFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112950000000000000000011 /* CMUXCLIForkLegacyFallbackTests.swift */; };
 		112950000000000000000002 /* CMUXCLIForkVerbRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112950000000000000000001 /* CMUXCLIForkVerbRegressionTests.swift */; };
@@ -1886,9 +1887,12 @@
 		A1122301A1B2C3D4E5F60718 /* NewWorkspaceButtonHitAreaUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1122302A1B2C3D4E5F60718 /* NewWorkspaceButtonHitAreaUITests.swift */; };
 		C0DE77060000000000000003 /* NewWorkspaceMenuModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE77060000000000000004 /* NewWorkspaceMenuModel.swift */; };
 		A5FB1400 /* NewWorkspaceMenuModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FB1401 /* NewWorkspaceMenuModelTests.swift */; };
+		51AB43CACA4CC61AD5C9B388 /* NextTransportAcceptRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */; };
+		1457DE945E06D884A501AF63 /* NextTransportAcceptRetryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */; };
 		C2051F7EE134357B5B287589 /* NextTransportCachedRelayCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5720B7685FAF8A7F53704C8 /* NextTransportCachedRelayCredential.swift */; };
 		2E4207FBB4007E34645049DA /* NextTransportHostTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28A99A098DD98611B73BF178 /* NextTransportHostTiming.swift */; };
 		B873F9235DE54B9FCA435A3A /* NextTransportMintRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */; };
+		460A23C1B02ED3D0955B7EBC /* NextTransportPairAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */; };
 		9A71FDA9C5AB5BAD95716FF6 /* NextTransportRelayCredentialCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */; };
 		509FF536E69C5AA4B245928F /* NextTransportRelayPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */; };
 		50F3D3A9946F442327C95159 /* NextTransportSecureStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */; };
@@ -4354,6 +4358,7 @@
 		EA475616EA96D1D0624FC0A1 /* CMUXCLI+VPN.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+VPN.swift"; sourceTree = "<group>"; };
 		7A0CE1000000000000000101 /* CMUXCLI+VPNAppManaged.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+VPNAppManaged.swift"; sourceTree = "<group>"; };
 		7E5D35CC62B0F252F9EC2AD1 /* CMUXCLI+WorkspaceTodo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+WorkspaceTodo.swift"; sourceTree = "<group>"; };
+		C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIErrorOutputRegressionTests+NextTransport.swift; sourceTree = "<group>"; };
 		C0DE31390000000000000106 /* CMUXCLIErrorOutputRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIErrorOutputRegressionTests.swift; sourceTree = "<group>"; };
 		112950000000000000000011 /* CMUXCLIForkLegacyFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIForkLegacyFallbackTests.swift; sourceTree = "<group>"; };
 		112950000000000000000001 /* CMUXCLIForkVerbRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIForkVerbRegressionTests.swift; sourceTree = "<group>"; };
@@ -5245,9 +5250,12 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		A1122302A1B2C3D4E5F60718 /* NewWorkspaceButtonHitAreaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkspaceButtonHitAreaUITests.swift; sourceTree = "<group>"; };
 		C0DE77060000000000000004 /* NewWorkspaceMenuModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkspaceMenuModel.swift; sourceTree = "<group>"; };
 		A5FB1401 /* NewWorkspaceMenuModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkspaceMenuModelTests.swift; sourceTree = "<group>"; };
+		A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportAcceptRetryPolicy.swift; sourceTree = "<group>"; };
+		783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportAcceptRetryPolicyTests.swift; sourceTree = "<group>"; };
 		D5720B7685FAF8A7F53704C8 /* NextTransportCachedRelayCredential.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportCachedRelayCredential.swift; sourceTree = "<group>"; };
 		28A99A098DD98611B73BF178 /* NextTransportHostTiming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportHostTiming.swift; sourceTree = "<group>"; };
 		62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportMintRetryPolicy.swift; sourceTree = "<group>"; };
+		18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportPairAuthorizationTests.swift; sourceTree = "<group>"; };
 		26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayCredentialCachePolicy.swift; sourceTree = "<group>"; };
 		901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayPlan.swift; sourceTree = "<group>"; };
 		05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportSecureStorageTests.swift; sourceTree = "<group>"; };
@@ -7063,6 +7071,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A2DBE587F52C8A3B2A2CFCB8 /* MobileStateSync.swift */,
 				1B0B09010000000000000001 /* MobileHostIrohRuntime.swift */,
 				1B0B0901000000000000NT01 /* MobileHostNextTransportRuntime.swift */,
+				A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */,
 				901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */,
 				26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */,
 				62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */,
@@ -10171,6 +10180,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A1B2C3D4E5F60718293A4C04 /* MobileHostOrderedInputTests.swift */,
 				F33200000000000000000001 /* MobileSimulatorReaderAttachmentTests.swift */,
 				C0DE73840000000000000002 /* MobileHostWorkspaceTicketAuthorizationTests.swift */,
+				18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */,
+				783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */,
+				C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */,
 				3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */,
 				05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */,
 				E89538C5E739543A7B9E0E86 /* MobileHostWorkspaceTicketAuthorizationTests+NextTransport.swift */,
@@ -11915,6 +11927,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				DD3322FE8D4021EB0FAFE7F6 /* NewMachineSheet.swift in Sources */,
 				548D90758DB3CF890BFDC603 /* NewMachineSheetPresenter.swift in Sources */,
 				C0DE77060000000000000003 /* NewWorkspaceMenuModel.swift in Sources */,
+				51AB43CACA4CC61AD5C9B388 /* NextTransportAcceptRetryPolicy.swift in Sources */,
 				C2051F7EE134357B5B287589 /* NextTransportCachedRelayCredential.swift in Sources */,
 				2E4207FBB4007E34645049DA /* NextTransportHostTiming.swift in Sources */,
 				B873F9235DE54B9FCA435A3A /* NextTransportMintRetryPolicy.swift in Sources */,
@@ -13474,6 +13487,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				8295A0058295A0058295A005 /* CmuxAlertContentTests.swift in Sources */,
 				947194719471947194719472 /* CmuxBundledBinPathIntegrationTests.swift in Sources */,
 					0CB4E9797AD54D3BB9CF06F9 /* CMUXCLI+AutoNaming.swift in Sources */,
+				ED29D3771DAFD013B8B780B3 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift in Sources */,
 					C0DE31390000000000000105 /* CMUXCLIErrorOutputRegressionTests.swift in Sources */,
 					112950000000000000000012 /* CMUXCLIForkLegacyFallbackTests.swift in Sources */,
 					112950000000000000000002 /* CMUXCLIForkVerbRegressionTests.swift in Sources */,
@@ -13715,6 +13729,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D5EB22366F37AB2B52CD4B2A /* NewMachineModelTests.swift in Sources */,
 				EBEEFD57F5B44FD3D569C2A7 /* NewMachineModelUncappedPlanTests.swift in Sources */,
 				A5FB1400 /* NewWorkspaceMenuModelTests.swift in Sources */,
+				1457DE945E06D884A501AF63 /* NextTransportAcceptRetryPolicyTests.swift in Sources */,
+				460A23C1B02ED3D0955B7EBC /* NextTransportPairAuthorizationTests.swift in Sources */,
 				50F3D3A9946F442327C95159 /* NextTransportSecureStorageTests.swift in Sources */,
 				8940877D58F49667D6421AF5 /* NextTransportSecureStoreFixture.swift in Sources */,
 				734F49D37E543DD01C2F4FEF /* NotificationAndMenuBarTests.swift in Sources */,

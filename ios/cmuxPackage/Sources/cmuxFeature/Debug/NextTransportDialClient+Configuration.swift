@@ -47,14 +47,19 @@ extension NextTransportDialClient {
     }
 
     func commit(_ parsed: ParsedConfiguration) {
-        hostKey = parsed.hostKey
-        hostAddrs = parsed.addrs
-        hostRelayURL = parsed.relayURL
-        grant = parsed.grant
+        updateHints(parsed)
         dialAttemptIndex = 0
         relayOnlyAttemptFailed = false
         pendingAdmittedSessionID = nil
         sessionID = nil
+    }
+
+    /// Refreshes routing material without resetting the reconnect owner's history.
+    func updateHints(_ parsed: ParsedConfiguration) {
+        hostKey = parsed.hostKey
+        hostAddrs = parsed.addrs
+        hostRelayURL = parsed.relayURL
+        grant = parsed.grant
     }
 
 }

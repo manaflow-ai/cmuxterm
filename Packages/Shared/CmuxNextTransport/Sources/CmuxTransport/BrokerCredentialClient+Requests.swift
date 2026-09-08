@@ -112,14 +112,13 @@ extension BrokerCredentialClient {
             path.hasPrefix("/"),
             !path.contains("?") && !path.contains("#")
         else {
-            throw BrokerError.malformedURL(
-                step: step, url: String(base.prefix(while: { $0 != "?" && $0 != "#" })))
+            throw BrokerError.malformedURL(step: step, url: diagnosticOrigin(base))
         }
         components.path = path
         components.query = nil
         components.fragment = nil
         guard let url = components.url else {
-            throw BrokerError.malformedURL(step: step, url: base)
+            throw BrokerError.malformedURL(step: step, url: diagnosticOrigin(base))
         }
         return url
     }
@@ -162,6 +161,20 @@ extension BrokerCredentialClient {
     }
 
     static let alreadyBoundCode = "endpoint_already_bound"
+
+    /// Logs only an origin; malformed inputs, credentials, paths and URL
+    /// suffixes never escape into diagnostics even before validation.
+    static func diagnosticOrigin(_ value: String) -> String {
+        guard let source = URLComponents(string: value),
+            let scheme = source.scheme, ["https", "http"].contains(scheme.lowercased()),
+            let host = source.host, !host.isEmpty
+        else { return "<invalid-origin>" }
+        var origin = URLComponents()
+        origin.scheme = scheme
+        origin.host = host
+        origin.port = source.port
+        return origin.string ?? "<invalid-origin>"
+    }
 
     /// The short stable error code from a broker error body. The broker
     /// always answers `{"error": <code>}` (web/services/iroh/

@@ -1,4 +1,5 @@
 import CryptoKit
+import CMUXMobileCore
 import Foundation
 
 /// The phone mints its OWN relay credentials over HTTPS, exactly as the
@@ -157,8 +158,8 @@ public struct BrokerCredentialClient: Sendable {
         #endif
     }
 
-    static func liveTransport(configuration: URLSessionConfiguration = .default) -> Transport {
-        let session = URLSession(configuration: configuration)
+    static func liveTransport(configuration: sending URLSessionConfiguration = .ephemeral) -> Transport {
+        let session = CmxCredentialedHTTPSession(configuration: configuration)
         return { request in try await session.data(for: request) }
     }
 
@@ -184,8 +185,8 @@ public struct BrokerCredentialClient: Sendable {
                 broker mint begin mode=\(self.authenticationModeName, privacy: .public) \
                 device=\(TransportDebugLog.prefix(self.deviceId), privacy: .public) \
                 endpoint=\(TransportDebugLog.prefix(endpointId), privacy: .public) \
-                base=\(self.baseUrl, privacy: .public) \
-                preferred=\(preferredUrl ?? "none", privacy: .public)
+                base=\(Self.diagnosticOrigin(self.baseUrl), privacy: .public) \
+                preferred=\(preferredUrl.map(Self.diagnosticOrigin) ?? "none", privacy: .public)
                 """)
         }
 

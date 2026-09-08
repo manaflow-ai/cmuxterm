@@ -105,6 +105,7 @@ final class MobileHostNextTransportRuntime {
     var credentialClient: BrokerCredentialClient?
     let grantRevocationStore = MobileHostNextTransportGrantRevocationStore()
     var grantRevocationTask: Task<Void, Never>?
+    var endpointOnlineWait: IrohEndpointOnlineWait?
     var issuedGrantIDs: Set<String> = []
     private var grantExpiryTask: Task<Void, Never>?
     /// Withdraws a cached relay route when no broker client exists to renew it.
@@ -222,6 +223,8 @@ final class MobileHostNextTransportRuntime {
         grantExpiryTask = nil
         cachedCredentialExpiryTask?.cancel()
         cachedCredentialExpiryTask = nil
+        endpointOnlineWait?.cancel()
+        endpointOnlineWait = nil
         for task in serveTasks.values { task.cancel() }
         serveTasks.removeAll()
         let grantsToRevoke = issuedGrantIDs
@@ -231,7 +234,10 @@ final class MobileHostNextTransportRuntime {
             let previous = grantRevocationTask
             grantRevocationTask = Task {
                 await previous?.value
-                await store.revoke(grantsToRevoke)
+                do { try await store.revoke(grantsToRevoke) }
+                catch {
+                    Self.logger.error("grant revocation persistence failed; restart remains blocked: \(String(describing: error), privacy: .public)")
+                }
             }
         }
         MobileHostService.shared.updateNextTransportRoute(nil)

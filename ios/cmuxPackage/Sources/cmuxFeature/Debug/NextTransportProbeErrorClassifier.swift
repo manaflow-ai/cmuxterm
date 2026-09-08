@@ -35,8 +35,7 @@ struct NextTransportProbeErrorClassifier: Sendable {
         {
             return true
         }
-        let message = message.lowercased()
-        return message.contains("method not found") || message.contains("unknown method")
+        return false
     }
 }
 #endif

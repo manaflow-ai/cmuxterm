@@ -219,7 +219,7 @@ extension NextTransportDialClient {
     /// Between attempts, never reuse a stale address list: the facade's
     /// refresher re-mints the pair over the legacy channel when it is
     /// reachable, or re-reads the persisted bootstrap otherwise.
-    private func refreshHints() async {
+    func refreshHints() async {
         guard let refresher = hintRefresher else { return }
         guard let hints = await refresher() else {
             log("hint refresh unavailable; reusing stored addrs (may be stale)")
@@ -229,9 +229,7 @@ extension NextTransportDialClient {
             let parsed = try Self.parseConfiguration(
                 ticketJSON: hints.ticketJSON, grantJSON: hints.grantJSON,
                 identity: identity)
-            let attempt = dialAttemptIndex
-            commit(parsed)
-            dialAttemptIndex = attempt  // still a reconnect, not a first dial
+            updateHints(parsed)
             log(
                 hints.fresh
                     ? "dial hints re-minted over legacy"

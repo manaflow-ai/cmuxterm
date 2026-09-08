@@ -1653,7 +1653,8 @@ class TerminalController {
             // Socket parity with the phone RPC dispatcher, so tooling can
             // preflight the graduation bootstrap without a device.
             return v2AsyncResultCall(id: request.id, timeoutSeconds: 15) {
-                await self.v2MobileNextTransportPair(params: request.params)
+                await self.v2MobileNextTransportPair(
+                    params: request.params, authorization: .localControlSocket)
             }
         #endif
         case "mobile.terminal.set_font":
@@ -15107,7 +15108,7 @@ class TerminalController {
         case "mobile.next_transport.pair":
             result = v2MobileNextTransportPair(
                 params: request.params,
-                executionContext: executionContext
+                authorization: executionContext.map(NextTransportPairAuthorization.mobileRPC)
             )
 #endif
         case "mobile.attach_ticket.create":
