@@ -46,4 +46,46 @@ struct AppDelegateFullScreenFrameRestoreTests {
         #expect(screen.visibleFrame.contains(window.frame))
         #expect(window.frame.maxY <= screen.visibleFrame.maxY)
     }
+
+    @Test(.enabled(
+        if: !NSScreen.screens.isEmpty,
+        "No screen is available for fullscreen frame fitting"
+    ))
+    func nativeFullscreenReconnectFrameFitsTheDisplayItLandedOn() throws {
+        _ = NSApplication.shared
+        let screen = try #require(NSScreen.main ?? NSScreen.screens.first)
+        let display = AppDelegate.SessionDisplayGeometry(
+            displayID: screen.cmuxDisplayID,
+            stableID: screen.cmuxStableDisplayKey ?? "test-display",
+            frame: screen.frame,
+            visibleFrame: screen.visibleFrame
+        )
+        let window = CmuxMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        defer {
+            window.orderOut(nil)
+            window.close()
+        }
+
+        window.styleMask.insert(.fullScreen)
+        let staleFrame = NSRect(
+            x: screen.frame.minX,
+            y: screen.frame.minY - 286,
+            width: screen.frame.width,
+            height: max(200, screen.visibleFrame.height - 13)
+        )
+        window.setFrame(staleFrame, display: false)
+
+        MainWindowVisibleFrameFitRescue().performFitIfNeeded(
+            displays: [display],
+            windows: [window]
+        )
+
+        #expect(window.frame == screen.visibleFrame)
+    }
 }
