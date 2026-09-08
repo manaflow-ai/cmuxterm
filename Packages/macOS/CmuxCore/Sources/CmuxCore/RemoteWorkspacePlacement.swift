@@ -1,6 +1,6 @@
 /// Layout coordinates for one placement in a remote workspace snapshot.
-public struct RemoteWorkspacePlacement: Sendable {
-    /// Stable daemon screen identity, when supplied by the provider.
+public nonisolated struct RemoteWorkspacePlacement: Sendable {
+    /// Stable daemon screen identity; nil and empty values fall back to the screen index.
     public let screenID: String?
     /// Stable daemon pane identity; nil and empty values denote pane-less placements.
     public let paneID: String?

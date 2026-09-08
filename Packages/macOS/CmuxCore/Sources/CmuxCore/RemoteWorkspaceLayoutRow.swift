@@ -1,5 +1,5 @@
 /// Indices into the original placement array for one pane and its hidden tabs.
-public struct RemoteWorkspaceLayoutRow: Equatable, Sendable {
+public nonisolated struct RemoteWorkspaceLayoutRow: Equatable, Sendable {
     /// Source-array index of the tab shown by the pane.
     public let shownIndex: Int
     /// Source-array indices of the remaining tabs, in tab order.

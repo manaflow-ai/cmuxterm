@@ -6,12 +6,18 @@
 /// Grouping is linear in placement count. Ordering costs
 /// O(K log K + sum(T log T) + L log L) for K panes, T tabs per pane,
 /// and L pane-less placements; no artificial limit drops user-owned records.
-public struct RemoteWorkspaceLayout: Sendable {
+public nonisolated struct RemoteWorkspaceLayout: Sendable {
     /// Pane rows followed by pane-less resources, expressed as source-array indices.
     public let rows: [RemoteWorkspaceLayoutRow]
 
+    private enum ScreenIdentity: Hashable {
+        case id(String)
+        case index(Int)
+        case unknown
+    }
+
     private struct PaneKey: Hashable {
-        let screenID: String
+        let screen: ScreenIdentity
         let paneID: String
     }
 
@@ -30,7 +36,15 @@ public struct RemoteWorkspaceLayout: Sendable {
                 loose.append(index)
                 continue
             }
-            let key = PaneKey(screenID: placement.screenID ?? "", paneID: paneID)
+            let screen: ScreenIdentity
+            if let screenID = placement.screenID, !screenID.isEmpty {
+                screen = .id(screenID)
+            } else if let screenIndex = placement.screenIndex {
+                screen = .index(screenIndex)
+            } else {
+                screen = .unknown
+            }
+            let key = PaneKey(screen: screen, paneID: paneID)
             if let paneIndex = paneIndexByKey[key] {
                 panes[paneIndex].tabIndices.append(index)
             } else {

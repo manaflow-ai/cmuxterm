@@ -1368,9 +1368,9 @@ struct CmuxTuiSnapshotParser: Sendable {
         // rather than tab arrival order.
         var indexOfScreen: [String: Int] = [:]
         var paneOrderOfPane: [String: Int] = [:]
-        for screen in screensRaw {
+        for (screenOffset, screen) in screensRaw.enumerated() {
             guard let id = screen["id"] as? String else { continue }
-            indexOfScreen[id] = integer(screen["index"])
+            indexOfScreen[id] = integer(screen["index"]) ?? screenOffset
             for (paneID, position) in layoutPaneOrder(fromLayout: screen["layout"]) {
                 paneOrderOfPane[paneID] = position
             }

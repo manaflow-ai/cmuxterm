@@ -1,7 +1,7 @@
 public import Foundation
 
 /// Pane positions decoded from a daemon screen's leaf/split/stack/viewport layout.
-public struct RemoteWorkspacePaneOrder: Sendable {
+public nonisolated struct RemoteWorkspacePaneOrder: Sendable {
     /// First-occurrence pane positions; absent panes have no invented position.
     public let positions: [String: Int]
 
