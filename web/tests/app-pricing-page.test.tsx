@@ -114,6 +114,28 @@ describe("app pricing page", () => {
     expect(html).not.toContain("/api/billing/portal");
   });
 
+  test("forwards the Mac app's checkout attribution to every checkout link", async () => {
+    const element = await AppPricingPage({
+      searchParams: Promise.resolve({
+        cmux_app: "1",
+        cmux_scheme: "cmux-dev-test",
+        cmux_source: "mac_help_menu",
+        cmux_client: "mac",
+        cmux_channel: "nightly",
+        cmux_app_version: "0.65.1",
+        cmux_app_build: "2026090101",
+      }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain(
+      "http://localhost:9210/api/billing/checkout?plan=pro&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=month&amp;cmux_source=mac_help_menu&amp;cmux_client=mac&amp;cmux_channel=nightly&amp;cmux_app_version=0.65.1&amp;cmux_app_build=2026090101&amp;cmux_placement=app_pricing",
+    );
+    expect(html).toContain(
+      "http://localhost:9210/api/billing/checkout?plan=team&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=month&amp;cmux_source=mac_help_menu&amp;cmux_client=mac&amp;cmux_channel=nightly&amp;cmux_app_version=0.65.1&amp;cmux_app_build=2026090101&amp;cmux_placement=app_pricing",
+    );
+  });
+
   test("renders signed-out recovery without claiming Free is the current plan", async () => {
     const element = await AppPricingPage({
       searchParams: Promise.resolve({
@@ -172,10 +194,10 @@ describe("app pricing page", () => {
     expect(html).not.toContain("$480/year");
     expect(html).not.toContain("$576/user/year");
     expect(html).toContain(
-      "http://localhost:9210/api/billing/checkout?plan=pro&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=year",
+      "http://localhost:9210/api/billing/checkout?plan=pro&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=year&amp;cmux_source=app_pricing&amp;cmux_client=mac&amp;cmux_placement=app_pricing",
     );
     expect(html).toContain(
-      "http://localhost:9210/api/billing/checkout?plan=team&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=year",
+      "http://localhost:9210/api/billing/checkout?plan=team&amp;cmux_external_browser=1&amp;cmux_scheme=cmux-dev-test&amp;interval=year&amp;cmux_source=app_pricing&amp;cmux_client=mac&amp;cmux_placement=app_pricing",
     );
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain('<button type="button" role="radio" aria-checked="true"');
