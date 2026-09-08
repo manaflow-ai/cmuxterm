@@ -261,8 +261,70 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         let context = try XCTUnwrap(appDelegate.mainWindowContexts.values.first { $0.windowId == windowId })
         let menu = try XCTUnwrap(appDelegate.makeNewWorkspaceContextMenu(context: context, cmuxConfigStore: store))
         let rows = builtInMenuRows(menu)
-        XCTAssertEqual(rows.prefix(2).map(\.action), [.newTerminal, .newCloudWorkspace])
-        XCTAssertEqual(rows[1].item.keyEquivalent, "y")
+        // Missing standard rows lead in standard order; the configured rows
+        // follow in the order the config gave them.
+        XCTAssertEqual(rows.prefix(4).map(\.action), [.newWorkspace, .newBrowser, .newTerminal, .newCloudWorkspace])
+        XCTAssertEqual(rows[3].item.keyEquivalent, "y")
+        let separatorIndex = try XCTUnwrap(menu.items.firstIndex { $0.isSeparatorItem })
+        let terminalIndex = try XCTUnwrap(menu.items.firstIndex { $0 === rows[2].item })
+        XCTAssertLessThan(separatorIndex, terminalIndex)
+    }
+
+    func testConfiguredMenuWithoutWorkspaceRowsStillLeadsWithThem() throws {
+        setCloudMachinesEnabled(true)
+        let (store, root) = try loadStore(globalJSON: """
+        {
+          "actions": {
+            "start-codex": { "type": "command", "command": "codex", "title": "Start Codex" }
+          },
+          "ui": { "newWorkspace": { "contextMenu": [
+            { "action": "cmux.newTerminal", "title": "New Terminal" },
+            { "action": "cmux.newBrowser", "title": "New Browser" },
+            { "type": "separator" },
+            { "action": "start-codex", "title": "Start Codex" }
+          ] } }
+        }
+        """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertTrue(store.configurationIssues.isEmpty)
+        let appDelegate = try XCTUnwrap(AppDelegate.shared)
+        let tabManager = TabManager()
+        let windowId = appDelegate.registerMainWindowContextForTesting(tabManager: tabManager, cmuxConfigStore: store)
+        defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
+        let context = try XCTUnwrap(appDelegate.mainWindowContexts.values.first { $0.windowId == windowId })
+        let menu = try XCTUnwrap(appDelegate.makeNewWorkspaceContextMenu(context: context, cmuxConfigStore: store))
+        let titles = menu.items.map { $0.isSeparatorItem ? "—" : $0.title }
+        XCTAssertEqual(Array(titles.prefix(6)), [
+            String(localized: "command.newWorkspace.title", defaultValue: "New Workspace"),
+            String(localized: "command.newCloudWorkspace.title", defaultValue: "New Cloud Workspace"),
+            "—",
+            "New Terminal",
+            "New Browser",
+            "—",
+        ])
+        XCTAssertTrue(titles.contains("Start Codex"))
+        XCTAssertEqual(builtInMenuRows(menu).filter { $0.action == .newTerminal }.count, 1)
+    }
+
+    func testStandardRowOptsOutWithNewWorkspaceMenuFalse() throws {
+        setCloudMachinesEnabled(true)
+        let (store, root) = try loadStore(globalJSON: """
+        {
+          "actions": { "cmux.newCloudWorkspace": { "newWorkspaceMenu": false } },
+          "ui": { "newWorkspace": { "contextMenu": ["cmux.newTerminal"] } }
+        }
+        """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertTrue(store.configurationIssues.isEmpty, "\(store.configurationIssues)")
+        let appDelegate = try XCTUnwrap(AppDelegate.shared)
+        let tabManager = TabManager()
+        let windowId = appDelegate.registerMainWindowContextForTesting(tabManager: tabManager, cmuxConfigStore: store)
+        defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
+        let context = try XCTUnwrap(appDelegate.mainWindowContexts.values.first { $0.windowId == windowId })
+        let menu = try XCTUnwrap(appDelegate.makeNewWorkspaceContextMenu(context: context, cmuxConfigStore: store))
+        let actions = builtInMenuRows(menu).map(\.action)
+        XCTAssertFalse(actions.contains(.newCloudWorkspace))
+        XCTAssertEqual(actions.prefix(3).map { $0 }, [.newWorkspace, .newBrowser, .newTerminal])
     }
 
     // MARK: Shared action path

@@ -81,6 +81,7 @@ extension AppDelegate {
                       case .builtIn(let builtIn) = menuAction.action.action else { return true }
                 return Self.isBuiltInActionAvailableInNewWorkspaceMenu(builtIn)
             },
+            standardCreateActions: resolvedStandardNewWorkspaceMenuActions(cmuxConfigStore: cmuxConfigStore),
             agentChatAction: resolvedBuiltInNewAgentChatAction(cmuxConfigStore: cmuxConfigStore),
             templateNames: savedLayoutNames(),
             loadedActions: cmuxConfigStore.loadedActions,
@@ -115,6 +116,35 @@ extension AppDelegate {
         }
     }
 
+    /// The rows every plus menu carries, in this order, whether or not
+    /// `ui.newWorkspace.contextMenu` is configured. A row the config lists
+    /// itself is skipped here so the config's title, icon, and position win;
+    /// `newWorkspaceMenu: false` on the action id opts a row out; feature
+    /// gates (Cloud Machines, browser) apply at open time.
+    static let standardNewWorkspaceMenuActions: [CmuxSurfaceTabBarBuiltInAction] = [
+        .newWorkspace, .newCloudWorkspace, .newTerminal, .newBrowser,
+    ]
+
+    func resolvedStandardNewWorkspaceMenuActions(
+        cmuxConfigStore: CmuxConfigStore
+    ) -> [CmuxResolvedConfigAction] {
+        let configuredActionIDs = configuredNewWorkspaceMenuActionIDs(cmuxConfigStore: cmuxConfigStore)
+        return Self.standardNewWorkspaceMenuActions.compactMap { builtIn in
+            guard Self.isBuiltInActionAvailableInNewWorkspaceMenu(builtIn) else { return nil }
+            let action = cmuxConfigStore.resolvedAction(id: builtIn.configID) ?? .builtIn(builtIn)
+            guard action.newWorkspaceMenu != false,
+                  !configuredActionIDs.contains(action.id) else { return nil }
+            return action
+        }
+    }
+
+    private func configuredNewWorkspaceMenuActionIDs(cmuxConfigStore: CmuxConfigStore) -> Set<String> {
+        Set(cmuxConfigStore.newWorkspaceContextMenuItems.compactMap { item -> String? in
+            guard case .action(let menuAction) = item else { return nil }
+            return menuAction.action.id
+        })
+    }
+
     private func savedLayoutNames() -> [String] {
         ((try? SavedLayoutStore().list()) ?? []).map(\.name)
     }
@@ -145,11 +175,7 @@ extension AppDelegate {
         cmuxConfigStore: CmuxConfigStore
     ) -> Bool {
         if action.newWorkspaceMenu == false { return false }
-        let configuredActionIDs = Set(cmuxConfigStore.newWorkspaceContextMenuItems.compactMap { item -> String? in
-            guard case .action(let menuAction) = item else { return nil }
-            return menuAction.action.id
-        })
-        if configuredActionIDs.contains(actionID) { return false }
+        if configuredNewWorkspaceMenuActionIDs(cmuxConfigStore: cmuxConfigStore).contains(actionID) { return false }
         return true
     }
 
