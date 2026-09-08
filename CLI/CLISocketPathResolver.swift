@@ -532,7 +532,7 @@ struct CLISocketPathResolver {
     ) -> SocketProbeResult {
         withConnectedSocket(at: path, timeout: timeout) { fileDescriptor, deadline in
             guard writeAll(Data("ping\n".utf8), to: fileDescriptor, until: deadline) else {
-                return .notCmux
+                return .indeterminate
             }
             guard let response = readFirstLine(from: fileDescriptor, until: deadline) else {
                 return .indeterminate
@@ -548,7 +548,7 @@ struct CLISocketPathResolver {
         withConnectedSocket(at: path, timeout: timeout) { fileDescriptor, deadline in
             let payload = #"{"id":1,"method":"system.ping","params":{}}"# + "\n"
             guard writeAll(Data(payload.utf8), to: fileDescriptor, until: deadline) else {
-                return .notCmux
+                return .indeterminate
             }
             guard let response = readFirstLine(from: fileDescriptor, until: deadline) else {
                 return .indeterminate
