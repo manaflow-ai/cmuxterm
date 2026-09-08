@@ -237,6 +237,7 @@
 		A79840020000000000000002 /* AppDelegate+SocketConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79840020000000000000001 /* AppDelegate+SocketConfiguration.swift */; };
 		A10557010000000000000001 /* AppDelegate+TerminalConfigurationApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10557010000000000000002 /* AppDelegate+TerminalConfigurationApply.swift */; };
 		D5AAB5856FF095F610EB565C /* AppDelegate+VisibleGlobalSearchShortcutRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AAB5856FF095F610EB565D /* AppDelegate+VisibleGlobalSearchShortcutRouting.swift */; };
+		D11228000000000000000008 /* AppDelegate+WindowDisplayPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11228000000000000000007 /* AppDelegate+WindowDisplayPlacement.swift */; };
 		DCDC1000000000000000C030 /* AppDelegate+WindowDock.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDC1000000000000000C031 /* AppDelegate+WindowDock.swift */; };
 		4805E1513D104D02B52A9807 /* AppDelegate+WindowFramePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4085E612770476FA272C012 /* AppDelegate+WindowFramePolicy.swift */; };
 		895500000000000000000005 /* AppDelegate+WindowFrameRestoration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895500000000000000000006 /* AppDelegate+WindowFrameRestoration.swift */; };
@@ -3702,6 +3703,7 @@
 		A79840020000000000000001 /* AppDelegate+SocketConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+SocketConfiguration.swift"; sourceTree = "<group>"; };
 		A10557010000000000000002 /* AppDelegate+TerminalConfigurationApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+TerminalConfigurationApply.swift"; sourceTree = "<group>"; };
 		D5AAB5856FF095F610EB565D /* AppDelegate+VisibleGlobalSearchShortcutRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/AppDelegate+VisibleGlobalSearchShortcutRouting.swift"; sourceTree = "<group>"; };
+		D11228000000000000000007 /* AppDelegate+WindowDisplayPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WindowDisplayPlacement.swift"; sourceTree = "<group>"; };
 		DCDC1000000000000000C031 /* AppDelegate+WindowDock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WindowDock.swift"; sourceTree = "<group>"; };
 		B4085E612770476FA272C012 /* AppDelegate+WindowFramePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WindowFramePolicy.swift"; sourceTree = "<group>"; };
 		895500000000000000000006 /* AppDelegate+WindowFrameRestoration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+WindowFrameRestoration.swift"; sourceTree = "<group>"; };
@@ -8310,6 +8312,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				F4350A130000000000000001 /* AppBundleIconPersistencePolicy.swift */,
 				D1320AA0D1320AA0D1320AA4 /* AppIconDockTilePlugin.swift */,
 				A5001090 /* AppDelegate.swift */,
+				D11228000000000000000007 /* AppDelegate+WindowDisplayPlacement.swift */,
 				7A0CE1000000000000000019 /* AppDelegate+CloudTunnel.swift */,
 				C51A740000000000000000A2 /* AppDelegate+SimulatorShortcutRouting.swift */,
 				D35B00000000000000000011 /* TerminalController+BrowserDesignMode.swift */,
@@ -10989,6 +10992,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A79840020000000000000002 /* AppDelegate+SocketConfiguration.swift in Sources */,
 				A10557010000000000000001 /* AppDelegate+TerminalConfigurationApply.swift in Sources */,
 				D5AAB5856FF095F610EB565C /* AppDelegate+VisibleGlobalSearchShortcutRouting.swift in Sources */,
+				D11228000000000000000008 /* AppDelegate+WindowDisplayPlacement.swift in Sources */,
 				DCDC1000000000000000C030 /* AppDelegate+WindowDock.swift in Sources */,
 				4805E1513D104D02B52A9807 /* AppDelegate+WindowFramePolicy.swift in Sources */,
 				895500000000000000000005 /* AppDelegate+WindowFrameRestoration.swift in Sources */,
