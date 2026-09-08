@@ -2479,7 +2479,7 @@ typealias ClosedBrowserPanelRestoreSnapshot = CmuxBrowser.ClosedBrowserPanelRest
 
 /// A cloud machine bound to a workspace through the cmux-tui remote daemon
 /// (`cmux vm shell`/`vm new`/`vm base open`). See `Workspace.cloudVMBinding`.
-nonisolated struct WorkspaceCloudVMBinding: Equatable, Sendable {
+struct WorkspaceCloudVMBinding: Equatable, Sendable {
     let vmID: String
     /// Base is the single persistent cloud workspace the sidebar cloud button reuses.
     let isBase: Bool
