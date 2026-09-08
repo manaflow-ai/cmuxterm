@@ -43,9 +43,19 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         // AXDescription (XCUIElement.label). Keep both attributes in the query
         // so it follows the visible grouping across supported macOS versions.
         let groupings = ["Date", "Workspace", "Window", "Agent", "Type"]
-        let picker = app.menuButtons.matching(
+        // SwiftUI exposes Menu with different XCUI roles across supported
+        // macOS/Xcode combinations. Prefer the stable identifier from the
+        // production view, then retain the title/label fallback for older
+        // accessibility bridges.
+        let identifiedPicker = app.descendants(matching: .any)[
+            "VaultHistoryGroupPicker"
+        ].firstMatch
+        let titledPicker = app.menuButtons.matching(
             NSPredicate(format: "title IN %@ OR label IN %@", groupings, groupings)
         ).firstMatch
+        let picker = identifiedPicker.waitForExistence(timeout: 3)
+            ? identifiedPicker
+            : titledPicker
         XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
