@@ -45,6 +45,7 @@ final class BrowserReliabilityRegressionUITests: BrowserFixtureSocketTestCase {
             responseTimeout: 15
         )
         defer { closePendingSocketRequest(pendingNavigation) }
+        server.expectRequest(path: "/recovered")
         try server.waitForRequest()
         let returnedBeforeResponseRelease = pendingSocketResponseIsReady(pendingNavigation)
         try server.releaseResponse()
@@ -181,6 +182,7 @@ final class BrowserReliabilityRegressionUITests: BrowserFixtureSocketTestCase {
             _ server: BrowserRecoveryHTTPServer,
             path: String
         ) throws {
+            server.expectRequest(path: path)
             let request = try beginPendingSocketRequest(
                 method: "browser.navigate",
                 params: [

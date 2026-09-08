@@ -21,8 +21,8 @@ final class BrowserRecoveryHTTPServer {
     private let queue = DispatchQueue(label: "cmux.browser.recovery-http-server")
     private let stateLock = NSLock()
     private let requestSignal = DispatchSemaphore(value: 0)
-    private var hasReceivedFirstRequest = false
     private var heldConnection: NWConnection?
+    private var expectedPath: String?
     private var isStarted = false
 
     init() throws {
@@ -88,6 +88,16 @@ final class BrowserRecoveryHTTPServer {
         }
     }
 
+    /// Arms the next matching HTTP path to be held until `releaseResponse()`.
+    /// Browser engines may issue favicon or other follow-up requests around a
+    /// document navigation; those requests are answered immediately instead of
+    /// consuming the synchronization signal for the navigation under test.
+    func expectRequest(path: String) {
+        stateLock.lock()
+        expectedPath = path
+        stateLock.unlock()
+    }
+
     func releaseResponse() throws {
         stateLock.lock()
         let connection = heldConnection
@@ -132,10 +142,12 @@ final class BrowserRecoveryHTTPServer {
                 return
             }
 
+            let requestPath = Self.requestPath(from: nextBuffer)
             self.stateLock.lock()
-            let shouldHold = !self.hasReceivedFirstRequest
+            let shouldHold = self.heldConnection == nil
+                && self.expectedPath == requestPath
             if shouldHold {
-                self.hasReceivedFirstRequest = true
+                self.expectedPath = nil
                 self.heldConnection = connection
             }
             self.stateLock.unlock()
@@ -158,6 +170,16 @@ final class BrowserRecoveryHTTPServer {
                 connection.cancel()
             }
         )
+    }
+
+    private static func requestPath(from data: Data) -> String? {
+        guard let request = String(data: data, encoding: .utf8),
+              let requestLine = request.split(separator: "\r\n", maxSplits: 1).first
+        else { return nil }
+        return requestLine.split(separator: " ", omittingEmptySubsequences: true)
+            .dropFirst()
+            .first
+            .map(String.init)
     }
 
     private static func availablePort() throws -> UInt16 {
