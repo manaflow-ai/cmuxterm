@@ -413,9 +413,11 @@ def test_native_hook_and_feed_share_journal_identity(cli_path: str, root: Path) 
     _, hook_frames, _ = run_feed_hook_capture(
         cli_path, root / "cmux-native-hook.sock", "PermissionRequest", payload=payload,
         generic_subcommand="notification", environment={"CMUX_AGENT_HOOK_STATE_DIR": str(state_dir)},
+        surface_delivery_target=(FAKE_WORKSPACE_ID, FAKE_SURFACE_ID),
     )
     _, feed_frames, _ = run_feed_hook_capture(
         cli_path, root / "cmux-native-feed.sock", "PermissionRequest", payload=payload,
+        surface_delivery_target=(FAKE_WORKSPACE_ID, FAKE_SURFACE_ID),
     )
     for frames in (hook_frames, feed_frames):
         views = notification_views(frames)
