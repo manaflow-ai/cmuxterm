@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CMUXMobileCore
 
 @testable import CmuxIrxTransport
 
@@ -182,6 +183,27 @@ import Testing
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(gate.dialCount >= 2)
+        await engine.stop()
+    }
+
+    @Test func rateLimitedDialDoesNotRedialBeforeServerDeadline() async throws {
+        let journal = IrxJournal(subsystem: "test", category: "retry-after", journalFileURL: nil)
+        let gate = DialGate()
+        let engine = IrxPeerEngine(
+            config: .init(initialBackoff: .milliseconds(10), maxBackoff: .milliseconds(20)),
+            journal: journal,
+            label: "test"
+        ) {
+            gate.dialStarted()
+            throw CmxRateLimitedError(retryAfterSeconds: 1)
+        }
+
+        await engine.warmUp(trigger: "test-rate-limit")
+        for _ in 0..<100 where gate.dialCount == 0 {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(gate.dialCount == 1)
         await engine.stop()
     }
 }
