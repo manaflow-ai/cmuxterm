@@ -6,7 +6,7 @@
 /// Grouping is linear in placement count. Ordering costs
 /// O(K log K + sum(T log T) + L log L) for K panes, T tabs per pane,
 /// and L pane-less placements; no artificial limit drops user-owned records.
-public nonisolated struct RemoteWorkspaceLayout: Sendable {
+public struct RemoteWorkspaceLayout: Sendable {
     /// Pane rows followed by pane-less resources, expressed as source-array indices.
     public let rows: [RemoteWorkspaceLayoutRow]
 
@@ -27,7 +27,7 @@ public nonisolated struct RemoteWorkspaceLayout: Sendable {
     }
 
     /// Plans a snapshot without retaining application objects or mutable global state.
-    public init(placements: [RemoteWorkspacePlacement]) {
+    public nonisolated init(placements: [RemoteWorkspacePlacement]) {
         var panes: [Pane] = []
         var paneIndexByKey: [PaneKey: Int] = [:]
         var loose: [Int] = []

@@ -1,5 +1,5 @@
 /// Layout coordinates for one placement in a remote workspace snapshot.
-public nonisolated struct RemoteWorkspacePlacement: Sendable {
+public struct RemoteWorkspacePlacement: Sendable {
     /// Stable daemon screen identity; nil and empty values fall back to the screen index.
     public let screenID: String?
     /// Stable daemon pane identity; nil and empty values denote pane-less placements.
@@ -16,7 +16,7 @@ public nonisolated struct RemoteWorkspacePlacement: Sendable {
     public let kindOrder: Int
 
     /// Keeps missing coordinates distinct from real positions for legacy snapshots.
-    public init(
+    public nonisolated init(
         screenID: String? = nil,
         paneID: String? = nil,
         screenIndex: Int? = nil,

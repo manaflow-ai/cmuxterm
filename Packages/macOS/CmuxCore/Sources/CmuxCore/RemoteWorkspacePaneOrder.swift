@@ -1,12 +1,12 @@
 public import Foundation
 
 /// Pane positions decoded from a daemon screen's leaf/split/stack/viewport layout.
-public nonisolated struct RemoteWorkspacePaneOrder: Sendable {
+public struct RemoteWorkspacePaneOrder: Sendable {
     /// First-occurrence pane positions; absent panes have no invented position.
     public let positions: [String: Int]
 
     /// Reads a layout document, preserving first occurrence and ignoring unknown nodes.
-    public init(document: Any?) {
+    public nonisolated init(document: Any?) {
         var positions: [String: Int] = [:]
         func record(_ value: Any?) {
             guard let value = value as? String else { return }
@@ -33,7 +33,7 @@ public nonisolated struct RemoteWorkspacePaneOrder: Sendable {
     }
 
     /// Uses the same decoder for opaque incremental screen-layout payloads.
-    public init(data: Data?) {
+    public nonisolated init(data: Data?) {
         self.init(document: data.flatMap { try? JSONSerialization.jsonObject(with: $0) })
     }
 }
