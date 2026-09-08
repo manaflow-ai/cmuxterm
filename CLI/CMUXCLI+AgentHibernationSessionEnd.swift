@@ -43,6 +43,12 @@ extension ClaudeHookSessionRecord {
             pidStartSeconds = startIdentity.seconds
             pidStartMicroseconds = startIdentity.microseconds
         } else if previousPID != pid {
+            if let previousGeneration {
+                var priorGenerations = priorProcessGenerations ?? []
+                priorGenerations.removeAll { $0 == previousGeneration }
+                priorGenerations.insert(previousGeneration, at: 0)
+                priorProcessGenerations = Array(priorGenerations.prefix(4))
+            }
             pidStartSeconds = nil
             pidStartMicroseconds = nil
         }

@@ -48,6 +48,16 @@ struct ClaudeHookHibernationGenerationHistoryTests {
         #expect(result.status == 0)
         #expect(result.stdout == "{}\n")
         let commands = context.state.snapshot()
+        let request = try #require(commands.compactMap { line -> [String: Any]? in
+            guard let data = line.data(using: .utf8),
+                  let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  payload["method"] as? String == "agent.hibernation.session_end" else { return nil }
+            return payload
+        }.first)
+        let params = try #require(request["params"] as? [String: Any])
+        #expect((params["pid"] as? NSNumber)?.intValue == 43219)
+        #expect((params["pid_start_seconds"] as? NSNumber)?.int64Value == 17)
+        #expect((params["pid_start_microseconds"] as? NSNumber)?.int64Value == 23)
         #expect(!commands.contains { $0.contains("\"method\":\"surface.resume.clear\"") })
         #expect(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionID) != nil)
     }
