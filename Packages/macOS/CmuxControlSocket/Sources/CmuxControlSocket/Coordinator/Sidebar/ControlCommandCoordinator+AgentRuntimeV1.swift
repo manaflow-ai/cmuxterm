@@ -1,4 +1,4 @@
-public import Foundation
+import Foundation
 
 /// The v1 sidebar metadata commands (`set_status` / `report_meta` /
 /// `report_meta_block` / agent PID + lifecycle / `log` / `set_progress` and

@@ -1,63 +1,5 @@
 import Foundation
-
-/// Admission result for one pane-scoped agent runtime mutation.
-struct AgentRuntimeMutationOrderingDecision {
-    let isAccepted: Bool
-    let retainedEventTime: TimeInterval?
-}
-
-struct AgentRuntimeMutationOrdering {
-    static func decision(
-        statusKey: String,
-        lifecycleEventTime: TimeInterval?,
-        statusEventTime: TimeInterval?,
-        replacementWatermark: TimeInterval?,
-        hasLifecycleState _: Bool,
-        agentEventTime: TimeInterval?,
-        enforceOrdering: Bool,
-        isLifecycleMutation _: Bool
-    ) -> AgentRuntimeMutationOrderingDecision {
-        guard enforceOrdering else {
-            return AgentRuntimeMutationOrderingDecision(
-                isAccepted: true,
-                retainedEventTime: nil
-            )
-        }
-        guard let agentEventTime else {
-            return AgentRuntimeMutationOrderingDecision(
-                isAccepted: false,
-                retainedEventTime: nil
-            )
-        }
-        if let replacementWatermark {
-            guard agentEventTime > replacementWatermark else {
-                return AgentRuntimeMutationOrderingDecision(
-                    isAccepted: false,
-                    retainedEventTime: nil
-                )
-            }
-        }
-        if let orderingWatermark = [lifecycleEventTime, statusEventTime]
-            .compactMap({ $0 })
-            .max() {
-            guard agentEventTime >= orderingWatermark else {
-                return AgentRuntimeMutationOrderingDecision(
-                    isAccepted: false,
-                    retainedEventTime: nil
-                )
-            }
-        }
-        // Only the bounded built-in agent keys retain a durable watermark.
-        // Dynamically registered/custom lifecycle IDs are unbounded and must
-        // not accumulate per-panel timestamps after their state is cleared.
-        let retainsDurableLifecycleWatermark =
-            AgentHibernationLifecycleStatusKeys.allowedStatusKeys.contains(statusKey)
-        return AgentRuntimeMutationOrderingDecision(
-            isAccepted: true,
-            retainedEventTime: retainsDurableLifecycleWatermark ? agentEventTime : nil
-        )
-    }
-}
+import CmuxWorkspaces
 
 /// Ordered teardown for agent runtime state shared by socket and internal cleanup paths.
 extension Workspace {
@@ -150,15 +92,14 @@ extension Workspace {
                 excludingStatusKey: statusKey
             )
             : nil
-        let decision = AgentRuntimeMutationOrdering.decision(
-            statusKey: statusKey,
+        let decision = AgentRuntimeMutationAdmission(
             lifecycleEventTime: lifecycleEventTime,
             statusEventTime: statusEventTime,
             replacementWatermark: replacementWatermark,
-            hasLifecycleState: agentLifecycleStatesByPanelId[panelId]?[statusKey] != nil,
             agentEventTime: agentEventTime,
             enforceOrdering: true,
-            isLifecycleMutation: isLifecycleMutation
+            // Custom lifecycle IDs are unbounded; only built-ins retain tombstones.
+            retainAcceptedEventTime: AgentHibernationLifecycleStatusKeys.allowedStatusKeys.contains(statusKey)
         )
         guard decision.isAccepted else { return false }
         if let retainedEventTime = decision.retainedEventTime {

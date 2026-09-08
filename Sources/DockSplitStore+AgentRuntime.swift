@@ -338,15 +338,13 @@ extension DockSplitStore {
         } else {
             replacementWatermark = nil
         }
-        let decision = AgentRuntimeMutationOrdering.decision(
-            statusKey: statusKey,
+        let decision = AgentRuntimeMutationAdmission(
             lifecycleEventTime: runtime.agentLifecycleEventTimes[statusKey],
             statusEventTime: runtime.statusEntries[statusKey]?.agentEventTime,
             replacementWatermark: replacementWatermark,
-            hasLifecycleState: runtime.agentLifecycleStates[statusKey] != nil,
             agentEventTime: agentEventTime,
             enforceOrdering: enforceOrdering,
-            isLifecycleMutation: isLifecycleMutation
+            retainAcceptedEventTime: AgentHibernationLifecycleStatusKeys.allowedStatusKeys.contains(statusKey)
         )
         guard decision.isAccepted else { return false }
         if let retainedEventTime = decision.retainedEventTime,

@@ -54,7 +54,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
                 + "--panel=\(panelID.uuidString) --agent-event-time=4102444801"
         )
 
-        #expect(response.hasPrefix("ERROR: Invalid agent event time"))
+        #expect(response?.hasPrefix("ERROR: Invalid agent event time") == true)
         #expect(context.statusClearCall == nil)
         #expect(context.agentPIDClearCall == nil)
     }
@@ -68,7 +68,7 @@ struct ControlCommandCoordinatorSidebarV1Tests {
             args: "codex Running --tab=\(UUID().uuidString) --agent-event-time="
         )
 
-        #expect(response.hasPrefix("ERROR: Invalid agent event time"))
+        #expect(response?.hasPrefix("ERROR: Invalid agent event time") == true)
     }
 
     @Test func workspaceLoadingFailureReasonReturnsErrorLine() {

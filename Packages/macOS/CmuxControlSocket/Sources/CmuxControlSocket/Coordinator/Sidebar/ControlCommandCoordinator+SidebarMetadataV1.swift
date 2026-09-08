@@ -106,7 +106,7 @@ extension ControlCommandCoordinator {
         return "OK"
     }
 
-    private enum SidebarAgentEventTimeParseResult {
+    enum SidebarAgentEventTimeParseResult {
         case absent
         case valid(TimeInterval)
         case invalid(String)

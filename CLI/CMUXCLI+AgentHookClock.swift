@@ -16,7 +16,10 @@ extension CMUXCLI {
             #"{ umask 077; export LC_ALL=C; fallback_capture_time() { exit 0; }; current_uid=`/usr/bin/id -u 2>/dev/null || true`;"#,
             #"prepare_clock_dir() { clock_candidate="$1"; if /bin/mkdir "$clock_candidate" 2>/dev/null; then :; elif [ -L "$clock_candidate" ] || ! [ -d "$clock_candidate" ]; then return 1; fi; clock_uid=`/usr/bin/stat -f %u "$clock_candidate" 2>/dev/null || true`; if [ "$clock_uid" != "$current_uid" ] || ! /bin/chmod 700 "$clock_candidate" 2>/dev/null; then return 1; fi; clock_uid=`/usr/bin/stat -f %u "$clock_candidate" 2>/dev/null || true`; clock_mode=`/usr/bin/stat -f %Lp "$clock_candidate" 2>/dev/null || true`; if [ -L "$clock_candidate" ] || ! [ -d "$clock_candidate" ] || [ "$clock_uid" != "$current_uid" ] || [ "$clock_mode" != 700 ]; then return 1; fi; clock_dir="$clock_candidate"; return 0; };"#,
             #"if ! [ "$current_uid" -ge 0 ] 2>/dev/null; then fallback_capture_time; fi; fallback_clock_dir="/tmp/cmux-agent-hook-clock-v2-$current_uid"; if [ -n "${TMPDIR:-}" ]; then primary_clock_dir="${TMPDIR%/}/cmux-agent-hook-clock-v2"; else primary_clock_dir="$fallback_clock_dir"; fi; if ! prepare_clock_dir "$primary_clock_dir"; then if [ "$primary_clock_dir" = "$fallback_clock_dir" ] || ! prepare_clock_dir "$fallback_clock_dir"; then fallback_capture_time; fi; fi;"#,
-            #"lock="$clock_dir/lock"; state="$clock_dir/state"; ( exec 9>>"$lock" || exit 1; if ! /usr/bin/lockf -t 0 9; then exit 1; fi;"#,
+            // Pathname mode waits in the kernel; descriptor mode busy-spins on
+            // supported macOS releases. Bound contention below hook deadlines.
+            #"if /usr/bin/lockf -k -s -t 2 "$clock_dir/lock" /bin/sh -s -- "$clock_dir" <<'CMUX_AGENT_HOOK_CLOCK_BODY'"#,
+            #"clock_dir="$1"; state="$clock_dir/state";"#,
             #"capture_file=`/usr/bin/mktemp "$clock_dir/capture.XXXXXX" 2>/dev/null || true`; captured_at=;"#,
             #"if [ -n "$capture_file" ] && [ -f "$capture_file" ]; then captured_at=`/usr/bin/stat -f %Fm "$capture_file" 2>/dev/null || true`; /bin/unlink "$capture_file" 2>/dev/null || true; fi;"#,
             #"formatted_at=; current_micros=; if [ -n "$captured_at" ]; then formatted_at=`printf "%.6f" "$captured_at" 2>/dev/null || true`; fi;"#,
@@ -27,9 +30,11 @@ extension CMUXCLI {
             // distinct hooks into an arrival-order tie.
             #"current_micros=$(((current_micros + 999) / 1000 * 1000));"#,
             #"state_committed=0; state_tmp=`/usr/bin/mktemp "$clock_dir/.state.XXXXXX" 2>/dev/null || true`; if [ -n "$state_tmp" ] && [ -f "$state_tmp" ]; then /bin/chmod 600 "$state_tmp" 2>/dev/null || true; if printf "%s\n" "$current_micros" >"$state_tmp" && /bin/mv -f "$state_tmp" "$state" 2>/dev/null; then state_tmp=; state_committed=1; fi; if [ -n "$state_tmp" ]; then /bin/rm -f "$state_tmp" 2>/dev/null || true; fi; fi; if [ "$state_committed" != 1 ]; then exit 1; fi;"#,
-            #"seconds=$((current_micros / 1000000)); micros=$((current_micros % 1000000)); printf "%s.%06d" "$seconds" "$micros" ) && exit 0;"#,
+            #"seconds=$((current_micros / 1000000)); micros=$((current_micros % 1000000)); printf "%s.%06d" "$seconds" "$micros""#,
+            "CMUX_AGENT_HOOK_CLOCK_BODY",
+            "then exit 0; fi;",
             #"fallback_capture_time; }"#,
-        ].joined(separator: " ")
+        ].joined(separator: "\n")
     }
 
     static func timestampedAgentHookInvocation(
