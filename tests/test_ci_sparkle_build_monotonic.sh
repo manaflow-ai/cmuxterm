@@ -10,10 +10,28 @@
 #
 # If the published appcast cannot be fetched (e.g. offline CI runner), the
 # test soft-passes with a warning so it never blocks unrelated work.
+#
+# Modes (CMUX_SPARKLE_MONOTONIC_MODE):
+#   enforce (default) - a stale build number fails. Tag pushes and the local
+#                       pre-tag guard use this: they are about to publish.
+#   warn              - a stale build number is reported but does not fail.
+#                       release.yml selects this for a non-tag workflow_dispatch
+#                       dry run, which publishes nothing and is expected to run
+#                       from a branch whose build number has not been bumped yet.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT_FILE="$ROOT_DIR/cmux.xcodeproj/project.pbxproj"
+PROJECT_FILE="${CMUX_SPARKLE_PROJECT_FILE:-$ROOT_DIR/cmux.xcodeproj/project.pbxproj}"
+APPCAST_URL="${CMUX_SPARKLE_APPCAST_URL:-https://github.com/manaflow-ai/cmux/releases/latest/download/appcast.xml}"
+MODE="${CMUX_SPARKLE_MONOTONIC_MODE:-enforce}"
+
+case "$MODE" in
+  enforce|warn) ;;
+  *)
+    echo "FAIL: CMUX_SPARKLE_MONOTONIC_MODE must be 'enforce' or 'warn' (got '$MODE')" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "$PROJECT_FILE" ]]; then
   echo "FAIL: $PROJECT_FILE not found" >&2
@@ -36,7 +54,7 @@ if [[ "$MISMATCHED" != "1" ]]; then
 fi
 
 PUBLISHED_BUILD=$(curl -fsSL --max-time 15 \
-  https://github.com/manaflow-ai/cmux/releases/latest/download/appcast.xml 2>/dev/null \
+  "$APPCAST_URL" 2>/dev/null \
   | sed -n 's#.*<sparkle:version>\([0-9][0-9]*\)</sparkle:version>.*#\1#p' \
   | head -n1 || true)
 
@@ -47,6 +65,16 @@ if ! [[ "$PUBLISHED_BUILD" =~ ^[0-9]+$ ]]; then
 fi
 
 if (( LOCAL_BUILD <= PUBLISHED_BUILD )); then
+  if [[ "$MODE" == "warn" ]]; then
+    cat <<EOF
+WARN: CURRENT_PROJECT_VERSION ($LOCAL_BUILD) is not greater than the latest
+      published Sparkle build ($PUBLISHED_BUILD). This is a dry run that publishes
+      nothing, so it continues; a tag push with this build number would fail here.
+      Run \`./scripts/bump-version.sh\` before tagging.
+EOF
+    echo "PASS (warn mode): stale build number tolerated for a non-publishing run"
+    exit 0
+  fi
   cat >&2 <<EOF
 FAIL: CURRENT_PROJECT_VERSION ($LOCAL_BUILD) must be strictly greater than the
       latest published Sparkle build ($PUBLISHED_BUILD).
