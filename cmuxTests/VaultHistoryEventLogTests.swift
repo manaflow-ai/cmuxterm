@@ -136,6 +136,114 @@ import Testing
 
             let creations = await log.recentEvents().filter { $0.kind == .workspaceCreated }
             #expect(creations.map(\.subject.workspaceId) == [workspace.id])
+            let openings = await log.recentEvents().filter { $0.kind == .windowOpened }
+            #expect(Set(openings.compactMap(\.subject.windowId)) == Set([sourceWindowId, destinationId]))
+            #expect(openings.count == 2)
+        }
+    }
+
+    @Test func failedWorkspaceMoveDoesNotRecordItsDiscardedWindow() async throws {
+        try await withWindowHistory { app, log in
+            #expect(app.moveWorkspaceToNewWindow(workspaceId: UUID(), focus: false) == nil)
+            #expect(app.mainWindowContexts.isEmpty)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+        }
+    }
+
+    @Test func discardedBootstrapWindowDoesNotPublishAnyPendingLifecycleEvents() async throws {
+        try await withWindowHistory { app, log in
+            let windowId = app.createMainWindow(
+                initialWorkspaceHistoryContext: .bootstrap,
+                shouldActivate: false
+            )
+            let manager = try #require(app.tabManagerFor(windowId: windowId))
+            let workspace = try #require(manager.addWorkspaceIfActive(select: true, autoWelcomeIfNeeded: false))
+            #expect(manager.setCustomTitle(tabId: workspace.id, title: "Uncommitted"))
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+
+            app.discardMainWindowWithoutClosedHistory(windowId: windowId)
+            #expect(app.mainWindowContexts.isEmpty)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+        }
+    }
+
+    @Test(arguments: ["cmux.cloudVM", "cmux.newWorkspace", "cmux.newAgentChat"])
+    func configuredWorkspaceActionRecordsOnlyItsRetainedWorkspace(actionId: String) async throws {
+        var createdId: UUID?
+        try await withWindowHistory(
+            configuredActionId: actionId,
+            configuredActionExecutor: { _, context, _, onExecuted, _ in
+                guard let workspace = context.tabManager.addWorkspaceIfActive(
+                    initialSurface: .cloudVMLoading,
+                    select: true,
+                    autoWelcomeIfNeeded: false
+                ) else { return false }
+                createdId = workspace.id
+                onExecuted?()
+                return true
+            }
+        ) { app, log in
+            #expect(app.performNewWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let retainedId = try #require(createdId)
+            #expect(context.tabManager.tabs.map(\.id) == [retainedId])
+            await log.flushPendingRecords()
+            let events = await log.recentEvents()
+            #expect(events.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId) == [createdId])
+            #expect(events.filter { $0.kind == .windowOpened }.count == 1)
+            #expect(!events.contains { $0.kind == .workspaceClosed })
+        }
+    }
+
+    @Test(arguments: [true, false])
+    func delayedCloudVMCompletionRecordsTheActualRetainedWorkspace(succeeded: Bool) async throws {
+        var complete: ((CloudVMActionLauncher.Completion) -> Void)?
+        try await withWindowHistory(
+            configuredActionId: "cmux.cloudVM",
+            configuredActionExecutor: { _, _, _, onExecuted, onCompletion in
+                complete = onCompletion
+                onExecuted?()
+                return true
+            }
+        ) { app, log in
+            #expect(app.performNewWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let initialWorkspace = try #require(context.tabManager.selectedWorkspace)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().filter { $0.kind == .workspaceCreated }.isEmpty)
+
+            let result = try #require(succeeded ? context.tabManager.addWorkspaceIfActive(
+                initialSurface: .cloudVMLoading,
+                select: true,
+                autoWelcomeIfNeeded: false
+            ) : initialWorkspace)
+            let completion = try #require(complete)
+            completion(.init(terminationStatus: succeeded ? 0 : 1, output: "", workspaceId: succeeded ? result.id : nil))
+            #expect(context.tabManager.tabs.map(\.id) == [result.id])
+            await log.flushPendingRecords()
+            let events = await log.recentEvents()
+            #expect(events.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId) == [result.id])
+            #expect(events.filter { $0.kind == .windowOpened }.count == 1)
+        }
+    }
+
+    @Test func configuredInWorkspaceActionRecordsItsRetainedInitialWorkspace() async throws {
+        try await withWindowHistory(
+            configuredActionId: "cmux.newTerminal",
+            configuredActionExecutor: { _, _, _, onExecuted, _ in
+                onExecuted?()
+                return true
+            }
+        ) { app, log in
+            #expect(app.performNewWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let workspace = try #require(context.tabManager.selectedWorkspace)
+            await log.flushPendingRecords()
+            let events = await log.recentEvents()
+            #expect(events.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId) == [workspace.id])
         }
     }
 
@@ -188,8 +296,7 @@ import Testing
             await log.flushPendingRecords()
 
             let events = await log.recentEvents()
-            #expect(!events.contains { $0.kind == .workspaceCreated || $0.kind == .workspaceClosed })
-            #expect(!events.contains { $0.kind == .windowClosed })
+            #expect(events.isEmpty)
         }
     }
 
@@ -211,14 +318,26 @@ import Testing
     }
 
     private func withWindowHistory(
+        configuredActionId: String? = nil,
+        configuredActionExecutor: AppDelegate.ConfiguredActionExecutor? = nil,
         _ body: (AppDelegate, VaultHistoryEventLog) async throws -> Void
-    ) async rethrows {
+    ) async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("vault-history-actions-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configURL = root.appendingPathComponent("cmux.json")
+        let config = configuredActionId.map { "{\"ui\":{\"newWorkspace\":{\"action\":\"\($0)\"}}}" } ?? "{}"
+        try config.write(to: configURL, atomically: true, encoding: .utf8)
         try await AppContextSerialGate.withExclusiveAppContext {
             _ = NSApplication.shared
             let previousDelegate = AppDelegate.shared
             let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
             let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: .active)
-            let app = AppDelegate(vaultHistoryEventLog: log)
+            let app = AppDelegate(
+                vaultHistoryEventLog: log,
+                windowConfigStoreFactory: { CmuxConfigStore(globalConfigPath: configURL.path) },
+                configuredActionExecutor: configuredActionExecutor
+            )
             defer {
                 for windowId in app.mainWindowContexts.values.map(\.windowId) {
                     _ = app.closeMainWindow(windowId: windowId, recordHistory: false)
