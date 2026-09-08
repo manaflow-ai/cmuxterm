@@ -240,7 +240,7 @@ struct CLICodexHookTimeoutRegressionTests {
         })
         #expect(commands.snapshot().contains {
             $0.hasPrefix("notify_target_async \(workspaceId) \(surfaceId) ")
-                && $0.hasSuffix("|c=needs-permission;p=0;a=\(approvalIdentity.approvalID);d=1")
+                && $0.hasSuffix("|c=needs-permission;p=0;a=\(approvalIdentity.approvalID);d=1;o=hook")
         })
 
         let completionObject: [String: Any] = [
@@ -905,6 +905,7 @@ struct CLICodexHookTimeoutRegressionTests {
             commands.snapshot().contains { $0.hasPrefix("set_status codex Running ") }
         })
 
+        let currentPromptStart = commands.snapshot().count
         let currentPrompt = runCodexHookProcess(
             executablePath: "/bin/sh",
             arguments: ["-c", promptCommand],
@@ -915,8 +916,15 @@ struct CLICodexHookTimeoutRegressionTests {
         #expect(currentPrompt.status == 0, Comment(rawValue: currentPrompt.stderr))
         #expect(currentPrompt.stdout == "{}\n")
         #expect(waitForConditionBlocking(timeout: 2) {
-            let snapshot = commands.snapshot()
-            return snapshot.contains { $0.hasPrefix("clear_notifications ") }
+            let snapshot = Array(commands.snapshot().dropFirst(currentPromptStart))
+            return AgentJournalAppendCapture.captures(in: snapshot).contains { capture in
+                let attention = capture.draft["attention"] as? [String: Any]
+                return capture.kind == "agent.turn.started"
+                    && capture.sessionId == sessionId
+                    && capture.workspaceId == workspaceId
+                    && capture.surfaceId == surfaceId
+                    && attention?["turnIdentity"] as? String == "current-turn"
+            }
                 && snapshot.contains { $0.hasPrefix("set_status codex Running ") }
         })
 
@@ -941,6 +949,9 @@ struct CLICodexHookTimeoutRegressionTests {
             },
             "An installed async Stop from an older turn must not notify or mark a newer running turn idle, saw \(staleStopCommands)"
         )
+        #expect(!AgentJournalAppendCapture.captures(in: staleStopCommands).contains { capture in
+            (capture.draft["attention"] as? [String: Any])?["notification"] != nil
+        })
     }
 
     @Test func codexPromptSubmitDoesNotReviveStoppedTurn() throws {
