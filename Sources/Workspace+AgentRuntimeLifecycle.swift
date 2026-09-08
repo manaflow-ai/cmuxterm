@@ -307,7 +307,4 @@ extension Workspace {
         }
     }
 
-    /// Discard every Workspace-owned contribution for a surface whose tab,
-    /// pane, or workspace has already been accepted for closure.
-    @discardableResult
 }
