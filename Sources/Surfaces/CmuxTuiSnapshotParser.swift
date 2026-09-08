@@ -576,27 +576,44 @@ struct CmuxTuiSnapshotParser: Sendable {
         applyingWithImpact(deltaPayload: deltaPayload, cursor: cursor, to: state)?.state
     }
 
+    /// Debug-only breadcrumb for a rejected delta. Every rejection is a
+    /// synchronization barrier that costs one snapshot, so the reason must be
+    /// visible in the debug log instead of inferred from recovery cadence.
+    private static func rejectDelta(_ reason: String) -> CloudVMStateDeltaApplication? {
+        #if DEBUG
+        cmuxDebugLog("cloud.state.deltaRejectReason reason=\(reason)")
+        #endif
+        return nil
+    }
+
     static func applyingWithImpact(
         deltaPayload: Data,
         cursor: CloudVMCursor,
         to state: CloudVMState
     ) -> CloudVMStateDeltaApplication? {
-        guard let currentCursor = state.cursor,
-              let delta = try? JSONSerialization.jsonObject(with: deltaPayload) as? [String: Any],
-              let changes = delta["changes"] as? [[String: Any]],
-              currentCursor.generation == cursor.generation,
-              currentCursor.revision < UInt64.max,
-              cursor.revision == currentCursor.revision + 1,
-              deltaEnvelopeMatches(delta, cursor: cursor, previousRevision: currentCursor.revision),
-              deltaSequencesAreValid(changes)
-        else { return nil }
+        guard let currentCursor = state.cursor else { return rejectDelta("noCurrentCursor") }
+        guard let delta = try? JSONSerialization.jsonObject(with: deltaPayload) as? [String: Any]
+        else { return rejectDelta("payloadNotObject") }
+        guard let changes = delta["changes"] as? [[String: Any]] else { return rejectDelta("noChanges") }
+        guard currentCursor.generation == cursor.generation else {
+            return rejectDelta("generation current=\(currentCursor.generation) delta=\(cursor.generation)")
+        }
+        guard currentCursor.revision < UInt64.max, cursor.revision == currentCursor.revision + 1 else {
+            return rejectDelta("revision current=\(currentCursor.revision) delta=\(cursor.revision)")
+        }
+        guard deltaEnvelopeMatches(delta, cursor: cursor, previousRevision: currentCursor.revision) else {
+            return rejectDelta("envelope kind=\(delta["kind"] ?? "nil") cursor=\(delta["cursor"] ?? "nil") previous=\(delta["previous_revision"] ?? "nil") revision=\(delta["revision"] ?? "nil")")
+        }
+        guard deltaSequencesAreValid(changes) else {
+            return rejectDelta("sequences \(changes.map { String(describing: $0["sequence"] ?? "nil") })")
+        }
 
         var document = state.document
         for change in changes {
             guard let kind = nonEmptyString(change["kind"]),
                   let resource = nonEmptyString(change["resource"]),
                   let storage = deltaStorage(for: resource)
-            else { return nil }
+            else { return rejectDelta("applyingWithImpact#2") }
 
             // Agent ids were not present in the first public snapshot schema. Use the
             // terminal relationship as the compatibility identity when an old daemon omits
@@ -608,13 +625,13 @@ struct CmuxTuiSnapshotParser: Sendable {
                let explicitID,
                let valueID = value.flatMap({ nonEmptyString($0["id"]) }),
                valueID != explicitID {
-                return nil
+                return rejectDelta("W-ml#1")
             }
             if resource == "agent",
                let changeTerminalID = nonEmptyString(change["terminal_id"]),
                let valueTerminalID,
                changeTerminalID != valueTerminalID {
-                return nil
+                return rejectDelta("W-ml#2")
             }
             let compatibilityID: String? = if resource == "agent" {
                 explicitID
@@ -623,16 +640,16 @@ struct CmuxTuiSnapshotParser: Sendable {
             } else {
                 explicitID
             }
-            guard let id = compatibilityID else { return nil }
+            guard let id = compatibilityID else { return rejectDelta("applyingWithImpact#3") }
 
             switch kind {
             case "upsert":
                 guard let value,
                       resource == "agent" || nonEmptyString(value["id"]) == id
-                else { return nil }
+                else { return rejectDelta("applyingWithImpact#4") }
                 switch storage {
                 case .single(let key):
-                    guard document.replaceSingleton(key: key, value: value) else { return nil }
+                    guard document.replaceSingleton(key: key, value: value) else { return rejectDelta("applyingWithImpact#5") }
                 case .collection(let key):
                     let alternate = resource == "agent"
                         ? valueTerminalID.map { (name: "terminal_id", value: $0) }
@@ -643,7 +660,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                         id: id,
                         value: value,
                         alternateField: alternate
-                    ) else { return nil }
+                    ) else { return rejectDelta("applyingWithImpact#6") }
                 }
             case "delete":
                 switch storage {
@@ -652,8 +669,8 @@ struct CmuxTuiSnapshotParser: Sendable {
                     // snapshot. Their deletion ends the document, so applying
                     // an NSNull tombstone would create a fake, partially valid
                     // graph. Force a full snapshot instead.
-                    guard key != "machine", key != "session" else { return nil }
-                    guard document.removeSingleton(key: key, id: id) else { return nil }
+                    guard key != "machine", key != "session" else { return rejectDelta("applyingWithImpact#7") }
+                    guard document.removeSingleton(key: key, id: id) else { return rejectDelta("applyingWithImpact#8") }
                 case .collection(let key):
                     let terminalID = resource == "agent"
                         ? (nonEmptyString(change["terminal_id"]) ?? valueTerminalID)
@@ -663,20 +680,20 @@ struct CmuxTuiSnapshotParser: Sendable {
                         collectionKey: key,
                         id: id,
                         alternateField: alternate
-                    ) else { return nil }
+                    ) else { return rejectDelta("applyingWithImpact#9") }
                 }
             default:
-                return nil
+                return rejectDelta("W-ml#3")
             }
         }
-        guard document.setCursor(cursor) else { return nil }
+        guard document.setCursor(cursor) else { return rejectDelta("applyingWithImpact#10") }
         guard let next = Self.applyingTypedDelta(
                   changes,
                   to: state,
                   cursor: cursor,
                   document: document
               )
-        else { return nil }
+        else { return rejectDelta("applyingWithImpact#11") }
         return CloudVMStateDeltaApplication(
             state: next,
             impact: deltaImpact(changes, previous: state, next: next)
@@ -688,6 +705,13 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// remains the authority. Typed rows are changed only for entities named by
     /// this batch; relationship checks then cover those rows and their immediate
     /// edges.
+    private static func rejectTyped(_ reason: String) -> CloudVMState? {
+        #if DEBUG
+        cmuxDebugLog("cloud.state.deltaRejectReason reason=\(reason)")
+        #endif
+        return nil
+    }
+
     private static func applyingTypedDelta(
         _ changes: [[String: Any]],
         to state: CloudVMState,
@@ -705,7 +729,7 @@ struct CmuxTuiSnapshotParser: Sendable {
             guard let resource = nonEmptyString(change["resource"]),
                   let operation = nonEmptyString(change["kind"]),
                   let id = deltaIdentity(change, resource: resource)
-            else { return nil }
+            else { return rejectTyped("applyingTypedDelta#1") }
             let value = change["value"] as? [String: Any]
 
             switch (resource, operation) {
@@ -714,7 +738,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 let fallbackIndex = existingIndex.map { next.workspaces[$0].index } ?? next.workspaces.count
                 guard let value,
                       let decoded = workspaceState(from: value, fallbackIndex: fallbackIndex)
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#2") }
                 if let existingIndex {
                     next.workspaces[existingIndex] = decoded
                 } else {
@@ -726,7 +750,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 let fallbackIndex = existingIndex.map { next.screens[$0].index } ?? next.screens.count
                 guard let value,
                       let decoded = screenState(from: value, fallbackIndex: fallbackIndex)
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#3") }
                 if let existingIndex {
                     next.screens[existingIndex] = decoded
                 } else {
@@ -739,7 +763,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                           from: value,
                           fallbackTabIDs: next.panes.first(where: { $0.id == id })?.tabIDs ?? []
                       )
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#4") }
                 if let index = next.panes.firstIndex(where: { $0.id == id }) {
                     next.panes[index] = decoded
                 } else {
@@ -752,7 +776,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                 let fallbackIndex = old?.index ?? next.tabs.count
                 guard let value,
                       let decoded = tabState(from: value, fallbackIndex: fallbackIndex)
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#5") }
                 if let old {
                     if old.paneID != decoded.paneID {
                         changedPaneIDs.insert(old.paneID)
@@ -777,7 +801,7 @@ struct CmuxTuiSnapshotParser: Sendable {
             case ("terminal", "upsert"):
                 guard let value,
                       let decoded = terminalState(from: value)
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#6") }
                 changedTerminalIDs.insert(id)
                 if let index = next.terminals.firstIndex(where: { $0.id == id }) {
                     next.terminals[index] = decoded
@@ -788,7 +812,7 @@ struct CmuxTuiSnapshotParser: Sendable {
             case ("browser", "upsert"):
                 guard let value,
                       let decoded = browserState(from: value)
-                else { return nil }
+                else { return rejectTyped("applyingTypedDelta#7") }
                 if let index = next.browsers.firstIndex(where: { $0.id == id }) {
                     next.browsers[index] = decoded
                 } else {
@@ -796,8 +820,8 @@ struct CmuxTuiSnapshotParser: Sendable {
                 }
                 next.lookupIndex.upsertBrowser(decoded)
             case ("agent", "upsert"):
-                guard let value else { return nil }
-                guard applyAgentUpsert(value: value, change: change, to: &next) else { return nil }
+                guard let value else { return rejectTyped("applyingTypedDelta#8") }
+                guard applyAgentUpsert(value: value, change: change, to: &next) else { return rejectTyped("applyingTypedDelta#9") }
             case (_, "upsert") where !["workspace", "screen", "pane", "tab", "terminal", "browser", "agent"].contains(resource):
                 // The canonical document was already updated above. Opaque
                 // entities are a read projection of that document, so no
@@ -832,11 +856,11 @@ struct CmuxTuiSnapshotParser: Sendable {
                 next.browsers.removeAll { $0.id == id }
                 next.lookupIndex.removeBrowser(id: id)
             case ("agent", "delete"):
-                guard applyAgentDelete(change: change, to: &next) else { return nil }
+                guard applyAgentDelete(change: change, to: &next) else { return rejectTyped("applyingTypedDelta#10") }
             case (_, "delete") where !["workspace", "screen", "pane", "tab", "terminal", "browser", "agent"].contains(resource):
                 break
             default:
-                return nil
+                return rejectTyped("applyingTypedDelta.default")
             }
         }
 
@@ -863,7 +887,7 @@ struct CmuxTuiSnapshotParser: Sendable {
             next.panes[index].tabIDs = tabIDs
             next.lookupIndex.setPaneTabIDs(tabIDs, paneID: paneID)
         }
-        guard deltaRelationshipsAreConsistent(changes, previous: state, next: next) else { return nil }
+        guard deltaRelationshipsAreConsistent(changes, previous: state, next: next) else { return rejectTyped("applyingTypedDelta#11") }
         return next
     }
 
