@@ -21,6 +21,12 @@
             "state": "translated",
             "value": "cmux Cloud Tunnel"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel"
+          }
         }
       }
     }

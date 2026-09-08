@@ -27,6 +27,12 @@
             "state": "translated",
             "value": "Seitenleisten-Fehler"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erreur de la barre latérale"
+          }
         }
       }
     },
@@ -56,6 +62,12 @@
             "state": "translated",
             "value": "Seitenleisten-Datei ist leer oder fehlt."
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le fichier de la barre latérale est vide ou manquant."
+          }
         }
       }
     },
@@ -84,6 +96,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keine unterstützte SwiftUI-Ansicht gefunden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune vue SwiftUI prise en charge n’a été trouvée."
           }
         }
       }

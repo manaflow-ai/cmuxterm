@@ -22,6 +22,12 @@
             "state": "translated",
             "value": "Diff-Viewer-Erlaubnisliste ist zu groß"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La liste d’autorisation du visualiseur de diff est trop grande"
+          }
         }
       }
     },
@@ -44,6 +50,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Doppelter Eintrag in der Diff-Viewer-Erlaubnisliste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrée en double dans la liste d’autorisation du visualiseur de diff"
           }
         }
       }
@@ -68,6 +80,12 @@
             "state": "translated",
             "value": "Diff-Viewer-Erlaubnisliste ist leer"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La liste d’autorisation du visualiseur de diff est vide"
+          }
         }
       }
     },
@@ -90,6 +108,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ungültiger Eintrag in der Diff-Viewer-Erlaubnisliste"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrée non valide dans la liste d’autorisation du visualiseur de diff"
           }
         }
       }
@@ -114,6 +138,12 @@
             "state": "translated",
             "value": "Ungültiges Diff-Viewer-Manifest"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manifeste du visualiseur de diff non valide"
+          }
         }
       }
     },
@@ -136,6 +166,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ungültiges Diff-Viewer-Token"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeton du visualiseur de diff non valide"
           }
         }
       }
@@ -160,6 +196,12 @@
             "state": "translated",
             "value": "Diff-Viewer-Manifest ist zu groß"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le manifeste du visualiseur de diff est trop grand"
+          }
         }
       }
     },
@@ -183,6 +225,12 @@
             "state": "translated",
             "value": "Diff-Viewer-Datei ist nicht lesbar"
           }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le fichier du visualiseur de diff n’est pas lisible"
+          }
         }
       }
     },
@@ -205,6 +253,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vertrauenswürdiges Diff-Viewer-Verzeichnis ist unsicher"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le répertoire de confiance du visualiseur de diff n’est pas sécurisé"
           }
         }
       }
