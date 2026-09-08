@@ -1,9 +1,6 @@
 "use client";
 
-import { Menu } from "@base-ui-components/react/menu";
-import { useUser } from "@stackframe/stack";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { persistCoderouterOrganizationScope } from "@/services/coderouter/organizationScope";
@@ -23,48 +20,50 @@ export type DashboardCatalogTeam = {
   };
 };
 
+export type DashboardTeamScope =
+  | { readonly status: "loading" }
+  | { readonly status: "unavailable" }
+  | {
+    readonly status: "ready";
+    readonly teams: readonly DashboardCatalogTeam[];
+    readonly selected: DashboardCatalogTeam;
+    readonly switchTeam: (team: DashboardCatalogTeam) => void;
+  };
+
 const CATALOG_TIMEOUT_MS = 10_000;
 
-const menuItemClass =
-  "flex min-h-9 w-full cursor-default select-none items-center gap-2 px-2.5 py-2 text-left text-sm text-foreground outline-none data-[highlighted]:bg-code-bg";
-
 /**
- * The dashboard-wide team scope, shown at the bottom of the sidebar. Every
- * team-scoped page reads the same persisted scope on the server, so switching
- * here changes what the whole dashboard shows without a page-level picker.
+ * The dashboard-wide team scope. Every team-scoped page reads the same
+ * persisted cookie on the server, so switching here changes what the whole
+ * dashboard shows without a page-level picker.
  */
-export function DashboardTeamSwitcher() {
-  const t = useTranslations("dashboard.teamSwitcher");
-  const user = useUser({ or: "return-null" });
+export function useDashboardTeamScope(userId: string | null): DashboardTeamScope {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const queryKey = ["dashboard-team-catalog", user?.id ?? null] as const;
+  const queryKey = ["dashboard-team-catalog", userId] as const;
   const { data, isPending } = useQuery({
     queryKey,
     queryFn: ({ signal }) => loadTeamCatalog(signal),
-    enabled: user !== null,
+    enabled: userId !== null,
     staleTime: 0,
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
   });
 
-  if (!user) return null;
-  if (isPending) {
-    return <div aria-hidden="true" className="h-8 w-full animate-pulse bg-code-bg" />;
-  }
-  if (!data) return null;
-
+  if (userId === null) return { status: "unavailable" };
+  if (isPending) return { status: "loading" };
+  if (!data) return { status: "unavailable" };
   const teams = permittedTeams(data);
-  if (teams.length === 0) return null;
+  if (teams.length === 0) return { status: "unavailable" };
   const selected = selectedTeam(teams, data.selectedTeamId, searchParams.get("team"));
 
   const switchTeam = (team: DashboardCatalogTeam) => {
     if (team.id === selected.id) return;
     // The scope cookie is what the server reads. Persisting it before the
     // refresh means the very next render already shows the chosen team.
-    persistCoderouterOrganizationScope(user.id, team.id);
+    persistCoderouterOrganizationScope(userId, team.id);
     queryClient.setQueryData<DashboardTeamCatalog>(
       queryKey,
       (current) => current ? { ...current, selectedTeamId: team.id } : current,
@@ -76,46 +75,7 @@ export function DashboardTeamSwitcher() {
     router.refresh();
   };
 
-  return (
-    <div className="min-w-0">
-      <Menu.Root>
-        <Menu.Trigger
-          aria-label={t("label")}
-          className="flex w-full min-w-0 items-center gap-2 px-1.5 py-1 text-left outline-none hover:bg-code-bg focus-visible:bg-code-bg"
-        >
-          <TeamGlyph name={selected.name} />
-          <span className="min-w-0 flex-1 truncate text-xs">
-            <span className="block truncate font-medium">{selected.name}</span>
-            <span className="block truncate text-[11px] text-muted">
-              {selected.personal ? t("personal") : t("team")}
-            </span>
-          </span>
-          <ChevronsUpDown />
-        </Menu.Trigger>
-        <Menu.Portal>
-          <Menu.Positioner side="top" align="start" sideOffset={8} className="z-50">
-            <Menu.Popup className="w-56 border border-border bg-background p-1 text-foreground shadow-xl shadow-black/10 outline-none">
-              <div className="px-2.5 py-1.5 text-[11px] font-semibold text-muted">{t("label")}</div>
-              {teams.map((team) => (
-                <Menu.Item
-                  key={team.id}
-                  className={menuItemClass}
-                  onClick={() => switchTeam(team)}
-                >
-                  <TeamGlyph name={team.name} />
-                  <span className="min-w-0 flex-1 truncate">{team.name}</span>
-                  {team.personal ? (
-                    <span className="shrink-0 text-[11px] text-muted">{t("personal")}</span>
-                  ) : null}
-                  {team.id === selected.id ? <CheckIcon /> : <span className="size-3.5 shrink-0" />}
-                </Menu.Item>
-              ))}
-            </Menu.Popup>
-          </Menu.Positioner>
-        </Menu.Portal>
-      </Menu.Root>
-    </div>
-  );
+  return { status: "ready", teams, selected, switchTeam };
 }
 
 /** Teams the dashboard can show: route users and account-only managers. */
@@ -197,51 +157,4 @@ function validText(value: unknown): value is string {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function TeamGlyph({ name }: { readonly name: string }) {
-  const initial = [...name.trim()][0]?.toUpperCase() ?? "?";
-  return (
-    <span
-      aria-hidden="true"
-      className="flex size-6 shrink-0 items-center justify-center border border-border bg-code-bg font-mono text-[11px] text-foreground"
-    >
-      {initial}
-    </span>
-  );
-}
-
-function ChevronsUpDown() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-3.5 shrink-0 text-muted"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m5 6 3-3 3 3" />
-      <path d="m5 10 3 3 3-3" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-3.5 shrink-0"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m3 8.5 3 3 7-7" />
-    </svg>
-  );
 }

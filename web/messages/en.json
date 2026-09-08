@@ -240,8 +240,8 @@
       "accountsCount": "{count, plural, one {# account} other {# accounts}}",
       "emptyTitle": "No accounts yet",
       "emptyBody": "Requests from this team fail until an account is added.",
-      "notConfiguredTitle": "Shared account management isn't available yet",
-      "notConfiguredBody": "Shared Codex accounts aren't enabled for this deployment. Anthropic and Bedrock accounts still work.",
+      "notConfiguredTitle": "Codex accounts are hidden on this deployment",
+      "notConfiguredBody": "The hosted account service is not configured here, so Codex accounts cannot be listed or added. Anthropic and Bedrock accounts still work.",
       "migrationPendingTitle": "Shared accounts temporarily unavailable",
       "migrationPendingBody": "Shared Codex accounts are temporarily unavailable. Try again shortly.",
       "loadErrorTitle": "Some accounts could not load",
@@ -313,7 +313,6 @@
     },
     "teamSwitcher": {
       "label": "Team",
-      "team": "Team",
       "personal": "Personal"
     },
     "billing": {

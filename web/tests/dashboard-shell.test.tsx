@@ -8,10 +8,6 @@ mock.module("../app/[locale]/dashboard/dashboard-account-menu", () => ({
   DashboardAccountMenu: () => <span data-testid="account-control" />,
 }));
 
-mock.module("../app/[locale]/dashboard/dashboard-team-switcher", () => ({
-  DashboardTeamSwitcher: () => <span data-testid="team-switcher" />,
-}));
-
 mock.module("next-intl", () => ({
   NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
     children,
@@ -53,11 +49,6 @@ describe("dashboard shell", () => {
 
     expect(html.match(/data-testid="account-control"/g)).toHaveLength(1);
     expect(html.match(/data-testid="theme-control"/g)).toHaveLength(1);
-    // The team scope lives once in the sidebar footer, above the account row.
-    expect(html.match(/data-testid="team-switcher"/g)).toHaveLength(1);
-    expect(html.indexOf('data-testid="team-switcher"')).toBeLessThan(
-      html.indexOf('data-testid="account-control"'),
-    );
     expect(html).toContain('href="/dashboard/coderouter"');
     const billingIndex = html.indexOf('href="/dashboard/billing"');
     const teamIndex = html.indexOf('href="/dashboard/team"');
@@ -71,7 +62,7 @@ describe("dashboard shell", () => {
       /<nav[^>]*id="dashboard-mobile-nav"[^>]*>/,
     )?.[0];
     expect(controlledNavigation).toContain("hidden");
-    expect(html).toContain("pb-40");
+    expect(html).toContain("pb-28");
     expect(html).toContain("max-h-[calc(100vh-6rem)]");
   });
 

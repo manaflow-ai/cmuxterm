@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import type React from "react";
 
 type Catalog = {
   selectedTeamId: string | null;
@@ -14,20 +13,11 @@ type Catalog = {
 
 let catalog: Catalog | undefined;
 let pending = false;
-let currentUser: { id: string } | null = { id: "user-1" };
 let searchTeam: string | null = null;
-
-mock.module("@stackframe/stack", () => ({
-  useUser: () => currentUser,
-}));
 
 mock.module("@tanstack/react-query", () => ({
   useQuery: () => ({ data: catalog, isPending: pending }),
   useQueryClient: () => ({ setQueryData: () => undefined }),
-}));
-
-mock.module("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
 }));
 
 mock.module("next/navigation", () => ({
@@ -42,24 +32,20 @@ mock.module("@/i18n/navigation", () => ({
   useRouter: () => ({ replace: () => undefined, refresh: () => undefined }),
 }));
 
-mock.module("@base-ui-components/react/menu", () => ({
-  Menu: {
-    Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Trigger: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-      <button {...props}>{children}</button>
-    ),
-    Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    Positioner: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Item: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
-      <button data-testid="team-option" {...props}>{children}</button>
-    ),
-  },
-}));
-
-const { DashboardTeamSwitcher, parseTeamCatalog, selectedTeam, permittedTeams } = await import(
-  "../app/[locale]/dashboard/dashboard-team-switcher"
+const { useDashboardTeamScope, parseTeamCatalog, selectedTeam, permittedTeams } = await import(
+  "../app/[locale]/dashboard/dashboard-team-scope"
 );
+
+function Probe({ userId }: { userId: string | null }) {
+  const scope = useDashboardTeamScope(userId);
+  return (
+    <pre data-status={scope.status}>
+      {scope.status === "ready"
+        ? JSON.stringify({ selected: scope.selected.id, teams: scope.teams.map((team) => team.id) })
+        : ""}
+    </pre>
+  );
+}
 
 const twoTeams: Catalog = {
   selectedTeamId: "team-2",
@@ -85,39 +71,36 @@ const twoTeams: Catalog = {
   ],
 };
 
-describe("dashboard team switcher", () => {
-  test("shows the persisted team as the current scope and lists only permitted teams", () => {
+describe("dashboard team scope", () => {
+  test("exposes the persisted team as current and only permitted teams", () => {
     catalog = twoTeams;
     pending = false;
     searchTeam = null;
 
-    const html = renderToStaticMarkup(<DashboardTeamSwitcher />);
+    const html = renderToStaticMarkup(<Probe userId="user-1" />);
 
-    expect(html).toContain("Manaflow");
-    expect(html.match(/data-testid="team-option"/g)).toHaveLength(2);
-    expect(html).not.toContain("No access");
-    // The trigger names the selected team before the option list does.
-    expect(html.indexOf("Manaflow")).toBeLessThan(html.indexOf('data-testid="team-option"'));
+    expect(html).toContain('data-status="ready"');
+    expect(html).toContain("&quot;selected&quot;:&quot;team-2&quot;");
+    expect(html).toContain("[&quot;user-1&quot;,&quot;team-2&quot;]");
+    expect(html).not.toContain("team-3");
   });
 
   test("lets a ?team= deep link win over the persisted scope, like the server", () => {
     catalog = twoTeams;
     searchTeam = "user-1";
 
-    const html = renderToStaticMarkup(<DashboardTeamSwitcher />);
+    const html = renderToStaticMarkup(<Probe userId="user-1" />);
 
-    expect(html.indexOf("Lawrence")).toBeLessThan(html.indexOf('data-testid="team-option"'));
+    expect(html).toContain("&quot;selected&quot;:&quot;user-1&quot;");
   });
 
-  test("renders a placeholder while loading and nothing when signed out", () => {
+  test("reports loading while the catalog loads and unavailable when signed out", () => {
     catalog = undefined;
     pending = true;
-    expect(renderToStaticMarkup(<DashboardTeamSwitcher />)).toContain("animate-pulse");
+    expect(renderToStaticMarkup(<Probe userId="user-1" />)).toContain('data-status="loading"');
 
     pending = false;
-    currentUser = null;
-    expect(renderToStaticMarkup(<DashboardTeamSwitcher />)).toBe("");
-    currentUser = { id: "user-1" };
+    expect(renderToStaticMarkup(<Probe userId={null} />)).toContain('data-status="unavailable"');
   });
 
   test("selection order matches the coderouter page", () => {

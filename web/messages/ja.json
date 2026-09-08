@@ -240,8 +240,8 @@
       "accountsCount": "{count} 件のアカウント",
       "emptyTitle": "まだアカウントがありません",
       "emptyBody": "アカウントを追加するまで、このチームからのリクエストは失敗します。",
-      "notConfiguredTitle": "共有アカウント管理はまだ利用できません",
-      "notConfiguredBody": "このデプロイでは共有 Codex アカウントが有効になっていません。Anthropic と Bedrock のアカウントは引き続き使えます。",
+      "notConfiguredTitle": "このデプロイでは Codex アカウントは表示されません",
+      "notConfiguredBody": "ホスト型アカウントサービスが設定されていないため、Codex アカウントの一覧表示と追加はできません。Anthropic と Bedrock のアカウントは引き続き使えます。",
       "migrationPendingTitle": "共有アカウントを一時的に利用できません",
       "migrationPendingBody": "共有 Codex アカウントは一時的に利用できません。しばらくしてからもう一度お試しください。",
       "loadErrorTitle": "一部のアカウントを読み込めませんでした",
@@ -313,7 +313,6 @@
     },
     "teamSwitcher": {
       "label": "チーム",
-      "team": "チーム",
       "personal": "個人"
     },
     "billing": {
