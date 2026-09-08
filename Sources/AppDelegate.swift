@@ -2466,7 +2466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         let cloudTunnel = makeCloudTunnelCoordinator()
         cloudTunnelCoordinator = cloudTunnel
-        VMClient.bootstrap(auth: auth.coordinator, privateNetwork: cloudTunnel)
+        VMClient.bootstrap(auth: auth.coordinator)
         TerminalController.shared.cloudTunnel = cloudTunnel
         RemotesClient.bootstrap(auth: auth.coordinator)
         AIAccountsClient.bootstrap(auth: auth.coordinator)
@@ -9079,7 +9079,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         // The sidebar's headless link to that machine has nothing left to talk to.
-        CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(vmID.trimmingCharacters(in: .whitespacesAndNewlines))
+        CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(target)
     }
 
     /// The local workspace attached to a cloud machine, through either transport: the
