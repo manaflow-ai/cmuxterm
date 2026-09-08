@@ -161,12 +161,6 @@ extension CMUXCLI {
             print(Self.vmAgentUsage.replacingOccurrences(of: "cmux vm agent", with: "cmux coderouter agent"))
             return
         }
-        guard let first = commandArgs.first else {
-            throw CLIError(message: "Usage: cmux coderouter agent <claude|codex|opencode|pi> [options] -- <prompt or args...>\n\n\(Self.coderouterUsage)")
-        }
-        guard first == "--agent" || Self.vmAgentNames.contains(first.lowercased()) else {
-            throw CLIError(message: "coderouter agent: expected claude, codex, opencode, or pi; got \(Self.sanitizeForTerminal(first))")
-        }
         try runVMAgentCommand(rest: Self.vmAgentAliasArgs(commandArgs), client: client, jsonOutput: jsonOutput)
     }
 
