@@ -29,7 +29,10 @@ extension TerminalController {
         } else {
             return false
         }
-        guard status == "Running" || (status == "Needs input" && anotherPanelNeedsInput) else {
+        // A sibling's typed needs-input state owns the shared status. Its
+        // display text can be localized (or come from a differently localized
+        // CLI), so it cannot decide whether this running pane needs a mutation.
+        guard status == "Running" || anotherPanelNeedsInput else {
             return false
         }
         let notifications = TerminalNotificationStore.shared
