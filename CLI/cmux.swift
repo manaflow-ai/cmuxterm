@@ -27901,9 +27901,9 @@ struct CMUXCLI {
                 surfaceId: surfaceId,
                 isSubagent: suppressVisibleMutations,
                 nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionStart",
+                detail: isClearSessionStart ? "clear-session-start" : nil,
                 attention: Self.semanticAttentionContext(parsedInput.rawObject),
                 occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
-                detail: isClearSessionStart ? "clear-session-start" : nil,
                 store: sessionStore,
                 telemetry: telemetry
             )
@@ -28012,9 +28012,9 @@ struct CMUXCLI {
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
                         nativeEvent: reportedHookEventName(from: parsedInput) ?? "Stop",
+                        detail: "superseded-stale",
                         attention: Self.semanticAttentionContext(parsedInput.rawObject),
                         occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
-                        detail: "superseded-stale",
                         store: sessionStore,
                         telemetry: telemetry
                     )
@@ -28222,9 +28222,9 @@ struct CMUXCLI {
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "UserPromptSubmit",
+                    detail: "superseded-stale",
                     attention: Self.semanticAttentionContext(parsedInput.rawObject),
                     occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
-                    detail: "superseded-stale",
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28425,9 +28425,9 @@ struct CMUXCLI {
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "Notification",
+                    detail: "superseded-stale",
                     attention: Self.semanticAttentionContext(parsedInput.rawObject),
                     occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
-                    detail: "superseded-stale",
                     store: sessionStore,
                     telemetry: telemetry
                 )
