@@ -19,7 +19,7 @@ LOCALES = ("en", "de", "fr", "ar", "es", "zh-Hant", "zh-Hans", "ko", "ja")
 CATEGORIES = {"ar": {"zero", "one", "two", "few", "many", "other"}}
 OMISSION_CLASSES = {"brand", "technical", "format", "price", "syntax"}
 FORMAT = re.compile(
-    r"%%|%#@[^@]+@|%(?:\d+\$)?[-+ #0']*(?:\d+|\*(?:\d+\$)?)?"
+    r"%%|%(?:\d+\$)?#@[^@]+@|%(?:\d+\$)?[-+ #0']*(?:\d+|\*(?:\d+\$)?)?"
     r"(?:\.(?:\d+|\*(?:\d+\$)?))?(?:hh|ll|[hlLqjzt])?[diouxXfFeEgGaAcCsSp@]"
 )
 MARKER = re.compile(r"\b(?:TODO|TRANSLATE_ME|MACHINE_TRANSLATION)\b|__CMUX_TOKEN_\d+__|<translated>", re.I)
@@ -80,13 +80,66 @@ def placeholders(value: str) -> list[str]:
     return FORMAT.findall(value)
 
 
+def substitution_name(token: str) -> str | None:
+    match = re.fullmatch(r"%(?:\d+\$)?#@([^@]+)@", token)
+    return match[1] if match else None
+
+
+def signature(value: str, substitutions: dict | None = None) -> list[tuple[int, str]]:
+    result = []
+    next_argument = 1
+    for token in placeholders(value):
+        if token == "%%":
+            result.append((0, "%"))
+            continue
+        name = substitution_name(token)
+        if name is not None:
+            substitution = (substitutions or {}).get(name, {})
+            argument = substitution.get("argNum")
+            specifier = substitution.get("formatSpecifier")
+            if type(argument) is not int or argument < 1 or not isinstance(specifier, str):
+                raise ValueError(f"invalid substitution {token}")
+        else:
+            match = re.fullmatch(r"%(?:(\d+)\$)?(.*)", token)
+            argument = int(match[1]) if match[1] else next_argument
+            specifier = match[2]
+        result.append((argument, specifier))
+        next_argument += 1
+    return result
+
+
+def canonical_text(value: str) -> str:
+    """Compare implicit and explicit argument positions without changing their order."""
+    arguments = iter(signature(value))
+    return FORMAT.sub(lambda match: "%%" if (part := next(arguments))[0] == 0
+                      else f"%{part[0]}${part[1]}", value)
+
+
+def expand_text(value: str, substitutions: dict, category: str = "other") -> str:
+    def replace(match):
+        token = match[0]
+        name = substitution_name(token)
+        if name is None:
+            return token
+        substitution = substitutions.get(name, {})
+        plural = substitution.get("variations", {}).get("plural", {})
+        node = plural.get(category, plural.get("other", substitution))
+        leaf = node.get("stringUnit", {}).get("value")
+        argument = substitution.get("argNum")
+        if not isinstance(leaf, str) or type(argument) is not int or argument < 1:
+            raise ValueError(f"{token}: missing source substitution value or argument")
+        return FORMAT.sub(lambda item: "%%" if item[0] == "%%" else
+                          "%" + str(argument) + "$" + re.sub(r"^%(?:[0-9]+\$)?", "", item[0]), leaf)
+    return FORMAT.sub(replace, value)
+
+
 def source(entry: dict) -> str:
     english = entry.get("localizations", {}).get("en", {})
     unit = english.get("stringUnit") or english.get("variations", {}).get("plural", {}).get("other", {}).get("stringUnit", {})
     value = unit.get("value")
     if not isinstance(value, str):
         raise ValueError("missing English source value")
-    return value
+    return expand_text(value, english.get("substitutions", {}))
 
 
 def plural_nodes(localization: dict):
@@ -112,73 +165,106 @@ def omission(key: str, english: str, metadata: dict) -> bool:
     return record.get("source") == english and record.get("class") in OMISSION_CLASSES
 
 
-def validate_localization(english: str, localization: dict, locale: str, allow_identity: bool = False) -> list[str]:
+def validate_localization(english: str, localization: dict, locale: str, allow_identity: bool = False,
+                          source_localization: dict | None = None) -> list[str]:
     errors = []
-    expected = placeholders(english)
-    found_units = list(units(localization))
-    if not found_units:
-        return ["missing translated string unit or variations"]
-    substitutions = localization.get("substitutions", {})
-    for location, unit in found_units:
+    expected = signature(english)
+    expected_arguments = {argument: specifier for argument, specifier in expected if argument}
+    source_values = {canonical_text(english)}
+    reference = source_localization or {}
+    for _, source_unit in units(reference):
+        value = source_unit.get("value")
+        if isinstance(value, str):
+            for category in ("zero", "one", "two", "few", "many", "other"):
+                source_values.add(canonical_text(expand_text(value, reference.get("substitutions", {}), category)))
+    for substitution in reference.get("substitutions", {}).values():
+        for _, source_unit in units(substitution):
+            value = source_unit.get("value")
+            if isinstance(value, str):
+                source_values.add(canonical_text(value))
+
+    def validate_unit(location, unit):
         value = unit.get("value")
         if unit.get("state") != "translated":
             errors.append(f"{location}: state is {unit.get('state')!r}")
         if not isinstance(value, str) or not value.strip():
             errors.append(f"{location}: empty value")
-            continue
-        actual = []
-        for token in placeholders(value):
-            if token.startswith("%#@"):
-                substitution = substitutions.get(token[3:-1], {})
-                argument = substitution.get("argNum")
-                if not isinstance(argument, int) or not 1 <= argument <= len(expected):
-                    errors.append(f"{location}: invalid substitution {token}")
-                    continue
-                actual.append(expected[argument - 1])
-            else:
-                actual.append(token)
-        if actual != expected:
-            errors.append(f"{location}: placeholders {actual!r} != {expected!r}")
-        if value == english and locale != "en" and not allow_identity:
-            errors.append(f"{location}: identical to English; translate or document an invariant literal")
+            return None
         if MARKER.search(value):
             errors.append(f"{location}: unfinished translation marker")
         if BIDI.search(value):
             errors.append(f"{location}: bidi controls require explicit review")
+        return value
+
+    def check_identity(location, value, *, numeric_leaf=False):
+        if locale == "en" or allow_identity:
+            return
+        # A numeric substitution leaf may legitimately be only its format token;
+        # the parent supplies translated words. Text-bearing leaves may not copy English.
+        if numeric_leaf and not FORMAT.sub("", value).strip():
+            return
+        if canonical_text(value) in source_values:
+            errors.append(f"{location}: identical to English; translate or document an invariant literal")
+
+    substitutions = localization.get("substitutions", {})
+    found_units = list(units(localization))
+    if not found_units:
+        errors.append("missing translated string unit or variations")
+    referenced = set()
+    for location, unit in found_units:
+        value = validate_unit(location, unit)
+        if value is None:
+            continue
+        referenced.update(name for token in placeholders(value) if (name := substitution_name(token)) is not None)
+        try:
+            actual = signature(value, substitutions)
+            if actual != expected:
+                errors.append(f"{location}: placeholders {actual!r} != {expected!r}")
+            for category in ("zero", "one", "two", "few", "many", "other"):
+                check_identity(location, expand_text(value, substitutions, category))
+        except ValueError as error:
+            errors.append(f"{location}: {error}")
     for name, substitution in substitutions.items():
         argument = substitution.get("argNum")
         specifier = substitution.get("formatSpecifier")
-        if not isinstance(argument, int) or not 1 <= argument <= len(expected):
+        if name not in referenced:
+            errors.append(f"substitution {name}: not referenced by parent text")
+        if type(argument) is not int or argument not in expected_arguments:
             errors.append(f"substitution {name}: invalid argument number")
             continue
-        expected_specifier = re.sub(r"^%(?:\d+\$)?", "", expected[argument - 1])
-        if specifier != expected_specifier:
+        if specifier != expected_arguments[argument]:
             errors.append(f"substitution {name}: format specifier does not match source")
-        for location, unit in units(substitution):
-            value = unit.get("value")
-            if unit.get("state") != "translated" or not isinstance(value, str) or not value.strip():
-                errors.append(f"substitution {name}{location}: missing translated value")
-            elif placeholders(value) != [f"%{specifier}"]:
-                errors.append(f"substitution {name}{location}: count placeholder does not match source")
-            elif MARKER.search(value) or BIDI.search(value):
-                errors.append(f"substitution {name}{location}: unfinished or bidi marker")
+        leaves = list(units(substitution))
+        if not leaves:
+            errors.append(f"substitution {name}: missing translated value")
+        for location, unit in leaves:
+            location = f"substitution {name}{location}"
+            value = validate_unit(location, unit)
+            if value is not None:
+                if placeholders(value) != [f"%{specifier}"]:
+                    errors.append(f"{location}: count placeholder does not match source")
+                check_identity(location, value, numeric_leaf=True)
     required = CATEGORIES.get(locale, {"other"} if locale in {"zh-Hans", "zh-Hant", "ko", "ja"} else {"one", "other"})
     for argument, variants in plural_nodes(localization):
         if required - set(variants):
             errors.append(f"argument {argument}: missing plural categories {sorted(required - set(variants))}")
-    return errors
+        for category, node in variants.items():
+            if not list(units(node)):
+                errors.append(f"argument {argument}/{category}: missing translated string unit")
+    return list(dict.fromkeys(errors))
 
 
 def check_entry(entry: Member, locale: str, omissions: dict, counts: dict) -> list[str]:
     english = source(entry.value)
-    allowed = locale not in {"en", "ja"} and omission(entry.key, english, omissions)
+    allowed = omission(entry.key, english, omissions)
     localization = entry.value.get("localizations", {}).get(locale)
     if localization is None:
         return [] if allowed and locale not in {"en", "ja"} else ["missing locale entry"]
-    errors = validate_localization(english, localization, locale, allowed)
+    errors = validate_localization(english, localization, locale, allowed,
+                                   entry.value.get("localizations", {}).get("en"))
     count = counts.get(entry.key)
     if count:
-        if count["source"] != english:
+        if canonical_text(count["source"]) != canonical_text(english):
             errors.append("count source changed; review plural argument metadata")
         present = {argument for argument, _ in plural_nodes(localization)}
         for argument in count["arguments"]:
@@ -221,11 +307,11 @@ def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
     text = path.read_text(encoding="utf-8")
     indexed = {}
     for entry in catalog_entries(text):
-        indexed.setdefault((entry.key, source(entry.value)), []).append(entry)
+        indexed.setdefault((entry.key, canonical_text(source(entry.value))), []).append(entry)
     changes = []
     seen = set()
     for row in rows:
-        identity = (row["key"], row["source"])
+        identity = (row["key"], canonical_text(row["source"]))
         if identity in seen or identity not in indexed:
             raise ValueError(f"{row['key']}: duplicate row, unknown key, or stale English source")
         seen.add(identity)
@@ -238,7 +324,9 @@ def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
                     raise ValueError(f"{entry.key}: provide the full localization to update variations")
                 localization = copy.deepcopy(current)
                 localization.setdefault("stringUnit", {}).update(state="translated", value=row["value"])
-            errors = validate_localization(identity[1], localization, locale, omission(entry.key, identity[1], omissions))
+            errors = validate_localization(source(entry.value), localization, locale,
+                                           omission(entry.key, source(entry.value), omissions),
+                                           entry.value.get("localizations", {}).get("en"))
             if errors:
                 raise ValueError(f"{entry.key}: {'; '.join(errors)}")
             if localization != current:
