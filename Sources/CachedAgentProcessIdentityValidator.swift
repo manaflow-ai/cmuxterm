@@ -101,12 +101,18 @@ struct CachedAgentProcessIdentityValidator: Sendable {
             let observedSessionID: String?
             switch registration.sessionIdSource {
             case .argvOption(let option):
-                guard let observedSessionID = nonOptionValue(after: option, in: arguments) else {
-                    // An argv-keyed registration cannot prove ownership when
-                    // its identity option is absent. Preserve the historical
-                    // fail-closed behavior instead of treating any matching
-                    // executable as this session.
-                    return false
+                guard let observedSessionID = nonOptionValue(after: option, in: arguments)
+                    ?? authoritativeEnvironmentSessionID else {
+                    // The identity option only appears on explicit resumes. A
+                    // fresh launch has none: Antigravity mints its conversation
+                    // id in-process and reports it through its hooks, so the
+                    // record behind this snapshot was written by the very
+                    // process generation that already matched on pid identity,
+                    // cmux scope, and executable above. A bare argv cannot
+                    // contradict that record. Failing closed here marked every
+                    // fresh Antigravity session exited and retired its binding
+                    // on the next autosave (#5473).
+                    return true
                 }
                 return ManagedAgentSessionIdentity.sessionIDsMatch(
                     kind: snapshot.kind.rawValue,
