@@ -59,7 +59,14 @@ struct TerminalPromptHistoryTests {
         #expect(second.latest?.preview == "other pane")
     }
 
-    private func anchor(_ row: Int) -> TerminalPromptAnchor {
+    @Test func anchorRejectsNegativeRowsAndAcceptsZero() {
+        let negative: TerminalPromptAnchor? = TerminalPromptAnchor(row: -1, rowSpaceRevision: 1)
+        let zero: TerminalPromptAnchor? = TerminalPromptAnchor(row: 0, rowSpaceRevision: 1)
+        #expect(negative == nil)
+        #expect(zero?.row == 0)
+    }
+
+    private func anchor(_ row: Int) -> TerminalPromptAnchor? {
         TerminalPromptAnchor(row: row, rowSpaceRevision: 1)
     }
 
