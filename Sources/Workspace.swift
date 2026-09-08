@@ -2190,6 +2190,12 @@ extension Workspace {
                     restoredStartupInput,
                     panelId: terminalPanel.id
                 )
+#if DEBUG
+                cmuxDebugLog(
+                    "session.restore.startupInput.registered panel=\(terminalPanel.id.uuidString.prefix(5)) " +
+                    "bytes=\(restoredStartupInput?.utf8.count ?? 0) deferred=\(deferredAgentResumeAdmission ? 1 : 0)"
+                )
+#endif
             }
             return terminalPanel.id
         case .browser:
@@ -6009,7 +6015,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 #if DEBUG
         cmuxDebugLog(
             "surface.shellState workspace=\(id.uuidString.prefix(5)) " +
-            "panel=\(panelId.uuidString.prefix(5)) from=\(previousState.rawValue) to=\(state.rawValue)"
+            "panel=\(panelId.uuidString.prefix(5)) from=\(previousState.rawValue) to=\(state.rawValue) " +
+            "restore=\(restoredAgentResumeStatesByPanelId[panelId].map { String(describing: $0) } ?? "none") " +
+            "awaitsInput=\(restoredAgentLifecycle.awaitsStartupInput(panelId: panelId) ? 1 : 0)"
         )
 #endif
     }

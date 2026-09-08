@@ -828,6 +828,8 @@ extension DockSplitStore {
         restore: DeferredAgentResumeRestore,
         startRuntime: Bool = true
     ) {
+        // A cancelled launch must never have its selector replayed later.
+        restoredAgentLifecycle.clearStartupInput(panelId: panelId)
         if startRuntime {
             (panels[panelId] as? TerminalPanel)?.surface.cancelStartupRestoreAdmission()
         } else {

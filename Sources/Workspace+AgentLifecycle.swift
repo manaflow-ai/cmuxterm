@@ -367,7 +367,19 @@ extension Workspace {
     /// still `.awaitingAutoResumeCommand`, replay the retained input once after
     /// the grace period (https://github.com/manaflow-ai/cmux/issues/5473).
     func scheduleRestoredStartupInputResend(panelId: UUID) {
-        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else { return }
+        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else {
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.startupInput.resend.skip panel=\(panelId.uuidString.prefix(5)) " +
+                "state=\(String(describing: restoredAgentResumeStatesByPanelId[panelId])) " +
+                "awaits=\(restoredAgentLifecycle.awaitsStartupInput(panelId: panelId) ? 1 : 0)"
+            )
+#endif
+            return
+        }
+#if DEBUG
+        cmuxDebugLog("session.restore.startupInput.resend.armed panel=\(panelId.uuidString.prefix(5))")
+#endif
         let grace = Self.restoredStartupInputResendGrace
         DispatchQueue.main.asyncAfter(deadline: .now() + grace) { [weak self] in
             Task { @MainActor [weak self] in
@@ -377,17 +389,30 @@ extension Workspace {
     }
 
     func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
+        let shellState = panelShellActivityStates[panelId] ?? .unknown
         guard !isRetiredFromOwningTabManager,
               let terminal = panels[panelId] as? TerminalPanel,
               let input = restoredAgentLifecycle.takeStartupInputForResend(
                   panelId: panelId,
-                  shellState: panelShellActivityStates[panelId] ?? .unknown
+                  shellState: shellState
               ) else {
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.startupInput.resend.declined panel=\(panelId.uuidString.prefix(5)) " +
+                "shell=\(shellState.rawValue) " +
+                "state=\(String(describing: restoredAgentResumeStatesByPanelId[panelId]))"
+            )
+#endif
             return
         }
         // The idle prompt came from a live runtime; never queue the selector
         // for some future shell of this pane.
-        guard terminal.surface.surface != nil else { return }
+        guard terminal.surface.surface != nil else {
+#if DEBUG
+            cmuxDebugLog("session.restore.startupInput.resend.noRuntime panel=\(panelId.uuidString.prefix(5))")
+#endif
+            return
+        }
         let result = terminal.sendInputResult(input)
 #if DEBUG
         cmuxDebugLog(
@@ -752,6 +777,13 @@ extension Workspace {
                 nil
             }
             if let liveSessionOwner {
+#if DEBUG
+                cmuxDebugLog(
+                    "session.restore.deferred.liveOwner panel=\(panelId.uuidString.prefix(5)) " +
+                    "session=\(liveSessionOwner.sessionID.prefix(8)) pid=\(liveSessionOwner.processID)"
+                )
+#endif
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 let noticeInput = AgentRestoreLiveOwnerNotice(
                     processID: liveSessionOwner.processID
                 ).startupInput(
@@ -892,6 +924,12 @@ extension Workspace {
             let admitted = terminal.surface.admitStartupRestoreRuntime(
                 initialInput: admittedInput
             )
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.deferred.admit panel=\(panelId.uuidString.prefix(5)) " +
+                "admitted=\(admitted ? 1 : 0) inputBytes=\(admittedInput?.utf8.count ?? 0)"
+            )
+#endif
             if !admitted {
                 restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 if let ownedClaim {
@@ -939,8 +977,18 @@ extension Workspace {
     func cancelDeferredAgentResumeRestore(
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
-        startRuntime: Bool = true
+        startRuntime: Bool = true,
+        callerLine: Int = #line
     ) {
+#if DEBUG
+        cmuxDebugLog(
+            "session.restore.deferred.cancel panel=\(panelId.uuidString.prefix(5)) " +
+            "startRuntime=\(startRuntime ? 1 : 0) line=\(callerLine) " +
+            "session=\((restore.restorableAgent?.sessionId ?? restore.resumeBinding?.checkpointId ?? "-").prefix(8))"
+        )
+#endif
+        // A cancelled launch must never have its selector replayed later.
+        restoredAgentLifecycle.clearStartupInput(panelId: panelId)
         if startRuntime {
             (panels[panelId] as? TerminalPanel)?.surface.cancelStartupRestoreAdmission()
         } else {
