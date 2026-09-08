@@ -2152,6 +2152,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let hasPendingHistoryRecords = historyEventLog?.hasPendingRecords == true
         let hasOwnedRuntimeCleanup = !markedForKill.isEmpty || !simulatorCleanupTasks.isEmpty
         guard hasPendingHistoryRecords || hasOwnedRuntimeCleanup else {
+            // Confirmed termination marks the app as terminating before AppKit
+            // reaches applicationWillTerminate, so its synchronous backstop is
+            // intentionally skipped. Persist the current scrollback and the
+            // cached, validated process index here without deferring an
+            // otherwise unrelated quit.
+            _ = saveSessionSnapshotIncludingProcessDetectedIndexes(
+                includeScrollback: true,
+                removeWhenEmpty: false
+            )
             return false
         }
         if !isAwaitingTerminateCleanup {
