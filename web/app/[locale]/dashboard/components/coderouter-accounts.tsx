@@ -553,7 +553,7 @@ function AddAccountPanel({ teamId }: { readonly teamId: string }) {
             <Tabs.Tab
               key={candidate}
               value={candidate}
-              className="border border-border px-2 py-1 text-xs text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground data-[selected]:border-foreground data-[selected]:text-foreground"
+              className="border border-border px-2 py-1 text-xs text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground data-[active]:border-foreground data-[active]:text-foreground"
             >
               {addKindLabel(candidate, t)}
             </Tabs.Tab>
