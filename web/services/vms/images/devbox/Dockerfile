@@ -332,7 +332,7 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json \
   && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding && j.bypassPermissionsModeAccepted && j.projects["/"].hasTrustDialogAccepted && j.customApiKeyResponses.approved.includes("-vm-edge-placeholder"))) process.exit(1)' \
   && [ "$(stat -c %a /tmp/agent-config-check/.claude.json)" = "600" ] \
-  && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX')" = "1:1" ] \
+  && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX:$DISABLE_AUTOUPDATER')" = "1:1:1" ] \
   && rm -rf /tmp/agent-config-check \
   && mkdir -p /tmp/agent-config-resurrect/.config/cmux \
   && echo "export OPENAI_BASE_URL='https://resurrect.invalid/v1'" > /tmp/agent-config-resurrect/.config/cmux/model-plane.env \

@@ -191,6 +191,13 @@ export CLAUDE_CODE_SANDBOXED=1
 # launch dies at start. The VM, not the uid, is the isolation boundary here.
 export IS_SANDBOX=1
 
+# claude self-update: the npm install auto-updates itself in the background
+# on the first interactive launch (2.1.252 -> latest within 20 s, verified
+# live on the trust3 bake), reinstalling the package under nvm. That defeats
+# the image pin and leaves `claude` briefly unresolvable while npm relinks
+# the bin. The binary is image-baked; new versions ship by rebake.
+export DISABLE_AUTOUPDATER=1
+
 # codex folder-trust gate: codex has no sandbox env short-circuit and its
 # trust lookup matches config keys EXACTLY against the cwd or its git root,
 # no ancestor walk, so the managed defaults (/etc/codex/managed_config.toml,

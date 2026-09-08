@@ -104,7 +104,7 @@ const CHECKS: readonly string[] = [
   "grep -q cleanupPeriodDays /etc/claude-code/managed-settings.json && grep -q skipDangerousModePermissionPrompt /etc/claude-code/managed-settings.json && echo claude-retention-ok",
   // Trust everywhere: the managed HOME entries for codex, the claude first-run
   // seed for root, and the sandbox env every login shell exports.
-  `python3 -c 'import tomllib; d = tomllib.load(open("/etc/codex/managed_config.toml", "rb")); assert d["projects"]["/root"]["trust_level"] == "trusted"; assert d["projects"]["${DEVBOX_DESKTOP_HOME}"]["trust_level"] == "trusted"' && bash -lc 'test "$CLAUDE_CODE_SANDBOXED:$IS_SANDBOX" = 1:1' && python3 -c "import json; j = json.load(open('/root/.claude.json')); assert j['hasCompletedOnboarding'] and j['bypassPermissionsModeAccepted'] and j['projects']['/']['hasTrustDialogAccepted'] and '-vm-edge-placeholder' in j['customApiKeyResponses']['approved']" && echo agent-trust-ok`,
+  `python3 -c 'import tomllib; d = tomllib.load(open("/etc/codex/managed_config.toml", "rb")); assert d["projects"]["/root"]["trust_level"] == "trusted"; assert d["projects"]["${DEVBOX_DESKTOP_HOME}"]["trust_level"] == "trusted"' && bash -lc 'test "$CLAUDE_CODE_SANDBOXED:$IS_SANDBOX:$DISABLE_AUTOUPDATER" = 1:1:1' && python3 -c "import json; j = json.load(open('/root/.claude.json')); assert j['hasCompletedOnboarding'] and j['bypassPermissionsModeAccepted'] and j['projects']['/']['hasTrustDialogAccepted'] and '-vm-edge-placeholder' in j['customApiKeyResponses']['approved']" && echo agent-trust-ok`,
   "whoami; nproc; free -m | sed -n 2p; df -h / | tail -1",
 ];
 
