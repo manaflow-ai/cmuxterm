@@ -351,8 +351,14 @@ RUN bash -n /etc/cmux/agent-config.sh \
 # by the driver at create time, never baked). Without systemd it also runs the
 # desktop supervisor as the work user.
 COPY cmux-devbox-boot /usr/local/bin/cmux-devbox-boot
+# The Ghostty generation panes announce as TERM_PROGRAM_VERSION next to
+# TERM_PROGRAM=ghostty (the supervisor reads it; base images without the .deb
+# still record the pin). The Freestyle bake writes the same file.
 RUN chmod 0755 /usr/local/bin/cmux-devbox-boot \
-  && sh -n /usr/local/bin/cmux-devbox-boot
+  && sh -n /usr/local/bin/cmux-devbox-boot \
+  && mkdir -p /etc/cmux \
+  && echo "$CMUX_IMAGE_GHOSTTY_DEB_URL" | sed -n 's|.*/ghostty_\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)[-_].*|\1|p' > /etc/cmux/ghostty-version \
+  && grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' /etc/cmux/ghostty-version
 
 # Desktop self-check, the way a container boots it: the supervisor starts the
 # session as the work user, both contract ports answer, noVNC serves its

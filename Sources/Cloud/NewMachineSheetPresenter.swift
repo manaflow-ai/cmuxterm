@@ -73,7 +73,7 @@ final class NewMachineSheetPresenter {
         // (default values evaluate in a nonisolated context); resolve it here.
         let coordinator = coordinator ?? .shared
         if let plan, plan.isAtLimit, !plan.isPaidPlan {
-            ProUpgradePresenter.present()
+            ProUpgradePresenter.present(source: .newMachineAtLimit)
             return
         }
         let model = NewMachineModel(
