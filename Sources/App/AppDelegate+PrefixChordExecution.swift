@@ -70,9 +70,17 @@ extension AppDelegate {
         // already matched the real media suffix; hand the existing dispatcher
         // a same-window keyDown proxy and let the ownership marker below make
         // only the selected action match it.
-        let dispatchEvent = event.type == .systemDefined
-            ? keyboardProxyEvent(for: event)
-            : event
+        let dispatchEvent: NSEvent
+        if event.type == .systemDefined {
+            guard let proxy = keyboardProxyEvent(for: event) else {
+                // Never fall back to the original system-defined event: the
+                // legacy dispatcher is allowed to read keyboard-only fields.
+                return false
+            }
+            dispatchEvent = proxy
+        } else {
+            dispatchEvent = event
+        }
 
         // Config-defined actions have their own resolved executor (including
         // trust prompts and workspace/terminal command targets). Dispatch
@@ -115,7 +123,7 @@ extension AppDelegate {
         return executeFocusedPrefixChordAction(action, event: dispatchEvent)
     }
 
-    private func keyboardProxyEvent(for event: NSEvent) -> NSEvent {
+    private func keyboardProxyEvent(for event: NSEvent) -> NSEvent? {
         NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -127,7 +135,7 @@ extension AppDelegate {
             charactersIgnoringModifiers: "",
             isARepeat: false,
             keyCode: 0
-        ) ?? event
+        )
     }
 
     private func prefixChordBindingIsStillCurrent(
