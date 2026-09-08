@@ -466,10 +466,14 @@ extension CMUXCLI {
             }
             let applied = try? applyOutcome.get()
             let confirmedApply = applied?.targetsResolved == true
+            let baselineConfirmedWithoutTitle = outcome.lastTitle == nil
+                && applied != nil
+                && applied?.targetUnresolved != true
             try? sessionStore.finishAutoNamingReconciliation(
                 sessionId: sessionId,
                 compactedLineCount: compactedLineCount,
                 confirmedApply: confirmedApply,
+                baselineConfirmedWithoutTitle: baselineConfirmedWithoutTitle,
                 observationGeneration: outcome.observationGeneration
             )
             return

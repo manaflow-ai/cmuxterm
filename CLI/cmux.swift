@@ -1331,6 +1331,26 @@ final class ClaudeHookSessionStore {
         )
     }
 
+    /// Advances the naming baseline for a settled pass that has no title to
+    /// replay, such as a shrink after a title-less manual-ownership outcome.
+    private func settleAutoNamingBaselineWithoutTitle(
+        _ lineCount: Int,
+        now: TimeInterval,
+        record: inout ClaudeHookSessionRecord
+    ) {
+        let reconciledLineCount = max(
+            lineCount,
+            record.autoNameInFlightObservedLineCount ?? lineCount
+        )
+        record.autoNameLastLineCount = reconciledLineCount
+        record.autoNameLastObservedLineCount = max(
+            reconciledLineCount,
+            record.autoNameLastObservedLineCount ?? 0
+        )
+        record.autoNameLastNamedAt = now
+        record.autoNameLastAttemptAt = now
+    }
+
     /// Records an explicit Claude compaction before any best-effort title
     /// replay. Duplicate delivery for the same progress epoch is reported as
     /// existing; a changed epoch mints a new generation. Returns nil when the
@@ -1449,6 +1469,11 @@ final class ClaudeHookSessionStore {
                         joiningLiveClaim: false,
                         record: &record
                     )
+                    settleAutoNamingBaselineWithoutTitle(
+                        transcriptLineCount,
+                        now: now.timeIntervalSince1970,
+                        record: &record
+                    )
                 }
                 record.autoNameTitleReconciliationGeneration = nil
                 record.autoNameTitleReconciliationEpochLineCount = nil
@@ -1491,6 +1516,7 @@ final class ClaudeHookSessionStore {
         sessionId: String,
         compactedLineCount: Int?,
         confirmedApply: Bool,
+        baselineConfirmedWithoutTitle: Bool = false,
         claimedReconciliationGeneration: String? = nil,
         observationGeneration: String? = nil,
         clearPendingOnConfirmation: Bool = true
@@ -1505,8 +1531,15 @@ final class ClaudeHookSessionStore {
             }
             let ownsPendingGeneration = record.autoNameTitleReconciliationGeneration
                 == claimedReconciliationGeneration
-            if confirmedApply, ownsPendingGeneration {
-                if let compactedLineCount {
+            if (confirmedApply || baselineConfirmedWithoutTitle), ownsPendingGeneration {
+                if baselineConfirmedWithoutTitle, !confirmedApply,
+                   let compactedLineCount {
+                    settleAutoNamingBaselineWithoutTitle(
+                        compactedLineCount,
+                        now: Date().timeIntervalSince1970,
+                        record: &record
+                    )
+                } else if let compactedLineCount {
                     let reconciledLineCount = max(
                         compactedLineCount,
                         record.autoNameInFlightObservedLineCount ?? compactedLineCount

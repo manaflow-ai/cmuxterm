@@ -4646,10 +4646,20 @@ class TerminalController {
                 if panelOnlyIfMultiple && workspace.panels.count < 2 {
                     panelApplySkipped = true
                 } else if reconciliationCAS,
-                          let expectedPanelTitle,
-                          (workspace.panelCustomTitleSources[resolvedPanelId] != .auto
-                            || workspace.panelCustomTitles[resolvedPanelId] != expectedPanelTitle) {
-                    panelApplySkipped = true
+                          let expectedPanelTitle {
+                    let panelSource = workspace.panelCustomTitleSources[resolvedPanelId]
+                    let panelCustomTitle = workspace.panelCustomTitles[resolvedPanelId]
+                    let hasStoredPanelProjection = panelSource != nil || panelCustomTitle != nil
+                    if panelSource == .auto {
+                        // A different auto title belongs to a newer naming
+                        // pass and wins the compare-and-set.
+                        panelApplySkipped = panelCustomTitle != expectedPanelTitle
+                    } else if hasStoredPanelProjection {
+                        // Existing non-auto provenance is authoritative. A
+                        // completely missing local projection is the one safe
+                        // case for reconciliation to recreate.
+                        panelApplySkipped = true
+                    }
                 } else if let expectedPanelTitle,
                           workspace.panelTitle(panelId: resolvedPanelId) != expectedPanelTitle {
                     // The panel changed between the naming probe and this
