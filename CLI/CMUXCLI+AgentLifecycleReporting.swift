@@ -1,3 +1,4 @@
+import CMUXAgentLaunch
 import CmuxControlSocket
 import Foundation
 
@@ -5,8 +6,7 @@ extension CMUXCLI {
     /// Removes the private relay-generation suffix before a resume binding
     /// crosses the public surface-resume contract.
     func agentHookResumeSessionID(_ sessionID: String) -> String {
-        guard let range = sessionID.range(of: "#relay#") else { return sessionID }
-        return String(sessionID[..<range.lowerBound])
+        AgentRelayLifecycle.publicSessionID(sessionID)
     }
 
     /// Binds a relay-host session (reported, inferred, or surface-derived) to
@@ -16,19 +16,13 @@ extension CMUXCLI {
         environment: [String: String],
         processIdentity: AgentHookProcessIdentity
     ) -> String? {
-        guard let sessionID = normalizedAgentLifecycleSessionID(sessionID),
-              !sessionID.contains("#relay#"),
-              let terminalLifecycleValue = normalizedHookValue(
-                  environment["CMUX_TERMINAL_LIFECYCLE_ID"]
-              ),
-              let terminalLifecycleID = UUID(uuidString: terminalLifecycleValue),
-              let attemptValue = normalizedHookValue(environment["CMUX_SSH_ATTEMPT_ID"]),
-              let attemptID = UUID(uuidString: attemptValue) else {
-            return nil
-        }
-        return "\(sessionID)#relay#\(terminalLifecycleID.uuidString)"
-            + "#\(attemptID.uuidString)#\(processIdentity.pid)"
-            + "#\(processIdentity.startSeconds)#\(processIdentity.startMicroseconds)"
+        AgentRelayLifecycle.inferredGeneration(
+            sessionID: sessionID,
+            environment: environment,
+            pid: processIdentity.pid,
+            startSeconds: processIdentity.startSeconds,
+            startMicroseconds: processIdentity.startMicroseconds
+        )
     }
 
     /// Validates a relay-generation token carried by a detached Codex monitor.
@@ -38,38 +32,10 @@ extension CMUXCLI {
         sessionID: String,
         environment: [String: String]
     ) -> String? {
-        guard let sessionID = normalizedAgentLifecycleSessionID(sessionID),
-              let marker = sessionID.range(of: "#relay#"),
-              !sessionID[..<marker.lowerBound].isEmpty,
-              sessionID[marker.upperBound...].range(of: "#relay#") == nil else {
-            return nil
-        }
-        let fields = sessionID[marker.upperBound...].split(
-            separator: "#",
-            omittingEmptySubsequences: false
+        AgentRelayLifecycle.existingGeneration(
+            sessionID: sessionID,
+            environment: environment
         )
-        guard fields.count == 5,
-              let terminalLifecycleID = UUID(uuidString: String(fields[0])),
-              let attemptID = UUID(uuidString: String(fields[1])),
-              let pid = Int(String(fields[2])),
-              pid > 0,
-              let startSeconds = Int64(String(fields[3])),
-              startSeconds >= 0,
-              let startMicroseconds = Int64(String(fields[4])),
-              startMicroseconds >= 0,
-              startMicroseconds < 1_000_000 else {
-            return nil
-        }
-        if let rawTerminalLifecycleID = normalizedHookValue(
-            environment["CMUX_TERMINAL_LIFECYCLE_ID"]
-        ), UUID(uuidString: rawTerminalLifecycleID) != terminalLifecycleID {
-            return nil
-        }
-        if let rawAttemptID = normalizedHookValue(environment["CMUX_SSH_ATTEMPT_ID"]),
-           UUID(uuidString: rawAttemptID) != attemptID {
-            return nil
-        }
-        return sessionID
     }
 
     /// Private wire guard shared by every visible mutation emitted for one

@@ -1,4 +1,5 @@
 import Darwin
+import CmuxControlSocket
 import Foundation
 import Testing
 
@@ -37,39 +38,31 @@ struct AgentLifecycleEventTests {
 
     @Test
     func explicitSessionMutationGuardPrefersProcessGeneration() throws {
-        let identity = try #require(AgentHookProcessIdentity(livePID: Int(getpid())))
-        let guardValue = CMUXCLI(args: []).agentMutationGuard(
-            key: "codex",
-            sessionID: "session-reused",
-            expectedPIDKey: "codex.session-reused",
-            expectedPID: identity.pid,
-            expectedProcessIdentity: identity
-        )
-
-        #expect(guardValue == .process(
+        let identity = try #require(AgentPIDProcessIdentity(pid: getpid()))
+        let guardValue = ControlSidebarAgentMutationGuard.process(
             statusKey: "codex",
             pidKey: "codex.session-reused",
             pid: Int32(identity.pid),
             startSeconds: identity.startSeconds,
             startMicroseconds: identity.startMicroseconds
-        ))
+        )
+
+        #expect(
+            ControlSidebarAgentMutationGuard(socketEnvelope: guardValue.socketEnvelope)
+                == guardValue
+        )
     }
 
     @Test
     func explicitSessionMutationGuardFallsBackWhenProcessGenerationIsUnavailable() {
-        let guardValue = CMUXCLI(args: []).agentMutationGuard(
-            key: "claude",
-            sessionID: "provider-session",
-            expectedPIDKey: "claude.provider-session",
-            expectedPID: 62_6262,
-            expectedProcessIdentity: nil
+        let guardValue = ControlSidebarAgentMutationGuard.session(
+            statusKey: "claude",
+            sessionID: "provider-session"
         )
 
         #expect(
-            guardValue == .session(
-                statusKey: "claude",
-                sessionID: "provider-session"
-            )
+            ControlSidebarAgentMutationGuard(socketEnvelope: guardValue.socketEnvelope)
+                == guardValue
         )
     }
 
@@ -1036,11 +1029,11 @@ struct AgentLifecycleEventTests {
             key: "codex",
             panelId: panelID,
             lifecycle: .running,
+            startsNewOccupant: true,
             expectedPIDKey: "codex.older",
             expectedPID: olderProcess.processIdentifier,
             expectedPIDStartSeconds: olderIdentity.startSeconds,
-            expectedPIDStartMicroseconds: olderIdentity.startMicroseconds,
-            startsNewOccupant: true
+            expectedPIDStartMicroseconds: olderIdentity.startMicroseconds
         ))
         let baseline = CmuxEventBus.shared.latestSequence
 
@@ -1048,11 +1041,11 @@ struct AgentLifecycleEventTests {
             key: "codex",
             panelId: panelID,
             lifecycle: .running,
+            startsNewOccupant: true,
             expectedPIDKey: "codex.newer",
             expectedPID: newerProcess.processIdentifier,
             expectedPIDStartSeconds: newerIdentity.startSeconds,
-            expectedPIDStartMicroseconds: newerIdentity.startMicroseconds,
-            startsNewOccupant: true
+            expectedPIDStartMicroseconds: newerIdentity.startMicroseconds
         ))
 
         let states = CmuxEventBus.shared.retainedSnapshot()

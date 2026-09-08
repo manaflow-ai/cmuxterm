@@ -1,4 +1,5 @@
 import Darwin
+import CmuxControlSocket
 import Foundation
 import Testing
 
