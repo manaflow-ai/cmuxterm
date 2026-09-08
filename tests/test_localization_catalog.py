@@ -34,6 +34,9 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_rejects_lost_line_breaks(self):
+        self.assertTrue(MODULE.validate_localization("Name: %@\nStatus: %@", unit("Name: %@ Status: %@"), "de"))
+
     def test_rejects_strings_outside_the_catalog_strings_object(self):
         catalog = {"sourceLanguage": "en", "strings": {}, "version": "1.0",
                    "orphan": {"localizations": {"en": unit("Ignored by Xcode")}}}
