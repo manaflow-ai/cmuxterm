@@ -12,10 +12,14 @@ import OSLog
 /// serializes read/modify/write updates so concurrent revocations cannot
 /// overwrite one another, and caps retained IDs to keep the store bounded.
 actor MobileHostNextTransportGrantRevocationStore {
-    private let keychain = CmxIrohKeychainCredentialStore(
-        service: "dev.cmux.nextTransport.revokedGrants")
+    private let keychain: any CmxIrohSecureCredentialStoring
     let account = "all"
     private let maximumGrantIDs = 1_024
+
+    init(keychain: any CmxIrohSecureCredentialStoring = CmxIrohKeychainCredentialStore(
+        service: "dev.cmux.nextTransport.revokedGrants")) {
+        self.keychain = keychain
+    }
 
     func load() async -> Set<String> {
         do {

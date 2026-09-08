@@ -84,10 +84,11 @@ extension MobileHostNextTransportRuntime {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    private nonisolated static func loadOrMigrateSecret(
-        account: String, legacyDefaultsKey: String
+    nonisolated static func loadOrMigrateSecret(
+        account: String, legacyDefaultsKey: String,
+        store: any CmxIrohSecureIdentityStoring = CmxIrohKeychainIdentityStore(service: keyStoreService),
+        defaults: UserDefaults = .standard
     ) async -> Data? {
-        let store = CmxIrohKeychainIdentityStore(service: keyStoreService)
         var readError: (any Error)?
         do {
             if let stored = try await store.read(account: account) { return stored }
@@ -99,7 +100,6 @@ extension MobileHostNextTransportRuntime {
                 error=\(String(describing: error), privacy: .public)
                 """)
         }
-        let defaults = UserDefaults.standard
         guard let legacyB64 = defaults.string(forKey: legacyDefaultsKey),
             let legacy = Data(base64Encoded: legacyB64)
         else { return nil }
