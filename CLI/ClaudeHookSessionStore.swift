@@ -869,6 +869,7 @@ final class ClaudeHookSessionStore {
                 // compact hook, so persist its first compacted progress marker
                 // just like the durable Claude compact path.
                 record.autoNameTitleReconciliationEpochLineCount = transcriptLineCount
+                record.autoNameTitleReconciliationIsExplicit = false
             }
             let observationGeneration: String?
             switch decision {
@@ -902,6 +903,8 @@ final class ClaudeHookSessionStore {
             if !isTranscriptReconciliation,
                record.autoNameTitleReconciliationGeneration == nil {
                 record.autoNameTitleReconciliationAttemptCount = nil
+                record.autoNameTitleReconciliationEpochLineCount = nil
+                record.autoNameTitleReconciliationIsExplicit = nil
             }
             record.updatedAt = Date().timeIntervalSince1970
             state.sessions[normalized] = record
@@ -993,7 +996,6 @@ final class ClaudeHookSessionStore {
     /// replay, such as a shrink after a title-less manual-ownership outcome.
     private func settleAutoNamingBaselineWithoutTitle(
         _ lineCount: Int,
-        now: TimeInterval,
         record: inout ClaudeHookSessionRecord
     ) {
         let reconciledLineCount = max(
@@ -1005,8 +1007,6 @@ final class ClaudeHookSessionStore {
         // pre-compaction high-water would make every later Stop look like
         // another shrink until the transcript grows past the old size.
         record.autoNameLastObservedLineCount = reconciledLineCount
-        record.autoNameLastNamedAt = now
-        record.autoNameLastAttemptAt = now
     }
 
     /// Records an explicit Claude compaction before any best-effort title
@@ -1025,13 +1025,16 @@ final class ClaudeHookSessionStore {
                 return nil
             }
             let now = Date().timeIntervalSince1970
+            let isSameReconciliationEpoch = transcriptLineCount == nil
+                || record.autoNameTitleReconciliationEpochLineCount == transcriptLineCount
             if record.autoNameTitleReconciliationGeneration == nil,
                max(0, record.autoNameTitleReconciliationAttemptCount ?? 0)
                     >= Self.maxAutoNameTitleReconciliationAttempts,
-               let epoch = record.autoNameTitleReconciliationEpochLineCount,
-               transcriptLineCount == nil || transcriptLineCount == epoch {
-                // The same compact epoch already exhausted its bounded retry
-                // budget. Do not reopen it on duplicate SessionStart delivery.
+               isSameReconciliationEpoch,
+               record.autoNameTitleReconciliationIsExplicit == true {
+                // The same explicit compact epoch already exhausted its
+                // bounded retry budget. Ordinary shrink exhaustion is allowed
+                // to mint a fresh explicit generation at the same line count.
                 record.updatedAt = now
                 state.sessions[normalized] = record
                 return nil
@@ -1051,6 +1054,7 @@ final class ClaudeHookSessionStore {
             record.autoNameTitleReconciliationGeneration = generation
             record.autoNameTitleReconciliationEpochLineCount = transcriptLineCount
             record.autoNameTitleReconciliationAttemptCount = 0
+            record.autoNameTitleReconciliationIsExplicit = true
             record.updatedAt = now
             state.sessions[normalized] = record
             return (generation: generation, isNew: true)
@@ -1129,13 +1133,13 @@ final class ClaudeHookSessionStore {
                     )
                     settleAutoNamingBaselineWithoutTitle(
                         transcriptLineCount,
-                        now: now.timeIntervalSince1970,
                         record: &record
                     )
                 }
                 record.autoNameTitleReconciliationGeneration = nil
                 record.autoNameTitleReconciliationEpochLineCount = nil
                 record.autoNameTitleReconciliationAttemptCount = nil
+                record.autoNameTitleReconciliationIsExplicit = nil
                 record.autoNameInFlightAt = nil
                 record.autoNameLastObservationGeneration = nil
                 record.autoNameInFlightObservedLineCount = nil
@@ -1194,7 +1198,6 @@ final class ClaudeHookSessionStore {
                    let compactedLineCount {
                     settleAutoNamingBaselineWithoutTitle(
                         compactedLineCount,
-                        now: Date().timeIntervalSince1970,
                         record: &record
                     )
                 } else if let compactedLineCount {
@@ -1212,11 +1215,14 @@ final class ClaudeHookSessionStore {
                     record.autoNameTitleReconciliationGeneration = nil
                     record.autoNameTitleReconciliationEpochLineCount = nil
                     record.autoNameTitleReconciliationAttemptCount = nil
+                    record.autoNameTitleReconciliationIsExplicit = nil
                 } else if claimedReconciliationGeneration == nil {
                     // Ordinary transcript-shrink reconciliation has no
                     // durable generation, but a confirmed apply still resets
                     // its bounded retry budget for the next shrink.
                     record.autoNameTitleReconciliationAttemptCount = nil
+                    record.autoNameTitleReconciliationEpochLineCount = nil
+                    record.autoNameTitleReconciliationIsExplicit = nil
                 }
             } else {
                 foldAutoNamingInFlightObservationIntoHighWater(record: &record)

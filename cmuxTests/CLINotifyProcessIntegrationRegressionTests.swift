@@ -828,6 +828,125 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(record.surfaceId, concurrentSurfaceId)
     }
 
+    func testExplicitCompactReopensAfterOrdinaryShrinkExhaustion() throws {
+        let context = try makeClaudeHookContext(name: "compact-reopens-shrink-exhaustion")
+        defer { context.cleanup() }
+
+        let sessionId = "compact-reopens-shrink-exhaustion-session"
+        let stateURL = context.root.appendingPathComponent("claude-hook-sessions.json")
+        let store = ClaudeHookSessionStore(processEnv: [
+            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path
+        ])
+        try store.upsert(
+            sessionId: sessionId,
+            workspaceId: context.workspaceId,
+            surfaceId: context.surfaceId,
+            cwd: context.root.path,
+            markActive: true
+        )
+        try updateClaudeHookSession(sessionId, context: context) { record in
+            let now = Date().timeIntervalSince1970
+            record["autoNameLastTitle"] = "Existing topic"
+            record["autoNameLastLineCount"] = 100
+            record["autoNameLastObservedLineCount"] = 100
+            record["autoNameLastNamedAt"] = now - 600
+            record["autoNameLastAttemptAt"] = now - 600
+        }
+
+        let engine = AutoNamingEngine()
+        for attempt in 0..<ClaudeHookSessionStore.maxAutoNameTitleReconciliationAttempts {
+            let outcome = try store.beginAutoNaming(
+                sessionId: sessionId,
+                workspaceId: context.workspaceId,
+                surfaceId: context.surfaceId,
+                transcriptLineCount: 10,
+                now: Date().addingTimeInterval(TimeInterval(attempt)),
+                engine: engine,
+                allowNewTitleGeneration: true
+            )
+            guard case .reseedBaseline = outcome.decision else {
+                return XCTFail("Expected ordinary shrink reconciliation on attempt \(attempt)")
+            }
+            try store.finishAutoNamingReconciliation(
+                sessionId: sessionId,
+                compactedLineCount: 10,
+                confirmedApply: false,
+                observationGeneration: outcome.observationGeneration
+            )
+        }
+
+        let exhausted = try readClaudeHookSession(sessionId, context: context)
+        XCTAssertEqual(exhausted["autoNameTitleReconciliationAttemptCount"] as? Int, 4)
+        XCTAssertEqual(exhausted["autoNameTitleReconciliationIsExplicit"] as? Bool, false)
+
+        let pending = try store.markAutoNamingTitleReconciliationPending(
+            sessionId: sessionId,
+            transcriptLineCount: 10
+        )
+        XCTAssertEqual(pending?.isNew, true)
+        let duplicate = try store.markAutoNamingTitleReconciliationPending(
+            sessionId: sessionId,
+            transcriptLineCount: 10
+        )
+        XCTAssertEqual(duplicate?.isNew, false)
+        XCTAssertEqual(duplicate?.generation, pending?.generation)
+    }
+
+    func testTitlelessPendingReconciliationDoesNotInventFirstNamedTimestamp() throws {
+        let context = try makeClaudeHookContext(name: "compact-titleless-first-name")
+        defer { context.cleanup() }
+
+        let sessionId = "compact-titleless-first-name-session"
+        let stateURL = context.root.appendingPathComponent("claude-hook-sessions.json")
+        let store = ClaudeHookSessionStore(processEnv: [
+            "CMUX_CLAUDE_HOOK_STATE_PATH": stateURL.path
+        ])
+        try store.upsert(
+            sessionId: sessionId,
+            workspaceId: context.workspaceId,
+            surfaceId: context.surfaceId,
+            cwd: context.root.path,
+            markActive: true
+        )
+        try updateClaudeHookSession(sessionId, context: context) { record in
+            record["autoNameLastLineCount"] = 100
+            record["autoNameLastObservedLineCount"] = 100
+            record["autoNameInFlightAt"] = Date().timeIntervalSince1970
+                - AutoNamingEngine().config.inFlightExpiry - 1
+        }
+
+        let pending = try store.markAutoNamingTitleReconciliationPending(
+            sessionId: sessionId,
+            transcriptLineCount: 10
+        )
+        XCTAssertNotNil(pending)
+        let claim = try store.claimPendingAutoNamingTitleReconciliation(
+            sessionId: sessionId,
+            transcriptLineCount: 10,
+            now: Date(),
+            engine: AutoNamingEngine()
+        )
+        XCTAssertFalse(claim.pending)
+
+        let settled = try readClaudeHookSession(sessionId, context: context)
+        XCTAssertNil(settled["autoNameLastTitle"])
+        XCTAssertNil(settled["autoNameLastNamedAt"])
+        XCTAssertNil(settled["autoNameLastAttemptAt"])
+
+        let next = try store.beginAutoNaming(
+            sessionId: sessionId,
+            workspaceId: context.workspaceId,
+            surfaceId: context.surfaceId,
+            transcriptLineCount: 20,
+            now: Date().addingTimeInterval(1),
+            engine: AutoNamingEngine(),
+            allowNewTitleGeneration: true
+        )
+        guard case .proceed = next.decision else {
+            return XCTFail("A title-less reconciliation must leave first-title generation eligible")
+        }
+    }
+
     func testClaudeCompactFallbackPersistsReconciliationForAuthoritativeStop() throws {
         let context = try makeClaudeHookContext(name: "claude-compact-fallback")
         defer { context.cleanup() }

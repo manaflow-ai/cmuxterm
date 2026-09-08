@@ -200,6 +200,11 @@ struct ClaudeHookSessionRecord: Codable {
     /// Duplicate delivery with the same marker is ignored; a changed marker
     /// starts a new obligation without letting an older finisher clear it.
     var autoNameTitleReconciliationEpochLineCount: Int?
+    /// Distinguishes an explicit Claude compact event from an ordinary
+    /// transcript-shrink epoch. An explicit event may reopen an exhausted
+    /// ordinary shrink at the same line count, while duplicate delivery of an
+    /// exhausted explicit event remains suppressed.
+    var autoNameTitleReconciliationIsExplicit: Bool?
     /// Number of socket apply attempts made for the current durable compact
     /// obligation. A permanently unresolved target is abandoned after a small
     /// bounded number of retries so every later Stop cannot repeat the same
