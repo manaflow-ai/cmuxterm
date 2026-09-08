@@ -13,6 +13,10 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 
+_SCRIPTS_DIR = pathlib.Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
 from cmux_socket_paths import socket_path_for_file_name
 
 

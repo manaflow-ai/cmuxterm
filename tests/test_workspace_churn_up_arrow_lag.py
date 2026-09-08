@@ -64,7 +64,7 @@ MIN_BASELINE_AVG_MS_FOR_RATIO = float(os.environ.get("CMUX_LAG_MIN_BASELINE_AVG_
 MAX_CPU_PERCENT = float(os.environ.get("CMUX_LAG_MAX_CPU_PERCENT", "180.0"))
 ENFORCE_CPU = os.environ.get("CMUX_LAG_ENFORCE_CPU", "0") == "1"
 ALLOW_MAIN_SOCKET = os.environ.get("CMUX_LAG_ALLOW_MAIN_SOCKET", "0") == "1"
-APP_SUPPORT_SOCKET_DIR = Path.home() / "Library" / "Application Support" / "cmux"
+STATE_SOCKET_DIR = Path.home() / ".local" / "state" / "cmux"
 
 
 @dataclass
@@ -204,7 +204,7 @@ def resolve_target_socket() -> str:
         expected_tagged_dev_paths.add(f"/tmp/cmux-debug-{tag}.sock")
 
     socket_parent = Path(socket_path).expanduser().parent
-    is_app_support_socket = socket_parent == APP_SUPPORT_SOCKET_DIR
+    is_state_socket = socket_parent == STATE_SOCKET_DIR
     prefix = "com.cmuxterm.app.dev."
     is_unshortened_tagged_dev_socket = (
         base.startswith(prefix)
@@ -213,15 +213,15 @@ def resolve_target_socket() -> str:
         and len(base) > len(prefix) + len(".sock")
     )
     # Tagged DEV sockets are the intended target for this harness; reject
-    # release, staging, nightly, and untagged DEV App Support sockets.
+    # release, staging, nightly, and untagged DEV state-directory sockets.
     is_allowed_tagged_dev_socket = (
         socket_path in expected_tagged_dev_paths
-        or (not is_app_support_socket and base.startswith("cmux-debug-"))
-        or (is_app_support_socket and is_unshortened_tagged_dev_socket)
+        or (not is_state_socket and base.startswith("cmux-debug-"))
+        or (is_state_socket and is_unshortened_tagged_dev_socket)
     )
     is_main_socket = (
         base in {"cmux.sock", "cmux-debug.sock"}
-        or (is_app_support_socket and not is_allowed_tagged_dev_socket)
+        or (is_state_socket and not is_allowed_tagged_dev_socket)
         or (
             base.startswith("com.cmuxterm.app")
             and not is_unshortened_tagged_dev_socket

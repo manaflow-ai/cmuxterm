@@ -619,7 +619,10 @@ struct CLISocketPathResolver {
             return true
         }
         let connectErrno = errno
-        guard connectErrno == EINPROGRESS || connectErrno == EALREADY else {
+        guard connectErrno == EINPROGRESS
+            || connectErrno == EALREADY
+            || connectErrno == EAGAIN
+            || connectErrno == EWOULDBLOCK else {
             return false
         }
 
