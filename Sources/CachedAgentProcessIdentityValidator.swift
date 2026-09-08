@@ -7,7 +7,25 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         case cachedSnapshot
 
         /// The current hook-store record was loaded alongside the process observation.
+        /// The hook ran inside this very process and recorded its PID generation next
+        /// to the session id, so a process whose argv and environment carry no session
+        /// identity (Pi overwrites its argv with a bare title) is still this session's
+        /// process as long as nothing it does carry contradicts the record.
         case currentHookRecord
+
+        /// The pane's own foreground process, checked against the hook-published
+        /// binding for that pane. Like a hook record it vouches for a missing session
+        /// identity but never overrides a contradicting one.
+        case paneForegroundProcess
+
+        /// Whether a process that shows no session identity of its own may still be
+        /// accepted on the caller's evidence.
+        var vouchesForMissingSessionIdentity: Bool {
+            switch self {
+            case .cachedSnapshot: false
+            case .currentHookRecord, .paneForegroundProcess: true
+            }
+        }
     }
 
     func currentProcess(
@@ -46,7 +64,11 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         guard currentProcessExecutable(process.arguments, environment: process.environment, matches: snapshot) else {
             return false
         }
-        return currentProcessSession(process, matches: snapshot)
+        return currentProcessSession(
+            process,
+            matches: snapshot,
+            sessionValidation: hermesSessionValidation
+        )
     }
 
     private func currentProcessExecutable(
@@ -91,7 +113,8 @@ struct CachedAgentProcessIdentityValidator: Sendable {
 
     private func currentProcessSession(
         _ process: CmuxTopProcessArguments,
-        matches snapshot: SessionRestorableAgentSnapshot
+        matches snapshot: SessionRestorableAgentSnapshot,
+        sessionValidation: HermesSessionValidation
     ) -> Bool {
         let arguments = process.arguments
         let authoritativeEnvironmentSessionID = normalizedProcessValue(
@@ -137,7 +160,11 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                     // this registration; argv is intentionally irrelevant.
                     return true
                 }
-                return false
+                // Pi overwrites its argv with a bare title and nothing exports
+                // CMUX_AGENT_SESSION_ID for it, so a fresh Pi never shows its
+                // session. Its own hook record (or the pane's foreground
+                // process for that pane's binding) vouches instead (#12084).
+                return sessionValidation.vouchesForMissingSessionIdentity
             }
             return ManagedAgentSessionIdentity.sessionIDsMatch(
                 kind: snapshot.kind.rawValue,
@@ -161,7 +188,9 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         default:
             observedSessionID = authoritativeEnvironmentSessionID
         }
-        guard let observedSessionID else { return false }
+        guard let observedSessionID else {
+            return sessionValidation.vouchesForMissingSessionIdentity
+        }
         return ManagedAgentSessionIdentity.sessionIDsMatch(
             kind: snapshot.kind.rawValue,
             lhs: observedSessionID,

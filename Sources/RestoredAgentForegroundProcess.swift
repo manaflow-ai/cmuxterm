@@ -15,7 +15,10 @@ enum RestoredAgentForegroundProcess {
     ///
     /// The identity validator applies the same executable, launch-kind, and
     /// session checks the live agent index uses for hook-recorded PIDs, so a
-    /// shell (or an unrelated command) never counts as the agent.
+    /// shell (or an unrelated command) never counts as the agent. Pi overwrites
+    /// its argv with a bare title, so the pane scope vouches for a missing
+    /// session identity the way a hook record does; a contradicting session
+    /// identity still rejects the process.
     static func matches(
         _ agent: SessionRestorableAgentSnapshot,
         foregroundProcessID: Int?,
@@ -29,6 +32,10 @@ enum RestoredAgentForegroundProcess {
               let process = processArguments(foregroundProcessID) else {
             return false
         }
-        return validator.currentProcess(process, matches: agent)
+        return validator.currentProcess(
+            process,
+            matches: agent,
+            hermesSessionValidation: .paneForegroundProcess
+        )
     }
 }

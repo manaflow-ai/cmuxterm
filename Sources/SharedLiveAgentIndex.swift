@@ -517,6 +517,47 @@ final class SharedLiveAgentIndex {
     }
 
     /// Returns a freshly loaded index, coalescing with any refresh already in flight.
+    /// How many ownership-sensitive refreshes a deferred restore waits for
+    /// before giving up, and the pause between them. Right after a relaunch
+    /// the restored panes' session-start hooks keep the hook stores changing
+    /// for a few seconds; each attempt already fails closed after two passes,
+    /// so the pause lets that churn subside instead of scanning back to back.
+    static let deferredRestoreSettleAttempts = 5
+    static let deferredRestoreSettlePauseNanoseconds: UInt64 = 1_500_000_000
+
+    /// `indexRefreshingNow()` repeated up to `settleAttempts` times with
+    /// `pauseNanoseconds` between attempts, for callers that would otherwise
+    /// cancel a restore because the hook stores were momentarily unsettled.
+    func indexRefreshingNow(
+        settleAttempts: Int,
+        pauseNanoseconds: UInt64
+    ) async -> RestorableAgentSessionIndex? {
+        await Self.settledIndex(
+            attempts: settleAttempts,
+            pause: { try? await Task.sleep(nanoseconds: pauseNanoseconds) },
+            refresh: { await self.indexRefreshingNow() }
+        )
+    }
+
+    /// Runs `refresh` until it yields an index or `attempts` are spent, pausing
+    /// between attempts. Cancellation ends the wait without another attempt.
+    static func settledIndex(
+        attempts: Int,
+        pause: () async -> Void,
+        refresh: () async -> RestorableAgentSessionIndex?
+    ) async -> RestorableAgentSessionIndex? {
+        let attempts = max(attempts, 1)
+        for attempt in 0..<attempts {
+            if let index = await refresh() {
+                return index
+            }
+            guard !Task.isCancelled, attempt + 1 < attempts else { return nil }
+            await pause()
+            guard !Task.isCancelled else { return nil }
+        }
+        return nil
+    }
+
     func indexRefreshingNow() async -> RestorableAgentSessionIndex? {
         ensureWatchingHookStoreDirectory()
         var completedRefreshPasses = 0

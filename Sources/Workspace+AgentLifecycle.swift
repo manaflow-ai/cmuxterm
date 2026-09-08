@@ -713,7 +713,13 @@ extension Workspace {
         deferredAgentResumeRestoresByPanelId[panelId] = restore
         guard deferredAgentResumeIndexTask == nil else { return }
         deferredAgentResumeIndexTask = Task { @MainActor [weak self] in
-            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow()
+            // Restored panes' session-start hooks keep the hook stores changing
+            // for a few seconds after relaunch; wait for the scan to settle
+            // instead of cancelling every deferred restore on the first miss.
+            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow(
+                settleAttempts: SharedLiveAgentIndex.deferredRestoreSettleAttempts,
+                pauseNanoseconds: SharedLiveAgentIndex.deferredRestoreSettlePauseNanoseconds
+            )
             guard !Task.isCancelled else { return }
             guard let self else { return }
             self.deferredAgentResumeIndexTask = nil
