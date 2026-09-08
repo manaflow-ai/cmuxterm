@@ -286,8 +286,13 @@ struct DevicesCloudTreeBuilderTests {
         #expect(row(online: true, link: .unavailable).indicator == .attention)
         #expect(row(online: false, link: .connected).indicator == .online, "a live link wins over stale presence")
         #expect(row(online: false, link: .connecting).indicator == .connecting)
-        #expect(row(online: false, link: .idle).indicator == .offline)
-        #expect(CloudTreeDeviceRow(instance: studio, name: "Studio", presence: nil, linkState: .connected, linkError: nil, workspaceCount: 0, terminalCount: 0).indicator == .offline)
+        #expect(row(online: false, link: .offline).indicator == .offline)
+        let connectedWithoutPresence = CloudTreeDeviceRow(
+            instance: studio, name: "Studio", presence: nil, linkState: .connected,
+            linkError: nil, workspaceCount: 0, terminalCount: 0
+        )
+        #expect(connectedWithoutPresence.indicator == .online)
+        #expect(connectedWithoutPresence.statusLabel(now: now) == "Online")
         #expect(row(online: true, link: .connected).statusLabel(now: now) == "Online")
         #expect(row(online: true, link: .error, error: "Handshake failed").statusLabel(now: now) == "Handshake failed")
         #expect(row(online: true, link: .unavailable, trust: .otherAccount).statusLabel(now: now) == "Another account")
@@ -297,7 +302,7 @@ struct DevicesCloudTreeBuilderTests {
         let unknown = CloudTreeDeviceRow(
             instance: studio, name: "Studio",
             presence: SurfaceDevicePresence(state: .unknown, lastSeenAt: now.addingTimeInterval(-3_600), tag: "default", bundleID: nil, accountTrust: .sameAccount),
-            linkState: .idle, linkError: nil, workspaceCount: 0, terminalCount: 0
+            linkState: .offline, linkError: nil, workspaceCount: 0, terminalCount: 0
         )
         #expect(unknown.statusLabel(now: now) == "Last seen 1h ago")
         #expect(unknown.indicator == .offline)
