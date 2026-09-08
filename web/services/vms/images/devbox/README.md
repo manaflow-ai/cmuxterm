@@ -123,11 +123,18 @@ the base inventory, renames it:
   and every other line stay byte for byte.
 - **SSH host keys regenerated** under the new name (the base's keys were
   generated when Freestyle built its rootfs and are shared by every VM booted
-  from that base). `cmux-devbox-boot` regenerates them again on every clone,
-  in a detached subshell so the daemon start never waits, so no two machines
-  from one snapshot share a host key.
+  from that base). Bake and clone share `cmux-devbox-rekey`: keys are generated
+  into a staging dir and moved only once the full set exists, and any
+  generation, replacement, or sshd restart failure restores the previous set.
+  `cmux-devbox-boot` runs that helper on every clone and retries until it
+  succeeds before binding the instance id or starting the daemon, so a clone
+  never serves the builder's keys.
 - **The journal starts over** in the cleanup step, so a machine's log begins
   under its own name instead of with the base's boot as `freestyle-vm`.
+- **Cold boots** (kernel `boot_id` differs from `/etc/cmux/daemon-boot-id`)
+  run the daemon's own fenced recovery (`cmux-tui remote stop
+  --acknowledge-failed-finalization`) when stale cloud session runtime exists,
+  then update the boot marker. Same-boot supervisor restarts skip this path.
 
 The `identity-final` step before the stamp re-runs the check plus a
 whole-word residue audit (`freestyle-vm` under `/etc`, `/home`, `/root`,
@@ -177,7 +184,9 @@ daemon would give every machine the builder's Noise identity. The
 unit with `CMUX_TUI_REMOTE_WS_BIND=[::]:1337` (the driver reaches the daemon
 at the VM's IPv6 address, so the listener must be dual-stack), reads the
 platform instance id from the metadata service, wipes the remote identity
-when the machine is a clone, and starts the daemon. The driver runs no
+when the machine is a clone (after regenerating SSH host keys), and starts
+the daemon. A cold boot finalizes a predecessor that could not publish an
+outcome before the daemon starts. The driver runs no
 bootstrap at create; it heals pin drift and a missing listener on attach
 (`web/services/vms/drivers/cmuxTuiDaemon.ts`). The container Dockerfile still
 ships only the supervisor and waits for a driver install.

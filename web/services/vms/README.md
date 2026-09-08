@@ -135,15 +135,18 @@ Image policy:
   `expectNoCloudVmImplementationLeaks` in `tests/vm-route-auth.test.ts`).
 - Local development and every deployed runtime serve the same `defaultForKind` entry; there is no
   separate local default and nothing to copy into `.env`.
-- Today's default (both kinds, every size) is the `freestyle-cmux-devbox-11761b` ladder, baked and
-  verified on cmux's Freestyle account from https://github.com/manaflow-ai/cmux/pull/11776
-  (`090e3daddd`, epoch `2026-09-02-r4`: the desktop session with owner-signalled readiness
-  (`Type=notify`), the accessibility bus, clipboard helper and published `DISPLAY`, baked cmux-tui
-  daemon, `freestyle/ubuntu-sm` base): `sm` `sh-60effaffd5404e5ab8dbdb08bd5f5eed`, `md`
-  `sh-1ce6c11f5d6e4f8e98c19454e9a38751`, `lg` `sh-bda89603f1ab41a2902ac5d781e2c6ce`, `xl`
-  `sh-95b526e17c234593a45edfb572e49396`, `2xl` `sh-236a1866dd244082ba0f06829df2358d`. The retired
-  beta entry stays listed for the record and is never a default; earlier public entries (the
-  `11761a`, `20260903b` and `edge1` ladders before it) stay for rollback.
+- Today's defaults (both kinds, every size) are the `freestyle-cmux-hostname-12045-*-v2`
+  ladders, baked and verified on cmux's Freestyle account from
+  https://github.com/manaflow-ai/cmux/pull/12114 (`408e0142ef`, epoch `2026-09-08-r1`:
+  hostname `cmux`, recoverable SSH host-key rotation at bake and on clone, cold-boot
+  daemon recovery, baked cmux-tui daemon `71eb616d6f`). Desktop: `sm`
+  `sh-83c92d87356542f2bde9fe3e5a664bf2`, `md` `sh-a024bf739e05445a85fc17f8caf85c4c`,
+  `lg` `sh-bc1ef322ad2e4d168634d293690885e3`, `lgx` `sh-eb2666192f5e4414b63354e1561f1bbb`,
+  `xl` `sh-09b797d2ca0642e7a73f2aa6d474c678`, `2xl` `sh-b588cd3a9c9e4f9bbd19c35eef1cf008`.
+  Base: `sm` `sh-02be1d7394564fb7a693645b596ee478`, `md` `sh-8fa821c2f710499e897cc83b8e8afa0b`,
+  `lg` `sh-959d822635934e4ba4c7bbd8aa86b9cc`, `lgx` `sh-3e3e49d551f24b7f831f4a41a6b2dd2f`,
+  `xl` `sh-452bdbc9ec3e412c927a042c1a68050a`, `2xl` `sh-9649d7e4086845c7a32060298a9b2a71`.
+  Earlier public entries stay listed for rollback and are never a default.
 - Snapshots are account-scoped: a manifest id is only bootable by the Freestyle account whose
   `FREESTYLE_API_KEY` the deployment uses; promote under cmux's key.
 - Promotion is `bun run devbox:promote -- freestyle` (bake → verify → manifest write), then a PR
