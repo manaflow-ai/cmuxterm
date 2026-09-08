@@ -17,6 +17,10 @@ import {
   DASHBOARD_RETURN_PATH_HEADER,
   dashboardReturnPathForRequest,
 } from "./app/lib/dashboard-return-path";
+import {
+  VM_REFLECTION_ALIAS_HEADER,
+  VM_REFLECTION_ALIAS_VALUE,
+} from "./services/coderouter/vmGuestEnv";
 
 const intlMiddleware = createMiddleware(routing);
 const localeSet = new Set<string>(routing.locales);
@@ -39,6 +43,19 @@ export default function middleware(incomingRequest: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
+
+  // A cmux Cloud machine dialing its reflection alias
+  // (`https://reflection.cmux.internal/<path>`): the platform edge marks the
+  // request with this header while injecting the machine's credential. Serve the
+  // guest-facing reflection API; the header is a routing hint, never auth.
+  if (request.headers.get(VM_REFLECTION_ALIAS_HEADER) === VM_REFLECTION_ALIAS_VALUE) {
+    // A plain URL, not NextURL: NextURL re-applies the request's trailing slash
+    // to an assigned pathname, and `/api/vm/reflection/peers/` would 308 to the
+    // slash-less route — a redirect a `curl -s` inside a machine will not follow.
+    const url = new URL(request.url);
+    url.pathname = `/api/vm/reflection${pathname.replace(/\/+$/, "")}`;
+    return NextResponse.rewrite(url);
+  }
 
   if (
     (host === "coderouter.dev" || host === "www.coderouter.dev") &&

@@ -16,7 +16,12 @@
 // production. Tokens never rotate; destroy revokes them.
 import { issueRouteToken, revokeRouteTokensForVm } from "./repository";
 import { ROUTE_TOKEN_HEADER, VM_ID_HEADER } from "./routeTokenAuth";
-import { vmEdgeAliasDomain } from "./vmGuestEnv";
+import {
+  VM_REFLECTION_ALIAS_HEADER,
+  VM_REFLECTION_ALIAS_VALUE,
+  vmEdgeAliasDomain,
+  vmReflectionAliasDomain,
+} from "./vmGuestEnv";
 import type { VmEdgeRule } from "../vms/drivers/types";
 
 export const VM_ROUTE_TOKEN_LABEL = "vm";
@@ -31,7 +36,7 @@ export type VmModelPlaneInput = {
 };
 
 export type VmModelPlaneProvision = {
-  /** Edge header injection for the coderouter host. Holds the token. */
+  /** Edge header injection for the coderouter alias and the reflection alias. Both hold the token. */
   readonly edgeRules: readonly VmEdgeRule[];
 };
 
@@ -164,17 +169,26 @@ export async function provisionVmModelPlane(
   // to send a bearer, while the VM id header gives the server a binding check.
   // The guest env is static and baked (services/coderouter/vmGuestEnv.ts), so
   // nothing is written here.
+  const headers = {
+    ...edgeOriginHeaders(dependencies),
+    authorization: `Bearer ${token}`,
+    [ROUTE_TOKEN_HEADER]: token,
+    [VM_ID_HEADER]: input.cloudVmId,
+  };
   return {
     edgeRules: [
       {
         domain: vmEdgeAliasDomain(),
         destinationHost: new URL(origin).hostname,
-        headers: {
-          ...edgeOriginHeaders(dependencies),
-          authorization: `Bearer ${token}`,
-          [ROUTE_TOKEN_HEADER]: token,
-          [VM_ID_HEADER]: input.cloudVmId,
-        },
+        headers,
+      },
+      // The same identity on a second alias, marked so the proxy serves the
+      // guest-facing reflection API at `https://reflection.cmux.internal/…`
+      // (exe.dev-style self discovery). Same token, same binding check.
+      {
+        domain: vmReflectionAliasDomain(),
+        destinationHost: new URL(origin).hostname,
+        headers: { ...headers, [VM_REFLECTION_ALIAS_HEADER]: VM_REFLECTION_ALIAS_VALUE },
       },
     ],
   };

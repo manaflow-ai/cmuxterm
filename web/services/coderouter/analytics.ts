@@ -440,6 +440,7 @@ function authSurface(value: unknown): string | null {
     "opencode_proxy",
     "session_validation",
     "vm_usage",
+    "vm_reflection",
   ]);
 }
 
