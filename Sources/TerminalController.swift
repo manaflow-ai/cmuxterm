@@ -6737,11 +6737,13 @@ class TerminalController {
         return (workspace.focusedPanelId, nil)
     }
 
-    private nonisolated func v2JSONLiteral(_ value: Any) -> String {
+    // Shared by browser automation extensions in separate TerminalController files.
+    nonisolated func v2JSONLiteral(_ value: Any) -> String {
         v2BrowserControl.jsonLiteral(value)
     }
 
-    private nonisolated func v2NormalizeJSValue(_ value: Any?) -> Any {
+    // Shared by browser automation extensions in separate TerminalController files.
+    nonisolated func v2NormalizeJSValue(_ value: Any?) -> Any {
         v2BrowserControl.normalizeJSValue(value) { $0 is V2BrowserUndefinedSentinel }
     }
 
@@ -7013,7 +7015,8 @@ class TerminalController {
         return outcome == .committed
     }
 
-    private nonisolated func v2RunBrowserJavaScript(
+    // Shared by browser automation extensions in separate TerminalController files.
+    nonisolated func v2RunBrowserJavaScript(
         _ webView: WKWebView,
         browserPanel: BrowserPanel,
         surfaceId: UUID,
