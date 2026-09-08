@@ -6,7 +6,7 @@ const languages = {
   ja: { title: "cmux - マルチタスクのために作られたターミナル", heading: "機能" },
   ar: { title: "cmux — المحطة الطرفية المصممة لتعدد المهام", heading: "الميزات" },
   de: { title: "cmux — Das Terminal für Multitasking", heading: "Funktionen" },
-  "zh-TW": { title: "cmux — 為多工而打造的終端機", heading: "功能" },
+  "zh-TW": { title: "cmux — 專為多工處理打造的終端", heading: "功能" },
 } as const;
 
 type TestLocale = keyof typeof languages;
