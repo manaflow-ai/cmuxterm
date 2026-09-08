@@ -112,7 +112,9 @@ public final class DeclarativeTerminalConfigurationModel:
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      self.pendingWrites.workingDirectoryPolicy?.id == writeID else { return }
+                self.pendingWrites.workingDirectoryPolicy = nil
                 await self.refresh()
             } catch {
                 guard self.pendingWrites.workingDirectoryPolicy?.id == writeID else { return }
@@ -133,7 +135,9 @@ public final class DeclarativeTerminalConfigurationModel:
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      self.pendingWrites.workingDirectoryPath?.id == writeID else { return }
+                self.pendingWrites.workingDirectoryPath = nil
                 await self.refresh()
             } catch {
                 guard self.pendingWrites.workingDirectoryPath?.id == writeID else { return }
@@ -154,7 +158,9 @@ public final class DeclarativeTerminalConfigurationModel:
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      self.pendingWrites.shellStartupMode?.id == writeID else { return }
+                self.pendingWrites.shellStartupMode = nil
                 await self.refresh()
             } catch {
                 guard self.pendingWrites.shellStartupMode?.id == writeID else { return }
@@ -176,7 +182,9 @@ public final class DeclarativeTerminalConfigurationModel:
             guard let self else { return }
             do {
                 try await self.jsonStore.set(normalized, for: key)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      self.pendingWrites.shellStartupCommand?.id == writeID else { return }
+                self.pendingWrites.shellStartupCommand = nil
                 await self.refresh()
             } catch {
                 guard self.pendingWrites.shellStartupCommand?.id == writeID else { return }
