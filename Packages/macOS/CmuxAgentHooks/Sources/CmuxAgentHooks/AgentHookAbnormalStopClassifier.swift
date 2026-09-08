@@ -341,6 +341,10 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
     }
 
     private func containsUserInitiatedStopCue(_ lowercasedText: String) -> Bool {
+        let hasStructuredUserRequestedReason = lowercasedText.range(
+            of: #"(?<![a-z0-9])user[_-]requested(?![a-z0-9])"#,
+            options: .regularExpression
+        ) != nil
         let normalized = lowercasedText
             .lowercased()
             .replacingOccurrences(of: "_", with: " ")
@@ -359,6 +363,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("user canceled")
             || normalized.contains("user interrupt")
             || normalized.contains("user abort")
+            || hasStructuredUserRequestedReason
             || normalized == "user requested"
             || normalized.contains("stop user requested")
             || normalized.contains("user requested stop")

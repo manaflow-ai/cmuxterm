@@ -52,6 +52,14 @@ struct AgentHookAbnormalStopClassifierTests {
             signal: "Stop user_requested task_complete",
             message: "Selected model is at capacity"
         ))
+        #expect(classifier.isUserInitiatedStop(
+            signal: "Stop capacity",
+            message: "completed capacity user_requested"
+        ))
+        #expect(!classifier.isUserInitiatedStop(
+            signal: "Stop",
+            message: "Approve the command the user requested"
+        ))
     }
 
     @Test func doesNotTreatInstructionalOrProviderCancellationProseAsUserAbort() {
