@@ -95,7 +95,9 @@ struct IrohSubstrateTests {
         try await client.close()
     }
 
-    @Test("The denial code survives in the connection termination alone (3.3, no timing)")
+    @Test(
+        "The denial code survives in the connection termination alone (3.3, no timing)",
+        .timeLimit(.minutes(1)))
     func denialCarriedByTerminationChannel() async throws {
         let host = TransportHost(
             verifier: GrantVerifier(serverPublicKeyData: signer.publicKeyData))
