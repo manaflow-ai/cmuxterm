@@ -210,38 +210,6 @@ struct VerifiedTerminalReplayStateMachineTests {
         #expect(machine.visibleSnapshot?.columns == 70)
     }
 
-    @Test("a request-only viewport floor does not mix content and emission counters")
-    func requestOnlyViewportFloorDoesNotRejectFirstEmission() throws {
-        let machine = VerifiedTerminalReplayStateMachine()
-        let initial = try frame(
-            renderRevision: 1,
-            stateSeq: 1,
-            columns: 80,
-            text: "initial",
-            emissionRevision: 1
-        )
-        commit(initial, to: machine)
-
-        // The request-only observation advanced content revision 10 without
-        // claiming an emitted-frame identity. The first live frame has its
-        // independent emission sequence and must still be eligible.
-        machine.acknowledgeViewport(
-            renderEpoch: "epoch-default",
-            renderRevisionFloor: 10
-        )
-        let firstLive = try frame(
-            renderRevision: 10,
-            stateSeq: 2,
-            columns: 80,
-            text: "observed",
-            emissionRevision: 2
-        )
-        guard case .apply = machine.begin(frame: firstLive) else {
-            Issue.record("a request-only content floor must not reject an independent emission revision")
-            return
-        }
-    }
-
     @Test("a viewport acknowledgement invalidates a replay already applying at the old floor")
     func viewportAcknowledgementInvalidatesInFlightCapture() throws {
         let machine = VerifiedTerminalReplayStateMachine()
@@ -836,10 +804,9 @@ struct VerifiedTerminalReplayStateMachineTests {
         columns: Int,
         text: String,
         styleID: Int = 1,
-        full: Bool = true,
-        emissionRevision: UInt64? = nil
+        full: Bool = true
     ) throws -> MobileTerminalRenderGridFrame {
-        var frame = try MobileTerminalRenderGridFrame(
+        try MobileTerminalRenderGridFrame(
             surfaceID: surfaceID,
             stateSeq: stateSeq,
             renderEpoch: renderEpoch,
@@ -868,9 +835,5 @@ struct VerifiedTerminalReplayStateMachineTests {
                 .init(code: 2004, on: true)
             ]
         )
-        if let emissionRevision {
-            frame.emissionRevision = emissionRevision
-        }
-        return frame
     }
 }

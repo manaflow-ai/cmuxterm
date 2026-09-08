@@ -38,6 +38,30 @@ public struct MobileTerminalRenderGridEmissionState: Equatable, Sendable {
     /// Monotonic identity of the producer's absolute row space at capture time.
     public let rowSpaceRevision: UInt64?
 
+    /// Returns this state with the producer identity assigned to its source frame.
+    public func withIdentity(
+        renderEpoch: String,
+        renderRevision: UInt64,
+        emissionRevision: UInt64
+    ) -> Self {
+        Self(
+            renderEpoch: renderEpoch,
+            renderRevision: renderRevision,
+            emissionRevision: emissionRevision,
+            columns: columns,
+            rows: rows,
+            stateSeq: stateSeq,
+            activeScreen: activeScreen,
+            terminalTheme: terminalTheme,
+            terminalConfigTheme: terminalConfigTheme,
+            rowSignatures: rowSignatures,
+            anchor: anchor,
+            historyRows: historyRows,
+            rowSpaceRevision: rowSpaceRevision,
+            content: content
+        )
+    }
+
     /// Creates cached render-grid emission state.
     ///
     /// - Parameters:

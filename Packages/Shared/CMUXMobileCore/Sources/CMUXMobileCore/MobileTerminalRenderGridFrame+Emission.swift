@@ -1,4 +1,17 @@
 extension MobileTerminalRenderGridFrame {
+    /// Returns a frame with the producer identity assigned after emission.
+    public func withIdentity(
+        renderEpoch: String,
+        renderRevision: UInt64,
+        emissionRevision: UInt64
+    ) -> Self {
+        var copy = self
+        copy.renderEpoch = renderEpoch
+        copy.renderRevision = renderRevision
+        copy.emissionRevision = emissionRevision
+        return copy
+    }
+
     /// Upper bound on history rows a screen-anchored burst delta may carry.
     /// Bursts larger than this leave a gap in the consumer's scrollback (the
     /// oldest missed rows), matching a terminal that was detached during the

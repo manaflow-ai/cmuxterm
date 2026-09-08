@@ -314,6 +314,39 @@ extension TerminalController {
         )
     }
 
+    /// Routes a local viewport command before polling snapshots can answer it.
+#if compiler(>=6.2)
+    @concurrent
+#else
+    @Sendable
+#endif
+    nonisolated func v2LocalViewportRequestResultAsync(
+        request: ControlRequest,
+        session: LocalTerminalViewportSession
+    ) async -> String? {
+        if Self.localViewportCommandMethods.contains(request.method) {
+            return await v2LocalViewportCommandResultAsync(request: request, session: session)
+        }
+        guard request.method == "surface.read_text" else { return nil }
+        return await v2LocalViewportSurfaceReadTextResultAsync(request: request, session: session)
+    }
+
+    /// Returns a projected `surface.read_text` response only for an active
+    /// connection override; callers can continue through the normal snapshot
+    /// path when this session has no local viewport state.
+#if compiler(>=6.2)
+    @concurrent
+#else
+    @Sendable
+#endif
+    nonisolated func v2LocalViewportSurfaceReadTextResultAsync(
+        request: ControlRequest,
+        session: LocalTerminalViewportSession
+    ) async -> String? {
+        guard !(await session.isEmpty) else { return nil }
+        return await v2SurfaceReadTextForLocalConnection(request: request, session: session)
+    }
+
     /// Applies a local viewport to the text returned by `surface.read_text`.
     ///
     /// Target resolution and Ghostty capture are performed through one

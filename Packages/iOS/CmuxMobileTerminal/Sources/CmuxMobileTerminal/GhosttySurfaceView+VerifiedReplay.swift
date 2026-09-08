@@ -5,7 +5,6 @@ import Foundation
 import GhosttyKit
 import QuartzCore
 import UIKit
-
 /// A replay viewport anchor paired with the user-interaction state at capture.
 public struct VerifiedReplayCapturedViewportAnchor: Equatable, Sendable {
     /// The content-relative viewport position captured before replay.

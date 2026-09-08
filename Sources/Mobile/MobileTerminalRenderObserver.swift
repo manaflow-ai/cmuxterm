@@ -2,14 +2,12 @@ import CMUXMobileCore
 import CmuxTerminal
 import Foundation
 import os
-
 /// Pushes terminal render events only while a mobile client is actively subscribed.
 /// Ghostty notification demand is tied to subscriptions so the desktop terminal
 /// path is untouched when no iPhone/iPad is attached.
 @MainActor
 final class MobileTerminalRenderObserver {
     static let shared = MobileTerminalRenderObserver()
-
     private var releaseFrameDemand: (() -> Void)?
     private var releaseTickDemand: (() -> Void)?
     private var observers: [NSObjectProtocol] = []
@@ -31,9 +29,7 @@ final class MobileTerminalRenderObserver {
         [weak self] surfaceIDs in
         self?.enqueueCoalescedThemeUpdates(surfaceIDs)
     }
-
     private init() {}
-
     func start() {
         guard observers.isEmpty else { return }
         observers.append(NotificationCenter.default.addObserver(
@@ -371,10 +367,7 @@ final class MobileTerminalRenderObserver {
         let fullScrollbackTarget = 0
         var scrollbackLines = 0
         var allowScrollbackRequest = true
-        let renderCapture = MobileTerminalByteTee.shared.currentRenderCaptureIdentity(
-            surfaceID: surfaceID,
-            anchor: anchor
-        )
+        let renderCapture = MobileTerminalByteTee.shared.currentRenderCaptureIdentity(surfaceID: surfaceID, anchor: anchor)
         while true {
             guard let snapshot = surface.mobileRenderGridFrame(
                     stateSeq: stateSeq,
@@ -432,42 +425,9 @@ final class MobileTerminalRenderObserver {
             ) else { return nil }
             switch emission {
             case .emit(let frame, let state):
-                // Assign identities only after the content comparison has
-                // decided that a frame is actually emitted. A replay of an
-                // unchanged grid therefore keeps `renderRevision` stable,
-                // while `emissionRevision` still advances for delta chaining.
-                var identifiedFrame = frame
-                let identity = MobileTerminalByteTee.shared.recordRenderGridFrame(
-                    surfaceID: surfaceID,
-                    anchor: anchor,
-                    fullFrame: themedFrame,
-                    content: state.content
-                )
-                identifiedFrame.renderEpoch = identity.epoch
-                identifiedFrame.renderRevision = identity.revision
-                identifiedFrame.emissionRevision = identity.emissionRevision
-                // Preserve the full row-signature baseline supplied by the
-                // emission decision. The wire delta only contains changed
-                // rows, so deriving the baseline from `identifiedFrame` would
-                // erase unchanged rows and make every later delta repaint them.
-                renderGridStatesBySurfaceID[surfaceID, default: [:]][anchor] =
-                    MobileTerminalRenderGridEmissionState(
-                        renderEpoch: identity.epoch,
-                        renderRevision: identity.revision,
-                        emissionRevision: identity.emissionRevision,
-                        columns: state.columns,
-                        rows: state.rows,
-                        stateSeq: state.stateSeq,
-                        activeScreen: state.activeScreen,
-                        terminalTheme: state.terminalTheme,
-                        terminalConfigTheme: state.terminalConfigTheme,
-                        rowSignatures: state.rowSignatures,
-                        anchor: state.anchor,
-                        historyRows: state.historyRows,
-                        rowSpaceRevision: state.rowSpaceRevision,
-                        content: state.content
-                    )
-                return identifiedFrame
+                let identity = MobileTerminalByteTee.shared.recordRenderGridFrame(surfaceID: surfaceID, anchor: anchor, fullFrame: themedFrame, content: state.content)
+                renderGridStatesBySurfaceID[surfaceID, default: [:]][anchor] = state.withIdentity(renderEpoch: identity.epoch, renderRevision: identity.revision, emissionRevision: identity.emissionRevision)
+                return frame.withIdentity(renderEpoch: identity.epoch, renderRevision: identity.revision, emissionRevision: identity.emissionRevision)
             case .needsScrollback(let rows):
                 // Re-export once with the requested history rows; the retry
                 // recomputes from the fresh capture and must emit with
@@ -501,10 +461,7 @@ final class MobileTerminalRenderObserver {
         renderGridStatesBySurfaceID[surfaceID, default: [:]][.screen] = frame.emissionState
     }
 
-    func decorateReplayFrame(
-        _ frame: MobileTerminalRenderGridFrame,
-        advanceThemeRevision: Bool = true
-    ) -> MobileTerminalRenderGridFrame {
+    func decorateReplayFrame(_ frame: MobileTerminalRenderGridFrame, advanceThemeRevision: Bool = true) -> MobileTerminalRenderGridFrame {
         if !hasLoadedTerminalTheme { refreshTerminalTheme() }
         var themedFrame = frame
         themedFrame.terminalTheme = (frame.terminalTheme ?? cachedTerminalTheme)
