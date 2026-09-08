@@ -64,10 +64,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// callers waiting on the state stream report that refusal rather than a
     /// generic cancellation. Cleared when the next start is scheduled.
     private var lastStartRefusal: CloudTunnelStartRefusal?
-    /// A superseded start's cleanup of the configuration it saved
-    /// (``discardInstalled()``), still in flight. A newer start waits for it
-    /// before enrolling, so the cleanup can never delete the newer start's
-    /// configuration.
+    /// A superseded start's cleanup of what it wrote (``discard(install:)``),
+    /// still in flight. A newer start waits for it before enrolling, so the
+    /// cleanup can never delete the newer start's enrollment or configuration.
     private var pendingDiscard: Task<Void, Never>?
     /// What a superseded start left behind because a newer start was in
     /// flight when it ended: an enrollment written to disk, and a VPN
