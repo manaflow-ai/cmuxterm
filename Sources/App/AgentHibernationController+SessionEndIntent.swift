@@ -25,6 +25,18 @@ extension AgentHibernationController {
         sessionEndPreservationIntentsByPanel.removeValue(forKey: panelKey)
     }
 
+    /// Retires an old intent once a different process generation owns the panel.
+    func disarmSessionEndPreservationIfSuperseded(
+        panelKey: AgentHibernationPanelKey,
+        processIdentity: AgentPIDProcessIdentity
+    ) {
+        guard let intent = sessionEndPreservationIntentsByPanel[panelKey],
+              !intent.processIdentities.contains(processIdentity) else {
+            return
+        }
+        sessionEndPreservationIntentsByPanel.removeValue(forKey: panelKey)
+    }
+
     /// Returns whether a hook's exact session/process generation belongs to a
     /// pending cmux hibernation.
     func shouldPreserveSessionEnd(

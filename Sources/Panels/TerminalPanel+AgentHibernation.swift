@@ -117,7 +117,7 @@ extension TerminalPanel {
         return true
     }
 
-    /// Recreates the terminal runtime and clears the old process-generation intent.
+    /// Recreates the terminal runtime while retaining the old-generation intent until a new process is recorded.
     @discardableResult
     func prepareAgentHibernationResume() -> AgentHibernationResumePreparation {
         guard case .hibernated(let state) = agentHibernationPhase else {
@@ -127,9 +127,6 @@ extension TerminalPanel {
         guard surface.prepareAgentHibernationResume(initialInput: resumeStartupInput) else {
             return .unavailable
         }
-        AgentHibernationController.shared.disarmSessionEndPreservation(
-            panelKey: AgentHibernationPanelKey(workspaceId: workspaceId, panelId: id)
-        )
         agentHibernationPhase = .live
         requestViewReattach()
         surface.requestBackgroundSurfaceStartIfNeeded()
