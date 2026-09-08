@@ -134,8 +134,17 @@ case "\${1:-}" in
   self) shift; cmd_self "$@" ;;
   notify|notification)
     # Notifications live in this machine's cmux-tui daemon; the Mac derives
-    # its unread state from them. Same flags as the macOS cmux notify.
-    if [ -x /usr/local/bin/cmux-tui ]; then exec /usr/local/bin/cmux-tui "$@"; fi
+    # its unread state from them. Same flags as the macOS cmux notify. Inside
+    # a daemon terminal CMUX_TUI_SOCKET is set; elsewhere (vm exec, cron) the
+    # daemon's own session socket is the target, never a default "main".
+    tui="\${CMUX_TUI_BIN:-/usr/local/bin/cmux-tui}"
+    if [ -x "$tui" ]; then
+      if [ -z "\${CMUX_TUI_SOCKET:-}" ]; then
+        run_dir="\${CMUX_TUI_RUN_DIR:-/tmp/cmux-tui-$(id -u)}"
+        if [ -S "$run_dir/cloud.sock" ]; then exec "$tui" --socket "$run_dir/cloud.sock" "$@"; fi
+      fi
+      exec "$tui" "$@"
+    fi
     die 2 noDaemon "cmux $1"
     ;;
   vm)
