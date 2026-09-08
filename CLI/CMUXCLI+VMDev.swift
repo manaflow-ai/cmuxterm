@@ -273,6 +273,30 @@ extension CMUXCLI {
         return ids
     }
 
+    static func vmDevTerminalIDs(
+        fromCatalogResources resources: [[String: Any]],
+        machine: String,
+        workspaceID: String
+    ) -> [String: String] {
+        var ids: [String: String] = [:]
+        for resource in resources where (resource["kind"] as? String) == "terminal" {
+            guard (resource["lifecycle"] as? String) != "exited",
+                  let terminalID = Self.vmTerminalID(in: resource, machine: machine),
+                  !terminalID.isEmpty else { continue }
+            let view = (resource["remote_views"] as? [[String: Any]])?
+                .first { (($0["workspace"] as? [String: Any])?["id"] as? String) == workspaceID }
+            let viewName = (view?["name"] as? String).flatMap {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+            }
+            let resourceName = (resource["title"] as? String).flatMap {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+            }
+            guard let name = viewName ?? resourceName else { continue }
+            if ids[name] == nil { ids[name] = terminalID }
+        }
+        return ids
+    }
+
     // MARK: - The command
 
     private struct VMDevOptions {
@@ -484,8 +508,12 @@ extension CMUXCLI {
         var layoutApplied = false
         var terminals: [String: String] = [:]
         var applyPayload: [String: Any]?
-        let alreadyBuilt = existing && vmDevWorkspaceHasPanes(machine: machine, remoteWorkspace: remoteWorkspace, client: client)
+        let existingInfo = existing
+            ? vmDevWorkspaceInfo(machine: machine, remoteWorkspace: remoteWorkspace, client: client)
+            : nil
+        let alreadyBuilt = existingInfo?.hasPanes == true
         if alreadyBuilt {
+            terminals = existingInfo?.terminalIDs ?? [:]
             lines.append("layout kept: \(remoteWorkspace) already has panes (close it with `cmux vm workspace rm \(machine) \(remoteWorkspace)` to rebuild)")
         } else {
             let result = try vmDevRunShim(
@@ -599,20 +627,28 @@ extension CMUXCLI {
         return count
     }
 
-    /// Whether a machine workspace already has live terminals, from the catalog the app
-    /// keeps (`surface.catalog`, the same rows `vm tree` prints). Unknown (no catalog,
-    /// stale rows) counts as empty: the shim re-checks and refuses a non-empty target.
-    private func vmDevWorkspaceHasPanes(machine: String, remoteWorkspace: String, client: SocketClient) -> Bool {
+    private func vmDevWorkspaceInfo(
+        machine: String,
+        remoteWorkspace: String,
+        client: SocketClient
+    ) -> (hasPanes: Bool, terminalIDs: [String: String])? {
         guard let catalog = try? client.sendV2(method: "surface.catalog", params: ["machine": machine], responseTimeout: 120) else {
-            return false
+            return nil
         }
         let resources = (catalog["resources"] as? [[String: Any]]) ?? []
+        let terminalIDs = Self.vmDevTerminalIDs(
+            fromCatalogResources: resources,
+            machine: machine,
+            workspaceID: remoteWorkspace
+        )
+        let hasPanes: Bool
         switch Self.resolveVMRemoteWorkspaceTerminal(resources, machine: machine, workspaceID: remoteWorkspace) {
         case .resolved, .ambiguous:
-            return true
+            hasPanes = true
         case .none, .unavailable:
-            return false
+            hasPanes = false
         }
+        return (hasPanes: hasPanes, terminalIDs: terminalIDs)
     }
 
     private struct VMDevShimResult {

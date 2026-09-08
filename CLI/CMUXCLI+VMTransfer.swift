@@ -192,6 +192,9 @@ extension CMUXCLI {
             intervalSeconds = parsed
         }
         let excludes = isDirectory.boolValue ? (useDefaultExcludes ? Self.vmPushDefaultExcludes : []) + extraExcludes : []
+        let initialWatchSignature = watch
+            ? Self.vmPushTreeSignature(root: localURL, isDirectory: isDirectory.boolValue, excludes: excludes)
+            : nil
 
         let outcome = try performVMPush(
             vmID: vmID,
@@ -239,7 +242,8 @@ extension CMUXCLI {
             excludes: excludes,
             intervalSeconds: intervalSeconds,
             client: client,
-            jsonOutput: jsonOutput
+            jsonOutput: jsonOutput,
+            initialSignature: initialWatchSignature
         )
     }
 
@@ -520,13 +524,14 @@ extension CMUXCLI {
         excludes: [String],
         intervalSeconds: Double,
         client: SocketClient,
-        jsonOutput: Bool
+        jsonOutput: Bool,
+        initialSignature: [String: VMPushTreeEntry]?
     ) throws {
         // Ctrl-C ends the watch, not the CLI's shell: exit 0 straight from the handler
         // (`_exit` is async-signal-safe; nothing here needs unwinding).
         signal(SIGINT) { _ in _exit(0) }
         let maxRounds = ProcessInfo.processInfo.environment["CMUX_VM_PUSH_WATCH_ROUNDS"].flatMap { Int($0) }
-        var last = Self.vmPushTreeSignature(root: localURL, isDirectory: isDirectory, excludes: excludes)
+        var last = initialSignature ?? Self.vmPushTreeSignature(root: localURL, isDirectory: isDirectory, excludes: excludes)
         if !jsonOutput {
             cliWriteStderr("watching \(localPath) (\(last.count) files) — every change is pushed to \(vmID):\(remotePath); Ctrl-C stops\n")
         }

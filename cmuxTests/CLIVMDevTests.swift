@@ -487,8 +487,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
                     "machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]],
                     "resources": [[
                         "id": "brave-otter/terminal/term_dev", "machine": "brave-otter", "kind": "terminal", "key": "term_dev",
-                        "lifecycle": "running",
-                        "remote_views": [["tab_id": "tab_1", "workspace": ["id": "ws_7", "name": "app"], "focused": true]],
+                        "title": "dev", "lifecycle": "running",
+                        "remote_views": [["tab_id": "tab_1", "workspace": ["id": "ws_7", "name": "app"], "name": "dev", "focused": true]],
+                    ], [
+                        "id": "brave-otter/terminal/term_shell", "machine": "brave-otter", "kind": "terminal", "key": "term_shell",
+                        "title": "shell", "lifecycle": "running",
+                        "remote_views": [["tab_id": "tab_2", "workspace": ["id": "ws_7", "name": "app"], "name": "shell", "focused": false]],
                     ]],
                 ]
             case "vm.tree": return [:]
@@ -506,6 +510,31 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(result.stdout.contains("workspace app = ws_7 (existing)"), result.stdout)
         XCTAssertTrue(result.stdout.contains("layout kept: ws_7 already has panes"), result.stdout)
         XCTAssertTrue(result.stdout.contains("opened locally: workspace LOCAL-7"), result.stdout)
+
+        let (jsonResult, _) = try runVMDev(
+            "vm-dev-reuse-json",
+            arguments: ["vm", "dev", "brave-otter", fixture.project.path, "--no-sync", "--no-open", "--json"],
+            home: fixture.home
+        ) { method, _ in
+            switch method {
+            case "vm.status": return ["status": "running"]
+            case "vm.workspace_new": return ["existing": true, "remote_workspace_id": "ws_7"]
+            case "surface.catalog":
+                return [
+                    "resources": [
+                        ["id": "brave-otter/terminal/term_dev", "machine": "brave-otter", "kind": "terminal", "key": "term_dev", "title": "dev", "lifecycle": "running", "remote_views": [["workspace": ["id": "ws_7"], "name": "dev"]]],
+                        ["id": "brave-otter/terminal/term_shell", "machine": "brave-otter", "kind": "terminal", "key": "term_shell", "title": "shell", "lifecycle": "running", "remote_views": [["workspace": ["id": "ws_7"], "name": "shell"]]],
+                    ]
+                ]
+            case "vm.open_port": return ["open_url": "https://brave-otter-3000.example.test/"]
+            default: return nil
+            }
+        }
+        XCTAssertEqual(jsonResult.status, 0, "stdout=\(jsonResult.stdout) stderr=\(jsonResult.stderr)")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(jsonResult.stdout.utf8)) as? [String: Any])
+        let jsonTerminals = try XCTUnwrap(json["terminals"] as? [String: Any])
+        XCTAssertEqual(jsonTerminals["dev"] as? String, "term_dev")
+        XCTAssertEqual(jsonTerminals["shell"] as? String, "term_shell")
 
         // An existing but still-empty workspace (staged earlier with --no-open) does get the layout.
         let summary = Self.vmDevJSONText(Self.vmDevApplySummary)
