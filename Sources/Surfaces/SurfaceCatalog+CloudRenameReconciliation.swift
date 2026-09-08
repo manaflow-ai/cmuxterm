@@ -39,7 +39,10 @@ extension SurfaceCatalog {
             SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
         }, machine: info.id)
         var seen = Set(canonical.map(\.id))
-        let pending = (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted }
+        let pending = cloudWorkspaceRenameEffectiveWorkspaces(
+            (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted },
+            machine: info.id
+        )
         adjusted.remoteWorkspaces = canonical + pending
         return adjusted
     }
