@@ -22,7 +22,7 @@ import Testing
             operation: { events.append("deliver \($0)"); return .ok(keys: 1, path: nil) }
         )
         #expect(outcome == .ok(keys: 1, path: nil))
-        #expect(events == (existing ? ["deliver existing"] : ["create", "deliver temporary", "close temporary"]))
+        #expect(events == ["create", "deliver temporary", "close temporary"])
     }
 
     @MainActor @Test(arguments: [false, true])

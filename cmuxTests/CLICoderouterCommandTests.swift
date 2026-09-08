@@ -44,6 +44,19 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(result.text.contains("--tab and a pane side"), result.text)
     }
 
+    @Test func browserLayoutRequiresURLBeforeTransport() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-browser-layout-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let surfaces: [[String: Any]] = [["type": "browser"], ["type": "browser", "url": ""], ["type": "browser", "url": NSNull()]]
+        for surface in surfaces {
+            try JSONSerialization.data(withJSONObject: ["pane": ["surfaces": [surface]]]).write(to: file)
+            let result = try runWithoutSocket(["vm", "layout", "apply", "test-machine", file.path])
+            #expect(result.status != 0, result.text)
+            #expect(result.text.contains(".pane.surfaces[0].url"), result.text)
+            #expect(result.text.contains("browser surface needs url"), result.text)
+        }
+    }
+
     private func runWithoutSocket(_ arguments: [String]) throws -> (status: Int32, text: String) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
