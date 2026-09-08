@@ -51,6 +51,23 @@ def main() -> int:
         real_dir.mkdir()
         home_dir.mkdir()
         session_tmpdir.mkdir()
+        legacy_root = session_tmpdir / "cmux-claude-node-options"
+        legacy_root.mkdir()
+        legacy_path = legacy_root / "restore-node-options.cjs"
+        legacy_path.write_text(
+            """const hadOriginalNodeOptions = process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT === "1";
+if (hadOriginalNodeOptions) {
+  process.env.NODE_OPTIONS = process.env.CMUX_ORIGINAL_NODE_OPTIONS ?? "";
+} else {
+  delete process.env.NODE_OPTIONS;
+}
+delete process.env.CMUX_ORIGINAL_NODE_OPTIONS;
+delete process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT;
+""",
+            encoding="utf-8",
+        )
+        user_preload = root / "user-preload.cjs"
+        user_preload.write_text("// preserved user preload\n", encoding="utf-8")
 
         wrapper = wrapper_dir / "cmux-claude-wrapper"
         shutil.copy2(SOURCE_WRAPPER, wrapper)
@@ -95,6 +112,7 @@ exit 0
                     "CMUX_SOCKET_PATH": str(socket_path),
                     "CMUX_BUNDLED_CLI_PATH": str(wrapper_dir / "cmux"),
                     "CMUX_CUSTOM_CLAUDE_PATH": str(real_dir / "claude"),
+                    "NODE_OPTIONS": f'--require="{legacy_path}" --require="{user_preload}"',
                     "FAKE_READY_PATH": str(ready_path),
                     "FAKE_CONTINUE_PATH": str(continue_path),
                 }
@@ -119,7 +137,19 @@ exit 0
                     return 1
 
                 restore_path = Path(match.group(1) or match.group(2))
-                legacy_root = session_tmpdir / "cmux-claude-node-options"
+                if node_options.count("restore-node-options.cjs") != 1:
+                    continue_path.touch()
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    print(f"FAIL: expected one restore preload, got {node_options!r}")
+                    return 1
+                if str(user_preload) not in node_options:
+                    continue_path.touch()
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    print(f"FAIL: user NODE_OPTIONS preload was dropped: {node_options!r}")
+                    return 1
+
                 shutil.rmtree(legacy_root, ignore_errors=True)
                 continue_path.touch()
                 stdout, stderr = process.communicate(timeout=10)

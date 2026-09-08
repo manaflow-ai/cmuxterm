@@ -165,9 +165,14 @@ extension CMUXCLI {
         return paths
     }
 
+    private func isClaudeNodeOptionsRestorePath(_ path: String) -> Bool {
+        path.hasSuffix("/cmux-claude-node-options/restore-node-options.cjs")
+    }
+
     private func recreateLegacyNodeOptionsRestoreModules(excluding currentURL: URL) {
         guard let existing = ProcessInfo.processInfo.environment["NODE_OPTIONS"] else { return }
         let legacySuffix = "/cmux-claude-node-options/restore-node-options.cjs"
+        let expectedOwner = getuid()
         for path in nodeOptionsRequirePaths(existing) {
             guard path.hasSuffix(legacySuffix),
                   Self.nodeOptionsPathIsSafe(path),
@@ -175,15 +180,20 @@ extension CMUXCLI {
             let url = URL(fileURLWithPath: path, isDirectory: false)
             let directory = url.deletingLastPathComponent()
             do {
-                if try Self.cachePathState(at: directory)?.isSymbolicLink == true { continue }
+                try Self.validateCachePath(directory, expectedOwner: expectedOwner)
                 try FileManager.default.createDirectory(
                     at: directory,
                     withIntermediateDirectories: true,
                     attributes: [.posixPermissions: 0o700]
                 )
-                guard !FileManager.default.fileExists(atPath: url.path) else { continue }
+                try Self.validateCachePath(directory, expectedOwner: expectedOwner)
+                if try Self.cachePathState(at: url) != nil {
+                    try Self.validateCachePath(url, expectedOwner: expectedOwner)
+                    continue
+                }
                 try writeShimIfChanged(Self.claudeNodeOptionsRestoreModule, to: url)
                 try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                try Self.validateCachePath(url, expectedOwner: expectedOwner)
             } catch {
                 continue
             }
@@ -229,6 +239,20 @@ extension CMUXCLI {
         var index = 0
         while index < tokens.count {
             let token = tokens[index]
+            if token == "--require" || token == "-r",
+               index + 1 < tokens.count,
+               isClaudeNodeOptionsRestorePath(Self.unquoteNodeOptionsPath(tokens[index + 1])) {
+                index += 2
+                continue
+            }
+            if token.hasPrefix("--require=") || token.hasPrefix("-r=") {
+                let separator = token.hasPrefix("--require=") ? "--require=" : "-r="
+                let path = Self.unquoteNodeOptionsPath(String(token.dropFirst(separator.count)))
+                if isClaudeNodeOptionsRestorePath(path) {
+                    index += 1
+                    continue
+                }
+            }
             if token == "--max-old-space-size" {
                 index += min(2, tokens.count - index)
                 continue
@@ -251,6 +275,20 @@ extension CMUXCLI {
         var index = 0
         while index < tokens.count {
             let token = tokens[index]
+            if token == "--require" || token == "-r",
+               index + 1 < tokens.count,
+               isClaudeNodeOptionsRestorePath(Self.unquoteNodeOptionsPath(tokens[index + 1])) {
+                index += 2
+                continue
+            }
+            if token.hasPrefix("--require=") || token.hasPrefix("-r=") {
+                let separator = token.hasPrefix("--require=") ? "--require=" : "-r="
+                let path = Self.unquoteNodeOptionsPath(String(token.dropFirst(separator.count)))
+                if isClaudeNodeOptionsRestorePath(path) {
+                    index += 1
+                    continue
+                }
+            }
             if token == "--max-old-space-size", index + 1 < tokens.count {
                 normalized.append("--max-old-space-size=\(tokens[index + 1])")
                 index += 2

@@ -913,6 +913,20 @@ cmux_claude_wrapper_unquote_node_options_path() {
     printf '%s' "$path"
 }
 
+cmux_claude_wrapper_is_node_options_restore_path() {
+    local path
+    path="$(cmux_claude_wrapper_unquote_node_options_path "$1")"
+    [[ "$path" == */cmux-claude-node-options/restore-node-options.cjs ]]
+}
+
+cmux_claude_wrapper_path_owned_by_current_user() {
+    local path="$1"
+    local owner
+    [[ ! -L "$path" ]] || return 1
+    owner="$(/usr/bin/stat -f '%u' "$path" 2>/dev/null)" || return 1
+    [[ "$owner" == "$(/usr/bin/id -u)" ]]
+}
+
 cmux_claude_wrapper_tokenize_node_options() {
     local input="$1"
     local current=""
@@ -1015,20 +1029,34 @@ cmux_claude_wrapper_recreate_legacy_node_options_modules() {
         }
         legacy_path="$path"
         legacy_dir="${legacy_path%/*}"
-        if [[ "$legacy_path" != "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" &&
-              ! -L "$legacy_dir" && ! -L "$legacy_path" ]]; then
-            mkdir -p "$legacy_dir" 2>/dev/null &&
-                if [[ ! -f "$legacy_path" ]]; then
-                    temp_path="$(mktemp "$legacy_dir/.restore-node-options.cjs.XXXXXX" 2>/dev/null)" || temp_path=""
-                    if [[ -n "$temp_path" ]]; then
-                        if cmux_claude_wrapper_node_options_restore_source >"$temp_path" &&
-                           chmod 0600 "$temp_path"; then
-                            mv -f "$temp_path" "$legacy_path" 2>/dev/null || rm -f "$temp_path"
-                        else
-                            rm -f "$temp_path"
-                        fi
-                    fi
+        if [[ "$legacy_path" == "$(cmux_claude_wrapper_node_options_cache_dir)/restore-node-options.cjs" ]]; then
+            index=$((index + 1))
+            continue
+        fi
+        if [[ -e "$legacy_dir" || -L "$legacy_dir" ]] &&
+           ! cmux_claude_wrapper_path_owned_by_current_user "$legacy_dir"; then
+            index=$((index + 1))
+            continue
+        fi
+        if [[ -e "$legacy_path" || -L "$legacy_path" ]]; then
+            cmux_claude_wrapper_path_owned_by_current_user "$legacy_path" || {
+                index=$((index + 1))
+                continue
+            }
+            index=$((index + 1))
+            continue
+        fi
+        if mkdir -p "$legacy_dir" 2>/dev/null &&
+           cmux_claude_wrapper_path_owned_by_current_user "$legacy_dir"; then
+            temp_path="$(mktemp "$legacy_dir/.restore-node-options.cjs.XXXXXX" 2>/dev/null)" || temp_path=""
+            if [[ -n "$temp_path" ]]; then
+                if cmux_claude_wrapper_node_options_restore_source >"$temp_path" &&
+                   chmod 0600 "$temp_path"; then
+                    mv -f "$temp_path" "$legacy_path" 2>/dev/null || rm -f "$temp_path"
+                else
+                    rm -f "$temp_path"
                 fi
+            fi
         fi
         index=$((index + 1))
     done
@@ -1045,6 +1073,7 @@ merge_node_options() {
     local -a tokens=()
     local token
     local skip_next=0
+    local require_path
 
     if [[ -z "$guard_path" ]]; then
         printf '%s' "$existing"
@@ -1056,19 +1085,43 @@ merge_node_options() {
     else
         read -r -a tokens <<<"$existing"
     fi
-    for token in "${tokens[@]}"; do
+    local index=0
+    while (( index < ${#tokens[@]} )); do
+        token="${tokens[$index]}"
         if (( skip_next )); then
             skip_next=0
+            index=$((index + 1))
             continue
+        fi
+        if [[ "$token" == "--require" || "$token" == "-r" ]] &&
+           (( index + 1 < ${#tokens[@]} )); then
+            require_path="$(cmux_claude_wrapper_unquote_node_options_path "${tokens[$((index + 1))]}")"
+            if cmux_claude_wrapper_is_node_options_restore_path "$require_path"; then
+                index=$((index + 2))
+                continue
+            fi
+            filtered+=("$token")
+            index=$((index + 1))
+            continue
+        fi
+        if [[ "$token" == --require=* || "$token" == -r=* ]]; then
+            require_path="$(cmux_claude_wrapper_unquote_node_options_path "${token#*=}")"
+            if cmux_claude_wrapper_is_node_options_restore_path "$require_path"; then
+                index=$((index + 1))
+                continue
+            fi
         fi
         if [[ "$token" == "--max-old-space-size" ]]; then
             skip_next=1
+            index=$((index + 1))
             continue
         fi
         if [[ "$token" == --max-old-space-size=* ]]; then
+            index=$((index + 1))
             continue
         fi
         filtered+=("$token")
+        index=$((index + 1))
     done
 
     if (( ${#filtered[@]} == 0 )); then
@@ -1085,6 +1138,7 @@ normalize_node_options_for_restore() {
     local -a normalized=()
     local token
     local index=0
+    local require_path
 
     if cmux_claude_wrapper_tokenize_node_options "$existing"; then
         tokens=("${CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS[@]}")
@@ -1093,6 +1147,21 @@ normalize_node_options_for_restore() {
     fi
     while (( index < ${#tokens[@]} )); do
         token="${tokens[$index]}"
+        if [[ "$token" == "--require" || "$token" == "-r" ]] &&
+           (( index + 1 < ${#tokens[@]} )); then
+            require_path="$(cmux_claude_wrapper_unquote_node_options_path "${tokens[$((index + 1))]}")"
+            if cmux_claude_wrapper_is_node_options_restore_path "$require_path"; then
+                index=$((index + 2))
+                continue
+            fi
+        fi
+        if [[ "$token" == --require=* || "$token" == -r=* ]]; then
+            require_path="$(cmux_claude_wrapper_unquote_node_options_path "${token#*=}")"
+            if cmux_claude_wrapper_is_node_options_restore_path "$require_path"; then
+                index=$((index + 1))
+                continue
+            fi
+        fi
         if [[ "$token" == "--max-old-space-size" && $((index + 1)) -lt ${#tokens[@]} ]]; then
             normalized+=("--max-old-space-size=${tokens[$((index + 1))]}")
             index=$((index + 2))
@@ -1114,11 +1183,6 @@ normalize_node_options_for_restore() {
 install_cmux_node_options() {
     local guard_path
     if guard_path="$(ensure_node_options_restore_module)"; then
-        local escaped_guard_path="${guard_path//\/\\}"
-        escaped_guard_path="${escaped_guard_path//\"/\\\"}"
-        if [[ ${NODE_OPTIONS+x} && "${NODE_OPTIONS:-}" == *"--require=\"$escaped_guard_path\""* ]]; then
-            return 0
-        fi
         if [[ ${NODE_OPTIONS+x} ]]; then
             export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=1
             export CMUX_ORIGINAL_NODE_OPTIONS="$(normalize_node_options_for_restore "$NODE_OPTIONS")"
