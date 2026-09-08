@@ -25,7 +25,7 @@ struct CloudMachineSurfacePresentation {
         case .asleep:
             text = String(localized: "cloudTree.ports.asleep", defaultValue: "Open the machine to discover ports")
             style = .dimmed
-        case .unavailable:
+        case .unavailable, .offline:
             text = String(localized: "cloudTree.ports.unavailable", defaultValue: "Port discovery unavailable. Refresh to retry.")
             style = .dimmed
         case .connected, .notApplicable:

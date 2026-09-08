@@ -30,6 +30,11 @@ enum CloudVMPanelAuthState: Equatable {
 /// routes through the shared Cloud VM action path or the Cloud tree service.
 struct MachinesPanelView: View {
     @StateObject private var viewModel = MachinesPanelViewModel()
+    @State private var devicesModel = DevicesPanelViewModel()
+    @AppStorage(RightSidebarBetaFeatureSettings.devicesEnabledKey)
+    private var devicesBetaEnabled = RightSidebarBetaFeatureSettings.defaultDevicesEnabled
+    @AppStorage(RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
+    private var cloudBetaEnabled = RightSidebarBetaFeatureSettings.defaultCloudMachinesEnabled
     @State private var expansionStore = CloudTreeExpansionStore()
     /// The tree's visual preset; the debug gallery's "Use" buttons write this,
     /// and @AppStorage re-renders the live panel the moment it changes.
@@ -50,6 +55,34 @@ struct MachinesPanelView: View {
         )
     }
 
+    private var includesDevices: Bool {
+        _ = devicesBetaEnabled
+        return DevicesFeature.isEnabled
+    }
+
+    private var includesCloud: Bool {
+        _ = cloudBetaEnabled
+        return CloudMachinesFeature.isEnabled
+    }
+
+    private var treeSource: CloudTreeMachineSource {
+        includesDevices ? .cloudWithDevicesSection : .cloud
+    }
+
+    private var treeSnapshot: SurfaceCatalogSnapshot {
+        guard !includesCloud else { return viewModel.catalog }
+        return SurfaceCatalogSnapshot(
+            machines: viewModel.catalog.machines.filter { $0.id.isDevice },
+            resources: viewModel.catalog.resources.filter { $0.machine.isDevice },
+            projections: viewModel.catalog.projections
+        )
+    }
+
+    private func refreshMachines() {
+        if includesCloud { viewModel.refresh(tree: true) }
+        if includesDevices { devicesModel.refresh() }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             switch authState {
@@ -62,6 +95,11 @@ struct MachinesPanelView: View {
             }
         }
         .onAppear { syncPolling(for: authState) }
+        .onChange(of: devicesBetaEnabled) { _, _ in syncPolling(for: authState) }
+        .onChange(of: cloudBetaEnabled) { _, _ in syncPolling(for: authState) }
+        .onReceive(NotificationCenter.default.publisher(for: DeviceSurfaceProviderRegistry.revealDeviceNotification)) { _ in
+            devicesModel.consumePendingReveal()
+        }
         .onChange(of: authState) { _, state in
             syncPolling(for: state)
         }
@@ -74,7 +112,7 @@ struct MachinesPanelView: View {
     @ViewBuilder
     private var authenticatedContent: some View {
         controlBar
-        if let plan = viewModel.plan, !plan.isPaidPlan, let text = plan.freeAccessBannerText {
+        if includesCloud, let plan = viewModel.plan, !plan.isPaidPlan, let text = plan.freeAccessBannerText {
             MachinesFreeAccessBanner(
                 text: text,
                 isExpired: plan.freeAccessBanner == .expired,
@@ -88,7 +126,14 @@ struct MachinesPanelView: View {
     private func syncPolling(for state: CloudVMPanelAuthState) {
         switch state {
         case .signedIn:
-            viewModel.startPolling()
+            if includesCloud {
+                viewModel.startPolling()
+            } else {
+                viewModel.stopPolling()
+                viewModel.resetForAuthTransition()
+            }
+            if includesDevices { devicesModel.start() }
+            viewModel.readCatalog()
         case .checking, .signedOut:
             viewModel.stopPolling()
             viewModel.resetForAuthTransition()
@@ -108,7 +153,7 @@ struct MachinesPanelView: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
-                } else if viewModel.lastErrorDescription != nil, !viewModel.machines.isEmpty {
+                } else if viewModel.lastErrorDescription != nil, includesCloud && (!viewModel.machines.isEmpty || includesDevices) {
                     HStack(spacing: 5) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 10, weight: .semibold))
@@ -133,7 +178,14 @@ struct MachinesPanelView: View {
                     }
                     .foregroundColor(.orange.opacity(0.9))
                     .help(treeError)
-                } else if let plan = viewModel.plan {
+                } else if includesDevices, let status = devicesModel.statusText,
+                          devicesModel.statusIsWarning || !includesCloud {
+                    Text(status)
+                        .cmuxFont(size: 11)
+                        .foregroundColor(devicesModel.statusIsWarning ? .orange : .secondary)
+                        .lineLimit(2)
+                        .help(status)
+                } else if includesCloud, let plan = viewModel.plan {
                     MachinePlanMeter(plan: plan)
                 }
             }
@@ -142,20 +194,29 @@ struct MachinesPanelView: View {
             // and the Files header icon.
             .padding(.leading, 4)
             Spacer(minLength: 4)
-            cloudAgentMenu
+            MachinesChromeIconButton(
+                symbolName: "desktopcomputer",
+                accessibilityLabel: String(localized: "devices.manage", defaultValue: "Manage My Devices"),
+                isBusy: false
+            ) {
+                SettingsWindowPresenter.show(navigationTarget: .computers)
+            }
+            if includesCloud { cloudAgentMenu }
             MachinesChromeIconButton(
                 symbolName: "arrow.clockwise",
                 accessibilityLabel: String(localized: "machines.refresh", defaultValue: "Refresh Machines"),
-                isBusy: viewModel.isLoading
+                isBusy: viewModel.isLoading || devicesModel.isRefreshing
             ) {
-                viewModel.refresh(tree: true)
+                refreshMachines()
             }
-            MachinesChromeIconButton(
-                symbolName: "plus",
-                accessibilityLabel: String(localized: "machines.new", defaultValue: "New Machine"),
-                isBusy: false
-            ) {
-                requestNewMachine()
+            if includesCloud {
+                MachinesChromeIconButton(
+                    symbolName: "plus",
+                    accessibilityLabel: String(localized: "machines.new", defaultValue: "New Machine"),
+                    isBusy: false
+                ) {
+                    requestNewMachine()
+                }
             }
         }
         .rightSidebarChromeBar()
@@ -170,7 +231,12 @@ struct MachinesPanelView: View {
         // catalog previously left a blank panel for a signed-in account with
         // no machines, because the catalog's This Mac entry counted as a row
         // the tree never drew.
-        if CloudTreeNodeBuilder.isEmpty(machines: viewModel.machines, pendingCreates: viewModel.pendingCreates, snapshot: viewModel.catalog) {
+        if CloudTreeNodeBuilder.isEmpty(
+            machines: includesCloud ? viewModel.machines : [],
+            pendingCreates: includesCloud ? viewModel.pendingCreates : [],
+            snapshot: treeSnapshot,
+            source: treeSource
+        ) {
             emptyState
         } else {
             machinesList
@@ -436,17 +502,19 @@ struct MachinesPanelView: View {
             onWillMutate: { [weak viewModel] label in viewModel?.beginOperation(label) },
             onDidMutate: { [weak viewModel] in viewModel?.endOperation() },
             onFailure: { [weak viewModel] description in viewModel?.noteTreeFailure(description) },
-            refresh: { [weak viewModel] in viewModel?.refresh(tree: true) }
+            refresh: { refreshMachines() }
         )
         return CloudTreeOutlineView(
-            machines: viewModel.machines,
-            pendingCreates: viewModel.pendingCreates,
-            snapshot: viewModel.catalog,
+            machines: includesCloud ? viewModel.machines : [],
+            pendingCreates: includesCloud ? viewModel.pendingCreates : [],
+            snapshot: treeSnapshot,
             localWorkspaces: viewModel.localWorkspaces,
             machineActions: machineActions,
             nodeActions: nodeActions,
             expansionStore: expansionStore,
             style: CloudTreeStyle.preset(id: cloudTreeStyleID) ?? .defaultStyle,
+            source: treeSource,
+            reveal: devicesModel.revealRequest,
             onDragStateChange: { [weak viewModel] dragging in viewModel?.setTreeDragging(dragging) }
         )
         .accessibilityIdentifier("CloudMachinesTree")
@@ -568,132 +636,6 @@ struct MachinesPanelView: View {
 }
 
 
-/// "2 of 3" plan meter. Turns into the upgrade hint when a free plan hits its
-/// machine ceiling — the moment of intent, and the only place we mention it.
-private struct MachinePlanMeter: View {
-    let plan: MachinePlanSnapshot
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(meterText)
-                .cmuxFont(size: 11, monospacedDigit: true)
-                .foregroundColor(plan.isAtLimit ? Color.orange : .secondary)
-            if plan.isAtLimit && !plan.isPaidPlan {
-                Text(String(localized: "machines.meter.upgrade", defaultValue: "Upgrade for more"))
-                    .cmuxFont(size: 11)
-                    .foregroundColor(.orange)
-            }
-        }
-        .help(meterHelp)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var meterText: String { plan.countLabel }
-
-    private var meterHelp: String {
-        if plan.isAtLimit && !plan.isPaidPlan, let maxActiveVms = plan.maxActiveVms {
-            if plan.isSingleMachinePlan {
-                return String(
-                    localized: "machines.meter.help.atLimit.single",
-                    defaultValue: "Your plan includes 1 machine. Upgrade to create more."
-                )
-            }
-            return String(
-                localized: "machines.meter.help.atLimit",
-                defaultValue: "Your plan includes %d machines. Upgrade to create more."
-            ).replacingOccurrences(of: "%d", with: String(maxActiveVms))
-        }
-        return String(
-            localized: "machines.meter.help",
-            defaultValue: "Machines on your plan. Sleeping machines cost nothing."
-        )
-    }
-}
-
-/// One line under the header on free plans: how long the fleet stays
-/// reachable, counting down to the earliest machine's expiry, and the way out
-/// (the whole line is the upgrade affordance — the same Pro flow the ＋ button
-/// opens at the machine ceiling).
-private struct MachinesFreeAccessBanner: View {
-    let text: String
-    let isExpired: Bool
-    let windowDays: Int
-    let backgroundColor: NSColor
-    @State private var isHovered = false
-
-    var body: some View {
-        Button {
-            ProUpgradePresenter.present()
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: isExpired ? "lock.fill" : "clock")
-                    .font(.system(size: 10, weight: .semibold))
-                Text(text)
-                    .cmuxFont(size: 11, monospacedDigit: true)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 0)
-                Text(String(localized: "machines.freeAccess.upgrade", defaultValue: "Upgrade"))
-                    .cmuxFont(size: 11)
-                    .underline(isHovered)
-            }
-            .foregroundColor(isExpired ? Color.orange : .secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .background(Color(nsColor: backgroundColor))
-        .help(helpText)
-        .accessibilityLabel(text)
-        .accessibilityIdentifier("CloudMachinesFreeAccessBanner")
-    }
-
-    private var helpText: String {
-        String(
-            format: String(
-                localized: "machines.freeAccess.help",
-                defaultValue: "Free plans keep a machine reachable for %d days after it is created. Upgrade to Pro to keep using it."
-            ),
-            windowDays
-        )
-    }
-}
-
-struct MachinesChromeIconButton: View {
-    let symbolName: String
-    let accessibilityLabel: String
-    let isBusy: Bool
-    let action: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            Group {
-                if isBusy {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else {
-                    Image(systemName: symbolName)
-                        .font(.system(size: 11, weight: .medium))
-                }
-            }
-            .frame(width: 22, height: 20)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(isHovered ? .primary : .secondary)
-        .background(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
-        )
-        .onHover { isHovered = $0 }
-        .help(accessibilityLabel)
-        .accessibilityLabel(accessibilityLabel)
-    }
-}
 
 /// Closure bundle handed to rows. Bound above the lazy boundary; rows never
 /// see the store. All verbs go through `CloudVMActionLauncher` so this panel,

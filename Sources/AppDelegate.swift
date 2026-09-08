@@ -2475,6 +2475,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             )
         }
         DeviceRegistryClient.shared.configure(auth: auth.coordinator)
+        HiveComputersService.shared.configure(auth: auth.coordinator)
+        DeviceSurfaceProviderRegistry.shared.configure(
+            auth: auth.coordinator,
+            catalog: .shared,
+            authorization: HiveComputersService.shared
+        )
         PresenceHeartbeatClient.shared.configure(auth: auth.coordinator)
         PhoneReplyInboxClient.shared.configure(auth: auth.coordinator)
         PhoneReplyInboxCoordinator.shared.configure(client: PhoneReplyInboxClient.shared)

@@ -10,6 +10,7 @@ public struct BetaFeaturesSection: View {
     @State private var feed: DefaultsValueModel<Bool>
     @State private var dock: DefaultsValueModel<Bool>
     @State private var cloudMachines: DefaultsValueModel<Bool>
+    @State private var devices: DefaultsValueModel<Bool>
     @State private var extensions: DefaultsValueModel<Bool>
     @State private var customSidebars: DefaultsValueModel<Bool>
     @State private var remoteTmux: DefaultsValueModel<Bool>
@@ -20,6 +21,7 @@ public struct BetaFeaturesSection: View {
         _feed = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarFeed))
         _dock = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarDock))
         _cloudMachines = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.cloudMachines))
+        _devices = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.devices))
         _extensions = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.extensions))
         _customSidebars = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.customSidebars))
         _remoteTmux = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.remoteTmux))
@@ -41,6 +43,8 @@ public struct BetaFeaturesSection: View {
                 SettingsCardDivider()
                 cloudMachinesRow
                 SettingsCardDivider()
+                devicesRow
+                SettingsCardDivider()
                 extensionsRow
                 SettingsCardDivider()
                 customSidebarsRow
@@ -60,6 +64,7 @@ public struct BetaFeaturesSection: View {
             feed,
             dock,
             cloudMachines,
+            devices,
             extensions,
             customSidebars,
             remoteTmux,
@@ -161,6 +166,26 @@ public struct BetaFeaturesSection: View {
                 .labelsHidden()
                 .controlSize(.small)
                 .accessibilityIdentifier("SettingsBetaCloudMachinesToggle")
+        }
+    }
+
+    @ViewBuilder
+    private var devicesRow: some View {
+        SettingsCardRow(
+            configurationReview: .json("devices.beta.enabled"),
+            searchAnchorID: "setting:betaFeatures:devices",
+            String(localized: "settings.betaFeatures.devices", defaultValue: "My Devices"),
+            subtitle: devices.current
+                ? String(localized: "settings.betaFeatures.devices.subtitleOn", defaultValue: "Shows My Devices below your Cloud machines, with your other Macs and their live workspaces. This Mac also becomes available to your other Macs.")
+                : String(localized: "settings.betaFeatures.devices.subtitleOff", defaultValue: "Hides My Devices from Cloud and stops publishing this Mac to your other Macs unless iOS pairing is on.")
+        ) {
+            Toggle("", isOn: Binding(get: { devices.current }, set: {
+                devices.set($0)
+                NotificationCenter.default.post(name: Notification.Name("rightSidebarBetaFeatureDidChange"), object: nil)
+            }))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier("SettingsBetaDevicesToggle")
         }
     }
 
