@@ -228,7 +228,18 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        // Since #11976 the prompt-submit clear is semantic: the CLI journals a
+        // turn start for the pane and the app's reconciler invalidates that
+        // pane's delivered notifications. The journal event and the status it
+        // drives must therefore target the moved pane, and nothing may touch
+        // the old workspace or a sibling pane.
+        #expect(
+            commands.contains { Self.isJournalEvent($0, kind: "agent.turn.started", workspaceId: newWorkspaceId, surfaceId: Self.liveSurfaceId) },
+            "prompt-submit must journal the turn start on the moved pane; saw \(commands)"
+        )
+        #expect(commands.contains { $0.hasPrefix("set_status claude_code Running ") && $0.contains("--tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)") })
+        #expect(!commands.contains { Self.mutatesWorkspace($0, Self.liveWorkspaceId) })
+        #expect(!commands.contains { Self.mutatesPane($0, Self.otherSurfaceId) })
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
     }
 
@@ -287,7 +298,13 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        // Since #11976 PreToolUse journals a running state change instead of
+        // sending a pane clear; that event must target the moved pane too.
+        #expect(
+            commands.contains { Self.isJournalEvent($0, kind: "agent.state.changed", workspaceId: newWorkspaceId, surfaceId: Self.liveSurfaceId) },
+            "PreToolUse must journal the running state on the moved pane; saw \(commands)"
+        )
+        #expect(!commands.contains { Self.mutatesWorkspace($0, Self.liveWorkspaceId) })
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
@@ -432,6 +449,37 @@ struct ClaudeHookLifecycleCleanupTests {
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
         #expect(!commands.contains { $0.hasPrefix("set_status ") || $0.hasPrefix("clear_notifications ") })
+    }
+
+    /// Whether `command` is an `agent_journal_append` of `kind` bound to exactly
+    /// this pane. Field order in the serialized draft is not stable, so each
+    /// field is matched on its own.
+    private static func isJournalEvent(_ command: String, kind: String, workspaceId: String, surfaceId: String) -> Bool {
+        command.hasPrefix("agent_journal_append ")
+            && command.contains("\"kind\":\"\(kind)\"")
+            && command.contains("\"workspace_id\":\"\(workspaceId)\"")
+            && command.contains("\"surface_id\":\"\(surfaceId)\"")
+    }
+
+    /// Read-only probes the CLI sends while resolving a target. They may name
+    /// the old workspace and are not mutations of it.
+    private static let readProbeMethods = ["agent.resolve_delivery_target", "surface.list", "debug.terminals"]
+
+    private static func isReadProbe(_ command: String) -> Bool {
+        readProbeMethods.contains { command.contains("\"method\":\"\($0)\"") }
+    }
+
+    /// Whether `command` mutates `workspaceId`: a V1 command addressed with
+    /// `--tab=`, or a journal/feed/resume write bound to that workspace.
+    private static func mutatesWorkspace(_ command: String, _ workspaceId: String) -> Bool {
+        guard !isReadProbe(command) else { return false }
+        return command.contains("--tab=\(workspaceId)") || command.contains("\"workspace_id\":\"\(workspaceId)\"")
+    }
+
+    /// Whether `command` mutates the pane `surfaceId`, by the same rule.
+    private static func mutatesPane(_ command: String, _ surfaceId: String) -> Bool {
+        guard !isReadProbe(command) else { return false }
+        return command.contains("--panel=\(surfaceId)") || command.contains("\"surface_id\":\"\(surfaceId)\"")
     }
 
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {
