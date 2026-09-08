@@ -31,6 +31,7 @@ import {
   PRO_PLAN_ID,
   TEAM_PLAN_ID,
   isPaidPlanId,
+  hasStripeCustomerForUser,
   manualVmPlanOverride,
   resolveProPlanStatus,
 } from "@/services/billing/pro";
@@ -94,7 +95,7 @@ export default async function DashboardBillingPage({
     resolveProPlanStatus(user),
     billingTeamPromise,
     latestActiveStripeSubscription(user.id),
-    hasCustomerRow(user.id),
+    hasStripeCustomerForUser(user.id),
   ]);
   const [teamSubscription, hasTeamStripeCustomer] = await Promise.all([
     billingTeam ? latestActiveStripeSubscriptionForTeam(billingTeam.id) : Promise.resolve(null),
@@ -233,15 +234,6 @@ async function latestActiveStripeSubscriptionForTeam(stackTeamId: string): Promi
     .orderBy(desc(stripeSubscriptions.currentPeriodEnd), desc(stripeSubscriptions.updatedAt))
     .limit(1);
   return rows[0] ?? null;
-}
-
-async function hasCustomerRow(stackUserId: string): Promise<boolean> {
-  const rows = await cloudDb()
-    .select({ id: stripeCustomers.id })
-    .from(stripeCustomers)
-    .where(eq(stripeCustomers.stackUserId, stackUserId))
-    .limit(1);
-  return rows.length > 0;
 }
 
 async function hasTeamCustomerRow(stackTeamId: string): Promise<boolean> {

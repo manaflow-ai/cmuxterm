@@ -234,13 +234,6 @@ final class SurfaceCatalog {
     /// from `CloudVMState` because freshness is local observation metadata, not
     /// part of the daemon document or its cursor.
     private(set) var cloudStateObservations: [SurfaceMachineID: CloudVMStateObservation] = [:]
-    /// Compatibility state for the versioned snapshot API used by legacy cloud callers. The
-    /// typed `CloudVMState` path remains authoritative for current providers.
-    @ObservationIgnored
-    var cloudResourceCompatibility: [SurfaceMachineID: CloudResourceCompatibilityState] = [:]
-    /// Compatibility rename intents are retained until a versioned snapshot confirms them.
-    @ObservationIgnored
-    var cloudWorkspaceRenameIntents: [CloudWorkspaceRenameKey: [CloudWorkspaceRenameIntent]] = [:]
     private var providers: [SurfaceMachineID: any SurfaceProvider] = [:]
     /// The process-wide ordering owner for remote rename intents. A remote identity can
     /// have projections in several local windows, so this cannot live in a TabManager.
@@ -408,8 +401,6 @@ final class SurfaceCatalog {
         for record in pending { pendingRestoredProjections[record] = nil }
         cloudStates[machine] = nil
         cloudStateObservations[machine] = nil
-        cloudResourceCompatibility[machine] = nil
-        cloudWorkspaceRenameIntents = cloudWorkspaceRenameIntents.filter { $0.key.machine != machine }
         projections = projections.filter { $0.resource.machine != machine }
         notifyChange()
     }
@@ -423,7 +414,7 @@ final class SurfaceCatalog {
     /// pruned can still finish an in-flight refresh and write its machine back;
     /// accepting that write brings a machine the backend already destroyed back
     /// as a sidebar row nothing can refresh or delete.
-    func accepts(writeFor machine: SurfaceMachineID, from source: (any SurfaceProvider)? = nil) -> Bool {
+    private func accepts(writeFor machine: SurfaceMachineID, from source: (any SurfaceProvider)? = nil) -> Bool {
         if machine.isLocal { return true }
         guard let registered = providers[machine] else {
 #if DEBUG
@@ -721,10 +712,7 @@ final class SurfaceCatalog {
     func clearCloudState(on machine: SurfaceMachineID) {
         let removedState = cloudStates.removeValue(forKey: machine) != nil
         let removedObservation = cloudStateObservations.removeValue(forKey: machine) != nil
-        let removedCompatibility = cloudResourceCompatibility.removeValue(forKey: machine) != nil
-        let removedRenameIntents = cloudWorkspaceRenameIntents.contains { $0.key.machine == machine }
-        cloudWorkspaceRenameIntents = cloudWorkspaceRenameIntents.filter { $0.key.machine != machine }
-        guard removedState || removedObservation || removedCompatibility || removedRenameIntents else { return }
+        guard removedState || removedObservation else { return }
         notifyChange()
     }
 
@@ -780,10 +768,8 @@ final class SurfaceCatalog {
         _ info: SurfaceMachineInfo,
         state: CloudVMState? = nil
     ) -> SurfaceMachineInfo {
-        guard case .cloud = info.id else { return info }
-        guard let state = state ?? cloudStates[info.id] else {
-            return cloudResourceCompatibilityMachineInfo(info)
-        }
+        guard case .cloud = info.id,
+              let state = state ?? cloudStates[info.id] else { return info }
         var adjusted = info
         let canonical = state.workspaces.map {
             SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)

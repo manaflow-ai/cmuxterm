@@ -10,7 +10,10 @@ import {
   isAppStoreDistributionMode,
 } from "../../../lib/billing";
 import { captureBillingError } from "../../../../services/errors";
-import { hasActiveStripeProSubscription } from "../../../../services/billing/pro";
+import {
+  isStripePortalRecoverable,
+  stripeBillingStatusForUser,
+} from "../../../../services/billing/pro";
 import {
   isStripeBillingConfigured,
   stripe,
@@ -76,9 +79,11 @@ export async function GET(request: NextRequest) {
         }
       }
       // Portal access is intentionally limited to Stripe-managed billing. A
-      // direct regular-subscription read avoids coupling access to metadata
-      // reconciliation (which may fail independently of Stripe).
-      personalStripeManaged = await hasActiveStripeProSubscription(user.id);
+      // read-only billing snapshot avoids coupling access to metadata
+      // reconciliation and includes unpaid subscriptions that need recovery.
+      const billingStatus = await stripeBillingStatusForUser(user.id);
+      personalStripeManaged = billingStatus.hasActiveSubscription ||
+        isStripePortalRecoverable(billingStatus);
       if (!personalStripeManaged) {
         return pricingRedirect(request, "unavailable");
       }
