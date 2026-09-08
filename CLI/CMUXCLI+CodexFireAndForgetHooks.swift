@@ -93,20 +93,16 @@ extension CMUXCLI {
             telemetry.breadcrumb("codex-hook.native-title-sync.invalid-target")
             return
         }
-        let sessionStore = ClaudeHookSessionStore(processEnv: environment)
-        guard (try? sessionStore.isCurrent(
-            sessionId: sessionId,
-            workspaceId: workspaceId,
-            surfaceId: surfaceId
-        )) ?? false else {
-            telemetry.breadcrumb("codex-hook.native-title-sync.stale")
-            return
-        }
         let titleStore = CodexNativeTitleStore(
             codexHome: normalizedHookValue(environment["CODEX_HOME"])
         )
         guard let title = titleStore.title(forSessionId: sessionId) else {
             telemetry.breadcrumb("codex-hook.native-title-sync.no-title")
+            return
+        }
+        let turnLedger = CodexTurnLedger(environment: environment)
+        guard (try? turnLedger.isCurrent(sessionID: sessionId, surfaceID: surfaceId)) ?? true else {
+            telemetry.breadcrumb("codex-hook.native-title-sync.stale")
             return
         }
         do {

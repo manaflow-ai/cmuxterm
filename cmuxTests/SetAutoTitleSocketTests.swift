@@ -386,6 +386,42 @@ import Testing
         }
     }
 
+    @Test func codexNativeTitleSyncUsesCodexSurfaceOwnership() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-codex-title-ledger-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let ledgerPath = root.appendingPathComponent("codex-turn-ledger.json").path
+        let environment = [CodexHookInvocation.ledgerPathEnvironmentKey: ledgerPath]
+        let oldLedger = CodexTurnLedger(environment: environment)
+        let oldInvocation = CodexHookInvocation(
+            environment: [CodexHookInvocation.tokenEnvironmentKey: "old"],
+            fallbackObservedPID: nil
+        )
+        _ = try oldLedger.sessionStart(
+            sessionID: "old-session",
+            workspaceID: "workspace",
+            surfaceID: "surface",
+            invocation: oldInvocation
+        )
+
+        let newLedger = CodexTurnLedger(environment: environment)
+        let newInvocation = CodexHookInvocation(
+            environment: [CodexHookInvocation.tokenEnvironmentKey: "new"],
+            fallbackObservedPID: nil
+        )
+        _ = try newLedger.sessionStart(
+            sessionID: "new-session",
+            workspaceID: "workspace",
+            surfaceID: "surface",
+            invocation: newInvocation
+        )
+
+        #expect(try newLedger.isCurrent(sessionID: "new-session", surfaceID: "surface"))
+        #expect(try !newLedger.isCurrent(sessionID: "old-session", surfaceID: "surface"))
+    }
+
     /// Repairs the visible tab header when the raw title was already stored.
     @Test func codexNativeTitleSyncReconcilesVisibleTabHeader() async throws {
         try await withManagerAsync { _, workspace in
