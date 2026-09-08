@@ -226,58 +226,28 @@ enum ClaudeHookLiveDeliveryHarness {
         environment: [String: String],
         standardInput: String
     ) -> ProcessRunResult {
-        let process = Process()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        let stdinPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: context.cliPath)
-        process.arguments = arguments
-        process.environment = environment
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
+        let inputURL = context.root.appendingPathComponent("hook-input-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: inputURL) }
         do {
-            try process.run()
+            try Data(standardInput.utf8).write(to: inputURL)
         } catch {
             return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
         }
-        stdinPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-        try? stdinPipe.fileHandleForWriting.close()
-
-        let exitSignal = DispatchSemaphore(value: 0)
-        let waiterStarted = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            waiterStarted.signal()
-            process.waitUntilExit()
-            exitSignal.signal()
-        }
-        let timedOut = exitSignal.wait(timeout: .now() + 10) == .timedOut
-        var timeoutDiagnostic = ""
-        if timedOut {
-            // Diagnose completion-delivery delays without becoming a second
-            // waitpid owner or extending the hook's existing deadline.
-            let started = waiterStarted.wait(timeout: .now()) == .success
-            let isRunning = process.isRunning
-            let existence = kill(process.processIdentifier, 0)
-            let existenceError = existence == 0 ? 0 : errno
-            timeoutDiagnostic = "hook test timeout: pid=\(process.processIdentifier) "
-                + "waiterStarted=\(started) isRunning=\(isRunning) "
-                + "kill0=\(existence) errno=\(existenceError)"
-            process.terminate()
-            if exitSignal.wait(timeout: .now() + 1) == .timedOut {
-                kill(process.processIdentifier, SIGKILL)
-                _ = exitSignal.wait(timeout: .now() + 1)
-            }
-        }
-
-        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        // App-hosted Process.waitUntilExit can remain blocked after the child
+        // is reaped. Reuse the existing runner's sole POSIX waitpid owner.
+        // Positional arguments keep both payload and paths out of shell syntax;
+        // exec preserves the CLI PID and the runner's process-group timeout.
+        let result = CMUXCLIErrorOutputRegressionTests().runProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "exec \"$@\" < \"$0\"", inputURL.path, context.cliPath] + arguments,
+            environment: environment,
+            timeout: 10
+        )
         return ProcessRunResult(
-            status: process.isRunning ? SIGKILL : process.terminationStatus,
-            stdout: stdout,
-            stderr: [stderr, timeoutDiagnostic].filter { !$0.isEmpty }.joined(separator: "\n"),
-            timedOut: timedOut
+            status: result.status,
+            stdout: result.stdout,
+            stderr: result.stderr,
+            timedOut: result.timedOut
         )
     }
 
