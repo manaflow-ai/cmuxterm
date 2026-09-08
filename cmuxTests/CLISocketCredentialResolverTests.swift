@@ -26,15 +26,16 @@ struct CLISocketCredentialResolverTests {
         let clock = OSAllocatedUnfairLock(initialState: instant)
         var attempt = SocketCredentialResolutionAttempt(now: { clock.withLock { $0 } })
         var providerCalls = 0
-        let expiredResult = try attempt.resolve(
-            provider: { _ in
-                providerCalls += 1
-                clock.withLock { $0.addTimeInterval(2) }
-                return returnsPassword ? "cached-password" : nil
-            },
-            deadline: instant.addingTimeInterval(1)
-        )
-        #expect(expiredResult == nil)
+        #expect(throws: SocketCredentialResolutionAttempt.Failure.self) {
+            try attempt.resolve(
+                provider: { _ in
+                    providerCalls += 1
+                    clock.withLock { $0.addTimeInterval(2) }
+                    return returnsPassword ? "cached-password" : nil
+                },
+                deadline: instant.addingTimeInterval(1)
+            )
+        }
         #expect(!attempt.isCompleted)
         let nextResult = try attempt.resolve(
             provider: { _ in

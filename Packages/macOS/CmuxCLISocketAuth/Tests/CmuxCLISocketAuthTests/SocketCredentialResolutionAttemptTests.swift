@@ -19,16 +19,16 @@ struct SocketCredentialResolutionAttemptTests {
         })
         let firstDeadline = clock.withLock { $0.addingTimeInterval(1) }
 
-        let firstResult = try attempt.resolve(
-            provider: { _ in
-                providerCalls += 1
-                clock.withLock { $0.addTimeInterval(2) }
-                return firstLookupReturnsPassword ? "late-password" : nil
-            },
-            deadline: firstDeadline
-        )
-
-        #expect(firstResult == nil)
+        #expect(throws: SocketCredentialResolutionAttempt.Failure.self) {
+            try attempt.resolve(
+                provider: { _ in
+                    providerCalls += 1
+                    clock.withLock { $0.addTimeInterval(2) }
+                    return firstLookupReturnsPassword ? "late-password" : nil
+                },
+                deadline: firstDeadline
+            )
+        }
         #expect(!attempt.isCompleted)
         #expect(providerCalls == 1)
 
@@ -92,15 +92,15 @@ struct SocketCredentialResolutionAttemptTests {
             clock.withLock { $0 }
         })
 
-        let result = try attempt.resolve(
-            provider: { _ in
-                providerCalls += 1
-                return "must-not-read"
-            },
-            deadline: clock.withLock { $0.addingTimeInterval(offset) }
-        )
-
-        #expect(result == nil)
+        #expect(throws: SocketCredentialResolutionAttempt.Failure.self) {
+            try attempt.resolve(
+                provider: { _ in
+                    providerCalls += 1
+                    return "must-not-read"
+                },
+                deadline: clock.withLock { $0.addingTimeInterval(offset) }
+            )
+        }
         #expect(providerCalls == 0)
         #expect(!attempt.isCompleted)
     }
