@@ -446,7 +446,7 @@ extension CMUXCLI {
         case "subrouter":
             // The mode's wire name; `subrouter` is the tab-label alias.
             return "agents"
-        case "files", "find", "vault", "sessions", "feed", "dock", "machines", "custom", "custom-sidebar":
+        case "machines", "custom", "custom-sidebar":
             return value.lowercased()
         case "cloud", "vms":
             return "machines"

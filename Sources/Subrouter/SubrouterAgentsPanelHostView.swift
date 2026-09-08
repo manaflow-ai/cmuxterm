@@ -31,7 +31,7 @@ struct SubrouterAgentsPanelHostView: View {
             onOpenTerminal: { [weak tabManager] request in
                 // Interactive logins run immediately; destructive commands
                 // are pre-typed so Return is the confirmation.
-                _ = tabManager?.addWorkspace(
+                _ = tabManager?.addWorkspaceIfActive(
                     title: request.workspaceTitle,
                     initialTerminalInput: request.runsImmediately
                         ? request.command + "\r"

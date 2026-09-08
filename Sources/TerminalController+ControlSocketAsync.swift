@@ -27,14 +27,14 @@ private final class V2AsyncResultWaiter: @unchecked Sendable {
         timeoutNanoseconds: UInt64,
         timeoutResponse: String
     ) {
-        var responseIfAlreadyFinished: String?
-        state.withLock { state in
+        let responseIfAlreadyFinished = state.withLock { state -> String? in
             if state.isFinished {
-                responseIfAlreadyFinished = state.pendingResponse
+                let response = state.pendingResponse
                 state.pendingResponse = nil
-            } else {
-                state.continuation = continuation
+                return response
             }
+            state.continuation = continuation
+            return nil
         }
         if let responseIfAlreadyFinished {
             continuation.resume(returning: responseIfAlreadyFinished)
@@ -53,31 +53,30 @@ private final class V2AsyncResultWaiter: @unchecked Sendable {
             }
             self?.finish(timeoutResponse)
         }
-        state.withLock { state in
-            if state.isFinished {
-                operationTask.cancel()
-                timeoutTask.cancel()
-            } else {
-                state.operationTask = operationTask
-                state.timeoutTask = timeoutTask
-            }
+        let shouldCancelTasks = state.withLock { state -> Bool in
+            guard !state.isFinished else { return true }
+            state.operationTask = operationTask
+            state.timeoutTask = timeoutTask
+            return false
+        }
+        if shouldCancelTasks {
+            operationTask.cancel()
+            timeoutTask.cancel()
         }
     }
 
     func finish(_ response: String) {
-        var continuation: CheckedContinuation<String, Never>?
-        var operationTask: Task<Void, Never>?
-        var timeoutTask: Task<Void, Never>?
-        state.withLock { state in
-            guard !state.isFinished else { return }
+        let (continuation, operationTask, timeoutTask) = state.withLock { state -> (CheckedContinuation<String, Never>?, Task<Void, Never>?, Task<Void, Never>?) in
+            guard !state.isFinished else { return (nil, nil, nil) }
             state.isFinished = true
-            continuation = state.continuation
+            let continuation = state.continuation
             state.continuation = nil
             state.pendingResponse = continuation == nil ? response : nil
-            operationTask = state.operationTask
-            timeoutTask = state.timeoutTask
+            let operationTask = state.operationTask
+            let timeoutTask = state.timeoutTask
             state.operationTask = nil
             state.timeoutTask = nil
+            return (continuation, operationTask, timeoutTask)
         }
         operationTask?.cancel()
         timeoutTask?.cancel()

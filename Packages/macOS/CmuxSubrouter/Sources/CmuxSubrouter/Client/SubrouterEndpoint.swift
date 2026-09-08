@@ -84,7 +84,8 @@ public struct SubrouterEndpoint: Sendable, Hashable {
         } else {
             baseURL
         }
-        return scopedBase.appending(path: path)
+        let relativePath = path.hasPrefix("/") ? String(path.dropFirst()) : path
+        return scopedBase.appending(path: relativePath)
     }
 
     private static func normalizedBaseURL(_ url: URL) -> URL {
