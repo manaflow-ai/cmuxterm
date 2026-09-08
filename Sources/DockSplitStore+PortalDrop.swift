@@ -268,7 +268,11 @@ extension DockSplitStore {
         targetIndex: Int?
     ) -> FilePreviewPanel? {
         guard !isRetired else { return nil }
-        let panel = FilePreviewPanel(workspaceId: workspaceId, filePath: filePath)
+        let panel = FilePreviewPanel(
+            workspaceId: workspaceId,
+            filePath: filePath,
+            fileContentChangeCoordinator: fileContentChangeCoordinator
+        )
         panels[panel.id] = panel
         guard let tabId = bonsplitController.createTab(
             title: panel.displayTitle,
@@ -299,7 +303,11 @@ extension DockSplitStore {
         focus: Bool
     ) -> (panel: FilePreviewPanel, pane: PaneID)? {
         guard !isRetired, containsPane(paneId.id) else { return nil }
-        let panel = FilePreviewPanel(workspaceId: workspaceId, filePath: filePath)
+        let panel = FilePreviewPanel(
+            workspaceId: workspaceId,
+            filePath: filePath,
+            fileContentChangeCoordinator: fileContentChangeCoordinator
+        )
         let tab = Bonsplit.Tab(
             title: panel.displayTitle,
             icon: RenderableSystemSymbol.resolvedSurfaceTabIcon(panel.displayIcon),
