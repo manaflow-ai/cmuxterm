@@ -175,6 +175,20 @@ extension Workspace {
                     // borrow the hook token only when both observations name
                     // the same exact process generation.
                     generation = .session(indexEntry.snapshot.sessionId)
+                } else if let indexEntry,
+                          matchingPIDKeys.isEmpty,
+                          lifecycle != nil,
+                          indexEntry.hasHookRecord,
+                          indexEntry.processLiveness != .exited,
+                          SidebarWorkspaceAgentActivity.canonicalStatusKey(
+                              indexEntry.snapshot.kind.rawValue
+                          ) == canonicalStatusKey {
+                    // A lifecycle map entry without a PID key has no token of
+                    // its own. When the same panel/kind still has a durable,
+                    // non-exited hook record, inherit that session identity so
+                    // the live lifecycle can update its state without dropping
+                    // the hook's restart-safe elapsed anchor.
+                    generation = .session(indexEntry.snapshot.sessionId)
                 } else if let identity {
                     generation = .process(identity)
                 } else {
