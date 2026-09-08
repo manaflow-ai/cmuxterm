@@ -104,19 +104,22 @@ def discover_selectors(root: Path) -> list[TestSelector]:
 
     declarations: list[SuiteDeclaration] = []
     extension_methods: dict[str, list[TestSelector]] = {}
+    extension_has_swift_testing: dict[str, bool] = {}
     for path in sorted(test_root.glob("**/*.swift")):
         relative = path.relative_to(root).as_posix()
         lines = path.read_text(encoding="utf-8").splitlines()
-        file_has_swift_testing = any(
-            SWIFT_TEST_DECLARATION_RE.match(line) for line in lines
-        )
         top_level_declarations: list[tuple[int, str, str]] = []
+        swift_testing_declarations: set[int] = set()
+        current_declaration_line: int | None = None
         for index, line in enumerate(lines, start=1):
             match = SUITE_RE.match(line)
             if match:
                 name = match.group(1)
                 if name.endswith(("Tests", "UITests")):
                     top_level_declarations.append((index, "suite", name))
+                    current_declaration_line = index
+                else:
+                    current_declaration_line = None
                 continue
 
             match = EXTENSION_RE.match(line)
@@ -124,6 +127,13 @@ def discover_selectors(root: Path) -> list[TestSelector]:
                 name = match.group(1)
                 if name.endswith(("Tests", "UITests")):
                     top_level_declarations.append((index, "extension", name))
+                    current_declaration_line = index
+                else:
+                    current_declaration_line = None
+                continue
+
+            if current_declaration_line is not None and SWIFT_TEST_DECLARATION_RE.match(line):
+                swift_testing_declarations.add(current_declaration_line)
 
         for position, (line_number, kind, name) in enumerate(top_level_declarations):
             next_line = (
@@ -137,6 +147,8 @@ def discover_selectors(root: Path) -> list[TestSelector]:
             methods = xctest_methods(suite_identifier, relative, line_number, body)
             if kind == "extension":
                 extension_methods.setdefault(name, []).extend(methods)
+                if line_number in swift_testing_declarations:
+                    extension_has_swift_testing[name] = True
                 continue
 
             declarations.append(
@@ -146,7 +158,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
                     line=line_number,
                     weight=weight,
                     methods=tuple(methods),
-                    has_swift_testing=file_has_swift_testing,
+                    has_swift_testing=line_number in swift_testing_declarations,
                 )
             )
 
@@ -167,6 +179,9 @@ def discover_selectors(root: Path) -> list[TestSelector]:
         extension_selectors = extension_methods.get(declaration.name, [])
         methods = [*declaration.methods, *extension_selectors]
         weight = declaration.weight + len(extension_selectors)
+        has_swift_testing = declaration.has_swift_testing or extension_has_swift_testing.get(
+            declaration.name, False
+        )
 
         if suite_identifier in FOCUSED_GATE_SELECTORS:
             continue
@@ -176,7 +191,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
         # smaller suites grouped so xcodebuild still has a compact selector
         # list and shared setup inside each suite. Include extension methods in
         # the split so extension-declared regressions remain covered.
-        if len(methods) >= LARGE_SUITE_METHOD_THRESHOLD and not declaration.has_swift_testing:
+        if len(methods) >= LARGE_SUITE_METHOD_THRESHOLD and not has_swift_testing:
             selectors.extend(methods)
             continue
 
@@ -186,7 +201,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
                 path=declaration.path,
                 line=declaration.line,
                 weight=weight,
-                has_swift_testing=declaration.has_swift_testing,
+                has_swift_testing=has_swift_testing,
             )
         )
 

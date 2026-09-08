@@ -3327,7 +3327,9 @@ def _direct_network_target_ranges(
             ".swift",
         ).strip()
         executable_match = re.search(
-            r'^URL\s*\(\s*fileURLWithPath\s*:\s*"([^"]+)"\s*\)$',
+            r'^(?:(?:Foundation\.)?URL(?:\.init)?)\s*'
+            r'\(\s*fileURLWithPath\s*:\s*"([^"]+)"'
+            r'(?:\s*,\s*isDirectory\s*:\s*(?:true|false))?\s*\)$',
             executable_source,
         )
         if executable_match is None:
@@ -3997,6 +3999,21 @@ def _self_test() -> int:
         (
             "cmuxTests/process_exec.swift",
             'Process.run(URL(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_foundation_url.swift",
+            'Process.run(Foundation.URL(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_url_init.swift",
+            'Process.run(URL.init(fileURLWithPath: "/usr/bin/curl"), arguments: ["https://api.openai.com/v1/items"])\n',
+            {RULE_LIVE_NETWORK_HOST},
+        ),
+        (
+            "cmuxTests/process_url_directory.swift",
+            'Process.run(URL(fileURLWithPath: "/usr/bin/curl", isDirectory: false), arguments: ["https://api.openai.com/v1/items"])\n',
             {RULE_LIVE_NETWORK_HOST},
         ),
         (
