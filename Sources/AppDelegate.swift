@@ -543,6 +543,17 @@ final class CmuxMainThreadTurnProfiler {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuItemValidation, NSMenuDelegate, CmuxConfigStoreReloadEnvironment {
+    typealias ConfiguredActionExecutor = (
+        CmuxResolvedConfigAction,
+        MainWindowContext,
+        NSWindow?,
+        (() -> Void)?,
+        ((CloudVMActionLauncher.Completion) -> Void)?
+    ) -> Bool
+
+    private var configuredActionExecutor: ConfiguredActionExecutor?
+    private var windowConfigStoreFactory: () -> CmuxConfigStore = { CmuxConfigStore() }
+
     nonisolated(unsafe) static var shared: AppDelegate?
     /// Stateless control-socket syscall layer (CmuxControlSocket); composition-root owned.
     nonisolated let socketTransport = SocketTransport()
@@ -1308,9 +1319,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 #endif
 
     /// Allows lifecycle consumers to supply an isolated History store before any window is created.
-    convenience init(vaultHistoryEventLog: VaultHistoryEventLog) {
+    convenience init(
+        vaultHistoryEventLog: VaultHistoryEventLog,
+        windowConfigStoreFactory: @escaping () -> CmuxConfigStore = { CmuxConfigStore() },
+        configuredActionExecutor: ConfiguredActionExecutor? = nil
+    ) {
         self.init()
         self.vaultHistoryEventLog = vaultHistoryEventLog
+        self.windowConfigStoreFactory = windowConfigStoreFactory
+        self.configuredActionExecutor = configuredActionExecutor
     }
 
     override init() {
@@ -10267,7 +10284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         tabManager.syncWorkspaceTabBarLeadingInset(initialTabBarLeadingInset)
         let notificationStore = TerminalNotificationStore.shared
 
-        let cmuxConfigStore = CmuxConfigStore()
+        let cmuxConfigStore = windowConfigStoreFactory()
         cmuxConfigStore.wireDirectoryTracking(tabManager: tabManager)
         cmuxConfigStore.loadAll()
 
@@ -17610,6 +17627,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         onExecuted: (() -> Void)? = nil,
         onCloudVMCompletion: ((CloudVMActionLauncher.Completion) -> Void)? = nil
     ) -> Bool {
+        if let configuredActionExecutor {
+            return configuredActionExecutor(action, context, preferredWindow, onExecuted, onCloudVMCompletion)
+        }
         switch action.action {
         case .builtIn(let builtIn):
             switch builtIn {
