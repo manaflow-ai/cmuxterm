@@ -1870,6 +1870,76 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertNotNil(cmuxGroup["Notification"])
     }
 
+    /// `agy` preserves the launch environment, so a hook must report to the cmux
+    /// build that owns the terminal it runs in. Without this, `cmux hooks setup`
+    /// from any other build (nightly, a tagged dev build) silently redirects every
+    /// Antigravity session to that build's socket and restore never sees the
+    /// session. https://github.com/manaflow-ai/cmux/issues/5473
+    func testAntigravityHookInstallPrefersLaunchingTerminalSocket() throws {
+        let cliPath = try bundledCLIPath()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-antigravity-hook-ambient-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pinnedSocketPath = root.appendingPathComponent("cmux-pinned.sock").path
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "agy", "install", "--yes"],
+            environment: [
+                "HOME": root.path,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "CMUX_BUNDLED_CLI_PATH": cliPath,
+                "CMUX_SOCKET_PATH": pinnedSocketPath,
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+            ],
+            timeout: 5
+        )
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+
+        let hookURL = root
+            .appendingPathComponent(".gemini", isDirectory: true)
+            .appendingPathComponent("config", isDirectory: true)
+            .appendingPathComponent("hooks.json", isDirectory: false)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: hookURL)) as? [String: Any])
+        let cmuxGroup = try XCTUnwrap(json["cmux"] as? [String: Any])
+        let commands = cmuxGroup.values
+            .compactMap { $0 as? [[String: Any]] }
+            .flatMap { entries in entries.compactMap { $0["command"] as? String } }
+        XCTAssertFalse(commands.isEmpty)
+
+        let ambientInvocation = #""$CMUX_BUNDLED_CLI_PATH" --socket "$CMUX_SOCKET_PATH" hooks antigravity"#
+        let pinnedInvocation = "--socket '\(pinnedSocketPath)' hooks antigravity"
+        for command in commands {
+            let ambientRange = command.range(of: ambientInvocation)
+            let pinnedRange = command.range(of: pinnedInvocation)
+            XCTAssertNotNil(
+                ambientRange,
+                "Antigravity hooks must dispatch through the launching terminal's cmux first, saw \(command)"
+            )
+            XCTAssertNotNil(
+                pinnedRange,
+                "Antigravity hooks must keep the pinned install as a fallback, saw \(command)"
+            )
+            if let ambientRange, let pinnedRange {
+                XCTAssertLessThan(
+                    ambientRange.lowerBound,
+                    pinnedRange.lowerBound,
+                    "The terminal's own socket must win over the pinned socket, saw \(command)"
+                )
+            }
+            XCTAssertTrue(
+                command.contains(#"[ -S "$CMUX_SOCKET_PATH" ]"#),
+                "Ambient dispatch must require a live socket so an exited app falls back to the pinned build, saw \(command)"
+            )
+            XCTAssertTrue(
+                command.contains(#"[ -f "${CMUX_BUNDLED_CLI_PATH:-}" ]"#),
+                "Ambient dispatch must require a bundled CLI file, not a directory, saw \(command)"
+            )
+        }
+    }
+
     func testKiroHookInstallUsesAgentConfigShapeAndPreservesDenyExit() throws {
         let cliPath = try bundledCLIPath()
         let root = FileManager.default.temporaryDirectory
