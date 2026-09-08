@@ -11,7 +11,7 @@ import {
   cmuxTuiDaemonCommand,
 } from "../services/vms/drivers/cmuxTuiDaemon";
 import { GUEST_CMUX_SHIM } from "../services/vms/guestCli";
-import { DEVBOX_TEMPLATE_FILES, devboxAgentPins, devboxCuaDriverVersion, devboxParkDaemonCommand } from "../scripts/devbox-image-common";
+import { DEVBOX_TEMPLATE_FILES, devboxAgentPins, devboxCuaDriverVersion, devboxGhosttyVersion, devboxParkDaemonCommand } from "../scripts/devbox-image-common";
 
 // Contract tests for the shared cmux Cloud devbox image template
 // (services/vms/images/devbox), consumed by build-devbox-freestyle.ts,
@@ -100,6 +100,12 @@ describe("devbox image template", () => {
       "codex-managed.toml",
       "seed-history",
     ]);
+  });
+
+  test("the Ghostty version panes announce comes from the .deb pin and is a release version", () => {
+    expect(devboxGhosttyVersion()).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(devboxGhosttyVersion("ARG CMUX_IMAGE_GHOSTTY_DEB_URL=https://x/ghostty_1.2.3-0.ppa2_amd64_24.04.deb\n")).toBe("1.2.3");
+    expect(() => devboxGhosttyVersion("ARG CMUX_IMAGE_GHOSTTY_DEB_URL=https://x/ghostty.deb\n")).toThrow(/ghostty_<x.y.z>/);
   });
 
   test("every shell file parses", () => {
