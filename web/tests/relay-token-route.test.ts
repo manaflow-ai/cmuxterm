@@ -221,7 +221,7 @@ describe("POST /api/relay/token", () => {
     expect(await response.json()).toEqual({
       error: "binding_request_proof_required",
     });
-    expect(rateLimitChecks).toBe(1);
+    expect(rateLimitChecks).toBe(0);
   });
 
   test("returns signed policy without private relay credentials in local development", async () => {
@@ -468,7 +468,7 @@ describe("POST /api/relay/token", () => {
     expect(response.status).toBe(200);
     expect(authCalls).toBe(1);
     expect(observedKeys).toEqual([
-      `development:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
     ]);
   });
 
@@ -496,7 +496,7 @@ describe("POST /api/relay/token", () => {
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(
-      `development:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `test:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
     );
     expect(limited.headers.get("retry-after")).toBe("40");
 
@@ -514,7 +514,7 @@ describe("POST /api/relay/token", () => {
       }),
     );
     expect(invalid.status).toBe(400);
-    expect(checks).toBe(2);
+    expect(checks).toBe(1);
 
     const blocked = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),

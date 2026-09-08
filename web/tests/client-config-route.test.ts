@@ -1,4 +1,5 @@
 import { afterAll, afterEach, describe, expect, mock, test } from "bun:test";
+import { createHash } from "node:crypto";
 import {
   checkRateLimit,
   installVercelFirewallMock,
@@ -275,7 +276,10 @@ describe("client config", () => {
     }).mock.calls;
     expect(calls[0]?.[0]).toBe("cmux-client-config-test");
     expect(calls[0]?.[1]?.request.url).toBe("https://cmux.test/api/client-config");
-    expect(calls[0]?.[1]?.rateLimitKey).toBe("production:browser-id");
+    const installPartition = createHash("sha256")
+      .update("cmux/client-config/v1\0browser-id")
+      .digest("hex");
+    expect(calls[0]?.[1]?.rateLimitKey).toBe(`production:${installPartition}`);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
