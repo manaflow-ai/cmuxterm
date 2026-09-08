@@ -394,13 +394,13 @@ struct SurfaceSocketCommandTests {
         #expect(fixture.provider.materialized.last?.destination == .tab(workspaceID: fixture.workspaceID, paneID: pane, index: nil))
 
         // An EMPTY workspace opens nothing and says so (D9), instead of "not found".
-        let empty = try Self.ok(try await Self.call("vm.workspace_open", ["id": fixture.machineID, "workspace_id": "ws_empty"]))
-        #expect(empty["opened"] as? Int == 0)
-        #expect(empty["empty"] as? Bool == true)
-        #expect(empty["remote_workspace_name"] as? String == "empty")
+        let empty = try Self.error(try await Self.call("vm.workspace_open", ["id": fixture.machineID, "workspace_id": "ws_empty"]))
+        #expect(empty["code"] as? String == "not_ready")
+        #expect((empty["message"] as? String)?.contains("ws_empty") == true)
         // …and a workspace resolves by name too.
-        let byName = try Self.ok(try await Self.call("vm.workspace_open", ["id": fixture.machineID, "workspace_id": "empty"]))
-        #expect(byName["remote_workspace_id"] as? String == "ws_empty")
+        let byName = try Self.error(try await Self.call("vm.workspace_open", ["id": fixture.machineID, "workspace_id": "empty"]))
+        #expect(byName["code"] as? String == "not_ready")
+        #expect((byName["message"] as? String)?.contains("ws_empty") == true)
 
         let unknown = try Self.error(try await Self.call("vm.workspace_open", ["id": fixture.machineID, "workspace_id": "ws_nope", "here": true]))
         #expect((unknown["message"] as? String)?.contains("ws_nope") == true)

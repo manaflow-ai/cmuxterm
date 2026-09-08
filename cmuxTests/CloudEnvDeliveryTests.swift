@@ -12,6 +12,64 @@ import Testing
 @Suite struct CloudEnvDeliveryTests {
     typealias Entry = CloudEnvDelivery.Entry
 
+    @MainActor @Test(arguments: [false, true])
+    func receiverWorkspaceOwnershipControlsCleanup(existing: Bool) async throws {
+        var events: [String] = []
+        let outcome = try await CloudEnvDelivery.withReceiverWorkspace(
+            existingWorkspaceID: existing ? "existing" : nil,
+            createWorkspace: { events.append("create"); return "temporary" },
+            closeWorkspace: { events.append("close \($0)") },
+            operation: { events.append("deliver \($0)"); return .ok(keys: 1, path: nil) }
+        )
+        #expect(outcome == .ok(keys: 1, path: nil))
+        #expect(events == (existing ? ["deliver existing"] : ["create", "deliver temporary", "close temporary"]))
+    }
+
+    @MainActor @Test(arguments: [false, true])
+    func receiverWorkspaceIsCleanedAfterFailureOrCancellation(cancelled: Bool) async throws {
+        var closed: [String] = []
+        let task = Task { @MainActor in
+            try await CloudEnvDelivery.withReceiverWorkspace(
+                existingWorkspaceID: nil,
+                createWorkspace: { "temporary" },
+                closeWorkspace: { workspaceID in
+                    #expect(!Task.isCancelled)
+                    closed.append(workspaceID)
+                },
+                operation: { _ in
+                    if cancelled { withUnsafeCurrentTask { $0?.cancel() }; throw CancellationError() }
+                    throw CloudEnvDelivery.DeliveryError.receiverFailed("refused")
+                }
+            )
+        }
+        do {
+            _ = try await task.value
+            Issue.record("delivery should fail")
+        } catch {
+            #expect(cancelled ? error is CancellationError : (error as? CloudEnvDelivery.DeliveryError) == .receiverFailed("refused"))
+        }
+        #expect(closed == ["temporary"])
+    }
+
+    @MainActor @Test func receiverWorkspaceCleanupFailureIsReported() async {
+        do {
+            _ = try await CloudEnvDelivery.withReceiverWorkspace(
+                existingWorkspaceID: nil,
+                createWorkspace: { "temporary" },
+                closeWorkspace: { _ in throw CancellationError() },
+                operation: { _ in .ok(keys: 1, path: nil) }
+            )
+            Issue.record("cleanup failure must not report success")
+        } catch {
+            #expect(error as? CloudEnvDelivery.DeliveryError == .workspaceCleanupFailed("temporary"))
+        }
+    }
+
+    @Test func temporaryReceiverWorkspaceDoesNotStartAnExtraShell() {
+        #expect(CloudTuiCommandLine.createWorkspaceArguments(socketPath: "/tmp/test.sock", name: "receiver", empty: true)
+            == ["--socket", "/tmp/test.sock", "--json", "workspace", "create", "--name", "receiver", "--empty"])
+    }
+
     @Test func payloadIsLiteralKeyValueLines() throws {
         let payload = try CloudEnvDelivery.payload([
             Entry(key: "A", value: "1"),

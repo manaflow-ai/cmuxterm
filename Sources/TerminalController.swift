@@ -4101,6 +4101,19 @@ class TerminalController {
         case .success(let payload):
             return v2Ok(id: id, result: payload)
         case .failure(let error):
+            if let deliveryError = error as? CloudEnvDelivery.DeliveryError {
+                return v2Error(id: id, code: "vm_env_delivery_failed", message: deliveryError.localizedDescription)
+            }
+            if let catalogError = error as? SurfaceCatalogError {
+                switch catalogError {
+                case .nothingToOpen:
+                    return v2Error(id: id, code: "not_ready", message: catalogError.localizedDescription)
+                case .destinationNotFound:
+                    return v2Error(id: id, code: "not_found", message: catalogError.localizedDescription)
+                default:
+                    break
+                }
+            }
             if let vmError = error as? VMClientError,
                Self.isCloudVMAuthenticationError(vmError) {
                 // Keep the auth boundary explicit for every VM verb. The CLI

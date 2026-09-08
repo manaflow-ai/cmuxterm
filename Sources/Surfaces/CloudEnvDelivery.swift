@@ -51,6 +51,38 @@ enum CloudEnvDelivery {
         case failed(String)
     }
 
+    @MainActor
+    static func withReceiverWorkspace(
+        existingWorkspaceID: String?,
+        createWorkspace: @MainActor () async throws -> String,
+        closeWorkspace: @escaping @MainActor (String) async throws -> Void,
+        operation: @MainActor (String) async throws -> Outcome
+    ) async throws -> Outcome {
+        if let existingWorkspaceID { return try await operation(existingWorkspaceID) }
+        let workspaceID = try await createWorkspace()
+        let outcome: Outcome
+        do {
+            outcome = try await operation(workspaceID)
+        } catch {
+            try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
+            throw error
+        }
+        try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
+        return outcome
+    }
+
+    @MainActor
+    private static func closeReceiverWorkspace(
+        _ workspaceID: String,
+        closeWorkspace: @escaping @MainActor (String) async throws -> Void
+    ) async throws {
+        do {
+            try await Task { @MainActor in try await closeWorkspace(workspaceID) }.value
+        } catch {
+            throw DeliveryError.workspaceCleanupFailed(workspaceID)
+        }
+    }
+
     enum DeliveryError: Error, LocalizedError, Equatable {
         case invalidKey(String)
         case multilineValue(String)
@@ -60,6 +92,7 @@ enum CloudEnvDelivery {
         case outdatedShim(String)
         case receiverFailed(String)
         case noResult(String)
+        case workspaceCleanupFailed(String)
 
         var errorDescription: String? {
             switch self {
@@ -79,6 +112,8 @@ enum CloudEnvDelivery {
                 return "the machine refused the environment: \(reason)"
             case .noResult(let screen):
                 return "the machine's `cmux env receive` ended without a result\(Self.detail(screen))"
+            case .workspaceCleanupFailed(let workspaceID):
+                return String(format: String(localized: "cloudEnv.error.workspaceCleanupFailed", defaultValue: "The temporary environment receiver workspace %@ could not be removed. Inspect the machine before retrying."), workspaceID)
             }
         }
 

@@ -70,8 +70,8 @@ struct CloudTuiCommandLine: Sendable {
     }
 
     /// `workspace create --name <name>`: a workspace with one terminal.
-    static func createWorkspaceArguments(socketPath: String, name: String) -> [String] {
-        ["--socket", socketPath, "--json", "workspace", "create", "--name", name]
+    static func createWorkspaceArguments(socketPath: String, name: String, empty: Bool = false) -> [String] {
+        ["--socket", socketPath, "--json", "workspace", "create", "--name", name] + (empty ? ["--empty"] : [])
     }
 
     /// `terminal <term_id> close`: end that remote terminal (spec `terminal.close`).

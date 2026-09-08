@@ -235,7 +235,7 @@ extension CMUXCLI {
     /// The transient shapes of "the catalog has not caught up": a not-found code, or
     /// the catalog's destinationNotFound / no-such-workspace wording.
     static func vmWorkspaceNotYetVisible(_ error: CLIError) -> Bool {
-        if error.v2Code == "not_found" { return true }
+        if error.v2Code == "not_found" || error.v2Code == "not_ready" { return true }
         let text = error.message.lowercased()
         return text.contains("destinationnotfound")
             || text.contains("not found")
