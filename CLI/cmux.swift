@@ -14,52 +14,6 @@ import LocalAuthentication
 import Security
 #endif
 
-struct CLIError: Error, CustomStringConvertible {
-    enum SocketFailureKind: Equatable {
-        case pathMissing
-        case pathInspectionFailed
-        case pathTypeConflict
-        case pathOwnershipConflict
-        case startupTimeout
-    }
-
-    let message: String
-    let exitCode: Int32
-    /// Structured v2 protocol error code when the failure came from a v2 error response.
-    let v2Code: String?
-    /// Whether this error was decoded directly from a socket v2 error response.
-    /// Local CLI sentinels may reuse ``v2Code`` for their own exit-status contract.
-    let isStructuredProtocolResponse: Bool
-    /// Cloud VM backend error code (e.g. "vm_create_failed") passed through the
-    /// v2 error's data payload, so callers can make idempotency decisions
-    /// structurally instead of parsing display text.
-    let vmBackendCode: String?
-    /// HTTP status from the Cloud VM backend, when the app forwarded an HTTP
-    /// failure through the local v2 socket.
-    let vmBackendHTTPStatus: Int?
-    let socketFailureKind: SocketFailureKind?
-
-    init(
-        message: String,
-        exitCode: Int32 = 1,
-        v2Code: String? = nil,
-        isStructuredProtocolResponse: Bool = false,
-        vmBackendCode: String? = nil,
-        vmBackendHTTPStatus: Int? = nil,
-        socketFailureKind: SocketFailureKind? = nil
-    ) {
-        self.message = message
-        self.exitCode = exitCode
-        self.v2Code = v2Code
-        self.isStructuredProtocolResponse = isStructuredProtocolResponse
-        self.vmBackendCode = vmBackendCode
-        self.vmBackendHTTPStatus = vmBackendHTTPStatus
-        self.socketFailureKind = socketFailureKind
-    }
-
-    var description: String { message }
-}
-
 struct WindowInfo {
     let index: Int
     let id: String
@@ -5042,63 +4996,6 @@ struct CMUXCLI {
             defaultValue: defaultValue
         )
         return explicitValue == defaultValue ? catalogValue : explicitValue
-    }
-
-    /// Run the separately installed CodeRouter CLI without routing through the
-    /// cmux socket. Replace this process after resolving the executable so
-    /// stdin/stdout/stderr, signals, and the child exit status retain their
-    /// normal terminal semantics. The argv is built directly; arguments such
-    /// as prompts, paths, and shell metacharacters are never interpreted by a
-    /// shell.
-    private func runCoderouterAlias(commandArgs: [String]) throws {
-        let candidates = ["coderouter", "cr"]
-        guard let executablePath = candidates.lazy
-            .compactMap({ resolveExecutableInPath($0) })
-            .first else {
-            throw CLIError(
-                message: localizedCoderouterNotFound(),
-                exitCode: 127
-            )
-        }
-
-        // CodeRouter is an independent executable. Do not hand it cmux's ambient
-        // terminal/control-plane context: CMUX_* and CMUXD_* may carry socket
-        // paths, capabilities, passwords, auth state, or internal paths. There is
-        // intentionally no auth handoff here; a future handoff must be explicit
-        // and narrowly allowlisted.
-        let childEnvironment = ProcessInfo.processInfo.environment.filter { key, _ in
-            !key.hasPrefix("CMUX_") && !key.hasPrefix("CMUXD_")
-        }
-        var argv = ([executablePath] + commandArgs).map { strdup($0) }
-        let environmentStrings = childEnvironment.keys.sorted().map { key in
-            "\(key)=\(childEnvironment[key] ?? "")"
-        }
-        var environment = environmentStrings.map { strdup($0) }
-        defer {
-            for item in argv {
-                free(item)
-            }
-            for item in environment {
-                free(item)
-            }
-        }
-        argv.append(nil)
-        environment.append(nil)
-
-        let executionError = cliExecFailureErrno {
-            executablePath.withCString { executable in
-                _ = execve(executable, &argv, &environment)
-            }
-        }
-        let errorText = String(cString: strerror(executionError))
-        cliDebugLog(
-            "cli.coderouter.exec_failed executable=\(executablePath) "
-                + "errno=\(executionError) error=\(errorText)"
-        )
-        throw CLIError(
-            message: localizedCoderouterLaunchFailed(),
-            exitCode: 127
-        )
     }
 
     func run() async throws {
@@ -31120,36 +31017,6 @@ struct CMUXCLI {
         return nil
     }
 
-    private func summarizeClaudeHookNotification(parsedInput: ClaudeHookParsedInput) -> (subtitle: String, body: String) {
-        guard let object = parsedInput.object else {
-            if let fallback = parsedInput.rawFallback, !fallback.isEmpty {
-                return classifyClaudeNotification(signal: fallback, message: fallback)
-            }
-            // No payload at all: nothing to say. An empty body tells the
-            // caller to reuse the stored session summary or skip the banner —
-            // never to fabricate a needs-attention message.
-            return ("Waiting", "")
-        }
-
-        let nested = (object["notification"] as? [String: Any]) ?? (object["data"] as? [String: Any]) ?? [:]
-        let signalParts = [
-            firstString(in: object, keys: ["event", "event_name", "hook_event_name", "type", "kind"]),
-            firstString(in: object, keys: ["notification_type", "matcher", "reason"]),
-            firstString(in: nested, keys: ["type", "kind", "reason"])
-        ]
-        let messageCandidates = [
-            firstString(in: object, keys: ["message", "body", "text", "prompt", "error", "description"]),
-            firstString(in: nested, keys: ["message", "body", "text", "prompt", "error", "description"])
-        ]
-        let message = messageCandidates.compactMap { $0 }.first ?? ""
-        let normalizedMessage = normalizedSingleLine(message)
-        let signal = signalParts.compactMap { $0 }.joined(separator: " ")
-        var classified = classifyClaudeNotification(signal: signal, message: normalizedMessage)
-
-        classified.body = truncate(classified.body, maxLength: 180)
-        return classified
-    }
-
     private func summarizeAgentHookNotification(
         def: AgentHookDef,
         parsedInput: ClaudeHookParsedInput,
@@ -31483,69 +31350,6 @@ struct CMUXCLI {
             String(localized: "agent.generic.notification.status.needsInput", defaultValue: "%@ needs input"),
             def.displayName
         )
-    }
-
-    private func classifyClaudeNotification(signal: String, message: String) -> (subtitle: String, body: String) {
-        let lower = "\(signal) \(message)".lowercased()
-        if lower.contains("permission") || lower.contains("approve") || lower.contains("approval") || lower.contains("permission_prompt") {
-            let body = message.isEmpty ? "Approval needed" : message
-            return ("Permission", body)
-        }
-        if lower.contains("error") || lower.contains("failed") || lower.contains("exception") {
-            let body = message.isEmpty ? "Claude reported an error" : message
-            return ("Error", body)
-        }
-        if AgentHookNotificationClassifier.containsCompletionCue(lower) {
-            let body = message.isEmpty ? "Task completed" : message
-            return ("Completed", body)
-        }
-        if AgentHookNotificationClassifier.containsWaitingCue(lower) {
-            let body = message.isEmpty ? "Waiting for input" : message
-            return ("Waiting", body)
-        }
-        // Use the message directly when there is one. A payload with no
-        // usable message yields an empty body: callers reuse the stored
-        // session summary or skip the banner. The old "Claude needs your
-        // attention" fabrication (and the needs-input state it implied) is
-        // deliberately gone — an unparseable message is not a signal.
-        if !message.isEmpty {
-            return ("Attention", message)
-        }
-        return ("Attention", "")
-    }
-
-    private func sanitizeNotificationField(_ value: String) -> String {
-        return normalizedSingleLine(value)
-            .replacingOccurrences(of: "|", with: "¦")
-    }
-
-    func notificationPayload(
-        title: String,
-        subtitle: String,
-        body: String,
-        meta: String? = nil
-    ) -> String {
-        let base = "\(sanitizeNotificationField(title))|\(sanitizeNotificationField(subtitle))|\(sanitizeNotificationField(body))"
-        // `meta` is a structured, delimiter-safe tag: it has no
-        // "|" or spaces, so it is NOT sanitized and rides as a 4th pipe segment.
-        // Omitting it reproduces the exact 3-field payload every legacy caller sends.
-        guard let meta, !meta.isEmpty else { return base }
-        return base + "|" + meta
-    }
-
-    /// True when a Claude `Stop`/`Notification` payload reports unfinished
-    /// background work: any `background_tasks` entry still `running`, or a
-    /// non-empty `session_crons`. A `nil` rawObject or absent keys (claude
-    /// < 2.1.145) yield `false`, so older clients behave exactly as before.
-    /// Pure over `rawObject` so both the notify gate and the hibernation
-    /// lifecycle decision can share it (mirrors `hasActiveAntigravityBackgroundWork`).
-    func hasActiveClaudeBackgroundWork(_ parsedInput: ClaudeHookParsedInput) -> Bool {
-        guard let obj = parsedInput.rawObject else { return false }
-        if let crons = obj["session_crons"] as? [Any], !crons.isEmpty { return true }
-        if let tasks = obj["background_tasks"] as? [[String: Any]] {
-            return tasks.contains { ($0["status"] as? String) == "running" }
-        }
-        return false
     }
 
     private func mergedNodeOptions(existing: String?, restoreModulePath: String) -> String {
