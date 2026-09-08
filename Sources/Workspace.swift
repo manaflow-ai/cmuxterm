@@ -2218,7 +2218,7 @@ extension Workspace {
         syncUnreadBadgeStateForAllPanels()
     }
 
-    private func notificationSnapshots(surfaceId: UUID?) -> [SessionNotificationSnapshot] {
+    func notificationSnapshots(surfaceId: UUID?) -> [SessionNotificationSnapshot] {
         AppDelegate.shared?.notificationStore?
             .notifications(forTabId: id, surfaceId: surfaceId)
             .map(SessionNotificationSnapshot.init(notification:)) ?? []
@@ -3015,7 +3015,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     var pendingPlainSSHRestorePanelIds: Set<UUID> = []
     var observedPlainSSHPanelIds: Set<UUID> = []
     var plainSSHDetectionMissesByPanelId: [UUID: Int] = [:]
-    private static let plainSSHRestoreObservationMissLimit = 3
+    static let plainSSHRestoreObservationMissLimit = 3
     var restoredGuardedWorkingDirectoriesByPanelId: [UUID: RestoredWorkingDirectoryGuard] = [:]
     /// The session directory each restored auto-resume launcher targets, kept
     /// for the resumed run so split/new-tab cwd inheritance can rescue a
@@ -3100,7 +3100,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             || lowered.contains("daemon transport")
     }
 
-    private static func isProxyOnlyRemoteLogEntry(_ entry: SidebarLogEntry) -> Bool {
+    static func isProxyOnlyRemoteLogEntry(_ entry: SidebarLogEntry) -> Bool {
         entry.source == "remote-proxy" || isProxyOnlyRemoteError(entry.message)
     }
 
