@@ -89,6 +89,83 @@ def main() -> int:
         print("FAIL: helper did not report idle timeout")
         return 1
 
+    keepalive_child = textwrap.dedent(
+        """
+        import time
+
+        print("Test Case '-[cmuxTests.HungTests testForever]' started.", flush=True)
+        for _ in range(40):
+            print("2026-09-08 14:30:00 cmux DEV[1:2] [CloudVM] GET /api/vm not_signed_in 1ms", flush=True)
+            time.sleep(0.05)
+        raise SystemExit(0)
+        """
+    )
+    # Without an ignore pattern every line is progress, so the keepalive child
+    # runs to completion and exits 0 (the pre-fix behavior, kept for callers
+    # that opt out).
+    keepalive_counts_result = subprocess.run(
+        [sys.executable, str(HELPER), sys.executable, "-c", keepalive_child],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+        env={
+            **os.environ,
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "0.3",
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": "",
+        },
+    )
+    if keepalive_counts_result.returncode != 0:
+        print(keepalive_counts_result.stdout, end="")
+        print(keepalive_counts_result.stderr, end="", file=sys.stderr)
+        print(f"FAIL: without an ignore pattern the keepalive child should finish, got {keepalive_counts_result.returncode}")
+        return 1
+    # With the pattern the keepalive is not progress: the child idles out 0.3s
+    # after its last real line even though it prints every 50ms.
+    keepalive_ignored_result = subprocess.run(
+        [sys.executable, str(HELPER), sys.executable, "-c", keepalive_child],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+        env={
+            **os.environ,
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "0.3",
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": r"\[CloudVM\] GET /api/vm ",
+        },
+    )
+    if keepalive_ignored_result.returncode != 124:
+        print(keepalive_ignored_result.stdout, end="")
+        print(keepalive_ignored_result.stderr, end="", file=sys.stderr)
+        print(f"FAIL: keepalive-only output must idle out, got {keepalive_ignored_result.returncode}")
+        return 1
+    if "Idle timed out after 0.3s" not in keepalive_ignored_result.stderr:
+        print(keepalive_ignored_result.stderr, end="", file=sys.stderr)
+        print("FAIL: helper did not report the keepalive idle timeout")
+        return 1
+    if keepalive_ignored_result.stdout.count("[CloudVM] GET /api/vm") >= 40:
+        print("FAIL: helper let the keepalive child run to completion despite the ignore pattern")
+        return 1
+    invalid_pattern_result = subprocess.run(
+        [sys.executable, str(HELPER), sys.executable, "-c", "print('x')"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=15,
+        env={
+            **os.environ,
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS": "1",
+            "CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE": "(",
+        },
+    )
+    if invalid_pattern_result.returncode != 2 or "not a valid regex" not in invalid_pattern_result.stderr:
+        print(invalid_pattern_result.stderr, end="", file=sys.stderr)
+        print(f"FAIL: an invalid ignore pattern must fail closed with exit 2, got {invalid_pattern_result.returncode}")
+        return 1
+
     heartbeat_result = subprocess.run(
         [
             sys.executable,

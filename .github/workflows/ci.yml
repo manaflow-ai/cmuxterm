@@ -1181,6 +1181,14 @@ jobs:
           # balanced, sequential app-host processes so each stays inside the
           # existing per-invocation timeout without changing the shared scheme.
 
+          terminate_process_tree() {
+            local root_pid="$1" signal_name="$2" child_pid
+            for child_pid in $(pgrep -P "$root_pid" 2>/dev/null || true); do
+              terminate_process_tree "$child_pid" "$signal_name"
+            done
+            kill "-$signal_name" "$root_pid" 2>/dev/null || true
+          }
+
           run_unit_test_batch() {
             local logical_shard="$1"
             local shard_args="$RUNNER_TEMP/cmux-unit-shard-${logical_shard}-of-${LOGICAL_SHARD_TOTAL}.args"
@@ -1207,47 +1215,63 @@ jobs:
             fi
 
             echo "Running app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} serially"
-            local batch_status
+            local batch_status=0
             # Reset this batch's capture before every invocation. The outer
             # SwiftPM-resolution retry reuses the path, and a failed retry
             # must not inherit an earlier attempt's expected-failure summary.
             : > "$batch_output"
-            {
-              # These app-host tests create real SwiftUI/WebKit/Ghostty windows and
-              # intermittently crash inside XCTest's post-test memory checker or
-              # leave native display/WebKit work alive on GitHub macOS runners.
-              # When that happens, Swift's crash/backtrace handling or the stale
-              # app-host process keeps xcodebuild alive until the job-level timeout,
-              # hiding the actual unit test summary.
-              # The app-host wrapper also serializes GUI XCTest ownership per Mac,
-              # while still allowing shards on separate Macs to run in parallel.
-              scripts/ci/run-in-console-session.sh \
-                scripts/ci/run-app-host-xcodebuild.sh \
-                -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
-                -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
-                -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
-                -disableAutomaticPackageResolution \
-                -destination "platform=macOS" \
-                "${only_testing_args[@]}" \
-                CMUX_SKIP_ZIG_BUILD=1 \
-                test 2>&1 &
-              local xcodebuild_pid=$!
-              local timeout_seconds="${CMUX_UNIT_TEST_TIMEOUT_SECONDS:-900}"
-              local deadline=$((SECONDS + timeout_seconds))
-              while kill -0 "$xcodebuild_pid" 2>/dev/null; do
-                if [ "$SECONDS" -ge "$deadline" ]; then
-                  echo "xcodebuild unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} timeout after ${timeout_seconds}s; terminating"
-                  kill -TERM "$xcodebuild_pid" 2>/dev/null || true
-                  sleep 5
-                  kill -KILL "$xcodebuild_pid" 2>/dev/null || true
-                  wait "$xcodebuild_pid" 2>/dev/null || true
-                  exit 124
-                fi
+            # These app-host tests create real SwiftUI/WebKit/Ghostty windows and
+            # intermittently crash inside XCTest's post-test memory checker or
+            # leave native display/WebKit work alive on GitHub macOS runners.
+            # When that happens, Swift's crash/backtrace handling or the stale
+            # app-host process keeps xcodebuild alive until the job-level timeout,
+            # hiding the actual unit test summary.
+            # The app-host wrapper also serializes GUI XCTest ownership per Mac,
+            # while still allowing shards on separate Macs to run in parallel.
+            #
+            # xcodebuild writes to the capture file and a detached tail streams it
+            # for real-time visibility. It used to write through a pipe into tee:
+            # after the watchdog below fired, a surviving app host kept the pipe's
+            # write end open and this step idled until the job timeout
+            # (2026-09-08, shards 1/2/4: 57 idle minutes after "terminating").
+            tail -n +1 -f "$batch_output" &
+            local tail_pid=$!
+            scripts/ci/run-in-console-session.sh \
+              scripts/ci/run-app-host-xcodebuild.sh \
+              -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
+              -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
+              -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+              -disableAutomaticPackageResolution \
+              -destination "platform=macOS" \
+              "${only_testing_args[@]}" \
+              CMUX_SKIP_ZIG_BUILD=1 \
+              test > "$batch_output" 2>&1 &
+            local xcodebuild_pid=$!
+            local timeout_seconds="${CMUX_UNIT_TEST_TIMEOUT_SECONDS:-900}"
+            local deadline=$((SECONDS + timeout_seconds))
+            while kill -0 "$xcodebuild_pid" 2>/dev/null; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "xcodebuild unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} timeout after ${timeout_seconds}s; terminating" >> "$batch_output"
+                # Kill the whole tree, not just the console-session launcher:
+                # the per-Mac lock wrapper, xcodebuild and the test host outlive
+                # a plain kill of the root and would block the next batch on
+                # the app-host lock.
+                terminate_process_tree "$xcodebuild_pid" TERM
                 sleep 5
-              done
-              wait "$xcodebuild_pid"
-            } | tee "$batch_output"
-            batch_status="${PIPESTATUS[0]}"
+                terminate_process_tree "$xcodebuild_pid" KILL
+                wait "$xcodebuild_pid" 2>/dev/null || true
+                batch_status=124
+                break
+              fi
+              sleep 5
+            done
+            if [ "$batch_status" -eq 0 ]; then
+              wait "$xcodebuild_pid" || batch_status=$?
+            fi
+            # Let the streamer flush the log tail before stopping it.
+            /bin/sleep 1
+            kill "$tail_pid" 2>/dev/null || true
+            wait "$tail_pid" 2>/dev/null || true
 
             if [ "$batch_status" -ne 0 ]; then
               local batch_summary
@@ -1276,7 +1300,8 @@ jobs:
           set +e
           run_unit_tests | tee "$TEST_OUTPUT"
           EXIT_CODE=${PIPESTATUS[0]}
-          OUTPUT=$(cat "$TEST_OUTPUT")
+          # The streamed log can lag the per-batch capture files; read both.
+          OUTPUT=$(cat "$TEST_OUTPUT" "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null)
           set -e
 
           # SwiftPM binary artifact resolution can occasionally fail on ephemeral
@@ -1291,7 +1316,8 @@ jobs:
             set +e
             run_unit_tests | tee "$TEST_OUTPUT"
             EXIT_CODE=${PIPESTATUS[0]}
-            OUTPUT=$(cat "$TEST_OUTPUT")
+            # The streamed log can lag the per-batch capture files; read both.
+            OUTPUT=$(cat "$TEST_OUTPUT" "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null)
             set -e
           fi
 

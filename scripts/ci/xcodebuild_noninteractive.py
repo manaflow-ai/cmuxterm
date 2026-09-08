@@ -55,6 +55,39 @@ def idle_timeout_seconds() -> float | None:
     return seconds
 
 
+def idle_ignore_pattern() -> re.Pattern[bytes] | None:
+    """Output lines matching this pattern do not count as progress for the idle timeout.
+
+    The app host polls the Cloud API on a timer and logs every attempt, so a test
+    that hangs forever still emits a line every 45 seconds. On 2026-09-08 that
+    keepalive kept three WebKit-hung app-host shards "busy" for 57 minutes past
+    the idle budget, until the job-level timeout. Real progress is anything else.
+    """
+    raw = os.environ.get("CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE")
+    if not raw:
+        return None
+    try:
+        return re.compile(raw.encode("utf-8"))
+    except re.error as error:
+        print(
+            f"CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE is not a valid regex: {error}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
+
+def output_shows_progress(
+    chunk: bytes, pending_line: bytes, ignore: re.Pattern[bytes]
+) -> tuple[bool, bytes]:
+    """Return (progress seen, unfinished trailing line) for one output chunk."""
+    buffered = pending_line + chunk
+    *lines, pending = buffered.split(b"\n")
+    progress = any(
+        not ignore.search(line) for line in (part.strip(b"\r") for part in lines) if line
+    )
+    return progress, pending[-65536:]
+
+
 def post_test_timeout_seconds() -> float | None:
     raw = os.environ.get("CMUX_XCODEBUILD_NONINTERACTIVE_POST_TEST_TIMEOUT_SECONDS")
     if not raw:
@@ -152,6 +185,8 @@ def main() -> int:
         return 2
 
     timeout = idle_timeout_seconds()
+    idle_ignore = idle_ignore_pattern()
+    pending_line = b""
     post_test_timeout = post_test_timeout_seconds()
     heartbeat = heartbeat_seconds()
     started_at = time.monotonic()
@@ -247,7 +282,12 @@ def main() -> int:
         if heartbeat:
             heartbeat_deadline = time.monotonic() + heartbeat
         if timeout:
-            deadline = time.monotonic() + timeout
+            if idle_ignore is None:
+                deadline = time.monotonic() + timeout
+            else:
+                progress, pending_line = output_shows_progress(chunk, pending_line, idle_ignore)
+                if progress:
+                    deadline = time.monotonic() + timeout
         prompt_window = (prompt_window + chunk)[-4096:]
         if post_test_timeout:
             selected_match = SELECTED_TESTS_DONE_RE.search(prompt_window)

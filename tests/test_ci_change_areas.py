@@ -7,9 +7,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -214,6 +216,8 @@ def run_linux_preflight(needs: dict[str, object]) -> subprocess.CompletedProcess
 
 def run_app_host_unit_test_step(
     shard_mode: str = "selectors",
+    console_runner_script: str | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], bool]:
     script = workflow_job_step_script("app-host-unit-tests", "Run unit tests")
     script = script.replace("${{ matrix.shard }}", "1")
@@ -247,7 +251,9 @@ output.write_text(selectors, encoding="utf-8")
 
         console_runner = ci_scripts / "run-in-console-session.sh"
         console_runner.write_text(
-            """
+            console_runner_script
+            if console_runner_script is not None
+            else """
 #!/bin/bash
 set -euo pipefail
 counter="${CMUX_TEST_BATCH_COUNTER:?}"
@@ -285,10 +291,12 @@ exit 9
                 "CMUX_TEST_BATCH_COUNTER": str(root / "batch-counter"),
                 "CMUX_TEST_RUNNER_MARKER": str(runner_marker),
                 "CMUX_TEST_SHARD_MODE": shard_mode,
+                **(extra_env or {}),
             },
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            timeout=120,
         )
         return result, runner_marker.exists()
 
@@ -841,6 +849,47 @@ def test_app_host_multi_batch_failure_cannot_reuse_prior_expected_summary() -> N
     assert runner_invoked
     assert result.returncode != 0, result.stdout
     assert "simulated app-host crash before test summary" in result.stdout
+
+
+def test_app_host_batch_watchdog_kills_hung_runner_tree_and_fails_fast() -> None:
+    # 2026-09-08: a WebKit-hung app host survived the batch watchdog's kill of the
+    # console-session launcher, kept the tee pipe open, and the step idled from
+    # "timeout after 1800s; terminating" to the 75-minute job timeout. The runner
+    # here hangs after one real line and leaves a grandchild that keeps the
+    # inherited stdout open; the step must still return 124 promptly and the
+    # grandchild must be dead (tree kill), not merely orphaned.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        orphan_pid_file = Path(temp_dir) / "orphan.pid"
+        hung_runner = f"""
+#!/bin/bash
+printf 'invoked\\n' > "${{CMUX_TEST_RUNNER_MARKER:?}}"
+echo "Test Case '-[cmuxTests.HungTests testForever]' started."
+/bin/sleep 300 &
+echo $! > "{orphan_pid_file}"
+/bin/sleep 300
+"""
+        started = time.monotonic()
+        result, runner_invoked = run_app_host_unit_test_step(
+            console_runner_script=hung_runner.lstrip(),
+            extra_env={"CMUX_UNIT_TEST_TIMEOUT_SECONDS": "1"},
+        )
+        elapsed = time.monotonic() - started
+
+        assert runner_invoked
+        assert result.returncode == 124, (result.returncode, result.stdout, result.stderr)
+        assert "timeout after 1s; terminating" in result.stdout, result.stdout
+        assert "App-host unit-test batch failed with status 124" in result.stdout, result.stdout
+        assert elapsed < 60, elapsed
+        orphan_pid = int(orphan_pid_file.read_text().strip())
+        for _ in range(50):
+            try:
+                os.kill(orphan_pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.1)
+        else:
+            os.kill(orphan_pid, signal.SIGKILL)
+            raise AssertionError(f"grandchild {orphan_pid} survived the batch watchdog")
 
 
 def test_app_host_rejects_failed_or_empty_shard_generation() -> None:

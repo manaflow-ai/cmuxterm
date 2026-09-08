@@ -16,6 +16,12 @@ log_stem="${log_dir%/}/cmux-app-host-xcodebuild-${CMUX_TAG:-untagged}"
 max_attempts="${CMUX_APP_HOST_XCODEBUILD_ATTEMPTS:-3}"
 export CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS="${CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS:-${CMUX_XCODEBUILD_NONINTERACTIVE_TIMEOUT_SECONDS:-300}}"
 echo "App-host xcodebuild idle timeout: ${CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_TIMEOUT_SECONDS}s, attempts: ${max_attempts}"
+# The app host polls the Cloud API every 45s and logs each attempt, so a hung
+# test still produces output. That keepalive must not count as progress, or the
+# idle timeout never fires (2026-09-08: three WebKit-hung shards idled 57
+# minutes past it). Set the variable to an empty string to count everything.
+export CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE="${CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE-\[CloudVM\] GET /api/vm }"
+echo "App-host xcodebuild idle watchdog ignores output matching: ${CMUX_XCODEBUILD_NONINTERACTIVE_IDLE_IGNORE_RE:-<nothing>}"
 
 # Principled serialization (the actual fix; the retry below is only a backstop).
 # Invariant: a GUI test host owns the Mac's single login session + testmanagerd
