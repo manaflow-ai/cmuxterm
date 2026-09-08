@@ -26,14 +26,16 @@ extension CMUXCLI {
     }
 }
 
-
 private extension CMUXCLI {
     func configDoctorAppDefaults() -> UserDefaults {
         let environment = ProcessInfo.processInfo.environment
-        let bundleIdentifier = environment["CMUX_BUNDLE_ID"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .flatMap { $0.isEmpty ? nil : $0 }
-            ?? CLISocketPathResolver.currentAppBundleIdentifier()
+        let bundleIdentifier: String?
+        if let rawBundleIdentifier = environment["CMUX_BUNDLE_ID"] {
+            let trimmed = rawBundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            bundleIdentifier = trimmed.isEmpty ? nil : trimmed
+        } else {
+            bundleIdentifier = CLISocketPathResolver.currentAppBundleIdentifier()
+        }
         return bundleIdentifier.flatMap { UserDefaults(suiteName: $0) } ?? .standard
     }
 }
