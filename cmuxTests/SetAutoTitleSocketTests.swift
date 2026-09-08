@@ -33,9 +33,8 @@ import Testing
         let request: [String: Any] = ["id": method, "method": method, "params": params]
         let requestData = try JSONSerialization.data(withJSONObject: request)
         let requestLine = try #require(String(data: requestData, encoding: .utf8))
-        let response = try await #require(
-            TerminalController.shared.processCommandUsingSocketExecutionPolicyAsync(requestLine)
-        )
+        let rawResponse = await TerminalController.shared.processCommandUsingSocketExecutionPolicyAsync(requestLine)
+        let response = try #require(rawResponse)
         return try decodeResponse(response)
     }
 
