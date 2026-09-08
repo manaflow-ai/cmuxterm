@@ -123,7 +123,7 @@ final class BrowserRecoveryHTTPServer {
     }
 
     private func receiveRequest(on connection: NWConnection, buffer: Data = Data()) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8_192) { [weak self] data, _, _, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8_192) { [weak self] data, _, isComplete, error in
             guard let self else {
                 connection.cancel()
                 return
@@ -138,6 +138,10 @@ final class BrowserRecoveryHTTPServer {
                 nextBuffer.append(data)
             }
             guard nextBuffer.range(of: Data([13, 10, 13, 10])) != nil else {
+                guard !isComplete else {
+                    connection.cancel()
+                    return
+                }
                 self.receiveRequest(on: connection, buffer: nextBuffer)
                 return
             }

@@ -39,13 +39,13 @@ final class BrowserReliabilityRegressionUITests: BrowserFixtureSocketTestCase {
         try server.start()
         defer { server.stop() }
 
+        server.expectRequest(path: "/recovered")
         let pendingNavigation = try beginPendingSocketRequest(
             method: "browser.navigate",
             params: ["surface_id": sid, "url": recoveredURL],
             responseTimeout: 15
         )
         defer { closePendingSocketRequest(pendingNavigation) }
-        server.expectRequest(path: "/recovered")
         try server.waitForRequest()
         let returnedBeforeResponseRelease = pendingSocketResponseIsReady(pendingNavigation)
         try server.releaseResponse()
