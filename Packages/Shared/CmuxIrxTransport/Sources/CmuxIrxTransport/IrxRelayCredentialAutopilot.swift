@@ -114,8 +114,8 @@ public actor IrxRelayCredentialAutopilot {
     /// Stops the refresh loop and cancels any in-flight wait.
     public func stop() async {
         loopGeneration &+= 1
-        await rotationGate.invalidate()
         loop?.cancel()
+        await rotationGate.invalidate()
         loop = nil
         cancelHintRetry()
         journal.record("credential-autopilot", "stopped")
@@ -127,10 +127,10 @@ public actor IrxRelayCredentialAutopilot {
     public func kick() async {
         loopGeneration &+= 1
         let generation = loopGeneration
+        loop?.cancel()
         await rotationGate.invalidate()
         let rotationGeneration = await rotationGate.begin()
         guard generation == loopGeneration else { return }
-        loop?.cancel()
         cancelHintRetry()
         loop = Task {
             await self.run(
@@ -229,7 +229,7 @@ public actor IrxRelayCredentialAutopilot {
             } catch is CancellationError {
                 return
             } catch {
-                guard !Task.isCancelled else { return }
+                guard generation == loopGeneration, !Task.isCancelled else { return }
                 let failure = error as? IrxBrokerFailure
                     ?? IrxBrokerFailure(
                         operation: .mint,
@@ -239,12 +239,14 @@ public actor IrxRelayCredentialAutopilot {
                 let expiry = credentials.map(\.expiresAt).max()
                 guard let nextFailureCount = await waitForRetry(
                     after: failure,
+                    lifecycleGeneration: generation,
                     failureCount: failureCounts.transient,
                     unauthorizedFailureCount: failureCounts.unauthorized,
                     missingAuthenticationFailureCount:
                         failureCounts.missingAuthentication,
                     credentialExpiry: expiry
                 ) else { return }
+                guard generation == loopGeneration, !Task.isCancelled else { return }
                 failureCounts.transient = nextFailureCount.transient
                 failureCounts.unauthorized = nextFailureCount.unauthorized
                 failureCounts.missingAuthentication = nextFailureCount.missingAuthentication
@@ -382,12 +384,18 @@ public actor IrxRelayCredentialAutopilot {
     /// terminal state such as reauthentication or an explicit failure.
     private func waitForRetry(
         after failure: IrxBrokerFailure,
+        lifecycleGeneration: UInt64? = nil,
         failureCount: Int,
         unauthorizedFailureCount: Int,
         missingAuthenticationFailureCount: Int,
         credentialExpiry: Date?,
         escalateUnauthorized: Bool = true
     ) async -> FailureCounts? {
+        if let lifecycleGeneration {
+            guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+        } else {
+            guard !Task.isCancelled else { return nil }
+        }
         let escalationBucket = failure.escalationBucket
         // Select one cause-specific count and feed it to both the policy and
         // the bounded-delay/journal path. Auxiliary hint retries suppress only
@@ -413,14 +421,23 @@ public actor IrxRelayCredentialAutopilot {
             ? "hint-refresh-failed" : "mint-failed"
         switch decision {
         case .reauthenticationRequired:
+            if let lifecycleGeneration {
+                guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+            }
             journal.record("credential-autopilot", event, failure.journalAttributes)
             await onFailure?(failure, .terminal(requiresReauthentication: true))
             return nil
         case .stopped:
+            if let lifecycleGeneration {
+                guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+            }
             journal.record("credential-autopilot", "mint-stopped", failure.journalAttributes)
             await onFailure?(failure, .terminal(requiresReauthentication: false))
             return nil
         case let .retry(policyDelay, retryAfterSeconds):
+            if let lifecycleGeneration {
+                guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+            }
             let delaySeconds = credentialPolicy.boundedRetryDelay(
                 expiresAt: credentialExpiry,
                 now: Date(),
@@ -433,11 +450,19 @@ public actor IrxRelayCredentialAutopilot {
             attributes["failure_count"] = String(decisionFailureCount)
             journal.record("credential-autopilot", event, attributes)
             await onFailure?(failure, .retry(delay: delaySeconds))
-            guard !Task.isCancelled else { return nil }
+            if let lifecycleGeneration {
+                guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+            } else {
+                guard !Task.isCancelled else { return nil }
+            }
             try? await clock.sleep(
                 until: clock.now().addingTimeInterval(delaySeconds)
             )
-            guard !Task.isCancelled else { return nil }
+            if let lifecycleGeneration {
+                guard lifecycleGeneration == loopGeneration, !Task.isCancelled else { return nil }
+            } else {
+                guard !Task.isCancelled else { return nil }
+            }
             return FailureCounts(
                 transient: escalationBucket == .transient
                     ? min(failureCount + 1, 20) : failureCount,
