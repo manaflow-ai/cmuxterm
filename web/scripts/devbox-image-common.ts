@@ -19,6 +19,9 @@ import { Buffer } from "node:buffer";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { cmuxTuiLayoutSelector } from "../services/vms/drivers/cmuxTuiDaemon";
+import { VM_PLACEHOLDER_API_KEY } from "../services/coderouter/vmGuestEnv";
+import { DEVBOX_WORK_HOME, DEVBOX_WORK_USER } from "../services/vms/images/workUser";
 import { VM_IMAGE_SIZES, VM_IMAGE_SIZE_NAMES, vmImageSizeRank, type VmImageSizeName } from "../services/vms/images/sizes";
 import { DEVBOX_HOSTNAME, DEVBOX_HOSTNAME_LOOPBACK, DEVBOX_PROVIDER_HOSTNAME } from "../services/vms/images/identity";
 
@@ -33,6 +36,8 @@ export const DEVBOX_TEMPLATE_FILES = [
   "Dockerfile",
   "agent-config.sh",
   "chrome-managed-policy.json",
+  "claude-managed-settings.json",
+  "claude-onboarding.json",
   "cmux-bashrc",
   "cmux-devbox-boot",
   "cmux-motd",
@@ -71,14 +76,18 @@ export const devboxTerminfoInstallCommand =
  * temporary device and removes the workspace before a snapshot can capture
  * test state.
  */
-export function cmuxTuiWebsocketSmokeCommand(
-  session = "cloud",
-  binary = "/root/.cmux/bin/cmux-tui",
-): string {
+export function cmuxTuiWebsocketSmokeCommand(session = "cloud"): string {
+  const identity = `${DEVBOX_WORK_USER}@${DEVBOX_HOSTNAME}`;
+  // Runs as the daemon's own user with the daemon's HOME: enrollment reads and
+  // writes the session state the daemon owns, and as root that state dir is a
+  // different (empty) one on a work-user machine.
+  // The layout is selected by the caller (as root, the only user that can ask
+  // runuser) and handed in: re-running the selector here, already dropped to
+  // the daemon's user, cannot use runuser and would fall back to root's path.
   const shell = `#!/usr/bin/env bash
 set -euo pipefail
-export HOME=/root
-BIN=${binary}
+BIN="\${CMUX_TUI_BIN:?cmux-tui binary not provided}"
+: "\${HOME:?home not provided}"
 SESSION=${session}
 ROOT=/tmp/cmux-tui-websocket-smoke
 ROUTE='ws://[::1]:1337/v1/link'
@@ -141,7 +150,7 @@ echo "$CAPABILITIES" | jq -e '.type == "capabilities"' >/dev/null
 WORKSPACE="$(rpc '{"type":"open-workspace","root":"/tmp"}')"
 WORKSPACE_ID="$(echo "$WORKSPACE" | jq -r '.id // .result.Ok.id')"
 test -n "$WORKSPACE_ID" && test "$WORKSPACE_ID" != "null"
-SPAWN_REQUEST="$(jq -nc --arg workspace "$WORKSPACE_ID" --arg marker "$MARKER" '{type:"spawn-process",workspace:$workspace,argv:["bash","-lc",("printf "+$marker+"; sleep 60")],cwd:null,env:{},io:{type:"pty",cols:120,rows:40,term:"xterm-256color",eof:"control-d"},lifetime:"detached"}')"
+SPAWN_REQUEST="$(jq -nc --arg workspace "$WORKSPACE_ID" --arg marker "$MARKER" '{type:"spawn-process",workspace:$workspace,argv:["bash","-lc",("printf %s:%s@%s "+$marker+" \\"$(id -un)\\" \\"$(hostname)\\"; sleep 60")],cwd:null,env:{},io:{type:"pty",cols:120,rows:40,term:"xterm-256color",eof:"control-d"},lifetime:"detached"}')"
 SPAWN="$(rpc "$SPAWN_REQUEST")"
 PROCESS_ID="$(echo "$SPAWN" | jq -r '.process // .result.Ok.process')"
 test -n "$PROCESS_ID" && test "$PROCESS_ID" != "null"
@@ -149,6 +158,9 @@ sleep 2
 SNAPSHOT_REQUEST="$(jq -nc --arg process "$PROCESS_ID" '{type:"snapshot-process-terminal",process:$process}')"
 FIRST="$(rpc "$SNAPSHOT_REQUEST")"
 echo "$FIRST" | jq -e --arg marker "$MARKER" 'tostring | contains($marker)' >/dev/null
+# The whole point of the daemon layout: a pane it opens is a shell of the work
+# user on a machine named cmux, which is what the prompt shows a person.
+echo "$FIRST" | jq -e --arg who "$MARKER:${identity}" 'tostring | contains($who)' >/dev/null
 FIRST_SEQUENCE="$(echo "$FIRST" | jq -r '.snapshot.through_sequence // .result.Ok.snapshot.through_sequence')"
 test "$FIRST_SEQUENCE" -ge 1
 SECOND="$(rpc "$SNAPSHOT_REQUEST")"
@@ -158,7 +170,61 @@ test "$SECOND_SEQUENCE" -ge "$FIRST_SEQUENCE"
 echo "websocket-smoke-ok marker=$MARKER through_sequence=$FIRST_SEQUENCE->$SECOND_SEQUENCE"
 `;
   const encoded = Buffer.from(shell, "utf8").toString("base64");
-  return `printf %s ${encoded} | base64 -d >/tmp/cmux-tui-websocket-smoke.sh && chmod 700 /tmp/cmux-tui-websocket-smoke.sh && bash /tmp/cmux-tui-websocket-smoke.sh`;
+  const script = "/tmp/cmux-tui-websocket-smoke.sh";
+  return (
+    `printf %s ${encoded} | base64 -d >${script} && chmod 755 ${script} && ` +
+    `${cmuxTuiLayoutSelector()} && ` +
+    `runuser -u "$CMUX_TUI_USER" -- env HOME="$CMUX_TUI_HOME" CMUX_TUI_BIN="$CMUX_TUI_BIN" bash ${script}`
+  );
+}
+
+/**
+ * Claude Code's first-run state, pre-answered so the first `claude
+ * --dangerously-skip-permissions` in a cmux Cloud terminal lands on the
+ * prompt instead of a stack of dialogs. Each key answers one gate that a
+ * fresh machine otherwise shows (verified live against the shipped build):
+ *
+ *  - `theme` / `hasCompletedOnboarding`: the "Let's get started" theme
+ *    picker, then the login-method chooser.
+ *  - `bypassPermissionsModeAccepted`: the risk acknowledgement the
+ *    `--dangerously-skip-permissions` flag itself asks for.
+ *  - `customApiKeyResponses.approved`: "Detected a custom API key in your
+ *    environment ... use this API key?", which defaults to No. The key is the
+ *    same public placeholder on every machine (the coderouter route token is
+ *    injected by the TLS edge and never reaches the guest), and Claude Code
+ *    records the last 20 characters of the key it approved.
+ *  - `projects[<home>]`: the per-folder trust dialog, for the work user's
+ *    home only. Any other folder still asks, which is the point of that gate.
+ *
+ * Nothing here grants access to anything a person could not reach by pressing
+ * Enter four times on the machine they own.
+ */
+export function devboxClaudeOnboardingSeed(): string {
+  return `${JSON.stringify({
+    theme: "dark",
+    hasCompletedOnboarding: true,
+    bypassPermissionsModeAccepted: true,
+    customApiKeyResponses: { approved: [VM_PLACEHOLDER_API_KEY.slice(-20)], rejected: [] },
+    projects: {
+      [DEVBOX_WORK_HOME]: { hasTrustDialogAccepted: true, hasCompletedProjectOnboarding: true },
+    },
+  }, null, 2)}\n`;
+}
+
+/**
+ * Claude Code's machine-wide policy: keep session transcripts effectively
+ * forever (chatmux parity), and turn the auto-updater off. The image pins the
+ * agent versions and installs them into a root-owned global prefix, so the
+ * updater can only fail, once per session, in the user's face
+ * ("Auto-update failed: no write permission to npm prefix"). A new version
+ * ships by rebake.
+ */
+export function devboxClaudeManagedSettings(): string {
+  return `${JSON.stringify({
+    cleanupPeriodDays: 99999,
+    autoUpdates: false,
+    env: { DISABLE_AUTOUPDATER: "1" },
+  }, null, 2)}\n`;
 }
 
 /**
@@ -471,12 +537,13 @@ export const DEVBOX_INSTANCE_ID_COMMAND =
  */
 export function devboxParkDaemonCommand(): string {
   return [
+    cmuxTuiLayoutSelector(),
     `mkdir -p /etc/cmux && ${DEVBOX_INSTANCE_ID_COMMAND} > /etc/cmux/bake-instance-id && test -s /etc/cmux/bake-instance-id`,
     // [s]tart: the pattern must not match the exec shell carrying this command line.
     "for i in $(seq 1 30); do pgrep -f 'cmux-tui server [s]tart' >/dev/null || break; sleep 1; done",
     "! pgrep -f 'cmux-tui server [s]tart' >/dev/null",
     "systemctl is-active cmux-tui-daemon >/dev/null",
-    "rm -rf /root/.local/state/cmux/remote /root/.local/state/cmux-tui /etc/cmux/daemon-instance-id",
+    'rm -rf "$CMUX_TUI_HOME/.local/state/cmux/remote" "$CMUX_TUI_HOME/.local/state/cmux-tui" /etc/cmux/daemon-instance-id',
     "! grep -qi ':0539 ' /proc/net/tcp6",
     "echo daemon-parked-for-clones",
   ].join(" && ");
@@ -543,7 +610,7 @@ export type DevboxManifestEntry = {
   /** The shape this snapshot boots at (Freestyle ladder). Size-less entries are pre-ladder bakes. */
   size?: DevboxImageSize;
   cmuxdRemoteCommit: string;
-  /** The cmux-tui build baked at /root/.cmux/bin/cmux-tui (files.cmux.com manifest pin at bake time). Absent on images that installed it at create time. */
+  /** The cmux-tui build baked in the daemon user's home (files.cmux.com manifest pin at bake time). Absent on images that installed it at create time. */
   cmuxTuiCommit?: string;
   cmuxTuiSha256?: string;
   /** The cmux commit whose devbox definition produced this image. */

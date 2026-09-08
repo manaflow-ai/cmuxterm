@@ -9,8 +9,24 @@ import {
   CMUX_TUI_PORT,
   CMUX_TUI_SESSION,
   cmuxTuiDaemonCommand,
+  cmuxTuiLayoutSelector,
 } from "../services/vms/drivers/cmuxTuiDaemon";
-import { DEVBOX_TEMPLATE_FILES, devboxAgentPins, devboxCuaDriverVersion, devboxParkDaemonCommand } from "../scripts/devbox-image-common";
+import {
+  DEVBOX_TEMPLATE_FILES,
+  devboxAgentPins,
+  devboxClaudeManagedSettings,
+  devboxClaudeOnboardingSeed,
+  devboxCuaDriverVersion,
+  devboxParkDaemonCommand,
+} from "../scripts/devbox-image-common";
+import { VM_PLACEHOLDER_API_KEY } from "../services/coderouter/vmGuestEnv";
+import { DEVBOX_DESKTOP_USER } from "../services/vms/images/desktop";
+import {
+  DEVBOX_WORK_HOME,
+  DEVBOX_WORK_UID,
+  DEVBOX_WORK_USER,
+  devboxWorkUserSetupCommand,
+} from "../services/vms/images/workUser";
 
 // Contract tests for the shared cmux Cloud devbox image template
 // (services/vms/images/devbox), consumed by build-devbox-freestyle.ts,
@@ -74,6 +90,8 @@ describe("devbox image template", () => {
       "README.md",
       "agent-config.sh",
       "chrome-managed-policy.json",
+      "claude-managed-settings.json",
+      "claude-onboarding.json",
       "cmux-bashrc",
       "cmux-devbox-boot",
       "cmux-motd",
@@ -88,6 +106,8 @@ describe("devbox image template", () => {
       "Dockerfile",
       "agent-config.sh",
       "chrome-managed-policy.json",
+      "claude-managed-settings.json",
+      "claude-onboarding.json",
       "cmux-bashrc",
       "cmux-devbox-boot",
       "cmux-motd",
@@ -157,7 +177,7 @@ describe("devbox image template", () => {
     expect(freestyleScript).toContain('nvm_bin="$(dirname "$(readlink -f /usr/local/bin/node)")"');
     expect(freestyleScript).toContain('ln -sfn "$nvm_bin/${pin.binary}" /usr/local/bin/${pin.binary}');
     // The pins are proven from a clean login shell AS the work user during the
-    // bake itself (probing as root with HOME=/home/ubuntu leaves root-owned
+    // bake itself (probing as root with the work user's HOME leaves root-owned
     // state dirs that break ble.sh for every later login).
     expect(freestyleScript).toContain("sudo -n -u ${WORK_USER} env -i HOME=${WORK_HOME} USER=${WORK_USER} TERM=xterm bash -lc '${pin.binary} --version' | grep -F '${pin.version}'");
     // Home hygiene: single devshell source, ble.sh state dir, legal notice
@@ -171,14 +191,80 @@ describe("devbox image template", () => {
     expect(freestyleScript).toContain("interactiveShellProbe(1)");
     expect(freestyleScript).toContain("interactiveShellProbe(2)");
     expect(freestyleScript).toContain('grep -q "λ"');
-    expect(readScript("verify-devbox-image.ts")).toContain("ubuntu-login-silent-");
-    expect(readScript("verify-devbox-image.ts")).toContain("home-owned-by-ubuntu");
+    expect(readScript("verify-devbox-image.ts")).toContain("work-user-login-silent-");
+    expect(readScript("verify-devbox-image.ts")).toContain("home-owned-by-work-user");
     expect(readScript("verify-devbox-image.ts")).toContain("devshell-sourced-once");
     // The verifier checks both shell families without PATH help of its own.
     const verify = readScript("verify-devbox-image.ts");
     expect(verify).toContain("-login-pin-ok");
     expect(verify).toContain("-nonlogin-pin-ok");
     expect(verify).toContain("test ! -e /opt/mise");
+  });
+
+  test("one non-root work user named cmux, on a machine named cmux", () => {
+    // Half the complaint this answers: a cmux Cloud terminal opened as
+    // `root@freestyle-vm`, and `claude --dangerously-skip-permissions` refuses
+    // to start as root. The machine's own name is the other half, and its own
+    // contract (services/vms/images/identity.ts, vm-devbox-identity.test.ts).
+    expect(DEVBOX_WORK_USER).toBe("cmux");
+    expect(DEVBOX_WORK_HOME).toBe("/home/cmux");
+    // Renamed, not added: the provider's exec default is the uid-1000 account,
+    // so a second account would split the machine between two homes.
+    expect(DEVBOX_WORK_UID).toBe(1000);
+    const setup = devboxWorkUserSetupCommand();
+    expect(setup).toContain("usermod -l cmux -d /home/cmux -m \"$old\"");
+    expect(setup).toContain("groupmod -n cmux \"$old\"");
+    // Idempotent: a re-bake over an already-renamed machine must not fail.
+    expect(setup).toContain("if ! id -u cmux >/dev/null 2>&1; then");
+    // The base's NOPASSWD policy names the account being renamed away.
+    expect(setup).toContain("grep -q '^cmux[[:space:]]' \"$f\" || rm -f \"$f\"");
+    expect(setup).toContain("sudo -n -u cmux sudo -n true");
+    // Ubuntu's user-private-group umask leaves the daemon's state dir
+    // group-writable, and cmux-tui refuses to store its identity under one.
+    expect(setup).toContain("USERGROUPS_ENAB no");
+    expect(setup).toContain('[ "$(sudo -n -u cmux sh -c umask)" = 0022 ]');
+    // The bake sets this up before any layer writes into the home or names
+    // the account, and the desktop session runs as the same user.
+    const freestyleScript = readScript("build-devbox-freestyle.ts");
+    const workUserStep = freestyleScript.indexOf('await step("work-user"');
+    expect(workUserStep).toBeGreaterThan(0);
+    expect(workUserStep).toBeLessThan(freestyleScript.indexOf('"apt-devtools",'));
+    expect(DEVBOX_DESKTOP_USER).toBe(DEVBOX_WORK_USER);
+    // The verifier proves the whole chain on a real machine.
+    const verify = readScript("verify-devbox-image.ts");
+    expect(verify).toContain("one-work-user");
+    expect(verify).toContain("hostname-ok");
+    expect(verify).toContain("prompt-says-cmux-at-cmux");
+    expect(verify).toContain("claude-reaches-the-prompt");
+    expect(verify).toContain("daemon-runs-as-work-user");
+  });
+
+  test("Claude Code's first run is pre-answered, so a fresh machine lands on the prompt", () => {
+    // Every one of these keys answers a dialog a fresh machine otherwise
+    // shows before `claude --dangerously-skip-permissions` reaches a prompt,
+    // verified live against the shipped build. The files are generated from
+    // the constants they depend on; this is the drift guard.
+    expect(read("claude-onboarding.json")).toBe(devboxClaudeOnboardingSeed());
+    expect(read("claude-managed-settings.json")).toBe(devboxClaudeManagedSettings());
+    const seed = JSON.parse(read("claude-onboarding.json"));
+    expect(seed.hasCompletedOnboarding).toBe(true);
+    expect(seed.bypassPermissionsModeAccepted).toBe(true);
+    // Claude Code records the last 20 characters of the key it approved. The
+    // placeholder is public and identical on every machine: the real
+    // credential is injected by the TLS edge and never reaches the guest.
+    expect(seed.customApiKeyResponses.approved).toEqual([VM_PLACEHOLDER_API_KEY.slice(-20)]);
+    expect(read("claude-onboarding.json")).not.toContain("sk-ant");
+    // The folder-trust dialog is pre-accepted for the work user's home only;
+    // any other folder still asks, which is the point of that gate.
+    expect(Object.keys(seed.projects)).toEqual([DEVBOX_WORK_HOME]);
+    // The updater can only fail against the image's root-owned npm prefix.
+    expect(JSON.parse(read("claude-managed-settings.json")).autoUpdates).toBe(false);
+    // Both recipes install them, and the verifier proves the result on a real
+    // machine by typing the seeded command into a pane.
+    expect(dockerfile).toContain("COPY claude-onboarding.json /etc/skel/.claude.json");
+    const freestyleScript = readScript("build-devbox-freestyle.ts");
+    expect(freestyleScript).toContain('await put("claude-onboarding.json", `${WORK_HOME}/.claude.json`, 0o600);');
+    expect(readScript("verify-devbox-image.ts")).toContain("claude-reaches-the-prompt");
   });
 
   test("ble.sh integration stays minimal: no token highlighting, ghost text only", () => {
@@ -210,10 +296,12 @@ describe("devbox image template", () => {
     expect(dockerfile).toMatch(/^FROM ubuntu:24\.04$/m);
     expect(dockerfile).toContain("ARG CMUX_IMAGE_DESKTOP_PACKAGES=");
     expect(dockerfile).toContain("ARG CMUX_IMAGE_GHOSTTY_DEB_URL=");
-    // The work user is the uid-1000 account (ubuntu on both), with the
-    // passwordless sudo Freestyle's base already grants it.
-    expect(dockerfile).toContain('work_user="$(getent passwd 1000 | cut -d: -f1)"');
-    expect(dockerfile).toContain('echo "$work_user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/91-work-user-nopasswd');
+    // The work user is the base's uid-1000 account renamed to cmux, with
+    // passwordless sudo, on both recipes (services/vms/images/workUser.ts).
+    expect(dockerfile).toContain('usermod -l cmux -d /home/cmux -m "$old" && groupmod -n cmux "$old"');
+    expect(dockerfile).toContain('echo "cmux ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/91-cmux-work-user');
+    expect(dockerfile).toContain('[ "$(id -u cmux)" = 1000 ]');
+    expect(readScript("build-devbox-freestyle.ts")).toContain('await step("work-user", devboxWorkUserSetupCommand());');
     // ss for the desktop's port probes (start-vnc.sh) on both recipes.
     expect(dockerfile).toContain("iproute2");
     expect(readScript("build-devbox-freestyle.ts")).toContain("iproute2");
@@ -247,16 +335,19 @@ describe("devbox image template", () => {
     // command byte for byte, so passing the shell expansion as the bind
     // reconstructs the script's exact line.
     expect(devboxBoot).toContain(
-      cmuxTuiDaemonCommand('"${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}"').replace("cd /root && ", ""),
+      cmuxTuiDaemonCommand('"${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}"'),
     );
     expect(cmuxTuiDaemonCommand()).toContain("--remote-ws 0.0.0.0:1337");
-    expect(devboxBoot).toContain("BIN=/root/.cmux/bin/cmux-tui");
+    // The supervisor reads the daemon layout the same way the command does, so
+    // the state it wipes on a clone is the state the daemon actually writes.
+    expect(devboxBoot).toContain(cmuxTuiLayoutSelector());
+    expect(devboxBoot).toContain('BIN="$CMUX_TUI_BIN"');
     expect(devboxBoot).toContain('if [ -x "$BIN" ]');
     expect(dockerfile).toContain("COPY cmux-devbox-boot /usr/local/bin/cmux-devbox-boot");
     // A Freestyle snapshot is a memory image: the supervisor keys the daemon
     // identity on the platform instance id, wiping cmux-remote's default root
     // state dir on a clone, and holds the daemon on the builder itself.
-    expect(devboxBoot).toContain("REMOTE_STATE_DIR=/root/.local/state/cmux/remote");
+    expect(devboxBoot).toContain('REMOTE_STATE_DIR="$CMUX_TUI_HOME/.local/state/cmux/remote"');
     expect(devboxBoot).toContain("/latest/meta-data/instance-id");
     expect(devboxBoot).toContain("BOUND_INSTANCE_FILE=/etc/cmux/daemon-instance-id");
     expect(devboxBoot).toContain("BAKE_INSTANCE_FILE=/etc/cmux/bake-instance-id");
@@ -597,8 +688,10 @@ describe("devbox image template", () => {
   });
 
   test("claude transcript retention is pinned everywhere", () => {
-    expect(dockerfile).toContain('{ "cleanupPeriodDays": 99999 }');
-    expect(readScript("build-devbox-freestyle.ts")).toContain('{ "cleanupPeriodDays": 99999 }');
+    // One generated policy file, installed by both recipes.
+    expect(JSON.parse(read("claude-managed-settings.json")).cleanupPeriodDays).toBe(99999);
+    expect(dockerfile).toContain("COPY claude-managed-settings.json /etc/claude-code/managed-settings.json");
+    expect(readScript("build-devbox-freestyle.ts")).toContain('await put("claude-managed-settings.json", "/etc/claude-code/managed-settings.json");');
   });
 
   test("never installs docker (deliberate image-scope choice)", () => {
