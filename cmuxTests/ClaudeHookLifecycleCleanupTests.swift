@@ -195,6 +195,8 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
+    /// Prompt submit clears prior attention through the journal's semantic
+    /// admission path, with the moved pane's current address and no broad clear.
     @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
@@ -228,8 +230,17 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let events = AgentJournalAppendCapture.captures(in: commands)
+        #expect(events.count == 1)
+        let event = try #require(events.first)
+        #expect(event.kind == "agent.turn.started")
+        #expect(event.agentKey == "claude_code")
+        #expect(event.sessionId == sessionId)
+        #expect(event.workspaceId == newWorkspaceId)
+        #expect(event.surfaceId == Self.liveSurfaceId)
+        #expect((event.draft["native_event"] as? String) == "UserPromptSubmit")
+        #expect(!event.isSubagent)
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications") })
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,8 +298,20 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        // Running-state admission owns attention invalidation; emitting a raw
+        // clear here would bypass its session/turn correlation safeguards.
+        let events = AgentJournalAppendCapture.captures(in: commands)
+        #expect(events.count == 1)
+        let event = try #require(events.first)
+        #expect(event.kind == "agent.state.changed")
+        #expect(event.agentKey == "claude_code")
+        #expect(event.sessionId == sessionId)
+        #expect(event.workspaceId == newWorkspaceId)
+        #expect(event.surfaceId == Self.liveSurfaceId)
+        #expect((event.draft["native_event"] as? String) == "PreToolUse")
+        #expect((event.draft["declared_phase"] as? String) == "running")
+        #expect(!event.isSubagent)
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications") })
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)
