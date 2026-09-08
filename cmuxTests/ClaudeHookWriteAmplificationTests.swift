@@ -145,7 +145,7 @@ struct ClaudeHookWriteAmplificationTests {
         #expect(finalAttributes[.modificationDate] as? Date == runningAttributes[.modificationDate] as? Date)
     }
 
-    @Test(arguments: ["oversized-padding", "oversized-sessions", "legacy-surface"])
+    @Test(arguments: ["oversized-padding", "oversized-sessions", "oversized-retained-session", "legacy-surface"])
     func unchangedPermissionObservationPersistsLoadRepairs(_ repair: String) throws {
         let context = try Harness.makeContext(name: "hook-load-repair")
         defer { context.cleanup() }
@@ -153,12 +153,15 @@ struct ClaudeHookWriteAmplificationTests {
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "load-repair-session"
         let now: TimeInterval = 4_102_444_800
-        let record: [String: Any] = [
+        var record: [String: Any] = [
             "sessionId": sessionId, "workspaceId": workspaceId,
             "surfaceId": surfaceId, "cwd": context.root.path,
             "agentLifecycle": "running", "lastPermissionMode": "default",
             "startedAt": now, "updatedAt": now,
         ]
+        if repair == "oversized-retained-session" {
+            record["lastBody"] = String(repeating: "x", count: 8 * 1024 * 1024)
+        }
         var sessions = [sessionId: record]
         if repair == "oversized-sessions" {
             for index in 0..<513 {
@@ -210,9 +213,15 @@ struct ClaudeHookWriteAmplificationTests {
         #expect(repaired.stdout == "{}\n")
         let repairedData = try Data(contentsOf: context.storeURL)
         #expect(repairedData != originalData, "An unchanged hook must still persist load-time repairs")
-        #expect(repairedData.count < 8 * 1024 * 1024)
         let saved = try #require(JSONSerialization.jsonObject(with: repairedData) as? [String: Any])
         let savedSessions = try #require(saved["sessions"] as? [String: Any])
+        if repair == "oversized-retained-session" {
+            #expect(repairedData.count >= 8 * 1024 * 1024)
+            let retained = try #require(savedSessions[sessionId] as? [String: Any])
+            #expect((retained["lastBody"] as? String)?.count == 8 * 1024 * 1024)
+        } else {
+            #expect(repairedData.count < 8 * 1024 * 1024)
+        }
         #expect(savedSessions.count == (repair == "oversized-sessions" ? 512 : 1))
         let savedSurfaces = try #require(saved["activeSessionsBySurface"] as? [String: [String: Any]])
         #expect(savedSurfaces[surfaceId]?["sessionId"] as? String == sessionId)
