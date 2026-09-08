@@ -30487,13 +30487,21 @@ struct CMUXCLI {
         )
         let typedFailure = eventType == "error" || eventType == "stream_error"
         let hasExplicitErrorField = object["error"].map { !($0 is NSNull) } ?? false
+        // Keep structured stop reasons separate from provider/assistant prose:
+        // a `user_requested` reason must win even when the error message also
+        // contains a stale capacity banner, while instructional prose such as
+        // “press Ctrl+C” must not look like a cancellation.
+        let userStopSignal = ["Stop", stopReason].compactMap { $0 }.joined(separator: " ")
+        let userStopMessage = [message, additionalDetails, codexErrorInfo]
+            .compactMap { $0 }
+            .joined(separator: " ")
         let signal = [message, additionalDetails, codexErrorInfo, stopReason]
             .compactMap { $0 }
             .joined(separator: " ")
             .lowercased()
         guard !AgentHookAbnormalStopClassifier().isUserInitiatedStop(
-            signal: signal,
-            message: ""
+            signal: userStopSignal,
+            message: userStopMessage
         ) else {
             return nil
         }

@@ -16,6 +16,10 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         let normalized = lower
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
+        let normalizedSignal = signal
+            .lowercased()
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
         let normalizedMessage = message
             .lowercased()
             .replacingOccurrences(of: "_", with: " ")
@@ -23,7 +27,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
 
         // An explicit user abort is never promoted to a provider error, even
         // if stale text from a previous response is attached.
-        guard !containsUserInitiatedStopCue(normalized) else { return nil }
+        guard !isUserInitiatedStop(signal: signal, message: message) else { return nil }
 
         // A final response can mention a transient failure while still
         // completing the requested work. Only a strong provider-banner marker
@@ -85,6 +89,10 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         let reasonOnlyMessage = normalizedMessageTrimmed.hasPrefix("stop ")
             ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
             : normalizedMessageTrimmed
+        let normalizedSignalTrimmed = normalizedSignal.trimmingCharacters(in: .whitespacesAndNewlines)
+        let signalReasonOnly = normalizedSignalTrimmed.hasPrefix("stop ")
+            ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
+            : normalizedSignalTrimmed
         let quotaCue = normalized.contains("usage limit")
             || normalized.contains("hit your limit")
             || normalized.contains("limit reached")
@@ -125,7 +133,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         if quotaCue && (explicitQuotaReason || quotaHasProviderContext) {
             return .quota
         }
-        if normalized.contains("rate limit")
+        let rateLimitCue = normalized.contains("rate limit")
             || normalized.contains("rate limited")
             || normalized.contains("too many requests")
             || (normalized.contains("throttl") && (
@@ -139,7 +147,22 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
                 "429",
                 normalized: normalized,
                 normalizedMessage: normalizedMessage
-            ) {
+            )
+        let rateLimitReasonOnly = [
+            "rate limit", "rate limited", "too many requests", "429", "429 too many requests",
+        ].contains(reasonOnlyMessage)
+        let rateLimitSignalReason = [
+            "rate limit", "rate limited", "too many requests", "429", "429 too many requests",
+        ].contains(signalReasonOnly)
+        let rateLimitProviderContext: Set<Substring> = [
+            "api", "endpoint", "error", "failed", "failure", "gateway", "http", "model",
+            "provider", "request", "response", "server", "service", "status",
+        ]
+        let rateLimitHasProviderContext = messageTokens.contains {
+            rateLimitProviderContext.contains($0)
+        }
+        if rateLimitSignalReason
+            || (rateLimitCue && (rateLimitReasonOnly || rateLimitHasProviderContext)) {
             return .rateLimit
         }
         let timeoutCue = normalized.contains("request timed out")
@@ -167,7 +190,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         if timeoutCue {
             return .timeout
         }
-        if normalized.contains("authentication error")
+        let authenticationCue = normalized.contains("authentication error")
             || normalized.contains("auth error")
             || normalized.contains("authentication token")
             || normalized.contains("unauthorized")
@@ -179,10 +202,35 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("session expired")
             || normalized.contains("auth expired")
             || normalized.contains("login required")
-            || normalized.contains("sign in to continue") {
+            || normalized.contains("sign in to continue")
+        if authenticationCue {
+            let authenticationReasonOnly = [
+                "authentication error", "auth error", "authentication token", "unauthorized",
+                "invalid api key", "expired api key", "token expired", "token has expired",
+                "expired token", "session expired", "auth expired", "login required",
+                "sign in to continue",
+            ].contains(reasonOnlyMessage)
+            let authenticationSignalReason = [
+                "authentication error", "auth error", "authentication token", "unauthorized",
+                "invalid api key", "expired api key", "token expired", "token has expired",
+                "expired token", "session expired", "auth expired", "login required",
+                "sign in to continue",
+            ].contains(signalReasonOnly)
+            let authenticationProviderContext: Set<Substring> = [
+                "api", "endpoint", "error", "failed", "failure", "gateway", "http", "key",
+                "provider", "request", "response", "server", "service", "status", "token",
+            ]
+            let authenticationHasProviderContext = messageTokens.contains {
+                authenticationProviderContext.contains($0)
+            }
+            guard authenticationSignalReason
+                || authenticationReasonOnly
+                || authenticationHasProviderContext else {
+                return nil
+            }
             return .authentication
         }
-        if normalized.contains("connection refused")
+        let networkCue = normalized.contains("connection refused")
             || normalized.contains("connection reset")
             || normalized.contains("stream disconnected")
             || normalized.contains("network error")
@@ -190,7 +238,28 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("temporarily unavailable")
             || normalized.contains("502 bad gateway")
             || normalized.contains("503 service unavailable")
-            || normalized.contains("504 gateway") {
+            || normalized.contains("504 gateway")
+        if networkCue {
+            let networkReasonOnly = [
+                "connection refused", "connection reset", "stream disconnected", "network error",
+                "service unavailable", "temporarily unavailable", "502 bad gateway",
+                "503 service unavailable", "504 gateway",
+            ].contains(reasonOnlyMessage)
+            let networkSignalReason = [
+                "connection refused", "connection reset", "stream disconnected", "network error",
+                "service unavailable", "temporarily unavailable", "502 bad gateway",
+                "503 service unavailable", "504 gateway",
+            ].contains(signalReasonOnly)
+            let networkProviderContext: Set<Substring> = [
+                "api", "connection", "endpoint", "error", "failed", "failure", "gateway", "http",
+                "network", "provider", "request", "response", "server", "service", "status",
+            ]
+            let networkHasProviderContext = messageTokens.contains {
+                networkProviderContext.contains($0)
+            }
+            guard networkSignalReason || networkReasonOnly || networkHasProviderContext else {
+                return nil
+            }
             return .network
         }
 
@@ -206,7 +275,8 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
     /// Identifies an explicit user cancellation without classifying it as a
     /// provider failure. Callers use this to discard stale error payloads.
     public func isUserInitiatedStop(signal: String, message: String) -> Bool {
-        containsUserInitiatedStopCue("\(signal) \(message)".lowercased())
+        containsUserInitiatedStopCue(signal)
+            || containsUserInitiatedStopCue(message)
     }
 
     /// Recognizes the terminal hook event names that can carry a provider
@@ -252,6 +322,7 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
 
     private func containsUserInitiatedStopCue(_ lowercasedText: String) -> Bool {
         let normalized = lowercasedText
+            .lowercased()
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "+", with: " ")
@@ -274,26 +345,21 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("user requested abort")
             || normalized.contains("user requested cancellation")
             || normalized.contains("stop requested by user")
-            || normalized.contains("ctrl c")
-            || normalized.contains("^c")
-            || normalized.contains("keyboardinterrupt")
-            || normalized.contains("keyboard interrupt")
-            || normalized.contains("sigint")
             || normalized == "command /exit"
             || normalized.contains("/exit requested")
             || normalized == "/exit"
-            || normalized.contains("stop cancelled")
-            || normalized.contains("stop canceled")
-            || normalized.contains("stop interrupted")
-            || normalized.contains("stop aborted")
+            || normalized.contains("interrupted by ctrl c")
+            || normalized.contains("cancelled by ctrl c")
+            || normalized.contains("canceled by ctrl c")
+            || normalized.contains("stopped by ctrl c")
+            || normalized.contains("received sigint")
+            || normalized.contains("terminated by sigint")
+            || normalized.contains("keyboard interrupt received")
             || (normalized.contains("turn aborted") && (
                 normalized.contains("user")
                     || normalized.contains("interrupt")
                     || normalized.contains("cancel")
             ))
-            || normalized.trimmingCharacters(in: .whitespacesAndNewlines) == "interrupted"
-            || normalized.trimmingCharacters(in: .whitespacesAndNewlines) == "cancelled"
-            || normalized.trimmingCharacters(in: .whitespacesAndNewlines) == "canceled"
             || normalized.trimmingCharacters(in: .whitespacesAndNewlines) == "user abort"
     }
 
