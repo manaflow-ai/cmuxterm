@@ -174,6 +174,33 @@ struct RestorableAgentProcessGenerationTests {
         #expect(activity.primaryElapsedStart == (lifecycle == .running ? startedAt : nil))
     }
 
+    @Test("A lifecycle-only update keeps the cached hook session elapsed anchor")
+    func lifecycleOnlyRuntimeRetainsCachedHookElapsedAnchor() throws {
+        let fixture = try makeFixture(prefix: "cmux-lifecycle-only-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .needsInput]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let codex = try #require(activity.activity(forStatusKey: "codex"))
+
+        #expect(codex.state == .needsInput)
+        #expect(codex.startedAt == startedAt)
+        #expect(codex.elapsed(at: Date(timeIntervalSince1970: fixture.updatedAt)) == 120)
+        #expect(activity.primaryElapsedStart == startedAt)
+    }
+
     @Test("An unverified index cannot promote a stale runtime PID to running")
     func unverifiedHookCannotPromoteStaleSameKindRuntime() throws {
         let fixture = try makeFixture(prefix: "cmux-unverified-same-kind-sidebar")
