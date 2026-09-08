@@ -7,7 +7,7 @@ struct SettingsSectionScrollTrackerTests {
     @Test(arguments: [(700.0, 80.0, 600.0), (900.0, 80.0, 800.0), (700.0, 800.0, 20.0)])
     func reservesOnlyTheSpaceNeededToReachTheLastHeader(viewport: Double, tail: Double, expected: Double) {
         let tracker = SettingsSectionScrollTracker()
-        #expect(tracker.bottomPadding(viewportHeight: viewport, lastSectionHeight: tail) == expected)
+        #expect(tracker.bottomPadding(viewportHeight: viewport, lastSectionHeight: tail) == CGFloat(expected))
     }
 
     @Test(arguments: [900.0, -90.0])
