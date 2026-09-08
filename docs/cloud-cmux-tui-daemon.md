@@ -583,8 +583,26 @@ Client ids are the durable per-install identity already used for focus
 memory (`client-focus`), 1 to 128 printable ASCII bytes. The Mac app derives
 one from its `vm-tui-devices.json` record for the machine.
 
-CLI: `cmux-tui notification list` prints rows with `read_by`;
+CLI. Inside a machine the daemon binary also answers to `cmux`, and `cmux
+notify` takes the flags of the macOS `cmux notify` (`--title`, `--subtitle`,
+`--body`, `--clear`, `--surface`, `--workspace`, `--json`), so a script or an
+agent hook written for a local terminal works unchanged. The target defaults
+to the caller's own terminal through `CMUX_TUI_TERMINAL_ID`, which the daemon
+injects into every PTY; `--clear` removes the retained rows on the machine
+(`notification.clear`), so every attached client drops them. Rows carry an
+optional `subtitle`. `cmux-tui notification list` prints rows with `read_by`;
 `cmux-tui notification ack --client <id> <notification-id>...` acknowledges.
+
+Security. The daemon's notification ledger is reachable only over the trusted
+local Unix socket inside the machine and over the authenticated device link,
+so a process in the machine can post only to its own session and only name
+terminals of that session; it cannot address a Mac workspace, and the Mac
+attributes rows to local panes by the terminal id it already projects. Title,
+subtitle, and body are bounded (512, 512, and 4096 characters) because every
+retained row is pushed to every attached client, and the ledger keeps 256
+rows. `--reply` is refused inside a machine: an inline reply types into a
+terminal, and that channel does not cross the link. Notification text is data
+everywhere it is shown; nothing evaluates it.
 
 ## Surface catalog
 
