@@ -74,7 +74,7 @@ extension CMUXCLI {
                 let retainedWorkspaceIDs = destinationRecord?.workspaceIDs.isEmpty == false
                     ? destinationRecord?.workspaceIDs ?? []
                     : [resolvedTarget.workspaceId]
-                try sessionStore.commitClaudeTeamTaskListBinding(
+                _ = try sessionStore.commitClaudeTeamTaskListBinding(
                     currentTeamBinding,
                     workspaceIDs: retainedWorkspaceIDs,
                     retiredRecords: []
