@@ -580,14 +580,18 @@ final class SharedLiveAgentIndex {
         }
         var fingerprints: [String: HookStoreFileFingerprint] = [:]
         for name in names {
-            var status = stat()
+            var fileStatus = stat()
             let path = (directory as NSString).appendingPathComponent(name)
-            guard path.withCString({ Darwin.stat($0, &status) }) == 0 else { continue }
+            // Unqualified: `Darwin.stat` resolves to the struct, not the syscall.
+            let statResult: Int32 = path.withCString { pointer in
+                stat(pointer, &fileStatus)
+            }
+            guard statResult == 0 else { continue }
             fingerprints[name] = HookStoreFileFingerprint(
-                inode: UInt64(status.st_ino),
-                size: Int64(status.st_size),
-                modifiedNanoseconds: Int64(status.st_mtimespec.tv_sec) * 1_000_000_000
-                    + Int64(status.st_mtimespec.tv_nsec)
+                inode: UInt64(fileStatus.st_ino),
+                size: Int64(fileStatus.st_size),
+                modifiedNanoseconds: Int64(fileStatus.st_mtimespec.tv_sec) * 1_000_000_000
+                    + Int64(fileStatus.st_mtimespec.tv_nsec)
             )
         }
         return fingerprints
