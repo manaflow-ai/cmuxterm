@@ -4001,6 +4001,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         vaultHistoryEventLog?.transition(to: phase)
     }
 
+    private func clearDeferredStartupRestoreIfNeeded(windowId: UUID) {
+        guard startupRestoreDeferredWindowId == windowId else { return }
+        startupRestoreDeferredWindowId = nil
+        startupSessionRestoreIsDeferred = false
+    }
+
     private func attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: NSWindow) {
         let primaryWindowId = contextForMainTerminalWindow(primaryWindow)?.windowId
         let didApplyStartupSessionRestore = attemptStartupSessionRestoreIfNeeded(
@@ -4047,7 +4053,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard !didAttemptStartupSessionRestore else { return false }
         guard !startupSessionRestoreIsDeferred else { return false }
         if startupSessionRestoreDeferral({ [weak self, weak primaryWindow] in
-            guard let self, let primaryWindow else { return }
+            guard let self else { return }
+            guard let primaryWindow else {
+                self.startupSessionRestoreIsDeferred = false
+                self.startupRestoreDeferredWindowId = nil
+                return
+            }
             self.startupSessionRestoreIsDeferred = false
             self.startupRestoreDeferredWindowId = nil
             self.attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: primaryWindow)
@@ -6810,8 +6821,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if !didClose, !recordHistory {
             closedWindowHistorySuppressedWindowIds.remove(windowId)
         }
-        if didClose, startupRestoreDeferredWindowId == windowId {
-            startupRestoreDeferredWindowId = nil
+        if didClose {
+            clearDeferredStartupRestoreIfNeeded(windowId: windowId)
         }
         return didClose
     }
@@ -6819,17 +6830,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func discardMainWindowWithoutClosedHistory(windowId: UUID) {
         guard let window = mainWindowForClose(windowId: windowId) else {
             vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
-            if startupRestoreDeferredWindowId == windowId {
-                startupRestoreDeferredWindowId = nil
-            }
+            clearDeferredStartupRestoreIfNeeded(windowId: windowId)
             return
         }
         closedWindowHistorySuppressedWindowIds.insert(windowId)
         if closeMainWindowWithoutInteractiveVeto(window) {
             vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
-            if startupRestoreDeferredWindowId == windowId {
-                startupRestoreDeferredWindowId = nil
-            }
+            clearDeferredStartupRestoreIfNeeded(windowId: windowId)
         } else {
             closedWindowHistorySuppressedWindowIds.remove(windowId)
         }

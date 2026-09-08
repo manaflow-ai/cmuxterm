@@ -69,6 +69,50 @@ import Testing
         }
     }
 
+    @Test func startupRestoreRetriesAfterDeferredWindowCloses() async throws {
+        var signingSecretReady = false
+        var resumeCallbacks: [@MainActor @Sendable () -> Void] = []
+        try await withWindowHistory(
+            initialPhase: .launching,
+            startupSessionRestoreDeferral: { resume in
+                guard !signingSecretReady else { return false }
+                resumeCallbacks.append(resume)
+                return true
+            }
+        ) { app, log in
+            let restoredWindowSnapshot = SessionWindowSnapshot(
+                frame: nil,
+                display: nil,
+                tabManager: SessionTabManagerSnapshot(
+                    selectedWorkspaceIndex: nil,
+                    workspaces: []
+                ),
+                sidebar: SessionSidebarSnapshot(isVisible: true, selection: .tabs, width: nil)
+            )
+            app.setStartupSessionSnapshotForTesting(AppSessionSnapshot(
+                version: SessionSnapshotSchema.currentVersion,
+                createdAt: Date().timeIntervalSince1970,
+                windows: [restoredWindowSnapshot]
+            ))
+
+            let firstWindowId = app.createMainWindow(shouldActivate: false)
+            #expect(resumeCallbacks.count == 1)
+            #expect(app.closeMainWindow(windowId: firstWindowId, recordHistory: false))
+
+            _ = app.createMainWindow(shouldActivate: false)
+            #expect(resumeCallbacks.count == 2)
+            #expect(!app.didAttemptStartupSessionRestore)
+
+            signingSecretReady = true
+            resumeCallbacks[0]()
+            #expect(!app.didAttemptStartupSessionRestore)
+            resumeCallbacks[1]()
+            #expect(app.didAttemptStartupSessionRestore)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+        }
+    }
+
     @Test func revisionChangesOnlyAfterAcceptedPersistence() async {
         let acceptedStore = VaultHistoryEventStore(fileURL: nil)
         let acceptedLog = VaultHistoryEventLog(store: acceptedStore, phase: .active)
