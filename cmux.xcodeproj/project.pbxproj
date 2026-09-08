@@ -2555,6 +2555,7 @@
 		10202A000000000000000019 /* SourceControlKeyboardFocusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10202A00000000000000001A /* SourceControlKeyboardFocusView.swift */; };
 		10202A000000000000000007 /* SourceControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10202A000000000000000008 /* SourceControlPanelView.swift */; };
 		10202A00000000000000001B /* SourceControlResourceRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10202A00000000000000001C /* SourceControlResourceRow.swift */; };
+		87D8089673F34E9894F7FAF1 /* SourceControlWorkspaceRootUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DDE8295500641F8BF04ED81 /* SourceControlWorkspaceRootUITests.swift */; };
 		A5001230 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A5001231 /* Sparkle */; };
 		A6AC72050000000000000001 /* SpinnerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AC72050000000000000002 /* SpinnerCard.swift */; };
 		A6AC72090000000000000001 /* SpinnerEnergy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AC72090000000000000002 /* SpinnerEnergy.swift */; };
@@ -5832,6 +5833,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		10202A00000000000000001A /* SourceControlKeyboardFocusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlKeyboardFocusView.swift; sourceTree = "<group>"; };
 		10202A000000000000000008 /* SourceControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlPanelView.swift; sourceTree = "<group>"; };
 		10202A00000000000000001C /* SourceControlResourceRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlResourceRow.swift; sourceTree = "<group>"; };
+		8DDE8295500641F8BF04ED81 /* SourceControlWorkspaceRootUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceControlWorkspaceRootUITests.swift; sourceTree = "<group>"; };
 		A6AC72050000000000000002 /* SpinnerCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinnerCard.swift; sourceTree = "<group>"; };
 		A6AC72090000000000000002 /* SpinnerEnergy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinnerEnergy.swift; sourceTree = "<group>"; };
 		5B11E5A100000000000000A2 /* SpinnerGalleryDebugWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinnerGalleryDebugWindowController.swift; sourceTree = "<group>"; };
@@ -6830,6 +6832,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				2D7997460F5175FDC84FC977 /* RemoteTmuxSizingUITests+Content.swift */,
 				E93214F8A3E0C68058E9EEF6 /* RemoteTmuxSizingUITests+Socket.swift */,
 				AA1B2C3D4E5F60721 /* RightSidebarChromeHeightUITests.swift */,
+				8DDE8295500641F8BF04ED81 /* SourceControlWorkspaceRootUITests.swift */,
 			);
 			path = cmuxUITests;
 			sourceTree = "<group>";
@@ -12942,6 +12945,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B8F266246A1A3D9A45BD840F /* SidebarHelpMenuUITests.swift in Sources */,
 				B9000130A1B2C3D4E5F60719 /* SidebarPullRequestInteractivityUITests.swift in Sources */,
 				B8F266236A1A3D9A45BD840F /* SidebarResizeUITests.swift in Sources */,
+				87D8089673F34E9894F7FAF1 /* SourceControlWorkspaceRootUITests.swift in Sources */,
 				B82090010000000000000001 /* TCCUsageDescriptionUITests.swift in Sources */,
 				C2577000A1B2C3D4E5F60718 /* TerminalCmdClickUITests.swift in Sources */,
 				C0B4D9B0A1B2C3D4E5F60718 /* UpdatePillUITests.swift in Sources */,
