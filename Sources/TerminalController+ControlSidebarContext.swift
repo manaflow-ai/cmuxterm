@@ -40,7 +40,7 @@ extension TerminalController: ControlSidebarContext {
                 priority: priority,
                 format: appFormat,
                 panelId: panelID,
-                pid: pid.map(pid_t.init),
+                pid: pid,
                 agentEventTime: agentEventTime
             )
         }
