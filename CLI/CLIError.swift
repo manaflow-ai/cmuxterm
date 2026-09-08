@@ -1,3 +1,5 @@
+import Foundation
+
 struct CLIError: Error, CustomStringConvertible {
     enum SocketFailureKind: Equatable {
         case pathMissing
