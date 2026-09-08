@@ -9,9 +9,9 @@ struct SettingsSectionScrollTracker: Sendable {
         self.activationLine = activationLine
     }
 
-    /// Reserves only enough space for the final header to reach the activation line.
+    /// Reserves enough space to honor the top-aligned anchor used by click navigation.
     func bottomPadding(viewportHeight: CGFloat, lastSectionHeight: CGFloat) -> CGFloat {
-        max(20, viewportHeight - max(0, lastSectionHeight) - activationLine).rounded(.up)
+        max(20, viewportHeight - max(0, lastSectionHeight)).rounded(.up)
     }
 
     /// Selects the nearest eligible header at or above the viewport's activation line.

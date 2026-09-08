@@ -4,8 +4,8 @@ import Testing
 
 @Suite("SettingsSectionScrollTracker")
 struct SettingsSectionScrollTrackerTests {
-    @Test(arguments: [(700.0, 80.0, 600.0), (900.0, 80.0, 800.0), (700.0, 800.0, 20.0)])
-    func reservesOnlyTheSpaceNeededToReachTheLastHeader(viewport: Double, tail: Double, expected: Double) {
+    @Test(arguments: [(700.0, 80.0, 620.0), (900.0, 80.0, 820.0), (700.0, 800.0, 20.0), (700.25, 80.1, 621.0)])
+    func reservesOnlyTheSpaceNeededToTopAlignTheLastHeader(viewport: Double, tail: Double, expected: Double) {
         let tracker = SettingsSectionScrollTracker()
         #expect(tracker.bottomPadding(viewportHeight: viewport, lastSectionHeight: tail) == CGFloat(expected))
     }

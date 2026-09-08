@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Eager settings content with enough trailing space for every section to reach the activation line.
+/// Eager settings content with enough trailing space to top-align every navigation anchor.
 struct SettingsSectionScrollContent<Content: View>: View {
     let viewportHeight: CGFloat
     let content: Content
