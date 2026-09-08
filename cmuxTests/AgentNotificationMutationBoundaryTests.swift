@@ -273,7 +273,12 @@ extension AgentNotificationRegressionTests {
             target: .workspace(dockOwnerId),
             key: sessionKey,
             panelID: fixture.panelId,
-            clearStatus: true
+            clearStatus: true,
+            expectedLifecycleSessionID: nil,
+            expectedPID: nil,
+            expectedPIDStartSeconds: nil,
+            expectedPIDStartMicroseconds: nil,
+            requireOwnedKey: false
         )
         bus.drainForTesting()
         #expect(fixture.destination.statusEntries["omp"] == nil)
