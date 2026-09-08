@@ -457,6 +457,8 @@ jobs:
               --expected-commit "$cmux_tui_commit" \
               --require-capability wireguard-hub
           fi
+          # CodeRouter rides along so `cmux coderouter` works on a fresh Mac.
+          ./scripts/install-coderouter-cli.sh "$app"
 
       - name: Strip unsigned nightly app before transfer
         run: |
