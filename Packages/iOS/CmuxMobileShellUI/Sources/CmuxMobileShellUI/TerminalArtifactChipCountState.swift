@@ -230,6 +230,12 @@ struct TerminalArtifactChipCountState: Sendable {
                     localCount: trailing.localCount
                 ))
                 inFlight = nextRequest
+                // The promoted request is now the request that dedupe must
+                // compare against. A trailing observation may have a newer
+                // generation than the last trigger marker, so leaving the
+                // markers behind can reopen or suppress the wrong scan.
+                lastRequestedLocalCount = nextRequest.localCount
+                lastRequestedSurfaceGeneration = nextRequest.surfaceGeneration
                 return Completion(outcome: outcome, nextRequest: nextRequest)
             }
         }
@@ -252,6 +258,8 @@ struct TerminalArtifactChipCountState: Sendable {
             localCount: freshestLocalCount
         ))
         inFlight = nextRequest
+        lastRequestedLocalCount = nextRequest.localCount
+        lastRequestedSurfaceGeneration = nextRequest.surfaceGeneration
         return Completion(outcome: outcome, nextRequest: nextRequest)
     }
 

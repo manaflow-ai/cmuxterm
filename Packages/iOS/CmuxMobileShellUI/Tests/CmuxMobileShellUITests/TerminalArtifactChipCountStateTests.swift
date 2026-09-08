@@ -288,6 +288,48 @@ struct TerminalArtifactChipCountStateTests {
         #expect(nextRequest.surfaceGeneration == 2)
     }
 
+    @Test("a promoted trailing scan owns the dedupe generation")
+    func promotedTrailingScanUpdatesDedupeMarkers() throws {
+        var state = TerminalArtifactChipCountState()
+        let first = try request(from: state.trigger(
+            localCount: 1,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+        #expect(state.trigger(
+            localCount: 2,
+            surfaceGeneration: 2,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 2, surfaceGeneration: 2)))
+        #expect(state.trigger(
+            localCount: 2,
+            surfaceGeneration: 3,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 2, surfaceGeneration: 3)))
+
+        let completion = state.complete(
+            first,
+            sessionTotal: 1,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 2
+        )
+        let promoted = try #require(completion.nextRequest)
+        #expect(promoted.localCount == 2)
+        #expect(promoted.surfaceGeneration == 3)
+
+        // Generation 122 is just outside the old trigger marker (2), but it
+        // remains inside the dedupe window of the promoted request (3).
+        guard case .provisionalReport(let dedupedReport) = state.trigger(
+            localCount: 2,
+            surfaceGeneration: 122,
+            supportsSessionCount: true
+        ) else {
+            Issue.record("Expected the promoted request to own the dedupe window")
+            throw UnexpectedAction()
+        }
+        #expect(dedupedReport.surfaceGeneration == 122)
+    }
+
     @Test("a failed scan can retry at the same visible count")
     func failedScanAllowsSameCountRetry() throws {
         var state = TerminalArtifactChipCountState()
