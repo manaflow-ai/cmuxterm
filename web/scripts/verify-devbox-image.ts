@@ -28,7 +28,15 @@ import {
   CMUX_TUI_SESSION,
   resolveCmuxTuiSource,
 } from "../services/vms/drivers/cmuxTuiDaemon";
-import { DEVBOX_DESKTOP_INSTALLS, DEVBOX_INSTANCE_ID_COMMAND, devboxAgentPins, devboxDir, sha256File } from "./devbox-image-common";
+import {
+  DEVBOX_DESKTOP_INSTALLS,
+  DEVBOX_INSTANCE_ID_COMMAND,
+  devboxAgentPins,
+  devboxDir,
+  devboxTerminfoCheckCommand,
+  cmuxTuiWebsocketSmokeCommand,
+  sha256File,
+} from "./devbox-image-common";
 import {
   DEVBOX_DESKTOP_DISPLAY,
   DEVBOX_DESKTOP_ENV_FILE,
@@ -116,6 +124,7 @@ const DAEMON_CHECKS: readonly string[] = [
   // The static model-plane env is baked; a shell with no boot env sources it.
   `test -s /etc/cmux/model-plane.env && grep -q "^export OPENAI_BASE_URL='https://" /etc/cmux/model-plane.env && ! grep -q crt_ /etc/cmux/model-plane.env && env -i HOME=/tmp/mp-verify bash -c '. /etc/cmux/agent-config.sh; printf %s "$OPENAI_BASE_URL"' | grep -q '^https://' && rm -rf /tmp/mp-verify && echo model-plane-env-baked`,
   "systemctl is-active cmux-tui-daemon >/dev/null && echo systemd-supervisor-active",
+  cmuxTuiWebsocketSmokeCommand(),
 ];
 
 // The desktop layer (Freestyle bakes; /etc/cmux/image-stamp says "desktop"),
@@ -190,6 +199,10 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   // would itself leave root-owned state dirs behind.
   ...pins.map((pin) => `sudo -n -u ubuntu env -i HOME=/home/ubuntu USER=ubuntu TERM=xterm PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ${pin.binary} --version | grep -F '${pin.version}' >/dev/null && echo ${pin.binary}-nonlogin-pin-ok`),
   "systemctl show cmux-tui-daemon -p Environment | grep -q 'PATH=/usr/local/sbin:/usr/local/bin:' && echo daemon-env-path-ok",
+  devboxTerminfoCheckCommand,
+  "sudo -n -u ubuntu env -i HOME=/home/ubuntu TERM=xterm-256color PATH=/usr/bin:/bin sh -c 'tput setaf 8 | od -An -tx1 | tr -d \" \\n\"' | grep -qx 1b5b33383b353b386d && echo ubuntu-terminfo-ok",
+  "grep -qx 'unset TERMINFO' /etc/profile.d/cmux-terminfo.sh && grep -qx 'export TERMINFO_DIRS=/etc/terminfo:' /etc/profile.d/cmux-terminfo.sh && echo terminfo-search-path-ok",
+  "shadow=$(mktemp -d) && mkdir -p \"$shadow/.terminfo\" && tic -x -o \"$shadow/.terminfo\" /etc/cmux/terminfo.src && sudo -n -u ubuntu env -i HOME=\"$shadow\" USER=ubuntu TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash -lc 'test -z \"$TERMINFO\" && test \"$TERMINFO_DIRS\" = /etc/terminfo: && test \"$(tput setaf 8 | od -An -tx1 | tr -d \" \\n\")\" = 1b5b33383b353b386d && infocmp -x xterm-256color | head -1 | grep -q /etc/terminfo/ && tput -T screen-256color colors | grep -qx 256' && rm -rf \"$shadow\" && echo terminfo-shadow-resistant",
   "docker --version && sudo -n -u ubuntu docker ps >/dev/null && echo docker-ok",
   // Home hygiene: nothing root-owned in the work user's home, ble.sh's
   // fallback state dir writable, the legal-notice marker present, and two
@@ -294,6 +307,7 @@ if (provider === "freestyle") {
     const exec = execFor(vm);
     const daemonMs = await waitForBakedDaemon("freestyle", exec);
     console.log(`baked daemon answered ${daemonMs} ms after the first probe (${Date.now() - t0} ms after create)`);
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
     // The baked binary must be the pin the bake resolved and recorded in
     // /etc/cmux/cmux-tui-pin (that is the image's contract; the manifest entry
     // carries the same commit). The live files.cmux.com pin moves with every
@@ -320,6 +334,7 @@ if (provider === "freestyle") {
     try {
       const exec2 = execFor(second.vm);
       await waitForBakedDaemon("freestyle", exec2);
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
       const digest = `cat ${REMOTE_IDENTITY} ${MACHINE_SECRETS} | sha256sum | cut -c1-64`;
       const [a, b] = await Promise.all([exec(digest, 30_000), exec2(digest, 30_000)]);
       const digestA = a.output.trim();
