@@ -322,16 +322,8 @@ _NETWORK_VERB = re.compile(
 
 _NETWORK_TARGET_LABELS = frozenset({"uri", "url"})
 _NETWORK_BASE_TARGET_LABELS = frozenset({"base_url", "baseurl"})
+_PROCESS_NETWORK_EXECUTABLES = frozenset({"curl", "wget"})
 _NETWORK_TARGET_SPECS = (
-    _NetworkTargetSpec(
-        # Foundation's Process.run(URL, arguments:) executes the command at
-        # the URL and every item in its `arguments` array. Keep this Swift-only
-        # form separate from HTTP clients so a public URL in an unrelated
-        # argument cannot be mistaken for a request target.
-        verb_pattern=re.compile(r"\bProcess\.run\s*\("),
-        positional_index=1,
-        labels=frozenset({"arguments"}),
-    ),
     _NetworkTargetSpec(
         verb_pattern=re.compile(
             r"\.open\s*\("
@@ -381,7 +373,6 @@ _SHELL_CALL_LAUNCHER = re.compile(
   | \bsubprocess\.get(?:status)?output\s*\(
   | (?<![A-Za-z0-9_.])(?:eval|execSync|execaCommand|execaCommandSync)\s*\(
   | \b(?:childProcess|child_process)\.(?:exec|execSync)\s*\(
-  | (?P<javascript_exec>(?<![A-Za-z0-9_.])exec)\s*\(
     """
 )
 
@@ -2254,11 +2245,6 @@ def _launcher_target_ranges(
     for launcher in _SHELL_CALL_LAUNCHER.finditer(line):
         if launcher.start() >= verb_start:
             break
-        if (
-            launcher.group("javascript_exec") is not None
-            and path_suffix not in _JAVASCRIPT_SUFFIXES
-        ):
-            continue
         if _is_inside_string_literal(line, launcher.start(), path_suffix):
             continue
         opening_paren = line.find("(", launcher.start(), launcher.end())
@@ -3330,6 +3316,29 @@ def _direct_network_target_ranges(
             return []
 
     arguments = _call_arguments(line, opening_paren, path_suffix)
+    if matched_verb.strip().startswith("process.run"):
+        if path_suffix != ".swift":
+            return []
+        executable = _select_call_argument(arguments, _NO_ARGUMENT_LABELS, 0)
+        if executable is None:
+            return []
+        executable_source = line[executable.value_bounds[0] : executable.value_bounds[1]]
+        executable_match = re.search(
+            r'\bURL\s*\(\s*fileURLWithPath\s*:\s*"([^"]+)"',
+            executable_source,
+        )
+        if executable_match is None:
+            return []
+        executable_name = executable_match.group(1).rsplit("/", 1)[-1]
+        if executable_name not in _PROCESS_NETWORK_EXECUTABLES:
+            return []
+        target = _select_call_argument(
+            arguments,
+            frozenset({"arguments"}),
+            1,
+        )
+        return [target.value_bounds] if target is not None else []
+
     axios_method = _axios_invocation_method(matched_verb)
     target_arguments = list(arguments)
     if axios_method in ("call", "request"):
@@ -3989,7 +3998,7 @@ def _self_test() -> int:
         ),
         (
             "web/tests/exec_and_expect.ts",
-            'expect(exec("curl https://api.openai.com/v1/items")).toContain("ok")\n',
+            'expect(child_process.exec("curl https://api.openai.com/v1/items")).toContain("ok")\n',
             {RULE_LIVE_NETWORK_HOST},
         ),
         (
@@ -5126,6 +5135,17 @@ def _self_test() -> int:
         (
             "tests/n18h.py",
             'subprocess.run(["printf", "curl https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "cmuxTests/process_echo.swift",
+            'Process.run(URL(fileURLWithPath: "/usr/bin/echo"), arguments: ["https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "web/tests/local_exec_helper.ts",
+            (
+                'function exec(value) { return value; }\n'
+                'exec("curl https://api.openai.com/v1/items");\n'
+            ),
         ),
         (
             "web/tests/n18i.ts",

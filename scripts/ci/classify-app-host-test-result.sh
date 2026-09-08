@@ -67,8 +67,8 @@ if grep -Eq \
   exit 1
 fi
 
-summary="$(grep -E "Executed.*tests?.*with.*failures?" "$output_path" | tail -n 1 || true)"
-if [[ "$summary" == *"(0 unexpected)"* ]]; then
+summaries="$(grep -E "Executed.*tests?.*with.*failures?" "$output_path" || true)"
+if [ -n "$summaries" ] && ! grep -Fvq "(0 unexpected)" <<<"$summaries"; then
   echo "All failures are expected, treating as pass"
   exit 0
 fi

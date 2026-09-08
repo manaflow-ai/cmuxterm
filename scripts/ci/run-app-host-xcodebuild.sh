@@ -120,7 +120,7 @@ validate_app_host_config_paths() {
     return 1
   fi
 
-  canonicalize_existing_app_host_config_path() {
+  canonicalize_app_host_config_path() {
     local path="$1"
     case "$path" in
       /*) ;;
@@ -138,8 +138,14 @@ validate_app_host_config_paths() {
     [ -n "$parent" ] || parent=/
     [ -n "$name" ] || return 1
     [ "$name" != "." ] && [ "$name" != ".." ] || return 1
-    [ -e "$path" ] || return 1
     [ -L "$path" ] && return 1
+    while [ ! -e "$parent" ]; do
+      [ -L "$parent" ] && return 1
+      name="${parent##*/}/$name"
+      parent="${parent%/*}"
+      [ -n "$parent" ] || parent=/
+    done
+    [ -d "$parent" ] || return 1
     resolved_parent="$(cd "$parent" 2>/dev/null && pwd -P)" || return 1
     printf '%s/%s\n' "${resolved_parent%/}" "$name"
   }
@@ -156,13 +162,10 @@ validate_app_host_config_paths() {
       printf '%s\n' "$path"
       return 0
     fi
-    if [[ "$path" =~ ^(.*)[[:space:]]err=[[:alnum:]_.:-]+([[:space:]].*)?$ ]]; then
+    if [[ "$path" =~ ^(.*)[[:space:]]err=[[:alnum:]_.:-]+$ ]]; then
       local path_without_diagnostic="${BASH_REMATCH[1]}"
-      if [ -e "$path_without_diagnostic" ] \
-        && [ ! -L "$path_without_diagnostic" ]; then
-        printf '%s\n' "$path_without_diagnostic"
-        return 0
-      fi
+      printf '%s\n' "$path_without_diagnostic"
+      return 0
     fi
     printf '%s\n' "$path"
   }
@@ -175,13 +178,15 @@ validate_app_host_config_paths() {
   resolved_expected_config_path="${app_host_home%/}/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
   local canonical_expected_config_path canonical_published_expected_config_path
   canonical_expected_config_path="$(
-    canonicalize_existing_app_host_config_path "$resolved_expected_config_path"
+    [ -f "$resolved_expected_config_path" ] \
+      && canonicalize_app_host_config_path "$resolved_expected_config_path"
   )" || {
     echo "FAIL: isolated app-host configuration sentinel is unavailable" >&2
     return 1
   }
   canonical_published_expected_config_path="$(
-    canonicalize_existing_app_host_config_path "$published_expected_config_path"
+    [ -f "$published_expected_config_path" ] \
+      && canonicalize_app_host_config_path "$published_expected_config_path"
   )" || {
     echo "FAIL: published app-host configuration sentinel is unavailable" >&2
     return 1
@@ -208,7 +213,7 @@ validate_app_host_config_paths() {
       line="${line%$'\r'}"
       reported_path="$(extract_app_host_config_path "$line")"
       canonical_reported_path="$(
-        canonicalize_existing_app_host_config_path "$reported_path"
+      canonicalize_app_host_config_path "$reported_path"
       )" || {
         echo "FAIL: Ghostty accessed configuration outside the isolated app-host home" >&2
         echo "$line" >&2

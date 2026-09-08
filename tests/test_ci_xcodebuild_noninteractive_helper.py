@@ -166,6 +166,10 @@ def main() -> int:
         **post_test_env,
         "CMUX_XCODEBUILD_NONINTERACTIVE_EXPECT_SWIFT_TESTING": "1",
     }
+    mixed_framework_env = {
+        **expected_mixed_framework_env,
+        "CMUX_XCODEBUILD_NONINTERACTIVE_POST_TEST_TIMEOUT_SECONDS": "5",
+    }
     passing_post_test_child = textwrap.dedent(
         """
         import time
@@ -419,7 +423,7 @@ def main() -> int:
         capture_output=True,
         check=False,
         timeout=HELPER_TEST_TIMEOUT_SECONDS,
-        env=expected_mixed_framework_env,
+        env=mixed_framework_env,
     )
     if mixed_framework_result.returncode != 0:
         print(mixed_framework_result.stdout, end="")
