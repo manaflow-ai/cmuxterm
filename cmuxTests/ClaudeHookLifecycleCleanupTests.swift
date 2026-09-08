@@ -15,6 +15,18 @@ struct ClaudeHookLifecycleCleanupTests {
     private static let otherSurfaceId = "55555555-5555-5555-5555-555555555555"
     private static let fallbackSurfaceId = "44444444-4444-4444-4444-444444444444"
 
+    /// The pane-scoped clear for a started turn now happens in the app when the
+    /// journal reconciler admits the hook's `agent_journal_append` event
+    /// (`AgentJournalLifecycleCenter.clearInvalidatedNotifications`), so the hook
+    /// proves re-homing by the identity it puts on that event.
+    private static func journalAppendPayloads(in commands: [String]) -> [[String: Any]] {
+        commands.compactMap { command in
+            guard command.hasPrefix("agent_journal_append ") else { return nil }
+            let json = command.dropFirst("agent_journal_append ".count)
+            return (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
+        }
+    }
+
     /// The session record was polluted to ANOTHER agent's pane (#7391) whose
     /// own session is active there. SessionEnd's staleness gate must judge the
     /// pane being CLEANED (the live pid target), not the polluted record
@@ -228,8 +240,21 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        #expect(
+            Self.journalAppendPayloads(in: commands).contains {
+                $0["workspace_id"] as? String == newWorkspaceId
+                    && $0["surface_id"] as? String == Self.liveSurfaceId
+            },
+            "The prompt-submit journal event must carry the moved pane so the app clears only that pane; saw \(commands)"
+        )
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications --tab=\(newWorkspaceId)") && !$0.contains("--panel=") },
+            "A re-homed prompt submit must not clear the whole destination workspace; saw \(commands)"
+        )
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications --tab=\(Self.liveWorkspaceId)") },
+            "A re-homed prompt submit must not touch the stale workspace; saw \(commands)"
+        )
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,8 +312,18 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        #expect(
+            Self.journalAppendPayloads(in: commands).contains {
+                $0["workspace_id"] as? String == newWorkspaceId
+                    && $0["surface_id"] as? String == Self.liveSurfaceId
+                    && $0["declared_phase"] as? String == "running"
+            },
+            "The PreToolUse journal event must carry the moved pane so the app clears only that pane; saw \(commands)"
+        )
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications --tab=\(newWorkspaceId)") && !$0.contains("--panel=") },
+            "A re-homed PreToolUse must not clear the whole destination workspace; saw \(commands)"
+        )
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)
