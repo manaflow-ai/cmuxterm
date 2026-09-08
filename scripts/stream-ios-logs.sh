@@ -28,7 +28,7 @@ Options:
   --device-id <id>       iOS device identifier
   --bundle-id <id>       iOS bundle used for --tail-lines (default: dev.cmux.app.internal)
   --tail-lines <count>   Print this many existing journal lines before streaming
-  --match <text>         OSLog substring filter (default: irx)
+  --match <text>         Local OSLog substring filter (default: irx)
   --all                  Stream all cmux process logs instead of only iROH events
   --wait-seconds <count> Wait for INTERNAL to start when it is not running (default: 15)
   --no-colors            Disable idevicesyslog color output (default)
@@ -111,6 +111,7 @@ tail_file=""
 details_file=""
 apps_file=""
 processes_file=""
+# shellcheck disable=SC2329 # Invoked indirectly by trap.
 cleanup() {
   rm -f "${tail_file:-}" "${details_file:-}" "${apps_file:-}" "${processes_file:-}"
 }
@@ -172,9 +173,11 @@ else
 fi
 echo "==> source: OSLog NOTICE events, no repeated journal-file transfer"
 
-stream_args=("$idevicesyslog_path" --udid "$syslog_device_id" --process cmux)
+# Some idevicesyslog/iOS combinations emit the initial backlog but stop
+# forwarding live rows when --process or --match is active. Subscribe to the
+# raw feed and scope it locally so live logging remains reliable.
+stream_args=("$idevicesyslog_path" --udid "$syslog_device_id")
 (( no_colors == 1 )) && stream_args+=(--no-colors)
-[[ -n "$match" ]] && stream_args+=(--match "$match")
 
 if (( all_logs == 0 )); then
   apps_file="$(mktemp "${TMPDIR:-/tmp}/cmux-ios-apps.XXXXXX")"
@@ -234,11 +237,12 @@ PY
   [[ -n "$target_pids" ]] || die "$bundle_id is not running on device $device_id; launch cmux INTERNAL, then retry (or use --all)"
   echo "==> target process id(s): $target_pids"
 
-  # idevicesyslog filters by executable name, and every installed cmux build
-  # uses the same executable. Keep the stream scoped to INTERNAL by matching
-  # the PID(s) belonging to its bundle path.
+  # Every installed cmux build uses the same executable. Keep the stream
+  # scoped to INTERNAL by matching the PID(s) belonging to its bundle path.
   set +e
-  "${stream_args[@]}" | /usr/bin/awk -v wanted_pids="$target_pids" '
+  "${stream_args[@]}" | /usr/bin/awk \
+    -v wanted_pids="$target_pids" \
+    -v wanted_match="$match" '
     BEGIN {
       count = split(wanted_pids, values, ",")
       for (i = 1; i <= count; i++) {
@@ -246,6 +250,9 @@ PY
       }
     }
     {
+      if (wanted_match != "" && index($0, wanted_match) == 0) {
+        next
+      }
       if (match($0, /cmux\[[0-9]+\]/)) {
         marker = substr($0, RSTART, RLENGTH)
         gsub(/[^0-9]/, "", marker)
@@ -261,4 +268,13 @@ PY
   exit "$stream_status"
 fi
 
-exec "${stream_args[@]}"
+set +e
+"${stream_args[@]}" | /usr/bin/awk '
+  /cmux\[[0-9]+\]/ {
+    print
+    fflush()
+  }
+'
+stream_status=${PIPESTATUS[0]}
+set -e
+exit "$stream_status"
