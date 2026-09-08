@@ -987,7 +987,7 @@ describe("in-VM cmux shim: agent primitives", () => {
 
     test("--from-file and stdin understand dotenv comments, export prefixes, and quotes; later keys win", () => {
       const dir = makeStatefulDir();
-      writeFileSync(join(dir, "dot.env"), "# comment\nexport API_KEY=\"abc def\"\nDB_URL='postgres://x'\n\nPLAIN=1\r\nPLAIN=2\n");
+      writeFileSync(join(dir, "dot.env"), "# comment\nexport API_KEY=\"abc def\" # a quote: \"\nDB_URL='postgres://x' # comment\n\nPLAIN=1\r\nPLAIN=2\n");
       const fromFile = runStateful(dir, ["env", "set", "--from-file", join(dir, "dot.env")]);
       expect(fromFile.status).toBe(0);
       const fromStdin = runStateful(dir, ["env", "set", "-"], {}, "X=1\nexport  Y = spaced\n");
@@ -1003,6 +1003,22 @@ describe("in-VM cmux shim: agent primitives", () => {
         values: { API_KEY: "abc def", DB_URL: "postgres://x", PLAIN: "2", X: "1", Y: "spaced" },
       });
       expect(JSON.parse(runStateful(dir, ["env", "ls", "--json"]).stdout)).toEqual({ path: join(dir, ".config", "cmux", "env"), keys: ["API_KEY", "DB_URL", "PLAIN", "X", "Y"] });
+    });
+
+    test("dotenv quote handling preserves literal hashes and backslashes", () => {
+      const dir = makeStatefulDir();
+      const input = 'HASH="a # b" # comment\nESCAPED="a\\" # b" # comment\nPLAIN=raw # comment\n';
+      expect(runStateful(dir, ["env", "set", "-"], {}, input).status).toBe(0);
+      const values = JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values;
+      expect(values).toEqual({ HASH: "a # b", ESCAPED: 'a\\" # b', PLAIN: "raw" });
+    });
+
+    test("dotenv sources and explicit assignments are applied in argument order", () => {
+      const dir = makeStatefulDir();
+      const file = join(dir, "ordered.env");
+      writeFileSync(file, "KEY=file\n");
+      expect(runStateful(dir, ["env", "set", "KEY=first", "--from-file", file, "KEY=after-file", "-", "KEY=last"], {}, "KEY=stdin\n").status).toBe(0);
+      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values.KEY).toBe("last");
     });
 
     test("rm removes only the named keys; invalid keys and empty sets are usage errors; path prints the file", () => {

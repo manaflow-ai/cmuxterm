@@ -269,19 +269,16 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
         TOKEN='abc def'
         PLAIN=hello # trailing comment
-        QUOTED_LITERAL="keep"
+        QUOTED_LITERAL="keep" # trailing comment
         SPACEY="  padded  "
         EMPTY=
         """.write(to: envFile, atomically: true, encoding: .utf8)
 
         let serverHandled = startVMEnvSetMock(listenerFD: listenerFD, state: state, log: log)
 
-        // An argv pair repeated by the file: the later (file) value wins, once, in the
-        // position of its first appearance. `Q='x'` keeps its literal quotes; stdin (`-`)
-        // is read with the same dotenv rules and appended after the file.
         let result = runProcessWithInput(
             executablePath: cliPath,
-            arguments: ["vm", "env", "set", "brave-otter", "PLAIN=argv", "Q='x'", "--from-file", envFile.path, "-"],
+            arguments: ["vm", "env", "set", "brave-otter", "--from-file", envFile.path, "PLAIN=argv", "Q='x'", "-", "FROM_STDIN=argv-after-stdin"],
             environment: vmLayoutEnvEnvironment(socketPath: socketPath),
             standardInput: "FROM_STDIN=\"two words\"\n# ignored\nexport SECOND=2\n",
             timeout: 30
@@ -294,14 +291,14 @@ extension CLINotifyProcessIntegrationRegressionTests {
         // dotenv rules applied on the Mac (comments, `export`, matching quotes, inline
         // comment); every value reaches the app byte for byte, quotes and padding included.
         XCTAssertEqual(vmEnvSetEntryLines(log), [
-            "PLAIN=hello",
-            "Q='x'",
             "DATABASE_URL=postgres://localhost/app",
             "TOKEN=abc def",
+            "PLAIN=argv",
             "QUOTED_LITERAL=keep",
             "SPACEY=  padded  ",
             "EMPTY=",
-            "FROM_STDIN=two words",
+            "Q='x'",
+            "FROM_STDIN=argv-after-stdin",
             "SECOND=2",
         ])
         XCTAssertTrue(result.stdout.contains("OK set 9 variables on brave-otter"), result.stdout)
@@ -691,6 +688,13 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(broken.status, 2, broken.stderr)
         XCTAssertTrue(broken.stderr.contains("not valid JSON at $"), broken.stderr)
 
+        let conflict = runProcess(
+            executablePath: cliPath,
+            arguments: ["vm", "layout", "apply", "brave-otter", "--from-saved", "must-not-be-read", "--workspace", "ws_empty", "--name", "conflict"],
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 5
+        )
+        XCTAssertEqual(conflict.status, 2, conflict.stderr)
         XCTAssertTrue(log.commands().isEmpty, "no exec for a rejected document: \(log.commands())")
         XCTAssertFalse(state.snapshot().contains { $0.contains("vm.exec") }, state.snapshot().description)
     }
