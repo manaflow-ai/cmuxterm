@@ -1823,7 +1823,7 @@
       "sessionRestore": "Restauration de session (comportement actuel)",
       "sessionRestoreDesc": "Après un redémarrage, cmux restaure uniquement la disposition et les métadonnées :",
       "sessionCallout": "cmux ne restaure pas encore l'état des processus en cours. Les sessions d'applications terminales actives comme Claude Code, tmux et vim ne sont pas reprises après un redémarrage de l'application.",
-      "sessionRestoreLink": "Consultez le guide de restauration de session <link></link> pour la configuration du hook d'agent et la matrice de reprise prise en charge.",
+      "sessionRestoreLink": "Consultez le <link>guide de restauration de session</link> pour la configuration du hook d'agent et la matrice de reprise prise en charge.",
       "requirements": "Configuration requise",
       "reqItem1": "macOS 14.0 ou ultérieur",
       "reqItem2": "Mac Apple Silicon ou Intel"
@@ -2263,7 +2263,7 @@
       "metaTitle": "Raccourcis clavier",
       "metaDescription": "Tous les raccourcis clavier cmux pour espaces de travail, surfaces, panneaux divisés, navigateur, notifications, recherche et gestion des fenêtres sur macOS.",
       "chordsTitle": "Accords de raccourci",
-      "chordsIntro": "cmux prend en charge les accords de raccourci en deux étapes dans <settingsFile>~/.config/cmux/cmux.json</settingsFile>. Pour le schéma de configuration complet, consultez la documentation de configuration <configurationLink></configurationLink>.",
+      "chordsIntro": "cmux prend en charge les accords de raccourci en deux étapes dans <settingsFile>~/.config/cmux/cmux.json</settingsFile>. Pour le schéma de configuration complet, consultez la <configurationLink>documentation de configuration</configurationLink>.",
       "chordsCallout": "Les paramètres peuvent modifier directement les raccourcis. Utilisez cmux.json lorsque vous souhaitez une liaison de préfixe exacte de style tmux, conservez des raccourcis dans des fichiers dot ou dissociez une action avec null, une chaîne vide, \"aucun\", \"clair\", \"non lié\" ou \"désactivé\".",
       "chordsRuleSingle": "Utilisez une chaîne simple pour un raccourci en une étape.",
       "chordsRuleArray": "Utilisez un tableau de deux éléments pour un accord. Le premier élément est le trait du préfixe, le second est la clé qui le suit.",

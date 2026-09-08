@@ -177,6 +177,18 @@ describe("support page localization", () => {
 });
 
 describe("website message catalog parity", () => {
+  test("rejects rich-text tags that lose translated link text", async () => {
+    const issues = await validateCatalog(
+      "es",
+      { message: "Read the <link>guide</link>." },
+      { message: "Consulte la <link></link>." },
+    );
+
+    expect(issues.map(({ path, message }) => [path, message])).toEqual([
+      ["message", "rich-text tag mismatch"],
+    ]);
+  });
+
   test("keeps the nine release locales complete and translated", async () => {
     const english = englishMessages as unknown as Json;
     const catalogs = messagesByLocale as unknown as Record<string, Json>;

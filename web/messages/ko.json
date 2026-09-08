@@ -837,7 +837,7 @@
         }
       ]
     },
-    "help": "질문이 있으신가요? <discord>Discord</discord>에 가입하거나 <github>GitHub 문제</github>을 열거나 <email></email>로 이메일을 보내세요.",
+    "help": "질문이 있으신가요? <discord>Discord</discord>에 가입하거나 <github>GitHub 문제</github>을 열거나 <email>이메일을 보내세요</email>.",
     "faq": {
       "title": "FAQ",
       "items": [

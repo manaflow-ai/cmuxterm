@@ -837,7 +837,7 @@
         }
       ]
     },
-    "help": "Fragen? Treten Sie unserem <discord>Discord</discord> bei, öffnen Sie ein <github>GitHub-Problem</github> oder senden Sie uns eine E-Mail mit <email></email>.",
+    "help": "Fragen? Treten Sie unserem <discord>Discord</discord> bei, öffnen Sie ein <github>GitHub-Problem</github> oder schreiben Sie uns eine <email>E-Mail</email>.",
     "faq": {
       "title": "FAQ",
       "items": [
@@ -1823,7 +1823,7 @@
       "sessionRestore": "Sitzungswiederherstellung (aktuelles Verhalten)",
       "sessionRestoreDesc": "Nach dem Neustart stellt cmux nur Layout und Metadaten wieder her:",
       "sessionCallout": "cmux stellt noch keine laufenden Prozesse wieder her. Aktive Terminal-App-Sitzungen wie Claude Code, tmux und vim werden nach einem App-Neustart nicht fortgesetzt.",
-      "sessionRestoreLink": "Informationen zur Einrichtung des Agent-Hooks und der unterstützten Lebenslaufmatrix finden Sie im <link>-Sitzungswiederherstellungsleitfaden </link>.",
+      "sessionRestoreLink": "Informationen zur Einrichtung des Agent-Hooks und der unterstützten Lebenslaufmatrix finden Sie im <link>Sitzungswiederherstellungsleitfaden</link>.",
       "requirements": "Voraussetzungen",
       "reqItem1": "macOS 14.0 oder neuer",
       "reqItem2": "Apple Silicon oder Intel Mac"
@@ -2263,7 +2263,7 @@
       "metaTitle": "Tastenkürzel",
       "metaDescription": "Alle cmux-Tastaturkürzel für Workspaces, Oberflächen, geteilte Bereiche, Browser, Benachrichtigungen, Suche und Fensterverwaltung unter macOS.",
       "chordsTitle": "Abkürzungsakkorde",
-      "chordsIntro": "cmux unterstützt zweistufige Shortcut-Akkorde in <settingsFile>~/.config/cmux/cmux.json</settingsFile>. Das vollständige Konfigurationsschema finden Sie in den <configurationLink>-Konfigurationsdokumenten </configurationLink>.",
+      "chordsIntro": "cmux unterstützt zweistufige Shortcut-Akkorde in <settingsFile>~/.config/cmux/cmux.json</settingsFile>. Das vollständige Konfigurationsschema finden Sie in den <configurationLink>Konfigurationsdokumenten</configurationLink>.",
       "chordsCallout": "Einstellungen können Verknüpfungen direkt bearbeiten. Verwenden Sie cmux.json, wenn Sie eine exakte Präfixbindung im tmux-Stil wünschen, Verknüpfungen in Dotfiles beibehalten oder die Bindung einer Aktion mit Null, einer leeren Zeichenfolge, „none“, „clear“, „unbound“ oder „disabled“ aufheben möchten.",
       "chordsRuleSingle": "Verwenden Sie eine einfache Zeichenfolge für eine einstufige Verknüpfung.",
       "chordsRuleArray": "Verwenden Sie ein Array mit zwei Elementen für einen Akkord. Das erste Element ist der Präfixstrich, das zweite ist der darauf folgende Schlüssel.",

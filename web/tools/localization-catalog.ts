@@ -210,6 +210,43 @@ export function syntaxTokens(value: string): {
   };
 }
 
+function richTextTagContentShape(value: string): string[] {
+  const shapes: string[] = [];
+  const stack: { name: string; hasText: boolean; index: number }[] = [];
+  const tagPattern = /<\/?([a-z][\w-]*)(?:\s[^>]*)?>/giu;
+  let cursor = 0;
+
+  for (const match of value.matchAll(tagPattern)) {
+    const tagStart = match.index ?? 0;
+    if (value.slice(cursor, tagStart).trim() && stack.length > 0) {
+      stack[stack.length - 1].hasText = true;
+    }
+
+    const token = match[0];
+    const name = match[1];
+    if (token.startsWith("</")) {
+      const frame = stack.pop();
+      if (!frame || frame.name !== name) return [];
+      shapes[frame.index] = `${frame.name}:${frame.hasText ? "text" : "empty"}`;
+      if (frame.hasText && stack.length > 0) {
+        stack[stack.length - 1].hasText = true;
+      }
+    } else if (!token.endsWith("/>") ) {
+      const index = shapes.length;
+      shapes.push(`${name}:empty`);
+      stack.push({ name, hasText: false, index });
+    } else {
+      shapes.push(`${name}:self`);
+    }
+    cursor = tagStart + token.length;
+  }
+
+  if (value.slice(cursor).trim() && stack.length > 0) {
+    stack[stack.length - 1].hasText = true;
+  }
+  return stack.length === 0 ? shapes : [];
+}
+
 function icuStructure(value: string): MessageFormatElement[] | null {
   try {
     return parse(value);
@@ -333,7 +370,9 @@ export async function validateCatalog(
       const translatedTokens = syntaxTokens(translatedLeaf.value);
       if (
         JSON.stringify(sourceTokens.richTextTags) !==
-        JSON.stringify(translatedTokens.richTextTags)
+          JSON.stringify(translatedTokens.richTextTags) ||
+        JSON.stringify(richTextTagContentShape(englishLeaf.value)) !==
+          JSON.stringify(richTextTagContentShape(translatedLeaf.value))
       ) {
         issues.push({
           locale,

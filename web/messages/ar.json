@@ -1386,7 +1386,7 @@
         "title": "وكلاء زملاء فريق Claude Code كأجزاء cmux أصلية",
         "summary": "يتطلب وضع زميل فريق Claude Code وجود tmux. يقوم cmux بتزييفه حتى يصبح أعضاء الفريق منقسمين أصليين باستخدام بيانات تعريف الشريط الجانبي والإشعارات.",
         "date": "30 مارس 2026",
-        "p1": "يحتوي Claude Code على وضع زميل الفريق التجريبي <agentTeamsLink></agentTeamsLink> الذي يولد عملاء فرعيين بالتوازي. يتطلب الأمر tmux وإعداد <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>. يعالج <code>cmux claude-teams</code> كل ذلك نيابةً عنك: فهو يقوم بتعيين env var، ويضع tmux shim على PATH الذي يترجم كل أمر tmux (<code>split-window</code>، <code>send-keys</code>، <code>capture-pane</code>) إلى واجهة برمجة التطبيقات الأصلية المقسمة/مساحة العمل الخاصة بـ cmux، والتنفيذية في <code>claude --teammate-mode auto</code>. أمر واحد.",
+        "p1": "يحتوي Claude Code على <agentTeamsLink>وضع زملاء الفريق التجريبي</agentTeamsLink> الذي يولد عملاء فرعيين بالتوازي. يتطلب الأمر tmux وإعداد <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>. يعالج <code>cmux claude-teams</code> كل ذلك نيابةً عنك: فهو يقوم بتعيين env var، ويضع tmux shim على PATH الذي يترجم كل أمر tmux (<code>split-window</code>، <code>send-keys</code>، <code>capture-pane</code>) إلى واجهة برمجة التطبيقات الأصلية المقسمة/مساحة العمل الخاصة بـ cmux، والتنفيذية في <code>claude --teammate-mode auto</code>. أمر واحد.",
         "p2": "تقوم الرقائق بترجمة <code>split-window</code> إلى <code>surface.split</code>، و<code>send-keys</code> إلى <code>surface.send_text</code>، و<code>capture-pane</code> إلى <code>surface.read_text</code>. يتكدس زملاء الفريق عموديًا في العمود الأيمن، ويتعادلون تلقائيًا عندما يظهر العملاء ويخرجون. يظهر كل جزء في الشريط الجانبي مع الإشعارات. يعمل عبر SSH عبر البرنامج الخفي Go Relay.",
         "p3": "تعمل نفس الرقائق على تشغيل <omoLink><code>cmux omo</code></omoLink> لـ oh-my-openagent (المعروف سابقًا باسم oh-my-opencode)."
       },
@@ -1823,7 +1823,7 @@
       "sessionRestore": "استعادة الجلسة (السلوك الحالي)",
       "sessionRestoreDesc": "بعد إعادة التشغيل، يستعيد cmux التخطيط والبيانات الوصفية فقط:",
       "sessionCallout": "cmux لا يستعيد حالة العمليات الحية بعد. جلسات تطبيقات الطرفية النشطة مثل Claude Code وtmux وvim لا تُستأنف بعد إعادة تشغيل التطبيق.",
-      "sessionRestoreLink": "راجع دليل استعادة الجلسة <link></link> للتعرف على إعداد ربط الوكيل ومصفوفة السيرة الذاتية المدعومة.",
+      "sessionRestoreLink": "راجع <link>دليل استعادة الجلسة</link> للتعرف على إعداد ربط الوكيل ومصفوفة السيرة الذاتية المدعومة.",
       "requirements": "المتطلبات",
       "reqItem1": "macOS 14.0 أو أحدث",
       "reqItem2": "Mac بمعالج Apple Silicon أو Intel"
@@ -2263,7 +2263,7 @@
       "metaTitle": "اختصارات لوحة المفاتيح",
       "metaDescription": "جميع اختصارات لوحة مفاتيح cmux لمساحات العمل والأسطح والألواح المقسمة والمتصفح والإشعارات والبحث وإدارة النوافذ على macOS.",
       "chordsTitle": "الحبال المختصرة",
-      "chordsIntro": "يدعم cmux أوتار الاختصار المكونة من خطوتين في <settingsFile>~/.config/cmux/cmux.json</settingsFile>. للحصول على مخطط التكوين الكامل، راجع مستندات التكوين <configurationLink></configurationLink>.",
+      "chordsIntro": "يدعم cmux أوتار الاختصار المكونة من خطوتين في <settingsFile>~/.config/cmux/cmux.json</settingsFile>. للحصول على مخطط التكوين الكامل، راجع <configurationLink>مستندات التكوين</configurationLink>.",
       "chordsCallout": "يمكن للإعدادات تحرير الاختصارات مباشرة. استخدم cmux.json عندما تريد ربط بادئة نمط tmux تمامًا، أو احتفظ بالاختصارات في ملفات نقطية، أو قم بإلغاء ربط إجراء بسلسلة خالية أو فارغة أو \"لا شيء\" أو \"مسح\" أو \"غير منضم\" أو \"معطل\".",
       "chordsRuleSingle": "استخدم سلسلة عادية لاختصار من خطوة واحدة.",
       "chordsRuleArray": "استخدم مصفوفة مكونة من عنصرين للوتر. العنصر الأول هو حد البادئة، والثاني هو المفتاح الذي يتبعه.",
