@@ -70,7 +70,10 @@ export function useDashboardTeamScope(userId: string | null): DashboardTeamScope
     );
     if (searchParams.has("team")) {
       // A deep-linked team in the URL would keep overriding the new scope.
-      router.replace(pathname);
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("team");
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname);
     }
     router.refresh();
   };

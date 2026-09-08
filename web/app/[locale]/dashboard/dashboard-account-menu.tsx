@@ -160,20 +160,25 @@ function TeamSubmenu({
       <Menu.Portal>
         <Menu.Positioner side="right" align="end" sideOffset={4} className="z-50">
           <Menu.Popup className="w-56 border border-border bg-background p-1 text-foreground shadow-xl shadow-black/10 outline-none">
-            {teams.map((team) => (
-              <Menu.Item
-                key={team.id}
-                className={menuItemClass}
-                aria-checked={team.id === selected.id}
-                onClick={() => onSelect(team)}
-              >
-                <span className="min-w-0 flex-1 truncate">{team.name}</span>
-                {team.personal ? (
-                  <span className="shrink-0 text-[11px] text-muted">{t("personal")}</span>
-                ) : null}
-                {team.id === selected.id ? <CheckIcon /> : <span className="size-4 shrink-0" />}
-              </Menu.Item>
-            ))}
+            <Menu.RadioGroup
+              value={selected.id}
+              onValueChange={(value) => {
+                const team = teams.find((candidate) => candidate.id === value);
+                if (team) onSelect(team);
+              }}
+            >
+              {teams.map((team) => (
+                <Menu.RadioItem key={team.id} value={team.id} className={menuItemClass}>
+                  <span className="min-w-0 flex-1 truncate">{team.name}</span>
+                  {team.personal ? (
+                    <span className="shrink-0 text-[11px] text-muted">{t("personal")}</span>
+                  ) : null}
+                  <Menu.RadioItemIndicator className="flex size-4 shrink-0 items-center justify-center">
+                    <CheckIcon />
+                  </Menu.RadioItemIndicator>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>

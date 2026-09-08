@@ -1,6 +1,7 @@
 "use client";
 
 import { Dialog } from "@base-ui-components/react/dialog";
+import { Tabs } from "@base-ui-components/react/tabs";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "../../../../i18n/navigation";
@@ -95,7 +96,7 @@ export function CoderouterAccountsSection({
         </span>
       </div>
 
-      {shared.kind === "notConfigured" ? (
+      {shared.kind === "notConfigured" && canManage ? (
         <Notice title={t("notConfiguredTitle")} body={t("notConfiguredBody")} />
       ) : null}
       {shared.kind === "migrationPending" ? (
@@ -454,7 +455,10 @@ function SharedAccountActions({
         { method: "DELETE" },
       );
       if (!response.ok) {
-        setStatus({ state: "error", message: errorMessageForStatus(response.status, t, t("removeError")) });
+        setStatus({
+          state: "error",
+          message: errorMessageForStatus(response.status, t, t("removeError"), t("notConfiguredTitle")),
+        });
         return;
       }
       setStatus(idleStatus);
@@ -534,41 +538,40 @@ function AddAccountPanel({ teamId }: { readonly teamId: string }) {
   return (
     <div className="mt-3 border border-border p-3">
       <h3 className="text-sm font-medium">{t("addTitle")}</h3>
-      <div role="tablist" aria-label={t("kindSelectorLabel")} className="mt-2 flex flex-wrap gap-2">
-        {ADD_KINDS.map((candidate) => (
-          <button
-            key={candidate}
-            type="button"
-            role="tab"
-            aria-selected={candidate === kind}
-            onClick={() => setKind(candidate)}
-            className={`px-2 py-1 text-xs focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground ${
-              candidate === kind
-                ? "border border-foreground"
-                : "border border-border text-muted hover:text-foreground"
-            }`}
-          >
-            {addKindLabel(candidate, t)}
-          </button>
-        ))}
-      </div>
-      <div className="mt-3">
-        {kind === "codex" ? (
-          <CliInstructions
-            body={t("codexBody")}
-            command="npx coderouter@latest add codex"
-            t={t}
-          />
-        ) : kind === "opencode" ? (
-          <CliInstructions
-            body={t("opencodeBody")}
-            command="npx coderouter@latest add opencode"
-            t={t}
-          />
-        ) : (
-          <ClaudeUpstreamForm key={kind} teamId={teamId} kind={kind} />
-        )}
-      </div>
+      <Tabs.Root
+        value={kind}
+        onValueChange={(value) => setKind(value as AddKind)}
+        className="mt-2"
+      >
+        <Tabs.List aria-label={t("kindSelectorLabel")} className="flex flex-wrap gap-2">
+          {ADD_KINDS.map((candidate) => (
+            <Tabs.Tab
+              key={candidate}
+              value={candidate}
+              className="border border-border px-2 py-1 text-xs text-muted hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground data-[selected]:border-foreground data-[selected]:text-foreground"
+            >
+              {addKindLabel(candidate, t)}
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+        <Tabs.Panel value={kind} className="mt-3">
+          {kind === "codex" ? (
+            <CliInstructions
+              body={t("codexBody")}
+              command="npx coderouter@latest add codex"
+              t={t}
+            />
+          ) : kind === "opencode" ? (
+            <CliInstructions
+              body={t("opencodeBody")}
+              command="npx coderouter@latest add opencode"
+              t={t}
+            />
+          ) : (
+            <ClaudeUpstreamForm key={kind} teamId={teamId} kind={kind} />
+          )}
+        </Tabs.Panel>
+      </Tabs.Root>
     </div>
   );
 }
@@ -785,9 +788,14 @@ function sharedKindLabel(kind: string, t: Translator): string {
   }
 }
 
-function errorMessageForStatus(status: number, t: Translator, fallback: string): string {
+function errorMessageForStatus(
+  status: number,
+  t: Translator,
+  fallback: string,
+  unavailable: string = fallback,
+): string {
   if (status === 400) return t("validationError");
   if (status === 403) return t("teamAccessError");
-  if (status === 503) return t("notConfiguredTitle");
+  if (status === 503) return unavailable;
   return fallback;
 }

@@ -109,6 +109,8 @@ describe("coderouter accounts section", () => {
     );
 
     const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((match) => match[1]);
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('role="tabpanel"');
     expect(tabs).toEqual([
       "Anthropic API key",
       "Claude Code OAuth",
@@ -131,9 +133,23 @@ describe("coderouter accounts section", () => {
       />,
     );
 
-    expect(html).not.toContain('role="tab"');
+    expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain(">Remove<");
     expect(html).not.toContain(">Disable<");
+  });
+
+  test("hides the deployment notice from members who cannot manage accounts", () => {
+    const render = (canManage: boolean) => renderToStaticMarkup(
+      <CoderouterAccountsSection
+        teamId="team-1"
+        canManage={canManage}
+        claude={{ kind: "ok", accounts: [claudeAccount] }}
+        native={{ kind: "ok", accounts: [nativeCodexAccount] }}
+        shared={{ kind: "notConfigured" }}
+      />,
+    );
+    expect(render(true)).toContain("not listed here");
+    expect(render(false)).not.toContain("not listed here");
   });
 
   test("keeps the loaded provider visible when the other one fails", () => {

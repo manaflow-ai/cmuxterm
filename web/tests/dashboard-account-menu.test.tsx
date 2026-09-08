@@ -20,6 +20,7 @@ mock.module("@stackframe/stack", () => ({
   ),
 }));
 
+let radioGroupValue = "";
 mock.module("@base-ui-components/react/menu", () => ({
   Menu: {
     Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -39,6 +40,14 @@ mock.module("@base-ui-components/react/menu", () => ({
         : <button {...props}>{children}</button>,
     Separator: () => <hr />,
     SubmenuRoot: ({ children }: { children: React.ReactNode }) => <div data-testid="team-submenu">{children}</div>,
+    RadioGroup: ({ children, value }: { children: React.ReactNode; value: string }) => {
+      radioGroupValue = value;
+      return <div role="group">{children}</div>;
+    },
+    RadioItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLElement> & { value: string }) => (
+      <div role="menuitemradio" aria-checked={value === radioGroupValue} {...props}>{children}</div>
+    ),
+    RadioItemIndicator: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
     SubmenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
       <button {...props}>{children}</button>
     ),

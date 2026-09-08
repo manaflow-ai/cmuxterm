@@ -179,6 +179,7 @@ export async function CoderouterOverviewContent({
       />
 
       <CoderouterAccountsSection
+        key={selectedTeam.id}
         teamId={selectedTeam.id}
         canManage={selectedTeam.manageAccounts}
         claude={claudeAccounts}
