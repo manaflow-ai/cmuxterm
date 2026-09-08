@@ -467,7 +467,7 @@ struct CmuxSystemSymbolImage: View {
     /// `.opacity` variants) to a dynamic `NSColor` that resolves under the
     /// renderer's drawing appearance. Equal inputs bridge to equal colors, so
     /// the hosted image view's render key stays stable across updates.
-    static func hostedTintColor(for tint: Color) -> NSColor {
+    nonisolated static func hostedTintColor(for tint: Color) -> NSColor {
         NSColor(tint)
     }
 

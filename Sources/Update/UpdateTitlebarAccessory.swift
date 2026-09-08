@@ -2457,7 +2457,12 @@ private struct NotificationsPopoverView: View {
             Spacer()
             Button(action: jumpToLatestUnread) {
                 HStack(spacing: 5) {
-                    CmuxSystemSymbolImage(systemName: "arrow.down.to.line", pointSize: 10, weight: .semibold, tint: .primary)
+                    CmuxSystemSymbolImage(
+                        systemName: "arrow.down.to.line",
+                        pointSize: 10,
+                        weight: .semibold,
+                        tint: hasUnreadNotifications ? .primary : .secondary
+                    )
                     Text(String(localized: "notifications.jumpToLatest", defaultValue: "Jump to Latest"))
                         .cmuxFont(size: 11)
                     if !jumpToUnreadShortcut.displayString.isEmpty {
