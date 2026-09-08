@@ -209,10 +209,17 @@ RUN npm install -g --foreground-scripts \
   && mise reshim \
   && claude --version && codex --version && opencode --version && pi --version && agent-browser --version
 
-# Keep Claude Code session transcripts effectively forever (chatmux parity).
+# Keep Claude Code session transcripts effectively forever (chatmux parity)
+# and pre-accept the --dangerously-skip-permissions confirmation: the VM is
+# the isolation boundary, so the seeded launch must reach the prompt.
 RUN mkdir -p /etc/claude-code \
-  && echo '{ "cleanupPeriodDays": 99999 }' > /etc/claude-code/managed-settings.json \
+  && echo '{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }' > /etc/claude-code/managed-settings.json \
   && node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))'
+
+# codex managed defaults: folder trust for the HOMEs (see codex-managed.toml).
+COPY codex-managed.toml /etc/codex/managed_config.toml
+RUN python3 -c 'import tomllib; d = tomllib.load(open("/etc/codex/managed_config.toml", "rb")); assert d["projects"]["/root"]["trust_level"] == "trusted"' \
+  && chmod 0644 /etc/codex/managed_config.toml
 
 # Identity (web/services/vms/images/identity.ts): a cmux Cloud machine is
 # `cmux`, never the provider's base name. The Freestyle bake owns that step
@@ -323,6 +330,9 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && ! grep -q 'x-coderouter-route-token' /tmp/agent-config-check/.pi/agent/models.json \
   && ! grep -q 'crt_' /tmp/agent-config-check/.pi/agent/models.json \
   && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json \
+  && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding && j.bypassPermissionsModeAccepted && j.projects["/"].hasTrustDialogAccepted)) process.exit(1)' \
+  && [ "$(stat -c %a /tmp/agent-config-check/.claude.json)" = "600" ] \
+  && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX')" = "1:1" ] \
   && rm -rf /tmp/agent-config-check \
   && mkdir -p /tmp/agent-config-resurrect/.config/cmux \
   && echo "export OPENAI_BASE_URL='https://resurrect.invalid/v1'" > /tmp/agent-config-resurrect/.config/cmux/model-plane.env \

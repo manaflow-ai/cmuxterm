@@ -80,6 +80,14 @@ on 6901. The contract (`web/services/vms/images/desktop.ts`;
   (`claude --dangerously-skip-permissions`) work. The Freestyle driver still
   runs the cmux-tui daemon as root; moving sessions to `ubuntu` is a driver
   change.
+- Agents are trusted everywhere. codex: `codex-managed.toml` is baked to
+  `/etc/codex/managed_config.toml` with `trust_level = "trusted"` for `/root`
+  and `/home/ubuntu`, and the `codex()` function in `agent-config.sh` adds the
+  launch directory's git root per invocation (codex trust is exact-path).
+  claude: `agent-config.sh` seeds `~/.claude.json` (onboarding done, bypass
+  accepted, `/` trusted) and exports `CLAUDE_CODE_SANDBOXED=1` (trust gate)
+  and `IS_SANDBOX=1` (root gate for `--dangerously-skip-permissions`);
+  `managed-settings.json` sets `skipDangerousModePermissionPrompt`.
 - Ghostty comes from a pinned community `.deb` for Ubuntu 24.04
   (`ARG CMUX_IMAGE_GHOSTTY_DEB_URL` in the Dockerfile, verified against
   `ARG CMUX_IMAGE_GHOSTTY_DEB_SHA256` before dpkg runs); the apt list is
