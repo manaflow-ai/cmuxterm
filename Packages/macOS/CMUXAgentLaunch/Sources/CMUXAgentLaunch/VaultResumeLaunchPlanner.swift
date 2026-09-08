@@ -315,7 +315,9 @@ public struct VaultResumeLaunchPlanner: Sendable {
         approvalPolicy: String?,
         sandboxMode: String?
     ) -> [String] {
-        let approvalPolicy = nonEmpty(approvalPolicy)
+        let approvalPolicy = nonEmpty(approvalPolicy).map { policy in
+            policy == "on-failure" ? "on-request" : policy
+        }
         let sandboxMode = nonEmpty(sandboxMode)
         if approvalPolicy == "never", sandboxMode == "disabled" {
             return ["--dangerously-bypass-approvals-and-sandbox"]
