@@ -22,12 +22,12 @@ struct SettingsSectionScrollTrackerTests {
         #expect(geometry.lastSectionHeight == 80)
     }
 
-    @Test
-    func selectsTheLastSectionAtOrAboveTheActivationLine() {
+    @Test(arguments: [19.0, 20.0])
+    func selectsTheLastSectionAtOrAboveTheActivationLine(headerY: Double) {
         let tracker = SettingsSectionScrollTracker(activationLine: 20)
         let positions = [
             SettingsSectionScrollPosition(section: .account, minY: -420),
-            SettingsSectionScrollPosition(section: .keyboardShortcuts, minY: 19),
+            SettingsSectionScrollPosition(section: .keyboardShortcuts, minY: headerY),
             SettingsSectionScrollPosition(section: .workspaceColors, minY: 280),
         ]
 
