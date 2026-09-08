@@ -115,32 +115,32 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
         )
     }
 
-    func testCmdFOpensRightSidebarFindInsteadOfWebContentFindShortcut() {
+    func testCmdShiftFOpensRightSidebarFindInsteadOfWebContentFindShortcut() {
         let app = launchWithBrowserSetup(browserURL: makeBrowserHandledCmdFPageURL())
 
         XCTAssertTrue(
             waitForGotoSplitMatch(timeout: 10.0) { data in
                 data["browserPageTitle"] == "cmdf-pending"
             },
-            "Expected the browser test page to finish loading before Cmd+F"
+            "Expected the browser test page to finish loading before Cmd+Shift+F"
         )
 
-        app.typeKey("f", modifierFlags: [.command])
+        app.typeKey("f", modifierFlags: [.command, .shift])
 
         let findField = app.textFields["FileExplorerSearchField"].firstMatch
-        XCTAssertTrue(findField.waitForExistence(timeout: 6.0), "Expected right sidebar file search after Cmd+F")
+        XCTAssertTrue(findField.waitForExistence(timeout: 6.0), "Expected right sidebar file search after Cmd+Shift+F")
 
         app.typeText("needle")
         XCTAssertTrue(
             waitForCondition(timeout: 4.0) {
                 ((findField.value as? String) ?? "") == "needle"
             },
-            "Expected Cmd+F to focus right sidebar file search. value=\(String(describing: findField.value))"
+            "Expected Cmd+Shift+F to focus right sidebar file search. value=\(String(describing: findField.value))"
         )
         XCTAssertNotEqual(
             loadGotoSplit()?["browserPageTitle"],
             "cmdf-handled",
-            "Expected Cmd+F to stay out of browser page content. data=\(loadGotoSplit() ?? [:])"
+            "Expected Cmd+Shift+F to stay out of browser page content. data=\(loadGotoSplit() ?? [:])"
         )
     }
 
