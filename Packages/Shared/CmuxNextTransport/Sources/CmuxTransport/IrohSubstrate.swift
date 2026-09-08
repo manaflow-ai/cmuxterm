@@ -186,18 +186,16 @@ public struct IrohSubstrate: Sendable {
                 relay=\(addr.relayUrl() ?? "none", privacy: .public)
                 """)
         }
-        let connection: Connection
+        let peer: IrohPeerConnection
         do {
             // Keep the cancellable ConnectAttempt handle alive for the whole
             // FFI handshake. A timeout or owner shutdown cancels this task;
             // the attempt's Rust cancellation token then releases a UDP
             // blackhole instead of leaving the caller parked in `connect()`.
             let attempt = try endpoint.beginConnect(addr: addr, alpn: alpn)
-            connection = try await withTaskCancellationHandler(operation: {
+            peer = try await withTaskCancellationHandler(operation: {
                 try Task.checkCancellation()
-                let connected = try await attempt.connect()
-                try Task.checkCancellation()
-                return connected
+                return try await startPeer(role: .dialer) { try await attempt.connect() }
             }, onCancel: {
                 attempt.cancel()
             })
@@ -212,13 +210,11 @@ public struct IrohSubstrate: Sendable {
             }
             throw error
         }
-        let peer = IrohPeerConnection(connection: connection, role: .dialer)
-        await peer.start()
         if TransportDebugLog.enabled {
             TransportDebugLog.core.notice(
                 """
                 substrate dial connected conn=\(TransportDebugLog.id(peer), privacy: .public) \
-                remote=\(TransportDebugLog.hex8(connection.remoteId().toBytes()), privacy: .public) \
+                remote=\(TransportDebugLog.hex8(peer.remoteKey), privacy: .public) \
                 elapsedMs=\(TransportDebugLog.ms(since: dialStart), privacy: .public)
                 """)
         }
@@ -238,10 +234,12 @@ public struct IrohSubstrate: Sendable {
             return nil
         }
         let acceptStart = ContinuousClock.now
-        let connection: Connection
+        let peer: IrohPeerConnection
         do {
-            let accepting = try await incoming.accept()
-            connection = try await accepting.connect()
+            peer = try await startPeer(role: .acceptor) {
+                let accepting = try await incoming.accept()
+                return try await accepting.connect()
+            }
         } catch {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.error(
@@ -252,13 +250,11 @@ public struct IrohSubstrate: Sendable {
             }
             throw error
         }
-        let peer = IrohPeerConnection(connection: connection, role: .acceptor)
-        await peer.start()
         if TransportDebugLog.enabled {
             TransportDebugLog.core.notice(
                 """
                 substrate accepted conn=\(TransportDebugLog.id(peer), privacy: .public) \
-                remote=\(TransportDebugLog.hex8(connection.remoteId().toBytes()), privacy: .public) \
+                remote=\(TransportDebugLog.hex8(peer.remoteKey), privacy: .public) \
                 elapsedMs=\(TransportDebugLog.ms(since: acceptStart), privacy: .public)
                 """)
         }
