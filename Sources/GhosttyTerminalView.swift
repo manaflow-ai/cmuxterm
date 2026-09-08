@@ -10643,19 +10643,11 @@ final class GhosttySurfaceScrollView: NSView {
         scrollView.layoutSubtreeIfNeeded()
         // Size the sibling renderer from the clip view, not the outer scroll view:
         // legacy scrollers reserve a gutter that must stay outside the terminal grid.
-        let targetSize = scrollView.contentView.bounds.size
+        let targetSurfaceFrame = terminalViewportFrame
+        let targetSize = targetSurfaceFrame.size
 #if DEBUG
         logLayoutDuringActiveDrag(targetSize: targetSize)
 #endif
-        // The clip view can have a non-zero origin inside the scroll view (for
-        // example, when AppKit places a legacy scroller on the leading edge in
-        // right-to-left layout). Keep the sibling renderer aligned to that
-        // actual viewport origin instead of the outer pane frame.
-        let targetSurfaceOrigin = scrollView.convert(
-            scrollView.contentView.frame.origin,
-            to: self
-        )
-        let targetSurfaceFrame = CGRect(origin: targetSurfaceOrigin, size: targetSize)
         _ = setFrameIfNeeded(surfaceView, to: targetSurfaceFrame)
         let targetDocumentFrame = CGRect(
             origin: documentView.frame.origin,
@@ -10682,6 +10674,17 @@ final class GhosttySurfaceScrollView: NSView {
 
     private var sessionContentFrame: CGRect {
         sessionContentWidthPresentation.contentFrame(in: bounds)
+    }
+
+    private var terminalViewportFrame: CGRect {
+        // The clip view can have a non-zero origin inside the scroll view (for
+        // example, when AppKit places a legacy scroller on the leading edge in
+        // right-to-left layout). Keep the sibling renderer aligned to that
+        // actual viewport origin instead of the outer pane frame.
+        CGRect(
+            origin: scrollView.convert(scrollView.contentView.frame.origin, to: self),
+            size: scrollView.contentView.bounds.size
+        )
     }
 
     func setMobileViewportBorder(size: CGSize?, drawRight: Bool, drawBottom: Bool) {
@@ -13393,8 +13396,7 @@ final class GhosttySurfaceScrollView: NSView {
 
     private func synchronizeTerminalGeometryAfterScrollerStyleChange() {
         scrollView.layoutSubtreeIfNeeded()
-        let targetSize = scrollView.contentView.bounds.size
-        let targetSurfaceFrame = CGRect(origin: sessionContentFrame.origin, size: targetSize)
+        let targetSurfaceFrame = terminalViewportFrame
         _ = setFrameIfNeeded(surfaceView, to: targetSurfaceFrame)
         let targetDocumentFrame = CGRect(
             origin: documentView.frame.origin,
