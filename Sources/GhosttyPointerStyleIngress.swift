@@ -29,7 +29,8 @@ final class GhosttyPointerStyleIngress: Sendable {
         mailbox.activate(lifetimeId: runtimeLifetimeId, surfaceId: surfaceId)
     }
 
-    func submit(_ request: GhosttyPointerStyleIngressRequest) {
+    @discardableResult
+    func submit(_ request: GhosttyPointerStyleIngressRequest) -> Bool {
         mailbox.submit(
             request.event.terminalEvent(runtimeLifetimeId: request.runtimeLifetimeId),
             surfaceId: request.surfaceId,
