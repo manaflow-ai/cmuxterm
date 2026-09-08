@@ -169,16 +169,19 @@ struct ClaudeHookWriteAmplificationTests {
         #expect(finalAttributes[.modificationDate] as? Date == runningAttributes[.modificationDate] as? Date)
     }
 
-    @Test func runningObservationRehomesMovedSurfaceBeforeBecomingANoOp() throws {
+    @Test(arguments: [false, true])
+    func runningObservationRehomesMovedSurfaceBeforeBecomingANoOp(_ hasDestinationOwner: Bool) throws {
         let context = try Harness.makeContext(name: "hook-running-pane-move")
         defer { context.cleanup() }
         let oldWorkspaceId = "11111111-1111-1111-1111-111111111111"
         let newWorkspaceId = "33333333-3333-3333-3333-333333333333"
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "running-moved-surface"
+        let destinationSurfaceId = "44444444-4444-4444-4444-444444444444"
+        let destinationSessionId = "destination-agent"
         let now: TimeInterval = 4_102_444_800
         let active: [String: Any] = ["sessionId": sessionId, "updatedAt": now]
-        let state: [String: Any] = [
+        var state: [String: Any] = [
             "version": 1, "pendingCursorApprovalIndexInitialized": true,
             "sessions": [sessionId: [
                 "sessionId": sessionId, "workspaceId": oldWorkspaceId,
@@ -189,9 +192,25 @@ struct ClaudeHookWriteAmplificationTests {
             "activeSessionsByWorkspace": [oldWorkspaceId: active],
             "activeSessionsBySurface": [surfaceId: active],
         ]
+        if hasDestinationOwner {
+            var sessions = try #require(state["sessions"] as? [String: [String: Any]])
+            var destination = try #require(sessions[sessionId])
+            destination["sessionId"] = destinationSessionId
+            destination["workspaceId"] = newWorkspaceId
+            destination["surfaceId"] = destinationSurfaceId
+            sessions[destinationSessionId] = destination
+            state["sessions"] = sessions
+            let destinationActive: [String: Any] = [
+                "sessionId": destinationSessionId, "turnId": "destination-turn", "updatedAt": now,
+            ]
+            state["activeSessionsByWorkspace"] = [oldWorkspaceId: active, newWorkspaceId: destinationActive]
+            state["activeSessionsBySurface"] = [surfaceId: active, destinationSurfaceId: destinationActive]
+        }
         try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]).write(to: context.storeURL)
         _ = Harness.startDeliveryTargetServer(
-            context: context, surfacesByWorkspace: [oldWorkspaceId: [], newWorkspaceId: [surfaceId]],
+            context: context, surfacesByWorkspace: [
+                oldWorkspaceId: [], newWorkspaceId: hasDestinationOwner ? [surfaceId, destinationSurfaceId] : [surfaceId],
+            ],
             pidTarget: nil, surfaceTargets: [surfaceId: newWorkspaceId]
         )
         var environment = Harness.hookEnvironment(context: context)
@@ -210,7 +229,13 @@ struct ClaudeHookWriteAmplificationTests {
         let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: context.storeURL)) as? [String: Any])
         let workspaces = try #require(saved["activeSessionsByWorkspace"] as? [String: [String: Any]])
         #expect(workspaces[oldWorkspaceId] == nil)
-        #expect(workspaces[newWorkspaceId]?["sessionId"] as? String == sessionId)
+        #expect(workspaces[newWorkspaceId]?["sessionId"] as? String == (hasDestinationOwner ? destinationSessionId : sessionId))
+        let surfaces = try #require(saved["activeSessionsBySurface"] as? [String: [String: Any]])
+        #expect(surfaces[surfaceId]?["sessionId"] as? String == sessionId)
+        if hasDestinationOwner {
+            #expect(workspaces[newWorkspaceId]?["turnId"] as? String == "destination-turn")
+            #expect(surfaces[destinationSurfaceId]?["sessionId"] as? String == destinationSessionId)
+        }
         #expect(mutations(in: context).contains { $0.hasPrefix("set_status claude_code Running ") && $0.contains("--tab=\(newWorkspaceId)") })
         let baselineData = try Data(contentsOf: context.storeURL)
         let baselineMutations = mutations(in: context)
