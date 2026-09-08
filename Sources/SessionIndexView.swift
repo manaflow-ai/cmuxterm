@@ -1410,7 +1410,7 @@ private struct SessionTranscriptTurnView: View, Equatable {
             Text(row.text)
                 .cmuxFont(size: row.role.bodyFontSize, design: row.role.bodyFontDesign)
                 .foregroundColor(.primary.opacity(0.92))
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: row.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
