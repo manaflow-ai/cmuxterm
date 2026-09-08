@@ -164,15 +164,15 @@ cmux vm terminal output <id> "$t"                      # everything it printed; 
 ### `vm dev`: a folder to a running dev layout in one verb
 
 ```bash
-cmux vm dev <id>                                   # route + sync cwd + detect the dev command + named workspace + layout + open
-cmux vm dev <id> ~/src/app --name app --port 3000  # explicit folder, workspace name (default: folder basename), port
-cmux vm dev <id> --command "make serve" --no-open  # your command; nothing opens on the Mac
-cmux vm dev <id> --layout dev.json --no-sync       # your layout document instead of the built-in one; skip the push
-cmux vm dev <id> --dry-run                         # print the plan and the exact layout document; zero socket traffic
-cmux vm dev <id> --json                            # {machine, workspace_id, workspace_name, existing, remote, synced_files, detected, command, port, url, terminals: {dev, shell}, layout_applied, opened, layout}
+cmux vm dev <id>                                   # check machine + optional sync + detect command/port + layout apply --name + open
+cmux vm dev <id> ~/src/app --name app --port 3000  # explicit folder, workspace name, and port
+cmux vm dev <id> --command "make serve" --no-open  # override command; stage without opening a local pane
+cmux vm dev <id> --layout dev.json --no-sync       # custom layout; skip the push
+cmux vm dev <id> --dry-run --json                  # print the plan and JSON; zero socket traffic
+cmux vm dev <id> --sync                            # force the folder push; --no-sync forces a machine-side checkout
 ```
 
-Detection: `--command` wins; else `package.json` `scripts.dev` (or `start`) → `<pm> install && <pm> run dev` with the package manager from the lockfile (bun, pnpm, yarn, npm), `Cargo.toml` → `cargo run`, `go.mod` → `go run .`, a `Makefile` with a `dev:` target → `make dev`, `manage.py` → `python manage.py runserver 0.0.0.0:8000`, `uv.lock` → `uv sync`, `pyproject.toml` → `pip install -e .`, `requirements.txt` → `pip install -r requirements.txt`, a bare `index.html` → `python3 -m http.server 8000`; otherwise a shell-only layout and a line saying so. The port comes from `--port`, else `-p`/`--port`/`PORT=` in the script line, else the framework's default (next/vite/astro…) when the script or dependencies name it. The built-in layout is a horizontal split (0.62): the dev command on the left, a shell (focused) on the right with a browser tab on `http://localhost:<port>` when a port is known. Re-running is idempotent: `workspace <name> (existing)`, and when that workspace already has live terminals the layout is kept (no second dev server). The `next:` lines are the `terminal output` / `terminal send` commands for the dev terminal.
+Detection: `--command` wins; otherwise `package.json` (lockfile selects bun, pnpm, yarn, or npm; `dev` then `start`), `Cargo.toml` → `cargo run`, `go.mod` → `go run .`, `Makefile` with `dev:` → `make dev`, `manage.py` → `python manage.py runserver 0.0.0.0:8000`, `uv.lock` → `uv sync`, `pyproject.toml` → `pip install -e .`, `requirements.txt` → `pip install -r requirements.txt`, or `index.html` → `python3 -m http.server 8000`; otherwise the layout is shell-only. The port comes from `--port`, then `-p`/`--port`/`PORT=` in the script, then a framework default (Next/Nuxt/react-scripts 3000; Vite/SvelteKit/Remix 5173; Astro 4321; Angular 4200; Expo 8081; Wrangler 8787). The built-in layout is a horizontal split (0.62): the dev command on the left, a focused shell on the right, and a browser tab on `http://localhost:<port>` when a port is known. `vm dev` creates or reuses the workspace through `vm layout apply --name`; if it already has live terminals, the layout is kept and a second dev server is not started. `--no-open` prints the workspace-open command. The `next:` lines are the `terminal output` / `terminal send` commands for the dev terminal.
 
 ## Files
 
@@ -192,7 +192,7 @@ Aliases: `upload` / `download`. Transfers ride the exec channel (no SSH), chunke
 ```bash
 cmux vm layout export <id> [<ws-id|name>] [--raw] [--json]   # {"name","cwd","layout": Node}; default: the focused workspace; --raw: the daemon LayoutDocument (pane/tab ids, split ids)
 cmux vm layout apply <id> <file>|- [--name <n>] [--cwd <dir>] [--open] [--json]   # build a NEW workspace from the document; --open shows it here with the same geometry
-cmux vm layout apply <id> <file> --workspace <ws-id>          # into an existing EMPTY workspace (from `vm workspace new --no-open`); a non-empty one is refused
+cmux vm layout apply <id> <file> --workspace <ws-id>          # into an already-empty workspace; a non-empty one is refused. `vm workspace new --no-open` creates a starter shell, so prefer `--name` or `vm dev`.
 cmux vm layout apply <id> --from-saved <name> [--open]        # a Mac saved layout (`cmux layout save <name>`), applied in the cloud
 ```
 

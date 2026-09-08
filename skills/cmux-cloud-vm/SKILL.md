@@ -1,6 +1,6 @@
 ---
 name: cmux-cloud-vm
-description: Route work to cmux Cloud machines (persistent cloud VMs) from the CLI — `cmux vm route`/`run`/`agent` pick a machine for you; `vm tree` / `surface ls` show the surface catalog (This Mac and every machine: terminals, VNC screens, browsers) and `vm open` / `surface open` put any of them in a pane; plus create, exec, push/pull, ports, checkpoints, forks. Use when an agent should run builds, tests, servers, desktop/browser tasks, or another agent on a cloud machine instead of the local Mac, or when the user says "cloud machine", "cloud VM", "run it in the cloud", or "cmux vm".
+description: "Route work to cmux Cloud machines (persistent cloud VMs) from the CLI — `cmux vm route`/`run`/`agent` pick a machine for you; `vm tree` / `surface ls` show the surface catalog (This Mac and every machine: terminals, VNC screens, browsers) and `vm open` / `surface open` put any of them in a pane; plus create, exec, push/pull, ports, checkpoints, forks. Use when an agent should run builds, tests, servers, desktop/browser tasks, or another agent on a cloud machine instead of the local Mac, or when the user says \"cloud machine\", \"cloud VM\", \"run it in the cloud\", or \"cmux vm\"."
 ---
 
 # cmux Cloud Machines
@@ -73,10 +73,22 @@ cmux vm terminal output <id> <term>     # the full output so far (scrollback), w
 cmux vm exec <id> --timeout 600 -- <command>   # one command up to 15 minutes; default cap is 30 s
 cmux vm pause <id> / cmux vm resume <id>   # park a machine when the work is done (stops its compute); resume brings it back
 cmux vm agent --agent claude --machine <id> --wait --output --timeout 1800 -- "…"   # until-done: block, then print everything the agent wrote; exit code passes through
-cmux vm dev <id> [<folder>] [--name <ws>] [--port <n>] [--command "<cmd>"] [--no-open] [--dry-run]   # folder → synced, dev command detected, named workspace + layout, opened with geometry
+cmux vm dev <id> [<folder>] [--name <ws>] [--layout <file>] [--command "<cmd>"] [--port <n>] [--remote <path>] [--sync|--no-sync] [--no-open] [--dry-run] [--json]   # route + optional sync + detected command + named workspace/layout
 ```
 
 `terminal send/wait/read` is the interactive counterpart of `exec`: a REPL, a TUI, a long test run, or another agent's session on the machine can be driven and observed without attaching a pane or stealing focus. Start the program with `cmux surface new-terminal --machine <id> --no-open -- <cmd>` (its `term_…` id comes back on the OK line), then loop send → wait → read.
+
+### One-command dev setup
+
+Use `vm dev` when the input is a local project folder and the desired result is a running, inspectable dev layout:
+
+```bash
+cmux vm dev <machine> [<folder>] [--name <workspace>] [--layout <file>] [--command "<cmd>"] [--port <n>] [--remote <path>] [--sync|--no-sync] [--no-open] [--dry-run] [--json]
+```
+
+It checks the machine, optionally pushes the folder (default remote `work/<basename>`), detects a command and port, then creates or reuses the named workspace through `vm layout apply --name`. The built-in layout is a dev terminal on the left and a focused shell on the right, with a browser tab when a port is known. Re-running with the same workspace name preserves a workspace that already has live terminals; it does not start a second dev server. `--command` and `--port` override detection, `--layout` replaces the built-in layout, and `--dry-run` performs no socket calls. Sync defaults on when a folder or recognizable project is supplied; use `--no-sync` for a machine-side checkout. `--no-open` stages the workspace and prints the `vm workspace open` command instead of opening a local pane. `--json` includes `machine`, `workspace_id`, `workspace_name`, `existing`, `remote`, `synced`, `detected`, `command`, `port`, `url`, terminal ids, `layout_applied`, and `opened`.
+
+The detector checks, in order, `package.json`, `Cargo.toml`, `go.mod`, `Makefile`, `manage.py`, `uv.lock`, `pyproject.toml`, `requirements.txt`, and `index.html`. For JavaScript projects it chooses bun, pnpm, yarn, or npm from the lockfile, prefers `dev` then `start`, and infers a port from the script or framework defaults. When no project is recognized, it stages a shell-only workspace; pass `--command` to run something anyway.
 
 `vm agent` starts the agent as a **detached terminal in the machine's cmux-tui session**: it survives closed panes and reconnects from any device (`cmux vm open <machine>/<ws>/<term>`). Long shell work should also be backgrounded (see recipes) — never hold a long `exec` open.
 
@@ -111,7 +123,7 @@ When a person clicks a machine workspace they land in a **layout**: which panes 
 ```bash
 cmux vm layout export <m> <ws>                    # {"name","cwd","layout": …} for that workspace (--raw: the daemon's exact LayoutDocument)
 cmux vm layout apply  <m> dev.json --name app     # build a NEW workspace on the machine from the document (never touches a non-empty one)
-cmux vm layout apply  <m> - --workspace <ws> <<'JSON'   # stdin; --workspace must name an EMPTY workspace (vm workspace new --no-open)
+cmux vm layout apply  <m> - --workspace <ws> <<'JSON'   # stdin; --workspace must already be empty; prefer --name or vm dev
 {"direction":"horizontal","split":0.6,"children":[
   {"pane":{"surfaces":[{"type":"terminal","name":"agent","cwd":"work/app","command":"claude"}]}},
   {"direction":"vertical","children":[
@@ -204,7 +216,7 @@ provider subcommands pass through unchanged.
 - **Stay headless while working** (`--detach`, `--no-open`, `--print`); open panes (`vm open`, `vm tree`'s addresses) to *show* results.
 - **Checkpoint before risky operations** (`vm snapshot`), fork instead of experimenting on a machine the user relies on.
 - **Only destroy what you created this session.** `vm rm` is permanent.
-- **Stage, then show.** Compose the machine workspace headlessly (`vm workspace new --no-open`, `vm layout apply`, `vm env set`, `vm push`), verify with `vm tree`/`terminal read`, and only then `vm workspace open` / `--open` so the person lands in a finished layout, not a half-built one.
+- **Stage, then show.** Prefer `vm dev --no-open` for a project, or `vm layout apply --name <workspace>` for a hand-authored layout; `vm workspace new --no-open` intentionally preserves a starter-shell workspace and is not an empty layout target. Verify with `vm tree`/`terminal read`, then `vm workspace open` so the person lands in a finished layout, not a half-built one.
 
 ## Common issues and fixes
 
@@ -216,6 +228,7 @@ provider subcommands pass through unchanged.
 | `vm route` says it would provision | The pool is empty/busy. Check the plan meter; `--provision` (or `vm run`) creates one. |
 | Create fails with an active-limit error | Plan cap (free: 1). Report it; let the user upgrade or choose a machine to remove. |
 | `vm open <m>/<ws>` says no such workspace | Names are the cmux-tui workspace names; copy the `ws_…` id from `cmux vm tree <m>`. |
+| `vm layout apply --workspace` says the workspace is not empty | `vm workspace new --no-open` preserves a starter shell; use `vm layout apply --name <workspace>` or `vm dev` instead. |
 | Pushed a repo but `.git` is missing | `push` skips `.git`, `node_modules`, `.venv` by default; `--no-default-excludes` or ship a bundle (recipes). |
 | Push/pull refuses a large payload | 256 MB cap. Clone/download inside the machine instead. |
 | Command works in `vm shell` but not `vm exec` | Exec has no TTY/stdin; use non-interactive flags or `vm agent`/`vm.terminal_new` for interactive programs. |

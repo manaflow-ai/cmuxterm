@@ -18,12 +18,14 @@ cmux vm tree                          # what is already running where (terminals
 One verb does the whole thing when the project has a recognizable dev command:
 
 ```bash
-cmux vm dev <id>                       # route → push cwd → detect `bun run dev` (or cargo/go/django/make dev) → workspace named after the folder → dev pane + shell + browser tab → opened on the Mac with geometry
-cmux vm dev <id> --port 3000 --name app   # when the port is not in the script line, or you want another workspace name
+cmux vm dev <id>                       # route → optional push → detect command/port → layout apply --name → open geometry on the Mac
+cmux vm dev <id> --port 3000 --name app   # override the detected port and workspace name
+cmux vm dev <id> --no-open                # stage the workspace; print `vm workspace open` instead of opening a local pane
+cmux vm dev <id> --dry-run --json         # inspect the plan without socket traffic
 cmux vm push <id> . work/app --watch   # in a second terminal: keep the machine in sync while you edit locally
 ```
 
-By hand, the same steps as separate primitives (use these when the dev command needs a pidfile, a database, or a seed step):
+By hand, the same steps as separate primitives (use these when the dev command needs a pidfile, a database, or a seed step). For a layout, use `vm layout apply --name`; do not create a starter-shell workspace with `vm workspace new --no-open` and then expect it to be empty:
 
 ```bash
 cmux vm run --sync -- bun install                                # --sync runs inside the synced work/<dir>
