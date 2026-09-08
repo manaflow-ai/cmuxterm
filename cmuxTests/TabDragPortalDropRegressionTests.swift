@@ -52,13 +52,13 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
 
     func testLiveFilePreviewRoutesBrowserPortalMouseUpToPaneDropTarget() {
         XCTAssertTrue(
-            BrowserWindowPortal.shouldRoutePointerUpToPaneDropTarget(
+            WindowBrowserHostView.shouldRoutePointerUpToPaneDropTarget(
                 hasActiveDropDrag: false,
                 hasLiveFileDropPayload: true
             )
         )
         XCTAssertFalse(
-            BrowserWindowPortal.shouldRoutePointerUpToPaneDropTarget(
+            WindowBrowserHostView.shouldRoutePointerUpToPaneDropTarget(
                 hasActiveDropDrag: false,
                 hasLiveFileDropPayload: false
             )
