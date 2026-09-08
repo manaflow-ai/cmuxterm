@@ -206,12 +206,24 @@ extension CMUXCLI {
             print(jsonString(outcome.jsonPayload))
             return
         }
+        if jsonOutput {
+            var payload = outcome.jsonPayload
+            payload["event"] = "synced"
+            payload["files"] = Self.vmPushTreeSignature(
+                root: localURL,
+                isDirectory: isDirectory.boolValue,
+                excludes: excludes
+            ).count
+            payload["sync"] = 0
+            print(jsonString(payload))
+            fflush(stdout)
+        }
         // `vm run` embeds pushes: stdout stays reserved for the command's own
         // output, so the transfer summary goes to stderr instead.
         for line in outcome.summaryLines() {
-            if quiet {
-                cliWriteStderr(line + "\n")
-            } else if jsonOutput {
+            if jsonOutput {
+                continue
+            } else if quiet {
                 cliWriteStderr(line + "\n")
             } else {
                 print(line)
