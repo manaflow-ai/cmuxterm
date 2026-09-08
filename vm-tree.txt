@@ -1,0 +1,8 @@
+vm-fec08a3540914755b80c5db2bac679d4  running  · link connected
+  workspaces/
+    shell  ws_4dff17dbbce76c1bc30dd0a057733552  *  (cmux vm open vm-fec08a3540914755b80c5db2bac679d4/ws_4dff17dbbce76c1bc30dd0a057733552)
+      ● term_bbde3504637f20bacf40ddbbcd52a4e8  /root  (open: 33BAFAFB)  (cmux vm open vm-fec08a3540914755b80c5db2bac679d4/ws_4dff17dbbce76c1bc30dd0a057733552/term_bbde3504637f20bacf40ddbbcd52a4e8)  (+1 hidden)
+        ↳ tab  ● term_86508ae3e2e1ab0e338e4140567db8a1  /root  (cmux vm open vm-fec08a3540914755b80c5db2bac679d4/ws_4dff17dbbce76c1bc30dd0a057733552/term_86508ae3e2e1ab0e338e4140567db8a1)
+  terminals/
+    ● term_865  /root  (cmux surface open vm-fec08a3540914755b80c5db2bac679d4/terminal/term_86508ae3e2e1ab0e338e4140567db8a1)
+    ● term_bbd  /root  (open: 33BAFAFB)  (cmux surface open vm-fec08a3540914755b80c5db2bac679d4/terminal/term_bbde3504637f20bacf40ddbbcd52a4e8)

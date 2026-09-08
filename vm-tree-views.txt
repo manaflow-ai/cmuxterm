@@ -1,0 +1,2 @@
+terminal 567db8a1  workspace=shell  pane=…0bfb47  tab_index=None  focused=False  pane_index=0  screen_index=None
+terminal cd52a4e8  workspace=shell  pane=…0bfb47  tab_index=None  focused=True  pane_index=0  screen_index=None
