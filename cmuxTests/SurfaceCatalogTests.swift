@@ -1175,7 +1175,6 @@ struct SurfaceCatalogTests {
         #expect(provider.closedTerminals.isEmpty)
         #expect(provider.closedRemoteWorkspaces == ["ws_empty"])
     }
-
     private func cloudWorkspaceRenameSnapshot(
         generation: String,
         revision: UInt64,
