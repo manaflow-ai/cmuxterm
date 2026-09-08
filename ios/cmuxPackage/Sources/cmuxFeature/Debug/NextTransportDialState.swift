@@ -22,11 +22,18 @@ public enum NextTransportDialState: Equatable, Sendable {
     /// Short display string for the dev screen and log lines.
     public var displayDescription: String {
         switch self {
-        case .idle: return "idle"
-        case .connecting: return "connecting"
-        case .ready: return "ready"
-        case .degraded: return "degraded"
-        case .closed(let code, _): return "closed (\(code))"
+        case .idle:
+            return String(localized: "nextTransport.dev.state.idle", defaultValue: "idle")
+        case .connecting:
+            return String(localized: "nextTransport.dev.state.connecting", defaultValue: "connecting")
+        case .ready:
+            return String(localized: "nextTransport.dev.state.ready", defaultValue: "ready")
+        case .degraded:
+            return String(localized: "nextTransport.dev.state.degraded", defaultValue: "degraded")
+        case .closed(let code, _):
+            return String(
+                format: String(localized: "nextTransport.dev.state.closed", defaultValue: "closed (%@)"),
+                code)
         }
     }
 }

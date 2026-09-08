@@ -126,7 +126,11 @@ struct NextTransportDebugMenuButtons: View {
         let status = " · \(runtime.readiness) · \(runtime.state)"
         return admitted == 0
             ? status
-            : status + " · \(admitted) admitted"
+            : status + String(
+                format: String(
+                    localized: "debug.menu.nextTransport.admitted",
+                    defaultValue: " · %lld admitted"),
+                Int64(admitted))
     }
 }
 #endif

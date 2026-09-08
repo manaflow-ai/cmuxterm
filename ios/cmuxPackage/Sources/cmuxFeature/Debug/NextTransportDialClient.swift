@@ -2,6 +2,7 @@
 import CmuxAuthRuntime
 import CmuxNextTransport
 import Foundation
+import IrohLib
 import Observation
 import OSLog
 import Security
@@ -135,7 +136,7 @@ public final class NextTransportDialClient {
     let pushedRelayKeychainService: String
     let sleep: @Sendable (Duration) async throws -> Void
 
-    private struct RenewalRetryPolicy: Sendable {
+    struct RenewalRetryPolicy: Sendable {
         let minimumDelaySeconds: Int64 = 10
         let maximumDelaySeconds: Int64 = 300
 

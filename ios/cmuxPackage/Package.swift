@@ -25,6 +25,9 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(
+            url: "https://github.com/manaflow-ai/iroh-ffi.git",
+            exact: "1.0.2-cmux.7"),
         .package(path: "../../Packages/Shared/CMUXAuthCore"),
         .package(path: "../../Packages/Shared/CmuxAuthRuntime"),
         .package(path: "../../Packages/Shared/CmuxClientConfig"),
@@ -55,6 +58,7 @@ let package = Package(
         .target(
             name: "cmuxFeature",
             dependencies: [
+                .product(name: "IrohLib", package: "iroh-ffi"),
                 "CMUXAuthCore",
                 "CmuxAuthRuntime",
                 "CmuxClientConfig",

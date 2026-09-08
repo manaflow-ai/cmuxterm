@@ -1,6 +1,11 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "nextTransport.dev.state.idle": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"idle"}},"ja":{"stringUnit":{"state":"translated","value":"待機中"}}}},
+    "nextTransport.dev.state.connecting": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"connecting"}},"ja":{"stringUnit":{"state":"translated","value":"接続中"}}}},
+    "nextTransport.dev.state.ready": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"ready"}},"ja":{"stringUnit":{"state":"translated","value":"接続済み"}}}},
+    "nextTransport.dev.state.degraded": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"degraded"}},"ja":{"stringUnit":{"state":"translated","value":"接続不安定"}}}},
+    "nextTransport.dev.state.closed": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"closed (%@)"}},"ja":{"stringUnit":{"state":"translated","value":"終了（%@）"}}}},
     "nextTransport.dev.routing": {
       "extractionState": "manual",
       "localizations": {
