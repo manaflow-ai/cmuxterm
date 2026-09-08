@@ -48,6 +48,10 @@ actor CloudLoopbackPortForward {
     /// Every connection the listener ever accepted, for diagnostics and tests.
     private(set) var acceptedConnectionCount = 0
     private var stopped = false
+    private var started = false
+    /// Resolves once the listener reports `.cancelled` or `.failed`, so a stop
+    /// can wait until the port is actually released.
+    private let listenerEnded = CloudLinkFirstValue<Bool>()
 
     init(target: CloudPortForwardTarget, dialer: any CloudHubDialing, relay: CloudPortForwardRelay? = nil) throws {
         self.target = target
@@ -66,7 +70,7 @@ actor CloudLoopbackPortForward {
     @discardableResult
     func start() async throws -> UInt16 {
         let bound = CloudLinkFirstValue<Result<UInt16, ForwardError>>()
-        listener.stateUpdateHandler = { [weak self, listener] state in
+        listener.stateUpdateHandler = { [weak self, listener, listenerEnded] state in
             switch state {
             case .ready:
                 if let port = listener.port?.rawValue, port != 0 {
@@ -76,9 +80,11 @@ actor CloudLoopbackPortForward {
                 }
             case .failed(let error):
                 bound.resolve(.failure(.listenerFailed(error.localizedDescription)))
+                listenerEnded.resolve(true)
                 Task { await self?.listenerDidFail(error) }
             case .cancelled:
                 bound.resolve(.failure(.listenerCancelled))
+                listenerEnded.resolve(true)
             case .setup, .waiting:
                 break
             @unknown default:
@@ -88,6 +94,7 @@ actor CloudLoopbackPortForward {
         listener.newConnectionHandler = { [weak self] connection in
             Task { await self?.accept(connection) }
         }
+        started = true
         listener.start(queue: queue)
         switch await bound.result ?? .failure(.listenerCancelled) {
         case .success(let port):
@@ -99,7 +106,7 @@ actor CloudLoopbackPortForward {
             return port
         case .failure(let error):
             // A listener that never became usable must not stay bound.
-            stop()
+            await stop()
             throw error
         }
     }
@@ -118,10 +125,19 @@ actor CloudLoopbackPortForward {
         target = newTarget
     }
 
-    func stop() {
+    /// Stops accepting and ends every connection. Returns once the listener
+    /// has released its port, so a caller that closes a forward can rely on
+    /// the local port being free again.
+    func stop() async {
+        tearDown()
+        if started {
+            _ = await listenerEnded.result
+        }
+    }
+
+    private func tearDown() {
         stopped = true
         isListening = false
-        listener.stateUpdateHandler = nil
         listener.newConnectionHandler = nil
         listener.cancel()
         for connection in connections.values {
@@ -162,6 +178,6 @@ actor CloudLoopbackPortForward {
     /// its connections down so the forwarder replaces it on the next use.
     private func listenerDidFail(_ error: NWError) {
         logger.error("loopback listener on port \(self.localPort, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-        stop()
+        tearDown()
     }
 }
