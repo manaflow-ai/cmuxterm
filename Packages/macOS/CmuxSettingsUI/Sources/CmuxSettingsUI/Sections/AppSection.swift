@@ -5,6 +5,7 @@ import SwiftUI
 /// **App** section — mirrors the legacy in-app section row-for-row
 /// inside a single `SettingsCard`: Language, Appearance, App Icon,
 /// New Workspace Placement, Inherit Working Directory, Minimal Mode,
+/// Keep Pane Expanded on New Tab,
 /// Keep Workspace Open When Closing Last Surface, Focus Pane on
 /// First Click, File Drops, Open Files With, Open Supported Files in
 /// cmux, Terminal Config link, Open Markdown in cmux Viewer,
@@ -27,6 +28,7 @@ public struct AppSection: View {
     @State private var appIcon: DefaultsValueModel<AppIconMode>
     @State private var placement: DefaultsValueModel<WorkspacePlacement>
     @State private var inheritDir: DefaultsValueModel<Bool>
+    @State private var keepExpandedOnNewTab: DefaultsValueModel<Bool>
     @State private var minimalMode: DefaultsValueModel<WorkspacePresentationMode>
     @State private var keepWorkspaceOpen: DefaultsValueModel<Bool>
     @State private var firstClick: DefaultsValueModel<Bool>
@@ -89,6 +91,7 @@ public struct AppSection: View {
         _appIcon = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.appIcon))
         _placement = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.newWorkspacePlacement))
         _inheritDir = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.workspaceInheritWorkingDirectory))
+        _keepExpandedOnNewTab = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.keepExpandedOnNewTab))
         _minimalMode = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.presentationMode))
         _keepWorkspaceOpen = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.keepWorkspaceOpenWhenClosingLastSurface))
         _firstClick = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.app.focusPaneOnFirstClick))
@@ -155,7 +158,23 @@ public struct AppSection: View {
             mainCard
         }
         .task {
-            startSettingsObservation([language, appearance, appIcon, placement, inheritDir, minimalMode, keepWorkspaceOpen, firstClick, focusHistoryIncludesPanesAndTabs, fileDrop, preferredEditor, openSupported, openMarkdown, globalFontMagnification, markdownFontSize, markdownFontFamily, markdownMaxWidth, canvasPaneGap, canvasSnapping, fileEditorWordWrap, fileEditorSyntaxHighlighting, fileEditorLineNumbers, fileEditorIndentGuides, fileEditorCurrentLineHighlight, fileEditorTabWidth, iMessage, reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing, paneFlash, desktopNotifications, agentPermissionPrompt, agentTurnComplete, agentIdleReminder, soundName, soundCommand, customSoundFile, soundOverrides, telemetry, confirmQuit, warnCloseTab, warnCloseX, hideCloseButton, renameSelects, paletteAllSurfaces])
+            startSettingsObservation([
+                language, appearance, appIcon, placement, inheritDir,
+                keepExpandedOnNewTab, minimalMode, keepWorkspaceOpen, firstClick,
+                focusHistoryIncludesPanesAndTabs, fileDrop, preferredEditor,
+                openSupported, openMarkdown, globalFontMagnification,
+                markdownFontSize, markdownFontFamily, markdownMaxWidth,
+                canvasPaneGap, canvasSnapping, fileEditorWordWrap,
+                fileEditorSyntaxHighlighting, fileEditorLineNumbers,
+                fileEditorIndentGuides, fileEditorCurrentLineHighlight,
+                fileEditorTabWidth, iMessage,
+                reorder, dockBadge, menuBarOnly, showInMenuBar, paneRing,
+                paneFlash, desktopNotifications, agentPermissionPrompt,
+                agentTurnComplete, agentIdleReminder, soundName, soundCommand,
+                customSoundFile, soundOverrides, telemetry, confirmQuit,
+                warnCloseTab, warnCloseX, hideCloseButton, renameSelects,
+                paletteAllSurfaces
+            ])
             if soundAgents.isEmpty {
                 soundAgents = await hostActions.notificationSoundAgentOptions()
             }
@@ -267,6 +286,24 @@ public struct AppSection: View {
                     .labelsHidden()
                     .controlSize(.small)
                     .accessibilityIdentifier("SettingsWorkspaceInheritWorkingDirectoryToggle")
+            }
+            SettingsCardDivider()
+
+            // Keep Pane Expanded on New Tab
+            SettingsCardRow(
+                configurationReview: .json("app.keepExpandedOnNewTab"),
+                String(localized: "settings.app.keepExpandedOnNewTab", defaultValue: "Keep Pane Expanded on New Tab"),
+                subtitle: keepExpandedOnNewTab.current
+                    ? String(localized: "settings.app.keepExpandedOnNewTab.subtitleOn", defaultValue: "New tabs created in a zoomed pane keep that pane expanded and take focus.")
+                    : String(localized: "settings.app.keepExpandedOnNewTab.subtitleOff", defaultValue: "Creating a new tab returns the workspace to the normal split layout.")
+            ) {
+                Toggle("", isOn: Binding(
+                    get: { keepExpandedOnNewTab.current },
+                    set: { keepExpandedOnNewTab.set($0) }
+                ))
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityIdentifier("SettingsKeepExpandedOnNewTabToggle")
             }
             SettingsCardDivider()
 
