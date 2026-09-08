@@ -32,7 +32,7 @@ final class AgentStallSupervisor {
     var statesByPanelID: [UUID: AgentStallSupervisorPanelState] = [:]
     var internalInputPanelIDs: Set<UUID> = []
 
-    private let outputDemand: AgentStallOutputDemand
+    fileprivate let outputDemand: AgentStallOutputDemand
     private var settingsObserver: NSObjectProtocol? = nil
 
     init(
