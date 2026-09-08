@@ -9,6 +9,7 @@ import base64
 import json
 import os
 import plistlib
+import re
 import shutil
 import socket
 import subprocess
@@ -624,37 +625,23 @@ def test_live_socket_injects_supported_hooks_without_unlocking_bypass(failures: 
             failures,
         )
 
-    # Regression for #9693: ordinary tool calls must not spawn a cmux hook
-    # process. Only the two blocking tools that need the bypassPermissions
-    # fallback retain the async PreToolUse bridge.
-    ordinary_tool_groups = [
-        group
-        for group in pre_tool_use_groups
-        if group.get("matcher") in (None, "", "*")
-    ]
-    expect(
-        not ordinary_tool_groups,
-        f"PreToolUse should not install a catch-all per-tool hook, got {ordinary_tool_groups}",
-        failures,
-    )
-    for tool_name in ("AskUserQuestion", "ExitPlanMode"):
-        matching_groups = [group for group in pre_tool_use_groups if group.get("matcher") == tool_name]
+    # Ordinary tools must still deliver the resume signal after a question,
+    # plan approval, or native permission prompt. The CLI deduplicates unchanged
+    # running observations; removing the hook also removes that transition.
+    for tool_name in ("Bash", "Read", "AskUserQuestion", "ExitPlanMode"):
+        matching_hooks = [
+            hook
+            for group in pre_tool_use_groups
+            if group.get("matcher") in (None, "", "*")
+            or re.fullmatch(group["matcher"], tool_name)
+            for hook in group.get("hooks", [])
+            if hook.get("command") == '"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}" hooks claude pre-tool-use'
+        ]
         expect(
-            matching_groups,
-            f"PreToolUse should retain the {tool_name} needs-input bridge, got {pre_tool_use_groups}",
+            len(matching_hooks) == 1 and matching_hooks[0].get("async") is True,
+            f"{tool_name} should deliver exactly one async lifecycle observation, got {matching_hooks}",
             failures,
         )
-        if matching_groups:
-            matching_hooks = matching_groups[0].get("hooks", [])
-            expect(
-                any(
-                    hook.get("command") == '"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}" hooks claude pre-tool-use'
-                    and hook.get("async") is True
-                    for hook in matching_hooks
-                ),
-                f"{tool_name} should call the async needs-input bridge, got {matching_hooks}",
-                failures,
-            )
     permission_request_hooks = hooks.get("PermissionRequest", [{}])[0].get("hooks", [{}])
     expect(
         any(h.get("command") == '"${CMUX_CLAUDE_HOOK_CMUX_BIN:-cmux}" hooks feed --source claude' for h in permission_request_hooks),

@@ -51,16 +51,17 @@ struct ClaudeHookWriteAmplificationTests {
         environment["CMUX_WORKSPACE_ID"] = workspaceId
         environment["CMUX_SURFACE_ID"] = surfaceId
 
-        let result = Harness.runHookProcess(
-            context: context,
-            arguments: ["hooks", "claude", "pre-tool-use"],
-            environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default","cwd":"\#(context.root.path)"}"#
-        )
-
-        #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 0, Comment(rawValue: result.stderr))
-        #expect(result.stdout == "{}\n")
+        for _ in 0..<20 {
+            let result = Harness.runHookProcess(
+                context: context,
+                arguments: ["hooks", "claude", "pre-tool-use"],
+                environment: environment,
+                standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default","cwd":"\#(context.root.path)"}"#
+            )
+            #expect(!result.timedOut, Comment(rawValue: result.stderr))
+            #expect(result.status == 0, Comment(rawValue: result.stderr))
+            #expect(result.stdout == "{}\n")
+        }
         #expect(
             !context.state.snapshot().contains { command in
                 command.contains(#""method":"feed.push""#)
@@ -79,5 +80,68 @@ struct ClaudeHookWriteAmplificationTests {
             finalAttributes[.modificationDate] as? Date == initialModificationDate,
             "An unchanged session must not be rewritten"
         )
+    }
+
+    @Test(arguments: ["AskUserQuestion", "ExitPlanMode", "permission_prompt"])
+    func resumeClearsAttentionBeforeOrdinaryObservationsBecomeNoOps(_ trigger: String) throws {
+        let context = try Harness.makeContext(name: "hook-resume-write-amplification")
+        defer { context.cleanup() }
+        let workspaceId = "11111111-1111-1111-1111-111111111111"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+        let sessionId = "resume-write-amplification-session"
+        try Harness.writeSessionStore(
+            to: context.storeURL, sessionId: sessionId,
+            workspaceId: workspaceId, surfaceId: surfaceId, cwd: context.root.path
+        )
+        _ = Harness.startDeliveryTargetServer(
+            context: context, surfacesByWorkspace: [workspaceId: [surfaceId]],
+            pidTarget: nil, surfaceTargets: [surfaceId: workspaceId]
+        )
+        var environment = Harness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = workspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+        let isPermissionPrompt = trigger == "permission_prompt"
+        let blockingInput = isPermissionPrompt
+            ? #"{"session_id":"\#(sessionId)","hook_event_name":"Notification","notification_type":"permission_prompt","message":"Bash needs approval","cwd":"\#(context.root.path)"}"#
+            : #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"\#(trigger)","permission_mode":"bypassPermissions","cwd":"\#(context.root.path)"}"#
+        let blocking = Harness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", isPermissionPrompt ? "notification" : "pre-tool-use"],
+            environment: environment, standardInput: blockingInput
+        )
+        #expect(!blocking.timedOut, Comment(rawValue: blocking.stderr))
+        try #require(blocking.status == 0, Comment(rawValue: blocking.stderr))
+        #expect(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)?["agentLifecycle"] as? String == "needsInput")
+        #expect(context.state.snapshot().contains { $0.hasPrefix("notify_target_async ") })
+        let beforeResumeCount = context.state.snapshot().count
+        let ordinaryInput = #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default","cwd":"\#(context.root.path)"}"#
+        let resumed = Harness.runHookProcess(
+            context: context, arguments: ["hooks", "claude", "pre-tool-use"],
+            environment: environment, standardInput: ordinaryInput
+        )
+        #expect(!resumed.timedOut, Comment(rawValue: resumed.stderr))
+        try #require(resumed.status == 0, Comment(rawValue: resumed.stderr))
+        #expect(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)?["agentLifecycle"] as? String == "running")
+        let resumedCommands = context.state.snapshot().dropFirst(beforeResumeCount)
+        #expect(resumedCommands.contains { $0 == "clear_notifications --tab=\(workspaceId) --panel=\(surfaceId)" })
+        #expect(resumedCommands.contains { $0.hasPrefix("set_status claude_code Running ") })
+
+        let runningData = try Data(contentsOf: context.storeURL)
+        let runningAttributes = try FileManager.default.attributesOfItem(atPath: context.storeURL.path)
+        let beforeNoOpCount = context.state.snapshot().count
+        for _ in 0..<5 {
+            let result = Harness.runHookProcess(
+                context: context, arguments: ["hooks", "claude", "pre-tool-use"],
+                environment: environment, standardInput: ordinaryInput
+            )
+            #expect(!result.timedOut, Comment(rawValue: result.stderr))
+            #expect(result.status == 0, Comment(rawValue: result.stderr))
+            #expect(result.stdout == "{}\n")
+        }
+        #expect(context.state.snapshot().count == beforeNoOpCount)
+        #expect(try Data(contentsOf: context.storeURL) == runningData)
+        let finalAttributes = try FileManager.default.attributesOfItem(atPath: context.storeURL.path)
+        #expect(finalAttributes[.systemFileNumber] as? NSNumber == runningAttributes[.systemFileNumber] as? NSNumber)
+        #expect(finalAttributes[.modificationDate] as? Date == runningAttributes[.modificationDate] as? Date)
     }
 }
