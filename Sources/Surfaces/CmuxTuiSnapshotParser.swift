@@ -556,8 +556,6 @@ struct CmuxTuiSnapshotParser: Sendable {
                 resource.remoteViews = views
                 resource.remoteWorkspace = views.first?.workspace
                 resources.append(resource)
-            default:
-                continue
             }
         }
         return resources.sorted(by: resourceComesBefore)
