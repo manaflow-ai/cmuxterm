@@ -2019,7 +2019,7 @@ describe("VM Effect workflows", () => {
         };
       }),
     };
-    const error = await Effect.runPromise(openVmCmuxRemote({ userId: vm.userId, providerVmId: vm.providerVmId }).pipe(
+    const error = await Effect.runPromise(openVmCmuxRemote({ userId: vm.userId, providerVmId: "vm-remote-unsupported" }).pipe(
       Effect.flip,
       Effect.provide(workflowLayer(repo, provider)),
     ));
