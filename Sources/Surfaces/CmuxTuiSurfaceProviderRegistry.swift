@@ -115,7 +115,10 @@ final class CmuxTuiSurfaceProviderRegistry {
             }
             refreshInFlight = task
             let listed = await task.value
-            if refreshGeneration == generation {
+            // Clear by identity: a delete can bump the generation under this
+            // refresh, and a finished (even aborted) task must never stay
+            // cached for the next poll to wait on.
+            if refreshInFlight == task {
                 refreshInFlight = nil
             }
             return listed
