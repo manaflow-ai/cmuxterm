@@ -9,7 +9,6 @@ import Testing
 #endif
 
 @MainActor
-@Suite(.serialized)
 
 extension SurfaceResumeAgentBindingGenerationTests {
     @Test("An exact live runtime generation authorizes a newer binding")

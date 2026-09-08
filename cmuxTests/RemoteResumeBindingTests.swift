@@ -1100,7 +1100,7 @@ struct RemoteResumeBindingTests {
         }
     }
 
-    func makeRelayedFixture() throws -> (
+    fileprivate func makeRelayedFixture() throws -> (
         snapshot: SessionWorkspaceSnapshot,
         workspaceID: UUID,
         surfaceID: UUID,
@@ -1421,7 +1421,7 @@ struct RemoteResumeBindingTests {
         return try #require(String(data: data, encoding: .utf8))
     }
 
-    func runBundledKiroSessionStart(
+    private func runBundledKiroSessionStart(
         workspaceID: UUID,
         surfaceID: UUID
     ) throws -> HookRunResult {
