@@ -49,6 +49,50 @@ struct AgentHookAbnormalStopClassifierTests {
         ))
     }
 
+    @Test func doesNotTreatInstructionalOrProviderCancellationProseAsUserAbort() {
+        #expect(!classifier.isUserInitiatedStop(
+            signal: "Stop",
+            message: "Press Ctrl+C to stop the server"
+        ))
+        #expect(!classifier.isUserInitiatedStop(
+            signal: "Stop",
+            message: "cancelled"
+        ))
+        #expect(!classifier.isUserInitiatedStop(
+            signal: "Stop",
+            message: "The provider cancelled the request"
+        ))
+    }
+
+    @Test func requiresProviderContextForAmbiguousFailureProse() {
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "The guide explains rate limit handling"
+        ) == nil)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "rate limit"
+        ) == .rateLimit)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "The API request hit a rate limit"
+        ) == .rateLimit)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "The guide explains that session expired means sign-in is needed"
+        ) == nil)
+        #expect(classifier.abnormalStopClass(
+            signal: "Stop",
+            message: "session expired"
+        ) == .authentication)
+    }
+
+    @Test func recognizesStructuredProviderReasonsWithoutMessage() {
+        #expect(classifier.abnormalStopClass(signal: "Stop rate_limit", message: "") == .rateLimit)
+        #expect(classifier.abnormalStopClass(signal: "Stop unauthorized", message: "") == .authentication)
+        #expect(classifier.abnormalStopClass(signal: "Stop connection refused", message: "") == .network)
+    }
+
     @Test func embeddedStatusCodesAndSensitiveDetailsFailClosed() {
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "request-429-attempt") == nil)
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "correlation_id=abc529xyz") == nil)
