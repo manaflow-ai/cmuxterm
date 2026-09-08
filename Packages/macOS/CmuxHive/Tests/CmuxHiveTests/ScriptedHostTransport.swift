@@ -29,6 +29,8 @@ actor ScriptedHostTransport: CmxByteTransport {
     private var responseEvents: [ResponseEvent] = []
     private var failingResponseOccurrences: [String: Set<Int>] = [:]
     private var droppedResponseOccurrences: [String: Set<Int>] = [:]
+    private var heldResponseOccurrences: [String: Set<Int>] = [:]
+    private var heldResponses: [String: [Int: Data]] = [:]
 
     init(handler: @escaping Handler) {
         self.handler = handler
@@ -76,7 +78,11 @@ actor ScriptedHostTransport: CmxByteTransport {
             if droppedResponseOccurrences[method]?.contains(occurrence) != true,
                let payload = try? JSONSerialization.data(withJSONObject: envelope),
                let framed = try? MobileSyncFrameCodec.encodeFrame(payload) {
-                deliver(framed)
+                if heldResponseOccurrences[method]?.contains(occurrence) == true {
+                    heldResponses[method, default: [:]][occurrence] = framed
+                } else {
+                    deliver(framed)
+                }
             }
             for event in responseEvents where event.method == method && event.occurrence == occurrence {
                 deliver(event.frame)
@@ -92,6 +98,19 @@ actor ScriptedHostTransport: CmxByteTransport {
     /// Leave one RPC pending until caller cancellation or disconnect.
     func dropResponse(to method: String, occurrence: Int) {
         droppedResponseOccurrences[method, default: []].insert(occurrence)
+    }
+
+    /// Hold a response without blocking independent requests on the same connection.
+    func holdResponse(to method: String, occurrence: Int) {
+        heldResponseOccurrences[method, default: []].insert(occurrence)
+    }
+
+    /// Deliver the captured response after the test has established the competing operation.
+    func releaseResponse(to method: String, occurrence: Int) {
+        heldResponseOccurrences[method]?.remove(occurrence)
+        if let response = heldResponses[method]?.removeValue(forKey: occurrence) {
+            deliver(response)
+        }
     }
 
     func close() async {
