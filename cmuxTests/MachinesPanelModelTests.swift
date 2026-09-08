@@ -453,7 +453,7 @@ final class MachinesPanelModelTests: XCTestCase {
             "machine:vivid-newt/ws/ws_main/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ws/ws_side",
             "machine:vivid-newt/ws/ws_side/resource:vivid-newt/terminal/term_1/tab:tab_9",
-            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1",
+            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1/tab:tab_desk",
             "machine:vivid-newt/ws/ws_empty",
             "machine:vivid-newt/ws/ws_empty/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ports",
@@ -652,11 +652,9 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
-        catalog.replaceResources(
-            [terminalResource],
-            on: machine,
-            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
-        )
+        let provider = GroupFakeProvider(machine: machine)
+        catalog.register(provider)
+        XCTAssertTrue(catalog.replaceResources([terminalResource], on: machine, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.title, "main")
@@ -674,11 +672,9 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
-        catalog.replaceResources(
-            [resource],
-            on: machine,
-            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
-        )
+        let provider = GroupFakeProvider(machine: machine)
+        catalog.register(provider)
+        XCTAssertTrue(catalog.replaceResources([resource], on: machine, from: provider))
 
         let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
         XCTAssertEqual(group.resources, [resource.id])
@@ -703,13 +699,16 @@ final class MachinesPanelModelTests: XCTestCase {
         } else { XCTFail("expected browser row") }
     }
 
-    func testCloudTreeSleepingAndBrokenMachinesShowOnePlaceholder() {
+    func testCloudTreeSleepingAndBrokenMachinesKeepStatusAndPortInventory() {
         let asleep = CloudTreeNodeBuilder.nodes(
             machines: [machineSnapshot(id: "quiet-owl", image: "cmuxd-ws:tooling-20260509f")],
             snapshot: SurfaceCatalogSnapshot(machines: [machineInfo(.cloud("quiet-owl"), linkState: .asleep, hasDesktop: false)], resources: [], projections: []),
             localWorkspaces: []
         )
-        XCTAssertEqual(CloudTreeNodeBuilder.flattened(asleep).map(\.id), ["machine:quiet-owl", "machine:quiet-owl/placeholder"])
+        XCTAssertEqual(CloudTreeNodeBuilder.flattened(asleep).map(\.id), [
+            "machine:quiet-owl", "machine:quiet-owl/placeholder",
+            "machine:quiet-owl/ports", "machine:quiet-owl/ports/status",
+        ])
         if case .placeholder(_, let placeholder) = asleep[0].children[0].kind { XCTAssertEqual(placeholder.style, .dimmed) } else { XCTFail() }
 
         let broken = CloudTreeNodeBuilder.nodes(
@@ -721,8 +720,8 @@ final class MachinesPanelModelTests: XCTestCase {
             XCTAssertEqual(placeholder.style, .error)
             XCTAssertEqual(placeholder.text, "timed out")
         } else { XCTFail() }
-        // A machine the catalog has not registered yet has nothing to expand.
-        XCTAssertNil(CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])[0].children.first)
+        // A machine awaiting catalog registration has an explicit status row.
+        XCTAssertEqual(CloudTreeNodeBuilder.nodes(machines: [machineSnapshot(id: "new")], snapshot: .empty, localWorkspaces: [])[0].children.map(\.id), ["machine:new/placeholder"])
         // A machine only the catalog knows still gets a row.
         let catalogOnly = CloudTreeNodeBuilder.nodes(
             machines: [],
