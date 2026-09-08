@@ -156,10 +156,15 @@ extension TerminalController {
         // Status stays read-only: it reports the refusal local state knows
         // about (or the one that ended the last scheduled start) and never
         // resolves an unknown machine count.
-        if backend.isNetworkExtension, let coordinator,
-           let refusal = await coordinator.knownStartRefusal() ?? coordinator.recordedStartRefusal() {
-            payload["start_refusal"] = refusal.rawValue
-            payload["start_refusal_message"] = refusal.error.description
+        if backend.isNetworkExtension, let coordinator {
+            var refusal = await coordinator.knownStartRefusal()
+            if refusal == nil {
+                refusal = await coordinator.recordedStartRefusal()
+            }
+            if let refusal {
+                payload["start_refusal"] = refusal.rawValue
+                payload["start_refusal_message"] = refusal.error.description
+            }
         }
         let terminalManager = VMTunnelManager(purpose: .terminal)
         let hub = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared.wireGuardHub }

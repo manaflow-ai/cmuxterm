@@ -415,7 +415,8 @@ struct CloudTunnelLaunchGateTests {
             bringDown: { downs.increment() }
         )
         // Nothing is refused at startup: no teardown.
-        #expect(await waitUntil(timeout: .milliseconds(300)) { downs.count > 0 } == false)
+        let firedAtStartup = await waitUntil(timeout: .milliseconds(300)) { downs.count > 0 }
+        #expect(firedAtStartup == false)
 
         // Cloud Machines turned off, and the notification posted right away,
         // before the observer's task could register for it.
