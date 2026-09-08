@@ -26,7 +26,7 @@ FORMAT = re.compile(
     r"%%|%(?:\d+\$)?#@[^@]+@|%(?:\d+\$)?[-+ #0']*(?:\d+|\*(?:\d+\$)?)?"
     r"(?:\.(?:\d+|\*(?:\d+\$)?))?(?:hh|ll|[hlLqjzt])?[diouxXfFeEgGaAcCsSp@]"
 )
-MARKER = re.compile(r"\b(?:TODO|TRANSLATE_ME|MACHINE_TRANSLATION)\b|__CMUX_TOKEN_\d+__|<translated>", re.I)
+MARKER = re.compile(r"\bTODO\b|(?i:\b(?:TRANSLATE_ME|MACHINE_TRANSLATION)\b|__CMUX_TOKEN_\d+__|<translated>)")
 BIDI = re.compile("[\u202a-\u202e\u2066-\u2069]")
 
 
@@ -176,21 +176,32 @@ def identity_allowed(key: str, english: str, locale: str, metadata: dict) -> boo
     record = metadata.get(key, {})
     return omission(key, english, metadata) or (
         record.get("source") == english
+        and isinstance(record.get("identityLocales", {}).get(locale), str)
         and bool(record.get("identityLocales", {}).get(locale))
     )
 
 
+def identity_values(key: str, english: str, locale: str, metadata: dict) -> set[str]:
+    record = metadata.get(key, {})
+    rule = record.get("identityLocales", {}).get(locale)
+    if record.get("source") != english or not isinstance(rule, dict) or not rule.get("reason"):
+        return set()
+    return {canonical_text(value) for value in rule.get("values", []) if isinstance(value, str)}
+
+
 def validate_localization(english: str, localization: dict, locale: str, allow_identity: bool = False,
-                          source_localization: dict | None = None) -> list[str]:
+                          source_localization: dict | None = None,
+                          allowed_identity_values: set[str] | None = None) -> list[str]:
     errors = []
     expected = signature(english)
     expected_arguments = {argument: specifier for argument, specifier in expected if argument}
     source_values = {canonical_text(english)}
     reference = source_localization or {}
+    reference_categories = ("zero", "one", "two", "few", "many", "other") if reference.get("substitutions") else ("other",)
     for _, source_unit in units(reference):
         value = source_unit.get("value")
         if isinstance(value, str):
-            for category in ("zero", "one", "two", "few", "many", "other"):
+            for category in reference_categories:
                 source_values.add(canonical_text(expand_text(value, reference.get("substitutions", {}), category)))
     for substitution in reference.get("substitutions", {}).values():
         for _, source_unit in units(substitution):
@@ -218,10 +229,13 @@ def validate_localization(english: str, localization: dict, locale: str, allow_i
         # the parent supplies translated words. Text-bearing leaves may not copy English.
         if numeric_leaf and not FORMAT.sub("", value).strip():
             return
+        if canonical_text(value) in (allowed_identity_values or set()):
+            return
         if canonical_text(value) in source_values:
             errors.append(f"{location}: identical to English; translate or document an invariant literal")
 
     substitutions = localization.get("substitutions", {})
+    expansion_categories = ("zero", "one", "two", "few", "many", "other") if substitutions else ("other",)
     found_units = list(units(localization))
     if not found_units:
         errors.append("missing translated string unit or variations")
@@ -235,7 +249,7 @@ def validate_localization(english: str, localization: dict, locale: str, allow_i
             actual = signature(value, substitutions)
             if actual != expected:
                 errors.append(f"{location}: placeholders {actual!r} != {expected!r}")
-            for category in ("zero", "one", "two", "few", "many", "other"):
+            for category in expansion_categories:
                 expanded = expand_text(value, substitutions, category)
                 check_identity(location, expanded)
                 if expanded.count("\n") != english.count("\n"):
@@ -279,7 +293,8 @@ def check_entry(entry: Member, locale: str, omissions: dict, counts: dict) -> li
     if localization is None:
         return [] if allowed and locale not in {"en", "ja"} else ["missing locale entry"]
     errors = validate_localization(english, localization, locale, identity_allowed(entry.key, english, locale, omissions),
-                                   entry.value.get("localizations", {}).get("en"))
+                                   entry.value.get("localizations", {}).get("en"),
+                                   identity_values(entry.key, english, locale, omissions))
     count = counts.get(entry.key)
     if count:
         if canonical_text(count["source"]) != canonical_text(english):
@@ -356,7 +371,8 @@ def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
                 localization.setdefault("stringUnit", {}).update(state="translated", value=row["value"])
             errors = validate_localization(source(entry.value), localization, locale,
                                            identity_allowed(entry.key, source(entry.value), locale, omissions),
-                                           entry.value.get("localizations", {}).get("en"))
+                                           entry.value.get("localizations", {}).get("en"),
+                                           identity_values(entry.key, source(entry.value), locale, omissions))
             if errors:
                 raise ValueError(f"{entry.key}: {'; '.join(errors)}")
             if localization != current:
@@ -399,12 +415,9 @@ def main() -> int:
     locales = [args.locale] if args.locale else LOCALES
     for path in paths:
         entries = catalog_entries(path.read_text(encoding="utf-8"))
-        effective = {entry.key: entry for entry in entries}
-        for entry in effective.values():
-            local_omissions = omissions if path.resolve() == (args.root / "Resources/Localizable.xcstrings").resolve() else {}
-            local_counts = counts if local_omissions is omissions else {}
+        for entry in entries:
             for locale in locales:
-                errors = check_entry(entry, locale, local_omissions, local_counts)
+                errors = check_entry(entry, locale, omissions, counts)
                 diagnostics.extend(f"{path}:{entry.key}:{locale}: {error}" for error in errors)
                 if errors and args.command == "extract":
                     rows.append({"catalog": str(path), "key": entry.key, "source": source(entry.value),
