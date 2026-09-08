@@ -186,6 +186,9 @@ public struct VideoBackgroundEmbedPage: Sendable {
           var pendingMuted = \(muted ? "true" : "false");
           var pendingVolume = \(self.volume * 100);
           var pendingPosition = 0;
+          var hasPendingPosition = false;
+          var isPlaylist = \(isPlaylistLiteral);
+          var queueManaged = \(queueManaged ? "true" : "false");
           var playlistSkipAttempts = 0;
           var playerWidth = \(dimensions.width);
           var playerHeight = \(dimensions.height);
@@ -207,6 +210,23 @@ public struct VideoBackgroundEmbedPage: Sendable {
             try {
               window.webkit.messageHandlers.\(Self.messageHandlerName).postMessage(payload);
             } catch (error) {}
+          }
+
+          function applyPendingPosition(target) {
+            if (!hasPendingPosition || !target || typeof target.seekTo !== 'function') { return; }
+            var duration = typeof target.getDuration === 'function' ? target.getDuration() : 0;
+            if (!isFinite(duration) || duration <= 0) { return; }
+            var position = !queueManaged && !isPlaylist
+              ? pendingPosition % duration : Math.min(pendingPosition, duration);
+            hasPendingPosition = false;
+            target.seekTo(position, true);
+          }
+
+          function playlistHasFinished(target) {
+            if (!isPlaylist) { return true; }
+            var playlist = typeof target.getPlaylist === 'function' ? target.getPlaylist() : null;
+            var index = typeof target.getPlaylistIndex === 'function' ? target.getPlaylistIndex() : -1;
+            return Array.isArray(playlist) && playlist.length > 0 && index === playlist.length - 1;
           }
 
           window.cmuxVideoBackgroundSetPaused = function (paused) {
@@ -238,9 +258,8 @@ public struct VideoBackgroundEmbedPage: Sendable {
             var next = Number(seconds);
             if (!isFinite(next) || next < 0) { next = 0; }
             pendingPosition = next;
-            if (player && typeof player.seekTo === 'function' && next > 0) {
-              player.seekTo(next, true);
-            }
+            hasPendingPosition = true;
+            applyPendingPosition(player);
           };
 
           var sharedPlayerVars = {
@@ -268,9 +287,10 @@ public struct VideoBackgroundEmbedPage: Sendable {
                   if (typeof event.target.setVolume === 'function') {
                     event.target.setVolume(pendingVolume);
                   }
-                  if (pendingPosition > 0 && typeof event.target.seekTo === 'function') {
-                    event.target.seekTo(pendingPosition, true);
+                  if (typeof event.target.setLoop === 'function') {
+                    event.target.setLoop(!queueManaged);
                   }
+                  applyPendingPosition(event.target);
                   if (!pendingPaused) { event.target.playVideo(); }
                   postToHost({ event: 'ready' });
                 },
@@ -279,10 +299,13 @@ public struct VideoBackgroundEmbedPage: Sendable {
                     // A successfully playing item resets the bounded error
                     // skip budget for the next item.
                     playlistSkipAttempts = 0;
+                    applyPendingPosition(event.target);
                   }
                   if (event.data === YT.PlayerState.ENDED && !pendingPaused) {
-                    if (\(queueManaged ? "true" : "false")) {
-                      postToHost({ event: 'ended' });
+                    if (queueManaged) {
+                      if (playlistHasFinished(event.target)) {
+                        postToHost({ event: 'ended' });
+                      }
                     } else {
                       // `loop` handles wrap-around; this covers edge cases
                       // where the player lands in ENDED anyway.
@@ -291,13 +314,13 @@ public struct VideoBackgroundEmbedPage: Sendable {
                   }
                 },
                 onError: function (event) {
-                  var isPlaylist = \(isPlaylistLiteral);
                   var canTryAnotherItem = false;
                   if (isPlaylist && player && typeof player.nextVideo === 'function') {
                     var playlist = typeof player.getPlaylist === 'function' ? player.getPlaylist() : null;
                     var playlistIndex = typeof player.getPlaylistIndex === 'function' ? player.getPlaylistIndex() : -1;
                     if (Array.isArray(playlist) && playlist.length > 0 && playlistIndex >= 0) {
-                      canTryAnotherItem = playlistIndex + 1 < playlist.length;
+                      canTryAnotherItem = playlistSkipAttempts < playlist.length - 1 &&
+                        (!queueManaged || playlistIndex + 1 < playlist.length);
                     } else {
                       // Older IFrame API versions may not expose playlist
                       // metadata; still guarantee that a broken one-item

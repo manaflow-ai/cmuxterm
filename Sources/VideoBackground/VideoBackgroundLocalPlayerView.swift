@@ -11,7 +11,10 @@ final class VideoBackgroundLocalPlayerView: NSView, VideoBackgroundPlayerView {
     private let playerLayer: AVPlayerLayer
     private var looper: AVPlayerLooper?
     private var endObserver: NSObjectProtocol?
+    private var currentItemObservation: NSKeyValueObservation?
     private var statusObservation: NSKeyValueObservation?
+    private var looperObservation: NSKeyValueObservation?
+    private var preparationTask: Task<Void, Never>?
     private let onEnded: @MainActor () -> Void
     private let onReady: @MainActor () -> Void
     private let onFailure: @MainActor (String) -> Void
@@ -32,7 +35,7 @@ final class VideoBackgroundLocalPlayerView: NSView, VideoBackgroundPlayerView {
         onFailure: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         let item = AVPlayerItem(url: fileURL)
-        let player = AVQueuePlayer(items: [item])
+        let player = AVQueuePlayer()
         player.isMuted = muted
         player.volume = Float(volume.isFinite ? min(max(volume, 0), 1) : 1)
         player.preventsDisplaySleepDuringVideoPlayback = false
@@ -50,9 +53,7 @@ final class VideoBackgroundLocalPlayerView: NSView, VideoBackgroundPlayerView {
         playerLayer.videoGravity = .resizeAspectFill
         layer?.addSublayer(playerLayer)
 
-        if loops {
-            looper = AVPlayerLooper(player: player, templateItem: item)
-        } else {
+        if !loops {
             // AVPlayerItem end notifications are the native equivalent of the
             // YouTube bridge's `ended` event for queue-managed playback.
             endObserver = NotificationCenter.default.addObserver(
@@ -63,22 +64,53 @@ final class VideoBackgroundLocalPlayerView: NSView, VideoBackgroundPlayerView {
                 MainActor.assumeIsolated { self?.onEnded() }
             }
         }
-        statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
-            let status = item.status
+        currentItemObservation = player.observe(\.currentItem, options: [.initial, .new]) { [weak self] _, _ in
             Task { @MainActor [weak self] in
-                self?.handleItemStatus(status)
+                self?.observeCurrentItem()
             }
         }
-        player.play()
+        preparationTask = Task { @MainActor [weak self, item] in
+            do {
+                _ = try await item.asset.load(.duration)
+                guard !Task.isCancelled, let self else { return }
+                if self.loops {
+                    let looper = AVPlayerLooper(player: self.player, templateItem: item)
+                    self.looper = looper
+                    self.looperObservation = looper.observe(\.status, options: [.initial, .new]) { [weak self] looper, _ in
+                        guard looper.status == .failed else { return }
+                        Task { @MainActor [weak self] in self?.handleItemStatus(.failed) }
+                    }
+                } else {
+                    self.player.insert(item, after: nil)
+                }
+                if !self.desiredPaused { self.player.play() }
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.handleItemStatus(.failed)
+            }
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
     deinit {
+        preparationTask?.cancel()
+        currentItemObservation?.invalidate()
         statusObservation?.invalidate()
+        looperObservation?.invalidate()
         if let endObserver {
             NotificationCenter.default.removeObserver(endObserver)
+        }
+    }
+
+    private func observeCurrentItem() {
+        statusObservation?.invalidate()
+        statusObservation = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            let status = item.status
+            Task { @MainActor [weak self] in
+                self?.handleItemStatus(status)
+            }
         }
     }
 
@@ -144,7 +176,7 @@ final class VideoBackgroundLocalPlayerView: NSView, VideoBackgroundPlayerView {
     }
 
     private func seek(to seconds: TimeInterval) {
-        let duration = item.duration.seconds
+        let duration = player.currentItem?.duration.seconds ?? .nan
         let position: TimeInterval
         if loops, duration.isFinite, duration > 0 {
             position = seconds.truncatingRemainder(dividingBy: duration)
