@@ -217,6 +217,8 @@ public final class HiveComputerDirectory {
     }
 
     func reloadPairedRecords(scope: HiveAccountScope) async {
+        guard loadedScope == scope else { return }
+        let generation = scopeGeneration
         guard scope.stackUserID != nil else {
             pairedRecords = []
             pairedByID = [:]
@@ -224,10 +226,12 @@ public final class HiveComputerDirectory {
             return
         }
         do {
-            pairedRecords = try await pairedStore.loadAll(
+            let records = try await pairedStore.loadAll(
                 stackUserID: scope.stackUserID,
                 teamID: scope.teamID
             )
+            guard await isCurrentScope(scope, generation: generation) else { return }
+            pairedRecords = records
             pairedByID = rowBuilder.indexPairedRecords(pairedRecords)
             pairedRecordsByID = Dictionary(grouping: pairedRecords, by: \.macDeviceID)
         } catch {
@@ -293,6 +297,7 @@ public final class HiveComputerDirectory {
     func isCurrentScope(_ scope: HiveAccountScope, generation: Int) async -> Bool {
         guard generation == scopeGeneration, loadedScope == scope else { return false }
         let latest = await scopeProvider()
+        guard generation == scopeGeneration, loadedScope == scope else { return false }
         guard latest == scope else {
             _ = activateScope(latest)
             return false
