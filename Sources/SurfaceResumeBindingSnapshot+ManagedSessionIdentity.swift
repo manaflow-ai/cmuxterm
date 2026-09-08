@@ -119,20 +119,38 @@ extension SurfaceResumeBindingSnapshot {
             previousBinding?.launchFlavor.representsSameExecutionLocation(
                 as: launchFlavor
             ) == true
-        return SessionRestorableAgentSnapshot(
+        let inheritedLaunchCommand = canInheritPreviousSessionState
+            ? previousForKind?.launchCommand
+            : nil
+        let effectiveLaunchCommand = launchCommand ?? inheritedLaunchCommand
+        let effectiveSelection = restoreWorkingDirectorySelection
+            ?? (canInheritPreviousSessionState
+                ? previousForKind?.restoreWorkingDirectorySelection
+                : nil)
+        let projectedWorkingDirectory: String? = if let effectiveSelection {
+            effectiveSelection.resolved(
+                snapshotWorkingDirectory: cwd,
+                launchWorkingDirectory: effectiveLaunchCommand?.workingDirectory
+            )
+        } else {
+            cwd
+                ?? effectiveLaunchCommand?.workingDirectory
+                ?? (canInheritPreviousSessionState ? previousForKind?.workingDirectory : nil)
+        }
+        var snapshot = SessionRestorableAgentSnapshot(
             kind: kind,
             sessionId: identity.checkpointId,
-            workingDirectory: cwd
-                ?? launchCommand?.workingDirectory
-                ?? (canInheritPreviousSessionState ? previousForKind?.workingDirectory : nil),
-            launchCommand: launchCommand
-                ?? (canInheritPreviousSessionState ? previousForKind?.launchCommand : nil),
+            workingDirectory: projectedWorkingDirectory,
+            launchCommand: effectiveLaunchCommand,
             registration: previousForKind?.registration,
             permissionMode: permissionMode
                 ?? (canInheritPreviousSessionState ? previousForKind?.permissionMode : nil),
-            restoreWorkingDirectorySelection: restoreWorkingDirectorySelection
-                ?? (canInheritPreviousSessionState ? previousForKind?.restoreWorkingDirectorySelection : nil)
+            restoreWorkingDirectorySelection: effectiveSelection
         )
+        if let effectiveSelection {
+            snapshot = snapshot.applyingRestoreWorkingDirectorySelection(effectiveSelection)
+        }
+        return snapshot
     }
 
     private var managedSessionIdentity: (kind: String, checkpointId: String)? {

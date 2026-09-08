@@ -5,11 +5,23 @@ extension SessionRestorableAgentSnapshot {
     /// Renders the compatibility fork command for a destination working directory.
     func forkCommand(restoringWorkingDirectory: String?) -> String? {
         guard kind.restoreMode == .resumeSession else { return nil }
+        let selection = effectiveRestoreWorkingDirectorySelection(
+            .recordedFallback(preferred: restoringWorkingDirectory)
+        )
+        guard selection.permitsResume else { return nil }
+        let effectiveLaunchCommand = constrainedLaunchCommand(
+            launchCommand,
+            selection: selection
+        )
+        let effectiveWorkingDirectory = selection.resolved(
+            snapshotWorkingDirectory: workingDirectory,
+            launchWorkingDirectory: effectiveLaunchCommand?.workingDirectory
+        )
         return AgentResumeCommandBuilder.forkShellCommand(
             kind: kind,
             sessionId: sessionId,
-            launchCommand: launchCommand,
-            workingDirectory: restoringWorkingDirectory ?? workingDirectory,
+            launchCommand: effectiveLaunchCommand,
+            workingDirectory: effectiveWorkingDirectory,
             registrationOverride: registration,
             observedPermissionMode: permissionMode
         )

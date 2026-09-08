@@ -290,6 +290,61 @@ struct SurfaceResumeRestoreClaimTests {
     }
 
     @Test
+    func managedSnapshotDropsCapturedCwdForExactNilSelection() throws {
+        let capturedDirectory = "/Users/austin/local-codex-project"
+        let sessionID = "exact-nil-cwd-session"
+        let launchCommand = AgentLaunchCommandSnapshot(
+            launcher: "codex",
+            executablePath: "codex",
+            arguments: ["codex", "resume", sessionID, "-C", capturedDirectory],
+            workingDirectory: capturedDirectory
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID) -C '\(capturedDirectory)'",
+            cwd: capturedDirectory,
+            checkpointId: sessionID,
+            source: "agent-hook",
+            launchCommand: launchCommand,
+            restoreWorkingDirectorySelection: .exact(nil)
+        )
+
+        let snapshot = try #require(
+            binding.managedRestorableAgentSnapshot(
+                replacing: nil,
+                previousBinding: nil
+            )
+        )
+        #expect(snapshot.workingDirectory == nil)
+        #expect(snapshot.launchCommand?.workingDirectory == nil)
+        #expect(snapshot.launchCommand?.arguments.contains(capturedDirectory) == false)
+    }
+
+    @Test
+    func compatibilityForkHonorsExactNilRestoreSelection() throws {
+        let capturedDirectory = "/Users/austin/local-codex-project"
+        let sessionID = "exact-nil-fork-session"
+        let agent = SessionRestorableAgentSnapshot(
+            kind: .codex,
+            sessionId: sessionID,
+            workingDirectory: capturedDirectory,
+            launchCommand: AgentLaunchCommandSnapshot(
+                launcher: "codex",
+                executablePath: "codex",
+                arguments: ["codex", "resume", sessionID, "-C", capturedDirectory],
+                workingDirectory: capturedDirectory
+            ),
+            restoreWorkingDirectorySelection: .exact(nil)
+        )
+
+        let forkCommand = try #require(
+            agent.forkCommand(restoringWorkingDirectory: "/remote/ignored")
+        )
+        #expect(forkCommand.contains(capturedDirectory) == false)
+        #expect(forkCommand.contains("/remote/ignored") == false)
+    }
+
+    @Test
     func restoreClaimRequiresExactBindingGeneration() throws {
         let workspace = Workspace()
         defer { workspace.teardownAllPanels() }
