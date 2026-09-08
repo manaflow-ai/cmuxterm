@@ -22,7 +22,10 @@ struct SidebarSearchFieldView: NSViewRepresentable {
 
     func updateNSView(_ field: SidebarSearchField, context: Context) {
         context.coordinator.parent = self
-        if field.stringValue != text {
+        // The binding may still contain committed text while the editor owns
+        // an in-progress composition. A parent refresh must not replace it.
+        let isComposing = (field.currentEditor() as? NSTextView)?.hasMarkedText() == true
+        if !isComposing, field.stringValue != text {
             field.stringValue = text
         }
         field.placeholderString = placeholder
