@@ -69,7 +69,9 @@ final class NewMachineSheetPresenter {
         preferredWindow: NSWindow?,
         coordinator: MachineCreateCoordinator? = nil
     ) {
-        let coordinator = coordinator ?? .shared
+        // Resolve the shared coordinator in the main-actor body rather than in
+        // the default argument expression (which is evaluated at the caller).
+        let resolvedCoordinator = coordinator ?? MachineCreateCoordinator.shared
         if let plan, plan.isAtLimit, !plan.isPaidPlan {
             ProUpgradePresenter.present(source: .newMachineAtLimit)
             return
@@ -79,7 +81,7 @@ final class NewMachineSheetPresenter {
             plan: plan,
             memoryOptionsMb: memoryOptionsMb,
             submit: { request in
-                coordinator.start(request, cancellableLaunch: { arguments, progress, completion in
+                resolvedCoordinator.start(request, cancellableLaunch: { arguments, progress, completion in
                     var cancellation: CloudVMActionLauncher.CancellationHandle?
                     let didStart = MachineRowActions.openNewMachine(
                         arguments: arguments,
