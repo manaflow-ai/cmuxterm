@@ -1,7 +1,9 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+
+import { useAdminSearch } from "./admin-search-context";
 
 type GrantRecord = {
   readonly plan: string | null;
@@ -56,7 +58,13 @@ type Snapshot = {
   readonly subscribers: readonly Subscriber[];
   readonly teamSubscriptions: readonly TeamSubscription[];
   readonly pendingGrants: readonly PendingGrant[];
+  readonly truncated: {
+    readonly subscribers: boolean;
+    readonly teamSubscriptions: boolean;
+    readonly pendingGrants: boolean;
+  };
 };
+
 
 type ScanState = {
   readonly status: "idle" | "scanning" | "done" | "error";
@@ -76,7 +84,6 @@ type ListState =
       readonly teamGrants: readonly TeamGrant[];
       readonly userScan: ScanState;
       readonly teamScan: ScanState;
-      readonly loadedAt: string;
     };
 
 type Translate = ReturnType<typeof useTranslations<"dashboard.admin">>;
@@ -87,54 +94,37 @@ const MAX_SCAN_PAGES = 200;
 const buttonClass =
   "border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-background disabled:hover:text-foreground";
 
-export function AdminProList({ onPickQuery }: { onPickQuery?: (query: string) => void }) {
+export function AdminProList({ initialSnapshot }: { initialSnapshot: Snapshot | null }) {
   const t = useTranslations("dashboard.admin");
-  const [state, setState] = useState<ListState>({ kind: "idle" });
+  const search = useAdminSearch();
+  const onPickQuery = search?.pickQuery;
+  const [state, setState] = useState<ListState>(() =>
+    initialSnapshot
+      ? loadedState(initialSnapshot)
+      : { kind: "error", message: t("errors.billing") },
+  );
   const runSeq = useRef(0);
+  const started = useRef(false);
+  const aborter = useRef<AbortController | null>(null);
 
-  async function load() {
-    const seq = ++runSeq.current;
-    setState({ kind: "loading" });
-    let response: Response;
-    try {
-      response = await fetch("/api/admin/pro-users", { headers: { accept: "application/json" } });
-    } catch {
-      if (seq === runSeq.current) setState({ kind: "error", message: t("errors.network") });
-      return;
-    }
-    if (seq !== runSeq.current) return;
-    if (!response.ok) {
-      setState({ kind: "error", message: errorMessage(t, response.status) });
-      return;
-    }
-    let snapshot: Snapshot;
-    try {
-      snapshot = (await response.json()) as Snapshot;
-    } catch {
-      if (seq === runSeq.current) setState({ kind: "error", message: t("errors.generic") });
-      return;
-    }
-    if (seq !== runSeq.current) return;
-    setState({
-      kind: "loaded",
-      snapshot: {
-        subscribers: snapshot.subscribers ?? [],
-        teamSubscriptions: snapshot.teamSubscriptions ?? [],
-        pendingGrants: snapshot.pendingGrants ?? [],
-      },
-      userGrants: [],
-      teamGrants: [],
-      userScan: { status: "scanning", scanned: 0, pages: 0 },
-      teamScan: { status: "scanning", scanned: 0, pages: 0 },
-      loadedAt: new Date().toISOString(),
-    });
-    // Manual grants need a directory walk; run both walks after the snapshot
-    // is on screen so the Stripe list is never blocked on them.
-    void walk("users", seq);
-    void walk("teams", seq);
-  }
+  /** Invalidates the current run: in-flight fetches abort and loops stop at their next check. */
+  const beginRun = useCallback((): { seq: number; signal: AbortSignal } => {
+    aborter.current?.abort();
+    const controller = new AbortController();
+    aborter.current = controller;
+    return { seq: ++runSeq.current, signal: controller.signal };
+  }, []);
 
-  async function walk(kind: "users" | "teams", seq: number) {
+  const walk = useCallback(async (kind: "users" | "teams", seq: number, signal: AbortSignal) => {
+    // Only the run that started this scan may update it; a reload or unmount
+    // starts a new sequence and results from the old fetches are dropped.
+    const patchScan = (scan: ScanState) => {
+      if (seq !== runSeq.current) return;
+      setState((current) => {
+        if (current.kind !== "loaded") return current;
+        return kind === "users" ? { ...current, userScan: scan } : { ...current, teamScan: scan };
+      });
+    };
     let cursor: string | null = null;
     let pages = 0;
     let scanned = 0;
@@ -144,21 +134,23 @@ export function AdminProList({ onPickQuery }: { onPickQuery?: (query: string) =>
       if (cursor) params.set("cursor", cursor);
       let response: Response;
       try {
-        response = await fetch(`/api/admin/pro-users/scan?${params}`, { headers: { accept: "application/json" } });
+        response = await fetch(`/api/admin/pro-users/scan?${params}`, { headers: { accept: "application/json" }, signal });
       } catch {
-        patchScan(kind, { status: "error", scanned, pages, message: t("errors.network") });
+        // An abort means this run was superseded or the section unmounted.
+        if (signal.aborted) return;
+        patchScan({ status: "error", scanned, pages, message: t("errors.network") });
         return;
       }
       if (seq !== runSeq.current) return;
       if (!response.ok) {
-        patchScan(kind, { status: "error", scanned, pages, message: errorMessage(t, response.status) });
+        patchScan({ status: "error", scanned, pages, message: errorMessage(t, response.status) });
         return;
       }
       let page: { rows: unknown[]; scanned: number; nextCursor: string | null };
       try {
         page = (await response.json()) as typeof page;
       } catch {
-        patchScan(kind, { status: "error", scanned, pages, message: t("errors.generic") });
+        patchScan({ status: "error", scanned, pages, message: t("errors.generic") });
         return;
       }
       if (seq !== runSeq.current) return;
@@ -176,23 +168,70 @@ export function AdminProList({ onPickQuery }: { onPickQuery?: (query: string) =>
       cursor = page.nextCursor;
       if (!cursor) break;
     }
-    patchScan(kind, {
+    patchScan({
       status: pages >= MAX_SCAN_PAGES && cursor ? "error" : "done",
       scanned,
       pages,
       message: pages >= MAX_SCAN_PAGES && cursor ? t("list.scanTruncated") : undefined,
     });
-  }
+  }, [t]);
 
-  function patchScan(kind: "users" | "teams", scan: ScanState) {
-    setState((current) => {
-      if (current.kind !== "loaded") return current;
-      return kind === "users" ? { ...current, userScan: scan } : { ...current, teamScan: scan };
-    });
-  }
+  const load = useCallback(async () => {
+    const { seq, signal } = beginRun();
+    setState({ kind: "loading" });
+    let response: Response;
+    try {
+      response = await fetch("/api/admin/pro-users", { headers: { accept: "application/json" }, signal });
+    } catch {
+      if (signal.aborted) return;
+      if (seq === runSeq.current) setState({ kind: "error", message: t("errors.network") });
+      return;
+    }
+    if (seq !== runSeq.current) return;
+    if (!response.ok) {
+      setState({ kind: "error", message: errorMessage(t, response.status) });
+      return;
+    }
+    let snapshot: Snapshot;
+    try {
+      snapshot = (await response.json()) as Snapshot;
+    } catch {
+      if (seq === runSeq.current) setState({ kind: "error", message: t("errors.generic") });
+      return;
+    }
+    if (seq !== runSeq.current) return;
+    setState(loadedState(snapshot));
+    // Manual grants need a directory walk; run both walks after the snapshot
+    // is on screen so the Stripe list is never blocked on them.
+    void walk("users", seq, signal);
+    void walk("teams", seq, signal);
+  }, [beginRun, t, walk]);
+
+  // Streams the directory scans as soon as the section is on screen, and
+  // stops them when it leaves. The callback is stable, so React invokes it
+  // with the element on mount and null on unmount only (StrictMode replays
+  // attach, detach, attach; the detach resets `started` so the re-attach can
+  // restart the aborted run). No effect is needed.
+  const startOnMount = useCallback((node: HTMLElement | null) => {
+    if (node === null) {
+      started.current = false;
+      aborter.current?.abort();
+      runSeq.current += 1;
+      return;
+    }
+    if (started.current) return;
+    started.current = true;
+    if (initialSnapshot) {
+      const { seq, signal } = beginRun();
+      void walk("users", seq, signal);
+      void walk("teams", seq, signal);
+    } else {
+      void load();
+    }
+  }, [beginRun, initialSnapshot, load, walk]);
 
   return (
-    <section className="border border-border p-3">
+    <section ref={startOnMount} className="border border-border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-medium">{t("list.title")}</h2>
@@ -204,11 +243,7 @@ export function AdminProList({ onPickQuery }: { onPickQuery?: (query: string) =>
           disabled={state.kind === "loading"}
           className={buttonClass}
         >
-          {state.kind === "loading"
-            ? t("list.loading")
-            : state.kind === "loaded"
-              ? t("list.reload")
-              : t("list.load")}
+          {state.kind === "loading" ? t("list.loading") : t("list.reload")}
         </button>
       </div>
 
@@ -248,6 +283,9 @@ function LoadedList({
 
       <ScanNote t={t} scan={userScan} label={t("list.scanUsers")} />
       <ScanNote t={t} scan={teamScan} label={t("list.scanTeams")} />
+      {snapshot.truncated.subscribers || snapshot.truncated.teamSubscriptions || snapshot.truncated.pendingGrants ? (
+        <p className="border border-border p-2 text-xs text-muted" role="alert">{t("list.truncated")}</p>
+      ) : null}
 
       <Block title={t("list.sections.subscribers", { count: snapshot.subscribers.length })}>
         {snapshot.subscribers.length === 0 ? (
@@ -390,6 +428,26 @@ function LoadedList({
       </Block>
     </div>
   );
+}
+
+function loadedState(snapshot: Snapshot): Extract<ListState, { kind: "loaded" }> {
+  return {
+    kind: "loaded",
+    snapshot: {
+      subscribers: snapshot.subscribers ?? [],
+      teamSubscriptions: snapshot.teamSubscriptions ?? [],
+      pendingGrants: snapshot.pendingGrants ?? [],
+      truncated: {
+        subscribers: snapshot.truncated?.subscribers === true,
+        teamSubscriptions: snapshot.truncated?.teamSubscriptions === true,
+        pendingGrants: snapshot.truncated?.pendingGrants === true,
+      },
+    },
+    userGrants: [],
+    teamGrants: [],
+    userScan: { status: "scanning", scanned: 0, pages: 0 },
+    teamScan: { status: "scanning", scanned: 0, pages: 0 },
+  };
 }
 
 function Stat({ label, value, pending }: { label: string; value: string; pending?: boolean }) {
