@@ -4,12 +4,23 @@
 /// new value into ``SubrouterStore/configuration`` whenever settings change;
 /// the store reacts (going fully idle when disabled).
 public struct SubrouterConfiguration: Sendable, Equatable {
+    /// Why the integration is intentionally gated off even though the user
+    /// setting is enabled. Keeping this separate from the master gate lets
+    /// socket and CLI callers report configuration errors instead of
+    /// misleading users that the integration is disabled.
+    public enum ConfigurationIssue: String, Sendable, Equatable {
+        case invalidEndpoint
+        case unreadableServerRegistry
+    }
+
     /// A disabled configuration (the default state before settings load).
     public static let disabled = SubrouterConfiguration(isEnabled: false)
 
     /// The master gate. When `false` the store cancels all work, clears its
     /// snapshot, and issues no network or subprocess activity at all.
     public var isEnabled: Bool
+    /// A configuration problem that forced the master gate off.
+    public var configurationIssue: ConfigurationIssue?
     /// The daemon address.
     public var endpoint: SubrouterEndpoint
     /// The `sr server` name the endpoint was resolved from, or `nil` when
@@ -32,9 +43,11 @@ public struct SubrouterConfiguration: Sendable, Equatable {
         endpoint: SubrouterEndpoint = .standard,
         serverName: String? = nil,
         commandPath: String? = nil,
+        configurationIssue: ConfigurationIssue? = nil,
         tuning: SubrouterPollTuning = .standard
     ) {
         self.isEnabled = isEnabled
+        self.configurationIssue = configurationIssue
         self.endpoint = endpoint
         self.serverName = serverName
         self.commandPath = commandPath

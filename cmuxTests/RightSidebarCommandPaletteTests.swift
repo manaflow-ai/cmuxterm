@@ -83,6 +83,43 @@ final class RightSidebarCommandPaletteTests: XCTestCase {
         )
     }
 
+    func testMalformedSubrouterEndpointPreservesConfigurationError() {
+        let suiteName = "cmux.tests.subrouter.configuration.invalid-endpoint"
+        let defaults = try! XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: SubrouterIntegrationSettings.enabledKey)
+        defaults.set("http://[malformed", forKey: SubrouterIntegrationSettings.endpointKey)
+
+        let configuration = SubrouterIntegrationSettings(defaults: defaults)
+            .currentConfiguration(serverSelection: nil)
+
+        XCTAssertFalse(configuration.isEnabled)
+        XCTAssertEqual(
+            configuration.configurationIssue,
+            .invalidEndpoint
+        )
+    }
+
+    func testUnreadableSubrouterRegistryPreservesConfigurationError() {
+        let suiteName = "cmux.tests.subrouter.configuration.unreadable-registry"
+        let defaults = try! XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(true, forKey: SubrouterIntegrationSettings.enabledKey)
+
+        let configuration = SubrouterIntegrationSettings(defaults: defaults)
+            .currentConfiguration(serverSelection: nil, serverRegistryIsUnreadable: true)
+
+        XCTAssertFalse(configuration.isEnabled)
+        XCTAssertEqual(
+            configuration.configurationIssue,
+            .unreadableServerRegistry
+        )
+    }
+
     private func withSavedBetaFeatureDefaults(_ body: () throws -> Void) rethrows {
         let defaults = UserDefaults.standard
         let previousFeed = defaults.object(forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)

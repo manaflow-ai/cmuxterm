@@ -303836,6 +303836,40 @@
         }
       }
     }
+  },
+  "socket.subrouter.configuration.invalidEndpoint": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The configured subrouter endpoint is invalid. Set an http(s) URL or clear it to use the local daemon."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "設定された subrouter エンドポイントが無効です。http(s) URL を設定するか、消去してローカルデーモンを使用してください。"
+        }
+      }
+    }
+  },
+  "socket.subrouter.configuration.registryUnreadable": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The subrouter server registry could not be read. Fix or remove ~/.subrouter/codex/servers.json, then retry."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "subrouter サーバーレジストリを読み取れませんでした。~/.subrouter/codex/servers.json を修正または削除してから再試行してください。"
+        }
+      }
+    }
   }
   },
   "version": "1.0"

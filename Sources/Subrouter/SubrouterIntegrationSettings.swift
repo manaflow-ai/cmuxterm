@@ -94,6 +94,13 @@ struct SubrouterIntegrationSettings {
         let registryBlocksConfiguration = serverRegistryIsUnreadable
             && explicitEndpoint == nil
             && serverSelection == nil
+        let configurationIssue: SubrouterConfiguration.ConfigurationIssue? = if endpointSettingIsInvalid {
+            .invalidEndpoint
+        } else if registryBlocksConfiguration {
+            .unreadableServerRegistry
+        } else {
+            nil
+        }
         let commandPath = (defaults.string(forKey: Self.commandPathKey) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return SubrouterConfiguration(
@@ -102,7 +109,8 @@ struct SubrouterIntegrationSettings {
                 && !registryBlocksConfiguration,
             endpoint: endpoint ?? .standard,
             serverName: serverName,
-            commandPath: commandPath.isEmpty ? nil : commandPath
+            commandPath: commandPath.isEmpty ? nil : commandPath,
+            configurationIssue: configurationIssue
         )
     }
 

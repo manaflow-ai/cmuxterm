@@ -184,6 +184,8 @@ extension CMUXCLI {
                 localized: "cli.subrouter.disabled",
                 defaultValue: "The subrouter integration is disabled. Enable it in Settings before running sr commands."
             ))
+        } catch let error as CLIError where error.v2Code == "subrouter_configuration_invalid" {
+            throw error
         } catch {
             // Fail closed when the app cannot answer: the release feature
             // flag and its safe default live in the app process, so a missing

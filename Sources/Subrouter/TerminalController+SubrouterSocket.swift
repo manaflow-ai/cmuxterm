@@ -27,6 +27,30 @@ extension TerminalController {
             data: nil
         )
     }
+    private nonisolated static func subrouterConfigurationError(
+        _ issue: SubrouterConfiguration.ConfigurationIssue
+    ) -> TerminalController.V2CallResult {
+        let localization: (key: String, fallback: String) = switch issue {
+        case .invalidEndpoint:
+            ("socket.subrouter.configuration.invalidEndpoint", "The configured subrouter endpoint is invalid. Set an http(s) URL or clear it to use the local daemon.")
+        case .unreadableServerRegistry:
+            ("socket.subrouter.configuration.registryUnreadable", "The subrouter server registry could not be read. Fix or remove ~/.subrouter/codex/servers.json, then retry.")
+        }
+        return .err(
+            code: "subrouter_configuration_invalid",
+            message: String(localized: localization.key, defaultValue: localization.fallback),
+            data: ["reason": issue.rawValue]
+        )
+    }
+    private nonisolated static func subrouterGateError(
+        for configuration: SubrouterConfiguration
+    ) -> TerminalController.V2CallResult? {
+        if let issue = configuration.configurationIssue {
+            return Self.subrouterConfigurationError(issue)
+        }
+        guard !configuration.isEnabled else { return nil }
+        return Self.subrouterDisabledError
+    }
 
     nonisolated func socketWorkerSubrouterResponse(
         method: String,
@@ -172,7 +196,7 @@ extension TerminalController {
         let runtime = await MainActor.run { SubrouterAppRuntime.shared }
         await runtime.refreshServerSelectionAndApply()
         let configuration = await MainActor.run { runtime.store.configuration }
-        guard configuration.isEnabled else { return Self.subrouterDisabledError }
+        if let error = Self.subrouterGateError(for: configuration) { return error }
         return .ok([
             "enabled": true,
             "endpoint": configuration.endpoint.baseURL.absoluteString,
@@ -184,8 +208,8 @@ extension TerminalController {
         let runtime = await MainActor.run { SubrouterAppRuntime.shared }
         await runtime.refreshServerSelectionAndApply()
         let store = await MainActor.run { runtime.store }
-        let enabled = await MainActor.run { store.configuration.isEnabled }
-        guard enabled else { return Self.subrouterDisabledError }
+        let configuration = await MainActor.run { store.configuration }
+        if let error = Self.subrouterGateError(for: configuration) { return error }
         do {
             let healthy = try await store.checkDaemonHealth()
             return .ok(["healthy": healthy])
@@ -231,7 +255,7 @@ extension TerminalController {
         await runtime.refreshServerSelectionAndApply()
         let store = await MainActor.run { runtime.store }
         let configuration = await MainActor.run { store.configuration }
-        guard configuration.isEnabled else { return Self.subrouterDisabledError }
+        if let error = Self.subrouterGateError(for: configuration) { return error }
         let snapshot = await store.performFreshRefresh(reason: "socket", includingSessions: includeSessions)
         if requiresHealthyDaemon {
             if !snapshot.daemonState.isHealthy {
@@ -262,6 +286,8 @@ extension TerminalController {
         // from the last activation.
         await runtime.refreshServerSelectionAndApply()
         let store = await MainActor.run { runtime.store }
+        let configuration = await MainActor.run { store.configuration }
+        if let error = Self.subrouterGateError(for: configuration) { return error }
         do {
             try await store.switchAccount(
                 provider: SubrouterProvider(rawValue: providerRaw.lowercased()),
@@ -300,8 +326,8 @@ extension TerminalController {
         // activation, so the cached selection may be stale.
         await runtime.refreshServerSelectionAndApply()
         let store = await MainActor.run { runtime.store }
-        let enabled = await MainActor.run { store.configuration.isEnabled }
-        guard enabled else { return Self.subrouterDisabledError }
+        let configuration = await MainActor.run { store.configuration }
+        if let error = Self.subrouterGateError(for: configuration) { return error }
         do {
             let result = try await store.reloadDaemonAccounts()
             guard result.ok else {
