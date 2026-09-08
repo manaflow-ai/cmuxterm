@@ -498,6 +498,40 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         }
     }
 
+    @Test func resolvedPrefixChordOnlyAllowsTheSelectedAuxiliaryMatcher() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let leader = ShortcutStroke(key: "b", command: true)
+            KeyboardShortcutSettings.setShortcut(
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "2")),
+                for: .selectWorkspaceByNumber
+            )
+            KeyboardShortcutSettings.setShortcut(
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "b")),
+                for: .browserBack
+            )
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: ShortcutStroke(key: "2"))
+            ))
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+            defer {
+                appDelegate.activeResolvedPrefixChordActionID = previousActionID
+                appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = previousPrefix
+                appDelegate.clearShortcutEventFocusContextCache(for: event)
+            }
+            appDelegate.activeResolvedPrefixChordActionID =
+                KeyboardShortcutSettings.Action.selectSurfaceByNumber.rawValue
+            appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = leader
+
+            #expect(appDelegate.routableNumberedConfiguredShortcutDigit(
+                event: event,
+                action: .selectWorkspaceByNumber
+            ) == nil)
+            #expect(!appDelegate.shouldForwardBrowserSurfaceShortcutToTerminal(event))
+        }
+    }
+
     private func withIsolatedShortcutSettings(_ body: () throws -> Void) rethrows {
         let originalSettingsFileStore = KeyboardShortcutSettings.installIsolatedTestFileStore(
             prefix: "cmux-file-explorer-shortcut-settings"
