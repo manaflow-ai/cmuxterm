@@ -3,6 +3,8 @@
 //! The public grammar lives here and in `cli/command.rs`. The wire transport
 //! is deliberately isolated in `cli/wire.rs`, so public commands cannot
 //! accidentally fall back to the private command protocol.
+//! `vm` explicitly uses the macOS app's Cloud control socket in `cli/cloud.rs`;
+//! local session and resource commands retain their existing wire contract.
 
 mod cloud;
 mod command;

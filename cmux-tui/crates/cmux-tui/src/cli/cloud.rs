@@ -268,7 +268,11 @@ fn app_request(
 }
 
 #[cfg(unix)]
-async fn app_exchange(socket: &std::path::Path, method: &str, params: Value) -> anyhow::Result<Value> {
+async fn app_exchange(
+    socket: &std::path::Path,
+    method: &str,
+    params: Value,
+) -> anyhow::Result<Value> {
     use anyhow::{Context, ensure};
     use tokio::io::BufReader;
     use tokio::net::UnixStream;
@@ -324,13 +328,22 @@ async fn app_send(
 }
 
 #[cfg(unix)]
-async fn app_receive(reader: &mut tokio::io::BufReader<tokio::net::UnixStream>) -> anyhow::Result<Vec<u8>> {
+async fn app_receive(
+    reader: &mut tokio::io::BufReader<tokio::net::UnixStream>,
+) -> anyhow::Result<Vec<u8>> {
     use anyhow::{Context, ensure};
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
     const MAX_RESPONSE: u64 = 16 * 1024 * 1024;
     let messages = &catalog().cloud_vm;
     let mut bytes = Vec::new();
-    reader.take(MAX_RESPONSE + 1).read_until(b'\n', &mut bytes).await.context(messages.read_failed)?;
-    ensure!(bytes.len() as u64 <= MAX_RESPONSE && bytes.last() == Some(&b'\n'), messages.invalid_response);
+    reader
+        .take(MAX_RESPONSE + 1)
+        .read_until(b'\n', &mut bytes)
+        .await
+        .context(messages.read_failed)?;
+    ensure!(
+        bytes.len() as u64 <= MAX_RESPONSE && bytes.last() == Some(&b'\n'),
+        messages.invalid_response
+    );
     Ok(bytes)
 }
