@@ -324,11 +324,11 @@ struct SessionIndexView: View {
             // and reload remain model capabilities, but the secondary icon
             // controls competed with the three primary grouping choices.
         }
-        // Match the right-sidebar mode bar above: the same 4/6-point outer
-        // insets and the same 28-point chrome rhythm.
+        // Match the right-sidebar mode bar above: the same outer insets and
+        // the same 28-point chrome rhythm.
         .rightSidebarChromeBar(
-            leadingPadding: 4,
-            trailingPadding: 6,
+            leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding,
+            trailingPadding: RightSidebarChromeMetrics.headerTrailingPadding,
             height: RightSidebarChromeMetrics.secondaryBarHeight
         )
         // Expand the intrinsic-width selector to the column and keep its
@@ -820,10 +820,10 @@ struct IndexSectionView: View, Equatable {
                     DispatchQueue.main.async { beginDrag() }
                     return NSItemProvider(object: section.key.raw as NSString)
                 } preview: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: RightSidebarChromeMetrics.contentIconTextSpacing) {
                         sectionIconView
                         Text(section.title)
-                            .cmuxFont(size: 13)
+                            .cmuxFont(size: 12, weight: .semibold)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -836,7 +836,7 @@ struct IndexSectionView: View, Equatable {
         Button {
             onToggleCollapsed()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: RightSidebarChromeMetrics.contentIconTextSpacing) {
                 sectionIconView
                 Text(section.title)
                     .cmuxFont(size: 12, weight: .semibold)
@@ -852,7 +852,8 @@ struct IndexSectionView: View, Equatable {
                     .rotationEffect(.degrees(isCollapsed ? -90 : 0))
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, RightSidebarChromeMetrics.contentIconLeadingPadding)
+            .padding(.trailing, 12)
             .padding(.vertical, 3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -861,7 +862,7 @@ struct IndexSectionView: View, Equatable {
     }
 
     private var sectionIconView: some View {
-        SessionIndexSectionIconImage(icon: section.icon, size: 14)
+        SessionIndexSectionIconImage(icon: section.icon, size: SessionIndexRowMetrics.sectionIconSize)
     }
 }
 
@@ -965,14 +966,9 @@ private struct SessionRow: View, Equatable {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-                    SessionIndexAgentIconImage(agent: entry.agent, size: 12)
-                }
-                .frame(width: 20, height: 20)
+        VStack(alignment: .leading, spacing: SessionIndexRowMetrics.detailLineSpacing) {
+            HStack(spacing: SessionIndexRowMetrics.primaryLineSpacing) {
+                SessionIndexAgentIconImage(agent: entry.agent, size: SessionIndexRowMetrics.agentIconSize)
                 Text(entry.displayTitle)
                     .cmuxFont(size: 13)
                     .foregroundColor(.primary.opacity(0.92))
@@ -994,14 +990,14 @@ private struct SessionRow: View, Equatable {
                     .foregroundColor(.secondary.opacity(0.75))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                // Match the title's leading edge: 20-point icon frame plus
-                // the six-point primary-line spacing.
-                .padding(.leading, 26)
+                // Start on the title's column: glyph width plus the
+                // primary-line spacing.
+                .padding(.leading, SessionIndexRowMetrics.detailLeadingInset)
             }
         }
         .padding(.leading, leadingPadding)
         .padding(.trailing, 12)
-        .padding(.vertical, 4)
+        .padding(.vertical, SessionIndexRowMetrics.verticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .background(rowBackground)
@@ -1215,7 +1211,7 @@ struct SessionTranscriptPreviewView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            SessionIndexSectionIconImage(icon: .agent(entry.agent), size: 14)
+            SessionIndexSectionIconImage(icon: .agent(entry.agent), size: SessionIndexRowMetrics.sectionIconSize)
             VStack(alignment: .leading, spacing: 1) {
                 Text(entry.displayTitle)
                     .cmuxFont(size: 13, weight: .semibold)
@@ -2770,7 +2766,7 @@ struct SectionPopoverView: View {
     }
 
     private var sectionIconView: some View {
-        SessionIndexSectionIconImage(icon: section.icon, size: 14)
+        SessionIndexSectionIconImage(icon: section.icon, size: SessionIndexRowMetrics.sectionIconSize)
     }
 }
 
@@ -2818,9 +2814,9 @@ private struct PopoverRow: View, Equatable {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
-                SessionIndexSectionIconImage(icon: .agent(entry.agent), size: 12)
+        VStack(alignment: .leading, spacing: SessionIndexRowMetrics.detailLineSpacing) {
+            HStack(spacing: SessionIndexRowMetrics.primaryLineSpacing) {
+                SessionIndexSectionIconImage(icon: .agent(entry.agent), size: SessionIndexRowMetrics.agentIconSize)
                 // Flatten newlines so titles containing `<command-message>…\n…`
                 // envelopes stay single-line; SwiftUI's `lineLimit(1)` doesn't
                 // always constrain a Text that has hard line breaks in the
@@ -2843,9 +2839,9 @@ private struct PopoverRow: View, Equatable {
                     .foregroundColor(.secondary.opacity(0.75))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    // The icon is 12 points wide and the title starts after
-                    // the six-point row spacing.
-                    .padding(.leading, 18)
+                    // Start on the title's column: glyph width plus the
+                    // primary-line spacing.
+                    .padding(.leading, SessionIndexRowMetrics.detailLeadingInset)
             }
         }
         .padding(.horizontal, 12)
