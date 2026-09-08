@@ -52,6 +52,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取其他應用程式的內容。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 다른 앱의 콘텐츠에 접근하려고 합니다."
+          }
         }
       }
     },
@@ -104,6 +110,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取其他應用程式的資料。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 다른 앱의 데이터에 접근하려고 합니다."
           }
         }
       }
@@ -158,6 +170,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要使用 AppleScript。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 AppleScript를 사용하려고 합니다."
+          }
         }
       }
     },
@@ -210,6 +228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要使用藍牙來偵測通行金鑰與安全性金鑰。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 패스키 및 보안 키를 탐색하기 위해 Bluetooth를 사용하려고 합니다."
           }
         }
       }
@@ -264,6 +288,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要讀取和寫入您的行事曆。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 캘린더를 읽고 쓰려고 합니다."
+          }
         }
       }
     },
@@ -316,6 +346,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要新增行程至您的行事曆。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 캘린더에 일정을 추가하려고 합니다."
           }
         }
       }
@@ -370,6 +406,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要使用您的相機。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 카메라를 사용하려고 합니다."
+          }
         }
       }
     },
@@ -422,6 +464,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取您「桌面」資料夾中的檔案。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 데스크탑 폴더의 파일에 접근하려고 합니다."
           }
         }
       }
@@ -476,6 +524,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取您「文件」資料夾中的檔案。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 문서 폴더의 파일에 접근하려고 합니다."
+          }
         }
       }
     },
@@ -528,6 +582,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取您「下載」資料夾中的檔案。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 다운로드 폴더의 파일에 접근하려고 합니다."
           }
         }
       }
@@ -582,6 +642,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取由檔案提供者管理的檔案。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 파일 제공업체에서 관리하는 파일에 접근하려고 합니다."
+          }
         }
       }
     },
@@ -635,6 +701,12 @@
             "state": "translated",
             "value": "在 cmux 中运行的程序想要发现您本地网络上的设备。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 로컬 네트워크의 기기를 탐색하려고 합니다."
+          }
         }
       }
     },
@@ -687,6 +759,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取您的位置資訊。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 위치 정보에 접근하려고 합니다."
           }
         }
       }
@@ -854,6 +932,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取動作資料。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 동작 데이터에 접근하려고 합니다."
+          }
         }
       }
     },
@@ -906,6 +990,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取網路卷宗上的檔案。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 네트워크 볼륨의 파일에 접근하려고 합니다."
           }
         }
       }
@@ -960,6 +1050,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要讀取和寫入您的提醒事項。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 미리 알림을 읽고 쓰려고 합니다."
+          }
         }
       }
     },
@@ -1012,6 +1108,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要存取卸除式卷宗上的檔案。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 외장 볼륨의 파일에 접근하려고 합니다."
           }
         }
       }
@@ -1066,6 +1168,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要使用語音辨識。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 음성 인식을 사용하려고 합니다."
+          }
         }
       }
     },
@@ -1118,6 +1226,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中运行的程序想要执行系统管理任务。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 내에서 실행 중인 프로그램이 시스템 관리 작업을 수행하려고 합니다."
           }
         }
       }
@@ -2527,6 +2641,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "cmux 會安裝網路延伸功能，以便此 Mac 可透過私人網路連線至您的 Cloud 虛擬主機。此功能僅在您使用 cmux Cloud 時執行。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux는 이 Mac이 사설 네트워크의 Cloud 머신에 연결할 수 있도록 네트워크 확장을 설치합니다. 이 확장은 cmux Cloud를 사용하는 동안에만 실행됩니다."
           }
         }
       }

@@ -52,6 +52,12 @@
             "state": "translated",
             "value": "Diff 查看器白名单过大"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 뷰어 허용 목록이 너무 큽니다"
+          }
         }
       }
     },
@@ -104,6 +110,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重复的 Diff 查看器白名单条目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "중복된 Diff 뷰어 허용 목록 항목"
           }
         }
       }
@@ -158,6 +170,12 @@
             "state": "translated",
             "value": "Diff 查看器白名单为空"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 뷰어 허용 목록이 비어 있습니다"
+          }
         }
       }
     },
@@ -210,6 +228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无效的 Diff 查看器白名单条目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잘못된 Diff 뷰어 허용 목록 항목"
           }
         }
       }
@@ -264,6 +288,12 @@
             "state": "translated",
             "value": "无效的 Diff 查看器清单"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잘못된 Diff 뷰어 매니페스트"
+          }
         }
       }
     },
@@ -316,6 +346,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "无效的 Diff 查看器令牌"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "잘못된 Diff 뷰어 토큰"
           }
         }
       }
@@ -370,6 +406,12 @@
             "state": "translated",
             "value": "Diff 查看器清单过大"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 뷰어 매니페스트가 너무 큽니다"
+          }
         }
       }
     },
@@ -423,6 +465,12 @@
             "state": "translated",
             "value": "Diff 查看器文件不可读"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 뷰어 파일을 읽을 수 없습니다"
+          }
         }
       }
     },
@@ -475,6 +523,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diff 查看器受信任目录不安全"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 뷰어 신뢰할 수 있는 디렉토리가 안전하지 않습니다"
           }
         }
       }

@@ -51,6 +51,12 @@
             "state": "translated",
             "value": "側邊欄錯誤"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사이드바 오류"
+          }
         }
       }
     },
@@ -104,6 +110,12 @@
             "state": "translated",
             "value": "側邊欄檔案為空或遺失。"
           }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사이드바 파일이 비어 있거나 누락되었습니다."
+          }
         }
       }
     },
@@ -156,6 +168,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "找不到支援的 SwiftUI 檢視。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지원되는 SwiftUI 뷰를 찾을 수 없습니다."
           }
         }
       }
