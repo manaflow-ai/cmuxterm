@@ -246,12 +246,24 @@ enum ClaudeHookLiveDeliveryHarness {
         try? stdinPipe.fileHandleForWriting.close()
 
         let exitSignal = DispatchSemaphore(value: 0)
+        let waiterStarted = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
+            waiterStarted.signal()
             process.waitUntilExit()
             exitSignal.signal()
         }
         let timedOut = exitSignal.wait(timeout: .now() + 10) == .timedOut
+        var timeoutDiagnostic = ""
         if timedOut {
+            // Diagnose completion-delivery delays without becoming a second
+            // waitpid owner or extending the hook's existing deadline.
+            let started = waiterStarted.wait(timeout: .now()) == .success
+            let isRunning = process.isRunning
+            let existence = kill(process.processIdentifier, 0)
+            let existenceError = existence == 0 ? 0 : errno
+            timeoutDiagnostic = "hook test timeout: pid=\(process.processIdentifier) "
+                + "waiterStarted=\(started) isRunning=\(isRunning) "
+                + "kill0=\(existence) errno=\(existenceError)"
             process.terminate()
             if exitSignal.wait(timeout: .now() + 1) == .timedOut {
                 kill(process.processIdentifier, SIGKILL)
@@ -264,7 +276,7 @@ enum ClaudeHookLiveDeliveryHarness {
         return ProcessRunResult(
             status: process.isRunning ? SIGKILL : process.terminationStatus,
             stdout: stdout,
-            stderr: stderr,
+            stderr: [stderr, timeoutDiagnostic].filter { !$0.isEmpty }.joined(separator: "\n"),
             timedOut: timedOut
         )
     }
