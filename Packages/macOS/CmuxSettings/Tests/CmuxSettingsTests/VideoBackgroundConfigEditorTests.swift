@@ -66,6 +66,31 @@ struct VideoBackgroundConfigEditorTests {
     }
 
     @Test
+    func snapshotRejectsNumericFlagsAndPreservesRealBooleans() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-video-editor-flags-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("cmux.json")
+        let editor = VideoBackgroundConfigEditor(fileURL: url)
+
+        for value in ["0", "1", "0.0", "1.0", "\"true\"", "null"] {
+            try """
+            { "terminal": { "videoBackground": { "enabled": \(value), "muted": \(value) } } }
+            """.write(to: url, atomically: true, encoding: .utf8)
+            let snapshot = try editor.read()
+            #expect(snapshot.enabled == nil)
+            #expect(snapshot.muted == nil)
+        }
+        for value in [true, false] {
+            let snapshot = try editor.update(.init(enabled: value, muted: value))
+            #expect(snapshot.enabled == value)
+            #expect(snapshot.muted == value)
+            #expect(try editor.read() == snapshot)
+        }
+    }
+
+    @Test
     func snapshotRejectsMixedQueuesAndBooleanNumbers() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-video-editor-types-\(UUID().uuidString)", isDirectory: true)

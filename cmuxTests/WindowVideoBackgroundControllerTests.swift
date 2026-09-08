@@ -312,6 +312,79 @@ struct WindowVideoBackgroundControllerTests {
     }
 
     @Test
+    func queueEditsPreserveThePlayingEntryAndClock() {
+        var clock: CFTimeInterval = 100
+        let coordinator = VideoBackgroundPlaybackCoordinator(now: { clock })
+        let initial = coordinator.configure(sourceTexts: ["/tmp/first.mp4", "/tmp/second.mp4"], quality: "1080p")
+        coordinator.advance(after: initial.generation)
+        let registration = coordinator.register { _ in }
+        coordinator.setPlayerRunning(true, for: registration.token)
+        clock += 5
+        let playing = coordinator.synchronizedSnapshot()
+
+        for queue in [
+            ["/tmp/first.mp4", "/tmp/second.mp4", "/tmp/third.mp4"],
+            ["/tmp/third.mp4", "/tmp/second.mp4", "/tmp/first.mp4"],
+            ["/tmp/second.mp4", "/tmp/first.mp4"]
+        ] {
+            let edited = coordinator.configure(sourceTexts: queue, quality: "1080p")
+            #expect(edited.currentSource == playing.currentSource)
+            #expect(edited.generation == playing.generation)
+            #expect(edited.position == 5)
+        }
+        clock += 2
+        #expect(coordinator.synchronizedSnapshot().position == 7)
+    }
+
+    @Test
+    func qualityChangeFreezesTheSavedPlayheadUntilReplacementIsReady() {
+        var clock: CFTimeInterval = 100
+        let coordinator = VideoBackgroundPlaybackCoordinator(now: { clock })
+        let initial = coordinator.configure(sourceTexts: ["/tmp/first.mp4", "/tmp/second.mp4"], quality: "1080p")
+        coordinator.advance(after: initial.generation)
+        let registration = coordinator.register { _ in }
+        coordinator.setPlayerRunning(true, for: registration.token)
+        clock += 5
+        let playing = coordinator.synchronizedSnapshot()
+
+        let edited = coordinator.configure(sourceTexts: ["/tmp/first.mp4", "/tmp/second.mp4"], quality: "720p")
+        #expect(edited.currentSource == playing.currentSource)
+        #expect(edited.generation != playing.generation)
+        #expect(edited.position == 5)
+        clock += 20
+        coordinator.advance(after: playing.generation)
+        #expect(coordinator.synchronizedSnapshot().position == 5)
+        coordinator.setPlayerRunning(true, for: registration.token)
+        clock += 2
+        #expect(coordinator.synchronizedSnapshot().position == 7)
+    }
+
+    @Test
+    func queueEditsPreserveDuplicateOccurrenceAndUpdateLoopMode() {
+        var clock: CFTimeInterval = 100
+        let coordinator = VideoBackgroundPlaybackCoordinator(now: { clock })
+        let initial = coordinator.configure(sourceTexts: ["/tmp/first.mp4", "/tmp/first.mp4"], quality: "1080p")
+        coordinator.advance(after: initial.generation)
+        let registration = coordinator.register { _ in }
+        coordinator.setPlayerRunning(true, for: registration.token)
+        clock += 5
+        let playing = coordinator.synchronizedSnapshot()
+
+        let reordered = coordinator.configure(
+            sourceTexts: ["/tmp/third.mp4", "/tmp/first.mp4", "/tmp/first.mp4"], quality: "1080p"
+        )
+        #expect(reordered.index == 2)
+        #expect(reordered.generation == playing.generation)
+        #expect(reordered.position == 5)
+        let single = coordinator.configure(sourceTexts: ["/tmp/first.mp4"], quality: "1080p")
+        #expect(single.index == 0)
+        #expect(single.generation != playing.generation)
+        #expect(single.position == 5)
+        clock += 20
+        #expect(coordinator.synchronizedSnapshot().position == 5)
+    }
+
+    @Test
     func staleFailureGenerationCannotAffectAReplacementQueue() {
         let coordinator = VideoBackgroundPlaybackCoordinator()
         let old = coordinator.configure(sourceTexts: ["dQw4w9WgXcQ"], quality: "1080p")
