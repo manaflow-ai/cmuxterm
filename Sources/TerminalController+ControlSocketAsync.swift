@@ -180,7 +180,7 @@ extension TerminalController {
                 request = parsed
             }
 
-            let relayAuthorization = authorizeRemoteRelayRequest(request)
+            let relayAuthorization = await authorizeRemoteRelayRequestAsync(request)
             if let errorResponse = relayAuthorization.errorResponse {
                 return errorResponse
             }
@@ -309,6 +309,12 @@ extension TerminalController {
             return Self.v2Encoder.response(id: request.id, result)
         }
 
+        if request.method == "agent.restore.admit" {
+            return await agentRestoreAdmissionResponse(request)
+        }
+        if request.method == "agent.restore.release" {
+            return await agentRestoreAdmissionReleaseResponse(request)
+        }
         if ControlCommandExecutionPolicy.servesFromPublishedReadSnapshot(method: request.method),
            let snapshotResult = socketReadSnapshotStore.response(
                 method: request.method,
