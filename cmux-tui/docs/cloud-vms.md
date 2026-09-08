@@ -3,8 +3,9 @@
 The Rust client can list Cloud VMs and open a VM's full TUI in the current
 terminal. The macOS cmux app must be running and signed in. It owns the account,
 the private route, and one shared userspace WireGuard hub. These commands do
-not start a system VPN or invoke the Swift CLI. Linux clients can use an
-explicitly forwarded app Unix socket; Windows is not supported by this adapter.
+not start a system VPN or invoke the Swift CLI. This adapter targets macOS.
+Forwarding the app control socket alone does not make its local WireGuard hub
+available to a client on another computer.
 
 ```sh
 cmux-tui vm ls --json
@@ -44,8 +45,9 @@ desktop CLI parity.
 Rust クライアントから Cloud VM を一覧表示し、現在の端末で VM の TUI を開けます。
 macOS の cmux アプリを起動してログインしてください。アカウント、プライベート経路、
 共有ユーザー空間 WireGuard ハブはアプリが管理します。システム VPN の起動や Swift
-CLI の呼び出しは行いません。Linux では明示的に転送したアプリの Unix ソケットを
-使用できます。このアダプターは Windows に対応していません。
+CLI の呼び出しは行いません。このアダプターの対象は macOS です。アプリの制御
+ソケットだけを転送しても、別のコンピューターからローカルの WireGuard ハブを
+使用することはできません。
 
 上記の `vm ls` と `vm tui` を使用してください。`vm tui` はデスクトップのペインを
 開かず、このプロセスを VM に接続します。`Ctrl-b d` で切断しても VM セッションは
