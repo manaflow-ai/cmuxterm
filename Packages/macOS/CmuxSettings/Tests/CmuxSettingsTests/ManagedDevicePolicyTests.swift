@@ -71,7 +71,7 @@ struct ManagedDevicePolicyTests {
             forcedObject: Self.probe
         )
 
-        #expect(policy.isCloudDisabled)
+        #expect(policy.isEnforced(.disableCloud))
         #expect(policy.isKeyForcedInAppDomain(ManagedDevicePolicyKey.disableCloud.rawValue))
     }
 

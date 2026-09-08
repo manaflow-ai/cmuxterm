@@ -9,8 +9,10 @@ import Foundation
 /// `BrowserAvailabilitySettings.didChangeNotification` so gated UI refreshes;
 /// when the remote-control policy flips either way it runs the injected
 /// mobile enforcement (`MobileHostService.syncToSettings()`, which tears the
-/// host down or re-arms it), and a Cloud disable transition tears down Cloud
-/// workspaces and the VPN. Every transition also posts
+/// host down or re-arms it); when the Cloud policy flips either way it runs
+/// the injected Cloud enforcement (teardown of Cloud workspaces, providers,
+/// and the managed VPN on activation; discovery restart on lift), and also at
+/// construction when the policy is already forced. Every transition also posts
 /// `ManagedDevicePolicy.didChangeNotification` so Settings UI re-reads the
 /// resolver.
 ///
@@ -53,7 +55,7 @@ final class ManagedPolicyEnforcementObserver {
             MobileRemoteControlPolicy.isDisabled
         },
         isCloudDisabledByPolicy: @escaping () -> Bool = {
-            ManagedDevicePolicy().isCloudDisabled
+            ManagedDevicePolicy().isEnforced(.disableCloud)
         },
         enforceBrowserPolicy: @escaping () -> Void,
         enforceBrowserURLAllowlistPolicy: @escaping () -> Void,
@@ -73,6 +75,11 @@ final class ManagedPolicyEnforcementObserver {
         observedBrowserURLAllowlistPolicy = browserURLAllowlistPolicy()
         remoteControlPolicyActive = isRemoteControlDisabledByPolicy()
         cloudPolicyActive = isCloudDisabledByPolicy()
+        if cloudPolicyActive {
+            // A profile may already be installed before launch. Enforce it at
+            // startup so restored Cloud workspaces and providers are removed.
+            enforceCloudPolicy()
+        }
         observe(UserDefaults.didChangeNotification)
         observe(NSApplication.didBecomeActiveNotification)
         observationTasks.append(Task { @MainActor [weak self] in
@@ -137,9 +144,7 @@ final class ManagedPolicyEnforcementObserver {
         if cloudNow != cloudPolicyActive {
             cloudPolicyActive = cloudNow
             anyTransition = true
-            if cloudNow {
-                enforceCloudPolicy()
-            }
+            enforceCloudPolicy()
         }
         if anyTransition {
             // Settings UI re-reads the resolver on this signal.

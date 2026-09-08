@@ -30,7 +30,7 @@ domain wins over the release-domain fallback.
 | --- | --- | --- | --- |
 | `DisableEmbeddedBrowser` | Boolean | `false` | Disables every embedded-browser surface: browser panes and tabs, terminal-link interception, browser creation from automation/CLI, saved and `cmux.json` layouts, and session restore. Live browser panes are closed when the policy activates. Links open in the system default browser instead. WebKit-based local viewers that ride the same gate (the diff viewer, agent-chat pane, in-app upgrade pages) are also unavailable. The Mac stops advertising browser capabilities to the iOS app. |
 | `DisableRemoteControl` | Boolean | `false` | Disables the Mac acting as a remote view/control host for the cmux iOS companion app: the Iroh host runtime (including its local-network advertisement), the legacy TCP pairing listener, connection admission, and device pairing. Live phone connections are closed when the policy activates, and the app reports `pairingEnabled=false` to the pairing trust broker so the backend refuses to mint new pair grants. Outbound-only notification forwarding to an already-provisioned phone, Sparkle updates, the local automation Unix socket, and Mac-as-client SSH remain unaffected. |
-| `DisableCloud` | Boolean | `false` | Disables Cloud Machines and cmux-managed private-network access. Cloud UI, settings, palette actions, restore, Cloud VM operations, Cloud remotes, and Cloud automation are unavailable. `cmux vpn status`, `cmux vpn down`, and `cmux vpn revoke` remain available for tunnel cleanup; `cmux vpn up` and implicit Cloud tunnel use fail closed. Existing Cloud workspaces and connections are torn down when the policy activates; the app stops and removes its managed VPN configuration. Local terminals and ordinary user-configured SSH remain available. |
+| `DisableCloud` | Boolean | `false` | Disables cmux Cloud Machines and cmux-managed private-network access. Cloud UI (the right-sidebar Cloud tab, Settings, command palette, title-bar and new-workspace entries), session restore of Cloud workspaces, Cloud VM service calls (create, open, attach, exec, SSH, desktop, ports, publications, Cloud remotes), the Cloud surface registry, and Cloud VM socket/CLI operations are unavailable and fail closed with a managed-policy error (socket code `cloud_disabled`). The app does not enroll, start, or reconnect its private-network tunnel: `cmux vpn up` and implicit Cloud tunnel use fail closed, while `cmux vpn status`, `cmux vpn down`, and `cmux vpn revoke` remain available for cleanup. When the policy activates mid-session, live Cloud workspaces, providers, and private-network links are torn down and the managed VPN configuration is removed. Local terminals, local automation, and ordinary user-configured SSH remain available. |
 | `BrowserURLAllowlist` | Array of strings | unset (allow all web origins) | Restricts every embedded-browser top-level navigation to matching URL patterns. Address-bar loads, links, redirects, `window.open`, automation, deep links, and restored panes are checked. A forced empty array denies all external web origins while cmux-owned internal documents (such as `about:blank` and diff pages) remain available. |
 
 Notes:
@@ -73,18 +73,26 @@ Configuration-profile forced values are locked by macOS itself: no
 user-level write (including "Reset All Settings") can change the effective
 value, and removing the profile restores normal behavior. cmux additionally
 suppresses its own writers: the `cmux.json` importer skips every
-profile-forced key, and for the browser and remote-control controls the
-Settings UI shows the managed state, the command palette hides the matching
-commands, and the CLI refuses with a managed-policy error — including when
-an administrator forces the user-level `browserDisabledOverride` key
-directly instead of the dedicated policy key.
+profile-forced key, and for the browser, remote-control, and Cloud controls
+the Settings UI shows the managed state, the command palette hides the
+matching commands, and the CLI refuses with a managed-policy error —
+including when an administrator forces the user-level
+`browserDisabledOverride` key directly instead of the dedicated policy key.
 
 `DisableEmbeddedBrowser` takes precedence over `BrowserURLAllowlist`: when the
 disable policy is forced, no embedded browser surface is created and the URL
 allowlist is not consulted. If the disable policy is later removed, the
-allowlist becomes effective without requiring a restart. `DisableCloud`
-independently gates Cloud and its managed VPN; it does not disable local
-terminals or ordinary SSH.
+allowlist becomes effective without requiring a restart.
+
+`DisableCloud` independently gates Cloud Machines and the cmux-managed VPN;
+it does not disable local terminals, local automation, or ordinary
+user-configured SSH. Removing the policy restores Cloud discovery without a
+restart. An MDM policy cannot remove a signed entitlement from an installed
+binary: builds that carry the Network Extension entitlement keep it, and
+enforcement instead makes the Cloud and VPN capability unreachable at runtime
+(no enrollment, start, or reconnect while the policy is forced, and any
+existing VPN configuration is removed when the policy activates). Builds
+without the entitlement continue to use the existing unavailable-backend path.
 
 ## Supported platforms and versions
 
@@ -177,8 +185,16 @@ defaults read com.cmuxterm.app BrowserURLAllowlist
 
 # The CLI reports browser availability and URL-policy metadata:
 cmux browser status --json   # includes url_allowlist and url_allowlist_managed
+
+# Cloud verbs are refused with a managed-policy error (socket code
+# `cloud_disabled`); `cmux vpn status`, `cmux vpn down`, and `cmux vpn revoke`
+# remain available for cleanup:
+cmux vm list
+cmux vpn up
 ```
 
 In cmux, Settings → Browser shows the enable toggle disabled with
-"Managed by your organization", and Settings → Mobile shows "Remote
-control from the iOS app is disabled by your organization."
+"Managed by your organization", Settings → Mobile shows "Remote control from
+the iOS app is disabled by your organization.", and Settings → Beta Features
+shows the Cloud Machines toggle disabled with "Managed by your organization"
+while the Cloud settings section and the right-sidebar Cloud tab are hidden.

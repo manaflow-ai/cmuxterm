@@ -1,3 +1,4 @@
+import CmuxSettings
 import Foundation
 import os
 
@@ -16,6 +17,10 @@ nonisolated private let logger = Logger(subsystem: "com.cmuxterm.app", category:
 ///   it fires and no consumer is live (``CloudTunnelConsumerSource``), the
 ///   tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
 /// - **Stops with the session.** Sign-out, revoke, and app termination stop it.
+/// - **Off under `DisableCloud`.** While the managed policy is forced the
+///   coordinator never enrolls, starts, or reconnects; explicit and implicit
+///   uses fail closed, and the app's enforcement path revokes any existing
+///   configuration. `down` and `revoke` remain available for cleanup.
 /// - macOS never auto-connects it: no NetworkExtension on-demand rules are set.
 ///
 /// An unavailable backend rejects browser navigation before a private URL is
@@ -29,6 +34,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// `CloudTunnelCoordinator+Deadline.swift` reads it.
     let clock: any Clock<Duration>
     private let timing: CloudTunnelTiming
+    /// The `DisableCloud` managed policy, read on every start path so a profile
+    /// pushed mid-session is honored by the next use without a restart.
+    private let isDisabledByPolicy: @Sendable () -> Bool
 
     private(set) var state: CloudTunnelState = .off
     private(set) var isPinned = false
@@ -54,7 +62,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         enroller: any CloudTunnelEnrolling,
         consumers: any CloudTunnelConsumerSource,
         clock: any Clock<Duration> = ContinuousClock(),
-        timing: CloudTunnelTiming = CloudTunnelTiming()
+        timing: CloudTunnelTiming = CloudTunnelTiming(),
+        isDisabledByPolicy: @escaping @Sendable () -> Bool = {
+            ManagedDevicePolicy().isEnforced(.disableCloud)
+        }
     ) {
         self.backend = backend
         self.controller = controller
@@ -62,12 +73,17 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         self.consumers = consumers
         self.clock = clock
         self.timing = timing
+        self.isDisabledByPolicy = isDisabledByPolicy
     }
 
     // MARK: - CloudPrivateNetworkGate
 
     func prepareForPrivateNetworkUse(_ use: CloudPrivateNetworkUse) async {
         guard backend.isNetworkExtension else { return }
+        if isDisabledByPolicy() {
+            logger.notice("Cloud use refused: DisableCloud is enforced by a managed profile")
+            return
+        }
         if state == .up {
             restartIdleTimer()
             return
@@ -98,6 +114,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
+        if isDisabledByPolicy() {
+            throw CloudTunnelError.disabledByPolicy
+        }
         if state == .up {
             restartIdleTimer()
             return
@@ -116,6 +135,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
+        if isDisabledByPolicy() {
+            throw CloudTunnelError.disabledByPolicy
+        }
         if pin { isPinned = true }
         clearFailureBackoff()
         try await ensureUp()
@@ -123,7 +145,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
 
     /// Kick off a start without waiting for it; pair with ``waitForState``.
     func beginUp(pin: Bool) {
-        guard backend.isNetworkExtension else { return }
+        guard backend.isNetworkExtension, !isDisabledByPolicy() else { return }
         if pin { isPinned = true }
         clearFailureBackoff()
         _ = startTaskIfNeeded()

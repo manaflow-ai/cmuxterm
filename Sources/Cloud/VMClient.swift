@@ -1,4 +1,5 @@
 import CmuxAuthRuntime
+import CmuxSettings
 import Foundation
 
 extension URLError.Code {
@@ -38,9 +39,16 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
+    /// An MDM profile forces `DisableCloud`; no request was attempted.
+    case disabledByManagedPolicy
 
     var description: String {
         switch self {
+        case .disabledByManagedPolicy:
+            return String(
+                localized: "cloud.managed.disabled",
+                defaultValue: "Cloud Machines are disabled by your administrator."
+            )
         case .notSignedIn:
             return """
                 You are not signed in to cmux.
@@ -633,17 +641,14 @@ struct VMWebSocketDaemonEndpoint {
 /// cmuxd-remote → cmux-tui migration). The route carries the ingress token; the
 /// invitation is present only when this device is not yet enrolled with the daemon.
 struct VMCmuxRemoteEndpoint {
-    struct Invitation {
-        let uri: String
-        let invitationId: String
-        let expiresAtUnix: Int64
-    }
-
     let route: String
     let token: String
     let expiresAtUnix: Int64
     let session: String
-    let invitation: Invitation?
+    /// The machine's daemon serves the trusted-carrier listener: dial `--carrier`,
+    /// no enrollment. False only for a daemon the control plane left on an older
+    /// build because this Mac is already enrolled there.
+    let trustedCarrier: Bool
     /// The machine's private addresses, when the provider returned them. Keep
     /// this metadata on the client boundary so agents and diagnostics can see
     /// the same route state the backend used, without reconstructing it.
@@ -661,12 +666,6 @@ struct VMCmuxRemoteEndpoint {
     }
 
     let daemonBuild: DaemonBuild?
-}
-
-struct VMCmuxRemoteApproval {
-    let approved: Bool
-    let state: String
-    let deviceFingerprint: String?
 }
 
 enum VMAttachEndpoint {
@@ -759,17 +758,24 @@ actor VMClient {
     /// The browser-only private-network gate. Terminal and metadata traffic
     /// uses the separate user-space WireGuard hub.
     private let privateNetwork: any CloudPrivateNetworkGate
+    /// The `DisableCloud` managed policy. Every Cloud VM API call reads it, so
+    /// a profile pushed mid-session takes effect on the next request.
+    private let isDisabledByManagedPolicy: @Sendable () -> Bool
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
         telemetry: VMClientTelemetry = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
+        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate(),
+        isDisabledByManagedPolicy: @escaping @Sendable () -> Bool = {
+            ManagedDevicePolicy().isEnforced(.disableCloud)
+        }
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
         self.privateNetwork = privateNetwork
+        self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
     }
 
     /// Do not let a Cloud webview navigate until the browser tunnel is ready.
@@ -1484,13 +1490,9 @@ actor VMClient {
             throw VMClientError.malformedResponse("Cloud VM cmux-remote attach response was missing required fields.")
         }
         let expiresAtUnix = (obj["expiresAtUnix"] as? Int64) ?? Int64((obj["expiresAtUnix"] as? Double) ?? 0)
-        var invitation: VMCmuxRemoteEndpoint.Invitation?
-        if let raw = obj["invitation"] as? [String: Any],
-           let uri = raw["uri"] as? String, !uri.isEmpty,
-           let invitationId = raw["invitationId"] as? String, !invitationId.isEmpty {
-            let invitationExpires = (raw["expiresAtUnix"] as? Int64) ?? Int64((raw["expiresAtUnix"] as? Double) ?? 0)
-            invitation = .init(uri: uri, invitationId: invitationId, expiresAtUnix: invitationExpires)
-        }
+        // Absent on a control plane older than the trusted listener: such a
+        // daemon would still expect enrollment, which this build no longer does.
+        let trustedCarrier = (obj["trustedCarrier"] as? Bool) ?? false
         var daemonBuild: VMCmuxRemoteEndpoint.DaemonBuild?
         if let raw = obj["daemonBuild"] as? [String: Any] {
             daemonBuild = .init(
@@ -1515,27 +1517,9 @@ actor VMClient {
             token: token,
             expiresAtUnix: expiresAtUnix,
             session: session,
-            invitation: invitation,
+            trustedCarrier: trustedCarrier,
             networkAddresses: networkAddresses,
             daemonBuild: daemonBuild
-        )
-    }
-
-    func approveCmuxRemoteEnrollment(id: String, invitationId: String) async throws -> VMCmuxRemoteApproval {
-        let encodedID = try pathSegment(id, fieldName: "vm id")
-        let (data, http) = try await request(
-            "POST",
-            path: "/api/vm/\(encodedID)/cmux-remote/approve",
-            jsonBody: ["invitationId": invitationId],
-            timeoutSeconds: 60
-        )
-        try ensureOK(http, data: data)
-        let obj = try decodeJSONObject(data)
-        let state = (obj["state"] as? String) ?? "pending"
-        return VMCmuxRemoteApproval(
-            approved: (obj["approved"] as? Bool) ?? false,
-            state: state,
-            deviceFingerprint: obj["deviceFingerprint"] as? String
         )
     }
 
@@ -1586,10 +1570,13 @@ actor VMClient {
     /// config still on disk stops working immediately.
     func revokeCloudAccess(deviceID: String) async throws {
         let revocation = Self.cloudAccessRevocationRequest(deviceID: deviceID)
+        // Revocation removes this Mac's access, so it is the one call a
+        // `DisableCloud` profile must not block (`cmux vpn revoke` cleanup).
         let (data, http) = try await request(
             "DELETE",
             path: revocation.path,
-            jsonBody: revocation.body
+            jsonBody: revocation.body,
+            allowedUnderManagedPolicy: true
         )
         try ensureOK(http, data: data)
     }
@@ -1910,14 +1897,23 @@ actor VMClient {
     /// sends the client identity headers, measures wall-clock latency and
     /// records the outcome (success, HTTP error with the server's code and
     /// trace id, or transport failure) with `VMClientTelemetry`.
+    ///
+    /// This is also the authoritative `DisableCloud` boundary: with the
+    /// managed policy forced, every operation fails closed here before any
+    /// network or telemetry work, whichever entry point asked (UI, palette,
+    /// restore, socket, iOS RPC). Only access revocation may pass.
     private func request(
         _ method: String,
         path: String,
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
         timeoutSeconds: TimeInterval? = nil,
-        retryTransientServiceUnavailable: Bool = false
+        retryTransientServiceUnavailable: Bool = false,
+        allowedUnderManagedPolicy: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
+        if !allowedUnderManagedPolicy, isDisabledByManagedPolicy() {
+            throw VMClientError.disabledByManagedPolicy
+        }
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
         let startedAt = DispatchTime.now().uptimeNanoseconds
@@ -1975,7 +1971,7 @@ actor VMClient {
         case .sessionRefreshFailed: return .sessionRefreshFailed
         case .backendUnreachable: return .backendUnreachable
         case .malformedResponse: return .malformedResponse
-        case .httpStatus: return .unknown
+        case .httpStatus, .disabledByManagedPolicy: return .unknown
         }
     }
 
@@ -1983,7 +1979,7 @@ actor VMClient {
         switch error {
         case .backendUnreachable(let url, let detail): return "\(url): \(detail)"
         case .malformedResponse(let message): return message
-        case .notSignedIn, .sessionRefreshFailed, .httpStatus: return ""
+        case .notSignedIn, .sessionRefreshFailed, .httpStatus, .disabledByManagedPolicy: return ""
         }
     }
 
@@ -2101,7 +2097,9 @@ actor VMClient {
                let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
                 retriesLeft -= 1
                 onRetry()
-                try await Task.sleep(for: .seconds(delaySeconds))
+                try await Task.sleep(
+                    nanoseconds: UInt64(delaySeconds.components.seconds) * 1_000_000_000
+                )
                 continue
             }
             if let sessionIdentity {

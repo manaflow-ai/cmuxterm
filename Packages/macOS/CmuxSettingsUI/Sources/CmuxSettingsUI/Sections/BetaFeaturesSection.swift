@@ -15,6 +15,10 @@ public struct BetaFeaturesSection: View {
     @State private var remoteTmux: DefaultsValueModel<Bool>
     @State private var workspaceTodoControls: DefaultsValueModel<Bool>
     @State private var workspaceTodosChecklistStyle: DefaultsValueModel<WorkspaceTodoChecklistStyle>
+    /// `DisableCloud` (MDM). The opt-in is meaningless while an administrator
+    /// forces Cloud off, so the row says so and locks the toggle; re-read on
+    /// ``ManagedDevicePolicy/changeSignals(notificationCenter:)``.
+    @State private var cloudMachinesManagedByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
 
     public init(defaultsStore: UserDefaultsSettingsStore, catalog: SettingCatalog) {
         _feed = State(initialValue: DefaultsValueModel(store: defaultsStore, key: catalog.betaFeatures.rightSidebarFeed))
@@ -53,6 +57,11 @@ public struct BetaFeaturesSection: View {
             }
         }
         .task { startObservingSettings() }
+        .task {
+            for await _ in ManagedDevicePolicy.changeSignals() {
+                cloudMachinesManagedByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
+            }
+        }
     }
 
     private func startObservingSettings() {
@@ -150,16 +159,19 @@ public struct BetaFeaturesSection: View {
             configurationReview: .json("cloud.beta.machines.enabled"),
             searchAnchorID: "setting:betaFeatures:cloudMachines",
             String(localized: "settings.betaFeatures.cloudMachines", defaultValue: "Cloud Machines"),
-            subtitle: cloudMachines.current
-                ? String(localized: "settings.betaFeatures.cloudMachines.subtitleOn", defaultValue: "Shows Cloud in the right sidebar plus the Cloud Machines settings, palette commands, and new-workspace entries.")
-                : String(localized: "settings.betaFeatures.cloudMachines.subtitleOff", defaultValue: "Hides every Cloud Machines surface unless remote rollout enables it.")
+            subtitle: cloudMachinesManagedByPolicy
+                ? String(localized: "settings.managedByOrganization", defaultValue: "Managed by your organization")
+                : cloudMachines.current
+                    ? String(localized: "settings.betaFeatures.cloudMachines.subtitleOn", defaultValue: "Shows Cloud in the right sidebar plus the Cloud Machines settings, palette commands, and new-workspace entries.")
+                    : String(localized: "settings.betaFeatures.cloudMachines.subtitleOff", defaultValue: "Hides every Cloud Machines surface unless remote rollout enables it.")
         ) {
-            Toggle("", isOn: Binding(get: { cloudMachines.current }, set: {
+            Toggle("", isOn: Binding(get: { cloudMachines.current && !cloudMachinesManagedByPolicy }, set: {
                 cloudMachines.set($0)
                 NotificationCenter.default.post(name: Notification.Name("rightSidebarBetaFeatureDidChange"), object: nil)
             }))
                 .labelsHidden()
                 .controlSize(.small)
+                .disabled(cloudMachinesManagedByPolicy)
                 .accessibilityIdentifier("SettingsBetaCloudMachinesToggle")
         }
     }

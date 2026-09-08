@@ -167,9 +167,11 @@ public struct SettingsWindowRoot: View {
 
     /// The Cloud section stays out of the sidebar (and search) until the
     /// remote rollout flag or the Beta Features opt-in makes its surfaces
-    /// real; its pane already renders nothing while unavailable.
+    /// real; its pane already renders nothing while unavailable. The
+    /// `DisableCloud` managed policy wins over the opt-in.
     private func isEntryVisible(_ entry: SettingsSearchIndex.Entry) -> Bool {
-        let cloudAvailable = hostActions.isCloudMachinesAvailable || cloudMachinesBetaEnabled
+        let cloudAvailable = hostActions.isCloudMachinesAvailable
+            || (cloudMachinesBetaEnabled && !ManagedDevicePolicy().isEnforced(.disableCloud))
         guard !cloudAvailable else { return true }
         switch entry.kind {
         case .section:

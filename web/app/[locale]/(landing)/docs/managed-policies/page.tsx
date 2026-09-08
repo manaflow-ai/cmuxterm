@@ -63,6 +63,8 @@ const sampleProfile = `<?xml version="1.0" encoding="UTF-8"?>
                                 <true/>
                                 <key>DisableRemoteControl</key>
                                 <true/>
+                                <key>DisableCloud</key>
+                                <true/>
                             </dict>
                         </dict>
                     </array>
@@ -129,12 +131,19 @@ export default async function ManagedPoliciesPage({
             <td><code>false</code></td>
             <td>{t("remoteKeyDesc")}</td>
           </tr>
+          <tr>
+            <td><code>DisableCloud</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("cloudKeyDesc")}</td>
+          </tr>
         </tbody>
       </table>
       <ul>
         <li>{t("noteBoolean")}</li>
         <li>{t("noteForcedOnly")}</li>
         <li>{t("noteTiming")}</li>
+        <li>{t("noteCloudEntitlement")}</li>
       </ul>
 
       <DocsHeading level={2} id="lockability">{t("lockTitle")}</DocsHeading>
@@ -155,7 +164,9 @@ export default async function ManagedPoliciesPage({
       <p>{t("verifyDesc")}</p>
       <CodeBlock lang="bash">{`defaults read com.cmuxterm.app DisableEmbeddedBrowser
 defaults read com.cmuxterm.app DisableRemoteControl
-cmux browser status --json   # {"enabled": false, "managed": true, ...}`}</CodeBlock>
+defaults read com.cmuxterm.app DisableCloud
+cmux browser status --json   # {"enabled": false, "managed": true, ...}
+cmux vm list                 # refused: Cloud Machines are disabled by your administrator.`}</CodeBlock>
       <Callout>{t("verifyUi")}</Callout>
     </>
   );

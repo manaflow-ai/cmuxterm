@@ -15,17 +15,20 @@ extension TerminalController {
         id: Any?,
         params: [String: Any]
     ) -> String? {
-        if ManagedDevicePolicy().isCloudDisabled {
+        // `DisableCloud`: only the cleanup verbs stay reachable so a managed
+        // Mac can still report, stop, and remove tunnel state. Enrollment,
+        // `up`, and `wait` fail closed; the coordinator refuses them as well.
+        if method.hasPrefix("vm.tunnel_"), ManagedDevicePolicy().isEnforced(.disableCloud) {
             switch method {
             case "vm.tunnel_status", "vm.tunnel_down", "vm.tunnel_revoke":
                 break
             default:
                 return v2Error(
                     id: id,
-                    code: "managed_policy",
+                    code: "cloud_disabled",
                     message: String(
-                        localized: "socket.cloudTunnel.managedPolicyDisabled",
-                        defaultValue: "Cloud private-network access is disabled by your organization (MDM policy)."
+                        localized: "cloud.managed.tunnelDisabled",
+                        defaultValue: "Cloud private-network access is disabled by your organization."
                     )
                 )
             }

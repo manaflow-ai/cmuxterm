@@ -2647,6 +2647,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let lineFormat = env["CMUX_UI_TEST_TERMINAL_CMD_CLICK_LINE_FORMAT"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let mouseReportingEnabled = env["CMUX_UI_TEST_TERMINAL_CMD_CLICK_MOUSE_REPORTING"] == "1"
         let linePrefix = env["CMUX_UI_TEST_TERMINAL_CMD_CLICK_LINE_PREFIX"] ?? ""
         let displaySuffix = env["CMUX_UI_TEST_TERMINAL_CMD_CLICK_DISPLAY_SUFFIX"] ?? ""
         let displayAsAbsolutePath = env["CMUX_UI_TEST_TERMINAL_CMD_CLICK_DISPLAY_AS_ABSOLUTE_PATH"] == "1"
@@ -2688,6 +2689,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             resolvedLineFormat = "alt_screen_log"
         case "osc8":
             resolvedLineFormat = "osc8"
+        case "url":
+            resolvedLineFormat = "url"
         default:
             resolvedLineFormat = "grid"
         }
@@ -2695,6 +2698,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             "cmdclick.ui.setup start manifest=\(manifestPath) fixture=\(fixtureDirectory) " +
                 "command=\(commandPath ?? "nil") display=\(resolvedDisplayMode) " +
                 "lineFormat=\(resolvedLineFormat) " +
+                "mouseReporting=\(mouseReportingEnabled ? 1 : 0) " +
                 "file=\(resolvedFileName)"
         )
         func singleQuotedShellLiteral(_ text: String) -> String {
@@ -2702,34 +2706,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         let displayToken: String
         let shellCommand: String
+        // DECSET 1000 is the terminal protocol state tmux enables for
+        // `set -g mouse on`. Driving that state directly keeps this test
+        // hermetic while exercising the same Ghostty mouse-reporting gate.
+        let mouseReportingCommand = mouseReportingEnabled ? "printf '\\033[?1000h'; " : ""
         switch resolvedLineFormat {
         case "osc8":
             displayToken = resolvedFileName
             let escapedDisplayToken = singleQuotedShellLiteral(displayToken)
             let escapedURL = singleQuotedShellLiteral(expectedFileURL.absoluteString)
-            shellCommand = "clear\rfor i in $(seq 1 48); do printf '\\033]8;;%s\\033\\\\%s\\033]8;;\\033\\\\\\n' '\(escapedURL)' '\(escapedDisplayToken)'; done\r"
+            shellCommand = "clear\r\(mouseReportingCommand)for i in $(seq 1 48); do printf '\\033]8;;%s\\033\\\\%s\\033]8;;\\033\\\\\\n' '\(escapedURL)' '\(escapedDisplayToken)'; done\r"
+        case "url":
+            displayToken = "https://github.com"
+            let shellBlockLine = singleQuotedShellLiteral(displayToken)
+            shellCommand = "clear\r\(mouseReportingCommand)for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
         case "log":
             displayToken = "\(baseDisplayToken)\(displaySuffix)"
             let blockLine = "\(linePrefix)\(displayToken)"
             let shellBlockLine = singleQuotedShellLiteral(blockLine)
-            shellCommand = "clear\rfor i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
+            shellCommand = "clear\r\(mouseReportingCommand)for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
         case "alt_screen_log":
             displayToken = "\(baseDisplayToken)\(displaySuffix)"
             let blockLine = "\(linePrefix)\(displayToken)"
             let shellBlockLine = singleQuotedShellLiteral(blockLine)
-            shellCommand = "clear\rprintf '\\033[?1049h\\033[H\\033[2J'; for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
+            shellCommand = "clear\rprintf '\\033[?1049h\\033[H\\033[2J'; \(mouseReportingCommand)for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
         default:
             switch resolvedDisplayMode {
             case "raw":
                 displayToken = "\(baseDisplayToken)\(displaySuffix)"
                 let blockLine = "\(displayToken)    OtherFile"
                 let shellBlockLine = singleQuotedShellLiteral(blockLine)
-                shellCommand = "clear\rfor i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
+                shellCommand = "clear\r\(mouseReportingCommand)for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
             default:
                 displayToken = "\(escapedToken)\(displaySuffix)"
                 let blockLine = Array(repeating: displayToken, count: 3).joined(separator: " ")
                 let shellBlockLine = singleQuotedShellLiteral(blockLine)
-                shellCommand = "clear\rfor i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
+                shellCommand = "clear\r\(mouseReportingCommand)for i in $(seq 1 48); do printf '%s\\n' '\(shellBlockLine)'; done\r"
             }
         }
         let deadline = Date().addingTimeInterval((commandPath?.isEmpty == false) ? 60.0 : 20.0)
@@ -2949,6 +2961,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 payload["surfaceId"] = terminalPanel.id.uuidString
                 payload["terminalVisibleInUI"] = terminalPanel.hostedView.debugPortalVisibleInUI ? "1" : "0"
                 payload["terminalFrameInWindow"] = rectPayload(terminalFrame)
+                if mouseReportingEnabled {
+                    payload["mouseReportingCaptured"] = terminalPanel.surface.surface.map {
+                        ghostty_surface_mouse_captured($0) ? "1" : "0"
+                    } ?? "0"
+                }
             }
             if let window {
                 payload["windowFrame"] = rectPayload(window.frame)
@@ -6995,6 +7012,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private func unregisterMainWindowContext(for window: NSWindow) -> MainWindowContext? {
         guard let removed = contextForMainTerminalWindow(window, reindex: false) else { return nil }
         guard transitionMainWindowContextToClosing(removed, window: window) else { return nil }
+        // A closing window cannot leave a switch transaction holding renderer
+        // protection or frame-notification demand after its context is retired.
+        removed.tabManager.workspaceSwitchCoordinator.cancel()
         removed.teardownWindowDock()
         removeMobileWorkspaceListObserverIfUnused(for: removed.tabManager)
         notifyMainWindowContextsDidChange()
@@ -7003,6 +7023,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     // Internal (not private): see notifyMainWindowContextsDidChange.
     func discardOrphanedMainWindowContext(_ context: MainWindowContext, allowWindowlessFallback: Bool = false) {
+        context.tabManager.workspaceSwitchCoordinator.cancel()
         guard transitionMainWindowContextToOrphaned(context) else { return }
         removeMobileWorkspaceListObserverIfUnused(for: context.tabManager)
         notifyMainWindowContextsDidChange()
@@ -9129,12 +9150,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return nil
     }
 
+    /// Why this Mac may no longer use Cloud; selects the detail shown on the
+    /// panes that get disconnected.
+    enum CloudVMAccessEndReason {
+        case signOut
+        case managedPolicy
+    }
+
     /// Tear down every local Cloud VM attachment before the auth session is
     /// cleared. The VMs remain durable server-side, but no remote socket,
     /// reconnect command, closed-history entry, or in-flight CLI child may
     /// survive a signed-out account transition.
     func prepareCloudVMAccessForSignOut() {
+        endCloudVMAccess(reason: .signOut)
+    }
+
+    /// The one teardown path for "this Mac may no longer use Cloud". Sign-out
+    /// and the `DisableCloud` managed policy share it so neither can leave an
+    /// attach entrypoint, closed-history record, launcher child, or managed
+    /// VPN configuration behind.
+    func endCloudVMAccess(reason: CloudVMAccessEndReason) {
         CloudVMActionLauncher.shared.cancelAllForAuthTransition()
+        let disconnectedDetail: String
+        switch reason {
+        case .signOut:
+            disconnectedDetail = String(
+                localized: "machines.signOut.disconnectedDetail",
+                defaultValue: "Cloud VM access ended because cmux signed out."
+            )
+        case .managedPolicy:
+            disconnectedDetail = String(
+                localized: "machines.managedPolicy.disconnectedDetail",
+                defaultValue: "Cloud VM access ended because your organization disabled cmux Cloud."
+            )
+        }
 
         for manager in liveWorkspaceIdentityTabManagers() {
             let cloudWorkspaces = manager.tabs.filter { workspace in
@@ -9147,10 +9196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 // the final tab). This stops reconnect and proxy work immediately.
                 workspace.disconnectRemoteConnection(
                     clearConfiguration: true,
-                    disconnectedDetail: String(
-                        localized: "machines.signOut.disconnectedDetail",
-                        defaultValue: "Cloud VM access ended because cmux signed out."
-                    )
+                    disconnectedDetail: disconnectedDetail
                 )
                 if manager.tabs.count > 1 {
                     manager.closeWorkspace(workspace, recordHistory: false)
@@ -19399,7 +19445,7 @@ private extension NSWindow {
         if ShortcutRecorderEventRouter.dispatchActiveRecordingEvent(event, preferredWindow: self) {
             return true
         }
-        let browserWebKitKeyDownReentry = firstResponderWebView != nil && cmuxBrowserWebKitKeyDownDispatchIsActive()
+        let browserWebKitKeyDownReentry = firstResponderWebView?.browserNativeInputDeliveryOwner.isDispatchActive ?? false
         let shouldBypassPrintableOptionText = shortcutRoutingShouldBypassForPrintableOptionText(event: event)
         // AppKit can send Option-only keys through a text/terminal fast path
         // before the normal menu route. Give the shared configured-shortcut

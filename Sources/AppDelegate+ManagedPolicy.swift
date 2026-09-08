@@ -2,8 +2,8 @@ import Foundation
 import CmuxSettings
 
 /// Runtime enforcement for MDM managed policies (`DisableEmbeddedBrowser`,
-/// `DisableRemoteControl`, `DisableCloud`): installs the transition observer
-/// and closes live restricted resources when a policy activates mid-session.
+/// `DisableRemoteControl`, and `DisableCloud`): installs the transition observer
+/// and tears down live resources when a policy activates mid-session.
 extension AppDelegate {
     /// Installs the managed-policy transition observer once at startup.
     func installManagedPolicyEnforcement() {
@@ -22,18 +22,28 @@ extension AppDelegate {
                 MobileHostService.shared.syncToSettings()
             },
             enforceCloudPolicy: { [weak self] in
-                self?.disableCloudAccessForManagedPolicy()
+                self?.applyManagedCloudPolicy()
             }
         )
-        if ManagedDevicePolicy().isCloudDisabled {
-            disableCloudAccessForManagedPolicy()
-        }
     }
 
-    /// Removes live Cloud attachments and the app-managed VPN when an MDM
-    /// profile disables Cloud while cmux is running.
-    func disableCloudAccessForManagedPolicy() {
-        prepareCloudVMAccessForSignOut()
+    /// `DisableCloud` transitions, both directions. Activation ends Cloud
+    /// access through the same path sign-out uses — Cloud workspaces, their
+    /// closed-history records, in-flight launcher children, and the managed
+    /// VPN configuration — after the surface registry drops its providers and
+    /// private-network links. Lifting the policy restarts Cloud discovery so
+    /// the sidebar and surface catalog return without a relaunch; every
+    /// per-call gate (`CloudMachinesFeature`, `VMClient`, the tunnel
+    /// coordinator, the socket verbs) already reads the live policy.
+    func applyManagedCloudPolicy() {
+        if ManagedDevicePolicy().isEnforced(.disableCloud) {
+            Task { @MainActor in
+                await CmuxTuiSurfaceProviderRegistry.shared.accessDidEnd()
+                self.endCloudVMAccess(reason: .managedPolicy)
+            }
+        } else {
+            CmuxTuiSurfaceProviderRegistry.shared.start(catalog: .shared)
+        }
     }
 
     /// Closes every live browser pane — main area and Docks, across all

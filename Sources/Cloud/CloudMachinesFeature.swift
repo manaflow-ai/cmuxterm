@@ -14,11 +14,12 @@ enum CloudMachinesFeature {
 
     /// Off-main mirror for the right-sidebar mode availability path.
     nonisolated static func offMainIsEnabled(defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(defaults: defaults, remoteEnabled: CmuxFeatureFlags.offMainIsCloudVMUIEnabled)
+        guard !ManagedDevicePolicy().isEnforced(.disableCloud) else { return false }
+        return CmuxFeatureFlags.offMainIsCloudVMUIEnabled || localOptIn(defaults: defaults)
     }
 
     nonisolated static func isEnabled(defaults: UserDefaults, remoteEnabled: Bool) -> Bool {
-        guard !ManagedDevicePolicy(defaults: defaults).isCloudDisabled else { return false }
+        guard !ManagedDevicePolicy(defaults: defaults).isEnforced(.disableCloud) else { return false }
         return remoteEnabled || localOptIn(defaults: defaults)
     }
 

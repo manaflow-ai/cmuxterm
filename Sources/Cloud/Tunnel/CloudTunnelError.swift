@@ -20,6 +20,9 @@ enum CloudTunnelError: Error, CustomStringConvertible, Equatable {
     /// `start` ran before a VPN configuration was saved; a programming error
     /// in the coordinator's sequencing, surfaced rather than trapped.
     case configurationNotInstalled
+    /// An MDM profile forces `DisableCloud`: the app must not enroll, start,
+    /// or reconnect the tunnel.
+    case disabledByPolicy
 
     var description: String {
         switch self {
@@ -58,6 +61,11 @@ enum CloudTunnelError: Error, CustomStringConvertible, Equatable {
             return String(
                 localized: "cloudTunnel.error.configurationNotInstalled",
                 defaultValue: "The VPN configuration was not saved before the tunnel was started."
+            )
+        case .disabledByPolicy:
+            return String(
+                localized: "cloud.managed.tunnelDisabled",
+                defaultValue: "Cloud private-network access is disabled by your organization."
             )
         }
     }
