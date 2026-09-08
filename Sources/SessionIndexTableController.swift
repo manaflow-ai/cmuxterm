@@ -109,8 +109,6 @@ final class SessionIndexTableController: NSObject, NSTableViewDataSource, NSTabl
             object: scrollView.contentView,
             queue: .main
         ) { [weak self, weak table] _ in
-            // Delivered on the main queue (`queue: .main`), so this is main-actor
-            // context even though the observer block is typed @Sendable.
             MainActor.assumeIsolated {
                 guard let self, let table, !self.isApplyingRows else { return }
                 self.reconcilePresentation(in: table)
