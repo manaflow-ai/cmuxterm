@@ -153,8 +153,13 @@ final class CmuxTuiSurfaceProviderRegistry {
         // A fleet page fetched before the delete must not re-register the
         // machine on top of this teardown.
         refreshGeneration &+= 1
-        machineTeardowns[id]?.cancel()
+        // Teardowns for one machine run in order: a repeated delete waits for
+        // the earlier pass instead of racing it (cancellation would not stop
+        // a pass already inside the managers), so a refresh that re-lists the
+        // machine awaits the whole chain through the newest task.
+        let previousTeardown = machineTeardowns[id]
         machineTeardowns[id] = Task { [links, portForwards] in
+            await previousTeardown?.value
             await portForwards?.close(machineID: id)
             await links.disconnect(machineID: id)
         }
