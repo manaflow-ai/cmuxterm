@@ -59,7 +59,7 @@ extension MobileHostRPCRequest {
            let sessionID = params["session_id"] as? String {
             return "chat-session:" + sessionID
         }
-        (params["surface_id"] as? String)?
+        return (params["surface_id"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 }
