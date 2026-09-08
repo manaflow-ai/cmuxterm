@@ -2517,8 +2517,10 @@ final class ClaudeHookSessionStore {
         if let deadline, Date.now >= deadline {
             throw CLIError(message: "Claude hook state deadline exceeded: \(lockPath)")
         }
-        var state = try loadUnlocked(deadline: deadline)
+        let loaded = try loadUnlocked(deadline: deadline)
+        var state = loaded.state
         let originalData = persist ? try encoder.encode(state) : nil
+        backfillSurfaceActiveSlots(&state)
         if let deadline, Date.now >= deadline {
             throw CLIError(message: "Claude hook state deadline exceeded: \(lockPath)")
         }
@@ -2549,7 +2551,7 @@ final class ClaudeHookSessionStore {
         }
         if persist {
             let updatedData = try encoder.encode(state)
-            if updatedData != originalData {
+            if loaded.requiresPersistence || updatedData != originalData {
                 try saveUnlocked(updatedData, deadline: deadline)
             }
         }
@@ -2617,9 +2619,11 @@ final class ClaudeHookSessionStore {
         )
     }
 
-    private func loadUnlocked(deadline: Date? = nil) throws -> ClaudeHookSessionStoreFile {
+    private func loadUnlocked(
+        deadline: Date? = nil
+    ) throws -> (state: ClaudeHookSessionStoreFile, requiresPersistence: Bool) {
         guard fileManager.fileExists(atPath: statePath) else {
-            return ClaudeHookSessionStoreFile()
+            return (ClaudeHookSessionStoreFile(), false)
         }
         let stateURL = URL(fileURLWithPath: statePath)
         guard let values = try? stateURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
@@ -2631,17 +2635,19 @@ final class ClaudeHookSessionStore {
             throw CLIError(message: "Claude hook state file is too large for the hook deadline: \(statePath)")
         }
         if fileSize > Self.maxRecoverableHookStateFileBytes {
-            return try quarantineOversizedState(at: stateURL)
+            return (try quarantineOversizedState(at: stateURL), true)
         }
         let data = try Data(contentsOf: stateURL)
         guard var decoded = try? decoder.decode(ClaudeHookSessionStoreFile.self, from: data) else {
-            return try quarantineOversizedState(at: stateURL)
+            return (try quarantineOversizedState(at: stateURL), true)
         }
-        if fileSize > Self.maxHookStateFileBytes {
+        let requiresPersistence = fileSize > Self.maxHookStateFileBytes
+        if requiresPersistence {
             compactRecoveredState(&decoded)
         }
-        backfillSurfaceActiveSlots(&decoded)
-        return decoded
+        // Oversized whitespace or unknown fields can leave the decoded model
+        // unchanged, but the on-disk file still needs a recovery rewrite.
+        return (decoded, requiresPersistence)
     }
 
     /// Moves an unreadable/oversized state file aside before rebuilding a
