@@ -29,5 +29,14 @@ public struct SettingsSectionHeader: View {
             .padding(.leading, 2)
             .padding(.bottom, -2)
             .settingsSearchHighlight(section.map { ["section:\($0.rawValue)"] } ?? [])
+            .background {
+                if let section {
+                    Color.clear
+                        .settingsSectionScrollPosition(
+                            section,
+                            coordinateSpace: SettingsSectionScrollTracker.coordinateSpace
+                        )
+                }
+            }
     }
 }

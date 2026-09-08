@@ -85,6 +85,15 @@ public struct SettingsWindowRoot: View {
     /// the per-entry selection survives.
     private var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var visibleSectionIDs: Set<SettingsSectionID> {
+        Set(
+            searchIndex.entries.compactMap { entry in
+                guard case .section = entry.kind, isEntryVisible(entry) else { return nil }
+                return parentSection(for: entry)
+            }
+        )
+    }
+
     // Legacy uses a non-optional `Binding<String>` because a sidebar
     // selection always points at *some* entry (section row or setting
     // hit). Mirroring that here lets List's selection semantics behave
@@ -322,29 +331,15 @@ public struct SettingsWindowRoot: View {
 
     @ViewBuilder
     private var detailScroll: some View {
-        GeometryReader { _ in
+        GeometryReader { geometry in
             ScrollViewReader { proxy in
                 ScrollView {
-                    // Eager VStack (not LazyVStack) on purpose: search
-                    // navigation must `scrollTo` any row, including ones in
-                    // a section currently off-screen. A LazyVStack only
-                    // registers a row's `.id` once its section is realized,
-                    // so `scrollTo(deepRow)` silently no-ops while that
-                    // section is scrolled away, stranding the user at the
-                    // top. Building all ~14 sections up front keeps every
-                    // anchor addressable for a single, reliable scroll.
-                    VStack(alignment: .leading, spacing: 14) {
+                    SettingsSectionScrollContent(viewportHeight: geometry.size.height) {
                         sectionStack
                     }
-                    // Legacy SettingsView only pads the inner VStack; it
-                    // does not pin maxWidth. Adding an outer frame would
-                    // change the alignment math the legacy layout assumes
-                    // (SettingsCard widths come from the ScrollView, not
-                    // from a parent VStack stretched to topLeading).
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 20)
                 }
+                .accessibilityIdentifier("SettingsDetailScrollView")
+                .coordinateSpace(name: SettingsSectionScrollTracker.coordinateSpace)
                 .toggleStyle(.switch)
                 .onAppear {
                     // Legacy SettingsView.onAppear scrolls to the restored
@@ -367,6 +362,12 @@ public struct SettingsWindowRoot: View {
                 .onReceive(NotificationCenter.default.publisher(for: Self.navigationRequestName)) { notification in
                     applyScrollNavigation(notification, proxy: proxy)
                 }
+                .settingsSectionScrollTracking(
+                    selectedSectionRaw: $selectedSectionRaw,
+                    selectedSidebarEntryID: $selectedSidebarEntryID,
+                    isSearching: isSearching,
+                    visibleSections: visibleSectionIDs
+                )
             }
         }
     }
