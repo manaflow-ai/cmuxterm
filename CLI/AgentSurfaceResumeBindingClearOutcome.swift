@@ -17,9 +17,9 @@ extension CMUXCLI {
         updatedAt: TimeInterval? = nil,
         sessionDidEnd: Bool = false,
         expectedBindingUpdatedAt: TimeInterval? = nil,
-        agentMutationGuard: ControlSidebarAgentMutationGuard? = nil,
         responseTimeout: TimeInterval? = nil,
-        deadline: Date? = nil
+        deadline: Date? = nil,
+        agentMutationGuard: ControlSidebarAgentMutationGuard? = nil
     ) -> AgentSurfaceResumeBindingClearOutcome {
         let normalizedSessionId = normalizedHookValue(sessionId)
             .map(agentHookResumeSessionID)

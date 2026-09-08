@@ -32370,6 +32370,51 @@ struct CMUXCLI {
         return arguments.isEmpty ? nil : arguments
     }
 
+    /// Whether the Claude process this hook fired from was launched with
+    /// `--fork-session`. Fork launches report the parent session id until the
+    /// first prompt, so they must not rebind the parent's hook record.
+    private func isClaudeForkSessionLaunch(env: [String: String], fallbackPID: Int?) -> Bool {
+        guard let arguments = claudeRawLaunchArguments(env: env, fallbackPID: fallbackPID) else {
+            return false
+        }
+        return claudeLaunchArgumentsContainForkSession(arguments)
+    }
+
+    private func claudeLaunchArgumentsContainForkSession(_ arguments: [String]) -> Bool {
+        arguments.contains { argument in
+            if argument == "--fork-session" { return true }
+            guard argument.hasPrefix("--fork-session=") else { return false }
+            let value = argument.dropFirst("--fork-session=".count)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return !["false", "0", "no", "off"].contains(value)
+        }
+    }
+
+    /// Returns the parent conversation id for a Claude fork launch, if one was
+    /// supplied as `--resume <id>`/`-r <id>` or `--resume=<id>`.
+    private func claudeForkSessionParentId(env: [String: String], fallbackPID: Int?) -> String? {
+        guard let arguments = claudeRawLaunchArguments(env: env, fallbackPID: fallbackPID),
+              claudeLaunchArgumentsContainForkSession(arguments) else {
+            return nil
+        }
+        for (index, argument) in arguments.enumerated() {
+            if argument == "--resume" || argument == "-r" {
+                guard index + 1 < arguments.count else { return nil }
+                return normalizedHookValue(arguments[index + 1])
+            }
+            if argument.hasPrefix("--resume=") {
+                return normalizedHookValue(String(argument.dropFirst("--resume=".count)))
+            }
+        }
+        return nil
+    }
+
+    private func claudeRawLaunchArguments(env: [String: String], fallbackPID: Int?) -> [String]? {
+        decodeNULSeparatedBase64(env["CMUX_AGENT_LAUNCH_ARGV_B64"])
+            ?? fallbackPID.flatMap { processArguments(for: pid_t($0)) }
+    }
+
     private func agentLaunchCommandFromEnvironment(
         _ env: [String: String],
         fallbackPID: Int?,
@@ -32487,10 +32532,10 @@ struct CMUXCLI {
         launchCommand: AgentHookLaunchCommandRecord?,
         transcriptPath: String? = nil,
         observedPermissionMode: String? = nil,
-        agentMutationGuard: ControlSidebarAgentMutationGuard? = nil,
         responseTimeout: TimeInterval? = nil,
         deadline: Date? = nil,
-        telemetry: CLISocketSentryTelemetry? = nil
+        telemetry: CLISocketSentryTelemetry? = nil,
+        agentMutationGuard: ControlSidebarAgentMutationGuard? = nil
     ) -> Bool {
         let resumeSessionId = agentHookResumeSessionID(sessionId)
         if kind == "hermes-agent" {
@@ -35031,8 +35076,7 @@ export default CMUXSessionRestore;
         switch action {
         case .noop:
             break
-        case .sessionStart, .promptSubmit, .stop, .notification,
-             .approvalResponse, .sessionEnd, .sessionFinalize:
+        default:
             guard visibleMutationGuard != nil else {
                 telemetry.breadcrumb("\(def.name)-hook.generation-unavailable")
                 didSendFeedTelemetry = true
@@ -35719,8 +35763,7 @@ export default CMUXSessionRestore;
                 return inferredProcessIdentity != nil
             case .noop:
                 return true
-            case .promptSubmit, .stop, .notification, .approvalResponse,
-                 .sessionEnd, .sessionFinalize:
+            default:
                 break
             }
             guard !sessionId.isEmpty,
@@ -36328,9 +36371,9 @@ export default CMUXSessionRestore;
                         hookEventName: persistedHookEventName,
                         runtimeStatus: suppressVisibleMutations ? nil : .running,
                         updateRuntimeStatus: !suppressVisibleMutations,
-                        requiredProcessIdentity: inferredProcessIdentity,
                         captureRollback: true,
                         title: input.title,
+                        requiredProcessIdentity: inferredProcessIdentity,
                         supersedesSameProcessSession: def.name == "omp"
                     )
                 acceptedSessionStart = mutation?.accepted ?? false
@@ -36793,14 +36836,14 @@ export default CMUXSessionRestore;
                 // compensate in reverse order. Compare-and-restore then sees
                 // the exact snapshot each mutation committed and cannot erase
                 // a later hook that won the race.
-                if let promptRunningRollback {
-                    guard (try? store.rollbackSessionMutation(promptRunningRollback)) == true else {
+                if let rollback = promptRunningRollback {
+                    guard (try? store.rollbackSessionMutation(rollback)) == true else {
                         return false
                     }
                     promptRunningRollback = nil
                 }
-                if let promptSubmitRollback {
-                    guard (try? store.rollbackSessionMutation(promptSubmitRollback)) == true else {
+                if let rollback = promptSubmitRollback {
+                    guard (try? store.rollbackSessionMutation(rollback)) == true else {
                         return false
                     }
                     promptSubmitRollback = nil
@@ -36913,9 +36956,9 @@ export default CMUXSessionRestore;
                         agentLifecycle: .running,
                         runtimeStatus: .running,
                         updateRuntimeStatus: true,
-                        expectedProcessIdentity: inferredProcessIdentity,
                         captureRollback: true,
-                        title: input.title
+                        title: input.title,
+                        expectedProcessIdentity: inferredProcessIdentity
                     )
                     acceptedRunningUpdate = runningUpdate?.accepted == true
                     promptRunningRollback = runningUpdate?.rollback
@@ -37310,14 +37353,14 @@ export default CMUXSessionRestore;
                 // `recordPromptStop` is followed by the notification/status
                 // upsert. Compensate the latter first so each token still
                 // matches the exact record it committed.
-                if let promptStopUpdateRollback {
-                    guard (try? store.rollbackSessionMutation(promptStopUpdateRollback)) == true else {
+                if let rollback = promptStopUpdateRollback {
+                    guard (try? store.rollbackSessionMutation(rollback)) == true else {
                         return false
                     }
                     promptStopUpdateRollback = nil
                 }
-                if let promptStopRecordRollback {
-                    guard (try? store.rollbackSessionMutation(promptStopRecordRollback)) == true else {
+                if let rollback = promptStopRecordRollback {
+                    guard (try? store.rollbackSessionMutation(rollback)) == true else {
                         return false
                     }
                     promptStopRecordRollback = nil
@@ -37938,6 +37981,15 @@ export default CMUXSessionRestore;
             let surfaceId = target.surfaceId
 
             let notificationCwd = hookCwd ?? mapped?.cwd
+            let notificationPID = preferredAgentHookEventPID(
+                agentName: def.name,
+                mappedPID: mapped?.pid,
+                inferredPID: inferredPID
+            )
+            let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
+                currentAgentPID: notificationPID,
+                env: env
+            )
 #if DEBUG
             agentHookDebugLog(
                 "agentHook.notification.target agent=\(def.name) session=\(agentHookDebugShort(sessionId)) workspace=\(agentHookDebugShort(workspaceId)) surface=\(agentHookDebugShort(surfaceId)) mapped=\(mapped == nil ? 0 : 1) hasCwd=\(notificationCwd == nil ? 0 : 1)",
@@ -38172,8 +38224,8 @@ export default CMUXSessionRestore;
             var notificationRollback: ClaudeHookSessionMutationRollback?
             @discardableResult
             func rollbackNotificationMutationAndRestoreLifecycle() -> Bool {
-                guard let notificationRollback,
-                      (try? store.rollbackSessionMutation(notificationRollback)) == true else {
+                guard let rollback = notificationRollback,
+                      (try? store.rollbackSessionMutation(rollback)) == true else {
                     return false
                 }
                 notificationRollback = nil
