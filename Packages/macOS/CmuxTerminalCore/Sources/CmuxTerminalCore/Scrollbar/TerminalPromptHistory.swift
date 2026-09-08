@@ -24,15 +24,14 @@ public struct TerminalPromptHistory: Sendable {
     ) -> TerminalPromptHistoryEntry? {
         let normalized = preview.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !normalized.isEmpty else { return nil }
-        let validAnchor = anchor.flatMap { $0.row >= 0 ? $0 : nil }
-        let entry = TerminalPromptHistoryEntry(preview: normalized, anchor: validAnchor)
+        let entry = TerminalPromptHistoryEntry(preview: normalized, anchor: anchor)
         latest = entry
-        guard let validAnchor else {
+        guard let anchor else {
             entries.removeAll()
             return entry
         }
-        reconcile(rowSpaceRevision: validAnchor.rowSpaceRevision)
-        let insertionIndex = lowerBound(for: validAnchor.row)
+        reconcile(rowSpaceRevision: anchor.rowSpaceRevision)
+        let insertionIndex = lowerBound(for: anchor.row)
         entries.removeSubrange(insertionIndex...)
         entries.append(entry)
         return entry
