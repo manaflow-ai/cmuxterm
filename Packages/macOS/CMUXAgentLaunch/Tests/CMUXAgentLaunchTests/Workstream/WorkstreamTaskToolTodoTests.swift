@@ -576,6 +576,41 @@ struct WorkstreamTaskToolTodoTests {
         #expect(latestTodos(store)?.map(\.content) == ["existing", "stale"])
     }
 
+    @Test("Seeding restores provisional subject lookup for authoritative creates")
+    func seedRestoresProvisionalSubjectLookup() {
+        let store = WorkstreamStore(ringCapacity: 50)
+        store.seedTaskTodos(
+            forWorkstream: "s1",
+            todos: [WorkstreamTaskTodo(id: "pending-1", content: "restored", state: .pending)]
+        )
+
+        store.ingest(toolEvent(
+            sessionId: "s1",
+            hook: .postToolUse,
+            tool: "TaskCreate",
+            input: #"{"subject":"restored"}"#,
+            response: #"{"task":{"id":"42","subject":"restored"}}"#
+        ))
+
+        #expect(latestTodos(store)?.map(\.id) == ["42"])
+        #expect(store.ownedTaskIds(forWorkstream: "s1") == ["42"])
+    }
+
+    @Test("A bounded TaskList response stays incomplete when marked truncated")
+    func truncatedTaskListDoesNotClaimCompleteness() {
+        let store = WorkstreamStore(ringCapacity: 50)
+        store.ingest(toolEvent(
+            sessionId: "s1",
+            hook: .postToolUse,
+            tool: "TaskList",
+            input: #"{}"#,
+            response: #"{"tasks":[{"id":"1","subject":"one"}],"_cmux_task_list_truncated":true}"#
+        ))
+
+        #expect(latestTodos(store)?.map(\.id) == ["1"])
+        #expect(store.isTaskListComplete(forWorkstream: "s1") == false)
+    }
+
     @Test("A raw PostToolUseFailure rolls back a provisional task")
     func postToolUseFailureRollsBackProvisionalTask() {
         let store = WorkstreamStore(ringCapacity: 50)

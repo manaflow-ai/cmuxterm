@@ -39874,14 +39874,24 @@ export default CMUXSessionRestore;
                 }
             } else if let tasks = dictionary["tasks"] as? [Any] {
                 output["tasks"] = sanitizedTaskToolArray(tasks)
+                if tasks.count > feedTaskToolResponseMaxTasks {
+                    output["_cmux_task_list_truncated"] = true
+                }
             } else if let todos = dictionary["todos"] as? [Any] {
                 output["todos"] = sanitizedTaskToolArray(todos)
+                if todos.count > feedTaskToolResponseMaxTasks {
+                    output["_cmux_task_list_truncated"] = true
+                }
             } else if let task = sanitizedTaskToolObject(dictionary) {
                 output.merge(task) { _, new in new }
             }
             sanitized = output
         } else if let array = value as? [Any] {
-            sanitized = sanitizedTaskToolArray(array)
+            var output: [String: Any] = ["tasks": sanitizedTaskToolArray(array)]
+            if array.count > feedTaskToolResponseMaxTasks {
+                output["_cmux_task_list_truncated"] = true
+            }
+            sanitized = output
         } else {
             return nil
         }

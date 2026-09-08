@@ -62,6 +62,41 @@ struct WorkspaceAgentChecklistSyncTests {
         #expect(replacements.map(\.text) == ["user"])
     }
 
+    @Test("authoritative task ids preserve a matching provisional row identity")
+    func authoritativeTaskIdPreservesProvisionalIdentity() throws {
+        let provisionalRef = WorkspaceAgentTaskRef(workstreamId: "current", taskId: "pending-1")
+        let existing = [
+            WorkspaceChecklistItem(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                text: "Restore this task",
+                origin: .agent,
+                agentTaskRef: provisionalRef,
+                dispatchTarget: WorkspaceTaskDispatchTarget(
+                    workingDirectory: "/tmp/project",
+                    agentCommand: "claude --continue",
+                    agentName: "claude"
+                )
+            )
+        ]
+        let authoritative = WorkspaceAgentChecklistTask(
+            id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+            ref: WorkspaceAgentTaskRef(workstreamId: "current", taskId: "42"),
+            text: "Restore this task",
+            state: .inProgress,
+            agentName: "claude"
+        )
+
+        let replacements = try #require(WorkspaceAgentChecklistSync().replacement(
+            existing: existing,
+            agentTasks: [authoritative],
+            workstreamId: "current"
+        ))
+
+        #expect(replacements.first?.id == existing.first?.id)
+        #expect(replacements.first?.dispatchTarget == existing.first?.dispatchTarget)
+        #expect(replacements.first?.agentTaskRef == authoritative.ref)
+    }
+
     @Test("dispatch metadata survives Codable round trip")
     func dispatchMetadataRoundTrips() throws {
         let item = WorkspaceChecklistItem(

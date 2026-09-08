@@ -37,6 +37,16 @@ public struct WorkspaceAgentChecklistSync: Sendable {
             )
         }
         let workstreamIDsToRetire = matchingWorkstreamIds.union([workstreamId])
+        var existingByRef: [WorkspaceAgentTaskRef: WorkspaceChecklistItem] = [:]
+        var existingIDsByText: [String: [UUID]] = [:]
+        for item in existing {
+            guard let ref = item.agentTaskRef,
+                  workstreamIDsToRetire.contains(ref.workstreamId),
+                  let text = WorkspaceChecklistItem.normalizedText(item.text) else { continue }
+            existingByRef[ref] = item
+            existingIDsByText[text, default: []].append(item.id)
+        }
+        var reusedIDs = Set<UUID>()
         let retained = existing
             .filter {
                 guard let rawWorkstreamId = $0.agentTaskRef?.workstreamId else {
@@ -62,8 +72,11 @@ public struct WorkspaceAgentChecklistSync: Sendable {
         var result = retained
         result.reserveCapacity(retained.count + admitted.count)
         for task in admitted {
+            let normalizedText = WorkspaceChecklistItem.normalizedText(task.text) ?? task.text
+            let preservedID = existingByRef[task.ref]?.id
+                ?? existingIDsByText[normalizedText, default: []].first(where: { reusedIDs.insert($0).inserted })
             result.append(WorkspaceChecklistReplacementItem(
-                id: task.id,
+                id: preservedID ?? task.id,
                 text: task.text,
                 state: task.state,
                 origin: .agent,

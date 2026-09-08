@@ -244,7 +244,7 @@ struct WorkstreamTaskToolTodos: Sendable {
             if todo.id.hasPrefix("pending-"),
                let suffix = Int(todo.id.dropFirst("pending-".count)) {
                 nextProvisionalID = max(nextProvisionalID, suffix)
-                provisionalIDsInOrder.append(todo.id)
+                registerProvisionalID(todo.id, for: todo.content)
             }
         }
         trim()
@@ -520,6 +520,9 @@ struct WorkstreamTaskToolTodos: Sendable {
             let snapshotJSON = responseJSON ?? inputJSON
             guard let parsed = Self.snapshot(from: snapshotJSON) else { return .ignored }
             replace(with: parsed, establishesCompleteness: true)
+            if Self.snapshotIsTruncated(snapshotJSON) {
+                hasEvictedTodos = true
+            }
             return .list(todos)
         }
     }
@@ -785,6 +788,13 @@ struct WorkstreamTaskToolTodos: Sendable {
             parsed.append(WorkstreamTaskTodo(id: id, content: text, state: state(in: dictionary) ?? .pending))
         }
         return parsed
+    }
+
+    private static func snapshotIsTruncated(_ json: String?) -> Bool {
+        guard let json, let data = json.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+                as? [String: Any] else { return false }
+        return root["_cmux_task_list_truncated"] as? Bool == true
     }
 }
 
