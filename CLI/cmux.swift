@@ -4871,6 +4871,7 @@ struct CMUXCLI {
                 throw CLIError(message: "Browser availability is managed by your organization (MDM policy for domain \(domain)); it cannot be changed from the CLI.")
             }
             defaults.set(Self.browserEngineSystemDefaultValue, forKey: Self.browserEngineDefaultsKey)
+            defaults.set(true, forKey: Self.browserEngineDidInitializeDefaultsKey)
             defaults.set(true, forKey: Self.browserDisabledDefaultsKey)
             defaults.synchronize()
         case "enable", "enable-browser":
@@ -4878,6 +4879,7 @@ struct CMUXCLI {
                 throw CLIError(message: "Browser availability is managed by your organization (MDM policy for domain \(domain)); it cannot be changed from the CLI.")
             }
             defaults.set(Self.browserEngineWebKitValue, forKey: Self.browserEngineDefaultsKey)
+            defaults.set(true, forKey: Self.browserEngineDidInitializeDefaultsKey)
             defaults.set(false, forKey: Self.browserDisabledDefaultsKey)
             defaults.synchronize()
         case "status", "browser-status":
