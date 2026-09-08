@@ -116,44 +116,71 @@ struct SidebarAppKitRowCellTests {
     @Test
     func splitPaneAffordanceAppearsOnlyForSplitWorkspaces() throws {
         let cell = SidebarWorkspaceRowTableCellView()
-        let singlePane = makeModel()
+        let singlePane = Self.makeModel()
         cell.configure(
             model: singlePane,
-            actions: makeActions(model: singlePane),
+            actions: Self.makeActions(model: singlePane),
             isPointerHovering: false,
             contextMenuDidOpen: {},
             contextMenuDidClose: {}
         )
         _ = cell.layoutContent(model: singlePane, width: 300, apply: true)
-        #expect(!allDescendants(of: cell).contains { $0.toolTip == "Split pane count: 1" })
+        let splitAffordance = try #require(
+            Self.allDescendants(of: cell).compactMap { $0 as? SidebarRowSplitPaneCountView }.first
+        )
+        #expect(splitAffordance.isHidden)
+        #expect(splitAffordance.intrinsicContentSize == .zero)
+        #expect(splitAffordance.toolTip == nil)
+        #expect(splitAffordance.accessibilityLabel() == nil)
 
-        let splitPane = makeModel(splitPaneCount: 2)
+        let splitPane = Self.makeModel(splitPaneCount: 2)
         cell.configure(
             model: splitPane,
-            actions: makeActions(model: splitPane),
+            actions: Self.makeActions(model: splitPane),
             isPointerHovering: false,
             contextMenuDidOpen: {},
             contextMenuDidClose: {}
         )
         _ = cell.layoutContent(model: splitPane, width: 300, apply: true)
-        let splitAffordance = try #require(
-            allDescendants(of: cell).first { $0.toolTip == "Split pane count: 2" }
-        )
-        let normalWidth = splitAffordance.frame.width
+        #expect(!splitAffordance.isHidden)
+        #expect(splitAffordance.configuredCount == 2)
+        #expect(splitAffordance.frame.size == splitAffordance.intrinsicContentSize)
+        #expect(splitAffordance.frame.width > 0)
+        #expect(splitAffordance.frame.height > 0)
+        #expect(splitAffordance.toolTip?.isEmpty == false)
+        #expect(splitAffordance.accessibilityLabel() == splitAffordance.toolTip)
+        let normalSize = splitAffordance.frame.size
 
-        let magnifiedPane = makeModel(splitPaneCount: 2, globalFontMagnificationPercent: 200)
+        let magnifiedPane = Self.makeModel(splitPaneCount: 2, globalFontMagnificationPercent: 200)
         cell.configure(
             model: magnifiedPane,
-            actions: makeActions(model: magnifiedPane),
+            actions: Self.makeActions(model: magnifiedPane),
             isPointerHovering: false,
             contextMenuDidOpen: {},
             contextMenuDidClose: {}
         )
         _ = cell.layoutContent(model: magnifiedPane, width: 300, apply: true)
-        let magnifiedAffordance = try #require(
-            allDescendants(of: cell).first { $0.toolTip == "Split pane count: 2" }
+        #expect(!splitAffordance.isHidden)
+        #expect(splitAffordance.frame.width > normalSize.width)
+        #expect(splitAffordance.frame.height > normalSize.height)
+        splitAffordance.layoutSubtreeIfNeeded()
+        for subview in splitAffordance.subviews {
+            #expect(splitAffordance.bounds.contains(subview.frame))
+        }
+
+        cell.configure(
+            model: singlePane,
+            actions: Self.makeActions(model: singlePane),
+            isPointerHovering: false,
+            contextMenuDidOpen: {},
+            contextMenuDidClose: {}
         )
-        #expect(magnifiedAffordance.frame.width > normalWidth)
+        _ = cell.layoutContent(model: singlePane, width: 300, apply: true)
+        #expect(splitAffordance.isHidden)
+        #expect(splitAffordance.configuredCount == 1)
+        #expect(splitAffordance.intrinsicContentSize == .zero)
+        #expect(splitAffordance.toolTip == nil)
+        #expect(splitAffordance.accessibilityLabel() == nil)
     }
 
     private static func allDescendants(of view: NSView) -> [NSView] {
