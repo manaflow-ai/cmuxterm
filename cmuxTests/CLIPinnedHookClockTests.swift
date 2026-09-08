@@ -7,8 +7,8 @@ struct CLIPinnedHookClockTests {
         case ambient, failedAmbient, pinnedOnly
     }
 
-    @Test(arguments: Route.allCases)
-    func installedHooksCaptureOnceBeforeChoosingDeliveryRoute(_ route: Route) throws {
+    @Test(arguments: Route.allCases, ["antigravity", "grok"])
+    func installedHooksCaptureOnceBeforeChoosingDeliveryRoute(_ route: Route, agent: String) throws {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self)
         // Keep the Unix socket path below sockaddr_un's limit on every runner.
         let root = URL(fileURLWithPath: "/tmp/cmux-pinned-clock-\(UUID().uuidString)", isDirectory: true)
@@ -36,15 +36,18 @@ struct CLIPinnedHookClockTests {
         ]
         let install = runCodexHookProcess(
             executablePath: cliPath,
-            arguments: ["hooks", "agy", "install", "--yes"],
+            arguments: ["hooks", agent, "install", "--yes"],
             environment: environment,
             timeout: 10
         )
         try #require(!install.timedOut, Comment(rawValue: install.stderr))
         try #require(install.status == 0, Comment(rawValue: install.stderr))
-        let hookURL = root.appendingPathComponent(".gemini/config/hooks.json")
+        let isAntigravity = agent == "antigravity"
+        let hookURL = root.appendingPathComponent(
+            isAntigravity ? ".gemini/config/hooks.json" : ".grok/hooks/cmux-session.json"
+        )
         let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: hookURL)) as? [String: Any])
-        let hooks = try #require(json["cmux"] as? [String: Any])
+        let hooks = try #require(json[isAntigravity ? "cmux" : "hooks"] as? [String: Any])
 
         environment["CMUX_BUNDLED_CLI_PATH"] = ambientCLI
         environment["CMUX_SOCKET_PATH"] = ambientSocket
@@ -52,7 +55,13 @@ struct CLIPinnedHookClockTests {
         environment["CMUX_AGENT_HOOK_CAPTURED_AT"] = "946684800.000000"
         var previousTime = 946684800.0
         for (event, action) in [("SessionStart", "session-start"), ("Stop", "stop")] {
-            let entries = try #require(hooks[event] as? [[String: Any]])
+            let groups = try #require(hooks[event] as? [[String: Any]])
+            let entries: [[String: Any]]
+            if isAntigravity {
+                entries = groups
+            } else {
+                entries = try #require(groups.first?["hooks"] as? [[String: Any]])
+            }
             let command = try #require(entries.first?["command"] as? String)
             try Data().write(to: callLog)
             let run = runCodexHookProcess(
@@ -77,7 +86,7 @@ struct CLIPinnedHookClockTests {
                 let timestamp = try #require(Double(call[1]))
                 #expect(timestamp > previousTime, "Every callback needs a fresh pre-dispatch timestamp")
                 let socketPath = expectedRoute == "ambient" ? ambientSocket : pinnedSocket
-                #expect(call[2] == "--socket \(socketPath) hooks antigravity \(action)")
+                #expect(call[2] == "--socket \(socketPath) hooks \(agent) \(action)")
                 capturedTimes.append(call[1])
             }
             #expect(Set(capturedTimes).count == 1, "Fallback must retain the original callback's order")
