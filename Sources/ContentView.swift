@@ -11901,26 +11901,8 @@ struct VerticalTabsSidebar: View, Equatable {
                 refreshWorkspaceSnapshots()
             }
         }
-        // This helper is mounted only by the default-sidebar branch in body;
-        // extensionSidebarScrollArea bypasses workspaceScrollArea entirely.
-        .overlay(alignment: .topTrailing) {
-            if isPresented, !renderContext.workspaceGroups.isEmpty {
-                SidebarWorkspaceGroupBulkToggle(
-                    allGroupsCollapsed: renderContext.workspaceGroups.allSatisfy { $0.isCollapsed },
-                    onCollapseAll: { [weak tabManager] in
-                        tabManager?.collapseAllWorkspaceGroups()
-                    },
-                    onExpandAll: { [weak tabManager] in
-                        tabManager?.expandAllWorkspaceGroups()
-                    }
-                )
-                .padding(.top, 4)
-                .padding(.trailing, 6)
-            }
-        }
-        .onDisappear {
-            workspaceSnapshotRefreshCoalescer.cancel()
-        }
+        .overlay(alignment: .topTrailing) { workspaceGroupBulkToggleOverlay(renderContext: renderContext) }
+        .onDisappear { workspaceSnapshotRefreshCoalescer.cancel() }
     }
 
     private func legacyWorkspaceScrollArea(

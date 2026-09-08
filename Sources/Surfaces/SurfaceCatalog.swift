@@ -234,13 +234,9 @@ final class SurfaceCatalog {
     /// from `CloudVMState` because freshness is local observation metadata, not
     /// part of the daemon document or its cursor.
     private(set) var cloudStateObservations: [SurfaceMachineID: CloudVMStateObservation] = [:]
-    /// Compatibility state for the versioned snapshot API used by legacy cloud callers. The
-    /// typed `CloudVMState` path remains authoritative for current providers.
-    @ObservationIgnored
-    var cloudResourceCompatibility: [SurfaceMachineID: CloudResourceCompatibilityState] = [:]
-    /// Compatibility rename intents are retained until a versioned snapshot confirms them.
-    @ObservationIgnored
-    var cloudWorkspaceRenameIntents: [CloudWorkspaceRenameKey: [CloudWorkspaceRenameIntent]] = [:]
+    /// Legacy cloud compatibility state; typed `CloudVMState` remains authoritative.
+    @ObservationIgnored var cloudResourceCompatibility: [SurfaceMachineID: CloudResourceCompatibilityState] = [:]
+    @ObservationIgnored var cloudWorkspaceRenameIntents: [CloudWorkspaceRenameKey: [CloudWorkspaceRenameIntent]] = [:]
     private var providers: [SurfaceMachineID: any SurfaceProvider] = [:]
     /// The process-wide ordering owner for remote rename intents. A remote identity can
     /// have projections in several local windows, so this cannot live in a TabManager.
@@ -408,8 +404,7 @@ final class SurfaceCatalog {
         for record in pending { pendingRestoredProjections[record] = nil }
         cloudStates[machine] = nil
         cloudStateObservations[machine] = nil
-        cloudResourceCompatibility[machine] = nil
-        cloudWorkspaceRenameIntents = cloudWorkspaceRenameIntents.filter { $0.key.machine != machine }
+        _ = clearCloudCompatibilityState(on: machine)
         projections = projections.filter { $0.resource.machine != machine }
         notifyChange()
     }
@@ -721,10 +716,8 @@ final class SurfaceCatalog {
     func clearCloudState(on machine: SurfaceMachineID) {
         let removedState = cloudStates.removeValue(forKey: machine) != nil
         let removedObservation = cloudStateObservations.removeValue(forKey: machine) != nil
-        let removedCompatibility = cloudResourceCompatibility.removeValue(forKey: machine) != nil
-        let removedRenameIntents = cloudWorkspaceRenameIntents.contains { $0.key.machine == machine }
-        cloudWorkspaceRenameIntents = cloudWorkspaceRenameIntents.filter { $0.key.machine != machine }
-        guard removedState || removedObservation || removedCompatibility || removedRenameIntents else { return }
+        let removedCompatibility = clearCloudCompatibilityState(on: machine)
+        guard removedState || removedObservation || removedCompatibility else { return }
         notifyChange()
     }
 
@@ -770,31 +763,6 @@ final class SurfaceCatalog {
     private func rebuildResourceIndex(for machine: SurfaceMachineID) {
         let ids = Set(resources.keys.filter { $0.machine == machine })
         resourceIDsByMachine[machine] = ids.isEmpty ? nil : ids
-    }
-
-    /// A provider summary can arrive after a newer daemon graph. Keep the graph's
-    /// workspace list authoritative so a stale status response cannot regress a
-    /// renamed workspace or resurrect a removed one in the tree. Pending creation
-    /// rows remain represented by their resource overlays until the next graph.
-    private func machineInfoPreservingCanonicalCloudState(
-        _ info: SurfaceMachineInfo,
-        state: CloudVMState? = nil
-    ) -> SurfaceMachineInfo {
-        guard case .cloud = info.id else { return info }
-        guard let state = state ?? cloudStates[info.id] else {
-            return cloudResourceCompatibilityMachineInfo(info)
-        }
-        var adjusted = info
-        let canonical = state.workspaces.map {
-            SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
-        }
-        var seen = Set(canonical.map(\.id))
-        // A create response can expose a new empty workspace before the next
-        // journal snapshot. Keep such genuinely new rows, but never retain an
-        // incoming row whose id the accepted graph removed.
-        let pending = (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted }
-        adjusted.remoteWorkspaces = canonical + pending
-        return adjusted
     }
 
     // MARK: Projections

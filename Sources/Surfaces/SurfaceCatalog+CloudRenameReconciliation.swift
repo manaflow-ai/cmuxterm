@@ -27,6 +27,31 @@ struct CloudWorkspaceRenameToken: Hashable, Sendable {
 }
 
 extension SurfaceCatalog {
+    /// Keeps the accepted graph authoritative while retaining genuinely new pending rows.
+    func machineInfoPreservingCanonicalCloudState(
+        _ info: SurfaceMachineInfo,
+        state: CloudVMState? = nil
+    ) -> SurfaceMachineInfo {
+        guard case .cloud = info.id else { return info }
+        guard let state = state ?? cloudStates[info.id] else { return cloudResourceCompatibilityMachineInfo(info) }
+        var adjusted = info
+        let canonical = state.workspaces.map {
+            SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
+        }
+        var seen = Set(canonical.map(\.id))
+        let pending = (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted }
+        adjusted.remoteWorkspaces = canonical + pending
+        return adjusted
+    }
+
+    @discardableResult
+    func clearCloudCompatibilityState(on machine: SurfaceMachineID) -> Bool {
+        let hadState = cloudResourceCompatibility.removeValue(forKey: machine) != nil
+        let hadIntents = cloudWorkspaceRenameIntents.contains { $0.key.machine == machine }
+        cloudWorkspaceRenameIntents = cloudWorkspaceRenameIntents.filter { $0.key.machine != machine }
+        return hadState || hadIntents
+    }
+
     /// Replaces a cloud machine's legacy resource rows only when the cursor is current. Equal
     /// cursors are no-ops unless they carry the exact name covered by a read-your-write receipt;
     /// all other equal and older snapshots are stale.

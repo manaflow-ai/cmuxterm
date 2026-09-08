@@ -2242,14 +2242,6 @@ class TabManager: ObservableObject {
         workspaceGrouping.toggleWorkspaceGroupCollapsed(groupId: groupId)
     }
 
-    func collapseAllWorkspaceGroups() {
-        workspaceGrouping.collapseAllWorkspaceGroups()
-    }
-
-    func expandAllWorkspaceGroups() {
-        workspaceGrouping.expandAllWorkspaceGroups()
-    }
-
     func setWorkspaceGroupCollapsed(groupId: UUID, isCollapsed: Bool) {
         workspaceGrouping.setWorkspaceGroupCollapsed(groupId: groupId, isCollapsed: isCollapsed)
     }
