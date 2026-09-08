@@ -282,20 +282,55 @@ extension AppDelegate {
         focus: Bool = true,
         focusWindow: Bool = false
     ) -> Bool {
+        moveDockSurfaceToNewWorkspaceResult(
+            sourceDock: sourceDock,
+            panelId: panelId,
+            focus: focus,
+            focusWindow: focusWindow
+        ) != nil
+    }
+
+    /// Moves a Dock panel into a new workspace and returns the same result
+    /// shape as workspace-owned tab moves. Tab drag adapters use this result
+    /// to update sidebar selection without maintaining a second Dock path.
+    @discardableResult
+    func moveDockSurfaceToNewWorkspaceResult(
+        sourceDock: DockSplitStore,
+        panelId: UUID,
+        destinationManager: TabManager? = nil,
+        title: String? = nil,
+        focus: Bool = true,
+        focusWindow: Bool = false,
+        placementOverride: WorkspacePlacement? = nil,
+        insertionIndexOverride: Int? = nil
+    ) -> SurfaceNewWorkspaceMoveResult? {
         // A window Dock resolves its owning window; a Workspace Dock resolves
         // that workspace's window (see `dockReferenceTabManager`).
-        guard let manager = dockReferenceTabManager(for: sourceDock) else { return false }
+        guard let sourceManager = dockReferenceTabManager(for: sourceDock) else { return nil }
+        let manager = destinationManager ?? sourceManager
+        guard let panel = sourceDock.panels[panelId] else { return nil }
         let sourcePane = sourceDock.paneId(forPanelId: panelId)
-        guard let detached = sourceDock.detachSurface(panelId: panelId) else { return false }
+        guard let detached = sourceDock.detachSurface(panelId: panelId) else { return nil }
         (detached.panel as? TerminalPanel)?.surface.setFocusPlacement(.workspace)
+        let hasExplicitTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let destinationTitle = title ?? detached.title
+        let activationIntent = focusIntentForNewWorkspaceMove(panel: detached.panel)
 
-        guard let destinationWorkspace = manager.addWorkspace(fromDetachedSurface: detached, select: focus) else {
+        guard let destinationWorkspace = manager.addWorkspace(
+            fromDetachedSurface: detached,
+            title: destinationTitle,
+            titleSource: hasExplicitTitle ? .user : .auto,
+            select: false,
+            placementOverride: placementOverride,
+            insertionIndexOverride: insertionIndexOverride,
+            focusIntent: activationIntent
+        ) else {
             // Creation failed — roll the panel back into the Dock unchanged.
             (detached.panel as? TerminalPanel)?.surface.setFocusPlacement(.rightSidebarDock)
             if let rollbackPane = sourcePane ?? sourceDock.bonsplitController.allPaneIds.first {
                 _ = sourceDock.attachDetachedSurface(detached, inPane: rollbackPane, focus: false)
             }
-            return false
+            return nil
         }
         destinationWorkspace.scheduleTerminalGeometryReconcile()
         destinationWorkspace.reconcileBrowserPortalVisibilityForCurrentRenderedLayout(
@@ -309,6 +344,12 @@ extension AppDelegate {
             if focusWindow, let destinationWindowId = windowId(for: manager) {
                 _ = focusMainWindow(windowId: destinationWindowId)
             }
+            manager.focusTab(
+                destinationWorkspace.id,
+                surfaceId: panelId,
+                suppressFlash: true,
+                focusIntent: activationIntent
+            )
             if let destinationWindow {
                 noteMainPanelKeyboardFocusIntent(
                     workspaceId: destinationWorkspace.id,
@@ -317,7 +358,14 @@ extension AppDelegate {
                 )
             }
         }
-        return true
+        return SurfaceNewWorkspaceMoveResult(
+            sourceWindowId: windowId(for: sourceManager) ?? sourceDock.workspaceId,
+            sourceWorkspaceId: detached.sourceWorkspaceId,
+            destinationWindowId: windowId(for: manager),
+            destinationWorkspaceId: destinationWorkspace.id,
+            surfaceId: panelId,
+            paneId: destinationWorkspace.paneId(forPanelId: panelId)?.id
+        )
     }
 
     private func resolveDockDropDestination(

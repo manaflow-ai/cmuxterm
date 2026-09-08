@@ -18,7 +18,7 @@ struct DockTabWorkspaceMoveTests {
             try withHarness(scope: scope) { app, manager, dock in
                 let pane = try #require(dock.bonsplitController.allPaneIds.first)
                 let panelID = try #require(dock.newSurface(kind: .browser, inPane: pane, focus: false))
-                let tabID = try #require(dock.surfaceId(forPanelId: panelID)).id
+                let tabID = try #require(dock.surfaceId(forPanelId: panelID)).uuid
                 let destination = manager.addWorkspace(title: "Drop destination", select: false)
 
                 #expect(app.canMoveBonsplitTab(tabId: tabID, toWorkspace: destination.id))
@@ -42,7 +42,7 @@ struct DockTabWorkspaceMoveTests {
             try withHarness(scope: scope) { app, manager, dock in
                 let pane = try #require(dock.bonsplitController.allPaneIds.first)
                 let panelID = try #require(dock.newSurface(kind: .browser, inPane: pane, focus: false))
-                let tabID = try #require(dock.surfaceId(forPanelId: panelID)).id
+                let tabID = try #require(dock.surfaceId(forPanelId: panelID)).uuid
                 let destinationManager = TabManager(autoWelcomeIfNeeded: false)
                 let destinationWindowID = UUID()
                 app.registerMainWindowContextForTesting(
