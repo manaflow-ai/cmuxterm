@@ -10,7 +10,7 @@ import Security
 #endif
 
 /// Identifies when a socket credential may be requested.
-public nonisolated enum SocketCredentialResolutionDemand: Sendable {
+public enum SocketCredentialResolutionDemand: Sendable {
     /// The first request on a newly connected socket. This demand only permits
     /// credentials supplied explicitly by the caller or environment.
     case initialConnection
@@ -19,7 +19,7 @@ public nonisolated enum SocketCredentialResolutionDemand: Sendable {
 }
 
 /// Identifies the source that supplied a socket password.
-public nonisolated enum SocketCredentialSource: Equatable, Sendable {
+public enum SocketCredentialSource: Equatable, Sendable {
     /// The password supplied by the command-line `--password` option.
     case explicit
     /// The password supplied by `CMUX_SOCKET_PASSWORD`.

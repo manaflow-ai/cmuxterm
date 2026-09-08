@@ -2,7 +2,7 @@ import Foundation
 import os
 
 /// The authentication mode observed for one local control-socket route.
-public nonisolated enum SocketAuthenticationMode: Equatable, Sendable {
+public enum SocketAuthenticationMode: Equatable, Sendable {
     /// No request has established whether this route needs a password.
     case unknown
     /// One client is performing the single best-effort mode probe.

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Recognizes the server responses that authorize a deferred credential lookup.
-public nonisolated enum SocketAuthenticationChallenge {
+public enum SocketAuthenticationChallenge {
     private static let challengeMarker = "send auth <password> first"
     private static let nonSocketAuthMarkers = ["cloud vm", "sign-in", "cmux auth login"]
 
