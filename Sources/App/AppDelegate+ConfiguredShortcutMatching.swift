@@ -156,6 +156,12 @@ extension AppDelegate {
               shortcutWhenClauseAllows(action: action, event: event) else {
             return false
         }
+        if event.type == .keyDown, activeResolvedPrefixChordWasSystemDefined {
+            // The router already matched the media suffix. Directional
+            // actions are selected by the resolved action branch itself, so
+            // there is no keyboard arrow to reconstruct on the proxy event.
+            return true
+        }
         guard let stroke = routableConfiguredShortcutStroke(
             event: event,
             shortcut: KeyboardShortcutSettings.shortcut(for: action)
