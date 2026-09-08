@@ -51,7 +51,11 @@ struct UserDefaultsSettingsStoreNotificationTests {
             let stream = await store.valueEvents(for: key)
             for await event in stream {
                 await recorder.append(event)
-                if await recorder.count() >= 2 {
+                // The backing notification can be delivered after the manually
+                // posted external notification; keep draining until its
+                // superseded-source fence is observed.
+                if event.value == "#EXTERNAL",
+                   event.supersededMutationSource == firstSource {
                     break
                 }
             }
