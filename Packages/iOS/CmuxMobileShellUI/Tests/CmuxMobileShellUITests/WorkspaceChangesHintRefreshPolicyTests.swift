@@ -44,6 +44,23 @@ import Testing
             current: nil,
             isAvailable: false,
             candidate: hint
+    ) == nil
+    )
+}
+
+@Test func availableDetailClearsHintWhenChangesDisappear() {
+    let hint = MobileWorkspaceChangesHint(
+        workspaceID: "workspace-a",
+        workspaceChangesCapable: true,
+        chip: MobileWorkspaceChangesChip(filesChanged: 2, additions: 3, deletions: 1),
+        isDismissed: false
+    )
+
+    #expect(
+        WorkspaceChangesHintRefreshPolicy.next(
+            current: hint,
+            isAvailable: true,
+            candidate: nil
         ) == nil
     )
 }

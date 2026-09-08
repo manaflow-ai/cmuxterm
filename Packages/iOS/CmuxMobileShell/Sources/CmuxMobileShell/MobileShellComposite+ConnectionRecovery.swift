@@ -278,7 +278,8 @@ extension MobileShellComposite {
     /// scheduled, so the next barren stream may schedule again instead of
     /// coalescing into a dead timer. It keeps the barren-stream streak, so a
     /// suspend/resume of the same session preserves the accrued backoff.
-    func cancelDeadTerminalEventStreamRedial() {
+    @discardableResult
+    func cancelDeadTerminalEventStreamRedial() -> Bool {
         connectionRecoveryOwner.cancelDeadTerminalEventStreamRedial()
     }
 
@@ -290,9 +291,10 @@ extension MobileShellComposite {
     }
 
     /// Replays the most recent recovery trigger that was parked while the
-    /// scene was inactive. Called from `resumeForegroundRefresh()` after the
-    /// foreground recovery passes, so a replay coalesces into any attempt
-    /// they already started instead of stacking a second dial.
+    /// scene was inactive. Called from `resumeForegroundRefresh()` before the
+    /// generic foreground recovery pass so a parked stream-end replay can force
+    /// its subscription resync instead of being coalesced into a probe that
+    /// reports the still-healthy RPC connection and skips that resync.
     func recoverPendingInactiveRecoveryIfNeeded() {
         guard foregroundRefreshIsActive,
               let trigger = pendingInactiveRecoveryTrigger else { return }

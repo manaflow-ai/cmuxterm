@@ -79,6 +79,13 @@ final class MobileConnectionRecoveryOwner {
         }
     }
 
+    /// Whether a delayed barren-stream retry is waiting for its deadline.
+    /// Background suspension uses this to park the corresponding recovery
+    /// trigger before cancellation can otherwise lose the wake-up.
+    var hasPendingDeadTerminalEventStreamRedial: Bool {
+        deadTerminalEventStreamRedialTask != nil
+    }
+
     /// Claims a new probe or redial attempt when no recovery is active.
     func begin(
         trigger: String,
@@ -256,11 +263,14 @@ final class MobileConnectionRecoveryOwner {
     /// Cancels a pending barren-stream retry while preserving the accumulated
     /// session streak. Background suspension uses this form so a resumed
     /// session cannot immediately return to a tight redial loop.
-    func cancelDeadTerminalEventStreamRedial() {
+    @discardableResult
+    func cancelDeadTerminalEventStreamRedial() -> Bool {
+        let wasPending = deadTerminalEventStreamRedialTask != nil
         deadTerminalEventStreamRedialGeneration = UUID()
         deadTerminalEventStreamRedialTask?.cancel()
         deadTerminalEventStreamRedialTask = nil
         deadTerminalEventStreamRedialBackoff.redialFired()
+        return wasPending
     }
 
     /// Resets the barren-stream retry state at a fresh account/session boundary.

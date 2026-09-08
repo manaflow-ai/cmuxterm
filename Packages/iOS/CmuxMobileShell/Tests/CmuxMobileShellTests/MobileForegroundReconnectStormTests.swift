@@ -111,6 +111,56 @@ import Testing
     #expect(backoff.nextRedialDelay() == .seconds(1))
 }
 
+/// A background transition must not lose a delayed dead-stream wake-up while
+/// the underlying RPC connection still reports healthy. The parked trigger is
+/// replayed first on foreground so the healthy probe also restarts the ended
+/// event listener instead of silently completing with the stale stream.
+@MainActor
+@Test func backgroundCancelsDeadStreamBackoffAndForegroundRestartsListener() async throws {
+    let router = LivenessHostRouter()
+    let box = TransportBox()
+    let clock = TestClock()
+    let controlClock = ControlPoolManualClock()
+    let (store, directory) = try await makeStormRecoveryStore(
+        router: router,
+        box: box,
+        clock: clock,
+        controlClock: controlClock
+    )
+    defer {
+        Task { await router.releaseAllHeld() }
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    // Consume the immediate first retry, then arm the delayed second retry.
+    #expect(store.connectionRecoveryOwner.nextDeadTerminalEventStreamRedialDelay() == .zero)
+    let delay = try #require(
+        store.connectionRecoveryOwner.nextDeadTerminalEventStreamRedialDelay()
+    )
+    #expect(delay > .zero)
+    store.connectionRecoveryOwner.scheduleDeadTerminalEventStreamRedial(
+        after: delay,
+        clock: controlClock
+    ) {}
+    #expect(store.connectionRecoveryOwner.hasPendingDeadTerminalEventStreamRedial)
+
+    let subscribeCount = await router.count(of: "mobile.events.subscribe")
+    store.suspendForegroundRefresh()
+
+    #expect(!store.connectionRecoveryOwner.hasPendingDeadTerminalEventStreamRedial)
+    #expect(
+        store.pendingInactiveRecoveryTrigger?.description == "eventStreamEnded"
+    )
+
+    store.resumeForegroundRefresh()
+
+    #expect(await router.waitForCount(
+        of: "mobile.events.subscribe",
+        atLeast: subscribeCount + 1
+    ))
+    #expect(store.pendingInactiveRecoveryTrigger == nil)
+}
+
 // MARK: - A. Files-changed chips survive a transient reconnect
 
 /// Verifies transient disconnect and client replacement preserve change chips.

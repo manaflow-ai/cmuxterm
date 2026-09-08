@@ -8,13 +8,15 @@ enum WorkspaceChangesHintRefreshPolicy {
     ///
     /// A disconnect temporarily makes the capability gate unavailable. That
     /// must not erase an already-presented hint, because the reconnect would
-    /// otherwise present the same hint again when the gates recover.
+    /// otherwise present the same hint again when the gates recover. Once the
+    /// detail is available again, however, the candidate is authoritative: a
+    /// missing candidate means the workspace no longer has eligible changes.
     static func next(
         current: MobileWorkspaceChangesHint?,
         isAvailable: Bool,
         candidate: MobileWorkspaceChangesHint?
     ) -> MobileWorkspaceChangesHint? {
-        guard isAvailable, current == nil else { return current }
+        guard isAvailable else { return current }
         return candidate
     }
 }
