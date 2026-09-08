@@ -1240,6 +1240,18 @@ jobs:
               while kill -0 "$xcodebuild_pid" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$deadline" ]; then
                   echo "xcodebuild unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} timeout after ${timeout_seconds}s; terminating"
+                  # A batch that reaches this deadline is almost always a wedged
+                  # app host (main actor blocked, a WebKit load that never
+                  # finishes). Sample it before it dies so the log names the
+                  # stuck frames instead of only the tests that were in flight.
+                  for hang_pid in $(pgrep -f 'Contents/MacOS/cmux DEV$' 2>/dev/null | head -2); do
+                    hang_sample="$RUNNER_TEMP/app-host-hang-sample-${logical_shard}-${hang_pid}.txt"
+                    if sample "$hang_pid" 3 -mayDie -file "$hang_sample" >/dev/null 2>&1; then
+                      echo "::group::app-host hang sample (pid ${hang_pid}, first threads)"
+                      awk '/^Call graph:/{p=1} p' "$hang_sample" | head -200
+                      echo "::endgroup::"
+                    fi
+                  done
                   kill -TERM "$xcodebuild_pid" 2>/dev/null || true
                   sleep 5
                   kill -KILL "$xcodebuild_pid" 2>/dev/null || true
