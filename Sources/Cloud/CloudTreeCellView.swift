@@ -14,6 +14,7 @@ final class CloudTreeCellView: NSTableCellView {
     private var buttonsTopConstraint: NSLayoutConstraint?
     private var buttonsCenterConstraint: NSLayoutConstraint?
     private var displayTrailingConstraint: NSLayoutConstraint?
+    private var displayLeadingConstraint: NSLayoutConstraint?
     private var buttonsLeadingConstraint: NSLayoutConstraint?
     private var trackingArea: NSTrackingArea?
     private var hovered = false {
@@ -25,16 +26,17 @@ final class CloudTreeCellView: NSTableCellView {
         identifier = Self.identifier
         displayHost.translatesAutoresizingMaskIntoConstraints = false
         addSubview(displayHost)
-        // The outline's `frameOfCell` already shifted this cell 2pt past the 16pt
-        // disclosure slot; the remaining 4pt completes `CloudTreeRowGrid.disclosureGap`.
+        // Regular rows leave a gap after the outline's disclosure slot.
         // Content pads its own trailing edge (`CloudTreeRowGrid.trailingPadding`).
         let trailing = displayHost.trailingAnchor.constraint(equalTo: trailingAnchor)
+        let leading = displayHost.leadingAnchor.constraint(
+            equalTo: leadingAnchor,
+            constant: CloudTreeRowGrid.disclosureGap - CloudTreeNSOutlineView.cellShift
+        )
         displayTrailingConstraint = trailing
+        displayLeadingConstraint = leading
         NSLayoutConstraint.activate([
-            displayHost.leadingAnchor.constraint(
-                equalTo: leadingAnchor,
-                constant: CloudTreeRowGrid.disclosureGap - CloudTreeNSOutlineView.cellShift
-            ),
+            leading,
             displayHost.topAnchor.constraint(equalTo: topAnchor),
             displayHost.bottomAnchor.constraint(equalTo: bottomAnchor),
             trailing,
@@ -52,6 +54,13 @@ final class CloudTreeCellView: NSTableCellView {
         nodeActions: CloudTreeNodeActions,
         style: CloudTreeStyle = CloudTreeStyleStore.current
     ) {
+        // A pending machine has no disclosure control. Its indicator occupies
+        // the first column instead of reserving an empty arrow plus its gap.
+        if case .pendingMachine = node.kind {
+            displayLeadingConstraint?.constant = 0
+        } else {
+            displayLeadingConstraint?.constant = CloudTreeRowGrid.disclosureGap - CloudTreeNSOutlineView.cellShift
+        }
         displayHost.rootView = AnyView(
             CloudTreeRowContentView(kind: node.kind, style: style)
                 .frame(maxWidth: .infinity, alignment: .leading)
