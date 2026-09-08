@@ -96,11 +96,12 @@ extension CMUXCLI {
     }
 
     func runVMPushCommand(rest: [String], client: SocketClient, jsonOutput: Bool, quiet: Bool = false) throws {
-        try Self.throwIfFileTransferIsManagedOff()
         if rest.contains("--help") || rest.contains("-h") {
             print(Self.vmPushUsage)
             return
         }
+        // Help stays readable under the policy; only the transfer is refused.
+        try Self.throwIfFileTransferIsManagedOff()
         var positional: [String] = []
         var extraExcludes: [String] = []
         var useDefaultExcludes = true
@@ -247,11 +248,12 @@ extension CMUXCLI {
     // MARK: - pull
 
     func runVMPullCommand(rest: [String], client: SocketClient, jsonOutput: Bool, quiet: Bool = false) throws {
-        try Self.throwIfFileTransferIsManagedOff()
         if rest.contains("--help") || rest.contains("-h") {
             print(Self.vmPullUsage)
             return
         }
+        // Help stays readable under the policy; only the transfer is refused.
+        try Self.throwIfFileTransferIsManagedOff()
         let positional = rest.filter { !$0.hasPrefix("--") }
         guard positional.count == rest.count else {
             let unknown = rest.first { $0.hasPrefix("--") } ?? ""
