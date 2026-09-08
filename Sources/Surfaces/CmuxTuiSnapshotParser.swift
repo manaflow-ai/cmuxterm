@@ -1,4 +1,3 @@
-import CmuxCore
 import CoreFoundation
 import Foundation
 
@@ -396,12 +395,36 @@ struct CmuxTuiSnapshotParser: Sendable {
     /// left to right. Panes the document does not mention, and an unreadable
     /// document, get no position, so callers fall back to arrival order.
     static func layoutPaneOrder(fromLayout layout: Any?) -> [String: Int] {
-        RemoteWorkspacePaneOrder(document: layout).positions
+        guard let document = layout as? [String: Any] else { return [:] }
+        var order: [String: Int] = [:]
+        func record(_ paneID: Any?) {
+            guard let paneID = nonEmptyString(paneID), order[paneID] == nil else { return }
+            order[paneID] = order.count
+        }
+        func visit(_ value: Any?) {
+            guard let node = value as? [String: Any] else { return }
+            switch node["kind"] as? String {
+            case "leaf":
+                record(node["pane_id"])
+            case "split":
+                visit(node["first"])
+                visit(node["second"])
+            case "stack":
+                for paneID in (node["pane_ids"] as? [Any]) ?? [] { record(paneID) }
+            case "viewport":
+                for column in (node["columns"] as? [[String: Any]]) ?? [] { visit(column["root"]) }
+            default:
+                break
+            }
+        }
+        visit(document["root"])
+        return order
     }
 
     /// The same order read from a screen state's opaque layout data (the delta path).
     static func layoutPaneOrder(fromLayoutData data: Data?) -> [String: Int] {
-        RemoteWorkspacePaneOrder(data: data).positions
+        guard let data, let layout = try? JSONSerialization.jsonObject(with: data) else { return [:] }
+        return layoutPaneOrder(fromLayout: layout)
     }
 
     /// Orders wire rows by their semantic index when one is present. The
