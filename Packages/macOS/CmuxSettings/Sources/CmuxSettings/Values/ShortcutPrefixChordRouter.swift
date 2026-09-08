@@ -399,8 +399,7 @@ public struct ShortcutPrefixChordRouter: Sendable {
                 command: expected.command,
                 shift: expected.shift,
                 option: expected.option,
-                control: expected.control,
-                keyCode: expected.keyCode
+                control: expected.control
             )
         }
     }
