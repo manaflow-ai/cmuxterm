@@ -106,9 +106,9 @@ after it is plumbing:
    revocation remains pending for retry; reconciliation is recovery, not the
    authorization boundary. Every grant-mediated operation rechecks the current row.
 
-The Mac drops out of the loop; `cmux vm link` on the Mac just writes the grant.
-Route files and Mac-side approve polling (the PR #11609 mechanism) remain as the
-fallback for control-plane-less operation and older servers.
+In this proposal, the Mac drops out of the loop and `cmux vm link` on the Mac
+just writes the grant. Existing route-file consumption remains a compatibility
+path, but the retired Mac approval-polling broker is not an available fallback.
 
 ### 4. The data planes machines actually talk over
 

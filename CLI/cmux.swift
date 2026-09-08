@@ -4664,12 +4664,10 @@ struct CMUXCLI {
         }
         let normalized = trimmed.lowercased()
         guard normalized == "freestyle" else {
-            throw CLIError(message: """
-                vm new: unsupported Cloud VM service override.
-
-                Try:
-                  cmux vm new
-                """)
+            throw CLIError(message: String(
+                localized: "cli.vm.unsupportedProviderOverride",
+                defaultValue: "vm: unsupported Cloud VM service override. Omit --provider and retry the same command."
+            ))
         }
         return normalized
     }
