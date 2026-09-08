@@ -81,7 +81,7 @@ struct SidebarWorkspaceSnapshotFactory {
         // without running the deterministic activity scan; agent-shaped pills
         // are omitted rather than presenting stale, unowned status.
         let agentActivity = showsAgentActivity
-            ? workspace.sidebarWorkspaceAgentActivity()
+            ? workspace.sidebarWorkspaceAgentActivity(index: SharedLiveAgentIndex.shared.index)
             : SidebarWorkspaceAgentActivity(agents: [])
         let metadataEntries: [SidebarStatusEntry] = if detailVisibility.showsMetadata {
             showsAgentActivity

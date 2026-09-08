@@ -5,14 +5,12 @@ import Foundation
 extension Workspace {
     private static let feedAttentionLifecyclePrefix = "cmux.feed.attention:"
 
-    /// Builds the sidebar aggregate from cmux-owned runtime maps and the
-    /// restart-safe cached hook index. No title/file-mtime fallback is used.
-    func sidebarWorkspaceAgentActivity() -> SidebarWorkspaceAgentActivity {
+    /// Builds the sidebar aggregate from cmux-owned runtime maps and an
+    /// immutable cached hook index. No title/file-mtime fallback is used.
+    func sidebarWorkspaceAgentActivity(index liveIndex: RestorableAgentSessionIndex?) -> SidebarWorkspaceAgentActivity {
         // Snapshot/body code must not schedule work. The shared index loader
         // publishes a notification when this cached value changes, and the
         // sidebar refresh handler rebuilds affected workspace snapshots.
-        let sharedIndex = SharedLiveAgentIndex.shared
-        let liveIndex = sharedIndex.index
         var evidenceByID: [String: SidebarAgentActivityEvidence] = [:]
         let panelIDs = Set(panels.keys)
             .union(agentLifecycleStatesByPanelId.keys)
