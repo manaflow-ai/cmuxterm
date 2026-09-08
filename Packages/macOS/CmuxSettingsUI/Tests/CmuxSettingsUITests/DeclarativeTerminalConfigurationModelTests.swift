@@ -13,8 +13,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let suiteName = "DeclarativeTerminalConfigurationModelTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let catalog = SettingCatalog()
         let store = JSONConfigStore(fileURL: directory.appendingPathComponent("cmux.json"))
@@ -24,7 +23,7 @@ import Testing
         var modeIterator = modeStream.makeAsyncIterator()
         let model = DeclarativeTerminalConfigurationModel(
             jsonStore: store,
-            userDefaultsStore: UserDefaultsSettingsStore(defaults: defaults),
+            userDefaultsStore: makeTestUserDefaultsStore(suiteName: suiteName),
             catalog: catalog,
             errorLog: SettingsErrorLog()
         )
@@ -50,14 +49,13 @@ import Testing
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let suiteName = "DeclarativeTerminalConfigurationModelTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
         let catalog = SettingCatalog()
         let store = JSONConfigStore(fileURL: directory.appendingPathComponent("cmux.json"))
         let model = DeclarativeTerminalConfigurationModel(
             jsonStore: store,
-            userDefaultsStore: UserDefaultsSettingsStore(defaults: defaults),
+            userDefaultsStore: makeTestUserDefaultsStore(suiteName: suiteName),
             catalog: catalog,
             errorLog: SettingsErrorLog()
         )
@@ -87,4 +85,8 @@ import Testing
             spins += 1
         }
     }
+}
+
+private func makeTestUserDefaultsStore(suiteName: String) -> UserDefaultsSettingsStore {
+    UserDefaultsSettingsStore(defaults: UserDefaults(suiteName: suiteName)!)
 }
