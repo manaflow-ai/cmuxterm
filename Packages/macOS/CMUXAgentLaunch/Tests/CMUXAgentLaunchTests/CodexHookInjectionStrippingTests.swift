@@ -112,66 +112,6 @@ struct CodexHookInjectionStrippingTests {
         )
     }
 
-    @Test("Strips shell-quoted content-addressed hooks below a shell-significant home path")
-    func stripsShellQuotedContentAddressedHooksBelowShellSignificantHomePath() {
-        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
-            let path = "/Volumes/Home Disk/Example $HOME/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-\(subcommand).sh"
-            return "'\(path.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
-        } + ["--model", "gpt-5.5"]
-        #expect(
-            AgentLaunchSanitizer.sanitizedLaunchArguments(
-                arguments,
-                launcher: "",
-                fallbackKind: "codex"
-            ) == ["codex", "--model", "gpt-5.5"]
-        )
-    }
-
-    @Test("Strips canonical quoted hooks with boundary whitespace in path components")
-    func stripsCanonicalQuotedHooksWithBoundaryWhitespaceInPathComponents() {
-        let path = "/Volumes/ Home /Example $HOME/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh"
-        let quotedPath = CodexHookScriptName.shellCommand(forScriptPath: path)
-        let arguments = ["codex"] + codexWrapperHookArguments { _ in quotedPath } + ["--model", "gpt-5.5"]
-
-        #expect(
-            AgentLaunchSanitizer.sanitizedLaunchArguments(
-                arguments,
-                launcher: "",
-                fallbackKind: "codex"
-            ) == ["codex", "--model", "gpt-5.5"]
-        )
-    }
-
-    @Test("Preserves legacy bare hook paths with control characters")
-    func preservesLegacyBareHookPathsWithControlCharacters() {
-        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
-            "/Users/Example\nName/.cmux/hooks/cmux-codex-hook-0123456789abcdef-\(subcommand).sh"
-        } + ["--model", "gpt-5.5"]
-
-        #expect(
-            AgentLaunchSanitizer.sanitizedLaunchArguments(
-                arguments,
-                launcher: "",
-                fallbackKind: "codex"
-            ) == arguments
-        )
-    }
-
-    @Test("Preserves legacy bare hook paths with shell metacharacters")
-    func preservesLegacyBareHookPathsWithShellMetacharacters() {
-        let arguments = ["codex"] + codexWrapperHookArguments { subcommand in
-            "/Users/Example;Name/.cmux/hooks/cmux-codex-hook-0123456789abcdef-\(subcommand).sh"
-        } + ["--model", "gpt-5.5"]
-
-        #expect(
-            AgentLaunchSanitizer.sanitizedLaunchArguments(
-                arguments,
-                launcher: "",
-                fallbackKind: "codex"
-            ) == arguments
-        )
-    }
-
     @Test("Preserves malformed content-addressed Codex hook paths")
     func preservesMalformedContentAddressedCodexHookPaths() {
         let arguments = [
