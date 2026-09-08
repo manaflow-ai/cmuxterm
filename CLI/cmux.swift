@@ -38170,7 +38170,7 @@ export default CMUXSessionRestore;
             throw CLIError(message: "Bun is required for the OpenTUI Feed")
         }
 
-        let childSocketPassword = warmOpenTUIFeedAuthentication(
+        let childSocketPassword = try warmOpenTUIFeedAuthentication(
             socketPath: socketPath,
             socketPassword: socketPassword,
             credentialResolver: credentialResolver

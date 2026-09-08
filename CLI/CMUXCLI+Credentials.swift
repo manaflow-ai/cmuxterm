@@ -7,31 +7,29 @@ extension CMUXCLI {
     /// The first Feed request is deliberately made before launching the child
     /// because the JavaScript client can only receive a password through its
     /// environment. An allow-all response leaves the resolver untouched.
+    /// Failures propagate so automatic mode can retry through the legacy client;
+    /// launching a child with unresolved credentials would prevent recovery.
     func warmOpenTUIFeedAuthentication(
         socketPath: String,
         socketPassword: String?,
         credentialResolver: SocketCredentialResolver?
-    ) -> String? {
+    ) throws -> String? {
         guard let credentialResolver else { return socketPassword }
         let client = SocketClient(path: socketPath)
         defer { client.close() }
-        do {
-            try client.connect()
-            try authenticateClientIfNeeded(
-                client,
-                explicitPassword: socketPassword,
-                socketPath: socketPath,
-                responseTimeout: 2,
-                credentialResolver: credentialResolver
-            )
-            _ = try client.sendV2(
-                method: "feed.list",
-                params: ["pending_only": true],
-                responseTimeout: 2
-            )
-            return credentialResolver.resolvedPassword ?? socketPassword
-        } catch {
-            return credentialResolver.resolvedPassword ?? socketPassword
-        }
+        try client.connect()
+        try authenticateClientIfNeeded(
+            client,
+            explicitPassword: socketPassword,
+            socketPath: socketPath,
+            responseTimeout: 2,
+            credentialResolver: credentialResolver
+        )
+        _ = try client.sendV2(
+            method: "feed.list",
+            params: ["pending_only": true],
+            responseTimeout: 2
+        )
+        return credentialResolver.resolvedPassword ?? socketPassword
     }
 }
