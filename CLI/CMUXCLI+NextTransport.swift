@@ -7,22 +7,22 @@ extension CMUXCLI {
         guard materialArgs.arguments.isEmpty else {
             throw CLIError(message: nextTransportHelp("next-transport-ticket"))
         }
-        let response = try sendV1Command("next_transport_ticket", client: client)
+        let response = try client.send(command: "next_transport_ticket")
         try presentNextTransportMaterial(
-            response: response, command: "next-transport-ticket", commandArgs: commandArgs)
+            response: response, outputURL: materialArgs.outputURL)
     }
 
     func runNextTransportGrant(commandArgs: [String], client: SocketClient) throws {
         let materialArgs = try nextTransportMaterialArguments(commandArgs)
-        let response = try sendV1Command(
-            "next_transport_grant \(materialArgs.arguments.joined(separator: " "))", client: client)
+        let response = try client.send(
+            command: "next_transport_grant \(materialArgs.arguments.joined(separator: " "))")
         try presentNextTransportMaterial(
-            response: response, command: "next-transport-grant", commandArgs: commandArgs)
+            response: response, outputURL: materialArgs.outputURL)
     }
 
     struct NextTransportMaterialArguments {
         let arguments: [String]
-        let outputURL: URL?
+        let outputURL: URL
     }
 
     /// Parses the protected handoff option without ever forwarding it to the
@@ -59,6 +59,13 @@ extension CMUXCLI {
                 index += 1
             }
         }
+        guard let outputURL else {
+            throw CLIError(
+                message: String(
+                    localized: "cli.nextTransport.outputUsage",
+                    defaultValue: "Usage: add --output <private-file> to receive pairing material."
+                ))
+        }
         return NextTransportMaterialArguments(arguments: arguments, outputURL: outputURL)
     }
 
@@ -66,24 +73,14 @@ extension CMUXCLI {
     /// capabilities are intentionally never printed to a terminal or captured
     /// in shell history; errors remain generic and localized.
     func presentNextTransportMaterial(
-        response: String, command: String, commandArgs: [String]
+        response: String, outputURL: URL
     ) throws {
         guard !response.hasPrefix("ERROR:") else {
-            print(
-                String(
+            throw CLIError(
+                message: String(
                     localized: "cli.nextTransport.commandFailed",
                     defaultValue: "Next-transport command failed. Check Debug > Next Transport."
                 ))
-            return
-        }
-        let parsed = try nextTransportMaterialArguments(commandArgs)
-        guard let outputURL = parsed.outputURL else {
-            print(
-                String(
-                    localized: "cli.nextTransport.outputRequired",
-                    defaultValue: "Pairing material withheld. Re-run cmux \(command) with --output <private-file>."
-                ))
-            return
         }
         guard let data = response.data(using: .utf8) else {
             throw CLIError(
