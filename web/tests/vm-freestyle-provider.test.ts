@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { GUEST_CMUX_SHIM, GUEST_CMUX_SHIM_PATH } from "../services/vms/guestCli";
 import path from "node:path";
 import { describe, expect, setSystemTime, test } from "bun:test";
 import { FreestyleApiError, type Freestyle } from "freestyle";
@@ -39,7 +40,7 @@ const EDGE_RULE: VmEdgeRule = {
 // A fake Freestyle SDK client: records every create, exec, file write, and
 // delete so the driver's guest-facing behavior can be asserted without a
 // platform. `probeExit` is what the edge readiness probe returns.
-function fakeFreestyle(input: { readonly probeExit: number }) {
+function fakeFreestyle(input: { readonly probeExit: number; readonly guestCliExit?: number }) {
   const creates: unknown[] = [];
   const execs: string[] = [];
   const writes: Array<{ path: string; content: string }> = [];
@@ -47,7 +48,8 @@ function fakeFreestyle(input: { readonly probeExit: number }) {
   const vm = {
     exec: async ({ command }: { command: string }) => {
       execs.push(command);
-      const statusCode = command.includes("/api/coderouter/vm-usage/self") ? input.probeExit : 0;
+      const statusCode = command.includes("sha256sum") ? (input.guestCliExit ?? 0)
+        : command.includes("/api/coderouter/vm-usage/self") ? input.probeExit : 0;
       return { statusCode, stdout: "", stderr: statusCode === 0 ? "" : "probe failed" };
     },
     fs: {
@@ -239,6 +241,30 @@ describe("Freestyle platform contract", () => {
     expect(freestyleEdgeRules([])).toBeUndefined();
     expect(() => freestyleEdgeRules([{ ...EDGE_RULE, domain: "coderouter.dev:8443" }])).toThrow(ProviderError);
     expect(() => freestyleEdgeRules([{ ...EDGE_RULE, domain: "x; rm -rf /" }])).toThrow(ProviderError);
+  });
+
+
+  test("exec preserves an up-to-date full guest CLI without uploading it", async () => {
+    const fake = fakeFreestyle({ probeExit: 0 });
+    const result = await providerWith(fake).exec(VM_ID, "echo hi", { timeoutMs: 5_000 });
+    expect(result.exitCode).toBe(0);
+    expect(fake.execs).toHaveLength(2);
+    const command = fake.execs[0] ?? "";
+    expect(command).toContain(`sha256sum '${GUEST_CMUX_SHIM_PATH}'`);
+    expect(fake.execs[1]).toBe("echo hi");
+    expect(fake.writes).toHaveLength(0);
+    expect(command).not.toContain("crt_");
+  });
+
+  test("exec upgrades an absent or outdated guest CLI before running the command", async () => {
+    const fake = fakeFreestyle({ probeExit: 0, guestCliExit: 1 });
+    const result = await providerWith(fake).exec(VM_ID, "cmux self --json");
+    expect(result.exitCode).toBe(0);
+    expect(fake.writes).toHaveLength(1);
+    expect(fake.writes[0]?.content).toBe(GUEST_CMUX_SHIM);
+    expect(fake.execs).toHaveLength(3);
+    expect(fake.execs[1]).toContain(`mv -f`);
+    expect(fake.execs[2]).toBe("cmux self --json");
   });
 
   test("exec timeouts clamp to the per-exec cap; killed execs read as 124", () => {

@@ -122,6 +122,8 @@ cmux vm rm <id>          # irreversible and unprompted
 
 Every machine has its own in-VM `cmux` CLI (a shim over the machine's cmux-tui daemon). Local verbs use cmux-tui's grammar (`cmux <resource> <action>`) against the machine's own session — workspaces, terminals, panes:
 
+`cmux self [--json]` identifies this machine and `cmux vm ls [--json]` lists the team's live machines through `GET /api/vm/self`. Both work without a local daemon and use the edge-injected machine identity, never an account token copied into the VM. Linked peer status is available separately as `cmux vm peers`.
+
 ```bash
 cmux workspace current run -- bun test        # run a command in a durable terminal here
 cmux session current snapshot --json          # this machine's workspace/terminal tree
@@ -130,7 +132,7 @@ cmux session current snapshot --json          # this machine's workspace/termina
 `cmux vm …` inside a machine can use existing peer route files. The legacy Mac `vm link` enrollment broker is not available in this build; do not claim that it can create a new peer grant:
 
 ```bash
-cmux vm ls                          # linked peers and their link state
+cmux vm peers                       # linked peers and their link state
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
 ```

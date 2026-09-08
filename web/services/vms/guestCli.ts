@@ -13,6 +13,7 @@
 // reaches machines created from any existing snapshot.
 
 import { GUEST_CMUX_MESSAGE_SHELL } from "./guestCliMessages";
+import { GUEST_CMUX_SELF_SHIM } from "./guestSelfCli";
 
 export const GUEST_CMUX_SHIM_PATH = "/usr/local/bin/cmux";
 
@@ -21,6 +22,16 @@ export const GUEST_CMUX_SHIM = `#!/bin/sh
 # Local verbs forward to cmux-tui (session "cloud"). \`cmux vm …\` talks to peers
 # this machine was linked to from the Mac (\`cmux vm link <src> <dst>\`).
 set -eu
+
+case "\${1:-}:\${2:-}" in
+  self:*|vm:ls|vm:list)
+    guest_self_cli() (
+${GUEST_CMUX_SELF_SHIM}
+    )
+    guest_self_cli "\$@"
+    exit \$?
+    ;;
+esac
 
 ${GUEST_CMUX_MESSAGE_SHELL}
 
@@ -440,7 +451,7 @@ case "\${1:-}" in
     shift
     sub="\${1:-}"; [ "\$#" -gt 0 ] && shift
     case "\$sub" in
-      ls|list)
+      peers|links)
         # This machine, then every linked peer.
         printf '%s\\t%s\\n' "\$(hostname 2>/dev/null || echo local)" "\$(cmux_message thisMachine)"
         if [ -d "\$PEERS_DIR" ]; then

@@ -8,7 +8,7 @@ import {
   type Vm,
   type VpcData,
 } from "freestyle";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   ProviderError,
   type AttachTransport,
@@ -1082,7 +1082,11 @@ export class FreestyleProvider implements VMProvider {
       async (span) => {
         try {
           const fs = this.deps.client(timeoutMs + EXEC_OVERHEAD_TIMEOUT_MS);
-          const r = await fs.vms.ref(vmId).exec({ command, timeoutMs, linuxUser: GUEST_LINUX_USER });
+          const vm = fs.vms.ref(vmId);
+          const expected = createHash("sha256").update(GUEST_CMUX_SHIM).digest("hex");
+          const current = await this.execResult(vm, `test "$(sha256sum '${GUEST_CMUX_SHIM_PATH}' 2>/dev/null | cut -d ' ' -f 1)" = '${expected}'`);
+          if (current?.exitCode !== 0) await this.installGuestCli(vm);
+          const r = await vm.exec({ command, timeoutMs, linuxUser: GUEST_LINUX_USER });
           // statusCode is null when the guest killed the command at its timeout.
           const exitCode = r.statusCode ?? 124;
           setSpanAttributes(span, { "cmux.exec.exit_code": exitCode });
