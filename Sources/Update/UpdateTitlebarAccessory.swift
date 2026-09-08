@@ -1101,6 +1101,9 @@ struct TitlebarControlsView: View {
             .onReceive(NotificationCenter.default.publisher(for: .ghosttyDefaultBackgroundDidChange)) { _ in
                 appearanceRefreshTick &+= 1
             }
+            .onReceive(NotificationCenter.default.publisher(for: .ghosttyChromeConfigurationDidChange)) { _ in
+                appearanceRefreshTick &+= 1
+            }
             .onAppear {
                 startShortcutHintMonitorIfNeeded()
             }
