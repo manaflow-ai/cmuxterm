@@ -5455,6 +5455,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let previous = panelCustomTitles[panelId]
+        let isIdempotentRemoteAutoWrite = isRemoteTmuxMirror
+            && source == .auto
+            && previous == trimmed
         if source == .auto {
             guard !trimmed.isEmpty else { return false }
             if previous != nil, (panelCustomTitleSources[panelId] ?? .user) != .auto { return false }
@@ -5480,6 +5483,11 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
                 // be able to turn a just-confirmed local intent into settled
                 // daemon-owned state without changing the visible tab twice.
                 panelCustomTitleSources[panelId] = source
+                if isIdempotentRemoteAutoWrite, panelTitle(panelId: panelId) != trimmed {
+                    // A differing remote `%window-renamed` value is
+                    // authoritative. Preserve it and its derived tab chrome.
+                    return true
+                }
                 sameText = true
             } else {
                 panelCustomTitles[panelId] = trimmed
@@ -5502,7 +5510,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             hasCustomTitle: panelCustomTitles[panelId] != nil
         )
         // A remote tmux mirror tab rename propagates to `rename-window`.
-        if propagateToRemoteTmux, isRemoteTmuxMirror {
+        if propagateToRemoteTmux, isRemoteTmuxMirror, !isIdempotentRemoteAutoWrite {
             AppDelegate.shared?.remoteTmuxController.handleMirrorWindowRenamed(
                 workspaceId: id, panelId: panelId, title: trimmed
             )
