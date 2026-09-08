@@ -242,6 +242,10 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   // real interactive logins as the work user print nothing from ble.sh or
   // the shell (a `bash -c` probe would not load ble.sh at all).
   `[ "$(find ${DEVBOX_WORK_HOME} -not -user ${DEVBOX_WORK_USER} | wc -l)" = 0 ] && echo home-owned-by-work-user`,
+  // Not cosmetic: cmux-tui refuses to store its Noise identity under a group-
+  // or other-writable ancestor, and the daemon's state dir lives in this home.
+  // Ubuntu's user-private-group umask (002) is what puts it there.
+  `[ "$(find ${DEVBOX_WORK_HOME} -type d \\( -perm -g+w -o -perm -o+w \\) | wc -l)" = 0 ] && [ "$(sudo -n -u ${DEVBOX_WORK_USER} sh -c umask)" = 0022 ] && echo home-perms-ok`,
   "[ \"$(stat -c %a /usr/local/share/blesh/state.d)\" = 1777 ] && [ \"$(stat -c %a /usr/local/share/blesh/cache.d)\" = 1777 ] && echo blesh-dirs-ok",
   `test -f ${DEVBOX_WORK_HOME}/.cache/motd.legal-displayed && test -f /root/.cache/motd.legal-displayed && test -f /etc/skel/.cache/motd.legal-displayed && echo legal-notice-silenced`,
   ...[1, 2].map((run) =>

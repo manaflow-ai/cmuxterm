@@ -423,6 +423,16 @@ try {
     );
   }
 
+  // Re-assert the work user's private-directory permissions before the daemon
+  // first writes its identity: cmux-tui refuses a group- or other-writable
+  // ancestor of its auth dir, and every layer above this ran shells as that
+  // user. The umask is already 022 (devboxWorkUserSetupCommand), so this is a
+  // guard, not a repair.
+  await step(
+    "home-perms",
+    `find ${WORK_HOME} -type d -exec chmod g-w,o-w {} + && [ "$(find ${WORK_HOME} -type d \\( -perm -g+w -o -perm -o+w \\) | wc -l)" = 0 ] && [ "$(sudo -n -u ${WORK_USER} sh -c umask)" = 0022 ] && echo home-perms-ok`,
+  );
+
   // The pinned cmux-tui build, installed with the driver's own command so the
   // bake and the attach-time heal can never disagree about path or digest.
   console.log(`cmux-tui pin: commit ${cmuxTuiSource.commit} sha256 ${cmuxTuiSource.sha256.slice(0, 12)}…`);
@@ -491,7 +501,7 @@ try {
   // interactive logins as the work user are silent and ghost text works.
   await step(
     "home-hygiene",
-    `mkdir -p /usr/local/share/blesh/state.d && chmod a+rwxt /usr/local/share/blesh/state.d && for h in ${WORK_HOME} /root /etc/skel; do mkdir -p "$h/.cache" "$h/.local/state" && touch "$h/.cache/motd.legal-displayed"; done && chown -R ${WORK_USER}:${WORK_USER} ${WORK_HOME} && [ "$(find ${WORK_HOME} -not -user ${WORK_USER} | wc -l)" = 0 ] && ${interactiveShellProbe(1)} && ${interactiveShellProbe(2)} && sudo -n -u ${WORK_USER} env -i HOME=${WORK_HOME} USER=${WORK_USER} TERM=xterm-256color bash -c 'tmux -L bake new-session -d -s ghost -x 100 -y 24 && sleep 2 && tmux -L bake send-keys -t ghost cl && sleep 2 && tmux -L bake capture-pane -pt ghost | grep -o "claude --dangerously-skip-permissions" | head -1; rc=$?; tmux -L bake kill-server 2>/dev/null; exit $rc' && [ "$(find ${WORK_HOME} -not -user ${WORK_USER} | wc -l)" = 0 ] && echo home-hygiene-ok`,
+    `mkdir -p /usr/local/share/blesh/state.d && chmod a+rwxt /usr/local/share/blesh/state.d && for h in ${WORK_HOME} /root /etc/skel; do mkdir -p "$h/.cache" "$h/.local/state" && touch "$h/.cache/motd.legal-displayed"; done && chown -R ${WORK_USER}:${WORK_USER} ${WORK_HOME} && find ${WORK_HOME} -type d -exec chmod g-w,o-w {} + && [ "$(find ${WORK_HOME} -not -user ${WORK_USER} | wc -l)" = 0 ] && ${interactiveShellProbe(1)} && ${interactiveShellProbe(2)} && sudo -n -u ${WORK_USER} env -i HOME=${WORK_HOME} USER=${WORK_USER} TERM=xterm-256color bash -c 'tmux -L bake new-session -d -s ghost -x 100 -y 24 && sleep 2 && tmux -L bake send-keys -t ghost cl && sleep 2 && tmux -L bake capture-pane -pt ghost | grep -o "claude --dangerously-skip-permissions" | head -1; rc=$?; tmux -L bake kill-server 2>/dev/null; exit $rc' && [ "$(find ${WORK_HOME} -not -user ${WORK_USER} | wc -l)" = 0 ] && echo home-hygiene-ok`,
   );
 
   // The model-plane env is the same bytes for every machine (an alias host the

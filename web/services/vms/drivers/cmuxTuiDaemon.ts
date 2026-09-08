@@ -335,8 +335,12 @@ export function cmuxTuiAttachBundleCommand(options: {
   readonly deviceFingerprint?: string;
   readonly binary?: string;
 }): string {
-  const bin = options.binary ?? CMUX_TUI_BINARY_PATH;
-  const run = `env HOME=/root ${bin}`;
+  // The enrolled-device list lives in the DAEMON's state dir, so every call
+  // here has to be the daemon's user and HOME. Reading it as root on a
+  // work-user machine would find an empty state dir and report a healthy
+  // machine as un-enrolled.
+  const bin = options.binary ? shellQuote(options.binary) : '"$CMUX_TUI_BIN"';
+  const run = `runuser -u "$CMUX_TUI_USER" -- env HOME="$CMUX_TUI_HOME" ${bin}`;
   const fingerprint = options.deviceFingerprint?.trim();
   if (fingerprint !== undefined && fingerprint !== "" && !/^[A-Za-z0-9._:=+/-]+$/.test(fingerprint)) {
     throw new Error("device fingerprint has an unexpected shape");
@@ -346,6 +350,7 @@ export function cmuxTuiAttachBundleCommand(options: {
     // its success and failure branches; without a subshell those exits terminate
     // the entire attach bundle before the probe, device, and invitation sections.
     ...(options.readyGate ? [`( ${options.readyGate}; ) || exit ${CMUX_TUI_ATTACH_BUNDLE_NOT_READY_EXIT}`] : []),
+    cmuxTuiLayoutSelector(),
     `echo ${BUNDLE_MARKERS.probe}`,
     `${run} remote-probe --json; echo`,
     `echo ${BUNDLE_MARKERS.devices}`,

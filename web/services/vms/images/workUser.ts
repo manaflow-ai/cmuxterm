@@ -59,6 +59,17 @@ for f in /etc/sudoers.d/*; do
 done
 printf '${user} ALL=(ALL) NOPASSWD:ALL\\n' > /etc/sudoers.d/91-cmux-work-user
 chmod 0440 /etc/sudoers.d/91-cmux-work-user
+# Ubuntu's user-private-group rule (USERGROUPS_ENAB yes) hands the account a
+# 002 umask, so every directory it creates is group-writable. cmux-tui refuses
+# to store its Noise identity under a group-writable ancestor ("secure
+# directory ... has an ancestor writable by other users"), which is the daemon
+# on this machine, so the account uses root's 022 instead. Existing directories
+# are re-hardened here because the base image shipped them at 775.
+sed -i 's/^USERGROUPS_ENAB.*/USERGROUPS_ENAB no/' /etc/login.defs
+grep -q '^USERGROUPS_ENAB no$' /etc/login.defs
+find ${home} -type d -exec chmod g-w,o-w {} +
+[ "$(find ${home} -type d \\( -perm -g+w -o -perm -o+w \\) | wc -l)" = 0 ]
+[ "$(sudo -n -u ${user} sh -c umask)" = 0022 ]
 # The prompt renders \\h, so the machine name is user-visible. hostnamectl sets
 # the live kernel name (what a resumed snapshot keeps) and /etc/hostname.
 hostnamectl set-hostname ${host}

@@ -59,6 +59,7 @@ import {
   cmuxTuiDaemonCommand,
   cmuxTuiInstallCommand,
   cmuxTuiLayoutSelector,
+  shellQuote,
   cmuxTuiRunCommand,
   cmuxTuiPinCheckCommand,
   parseCmuxTuiAttachBundle,
@@ -702,7 +703,9 @@ const REMOTE_WS_BIND_OVERRIDE =
  */
 export function freestyleStartDaemonCommand(options?: { replaceExisting?: boolean }): string {
   const replace = options?.replaceExisting === true;
-  const fallbackLaunch = `(setsid nohup sh -c '${cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND)}' >>/tmp/cmux-tui-daemon.log 2>&1 &)`;
+  // shellQuote, not a bare '…': the daemon command carries single quotes of
+  // its own (the layout breadcrumb's printf), which would end the string early.
+  const fallbackLaunch = `(setsid nohup sh -c ${shellQuote(cmuxTuiDaemonCommand(FREESTYLE_REMOTE_WS_BIND))} >>/tmp/cmux-tui-daemon.log 2>&1 &)`;
   return [
     "if [ -d /run/systemd/system ] && [ -f /etc/systemd/system/cmux-tui-daemon.service ]; then",
     `mkdir -p ${REMOTE_WS_BIND_OVERRIDE.replace(/\/[^/]+$/, "")};`,

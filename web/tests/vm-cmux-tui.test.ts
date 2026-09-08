@@ -191,6 +191,15 @@ describe("cmux-tui attach bundle", () => {
     const root = mkdtempSync(join(tmpdir(), "cmux-tui-attach-bundle-"));
     const binary = join(root, "cmux-tui");
     const callsPath = join(root, "calls");
+    // The bundle reads the daemon's state, so it runs every call as the
+    // daemon's user. This host has no runuser (and no such user); the stub
+    // makes the drop-to-user a pass-through so the rest of the bundle is
+    // exercised as written.
+    const fakeBin = join(root, "bin");
+    mkdirSync(fakeBin, { recursive: true });
+    const runuser = join(fakeBin, "runuser");
+    writeFileSync(runuser, ["#!/bin/sh", "shift 2", '[ "$1" = "--" ] && shift', 'exec "$@"', ""].join("\n"));
+    chmodSync(runuser, 0o755);
     writeFileSync(binary, [
       "#!/bin/sh",
       "printf '%s\\n' \"$*\" >> \"$CMUX_TEST_CALLS\"",
@@ -205,7 +214,11 @@ describe("cmux-tui attach bundle", () => {
     try {
       const result = spawnSync("/bin/sh", ["-c", cmuxTuiAttachBundleCommand({ readyGate, deviceFingerprint, binary })], {
         encoding: "utf8",
-        env: { ...process.env, CMUX_TEST_CALLS: callsPath },
+        env: {
+          ...process.env,
+          CMUX_TEST_CALLS: callsPath,
+          PATH: [fakeBin, process.env.PATH || ""].join(":"),
+        },
         timeout: 5_000,
       });
       expect(result.error).toBeUndefined();
