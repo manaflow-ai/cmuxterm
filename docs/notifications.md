@@ -283,6 +283,11 @@ error, and for `cmux-tui notify`. Every attached Mac receives those rows on the
 same state feed the Cloud tree uses, so a notification posted while the link
 was down arrives on reconnect, and a daemon restart does not lose it.
 
+Inside a machine, `cmux notify` takes the same flags as the local command
+(`--title`, `--subtitle`, `--body`, `--clear`, `--surface`, `--workspace`,
+`--json`) and posts to the machine's own ledger, so scripts and hooks written
+for a local terminal work unchanged. `--reply` is not available there.
+
 Read state is per client. Each row carries `read_by`, the client ids that
 acknowledged it. Reading the notification on this Mac (focusing the pane,
 marking it read, dismissing it) sends `notification.ack` under this Mac's
