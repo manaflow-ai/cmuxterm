@@ -5648,34 +5648,61 @@ describe("VM Effect workflows", () => {
       cidr: "10.41.0.0/24",
       cidrV6: "fd00:41::/64",
     };
-    // Hold the per-owner lock in a transaction of our own: the upsert must
-    // queue behind it (this is what keeps two concurrent creates from racing
-    // the (provider, provider_network_id) index) and land once it is released.
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    // Warm the repository's own pool first so the timed window below measures
-    // the lock, not the first connection.
+    // Warm the repository's own pool so the observation below is about the lock,
+    // not the first connection.
     expect(await Effect.runPromise(vmRepositoryLiveShape.findNetwork!(input.userId, input.provider))).toBeNull();
     // Mirrors repository.ts's networkUpsertLockKey: `network:<provider>:<user>`.
     const lockKey = `network:${input.provider}:${input.userId}`;
-    const holder = sql.begin(async (tx) => {
-      await tx`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
-      await held;
-    });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    let settled = false;
-    const upsert = Effect.runPromise(vmRepositoryLiveShape.upsertNetwork!(input)).then((row) => {
-      settled = true;
-      return row;
-    });
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
-    expect(settled).toBe(false);
-    release();
-    await holder;
-    const row = await upsert;
-    expect(row.providerNetworkId).toBe("network-cmux-net-lock");
+    // The shared `sql` client has one connection, which the holder transaction
+    // occupies; observe lock state from a second connection.
+    const observer = postgres(databaseURL(), { max: 1 });
+    try {
+      let release: () => void = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let announceLock: () => void = () => {};
+      const lockTaken = new Promise<void>((resolve) => {
+        announceLock = resolve;
+      });
+      // Hold the per-owner lock in a transaction of our own: the upsert must
+      // queue behind it (this is what keeps two concurrent creates from racing
+      // the (provider, provider_network_id) index) and land once it is released.
+      const holder = sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+        announceLock();
+        await held;
+      });
+      await lockTaken;
+      let settled = false;
+      const upsert = Effect.runPromise(vmRepositoryLiveShape.upsertNetwork!(input)).then((row) => {
+        settled = true;
+        return row;
+      });
+      // Deadline-bounded poll of Postgres itself: the upsert's session must show
+      // up blocked on an advisory lock while the holder owns it. Without the
+      // per-owner lock the upsert simply completes, and `settled` flips first.
+      const deadline = Date.now() + 10_000;
+      let blocked = 0;
+      while (blocked === 0 && !settled && Date.now() < deadline) {
+        const [lockRow] = await observer<{ blocked: number }[]>`
+          select count(*)::int as blocked
+          from pg_locks l
+          join pg_stat_activity a on a.pid = l.pid
+          where l.locktype = 'advisory' and not l.granted and a.datname = current_database()
+        `;
+        blocked = lockRow?.blocked ?? 0;
+        if (blocked === 0) await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(settled).toBe(false);
+      expect(blocked).toBe(1);
+      release();
+      await holder;
+      const row = await upsert;
+      expect(row.providerNetworkId).toBe("network-cmux-net-lock");
+    } finally {
+      await observer.end({ timeout: 5 });
+    }
   });
 
   dbTest("concurrent owner-network upserts with one provider id all succeed and converge on one row", async () => {
