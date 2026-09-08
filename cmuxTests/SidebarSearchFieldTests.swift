@@ -49,6 +49,23 @@ import Testing
         ))
     }
 
+    @Test func searchTextAlignsWithSidebarLabelsBeforeAndDuringEditing() throws {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 100), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        let field = SidebarSearchField(frame: NSRect(x: 4, y: 20, width: 240, height: SidebarSearchField.visibleHeight))
+        field.placeholderString = "Search"
+        window.contentView?.addSubview(field)
+        let expectedLeading: CGFloat = 30
+        #expect(field.frame.minX + field.searchTextBounds.minX == expectedLeading)
+        field.stringValue = "alpha beta"
+        #expect(window.makeFirstResponder(field))
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        let insertionRect = editor.firstRect(forCharacterRange: NSRange(location: 0, length: 0), actualRange: nil)
+        let textRect = field.convert(window.convertFromScreen(insertionRect), from: nil)
+        #expect(abs(field.frame.minX + textRect.minX - expectedLeading) <= 1)
+    }
+
     @Test func focusedEditorDoesNotOverlapSearchIcon() throws {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 100), styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
