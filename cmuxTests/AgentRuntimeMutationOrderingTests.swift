@@ -1,5 +1,6 @@
 import CmuxControlSocket
 import CmuxCore
+import CmuxWorkspaces
 import Darwin
 import Foundation
 import Testing
@@ -10,6 +11,62 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
+    @Test("Durable idle observations recover the matching agent status", arguments: [
+        (RestorableAgentKind.claude, "claude_code"), (.codex, "codex"),
+        (.pi, "pi"), (.custom("custom-agent"), "custom-agent")
+    ], [false, true])
+    func liveIdleObservationUsesAgentStatusKey(
+        agent: (RestorableAgentKind, String), stale: Bool
+    ) throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let (kind, key) = agent
+        let runningTime = Date.now.timeIntervalSince1970 - 300
+        let idleTime = runningTime + (stale ? -100 : 100)
+        #expect(fixture.source.setAgentLifecycle(
+            key: key, panelId: fixture.panelId, lifecycle: .running,
+            agentEventTime: runningTime
+        ))
+        _ = fixture.source.upsertSidebarStatusEntry(
+            key: key, value: "Running", icon: "bolt.fill", color: "#4C8DFF",
+            url: nil, priority: 0, format: .plain, panelId: fixture.panelId,
+            pid: nil, agentEventTime: runningTime
+        )
+        let observation = RestorableAgentSessionIndex.Entry(
+            snapshot: SessionRestorableAgentSnapshot(kind: kind, sessionId: "idle-recovery"),
+            lifecycle: .idle,
+            runtimeStatusEventTime: idleTime,
+            updatedAt: runningTime + 200,
+            processLiveness: RestorableAgentProcessLiveness.running,
+            hasRecordedProcessID: true,
+            processIDs: [Int(getpid())], processIdentities: [:],
+            agentProcessIDs: [Int(getpid())], agentProcessIdentities: [:],
+            hibernationPanelProcessIDs: [], terminationProcessIDs: [],
+            terminationProcessIdentities: [:], containsUnrelatedProcess: false
+        )
+
+        fixture.source.reconcileLiveIdleAgentStatus(panelId: fixture.panelId, observation: observation)
+
+        let expectedTime = stale ? runningTime : idleTime
+        let expectedLifecycle: AgentHibernationLifecycleState = stale ? .running : .idle
+        let expectedValue = stale ? "Running" : String(
+            localized: "agent.generic.notification.status.idle", defaultValue: "Idle"
+        )
+        #expect(fixture.source.agentLifecycleStatesByPanelId[fixture.panelId]?[key] == expectedLifecycle)
+        #expect(fixture.source.statusEntries[key]?.value == expectedValue)
+        #expect(fixture.source.statusEntries[key]?.agentEventTime == expectedTime)
+        #expect(fixture.source.statusEntries[key]?.agentOwnerPanelID == fixture.panelId)
+        #expect(FeedCoordinator.lifecycleStatusKey(forSource: kind.rawValue) == key)
+
+        let delayedRunning = fixture.source.upsertSidebarStatusEntry(
+            key: key, value: "Delayed Running", icon: "bolt.fill", color: nil,
+            url: nil, priority: 0, format: .plain, panelId: fixture.panelId,
+            pid: nil, agentEventTime: expectedTime - 1
+        )
+        #expect(delayedRunning == .stale)
+        #expect(fixture.source.statusEntries[key]?.value == expectedValue)
+    }
+
     @Test("Agent runtime mutations follow a pane that moves before queue drain")
     func queuedAgentRuntimeMutationsResolveLivePanelOwner() throws {
         let fixture = try makeFixture()
