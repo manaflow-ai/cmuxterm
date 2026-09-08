@@ -338,6 +338,9 @@ jobs:
       - name: Validate release tunnel extension identifiers
         run: ./tests/test_ci_release_tunnel_identifiers.sh
 
+      - name: Validate Sparkle appcast generation without previous archives
+        run: ./tests/test_sparkle_generate_appcast_no_deltas.sh
+
       - name: Validate markdown viewer asset compression
         run: ./tests/test_compress_markdown_viewer_assets.sh
 
