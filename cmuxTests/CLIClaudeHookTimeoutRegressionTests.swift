@@ -1160,6 +1160,10 @@ struct CLIClaudeHookTimeoutRegressionTests {
                 "\(producer.agent) queue admission must have an internal socket deadline"
             )
             #expect(
+                source.contains("cat >/dev/null"),
+                "\(producer.agent) queue admission must drain hook stdin on fail-open paths"
+            )
+            #expect(
                 !source.contains("[\"hooks\", \"\(producer.agent)\", subcommand]"),
                 "\(producer.agent) must not retain a direct lifecycle delivery path"
             )
@@ -1242,6 +1246,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(hook["async"] == nil)
         #expect(command.contains(#"--socket "$CMUX_SOCKET_PATH""#))
         #expect(command.contains("CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC=0.5"))
+        #expect(command.contains("cat >/dev/null"))
         #expect(!command.contains("nohup"))
         #expect(!command.contains("sleep "))
         #expect(!command.contains("watchdog"))

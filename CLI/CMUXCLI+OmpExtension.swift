@@ -190,7 +190,7 @@ function startHook(invocation: HookInvocation, subcommand: string): RunningHook 
       resolve();
     };
     try {
-      const child = spawn(invocation.cmux, ["hooks", "enqueue", "omp", subcommand], {
+      child = spawn(invocation.cmux, ["hooks", "enqueue", "omp", subcommand], {
         env: { ...invocation.env, CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC: "1" },
         stdio: ["pipe", "ignore", "ignore"],
       });

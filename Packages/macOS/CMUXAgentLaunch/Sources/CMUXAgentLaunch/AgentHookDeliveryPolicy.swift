@@ -47,6 +47,7 @@ public struct AgentHookDeliveryPolicy: Sendable {
     ]
 
     private static let auxiliaryQueuedSubcommands: [String: Set<String>] = [
+        "amp": ["title-update", "lifecycle"],
         "claude": ["pre-tool-use", "push-notification", "feed"],
         "codex": ["pre-tool-use", "post-tool-use"],
     ]
