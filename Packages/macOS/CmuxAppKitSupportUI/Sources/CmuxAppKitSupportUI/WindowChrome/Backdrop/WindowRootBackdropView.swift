@@ -5,8 +5,9 @@ import QuartzCore
 @MainActor
 final class WindowRootBackdropView: NSView {
     private let exclusionMaskLayer = CAShapeLayer()
+    private weak var installedContainerView: NSView?
     private weak var installedReferenceView: NSView?
-    private var installationConstraints: [NSLayoutConstraint] = []
+    private var referenceGeometryObservers: [NSObjectProtocol] = []
     private var exclusionRectsInWindow: [NSRect] = []
     private var backdropColorIsOpaque = false
     private var hasVisibleExclusions = false
@@ -28,6 +29,12 @@ final class WindowRootBackdropView: NSView {
         exclusionMaskLayer.fillColor = NSColor.black.cgColor
         layer?.mask = exclusionMaskLayer
         rebuildExclusionMask()
+    }
+
+    deinit {
+        for observer in referenceGeometryObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     @available(*, unavailable)
@@ -59,19 +66,14 @@ final class WindowRootBackdropView: NSView {
             superview !== target.container || installedReferenceView !== target.reference
         var didChangeInstallation = false
         if needsReinstallation {
-            NSLayoutConstraint.deactivate(installationConstraints)
-            installationConstraints.removeAll()
+            removeReferenceGeometryObservers()
             removeFromSuperview()
-            translatesAutoresizingMaskIntoConstraints = false
+            translatesAutoresizingMaskIntoConstraints = true
+            autoresizingMask = []
             target.container.addSubview(self, positioned: .below, relativeTo: target.reference)
-            installationConstraints = [
-                topAnchor.constraint(equalTo: target.reference.topAnchor),
-                bottomAnchor.constraint(equalTo: target.reference.bottomAnchor),
-                leadingAnchor.constraint(equalTo: target.reference.leadingAnchor),
-                trailingAnchor.constraint(equalTo: target.reference.trailingAnchor),
-            ]
-            NSLayoutConstraint.activate(installationConstraints)
+            installedContainerView = target.container
             installedReferenceView = target.reference
+            installReferenceGeometryObservers(reference: target.reference)
             didChangeInstallation = true
         } else if let rootIndex = target.container.subviews.firstIndex(of: self),
                   let referenceIndex = target.container.subviews.firstIndex(of: target.reference),
@@ -83,10 +85,53 @@ final class WindowRootBackdropView: NSView {
             didChangeInstallation = true
         }
 
-        guard didChangeInstallation else { return }
+        let didChangeFrame = synchronizeFrameToReference()
+        guard didChangeInstallation || didChangeFrame else { return }
         maskInputGeneration &+= 1
         needsLayout = true
         rebuildExclusionMask()
+    }
+
+    private func installReferenceGeometryObservers(reference: NSView) {
+        reference.postsFrameChangedNotifications = true
+        reference.postsBoundsChangedNotifications = true
+        let center = NotificationCenter.default
+        for notificationName in [NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification] {
+            referenceGeometryObservers.append(center.addObserver(
+                forName: notificationName,
+                object: reference,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.synchronizeFrameToReference() else { return }
+                    self.maskInputGeneration &+= 1
+                    self.needsLayout = true
+                    self.rebuildExclusionMask()
+                }
+            })
+        }
+    }
+
+    private func removeReferenceGeometryObservers() {
+        for observer in referenceGeometryObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        referenceGeometryObservers.removeAll()
+    }
+
+    @discardableResult
+    private func synchronizeFrameToReference() -> Bool {
+        guard let container = installedContainerView,
+              let reference = installedReferenceView,
+              superview === container,
+              reference.superview === container else {
+            return false
+        }
+        let referenceFrame = container.convert(reference.bounds, from: reference).standardized
+        guard isFiniteRect(referenceFrame) else { return false }
+        guard !rectApproximatelyEqual(frame, referenceFrame) else { return false }
+        frame = referenceFrame
+        return true
     }
 
     /// Applies the resolved root policy without enabling Core Image compositing.
@@ -178,13 +223,24 @@ final class WindowRootBackdropView: NSView {
     }
 
     private func isFiniteVisibleRect(_ rect: NSRect) -> Bool {
-        rect.origin.x.isFinite &&
-            rect.origin.y.isFinite &&
-            rect.size.width.isFinite &&
-            rect.size.height.isFinite &&
+        isFiniteRect(rect) &&
             !rect.isNull &&
             rect.width > 0 &&
             rect.height > 0
+    }
+
+    private func isFiniteRect(_ rect: NSRect) -> Bool {
+        rect.origin.x.isFinite &&
+            rect.origin.y.isFinite &&
+            rect.size.width.isFinite &&
+            rect.size.height.isFinite
+    }
+
+    private func rectApproximatelyEqual(_ lhs: NSRect, _ rhs: NSRect) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) < 0.01 &&
+            abs(lhs.origin.y - rhs.origin.y) < 0.01 &&
+            abs(lhs.size.width - rhs.size.width) < 0.01 &&
+            abs(lhs.size.height - rhs.size.height) < 0.01
     }
 
     private func rectSortsBefore(_ lhs: NSRect, _ rhs: NSRect) -> Bool {

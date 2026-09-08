@@ -101,6 +101,12 @@ public final class WindowBackdropController {
         backdropView.updateExclusionRectsInWindow(rects)
     }
 
+    /// Clears pane exclusions without creating a root backdrop for windows that
+    /// never installed one.
+    public func clearRootBackdropExclusions(in window: NSWindow) {
+        existingRootBackdropView(for: window)?.updateExclusionRectsInWindow([])
+    }
+
     private func installRootBackdrop(
         policy: WindowBackdropPolicy,
         hostingPhase: WindowBackdropHostingPhase,
@@ -113,10 +119,7 @@ public final class WindowBackdropController {
     }
 
     private func rootBackdropView(for window: NSWindow) -> WindowRootBackdropView {
-        if let existing = objc_getAssociatedObject(
-            window,
-            &Self.rootBackdropViewKey
-        ) as? WindowRootBackdropView {
+        if let existing = existingRootBackdropView(for: window) {
             return existing
         }
 
@@ -128,5 +131,9 @@ public final class WindowBackdropController {
             .OBJC_ASSOCIATION_RETAIN
         )
         return backdropView
+    }
+
+    private func existingRootBackdropView(for window: NSWindow) -> WindowRootBackdropView? {
+        objc_getAssociatedObject(window, &Self.rootBackdropViewKey) as? WindowRootBackdropView
     }
 }

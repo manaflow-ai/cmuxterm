@@ -217,6 +217,7 @@ import Testing
             makeSnapshot(unifySurfaceBackdrops: false, backgroundHex: "#101820", sidebarColorScheme: .light)
                 .sidebarContentColorScheme == .dark
         )
+    }
 
     @Test func sidebarTintSelectionUsesResolvedTerminalThemeWhenSystemDisagrees() {
         let snapshot = makeSnapshot(
@@ -326,7 +327,7 @@ import Testing
 
         #expect(plan.hostingPhase == .opaqueRootBackdrop)
         #expect(!plan.usesTransparentWindow)
-        #expect(plan.windowBackgroundColor.hexString(includeAlpha: true) == "#00000000")
+        #expect(plan.windowBackgroundColor.hexString(includeAlpha: true) == "#272822FF")
         assertTerminalBackdrop(plan.rootPolicy, expectedOpacity: 1)
     }
 

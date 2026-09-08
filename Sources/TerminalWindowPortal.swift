@@ -745,6 +745,10 @@ final class WindowTerminalPortal: NSObject {
         // Restore inline — deinit cannot hop to the @MainActor detach path. Portal ownership
         // is main-actor-bound through the registry, NSWindow association, and test callers.
         MainActor.assumeIsolated {
+            rootBackdropExclusionScheduler.cancel()
+            if let window {
+                backdropController.clearRootBackdropExclusions(in: window)
+            }
             for (hostedId, mask) in preAdoptionAutoresizingMaskByHostedId {
                 entriesByHostedId[hostedId]?.hostedView?.autoresizingMask = mask
             }

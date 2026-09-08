@@ -240,6 +240,35 @@ import Testing
         #expect(!path.contains(NSPoint(x: 90, y: 60), using: .evenOdd))
     }
 
+    @Test func rootBackdropTracksReferenceFrameWithoutLayoutConstraints() throws {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 240, height: 160))
+        let reference = NSView(frame: NSRect(x: 20, y: 15, width: 120, height: 80))
+        container.addSubview(reference)
+        let root = WindowRootBackdropView(frame: .zero)
+
+        root.install(in: WindowContentOverlayInstallationTarget(
+            container: container,
+            reference: reference
+        ))
+
+        #expect(root.translatesAutoresizingMaskIntoConstraints)
+        #expect(root.constraints.isEmpty)
+        #expect(root.frame == reference.frame)
+
+        reference.frame = NSRect(x: 30, y: 25, width: 140, height: 90)
+
+        #expect(root.frame == reference.frame)
+    }
+
+    @Test func clearingExclusionsDoesNotInstallMissingRootBackdrop() {
+        let controller = WindowBackdropController(dependencies: FakeBackdropDependencies())
+        let window = makeWindow()
+
+        controller.clearRootBackdropExclusions(in: window)
+
+        #expect(window.contentView?.superview?.subviews.contains { $0 is WindowRootBackdropView } == false)
+    }
+
     private func makeWindow(
         styleMask: NSWindow.StyleMask = [.titled, .closable]
     ) -> NSWindow {

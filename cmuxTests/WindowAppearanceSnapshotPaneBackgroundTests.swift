@@ -186,6 +186,66 @@ struct WindowAppearanceSnapshotPaneBackgroundTests {
         #expect(try rootMaskShowsBackdrop(atWindowPoint: movedPoint, in: root))
     }
 
+    /// Verifies portal destruction clears exclusions even without an explicit teardown.
+    @MainActor
+    @Test func portalDeinitPublishesClearedRootExclusion() throws {
+        let bounds = NSRect(x: 0, y: 0, width: 360, height: 180)
+        let contentView = NSView(frame: bounds)
+        let window = NSWindow(
+            contentRect: bounds,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = contentView
+        let backdropController = AppWindowChromeComposition().backdropController
+        _ = backdropController.apply(
+            plan: WindowBackdropPlan(
+                hostingPhase: .transparentRootBackdrop,
+                windowBackgroundColor: .clear,
+                windowIsOpaque: false,
+                rootPolicy: .ghosttyTerminalBackdrop(
+                    color: .systemPurple,
+                    opacity: 0.42,
+                    renderingMode: .windowHostBackdrop
+                ),
+                glass: nil,
+                shouldApplyGhosttyCompositorBlur: false
+            ),
+            to: window
+        )
+
+        let themeFrame = try #require(contentView.superview)
+        themeFrame.layoutSubtreeIfNeeded()
+        let root = try #require(
+            themeFrame.subviews.first { $0 is WindowRootBackdropView } as? WindowRootBackdropView
+        )
+        let anchor = NSView(frame: NSRect(x: 30, y: 35, width: 80, height: 60))
+        contentView.addSubview(anchor)
+        let hosted = GhosttySurfaceScrollView(
+            surfaceView: GhosttyNSView(frame: NSRect(origin: .zero, size: anchor.bounds.size))
+        )
+        hosted.setBackgroundColor(
+            .systemOrange.withAlphaComponent(0.42),
+            excludesSharedRootBackdrop: true
+        )
+
+        weak var weakPortal: WindowTerminalPortal?
+        do {
+            let portal = WindowTerminalPortal(window: window)
+            weakPortal = portal
+            portal.bind(hostedView: hosted, to: anchor, visibleInUI: true)
+        }
+
+        let panePoint = anchor.convert(
+            NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY),
+            to: nil
+        )
+        #expect(!(try rootMaskShowsBackdrop(atWindowPoint: panePoint, in: root)))
+        #expect(weakPortal == nil)
+        #expect(try rootMaskShowsBackdrop(atWindowPoint: panePoint, in: root))
+    }
+
     /// Verifies pane-local OSC colors paint the surface without replacing the shared window root.
     @Test func surfaceOSCOverrideUsesHostFillAndKeepsSharedWindowRootDefault() throws {
         let snapshot = makeSnapshot(
