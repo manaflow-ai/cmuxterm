@@ -544,6 +544,10 @@ struct SurfaceCatalogTests {
         for result in results {
             #expect(result.projection.panelID == live.panelID)
         }
+        // Every caller that focused the pane sees where the pane actually is.
+        for result in results where result.reused {
+            #expect(result.projection.workspaceID == movedWorkspaceID)
+        }
     }
 
     @Test func `An adopted projection wins a materialization race`() async throws {

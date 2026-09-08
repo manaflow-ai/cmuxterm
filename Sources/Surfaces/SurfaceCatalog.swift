@@ -1036,8 +1036,14 @@ final class SurfaceCatalog {
             throw SurfaceCatalogError.unavailable(id, reason: "projection closed while opening")
         }
         acknowledgeMaterialization(key, waiterID: waiterID)
-        if result.reused, focus { focusProjection?(live) }
-        return (projection: live, reused: result.reused)
+        guard result.reused, focus else { return (projection: live, reused: result.reused) }
+        focusProjection?(live)
+        // Focusing a pane can select another tab or move it between workspaces, so
+        // read the pane's value once more rather than returning the pre-focus copy.
+        let focused = projections.first {
+            $0.resource == live.resource && $0.panelID == live.panelID
+        }
+        return (projection: focused ?? live, reused: result.reused)
     }
 
     private func acknowledgeMaterialization(_ key: MaterializationKey, waiterID: UUID) {
