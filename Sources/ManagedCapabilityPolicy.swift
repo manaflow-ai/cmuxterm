@@ -1,3 +1,4 @@
+import AppKit
 import CmuxSettings
 import Foundation
 
@@ -53,9 +54,67 @@ enum ManagedFileTransferPolicy {
     /// exhaustive switches intact.
     static func refusalError() -> NSError {
         NSError(
-            domain: "cmux.managedPolicy.fileTransfer",
+            domain: refusalErrorDomain,
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: disabledMessage]
+        )
+    }
+
+    static let refusalErrorDomain = "cmux.managedPolicy.fileTransfer"
+
+    /// Whether `error` is this policy's refusal (as opposed to a transport
+    /// failure), so a drop or paste handler can explain it instead of beeping.
+    static func isRefusal(_ error: Error) -> Bool {
+        (error as NSError).domain == refusalErrorDomain
+    }
+
+    /// Tells the user why the drop or paste did nothing. The failure handlers
+    /// otherwise reduce every upload error to a beep, which would leave a
+    /// managed refusal indistinguishable from a broken connection. Callable
+    /// from any context: the alert is presented on the main actor.
+    static func presentRefusal() {
+        let message = disabledMessage
+        let detail = String(
+            localized: "managedPolicy.fileTransfer.refusalDetail",
+            defaultValue: "cmux did not upload the file. Your organization's device policy disables file transfer through cmux."
+        )
+        let present: @MainActor () -> Void = {
+            let alert = NSAlert()
+            alert.messageText = message
+            alert.informativeText = detail
+            alert.alertStyle = .informational
+            alert.runModal()
+        }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated(present)
+        } else {
+            DispatchQueue.main.async { MainActor.assumeIsolated(present) }
+        }
+    }
+}
+
+/// MDM master switch for cmux Cloud (`DisableCloud`), for the gates that
+/// have no injectable resolver of their own: the action chokepoint, the
+/// non-`vm.*` control-plane socket verbs, and the control-plane clients.
+/// `VMClient`, the tunnel coordinator, and session restore keep their
+/// injected resolvers.
+enum ManagedCloudPolicy {
+    private static let policy = ManagedDevicePolicy()
+
+    /// Whether a profile forces `DisableCloud`.
+    static var isDisabled: Bool {
+        return policy.isEnforced(.disableCloud)
+    }
+
+    static var isEnabled: Bool { !isDisabled }
+
+    /// The stable socket error code every Cloud refusal carries.
+    static let socketErrorCode = "cloud_disabled"
+
+    static var disabledMessage: String {
+        String(
+            localized: "cloud.managed.disabled",
+            defaultValue: "Cloud Machines are disabled by your administrator."
         )
     }
 }

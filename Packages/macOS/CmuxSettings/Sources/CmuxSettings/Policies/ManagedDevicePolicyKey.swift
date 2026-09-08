@@ -49,7 +49,30 @@ public enum ManagedDevicePolicyKey: String, CaseIterable, Sendable {
 
     /// Restricts embedded-browser top-level navigations to the administrator's
     /// URL patterns. An empty forced array denies every external web origin
-    /// while preserving local `file:` documents opened through cmux's trusted
-    /// app-owned path and cmux-owned internal documents.
+    /// while preserving cmux-owned internal documents. Loopback origins and
+    /// local `file:` documents stay available by default under a forced list;
+    /// ``browserAllowLocalhost`` and ``browserAllowLocalFiles`` turn those
+    /// defaults off.
     case browserURLAllowlist = "BrowserURLAllowlist"
+
+    /// Whether the embedded browser may open loopback origins (`localhost`,
+    /// `*.localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, on any port) without a
+    /// ``browserURLAllowlist`` entry. An allow-style key: it defaults to
+    /// `true`, and a profile forces `false` to block local development
+    /// servers, even ones a list names explicitly.
+    case browserAllowLocalhost = "BrowserAllowLocalhost"
+
+    /// Whether the embedded browser may show local `file:` documents (files
+    /// opened through cmux, dropped onto a browser pane, or linked from
+    /// another local document). An allow-style key: it defaults to `true`,
+    /// and a profile forces `false` to block local files whether or not a
+    /// ``browserURLAllowlist`` is forced.
+    case browserAllowLocalFiles = "BrowserAllowLocalFiles"
+
+    /// The keys whose enforced state is "forced to `false`" rather than
+    /// "forced to `true`". Every other Boolean key is a `Disable…` switch.
+    public static let allowStyleKeys: Set<ManagedDevicePolicyKey> = [
+        .browserAllowLocalhost,
+        .browserAllowLocalFiles,
+    ]
 }

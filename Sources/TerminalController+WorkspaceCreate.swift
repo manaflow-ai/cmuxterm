@@ -166,6 +166,11 @@ extension TerminalController {
     }
 
     func v2WorkspaceCloudVMOpen(params: [String: Any]) -> V2CallResult {
+        // `DisableCloud` (MDM): these sit under the `workspace.` prefix, so the
+        // `vm.*` socket gate never sees them.
+        guard ManagedCloudPolicy.isEnabled else {
+            return .err(code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage, data: nil)
+        }
         guard let tabManager = v2ResolveTabManager(params: params) else {
             return .err(code: "unavailable", message: "TabManager not available", data: nil)
         }
@@ -200,6 +205,11 @@ extension TerminalController {
     }
 
     func v2WorkspaceCloudVMTerminalReady(params: [String: Any]) -> V2CallResult {
+        // `DisableCloud` (MDM): these sit under the `workspace.` prefix, so the
+        // `vm.*` socket gate never sees them.
+        guard ManagedCloudPolicy.isEnabled else {
+            return .err(code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage, data: nil)
+        }
         guard let tabManager = v2ResolveTabManager(params: params) else {
             return .err(code: "unavailable", message: "TabManager not available", data: nil)
         }
@@ -243,6 +253,11 @@ extension TerminalController {
     /// Runs on the main actor like `workspace.cloud_vm_terminal_ready`: it mutates a
     /// published workspace property the sidebar observes. No focus change.
     func v2WorkspaceCloudVMBind(params: [String: Any]) -> V2CallResult {
+        // `DisableCloud` (MDM): these sit under the `workspace.` prefix, so the
+        // `vm.*` socket gate never sees them.
+        guard ManagedCloudPolicy.isEnabled else {
+            return .err(code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage, data: nil)
+        }
         guard let tabManager = v2ResolveTabManager(params: params) else {
             return .err(code: "unavailable", message: "TabManager not available", data: nil)
         }

@@ -8776,6 +8776,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         debugSource: String = "cloudVM",
         onCompletion: ((CloudVMActionLauncher.Completion) -> Void)? = nil
     ) -> Bool {
+        // `DisableCloud` (MDM): the shared chokepoint for every Cloud entry —
+        // the surface tab bar button, `cmux.json` actions, the plus and
+        // workspace-group menus, the Base pane's Retry, and
+        // `workspace.cloud_vm_open` — mirroring the mobile-connect twin.
+        // Refusing here leaves no pinned loading workspace and no failure
+        // dialog behind.
+        guard ManagedCloudPolicy.isEnabled else {
+#if DEBUG
+            cmuxDebugLog("cloudVM.blocked_managed_policy source=\(debugSource)")
+#endif
+            NSSound.beep()
+            return false
+        }
         let authState = CloudVMPanelAuthState.resolve(
             isAuthenticated: auth?.accountFlow.isAuthenticated == true,
             isWorkingOnAuth: auth?.accountFlow.isWorkingOnAuth == true

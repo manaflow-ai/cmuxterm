@@ -15159,6 +15159,15 @@ class TerminalController {
         // MobileHostRPCResult` type round-trip with no behavior change. The v2
         // control socket shares the same bodies through `handleMobileHost`, so the
         // wire bytes stay identical across both entrypoints without a bridge here.
+        // `DisableFileTransfer` (MDM): every phone↔Mac byte-moving method fails
+        // closed here, whichever lane carried it, with a stable code the phone
+        // can render.
+        if MobileHostService.methodTransfersFiles(request.method), ManagedFileTransferPolicy.isDisabled {
+            return .failure(MobileHostRPCError(
+                code: "file_transfer_disabled",
+                message: ManagedFileTransferPolicy.disabledMessage
+            ))
+        }
         let result: V2CallResult
         switch request.method {
         case "mobile.host.status":

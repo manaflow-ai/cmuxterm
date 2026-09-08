@@ -3837,7 +3837,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
     }
 
-    private let managedDevicePolicy: ManagedDevicePolicy
+    /// The MDM resolver every remote-connection and file-transfer gate on this
+    /// workspace reads; tests inject a probe-backed one.
+    let managedDevicePolicy: ManagedDevicePolicy
 
     init(
         id: UUID? = nil,

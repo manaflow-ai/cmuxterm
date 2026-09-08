@@ -71,6 +71,11 @@ const sampleProfile = `<?xml version="1.0" encoding="UTF-8"?>
                                 <true/>
                                 <key>DisableIrohNetworking</key>
                                 <true/>
+                                <key>BrowserURLAllowlist</key>
+                                <array>
+                                    <string>https://git.example.com</string>
+                                    <string>*.example.com</string>
+                                </array>
                             </dict>
                         </dict>
                     </array>
@@ -171,6 +176,50 @@ export default async function ManagedPoliciesPage({
         <li>{t("noteComposition")}</li>
       </ul>
 
+      <DocsHeading level={2} id="browser-allowlist">{t("allowlistTitle")}</DocsHeading>
+      <p>{t("allowlistIntro")}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>{t("keyHeader")}</th>
+            <th>{t("typeHeader")}</th>
+            <th>{t("defaultHeader")}</th>
+            <th>{t("allowlistBehaviorHeader")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>BrowserURLAllowlist</code></td>
+            <td>{t("stringArrayType")}</td>
+            <td>{t("allowlistDefault")}</td>
+            <td>{t("allowlistKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>BrowserAllowLocalhost</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>true</code></td>
+            <td>{t("allowLocalhostKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>BrowserAllowLocalFiles</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>true</code></td>
+            <td>{t("allowLocalFilesKeyDesc")}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>{t("allowlistRules")}</p>
+      <CodeBlock lang="text">{`git.example.com          # exactly this host, any port, http or https
+*.example.com            # every subdomain of example.com (not example.com itself)
+https://issues.example.com
+http://localhost:3000    # only needed when BrowserAllowLocalhost is false`}</CodeBlock>
+      <ul>
+        <li>{t("allowlistNoteLocal")}</li>
+        <li>{t("allowlistNoteEmpty")}</li>
+        <li>{t("allowlistNoteScope")}</li>
+        <li>{t("allowlistNoteBlockedPage")}</li>
+      </ul>
+
       <DocsHeading level={2} id="lockability">{t("lockTitle")}</DocsHeading>
       <p>{t("lockDesc")}</p>
 
@@ -193,7 +242,10 @@ defaults read com.cmuxterm.app DisableCloud
 defaults read com.cmuxterm.app DisableRemoteConnections
 defaults read com.cmuxterm.app DisableFileTransfer
 defaults read com.cmuxterm.app DisableIrohNetworking
-cmux browser status --json   # {"enabled": false, "managed": true, ...}
+defaults read com.cmuxterm.app BrowserURLAllowlist
+defaults read com.cmuxterm.app BrowserAllowLocalhost     # absent or 1 = allowed
+defaults read com.cmuxterm.app BrowserAllowLocalFiles    # absent or 1 = allowed
+cmux browser status --json   # url_allowlist, url_allowlist_managed, url_allowlist_allows_localhost, url_allowlist_allows_local_files
 cmux vm list                 # refused: Cloud Machines are disabled by your administrator.`}</CodeBlock>
       <Callout>{t("verifyUi")}</Callout>
     </>

@@ -14,6 +14,11 @@ extension TerminalController {
         id: Any?,
         params: [String: Any]
     ) -> String {
+        // `DisableCloud` (MDM): coderouter verbs read and mutate the Cloud
+        // control plane (team upstream accounts, per-machine spend).
+        guard ManagedCloudPolicy.isEnabled else {
+            return v2Error(id: id, code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage)
+        }
         let teamID = Self.coderouterString(params["teamId"]) ?? Self.coderouterString(params["team_id"])
         switch method {
         case "coderouter.claude_upstream.get":

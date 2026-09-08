@@ -191008,13 +191008,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restricts embedded-browser navigation to matching hosts or URL patterns. A suggested localhost list is shown; saving it opts into the restriction. Remove entries to block them, or, when no managed policy applies, clear the list to allow all web origins. Invalid-only values fail closed. Internal cmux documents remain available."
+            "value": "Restricts embedded-browser navigation to matching hosts or URL patterns. A suggested localhost list is shown; saving it opts into the restriction. Remove entries to block them, or, when no managed policy applies, clear the list to allow all web origins. Invalid-only values fail closed. Internal cmux documents remain available. Under a managed policy, localhost and local files stay available unless your organization turns them off."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "内蔵ブラウザの移動を、一致するホストまたはURLパターンに制限します。localhostの候補リストが表示され、保存すると制限が有効になります。エントリを削除するとそのURLをブロックし、管理ポリシーがない場合にリストを空にするとすべてのWebオリジンを許可します。無効なルールだけの値は安全側でブロックされます。cmux内部ドキュメントは引き続き利用できます。"
+            "value": "内蔵ブラウザの移動を、一致するホストまたはURLパターンに制限します。localhostの候補リストが表示され、保存すると制限が有効になります。エントリを削除するとそのURLをブロックし、管理ポリシーがない場合にリストを空にするとすべてのWebオリジンを許可します。無効なルールだけの値は安全側でブロックされます。cmux内部ドキュメントは引き続き利用できます。管理ポリシーの下では、組織が無効にしない限り localhost とローカルファイルは引き続き利用できます。"
           }
         }
       }
@@ -293604,7 +293604,15 @@
     "machines.managedPolicy.disconnectedDetail": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud VM access ended because your organization disabled cmux Cloud."}},"ja":{"stringUnit":{"state":"translated","value":"組織が cmux Cloud を無効にしたため、Cloud VM へのアクセスは終了しました。"}}}},
     "managedPolicy.remoteConnections.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Remote connections are disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"リモート接続は組織によって無効になっています。"}}}},
     "managedPolicy.fileTransfer.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"File transfer is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"ファイル転送は組織によって無効になっています。"}}}},
-    "managedPolicy.irohNetworking.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux relay networking is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"cmux のリレーネットワークは組織によって無効になっています。"}}}}
+    "managedPolicy.irohNetworking.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux relay networking is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"cmux のリレーネットワークは組織によって無効になっています。"}}}},
+    "settings.browser.urlAllowlist.managed.localDefaultsOn": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Your organization manages this list. localhost (any port) and local files stay available in addition to the rules above."}},"ja":{"stringUnit":{"state":"translated","value":"このリストは組織によって管理されています。上記のルールに加えて、localhost（任意のポート）とローカルファイルは引き続き利用できます。"}}}},
+    "settings.browser.urlAllowlist.managed.localhostOff": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Your organization manages this list and blocks localhost. Local files stay available."}},"ja":{"stringUnit":{"state":"translated","value":"このリストは組織によって管理されており、localhost はブロックされています。ローカルファイルは引き続き利用できます。"}}}},
+    "settings.browser.urlAllowlist.managed.localFilesOff": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Your organization manages this list and blocks local files. localhost (any port) stays available."}},"ja":{"stringUnit":{"state":"translated","value":"このリストは組織によって管理されており、ローカルファイルはブロックされています。localhost（任意のポート）は引き続き利用できます。"}}}},
+    "settings.browser.urlAllowlist.managed.localDefaultsOff": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Your organization manages this list and blocks localhost and local files."}},"ja":{"stringUnit":{"state":"translated","value":"このリストは組織によって管理されており、localhost とローカルファイルはブロックされています。"}}}},
+    "browser.error.urlAllowlist.nextStep": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Ask your administrator to add this site to the cmux browser allowlist. Sites on the allowlist, localhost, and local files stay available."}},"ja":{"stringUnit":{"state":"translated","value":"このサイトを cmux ブラウザの許可リストに追加するよう管理者に依頼してください。許可リストのサイト、localhost、ローカルファイルは引き続き利用できます。"}}}},
+    "browser.error.urlAllowlist.userNextStep": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Add this site in Settings → Browser → Embedded Browser URL Allowlist, or clear the list to allow all web origins."}},"ja":{"stringUnit":{"state":"translated","value":"設定 → ブラウザ → 埋め込みブラウザの URL 許可リストでこのサイトを追加するか、リストを空にしてすべてのウェブオリジンを許可してください。"}}}},
+    "managedPolicy.fileTransfer.refusalDetail": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux did not upload the file. Your organization's device policy disables file transfer through cmux."}},"ja":{"stringUnit":{"state":"translated","value":"cmux はファイルをアップロードしませんでした。組織のデバイスポリシーにより、cmux を介したファイル転送は無効になっています。"}}}},
+    "managedPolicy.remoteConnections.sshURLRefused": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux cannot open SSH links while remote connections are disabled by your organization's device policy."}},"ja":{"stringUnit":{"state":"translated","value":"組織のデバイスポリシーによりリモート接続が無効になっている間、cmux は SSH リンクを開けません。"}}}}
   },
   "version": "1.0"
 }

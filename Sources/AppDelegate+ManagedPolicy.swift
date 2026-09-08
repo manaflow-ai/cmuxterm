@@ -2,8 +2,9 @@ import Foundation
 import CmuxSettings
 
 /// Runtime enforcement for MDM managed policies (`DisableEmbeddedBrowser`,
-/// `DisableRemoteControl`, and `DisableCloud`): installs the transition observer
-/// and tears down live resources when a policy activates mid-session.
+/// `DisableRemoteControl`, `DisableCloud`, and `DisableRemoteConnections`):
+/// installs the transition observer and tears down live resources when a
+/// policy activates mid-session.
 extension AppDelegate {
     /// Installs the managed-policy transition observer once at startup.
     func installManagedPolicyEnforcement() {
@@ -23,8 +24,32 @@ extension AppDelegate {
             },
             enforceCloudPolicy: { [weak self] in
                 self?.applyManagedCloudPolicy()
+            },
+            enforceRemoteConnectionsPolicy: { [weak self] in
+                self?.endRemoteConnectionsForManagedPolicy()
             }
         )
+    }
+
+    /// `DisableRemoteConnections` activation. Every live cmux-created remote
+    /// connection ends: remote workspaces (SSH, Mosh, and Cloud attachments)
+    /// disconnect and drop their configuration so no reconnect path can
+    /// redial, remote tmux mirrors detach and close, and their SSH control
+    /// masters exit. Remote tmux sessions stay alive on their hosts; only
+    /// cmux's connections to them end. The per-call gates
+    /// (`Workspace.configureRemoteConnection`, `reconnectRemoteConnection`,
+    /// the remote-tmux socket verbs) refuse anything new while the policy is
+    /// forced, and read the resolver live once it lifts.
+    func endRemoteConnectionsForManagedPolicy() {
+        for manager in allTabManagersForManagedPolicyEnforcement() {
+            for workspace in manager.tabs where workspace.isRemoteWorkspace {
+                workspace.disconnectRemoteConnection(
+                    clearConfiguration: true,
+                    disconnectedDetail: ManagedRemoteConnectionsPolicy.disabledMessage
+                )
+            }
+        }
+        remoteTmuxController.detachAllForManagedPolicy()
     }
 
     /// `DisableCloud` transitions, both directions. Activation ends Cloud

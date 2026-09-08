@@ -76,6 +76,45 @@ final class MobileHostIrxRuntime {
     /// persisted device-list leases stay so a later policy lift can re-arm
     /// the same account. Idempotent when already idle.
     func stopHost() async {
+        await enqueueManagedNetworking(.stop)
+    }
+
+    /// Applies `DisableIrohNetworking` / `DisableRemoteControl` and the
+    /// current signed-in account to the live IRX host. Policy activation
+    /// stops the endpoint immediately; lifting it re-arms without a relaunch.
+    func applyManagedNetworkingPolicy() async {
+        await enqueueManagedNetworking(.reconcile)
+    }
+
+    private enum ManagedNetworkingWork {
+        case stop
+        case reconcile
+    }
+
+    /// Serializes policy and account transitions. `MobileHostService.stop()`
+    /// and `syncToSettings()` both fire these from unstructured tasks, so
+    /// without a chain a lift could run against a half-drained teardown and
+    /// no-op on a still-set `activeAccountID`, or a late stop could clear the
+    /// account after a re-arm and tear the new activation down. Each unit of
+    /// work re-reads the policy and the account after the queue drains, so
+    /// the last transition to be requested is the one that decides the state.
+    private func enqueueManagedNetworking(_ work: ManagedNetworkingWork) async {
+        let previous = managedNetworkingTask
+        let task = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self else { return }
+            switch work {
+            case .stop:
+                await self.performStopHost()
+            case .reconcile:
+                await self.performManagedNetworkingReconcile()
+            }
+        }
+        managedNetworkingTask = task
+        await task.value
+    }
+
+    private func performStopHost() async {
         guard activeAccountID != nil
             || activationTask != nil
             || settingsPhase != .idle
@@ -87,12 +126,9 @@ final class MobileHostIrxRuntime {
         activeAccountID = nil
     }
 
-    /// Applies `DisableIrohNetworking` / `DisableRemoteControl` and the
-    /// current signed-in account to the live IRX host. Policy activation
-    /// stops the endpoint immediately; lifting it re-arms without a relaunch.
-    func applyManagedNetworkingPolicy() async {
+    private func performManagedNetworkingReconcile() async {
         guard isNetworkingAllowed else {
-            await stopHost()
+            await performStopHost()
             return
         }
         let accountID = auth?.currentUser?.id
@@ -105,6 +141,8 @@ final class MobileHostIrxRuntime {
     private var authObservationTask: Task<Void, Never>?
     private var activeAccountID: String?
     private var activationTask: Task<Void, Never>?
+    /// Chain head for ``enqueueManagedNetworking(_:)``.
+    private var managedNetworkingTask: Task<Void, Never>?
     /// Changes on every (de)activation; per-connection supervisors compare it.
     private var generationToken = UUID()
 

@@ -2476,6 +2476,9 @@ actor MachineUsageClient {
         path: String,
         teamID explicitTeamID: String?
     ) async throws -> (Data, HTTPURLResponse) {
+        // `DisableCloud` (MDM): fail closed before any token or network work,
+        // whichever entry point asked.
+        guard ManagedCloudPolicy.isEnabled else { throw VMClientError.disabledByManagedPolicy }
         let tokens: (accessToken: String, refreshToken: String)
         do {
             tokens = try await auth.currentTokens()

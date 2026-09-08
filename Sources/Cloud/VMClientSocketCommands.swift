@@ -590,6 +590,14 @@ extension TerminalController {
         id: Any?,
         params: [String: Any]
     ) -> String {
+        // The remote registry is both a Cloud control-plane resource and a
+        // remote-connection surface: either MDM key fails it closed.
+        guard ManagedCloudPolicy.isEnabled else {
+            return v2Error(id: id, code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage)
+        }
+        guard ManagedRemoteConnectionsPolicy.isEnabled else {
+            return v2Error(id: id, code: "remote_connections_disabled", message: ManagedRemoteConnectionsPolicy.disabledMessage)
+        }
         switch method {
         case "remotes.list":
             return v2VmCall(id: id) {
@@ -707,6 +715,12 @@ extension TerminalController {
         id: Any?,
         params: [String: Any]
     ) -> String {
+        // `DisableCloud` (MDM): AI accounts exist to provision Cloud machines
+        // and `upload` ships local credentials to the tenant, so the family
+        // fails closed with the same code as `vm.*`.
+        guard ManagedCloudPolicy.isEnabled else {
+            return v2Error(id: id, code: ManagedCloudPolicy.socketErrorCode, message: ManagedCloudPolicy.disabledMessage)
+        }
         switch method {
         case "aiAccounts.list":
             let teamID = Self.socketWorkerString(params["teamId"]) ?? Self.socketWorkerString(params["team_id"])

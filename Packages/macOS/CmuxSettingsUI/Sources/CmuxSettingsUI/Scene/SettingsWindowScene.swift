@@ -121,11 +121,12 @@ public struct SettingsWindowRoot: View {
         .task {
             let signals = ManagedDevicePolicy.changeSignals()
             cloudDisabledByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
+            // A profile installed before this window opened: the persisted
+            // selection may still point at the hidden Cloud section.
+            leaveCloudSectionIfDisabledByPolicy()
             for await _ in signals {
                 cloudDisabledByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
-                if cloudDisabledByPolicy && selectedSection == .cloudMachines {
-                    navigate(to: .account)
-                }
+                leaveCloudSectionIfDisabledByPolicy()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Self.navigationRequestName)) { notification in
@@ -182,6 +183,14 @@ public struct SettingsWindowRoot: View {
     /// `DisableCloud` managed policy wins over the opt-in.
     private var isCloudAvailable: Bool {
         !cloudDisabledByPolicy && (hostActions.isCloudMachinesAvailable || cloudMachinesBetaEnabled)
+    }
+
+    /// Moves a selection that rests on the Cloud section (hidden under
+    /// `DisableCloud`) to Account, both at first render and on a transition.
+    private func leaveCloudSectionIfDisabledByPolicy() {
+        if cloudDisabledByPolicy && selectedSection == .cloudMachines {
+            navigate(to: .account)
+        }
     }
 
     private func isEntryVisible(_ entry: SettingsSearchIndex.Entry) -> Bool {

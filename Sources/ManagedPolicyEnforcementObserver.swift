@@ -12,7 +12,10 @@ import Foundation
 /// host down or re-arms it); when the Cloud policy flips either way it runs
 /// the injected Cloud enforcement (teardown of Cloud workspaces, providers,
 /// and the managed VPN on activation; discovery restart on lift), and also at
-/// construction when the policy is already forced. Every transition also posts
+/// construction when the policy is already forced; when the remote-connections
+/// policy activates it runs the injected remote-connections enforcement
+/// (disconnecting live remote workspaces and remote tmux mirrors), also at
+/// construction. Every transition also posts
 /// `ManagedDevicePolicy.didChangeNotification` so Settings UI re-reads the
 /// resolver.
 ///
@@ -39,6 +42,7 @@ final class ManagedPolicyEnforcementObserver {
     private let enforceBrowserURLAllowlistPolicy: () -> Void
     private let enforceRemoteControlPolicy: () -> Void
     private let enforceCloudPolicy: () -> Void
+    private let enforceRemoteConnectionsPolicy: () -> Void
     private var browserPolicyActive: Bool
     private var observedBrowserURLAllowlistPolicy: BrowserURLAllowlistPolicy
     private var remoteControlPolicyActive: Bool
@@ -67,7 +71,8 @@ final class ManagedPolicyEnforcementObserver {
         enforceBrowserPolicy: @escaping () -> Void,
         enforceBrowserURLAllowlistPolicy: @escaping () -> Void,
         enforceRemoteControlPolicy: @escaping () -> Void,
-        enforceCloudPolicy: @escaping () -> Void = {}
+        enforceCloudPolicy: @escaping () -> Void = {},
+        enforceRemoteConnectionsPolicy: @escaping () -> Void = {}
     ) {
         self.notificationCenter = notificationCenter
         self.isBrowserDisabledByPolicy = isBrowserDisabledByPolicy
@@ -80,6 +85,7 @@ final class ManagedPolicyEnforcementObserver {
         self.enforceBrowserURLAllowlistPolicy = enforceBrowserURLAllowlistPolicy
         self.enforceRemoteControlPolicy = enforceRemoteControlPolicy
         self.enforceCloudPolicy = enforceCloudPolicy
+        self.enforceRemoteConnectionsPolicy = enforceRemoteConnectionsPolicy
         browserPolicyActive = isBrowserDisabledByPolicy()
         observedBrowserURLAllowlistPolicy = browserURLAllowlistPolicy()
         remoteControlPolicyActive = isRemoteControlDisabledByPolicy()
@@ -92,6 +98,10 @@ final class ManagedPolicyEnforcementObserver {
             // A profile may already be installed before launch. Enforce it at
             // startup so restored Cloud workspaces and providers are removed.
             enforceCloudPolicy()
+        }
+        if remoteConnectionsPolicyActive {
+            // Same for remote connections: nothing cmux created may stay dialed.
+            enforceRemoteConnectionsPolicy()
         }
         observe(UserDefaults.didChangeNotification)
         observe(NSApplication.didBecomeActiveNotification)
@@ -166,9 +176,18 @@ final class ManagedPolicyEnforcementObserver {
             enforceRemoteControlPolicy()
         }
         let remoteConnectionsNow = capabilityPolicy.isEnforced(.disableRemoteConnections)
-        let fileTransferNow = capabilityPolicy.isEnforced(.disableFileTransfer)
-        if remoteConnectionsNow != remoteConnectionsPolicyActive || fileTransferNow != fileTransferPolicyActive {
+        if remoteConnectionsNow != remoteConnectionsPolicyActive {
             remoteConnectionsPolicyActive = remoteConnectionsNow
+            anyTransition = true
+            // Activation ends every live cmux-created remote connection; a
+            // lift needs no enforcement because the per-call gates read the
+            // resolver on the next connect.
+            if remoteConnectionsNow { enforceRemoteConnectionsPolicy() }
+        }
+        let fileTransferNow = capabilityPolicy.isEnforced(.disableFileTransfer)
+        if fileTransferNow != fileTransferPolicyActive {
+            // Transfers are momentary: nothing live to tear down, the next
+            // upload reads the resolver.
             fileTransferPolicyActive = fileTransferNow
             anyTransition = true
         }
