@@ -133,6 +133,8 @@ struct MobileTerminalLaneCoordinatorTests {
                 waitsAfterFrames: true
             ),
         ])
+        let outputAttempt = TerminalLaneSignal()
+        var outputAttemptIterator = await outputAttempt.stream().makeAsyncIterator()
         let coordinator = MobileTerminalLaneCoordinator(
             provider: nil,
             inputOnlyProvider: { request, surfaceID, cursor in
@@ -142,10 +144,14 @@ struct MobileTerminalLaneCoordinatorTests {
 
         await coordinator.ensure(Self.configuration(
             providerRequest: try Self.request(),
-            cursor: { nil },
+            cursor: {
+                await outputAttempt.signal()
+                return nil
+            },
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
+        #expect(await outputAttemptIterator.next() != nil)
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
         await coordinator.deactivateAll()
@@ -418,6 +424,20 @@ private actor TerminalLaneReadinessRecorder {
     }
 
     func values() -> [Bool] { recordedValues }
+}
+
+private actor TerminalLaneSignal {
+    private var continuation: AsyncStream<Void>.Continuation?
+
+    func stream() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func signal() {
+        continuation?.yield(())
+    }
 }
 
 private actor TerminalLaneFrameRecorder {
