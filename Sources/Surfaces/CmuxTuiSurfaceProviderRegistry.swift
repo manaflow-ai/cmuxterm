@@ -142,7 +142,11 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// The machine is gone: drop its provider and catalog entry now, and tear
     /// down its forwards and link on a task the registry owns (awaited by
     /// ``accessDidEnd()``), so no caller has to hold an unstructured task.
-    func machineWasDeleted(_ id: String) {
+    func machineWasDeleted(_ rawID: String) {
+        // Callers may hand over a canonicalized (lowercased) id while the
+        // registry keys everything by the control plane's own `summary.id`;
+        // resolve to the registered key so no table is left behind.
+        let id = registeredMachineID(matching: rawID)
         providers[id]?.stop()
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
@@ -154,6 +158,14 @@ final class CmuxTuiSurfaceProviderRegistry {
             await portForwards?.close(machineID: id)
             await links.disconnect(machineID: id)
         }
+    }
+
+    /// The id the registry stores for a machine, matched case-insensitively;
+    /// the caller's spelling when nothing is registered under it.
+    private func registeredMachineID(matching rawID: String) -> String {
+        if providers[rawID] != nil { return rawID }
+        let candidates = Set(providers.keys).union(machineTeardowns.keys)
+        return candidates.first { $0.caseInsensitiveCompare(rawID) == .orderedSame } ?? rawID
     }
 
     /// The headless link's local mux socket for a machine, connecting if needed.
