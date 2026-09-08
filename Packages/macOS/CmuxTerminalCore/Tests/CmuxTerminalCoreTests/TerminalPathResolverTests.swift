@@ -239,3 +239,49 @@ private func existsIn(_ existingPaths: Set<String>) -> @Sendable (String) -> Boo
         )
     }
 }
+
+@Suite struct TerminalRepoRelativePathResolutionTests {
+    private let repoRoot = "/Users/dev/project"
+    private let subdirectory = "/Users/dev/project/frontend"
+    private let repoRelativeFile = "/Users/dev/project/.agents/skills/fix-lint/references/set-state-in-render.md"
+
+    @Test func resolvesRepoRootRelativePathFromSubdirectory() {
+        let resolver = TerminalPathResolver(fileExists: existsIn([repoRelativeFile, "\(repoRoot)/.git"]))
+        #expect(
+            resolver.resolveQuicklookPath(
+                ".agents/skills/fix-lint/references/set-state-in-render.md",
+                cwd: subdirectory
+            ) == repoRelativeFile
+        )
+    }
+
+    @Test func resolvesRepoRootRelativePathFromWorktreeWhoseGitEntryIsAFile() {
+        // A worktree's `.git` is a file pointing at the primary checkout; the
+        // walk must stop there just as it does at a `.git` directory.
+        let worktreeRoot = "/Users/dev/project/.worktrees/feature"
+        let file = "\(worktreeRoot)/.agents/guide.md"
+        let resolver = TerminalPathResolver(fileExists: existsIn([file, "\(worktreeRoot)/.git", "\(repoRoot)/.git"]))
+        #expect(
+            resolver.resolveQuicklookPath(".agents/guide.md", cwd: "\(worktreeRoot)/frontend") == file
+        )
+    }
+
+    @Test func prefersTheNearestDirectoryWhenSeveralAncestorsMatch() {
+        let nearer = "\(subdirectory)/README.md"
+        let farther = "\(repoRoot)/README.md"
+        let resolver = TerminalPathResolver(fileExists: existsIn([nearer, farther, "\(repoRoot)/.git"]))
+        #expect(resolver.resolveQuicklookPath("README.md", cwd: subdirectory) == nearer)
+    }
+
+    @Test func doesNotLookAboveTheRepositoryRoot() {
+        let outside = "/Users/dev/README.md"
+        let resolver = TerminalPathResolver(fileExists: existsIn([outside, "\(repoRoot)/.git"]))
+        #expect(resolver.resolveQuicklookPath("README.md", cwd: subdirectory) == nil)
+    }
+
+    @Test func outsideAnyRepositoryOnlyTheWorkingDirectoryIsProbed() {
+        let parentFile = "\(repoRoot)/README.md"
+        let resolver = TerminalPathResolver(fileExists: existsIn([parentFile]))
+        #expect(resolver.resolveQuicklookPath("README.md", cwd: subdirectory) == nil)
+    }
+}

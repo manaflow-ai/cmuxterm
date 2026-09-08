@@ -17,6 +17,23 @@ import Testing
         #expect(try #require(resolver.navigableURL(from: wrapped)).absoluteString == expected)
     }
 
+    @Test(arguments: [
+        ".agents/skills/fix-lint/references/set-state-in-render.md",
+        ".config/cmux/cmux.json",
+        "a..b/path",
+        "trailing./path",
+    ])
+    func doesNotPromoteTextWithAnEmptyHostLabelToHTTPS(input: String) {
+        #expect(resolver.navigableURL(from: input) == nil)
+    }
+
+    @Test func stillPromotesBareDomainWithPathToHTTPS() throws {
+        #expect(
+            try #require(resolver.navigableURL(from: "example.com/docs/guide.md")).absoluteString
+                == "https://example.com/docs/guide.md"
+        )
+    }
+
     @Test func preparesWrappedPasteBeforeSingleLineFieldRewritesIt() {
         let expected = "https://example.com/callback?scope=openid%20profile&state=abc123"
         let wrapped = expected.replacingOccurrences(of: "&state=", with: "&\tstate=")
