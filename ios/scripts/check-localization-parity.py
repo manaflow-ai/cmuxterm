@@ -59,12 +59,17 @@ def expected_placeholders(
 ) -> Counter[str] | None:
     if path in source_placeholders:
         return source_placeholders[path]
+    fallback_path = plural_fallback_path(path)
+    if fallback_path in source_placeholders:
+        return source_placeholders[fallback_path]
+    return None
+
+
+def plural_fallback_path(path: tuple[str, ...]) -> tuple[str, ...] | None:
     plural_categories = {"zero", "one", "two", "few", "many", "other"}
     for index, component in enumerate(path):
-        if component in plural_categories:
-            fallback_path = path[:index] + ("other",) + path[index + 1 :]
-            if fallback_path in source_placeholders:
-                return source_placeholders[fallback_path]
+        if component in plural_categories and component != "other":
+            return path[:index] + ("other",) + path[index + 1 :]
     return None
 
 
@@ -138,6 +143,17 @@ def check_catalog(
             if not units:
                 errors.append(f"{relative_path}:{key}:{locale}: no string units")
                 continue
+            locale_by_path = {unit_path: unit for unit_path, unit in units}
+            for unit_path in source_by_path:
+                if unit_path in locale_by_path:
+                    continue
+                fallback_path = plural_fallback_path(unit_path)
+                if fallback_path is not None and fallback_path in locale_by_path:
+                    continue
+                errors.append(
+                    f"{relative_path}:{key}:{locale}: missing string unit at "
+                    f"{'/'.join(unit_path) or 'default'}"
+                )
             untranslated_states = sorted(
                 {unit.get("state", "missing") for _, unit in units if unit.get("state") != "translated"}
             )
