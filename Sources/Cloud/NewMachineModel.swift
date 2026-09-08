@@ -76,6 +76,20 @@ final class NewMachineModel {
         case base(workspaceID: UUID)
     }
 
+    /// An existing machine the new one can be forked from.
+    struct SourceMachine: Equatable, Identifiable, Sendable {
+        let id: String
+        let name: String
+    }
+
+    /// Where the new machine starts: the default image, or a snapshot of an
+    /// existing machine. Forks inherit the source's size, so the size picker
+    /// hides when a source is chosen.
+    enum Source: Equatable {
+        case image
+        case fork(SourceMachine)
+    }
+
     /// How the sheet ended.
     enum Outcome: Equatable {
         /// The create was launched and now runs in the background.
@@ -114,7 +128,10 @@ final class NewMachineModel {
     let mode: Mode
     let plan: MachinePlanSnapshot?
     let availableMemoryOptionsMb: [Int]
+    /// Machines the person can fork from, in the order the fleet lists them.
+    let sourceOptions: [SourceMachine]
     var memoryMb: Int
+    var source: Source = .image
     /// Why the create could not be launched; nil once a retry starts. Failures
     /// of the create itself never land here: by then the sheet is gone and the
     /// Machines panel row carries them.
@@ -130,10 +147,12 @@ final class NewMachineModel {
         mode: Mode,
         plan: MachinePlanSnapshot?,
         memoryOptionsMb: [Int] = [],
+        sourceOptions: [SourceMachine] = [],
         submit: @escaping Submit
     ) {
         self.mode = mode
         self.plan = plan
+        self.sourceOptions = mode == .newMachine ? sourceOptions : []
         let serverOptions = Set(memoryOptionsMb.filter { MachineSizeOption(memoryMb: $0) != nil }).sorted()
         // An empty list means an older control plane did not advertise the
         // ladder. Preserve its 20 GiB default and omit --size entirely.
@@ -155,8 +174,27 @@ final class NewMachineModel {
         return false
     }
 
-    /// Base is sized by the backend; only `vm new` takes `--size`.
-    var supportsSize: Bool { mode == .newMachine && !availableMemoryOptionsMb.isEmpty }
+    /// Base is sized by the backend and a fork inherits its source's size;
+    /// only a `vm new` from the default image takes `--size`.
+    var supportsSize: Bool { mode == .newMachine && source == .image && !availableMemoryOptionsMb.isEmpty }
+
+    /// Only a fresh machine can start from another machine.
+    var supportsSource: Bool { mode == .newMachine && !sourceOptions.isEmpty }
+
+    /// The `SourceMachine.id` the picker binds to; empty string means the default image.
+    var sourceSelectionID: String {
+        get {
+            if case .fork(let machine) = source { return machine.id }
+            return ""
+        }
+        set {
+            if let machine = sourceOptions.first(where: { $0.id == newValue }) {
+                source = .fork(machine)
+            } else {
+                source = .image
+            }
+        }
+    }
     var memoryOptions: [Int] {
         let ceiling = Self.maxMemoryMb(planId: plan?.planId)
         return availableMemoryOptionsMb.filter { $0 <= ceiling }.sorted()
@@ -210,6 +248,11 @@ final class NewMachineModel {
     var cliArguments: [String] {
         switch mode {
         case .newMachine:
+            if case .fork(let machine) = source {
+                // The backend snapshots the source and starts the new machine
+                // from that snapshot; size and image come from the source.
+                return ["vm", "fork", machine.id, "--focus", "false"]
+            }
             var arguments = ["vm", "new", "--base"]
             if supportsSize { arguments += ["--size", String(memoryMb)] }
             arguments += ["--focus", "false"]
@@ -226,11 +269,18 @@ final class NewMachineModel {
 
     /// The request the coordinator tracks for this sheet's choices.
     var createRequest: MachineCreateRequest {
-        MachineCreateRequest(
+        let requestSource: MachineCreateRequest.Source
+        if mode == .newMachine, case .fork(let machine) = source {
+            requestSource = .fork(vmID: machine.id, name: machine.name)
+        } else {
+            requestSource = .image
+        }
+        return MachineCreateRequest(
             mode: mode,
             kind: .base,
             name: nil,
-            arguments: cliArguments
+            arguments: cliArguments,
+            source: requestSource
         )
     }
 

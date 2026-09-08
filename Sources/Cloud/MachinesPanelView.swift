@@ -412,6 +412,9 @@ struct MachinesPanelView: View {
         NewMachineSheetPresenter.shared.presentNewMachine(
             plan: viewModel.plan,
             memoryOptionsMb: viewModel.memoryOptionsMb,
+            sourceMachines: viewModel.machines
+                .filter { $0.activity == .ready }
+                .map { NewMachineModel.SourceMachine(id: $0.id, name: $0.displayName) },
             preferredWindow: NSApp.keyWindow ?? NSApp.mainWindow,
             coordinator: viewModel.createCoordinator
         )

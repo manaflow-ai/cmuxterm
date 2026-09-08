@@ -57,7 +57,7 @@ final class MachineCreateCoordinator {
             CloudVMActionLauncher.shared.destroyMachineBestEffort(machineID)
         },
         cancelOperation: { operation in
-            guard let workspaceID = operation.request.baseWorkspaceID,
+            guard let workspaceID = operation.request.placeholderWorkspaceID,
                   let appDelegate = AppDelegate.shared,
                   let tabManager = appDelegate.tabManagerFor(tabId: workspaceID),
                   let workspace = tabManager.tabs.first(where: { $0.id == workspaceID }) else { return }

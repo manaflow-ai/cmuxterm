@@ -66,6 +66,7 @@ final class NewMachineSheetPresenter {
     func presentNewMachine(
         plan: MachinePlanSnapshot?,
         memoryOptionsMb: [Int],
+        sourceMachines: [NewMachineModel.SourceMachine] = [],
         preferredWindow: NSWindow?,
         coordinator: MachineCreateCoordinator? = nil
     ) {
@@ -78,22 +79,42 @@ final class NewMachineSheetPresenter {
             mode: .newMachine,
             plan: plan,
             memoryOptionsMb: memoryOptionsMb,
+            sourceOptions: sourceMachines,
             submit: { request in
-                coordinator.start(request, cancellableLaunch: { arguments, progress, completion in
-                    var cancellation: CloudVMActionLauncher.CancellationHandle?
-                    let didStart = MachineRowActions.openNewMachine(
-                        arguments: arguments,
-                        onOutput: progress,
-                        onCompletion: { result in
-                            completion(result)
-                        },
-                        onCancellationReady: { cancellation = $0 }
-                    )
-                    return didStart ? cancellation : nil
-                })
+                // Create makes the workspace at once: a loading pane shows the
+                // machine coming up and the CLI fills that pane in when the
+                // machine is reachable. No AppDelegate (tests) falls back to
+                // the bare background launch without a placeholder.
+                guard let appDelegate = AppDelegate.shared else {
+                    return coordinator.start(request, cancellableLaunch: { arguments, progress, completion in
+                        var cancellation: CloudVMActionLauncher.CancellationHandle?
+                        let didStart = MachineRowActions.openNewMachine(
+                            arguments: arguments,
+                            onOutput: progress,
+                            onCompletion: completion,
+                            onCancellationReady: { cancellation = $0 }
+                        )
+                        return didStart ? cancellation : nil
+                    })
+                }
+                return appDelegate.startCloudMachineCreate(
+                    request,
+                    preferredWindow: preferredWindow,
+                    coordinator: coordinator
+                )
             }
         )
         present(model: model, preferredWindow: preferredWindow)
+    }
+
+    /// The fleet rows a New Machine sheet offers as fork sources: every
+    /// machine that is provisioned (running, paused, or asleep). Machines
+    /// still coming up or in trouble cannot be snapshotted.
+    nonisolated static func sourceMachines(from vms: [VMSummary]) -> [NewMachineModel.SourceMachine] {
+        vms.compactMap { vm in
+            guard MachineSnapshotBuilder.activity(fromStatus: vm.status) == .ready else { return nil }
+            return NewMachineModel.SourceMachine(id: vm.id, name: vm.preferredName)
+        }
     }
 
     /// Entrypoints with no panel state on hand (command palette) read the
@@ -109,6 +130,7 @@ final class NewMachineSheetPresenter {
             presentNewMachine(
                 plan: MachineSnapshotBuilder.planSnapshot(activeCount: page?.vms.count ?? 0, limits: page?.limits),
                 memoryOptionsMb: page?.limits?.memoryOptionsMb ?? [],
+                sourceMachines: Self.sourceMachines(from: page?.vms ?? []),
                 preferredWindow: preferredWindow
             )
         }
