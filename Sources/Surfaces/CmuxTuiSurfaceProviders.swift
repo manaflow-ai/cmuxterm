@@ -1050,7 +1050,6 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             // address until the Network Extension is connected. This is the
             // only action that can cause the one-time macOS approval request.
             let label = Self.paneLabel(machineID: machineID, port: port, desktop: desktop)
-            let machineWasAwake = isAwake
             created = try SurfacePaneFactory.makeBrowserPane(url: SurfacePaneFactory.blankURL, at: destination, focus: focus)
             SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: created.panelID, in: created.workspaceID)
             let pane = created
@@ -1059,12 +1058,17 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 do {
                     guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
                     try await client.requireCloudBrowserAccess(machineID: self.machineID)
-                    if !machineWasAwake {
-                        // Waking a paused machine is an explicit management
-                        // operation. Ignore the returned URL and keep the
-                        // private address captured above.
-                        _ = try await client.openPort(id: self.machineID, port: port)
-                    }
+                    // Always ask the control plane to open the port, even when
+                    // the cached status says the machine is running. The server
+                    // probes the provider live (a machine can idle-pause while
+                    // the row still says running), resumes it when needed, and
+                    // for the desktop port starts the desktop unit and waits
+                    // until noVNC listens. Skipping this for "awake" machines
+                    // opened the Desktop row onto a dead private URL. The
+                    // returned endpoint is intentionally ignored: the browser
+                    // must use the catalog's private URL over the approved
+                    // tunnel.
+                    _ = try await client.openPort(id: self.machineID, port: port)
                     SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: directURL)
                 } catch {
                     let text = CloudMachineLink.errorText(error)
