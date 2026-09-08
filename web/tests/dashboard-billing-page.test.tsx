@@ -16,6 +16,7 @@ let currentUser: typeof proUser | null = null;
 let subscriptionRows: Array<Record<string, unknown>> = [];
 let subscriptionResults: Array<Array<Record<string, unknown>>> = [];
 let customerRows: Array<Record<string, unknown>> = [];
+let personalCustomerAvailable: boolean | null = null;
 
 const proUser = {
   id: "user-pro",
@@ -76,6 +77,15 @@ mock.module("../db/client", () => ({
   }),
 }));
 
+const billingProModule = await import("../services/billing/pro");
+const realHasStripeCustomerForUser = billingProModule.hasStripeCustomerForUser;
+mock.module("../services/billing/pro", () => ({
+  ...billingProModule,
+  hasStripeCustomerForUser: (userId: string) => personalCustomerAvailable === null
+    ? realHasStripeCustomerForUser(userId)
+    : Promise.resolve(personalCustomerAvailable),
+}));
+
 const { default: DashboardBillingPage } = await import("../app/[locale]/dashboard/billing/page");
 const { DashboardQueryProvider } = await import("../app/[locale]/dashboard/components/query-provider");
 
@@ -86,6 +96,7 @@ describe("dashboard billing page", () => {
     subscriptionRows = [];
     subscriptionResults = [];
     customerRows = [];
+    personalCustomerAvailable = null;
     proUser.clientReadOnlyMetadata = {};
     proUser.selectedTeam = null;
     proUser.listTeams.mockClear();
@@ -165,6 +176,17 @@ describe("dashboard billing page", () => {
     expect(html).not.toContain("/api/billing/checkout?plan=pro");
     expect(html).not.toContain("/api/billing/subscription");
     expect(html).not.toContain("/api/billing/portal");
+  });
+
+  test("does not expose personal portal controls when only a team customer exists", async () => {
+    subscriptionRows = [stripeSubscriptionRow({ cancelAtPeriodEnd: false })];
+    customerRows = [{ id: "cus_team", stackTeamId: "team-pro" }];
+    personalCustomerAvailable = false;
+
+    const html = await renderBillingPage();
+
+    expect(html).toContain("cmux Pro");
+    expect(html).not.toContain('href="/api/billing/portal"');
   });
 
   test("does not expose Stripe management for a durable Founder row with a customer", async () => {

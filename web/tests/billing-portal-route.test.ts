@@ -36,6 +36,7 @@ let anonymousIfExistsUser: unknown = null;
 let customerRows: { id: string }[] = [{ id: "cus_123" }];
 let stripeSubscriptionRows: Array<{
   id: string;
+  status?: string;
   raw?: Record<string, unknown> | null;
 }> = [];
 
@@ -65,12 +66,24 @@ mock.module("../db/client", () => ({
   createAwsRdsIamPool: realCreateAwsRdsIamPool,
   closeCloudDbForTests: realCloseCloudDbForTests,
   cloudDb: () => withAccountMutationLeaseSupport({
-    select: () => ({
+    select: (fields: Record<string, unknown> = {}) => ({
       from: (table: unknown) => ({
         where: () => ({
           limit: mock(async () => {
             if (table === stripeCustomers) return customerRows;
-            if (table === stripeSubscriptions) return stripeSubscriptionRows;
+            if (table === stripeSubscriptions) {
+              if ("regular" in fields) {
+                const active = stripeSubscriptionRows.filter((row) =>
+                  ["active", "trialing", "past_due"].includes(row.status ?? "active"));
+                const isFounder = (row: typeof stripeSubscriptionRows[number]) =>
+                  (row.raw?.metadata as Record<string, unknown> | undefined)?.founders_edition === "true";
+                return [{
+                  regular: active.some((row) => !isFounder(row)),
+                  founder: active.some(isFounder),
+                }];
+              }
+              return stripeSubscriptionRows;
+            }
             return [];
           }),
         }),
@@ -162,6 +175,28 @@ describe("billing portal route", () => {
       "https://billing.stripe.com/session/test",
     );
     expect(createPortalSession).toHaveBeenCalled();
+  });
+
+  test("opens the recovery portal for an unpaid personal subscription without granting Pro", async () => {
+    stripeSubscriptionRows = [{ id: "sub_unpaid", status: "unpaid" }];
+
+    const response = await GET(new NextRequest("https://cmux.test/api/billing/portal"));
+
+    expect(response.headers.get("location")).toBe("https://billing.stripe.com/session/test");
+    expect(createPortalSession).toHaveBeenCalledWith({
+      customer: "cus_123",
+      return_url: "https://cmux.test/dashboard/billing",
+    });
+    expect(signedInUser.update).not.toHaveBeenCalled();
+  });
+
+  test("does not open a portal for a terminally canceled personal subscription", async () => {
+    stripeSubscriptionRows = [{ id: "sub_canceled", status: "canceled" }];
+
+    const response = await GET(new NextRequest("https://cmux.test/api/billing/portal"));
+
+    expect(response.headers.get("location")).toBe("https://cmux.test/pricing?billing=unavailable");
+    expect(createPortalSession).not.toHaveBeenCalled();
   });
 
   test("does not open the Stripe portal for a Founder-only entitlement", async () => {
