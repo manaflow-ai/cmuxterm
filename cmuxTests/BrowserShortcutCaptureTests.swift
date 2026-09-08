@@ -582,6 +582,84 @@ final class BrowserShortcutCaptureTests {
     }
 
     @Test
+    func chordSuffixCaptureRemainsOwnedAfterLocalMonitorClearsChordPrefix() throws {
+        let appDelegate = try #require(AppDelegate.shared)
+        try withCaptureEnabled { harness in
+            installCmuxUnitTestCmuxWebViewKeyDownOverride()
+            var browserKeyDownCount = 0
+            let targetWebView = harness.webView
+            setCmuxUnitTestCmuxWebViewKeyDownHook({ [weak targetWebView] webView, _ in
+                guard let targetWebView, webView === targetWebView else { return false }
+                browserKeyDownCount += 1
+                return false
+            }, for: targetWebView)
+            defer { setCmuxUnitTestCmuxWebViewKeyDownHook(nil, for: targetWebView) }
+
+            installCmuxUnitTestWKWebViewPerformKeyEquivalentOverride()
+            let previousPerformKeyEquivalentHook = cmuxUnitTestWKWebViewPerformKeyEquivalentHook
+            cmuxUnitTestWKWebViewPerformKeyEquivalentHook = { webView, _ in
+                webView === targetWebView ? false : nil
+            }
+            defer { cmuxUnitTestWKWebViewPerformKeyEquivalentHook = previousPerformKeyEquivalentHook }
+
+            let previousMainMenu = NSApp.mainMenu
+            let menuProbe = BrowserCaptureMenuActionProbe()
+            defer { NSApp.mainMenu = previousMainMenu }
+            let menu = NSMenu(title: "Test")
+            let menuItem = NSMenuItem(
+                title: "Merge-equivalent",
+                action: #selector(BrowserCaptureMenuActionProbe.perform(_:)),
+                keyEquivalent: "m"
+            )
+            menuItem.keyEquivalentModifierMask = [.command]
+            menuItem.target = menuProbe
+            menu.addItem(menuItem)
+            NSApp.mainMenu = menu
+
+            let chord = BrowserCaptureStoredShortcut(
+                key: "k",
+                command: false,
+                shift: false,
+                option: false,
+                control: true,
+                chordKey: "m",
+                chordCommand: true
+            )
+            let suffixEvent = try #require(makeKeyDownEvent(
+                key: "m",
+                modifiers: [.command],
+                keyCode: UInt16(kVK_ANSI_M),
+                windowNumber: harness.window.windowNumber
+            ))
+            let previousPendingChord = appDelegate.pendingConfiguredShortcutChord
+            let previousActivePrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+            defer {
+                appDelegate.pendingConfiguredShortcutChord = previousPendingChord
+                appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = previousActivePrefix
+                appDelegate.shortcutEventFocusContextCache = nil
+            }
+
+            withTemporaryShortcut(action: .browserReload, shortcut: chord) {
+                appDelegate.pendingConfiguredShortcutChord = AppDelegate.PendingConfiguredShortcutChord(
+                    firstStroke: chord.firstStroke,
+                    windowNumber: harness.window.windowNumber
+                )
+
+                #expect(
+                    !appDelegate.debugHandleShortcutMonitorEvent(event: suffixEvent),
+                    "The local monitor must yield a captured chord suffix to WebKit"
+                )
+                #expect(suffixEvent.cmuxBrowserWebViewCache?.captureDecision == true)
+                #expect(suffixEvent.cmuxBrowserWebViewCache?.captureIsCommitted == true)
+
+                #expect(harness.window.performKeyEquivalent(with: suffixEvent))
+                #expect(browserKeyDownCount == 1)
+                #expect(menuProbe.callCount == 0)
+            }
+        }
+    }
+
+    @Test
     func standalonePopupBrowserScopedShortcutsYieldToWebKitWhenCaptureDisabled() throws {
         let appDelegate = try #require(AppDelegate.shared)
         let opener = BrowserPanel(workspaceId: UUID(), isRemoteWorkspace: false)
