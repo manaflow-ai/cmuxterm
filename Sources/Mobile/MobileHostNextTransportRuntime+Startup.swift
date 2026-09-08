@@ -12,10 +12,20 @@ extension MobileHostNextTransportRuntime {
     // MARK: - Startup (cache-first, register-when-ready)
 
     func start(generation gen: UInt64) async {
+        guard await awaitEndpointClose(generation: gen) else { return }
+        await startAfterEndpointClose(generation: gen)
+    }
+
+    /// Keeps endpoint teardown ahead of authentication and all new binding.
+    func awaitEndpointClose(generation gen: UInt64) async -> Bool {
         let previousEndpointClosed = await endpointCloseTask?.value
-        guard generation == gen, !Task.isCancelled else { return }
-        guard previousEndpointClosed != false else { return }
+        guard generation == gen, !Task.isCancelled else { return false }
+        guard previousEndpointClosed != false else { return false }
         endpointCloseTask = nil
+        return true
+    }
+
+    private func startAfterEndpointClose(generation gen: UInt64) async {
         let startClock = ContinuousClock.now
         state = "starting"
         readiness = .starting
