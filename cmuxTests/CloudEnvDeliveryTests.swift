@@ -70,6 +70,31 @@ import Testing
             == ["--socket", "/tmp/test.sock", "--json", "workspace", "create", "--name", "receiver", "--empty"])
     }
 
+    @MainActor @Test(arguments: [
+        CloudEnvDelivery.DeliveryError.receiverFailed("refused-marker"),
+        .outdatedShim("machine-marker"),
+        .receiverNotReady("not-ready-marker")
+    ])
+    func deliveryAndCleanupFailuresAreBothReported(primaryError: CloudEnvDelivery.DeliveryError) async {
+        var closed: [String] = []
+        do {
+            _ = try await CloudEnvDelivery.withReceiverWorkspace(
+                existingWorkspaceID: nil,
+                createWorkspace: { "temporary-marker" },
+                closeWorkspace: { workspaceID in
+                    closed.append(workspaceID)
+                    throw CancellationError()
+                },
+                operation: { _ in throw primaryError }
+            )
+            Issue.record("both failures must be reported")
+        } catch {
+            #expect(error.localizedDescription.contains(primaryError.localizedDescription))
+            #expect(error.localizedDescription.contains("temporary-marker"))
+        }
+        #expect(closed == ["temporary-marker"])
+    }
+
     @Test func payloadIsLiteralKeyValueLines() throws {
         let payload = try CloudEnvDelivery.payload([
             Entry(key: "A", value: "1"),
