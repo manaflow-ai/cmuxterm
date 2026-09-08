@@ -78,21 +78,16 @@ extension CmuxTuiSurfaceProvider {
 
     /// The loopback URL that reaches `port` on this machine from any app on
     /// this Mac (Copy Link, `vm.port_open`), starting the forward if needed.
-    func localPortURL(port: Int) async throws -> String {
+    /// Nil when the machine has no private address, so its ports are only
+    /// reachable through the control plane's preview URL; throws only when a
+    /// forward should exist and could not be made.
+    func localPortURL(port: Int) async throws -> String? {
         let plan = CloudPortRoutePlan.plan(
             resource: CmuxTuiSnapshotParser.portBrowser(machine: machine, port: port),
             privateAddress: info.privateAddress,
-            supportsControlPlanePreviews: false
+            supportsControlPlanePreviews: capabilities.ports
         )
-        guard case .hubForward(let target, _) = plan else {
-            throw SurfaceCatalogError.unsupported(String(
-                format: String(
-                    localized: "cloudTree.port.noPrivateAddress",
-                    defaultValue: "%@ has no private network address yet; refresh the machine list and retry."
-                ),
-                machineID
-            ))
-        }
+        guard case .hubForward(let target, _) = plan else { return nil }
         return try await hubForward(to: target).localURLString
     }
 

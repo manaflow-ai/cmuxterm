@@ -368,6 +368,30 @@ struct CloudLoopbackPortForwardTests {
         await forward.stop()
     }
 
+    @Test("a provider hands out a loopback URL for a machine with a private address and none without one")
+    @MainActor
+    func providerLocalURL() async throws {
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        let forwarder = CloudHubPortForwarder(dialer: FakeHubDialer(endpoint: hub.endpoint))
+        let catalog = SurfaceCatalog()
+        let links = CloudMachineLinkManager(clientURL: nil, hub: nil, hostThemeColors: { nil })
+        func summary(address: String?) -> VMSummary {
+            var summary = VMSummary(id: "vm-1", provider: "freestyle", status: "running", image: "cmux-devbox", createdAt: 0, base: nil)
+            summary.addressIPv4 = address
+            return summary
+        }
+        let addressed = CmuxTuiSurfaceProvider(summary: summary(address: "10.0.0.7"), links: links, catalog: catalog, portForwards: forwarder)
+        let url = try #require(try await addressed.localPortURL(port: 3000))
+        #expect(url.hasPrefix("http://127.0.0.1:"))
+        #expect(await forwarder.localPort(machineID: "vm-1", port: 3000) != nil)
+
+        let unaddressed = CmuxTuiSurfaceProvider(summary: summary(address: nil), links: links, catalog: catalog, portForwards: forwarder)
+        #expect(try await unaddressed.localPortURL(port: 3000) == nil, "no private address means the control-plane preview route, not an error")
+        await forwarder.closeAll()
+    }
+
     @Test("one machine port keeps one local port; a new address retargets it; closing frees it")
     func forwarderKeepsStablePorts() async throws {
         let hub = try FakeSocksHub()

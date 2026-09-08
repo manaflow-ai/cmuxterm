@@ -350,7 +350,10 @@ struct CloudTreeNodeActions {
                     guard let provider = catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider else {
                         throw SurfaceCatalogError.unsupported(SurfaceCatalog.portPreviewUnavailableMessage(machineID: resource.machine.rawValue))
                     }
-                    Self.copyToPasteboard(try await provider.localPortURL(port: port))
+                    guard let url = try await provider.localPortURL(port: port) ?? catalog.resources[resource]?.url else {
+                        throw SurfaceCatalogError.unsupported(SurfaceCatalog.portPreviewUnavailableMessage(machineID: resource.machine.rawValue))
+                    }
+                    Self.copyToPasteboard(url)
                 }
             },
             refresh: refresh
