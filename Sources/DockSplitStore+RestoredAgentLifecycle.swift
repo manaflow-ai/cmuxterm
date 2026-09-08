@@ -40,11 +40,20 @@ extension DockSplitStore {
         case (.commandRunning, .some(.awaitingAutoResumeCommand)):
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
         case (.commandRunning, .some(.manualResumeAvailable)):
+            if restoredAgentHasLiveProcess(panelId: panelId, restoredAgent: restoredAgent) {
+                // A TUI turn (OSC 133;C) from the agent itself, not an
+                // unrelated command replacing an idle agent.
+                restoredAgentLifecycle.setResumeState(.observedAgentCommandRunning, panelId: panelId)
+                break
+            }
             restoredAgentLifecycle.setSnapshot(nil, panelId: panelId)
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
             retireAgentHookResumeBinding(panelId: panelId)
         case (.promptIdle, .some(.autoResumeCommandRunning)),
              (.promptIdle, .some(.observedAgentCommandRunning)):
+            // A TUI prompt mark (OSC 133;A) is not the shell prompt returning
+            // while the agent process is still alive.
+            guard !restoredAgentHasLiveProcess(panelId: panelId, restoredAgent: restoredAgent) else { break }
             if restoredAgent != nil {
                 markRestoredAgentCompleted(panelId: panelId)
             } else {
@@ -231,6 +240,53 @@ extension DockSplitStore {
                 surfaceResumeBindingsByPanelId[panelId] = binding
             }
         }
+    }
+
+    /// Dock twin of `Workspace.restoredAgentHasLiveProcess(_:panelId:)`.
+    ///
+    /// Without a restored snapshot, the hook-published binding supplies the
+    /// agent identity. Evidence order matches the workspace: the
+    /// hook-registered `<kind>.<session>` PID whose process generation still
+    /// matches, the live agent index with revalidated process evidence, then
+    /// the pane's foreground process validated against the agent identity.
+    private func restoredAgentHasLiveProcess(
+        panelId: UUID,
+        restoredAgent: SessionRestorableAgentSnapshot?
+    ) -> Bool {
+        let binding = surfaceResumeBindingsByPanelId[panelId]
+            ?? managedAgentResumeBindingsByPanelId[panelId]
+        guard let agent = restoredAgent
+            ?? binding.flatMap({ $0.isAgentHookBinding ? $0.managedRestorableAgentSnapshot(replacing: nil) : nil })
+        else {
+            return false
+        }
+        let pidKey = "\(agent.kind.rawValue).\(agent.sessionId)"
+        let runtime = agentRuntimeByPanelId[panelId]
+            ?? detachedSurfaceTransfersByPanelId[panelId]?.agentRuntime
+        // Claude's PID key identifies only a panel, not a session; it cannot
+        // vouch for this session generation.
+        if agent.kind != .claude,
+           let runtime,
+           let pid = runtime.agentPIDs[pidKey],
+           pid > 0,
+           let recordedIdentity = runtime.agentPIDProcessIdentities[pidKey],
+           recordedIdentity.pid == pid,
+           Workspace.agentPIDProcessIdentity(pid: pid) == recordedIdentity {
+            return true
+        }
+        if SharedLiveAgentIndex.shared.index?.hasCurrentLiveProcessForStablePanel(
+            workspaceId: detachedSurfaceTransfersByPanelId[panelId]?.sessionRestoreWorkspaceId
+                ?? workspaceId,
+            panelId: panelId,
+            expectedKind: agent.kind.rawValue,
+            expectedSessionId: agent.sessionId
+        ) == true {
+            return true
+        }
+        return RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: (panels[panelId] as? TerminalPanel)?.surface.foregroundProcessID()
+        )
     }
 
     func markRestoredAgentCompleted(panelId: UUID) {

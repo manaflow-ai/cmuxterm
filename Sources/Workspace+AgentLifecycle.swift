@@ -316,11 +316,20 @@ extension Workspace {
                  .some(.completedAgentExit):
                 break
             case .some(.manualResumeAvailable), nil:
-                invalidateRestoredAgentSnapshot(panelId: panelId, restoredAgent: restoredAgent)
+                if restoredAgentHasLiveProcess(restoredAgent, panelId: panelId) {
+                    // A TUI turn (OSC 133;C) from the agent itself, not an
+                    // unrelated command replacing an idle agent.
+                    restoredAgentLifecycle.setResumeState(.observedAgentCommandRunning, panelId: panelId)
+                } else {
+                    invalidateRestoredAgentSnapshot(panelId: panelId, restoredAgent: restoredAgent)
+                }
             }
         case .promptIdle:
             switch restoredAgentResumeStatesByPanelId[panelId] {
             case .some(.autoResumeCommandRunning), .some(.observedAgentCommandRunning):
+                // A TUI prompt mark (OSC 133;A) is not the shell prompt
+                // returning while the agent process is still alive.
+                guard !restoredAgentHasLiveProcess(restoredAgent, panelId: panelId) else { break }
                 markRestoredAgentCompleted(panelId: panelId, snapshot: restoredAgent)
                 restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
                 retireAgentHookResumeBinding(panelId: panelId, matching: restoredAgent)
@@ -341,12 +350,64 @@ extension Workspace {
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
         case (.promptIdle, .some(.autoResumeCommandRunning)),
              (.promptIdle, .some(.observedAgentCommandRunning)):
+            guard !agentHookBindingHasLiveProcess(panelId: panelId) else { break }
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
             restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
             retireAgentHookResumeBinding(panelId: panelId)
         default:
             break
         }
+    }
+
+    /// Whether `restoredAgent` is verifiably still running in `panelId`.
+    ///
+    /// Pi-compatible TUIs emit OSC 133 prompt and command marks while the
+    /// agent keeps running, so a shell-activity flip alone cannot prove that
+    /// the agent exited or was replaced (#12084). Cheapest evidence first: the
+    /// hook-registered `<kind>.<session>` PID whose process generation still
+    /// matches, the live agent index with revalidated process evidence, and
+    /// the pane's foreground process validated against the agent identity,
+    /// which covers the window before the session-start hook registers a PID.
+    func restoredAgentHasLiveProcess(
+        _ restoredAgent: SessionRestorableAgentSnapshot,
+        panelId: UUID
+    ) -> Bool {
+        let currentProcessIdentity: (Int) -> AgentPIDProcessIdentity? = { pid in
+            guard pid > 0, pid <= Int(Int32.max) else { return nil }
+            return Self.agentPIDProcessIdentity(pid: pid_t(pid))
+        }
+        if !confirmedRuntimeAgentProcessIdentities(
+            for: restoredAgent,
+            panelId: panelId,
+            currentProcessIdentity: currentProcessIdentity
+        ).isEmpty {
+            return true
+        }
+        if SharedLiveAgentIndex.shared.index?.hasCurrentLiveProcessForStablePanel(
+            workspaceId: id,
+            panelId: panelId,
+            expectedKind: restoredAgent.kind.rawValue,
+            expectedSessionId: restoredAgent.sessionId
+        ) == true {
+            return true
+        }
+        return RestoredAgentForegroundProcess.matches(
+            restoredAgent,
+            foregroundProcessID: terminalPanel(for: panelId)?.surface.foregroundProcessID()
+        )
+    }
+
+    /// The same evidence for a hook-published binding that carries no
+    /// restored snapshot of its own.
+    private func agentHookBindingHasLiveProcess(panelId: UUID) -> Bool {
+        guard let binding = surfaceResumeBindingsByPanelId[panelId],
+              binding.isAgentHookBinding,
+              let agent = binding.managedRestorableAgentSnapshot(
+                  replacing: restoredAgentSnapshotsByPanelId[panelId]
+              ) else {
+            return false
+        }
+        return restoredAgentHasLiveProcess(agent, panelId: panelId)
     }
 
     private func invalidateRestoredAgentSnapshot(
