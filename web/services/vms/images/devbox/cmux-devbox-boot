@@ -32,6 +32,12 @@
 # Without a metadata service (containers) the id is empty and the daemon
 # simply runs, keeping whatever identity the state dir already holds.
 #
+# The SSH host keys are per machine for the same reason: a clone would
+# otherwise present the builder's keys (and every other clone's). The clone
+# branch regenerates them under the machine's own name
+# (web/services/vms/images/identity.ts) in a detached subshell, so the daemon
+# start never waits on key generation, and restarts sshd so it serves them.
+#
 # The Freestyle public-platform bake runs this script from the cmux-tui-daemon
 # systemd unit.
 #
@@ -78,6 +84,14 @@ start_desktop() {
   desktop_pid=$!
 }
 
+rekey_ssh_host() {
+  command -v ssh-keygen >/dev/null 2>&1 || return 0
+  rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
+  ssh-keygen -A >/dev/null 2>&1 || return 0
+  [ -d /run/systemd/system ] && systemctl try-restart ssh >/dev/null 2>&1
+  return 0
+}
+
 stop_daemon() {
   [ -n "$daemon_pid" ] || return 0
   kill "$daemon_pid" 2>/dev/null
@@ -98,6 +112,7 @@ while true; do
       if [ -n "$id" ] && [ "$id" != "$(cat "$BOUND_INSTANCE_FILE" 2>/dev/null)" ]; then
         stop_daemon
         rm -rf "$REMOTE_STATE_DIR"
+        ( rekey_ssh_host & )
         mkdir -p /etc/cmux && printf '%s\n' "$id" > "$BOUND_INSTANCE_FILE"
       fi
       if [ -z "$daemon_pid" ] || ! kill -0 "$daemon_pid" 2>/dev/null; then

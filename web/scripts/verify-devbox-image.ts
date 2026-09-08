@@ -33,6 +33,7 @@ import {
   DEVBOX_INSTANCE_ID_COMMAND,
   devboxAgentPins,
   devboxDir,
+  devboxIdentityCheckCommand,
   devboxTerminfoCheckCommand,
   cmuxTuiWebsocketSmokeCommand,
   sha256File,
@@ -48,6 +49,7 @@ import {
   DEVBOX_DESKTOP_UNIT,
   DEVBOX_DESKTOP_USER,
 } from "../services/vms/images/desktop";
+import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 
 const pins = devboxAgentPins();
 const shaOf = (name: string): string => sha256File(path.join(devboxDir, name));
@@ -228,6 +230,19 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   "cat /etc/cmux/image-stamp",
 ];
 
+// The machine is `cmux`, not the base's `freestyle-vm`
+// (services/vms/images/identity.ts): the shared check covers the static and
+// live hostname, $HOSTNAME, the loopback alias, sudo, the host-key comment
+// and the residue audit; on top of that, the prompt a person sees in a real
+// pty names the machine for both accounts, and the journal of this boot knows
+// no other name (the bake started it over).
+const IDENTITY_CHECKS: readonly string[] = [
+  devboxIdentityCheckCommand(),
+  `tmux -L idroot new-session -d -s login -x 120 -y 30 && sleep 3 && pane="$(tmux -L idroot capture-pane -pt login)"; tmux -L idroot kill-server 2>/dev/null; printf '%s\n' "$pane" | grep -q 'root@${DEVBOX_HOSTNAME} in' && echo root-prompt-names-${DEVBOX_HOSTNAME}`,
+  `sudo -n -u ${DEVBOX_DESKTOP_USER} env -i HOME=${DEVBOX_DESKTOP_HOME} USER=${DEVBOX_DESKTOP_USER} TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash -c 'tmux -L iduser new-session -d -s login -x 120 -y 30 && sleep 3 && pane="$(tmux -L iduser capture-pane -pt login)"; tmux -L iduser kill-server 2>/dev/null; printf "%s\n" "$pane" | grep -q "${DEVBOX_DESKTOP_USER}@${DEVBOX_HOSTNAME} in" && echo user-prompt-names-${DEVBOX_HOSTNAME}'`,
+  `[ "$(journalctl -b -o json --no-pager 2>/dev/null | jq -r '._HOSTNAME // empty' | sort -u | tr '\n' ' ')" = '${DEVBOX_HOSTNAME} ' ] && echo journal-host-${DEVBOX_HOSTNAME}`,
+];
+
 type Exec = (cmd: string, timeoutMs?: number) => Promise<{ exitCode: number; output: string }>;
 
 async function runChecks(label: string, checks: readonly string[], exec: Exec): Promise<boolean> {
@@ -346,6 +361,19 @@ if (provider === "freestyle") {
         throw new Error(`two machines from ${image} share one daemon identity (${digestA.slice(0, 12)}…)`);
       }
       console.log(`daemon identity + machine secrets differ across machines: ${digestA.slice(0, 12)}… vs ${digestB.slice(0, 12)}…`);
+      // The SSH host keys are per machine as well: cmux-devbox-boot regenerates
+      // them on a clone, under the machine's own name.
+      const hostKey = `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{ print $2 }'`;
+      const [keyA, keyB] = await Promise.all([exec(hostKey, 30_000), exec2(hostKey, 30_000)]);
+      const fingerprintA = keyA.output.trim();
+      const fingerprintB = keyB.output.trim();
+      if (keyA.exitCode !== 0 || keyB.exitCode !== 0 || !fingerprintA.startsWith("SHA256:") || !fingerprintB.startsWith("SHA256:")) {
+        throw new Error(`could not read both SSH host keys: ${keyA.output.slice(-200)} / ${keyB.output.slice(-200)}`);
+      }
+      if (fingerprintA === fingerprintB) {
+        throw new Error(`two machines from ${image} share one SSH host key (${fingerprintA})`);
+      }
+      console.log(`SSH host keys differ across machines: ${fingerprintA.slice(7, 19)}… vs ${fingerprintB.slice(7, 19)}…`);
     } finally {
       await second.vm.delete();
       console.log(`deleted ${second.vmId}`);
@@ -363,6 +391,7 @@ if (provider === "freestyle") {
       ...CHECKS,
       ...DAEMON_CHECKS,
       ...FREESTYLE_BASE_CHECKS,
+      ...IDENTITY_CHECKS,
       ...(desktop
         ? desktopChecks()
         : [`test ! -e ${DEVBOX_DESKTOP_START_SCRIPT} && echo base-image-has-no-desktop`]),
