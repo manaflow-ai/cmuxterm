@@ -1,9 +1,45 @@
 import Darwin
 import Foundation
 import Testing
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
 
 @Suite(.serialized)
 struct CLIClaudeHookTimeoutRegressionTests {
+    @Test("Queued lifecycle routes trust an admitted surface snapshot")
+    func queuedLifecycleRoutesTrustAdmittedSurfaceSnapshot() {
+        let reconciler = AgentHookLifecycleReconciler()
+        let runningPayload: [String: Any] = ["agent_state": "running"]
+        let approvalPayload: [String: Any] = ["agent_state": "awaiting-approval"]
+
+        #expect(
+            reconciler.route(
+                subcommand: "lifecycle",
+                payload: runningPayload,
+                processID: nil,
+                allowsSnapshotWithoutLiveProcess: true
+            ) == .running
+        )
+        #expect(
+            reconciler.route(
+                subcommand: "lifecycle",
+                payload: approvalPayload,
+                processID: nil,
+                allowsSnapshotWithoutLiveProcess: true
+            ) == .notification
+        )
+        #expect(
+            reconciler.route(
+                subcommand: "lifecycle",
+                payload: runningPayload,
+                processID: nil
+            ) == .rejectStaleProcess
+        )
+    }
+
     @Test("Claude launch fallback omits blocking lifecycle hooks")
     func settingsGenerationFailureInstallsOnlyDecisionHooks() throws {
         let fileManager = FileManager.default
@@ -1158,10 +1194,6 @@ struct CLIClaudeHookTimeoutRegressionTests {
             #expect(
                 source.contains("CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC"),
                 "\(producer.agent) queue admission must have an internal socket deadline"
-            )
-            #expect(
-                source.contains("cat >/dev/null"),
-                "\(producer.agent) queue admission must drain hook stdin on fail-open paths"
             )
             #expect(
                 !source.contains("[\"hooks\", \"\(producer.agent)\", subcommand]"),

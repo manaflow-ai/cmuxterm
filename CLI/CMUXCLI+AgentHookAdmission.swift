@@ -562,36 +562,34 @@ extension CMUXCLI {
         _ parsed: ClaudeHookParsedInput
     ) -> [String: Any] {
         var fallback: [String: Any] = [:]
-        fallback["session_id"] = parsed.sessionId.map {
-            compactQueuedAgentHookString($0, maximumLength: 256)
+        func setBoundedString(_ key: String, value: String?, maximumLength: Int) {
+            guard let value else { return }
+            fallback[key] = compactQueuedAgentHookString(value, maximumLength: maximumLength)
         }
-        fallback["turn_id"] = parsed.turnId.map {
-            compactQueuedAgentHookString($0, maximumLength: 256)
-        }
-        fallback["cwd"] = parsed.cwd.map {
-            compactQueuedAgentHookString($0, maximumLength: 512)
-        }
-        fallback["transcript_path"] = parsed.transcriptPath.map {
-            compactQueuedAgentHookString($0, maximumLength: 512)
-        }
+        setBoundedString("session_id", value: parsed.sessionId, maximumLength: 256)
+        setBoundedString("turn_id", value: parsed.turnId, maximumLength: 256)
+        setBoundedString("cwd", value: parsed.cwd, maximumLength: 512)
+        setBoundedString("transcript_path", value: parsed.transcriptPath, maximumLength: 512)
 
         guard let rawObject = parsed.rawObject else { return fallback }
         let toolName = firstString(in: rawObject, keys: ["tool_name", "toolName"])
-        fallback["tool_name"] = toolName.map {
-            compactQueuedAgentHookString($0, maximumLength: 80)
-        }
-        fallback["hook_event_name"] = firstString(
-            in: rawObject,
-            keys: ["hook_event_name", "hookEventName", "event_name", "event"]
-        ).map {
-            compactQueuedAgentHookString($0, maximumLength: 80)
-        }
-        fallback["permission_mode"] = firstString(
-            in: rawObject,
-            keys: ["permission_mode", "permissionMode"]
-        ).map {
-            compactQueuedAgentHookString($0, maximumLength: 80)
-        }
+        setBoundedString("tool_name", value: toolName, maximumLength: 80)
+        setBoundedString(
+            "hook_event_name",
+            value: firstString(
+                in: rawObject,
+                keys: ["hook_event_name", "hookEventName", "event_name", "event"]
+            ),
+            maximumLength: 80
+        )
+        setBoundedString(
+            "permission_mode",
+            value: firstString(
+                in: rawObject,
+                keys: ["permission_mode", "permissionMode"]
+            ),
+            maximumLength: 80
+        )
         for key in [
             "fullyIdle",
             "cmux_notification_routed",

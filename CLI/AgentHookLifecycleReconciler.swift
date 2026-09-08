@@ -17,15 +17,20 @@ struct AgentHookLifecycleReconciler {
     func route(
         subcommand: String,
         payload: [String: Any]?,
-        processID: Int?
+        processID: Int?,
+        allowsSnapshotWithoutLiveProcess: Bool = false
     ) -> Route? {
         guard subcommand == "lifecycle" else { return nil }
         let state = Self.normalized(payload?["agent_state"])
         switch state {
         case "running":
-            return Self.processExists(processID) ? .running : .rejectStaleProcess
+            return allowsSnapshotWithoutLiveProcess || Self.processExists(processID)
+                ? .running
+                : .rejectStaleProcess
         case "awaiting-approval", "needs-input":
-            return Self.processExists(processID) ? .notification : .rejectStaleProcess
+            return allowsSnapshotWithoutLiveProcess || Self.processExists(processID)
+                ? .notification
+                : .rejectStaleProcess
         case "idle":
             let outcome = Self.normalized(payload?["turn_outcome"])
             switch outcome {

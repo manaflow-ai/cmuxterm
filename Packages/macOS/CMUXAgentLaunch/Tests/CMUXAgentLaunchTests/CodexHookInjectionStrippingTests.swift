@@ -39,6 +39,22 @@ struct CodexHookInjectionStrippingTests {
         )
     }
 
+    @Test("Strips the legacy synchronous Codex child hook block")
+    func stripsLegacySynchronousCodexChildHookBlock() {
+        let arguments = ["codex"] + hookArguments(
+            events: legacySynchronousChildHookEvents
+        ) { subcommand in
+            "/Users/u/.cmux/hooks/cmux-codex-hook-\(subcommand).sh"
+        } + ["--model", "gpt-5.5"]
+        #expect(
+            AgentLaunchSanitizer.sanitizedLaunchArguments(
+                arguments,
+                launcher: "",
+                fallbackKind: "codex"
+            ) == ["codex", "--model", "gpt-5.5"]
+        )
+    }
+
     @Test("Strips the legacy alias Codex hook block")
     func stripsLegacyAliasCodexHookBlock() {
         let arguments = ["codex"] + hookArguments(
@@ -613,6 +629,21 @@ struct CodexHookInjectionStrippingTests {
             ("PostToolUse", "post-tool-use", 10000),
             ("Notification", "notification", 10000),
             ("Stop", "stop", 10000),
+        ]
+    }
+
+    private var legacySynchronousChildHookEvents: [
+        (agentEvent: String, cmuxSubcommand: String, timeoutMs: Int)
+    ] {
+        [
+            ("SessionStart", "session-start", 10000),
+            ("UserPromptSubmit", "prompt-submit", 10000),
+            ("Stop", "stop", 10000),
+            ("PreToolUse", "pre-tool-use", 120000),
+            ("PostToolUse", "post-tool-use", 10000),
+            ("PermissionRequest", "notification", 120000),
+            ("SubagentStart", "subagent-start", 10000),
+            ("SubagentStop", "subagent-stop", 10000),
         ]
     }
 

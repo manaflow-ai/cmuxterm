@@ -34382,7 +34382,8 @@ export default CMUXSessionRestore;
         let lifecycleRoute = AgentHookLifecycleReconciler().route(
             subcommand: subcommand,
             payload: input.rawObject,
-            processID: inferredPID
+            processID: inferredPID,
+            allowsSnapshotWithoutLiveProcess: routeWasSnapshotted && snapshottedRoute != nil
         )
         var action: AgentHookAction = if cursorShellNeedsApproval {
             .notification
