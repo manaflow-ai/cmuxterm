@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/app/[locale]/theme";
 import { Link, usePathname } from "@/i18n/navigation";
 import { isAdminUser } from "@/services/admin/access";
 import { DashboardAccountMenu } from "./dashboard-account-menu";
+import { DashboardTeamSwitcher } from "./dashboard-team-switcher";
 
 type DashboardNavGroup = {
   label: string;
@@ -117,12 +118,17 @@ export function DashboardShell({
         <DashboardNav
           groups={groups}
           trailing={<AdminNavGroup pathname={pathname} />}
-          className="flex-1 overflow-y-auto px-2 py-3 pb-28"
+          className="flex-1 overflow-y-auto px-2 py-3 pb-40"
         />
       </aside>
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-border bg-background sm:fixed sm:inset-x-auto sm:bottom-0 sm:left-0 sm:top-auto sm:w-[13rem] sm:border-b-0 sm:border-r sm:border-t">
+          <div className="border-b border-border px-3 py-1.5 sm:px-2">
+            <Suspense fallback={<DashboardTeamSwitcherFallback />}>
+              <DashboardTeamSwitcher />
+            </Suspense>
+          </div>
           <div className="flex min-h-11 items-center justify-between px-3 py-1.5 sm:px-2">
             <Link
               href="/dashboard"
@@ -169,6 +175,10 @@ export function DashboardShell({
 
 function DashboardAccountMenuFallback() {
   return <div aria-hidden="true" className="min-w-0 flex-1" />;
+}
+
+function DashboardTeamSwitcherFallback() {
+  return <div aria-hidden="true" className="h-8 w-full" />;
 }
 
 function DashboardNav({
