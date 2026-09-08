@@ -95,8 +95,8 @@ extension SocketClient {
 
     /// Prepares a one-way client without turning unknown-mode writes into reads.
     func prepareOneWayAuthentication(responseTimeout: TimeInterval) throws {
-        if authenticationPassword != nil,
-           !authenticationPasswordResolutionAttempt.isCompleted {
+        // Credential completion survives close(); connection authentication does not.
+        if authenticationPassword != nil {
             try authenticateIfNeeded(
                 responseTimeout: responseTimeout,
                 deadline: Date.now.addingTimeInterval(responseTimeout)
