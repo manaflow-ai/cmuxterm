@@ -163,8 +163,14 @@ container, so the hostname there is the runtime's.
 ## Terminal capabilities (`cmux-terminfo.src`)
 
 Daemon-spawned shells get the TERM the Mac exports (`xterm-256color`, or
-`xterm-ghostty` when passed through) plus `COLORTERM=truecolor`, but
-programs resolve TERM against the guest's terminfo. Stock ncurses
+`xterm-ghostty` when passed through) plus `COLORTERM=truecolor`, and inherit
+`TERM_PROGRAM=ghostty` with `TERM_PROGRAM_VERSION` from
+`/etc/cmux/ghostty-version` (the Ghostty .deb pin, written by the bake and
+the Dockerfile) via the supervisor's environment, the same identity the app
+exports to local and SSH shells. Claude Code and other agents gate
+synchronized output, progress reporting, strikethrough, and Cmd-click on
+`TERM_PROGRAM`; `verify-devbox-image.ts` reads the daemon's environ to prove
+it. Programs still resolve TERM against the guest's terminfo. Stock ncurses
 `xterm-256color` advertises no truecolor (`Tc`) or styled underlines (`Su`)
 and emits SGR 90 for `setaf 8`, which the cmux renderer shows as invisible
 ghost text. `cmux-terminfo.src` is the app's `Resources/terminfo-overlay`
