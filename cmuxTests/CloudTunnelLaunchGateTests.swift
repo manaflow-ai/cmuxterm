@@ -343,6 +343,52 @@ struct CloudTunnelLaunchGateTests {
         #expect(await coordinator.state == .off)
     }
 
+    @Test("the production opt-out (bring the tunnel down, then refuse) while the install waits for approval removes the late-saved configuration")
+    @MainActor
+    func optOutDuringInstallRemovesLateSavedConfiguration() async throws {
+        let controller = FakeTunnelController()
+        controller.holdInstallForApproval = true
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
+        let start = Task { try await coordinator.requestUp(pin: false) }
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+        #expect(await coordinator.state == .awaitingApproval)
+
+        // Cloud Machines turned off: the observer brings the tunnel down
+        // (cancelling the start) and the policy refuses from now on.
+        gate.refusal = .cloudMachinesOff
+        await coordinator.requestDown()
+        #expect(await coordinator.state == .off)
+
+        // The user's approval arrives late; the install has saved the
+        // configuration by the time the cancelled start notices.
+        controller.approve()
+        await #expect(throws: CloudTunnelError.self) {
+            try await start.value
+        }
+        #expect(controller.calls == ["install", "stop", "remove"])
+        #expect(controller.installedConfigurations.isEmpty)
+        #expect(enroller.discardCount == 1)
+        #expect(await coordinator.state == .off)
+
+        // An explicit `cmux vpn down` during approval with the opt-in still
+        // on is not a refusal: the configuration stays for the next use.
+        let onEnroller = FakeTunnelEnroller()
+        let onController = FakeTunnelController()
+        onController.holdInstallForApproval = true
+        let opted = makeCoordinator(controller: onController, enroller: onEnroller, gate: Gate(nil))
+        let second = Task { try await opted.requestUp(pin: false) }
+        _ = await opted.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+        await opted.requestDown()
+        onController.approve()
+        await #expect(throws: CloudTunnelError.self) {
+            try await second.value
+        }
+        #expect(onController.calls == ["install", "stop"])
+        #expect(onEnroller.discardCount == 0)
+    }
+
     @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
     func refusalAfterSchedulingEndsOff() async {
         let controller = FakeTunnelController()

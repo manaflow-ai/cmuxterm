@@ -319,6 +319,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         defer {
             if startGeneration == generation { startTask = nil }
         }
+        // True once `install` returned: a VPN configuration is saved and must
+        // not outlive a policy refusal, whichever way that refusal arrives.
+        var installed = false
         do {
             // A stop may still be draining (idle timer, `vpn down`, sign-out);
             // starting on top of it would race NetworkExtension and fail into
@@ -350,14 +353,14 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             try await controller.install(configuration) { [weak self] in
                 Task { await self?.noteAwaitingApproval(generation: generation) }
             }
+            installed = true
             try Task.checkCancellation()
             // The install can wait minutes for the user's extension approval.
             // A refusal that landed meanwhile takes the saved configuration
             // and the enrollment back out with it: a refused Mac keeps no
             // VPN configuration and is not "configured" at the next launch.
             if let refusal = admission.knownRefusal() {
-                try? await controller.remove()
-                enroller.discardEnrollment()
+                await discardInstalled()
                 throw refusal.error
             }
             if state == .awaitingApproval { setState(.starting, generation: generation) }
@@ -380,6 +383,12 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             restartIdleTimer()
             logger.notice("tunnel up")
         } catch is CancellationError {
+            // The production opt-out cancels the start before the policy is
+            // re-read here (the observer's `requestDown`), so a late install
+            // that saved the configuration is cleaned up on this path too.
+            if installed, admission.knownRefusal() != nil {
+                await discardInstalled()
+            }
             setState(.off, generation: generation)
             throw CancellationError()
         } catch let error as CloudTunnelError where error.isActivationRefusal {
@@ -401,6 +410,13 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             }
             throw (error as? CloudTunnelError) ?? CloudTunnelError.startFailed(message)
         }
+    }
+
+    /// Take back what an admitted start saved before the policy refused it:
+    /// the VPN configuration and this Mac's enrollment.
+    private func discardInstalled() async {
+        try? await controller.remove()
+        enroller.discardEnrollment()
     }
 
     private func noteAwaitingApproval(generation: Int) {
