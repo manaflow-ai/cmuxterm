@@ -21,20 +21,18 @@ struct VaultAllSessionsBar: View {
         return SidebarSearchField.visibleHeight
     }
 
-    private var searchBarHeight: CGFloat {
-        max(RightSidebarChromeMetrics.secondaryBarHeight, searchFieldHeight + 6)
-    }
-
     var body: some View {
         HStack(spacing: 0) {
             searchField
             overflowMenu
         }
-        // Keep Vault's compact toolbar spacing around the shared field.
-        .padding(.leading, 4)
+        .frame(height: searchFieldHeight)
+        // The grouping row already supplies the gap below Recent. Do not add
+        // another top inset or center the editor inside a taller menu button.
+        .padding(.leading, SidebarSearchField.leadingPadding)
         .padding(.trailing, 0)
-        .padding(.vertical, 3)
-        .frame(height: searchBarHeight)
+        .padding(.top, SidebarSearchField.topPadding)
+        .padding(.bottom, RightSidebarChromeMetrics.barVerticalPadding)
     }
 
     private var searchField: some View {
@@ -70,7 +68,7 @@ struct VaultAllSessionsBar: View {
             Text("⋮")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.secondary.opacity(0.72))
-                .frame(width: 24, height: 28)
+                .frame(width: 24, height: searchFieldHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.primary.opacity(0.10))
@@ -86,7 +84,7 @@ struct VaultAllSessionsBar: View {
         .accessibilityHint(Text(String(localized: "sessionIndex.view.tooltip", defaultValue: "Choose session view")))
         .accessibilityValue(viewSelectionLabel)
         .accessibilityIdentifier("VaultSessionOptionsMenu")
-        .frame(width: 24, height: 28)
+        .frame(width: 24, height: searchFieldHeight)
         .layoutPriority(2)
         .titlebarInteractiveControl()
     }
