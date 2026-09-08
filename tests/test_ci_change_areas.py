@@ -254,6 +254,7 @@ def test_compile_gate_builds_entire_test_target_and_propagates_failure() -> None
                 "-clonedSourcePackagesDirPath", str(root.resolve() / ".ci-source-packages"),
                 "-disableAutomaticPackageResolution",
                 "-destination", "platform=macOS",
+                "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) CMUX_CI_APP_HOST_ISOLATION_REQUIRED",
                 "build-for-testing",
             ], arguments
 
