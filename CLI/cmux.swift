@@ -7,12 +7,18 @@ import CmuxSimulator
 import CoreFoundation
 import CryptoKit
 import Darwin
+import OSLog
 #if canImport(LocalAuthentication)
 import LocalAuthentication
 #endif
 #if canImport(Security)
 import Security
 #endif
+
+nonisolated private let agentLifecycleLogger = Logger(
+    subsystem: "com.cmuxterm.cli",
+    category: "AgentLifecycle"
+)
 
 struct WindowInfo {
     let index: Int
@@ -8792,8 +8798,17 @@ struct CMUXCLI {
         return .refs
     }
 
-    func sendV1Command(_ command: String, client: SocketClient) throws -> String {
-        let response = try client.send(command: command)
+    func sendV1Command(
+        _ command: String,
+        client: SocketClient,
+        responseTimeout: TimeInterval? = nil,
+        deadline: Date? = nil
+    ) throws -> String {
+        let response = try client.send(
+            command: command,
+            responseTimeout: responseTimeout,
+            deadline: deadline
+        )
         if response.hasPrefix("ERROR:") {
             throw CLIError(message: response)
         }
@@ -27799,6 +27814,17 @@ struct CMUXCLI {
             }
             if isClearSessionStart, !suppressVisibleMutations {
                 _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
+                // The journal is the durable sidebar projection, while this
+                // legacy signal feeds the live stall supervisor's turn state.
+                setAgentLifecycle(
+                    client: client,
+                    key: Self.claudeCodeStatusKey,
+                    lifecycle: .running,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: acceptedSessionId,
+                    turnID: parsedInput.turnId
+                )
                 try setClaudeStatus(
                     client: client,
                     workspaceId: workspaceId,
@@ -27986,6 +28012,32 @@ struct CMUXCLI {
                         occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
+                )
+                // Keep the legacy lifecycle signal for the local stall
+                // supervisor while the journal remains the durable source of
+                // sidebar state. The supervisor consumes the explicit turn
+                // boundary and completion proof; the journal reducer handles
+                // every provider's persisted projection.
+                setAgentLifecycle(
+                    client: client,
+                    key: Self.claudeCodeStatusKey,
+                    lifecycle: hasPendingBackgroundWork ? .running : .idle,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    promptBoundary: !hasPendingBackgroundWork,
+                    // Claude's stop hook supplies the current turn's
+                    // assistant message; without it, the provider dropped
+                    // back to its prompt and PTY evidence remains relevant.
+                    normalCompletion: !hasPendingBackgroundWork
+                        && claudeHookProvesNormalCompletion(
+                            assistantMessage: claudeAssistantMessageFromHookPayload(parsedInput.object),
+                            payload: parsedInput.rawObject ?? parsedInput.object
+                        ),
+                    hookFailureEvidence: claudeHookContainsStructuredFailureEvidence(
+                        payload: parsedInput.rawObject ?? parsedInput.object
+                    ),
+                    sessionID: parsedInput.sessionId,
+                    turnID: parsedInput.turnId
                 )
                 if hasUnsettledWork {
                     // The turn ended but a background task or scheduled wakeup is
@@ -28185,6 +28237,17 @@ struct CMUXCLI {
                         occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                 store: sessionStore,
                 telemetry: telemetry
+            )
+            // Keep the live supervisor's capture state in lockstep with the
+            // durable turn-start journal event.
+            setAgentLifecycle(
+                client: client,
+                key: Self.claudeCodeStatusKey,
+                lifecycle: .running,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                sessionID: parsedInput.sessionId,
+                turnID: parsedInput.turnId
             )
             try setClaudeStatus(
                 client: client,
@@ -28476,6 +28539,15 @@ struct CMUXCLI {
             }
 
             if recordsNeedsInput {
+                setAgentLifecycle(
+                    client: client,
+                    key: Self.claudeCodeStatusKey,
+                    lifecycle: .needsInput,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: parsedInput.sessionId,
+                    turnID: parsedInput.turnId
+                )
                 _ = try? setClaudeStatus(
                     client: client,
                     workspaceId: workspaceId,
@@ -28612,7 +28684,7 @@ struct CMUXCLI {
                 )
                 if shouldClearVisibleState, !suppressVisibleMutations {
                     _ = try? sendV1Command(
-                        "clear_agent_pid \(Self.claudeCodeStatusKey) --tab=\(workspaceId)\(socketPanelOption(cleanupSurfaceId)) --clear-status",
+                        "clear_agent_pid \(Self.claudeCodeStatusKey).\(consumedSession.sessionId) --tab=\(workspaceId)\(socketPanelOption(cleanupSurfaceId)) --clear-status --require-owned-key",
                         client: client
                     )
                     try? sessionStore.clearAgentLifecycleIfPresent(
@@ -28758,6 +28830,15 @@ struct CMUXCLI {
                     store: sessionStore,
                     telemetry: telemetry
                 )
+                setAgentLifecycle(
+                    client: client,
+                    key: Self.claudeCodeStatusKey,
+                    lifecycle: .needsInput,
+                    workspaceId: workspaceId,
+                    surfaceId: existingSurfaceId,
+                    sessionID: parsedInput.sessionId,
+                    turnID: parsedInput.turnId
+                )
                 // In bypassPermissions (--dangerously-skip-permissions) mode no
                 // PermissionRequest or Notification hook follows, so this handler must
                 // publish the FULL needs-input state (status + bell) itself. In every
@@ -28840,6 +28921,15 @@ struct CMUXCLI {
                 store: sessionStore,
                 telemetry: telemetry
             )
+            setAgentLifecycle(
+                client: client,
+                key: Self.claudeCodeStatusKey,
+                lifecycle: .running,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                sessionID: parsedInput.sessionId,
+                turnID: parsedInput.turnId
+            )
 
             let statusValue: String
             if UserDefaults.standard.bool(forKey: "claudeCodeVerboseStatus"),
@@ -28921,6 +29011,51 @@ struct CMUXCLI {
             cmd += " --pid=\(pid)"
         }
         _ = try client.send(command: cmd)
+    }
+
+    private func setAgentLifecycle(
+        client: SocketClient,
+        key: String,
+        lifecycle: AgentHibernationLifecycleState,
+        workspaceId: String,
+        surfaceId: String?,
+        promptBoundary: Bool = false,
+        normalCompletion: Bool = false,
+        hookFailureEvidence: Bool = false,
+        sessionID: String? = nil,
+        turnID: String? = nil,
+        terminalLifecycleID: UUID? = nil,
+        responseTimeout: TimeInterval? = nil,
+        deadline: Date? = nil
+    ) {
+        guard AgentHibernationLifecycleStatusKeys.isAllowed(key) else {
+            agentLifecycleLogger.warning(
+                "Unsupported agent lifecycle key: \(key, privacy: .public)"
+            )
+            return
+        }
+        do {
+            let boundaryOption = promptBoundary ? " --prompt-boundary" : ""
+            let completionOption = normalCompletion ? " --normal-completion" : ""
+            let failureOption = hookFailureEvidence ? " --hook-failure" : ""
+            let terminalLifecycleOption = (terminalLifecycleID
+                ?? UUID(uuidString: ProcessInfo.processInfo.environment["CMUX_TERMINAL_LIFECYCLE_ID"] ?? ""))
+                .map { " --terminal-lifecycle-id=\($0.uuidString)" } ?? ""
+            let sessionOption = sessionID
+                .map { " --session-id=\(socketQuote($0))" } ?? ""
+            let turnOption = turnID
+                .map { " --turn-id=\(socketQuote($0))" } ?? ""
+            _ = try sendV1Command(
+                "set_agent_lifecycle \(key) \(lifecycle.rawValue) --tab=\(workspaceId)\(socketPanelOption(surfaceId))\(boundaryOption)\(completionOption)\(failureOption)\(terminalLifecycleOption)\(sessionOption)\(turnOption)",
+                client: client,
+                responseTimeout: responseTimeout,
+                deadline: deadline
+            )
+        } catch {
+            agentLifecycleLogger.error(
+                "Failed to set agent lifecycle: \(String(reflecting: error), privacy: .public)"
+            )
+        }
     }
 
     private func runAgentHibernation(
@@ -35286,6 +35421,17 @@ export default CMUXSessionRestore;
                 surfaceId: surfaceId,
                 isSubagent: suppressVisibleMutations
             )
+            // Keep the live supervisor fail-closed until the first concrete
+            // turn event; this clears any stale generation from a reused pane.
+            setAgentLifecycle(
+                client: client,
+                key: def.statusKey,
+                lifecycle: .unknown,
+                workspaceId: workspaceId,
+                surfaceId: surfaceId,
+                sessionID: sessionId,
+                turnID: input.turnId
+            )
             if !suppressVisibleMutations {
                 if let owner = try? store.lookup(sessionId: sessionId) {
                     clearSupersededAgentHookSessions(
@@ -35645,6 +35791,17 @@ export default CMUXSessionRestore;
                         ? "cursor-pending-approval-preserved"
                         : nil,
                     responseTimeout: def.name == "cursor" ? cursorCriticalTimeout() : nil
+                )
+                // The journal owns durable status; the direct lifecycle signal
+                // drives the in-process stall capture and retry state machine.
+                setAgentLifecycle(
+                    client: client,
+                    key: def.statusKey,
+                    lifecycle: .running,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: sessionId,
+                    turnID: input.turnId
                 )
                 if codexPromptTurnWentTerminal() {
                     stopStaleCodexPromptSubmit(restoreVisibleState: true)
@@ -36213,6 +36370,18 @@ export default CMUXSessionRestore;
             }
             if !suppressVisibleMutations {
                 if let codexFailure {
+                    setAgentLifecycle(
+                        client: client,
+                        key: def.statusKey,
+                        lifecycle: .needsInput,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        promptBoundary: def.name == "codex",
+                        normalCompletion: false,
+                        hookFailureEvidence: def.name == "codex",
+                        sessionID: sessionId,
+                        turnID: input.turnId
+                    )
                     if def.name == "cursor" {
                         sendCursorCriticalCommand(
                             "set_status \(def.statusKey) \(codexFailure.statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
@@ -36224,6 +36393,15 @@ export default CMUXSessionRestore;
                         )
                     }
                 } else if antigravityFailure != nil {
+                    setAgentLifecycle(
+                        client: client,
+                        key: def.statusKey,
+                        lifecycle: .needsInput,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        sessionID: sessionId,
+                        turnID: input.turnId
+                    )
                     let statusValue = agentErrorStatusValue(for: def)
                     if def.name == "cursor" {
                         sendCursorCriticalCommand(
@@ -36236,6 +36414,15 @@ export default CMUXSessionRestore;
                         )
                     }
                 } else if hasActiveBackgroundWork {
+                    setAgentLifecycle(
+                        client: client,
+                        key: def.statusKey,
+                        lifecycle: .running,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        sessionID: sessionId,
+                        turnID: input.turnId
+                    )
                     let runningStatus = String(localized: "agent.generic.status.running", defaultValue: "Running")
                     if def.name == "cursor" {
                         sendCursorCriticalCommand(
@@ -36248,6 +36435,38 @@ export default CMUXSessionRestore;
                         )
                     }
                 } else {
+                    setAgentLifecycle(
+                        client: client,
+                        key: def.statusKey,
+                        lifecycle: .idle,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        promptBoundary: def.name == "codex",
+                        // The transcript reader treats terminal error events
+                        // as authoritative and clears them only after a
+                        // healthy terminal completion, so successful prose
+                        // cannot be mistaken for a provider banner.
+                        normalCompletion: def.name == "codex"
+                            && codexFailure == nil
+                            && codexHookProvesNormalCompletion(
+                                assistantMessage: firstString(
+                                    in: input.object ?? [:],
+                                    keys: [
+                                        "last_assistant_message", "lastAssistantMessage",
+                                        "last_agent_message", "lastAgentMessage",
+                                    ]
+                                ) ?? firstString(
+                                    in: input.rawObject ?? [:],
+                                    keys: [
+                                        "last_assistant_message", "lastAssistantMessage",
+                                        "last_agent_message", "lastAgentMessage",
+                                    ]
+                                ),
+                                payload: input.rawObject ?? input.object
+                            ),
+                        sessionID: sessionId,
+                        turnID: input.turnId
+                    )
                     setIdleStatusUnlessAnotherSessionIsRunning(workspaceId: workspaceId, surfaceId: surfaceId)
                 }
             }
@@ -36380,6 +36599,19 @@ export default CMUXSessionRestore;
                 detail: "approval-response"
             )
             if !suppressVisibleMutations {
+                setAgentLifecycle(
+                    client: client,
+                    key: def.statusKey,
+                    lifecycle: .running,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: sessionId,
+                    turnID: input.turnId
+                )
+                _ = try? sendV1Command(
+                    "clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                    client: client
+                )
                 let runningStatus = String(localized: "agent.generic.status.running", defaultValue: "Running")
                 _ = try? sendV1Command(
                     "set_status \(def.statusKey) \(runningStatus) --icon=bolt.fill --color=#4C8DFF --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
@@ -36812,7 +37044,18 @@ export default CMUXSessionRestore;
                 // Suppressed pending waiting cue: leave the Running pill in
                 // place; the fullyIdle turn boundary reconciles.
                 break
-            case .needsInput?:
+             case .needsInput?:
+                setAgentLifecycle(
+                    client: client,
+                    key: def.statusKey,
+                    lifecycle: .needsInput,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: sessionId,
+                    turnID: input.turnId,
+                    responseTimeout: cursorShellNeedsApproval ? cursorCriticalTimeout() : nil,
+                    deadline: cursorShellDeadline
+                )
                 let statusValue = agentNeedsInputStatusValue(for: def)
                 if cursorShellNeedsApproval {
                     sendCursorCriticalCommand(
@@ -36824,13 +37067,43 @@ export default CMUXSessionRestore;
                         client: client
                     )
                 }
-            case .error?:
-                let statusValue = agentErrorStatusValue(for: def)
-                _ = try? sendV1Command(
-                    "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                    client: client
+             case .error?:
+                setAgentLifecycle(
+                    client: client,
+                    key: def.statusKey,
+                    lifecycle: .needsInput,
+                    workspaceId: workspaceId,
+                    surfaceId: surfaceId,
+                    sessionID: sessionId,
+                    turnID: input.turnId,
+                    responseTimeout: cursorShellNeedsApproval ? cursorCriticalTimeout() : nil,
+                    deadline: cursorShellDeadline
                 )
+                let statusValue = agentErrorStatusValue(for: def)
+                if def.name == "cursor" {
+                    sendCursorCriticalCommand(
+                        "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
+                    )
+                } else {
+                    _ = try? sendV1Command(
+                        "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                        client: client
+                    )
+                }
             case .idle?:
+                if !hasNewerRunningSession(workspaceId: workspaceId, surfaceId: surfaceId) {
+                    setAgentLifecycle(
+                        client: client,
+                        key: def.statusKey,
+                        lifecycle: .idle,
+                        workspaceId: workspaceId,
+                        surfaceId: surfaceId,
+                        sessionID: sessionId,
+                        turnID: input.turnId,
+                        responseTimeout: cursorShellNeedsApproval ? cursorCriticalTimeout() : nil,
+                        deadline: cursorShellDeadline
+                    )
+                }
                 setIdleStatusUnlessAnotherSessionIsRunning(workspaceId: workspaceId, surfaceId: surfaceId)
             case nil:
                 break

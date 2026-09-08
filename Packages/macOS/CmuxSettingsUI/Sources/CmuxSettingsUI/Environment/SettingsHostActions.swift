@@ -248,6 +248,9 @@ public protocol SettingsHostActions: AnyObject {
     /// language selection.
     func applyLanguageOverride(_ language: AppLanguage)
 
+    /// Notifies the live agent supervisor after the retry opt-in commits.
+    func agentSessionAutoRetrySettingDidChange()
+
     /// Gives the host a chance to refresh computer-use permission state.
     func refreshComputerUsePermissions() async
 
@@ -335,6 +338,9 @@ public struct RightSidebarTabSettingsItem: Identifiable, Equatable, Sendable {
 }
 
 public extension SettingsHostActions {
+    /// Default no-op for previews and package-only hosts.
+    func agentSessionAutoRetrySettingDidChange() {}
+
     /// Returns the registry-backed agent choices shown by notification sound settings.
     func notificationSoundAgentOptions() -> [NotificationSoundAgentOption] { [] }
 

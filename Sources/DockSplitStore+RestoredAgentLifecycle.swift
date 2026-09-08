@@ -274,6 +274,15 @@ extension DockSplitStore {
         }
     }
 
+    /// Clears panel-scoped status entries in one pass over this dock's live
+    /// runtime map. Callers use this for a batch so the dock is not rescanned
+    /// once per panel being cancelled.
+    func clearAgentRuntimeStatusEntries(keysByPanelID: [UUID: String]) {
+        for (panelID, key) in keysByPanelID where agentRuntimeByPanelId[panelID] != nil {
+            clearAgentRuntimeStatusEntry(key: key, panelId: panelID)
+        }
+    }
+
     @discardableResult
     func recordAgentPID(key: String, pid: pid_t, panelId: UUID) -> Bool {
         var didReplaceRuntime = false
