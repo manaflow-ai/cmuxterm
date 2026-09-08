@@ -1100,7 +1100,7 @@ struct RemoteResumeBindingTests {
         }
     }
 
-    fileprivate func makeRelayedFixture() throws -> (
+    func makeRelayedFixture() throws -> (
         snapshot: SessionWorkspaceSnapshot,
         workspaceID: UUID,
         surfaceID: UUID,

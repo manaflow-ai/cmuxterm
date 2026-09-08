@@ -13,6 +13,7 @@ import Testing
 #elseif canImport(cmux)
 @testable import cmux
 #endif
+@MainActor
 extension RemoteAgentRestoreWorkingDirectoryTests {
     @Test func remoteAutoResumeUsesLatestAuthoritativeDirectoryReport() throws {
         let defaultsName = "cmux-remote-latest-cwd-\(UUID().uuidString)"

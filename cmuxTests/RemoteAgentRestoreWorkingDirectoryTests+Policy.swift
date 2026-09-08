@@ -13,6 +13,7 @@ import Testing
 #elseif canImport(cmux)
 @testable import cmux
 #endif
+@MainActor
 extension RemoteAgentRestoreWorkingDirectoryTests {
     @Test func unavailableRemoteAgentRetainsOnlyPersistentSSHReattach() throws {
         let defaultsName = "cmux-remote-persistent-cwd-\(UUID().uuidString)"

@@ -80,7 +80,7 @@ extension RemoteResumeBindingTests {
         #expect(startupCommand.contains("ssh-pty-attach"), "\(startupCommand)")
         #expect(startupCommand.contains("--require-existing"), "\(startupCommand)")
         let remoteCommand = try decodedRemoteCommand(from: startupCommand)
-        #expect(remoteCommand.contains("export CMUX_SOCKET_PATH=127.0.0.1:\(relayPort)"), "\(remoteCommand)")
+        #expect(remoteCommand.contains("export CMUX_SOCKET_PATH=127.0.0.1:\(fixture.relayPort)"), "\(remoteCommand)")
         #expect(try decodedInitialCommandIfPresent(from: remoteCommand) == nil)
         #expect(!remoteCommand.contains("session-remote-7989"), "\(remoteCommand)")
         #expect(!remoteCommand.contains("REMOTE_FLAG"), "\(remoteCommand)")

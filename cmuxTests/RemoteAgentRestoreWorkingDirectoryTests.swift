@@ -60,10 +60,7 @@ struct RemoteAgentRestoreWorkingDirectoryTests {
             includeWorkingDirectoryPrefix: true,
             workingDirectorySelection: .recordedFallback(preferred: capturedAgentDirectory)
         ))
-        let startupInput = try #require(decoded.resumeStartupInput(
-            useLocalRestoreVerb: false,
-            workingDirectorySelection: .recordedFallback(preferred: capturedLaunchDirectory)
-        ))
+        let startupInput = try #require(decoded.resumeStartupInput(useLocalRestoreVerb: false))
         for command in [resumeCommand, forkCommand, explicitFallbackResume, startupInput] {
             #expect(command.contains(trustedRemoteDirectory), Comment(rawValue: command))
             #expect(!command.contains(capturedAgentDirectory), Comment(rawValue: command))
@@ -238,10 +235,11 @@ struct RemoteAgentRestoreWorkingDirectoryTests {
             )
 
             for exactDirectory in [trustedRemoteDirectory, nil] as [String?] {
-                let input = try #require(snapshot.resumeStartupInput(
-                    useLocalRestoreVerb: false,
-                    workingDirectorySelection: .exact(exactDirectory)
-                ))
+                let input = try #require(
+                    snapshot
+                        .applyingRestoreWorkingDirectorySelection(.exact(exactDirectory))
+                        .resumeStartupInput(useLocalRestoreVerb: false)
+                )
                 #expect(input.contains(sessionId), Comment(rawValue: input))
                 #expect(!input.contains(recordedLocalDirectory), Comment(rawValue: input))
                 #expect(!input.contains(testCase.cwdArgument), Comment(rawValue: input))
@@ -285,10 +283,11 @@ struct RemoteAgentRestoreWorkingDirectoryTests {
             )
 
             for exactDirectory in [trustedRemoteDirectory, nil] as [String?] {
-                let input = try #require(snapshot.resumeStartupInput(
-                    useLocalRestoreVerb: false,
-                    workingDirectorySelection: .exact(exactDirectory)
-                ))
+                let input = try #require(
+                    snapshot
+                        .applyingRestoreWorkingDirectorySelection(.exact(exactDirectory))
+                        .resumeStartupInput(useLocalRestoreVerb: false)
+                )
                 #expect(input.contains(sessionId), Comment(rawValue: input))
                 #expect(!input.contains(testCase.attachedCwdOption), Comment(rawValue: input))
                 if let exactDirectory {
@@ -321,10 +320,11 @@ struct RemoteAgentRestoreWorkingDirectoryTests {
                 )
             )
 
-            let input = try #require(snapshot.resumeStartupInput(
-                useLocalRestoreVerb: false,
-                workingDirectorySelection: .exact(nil)
-            ))
+            let input = try #require(
+                snapshot
+                    .applyingRestoreWorkingDirectorySelection(.exact(nil))
+                    .resumeStartupInput(useLocalRestoreVerb: false)
+            )
             #expect(input.contains(worktree), Comment(rawValue: input))
             #expect(input.contains("'-w"), Comment(rawValue: input))
         }
