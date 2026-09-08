@@ -1,6 +1,11 @@
 import AppKit
 
 extension AppDelegate {
+    private func resolvedPrefixChordOwns(_ action: KeyboardShortcutSettings.Action) -> Bool {
+        guard let resolvedActionID = activeResolvedPrefixChordActionID else { return true }
+        return resolvedActionID == action.rawValue
+    }
+
     func resolvedShortcutEventWindow(_ event: NSEvent) -> NSWindow? {
         if let window = event.window {
             return window
@@ -25,10 +30,7 @@ extension AppDelegate {
         event: NSEvent,
         action: KeyboardShortcutSettings.Action
     ) -> Bool {
-        if let resolvedActionID = activeResolvedPrefixChordActionID,
-           resolvedActionID != action.rawValue {
-            return false
-        }
+        guard resolvedPrefixChordOwns(action) else { return false }
         guard shortcutWhenClauseAllows(action: action, event: event) else {
             return false
         }
@@ -93,7 +95,8 @@ extension AppDelegate {
 
     func shouldForwardBrowserSurfaceShortcutToTerminal(_ event: NSEvent) -> Bool {
         KeyboardShortcutSettings.Action.allCases.contains {
-            $0.shortcutContext.forwardsMenuEquivalentToFocusedTerminal
+            resolvedPrefixChordOwns($0)
+                && $0.shortcutContext.forwardsMenuEquivalentToFocusedTerminal
                 && !$0.isBrowserContentShortcut
                 && matchConfiguredShortcut(
                     event: event,
@@ -118,6 +121,7 @@ extension AppDelegate {
         event: NSEvent,
         action: KeyboardShortcutSettings.Action
     ) -> Int? {
+        guard resolvedPrefixChordOwns(action) else { return nil }
         guard let digit = numberedConfiguredShortcutDigit(
             event: event,
             action: action
@@ -133,7 +137,8 @@ extension AppDelegate {
         arrowGlyph: String,
         arrowKeyCode: UInt16
     ) -> Bool {
-        guard !shouldBypassPrefixChordPassThrough(event),
+        guard resolvedPrefixChordOwns(action),
+              !shouldBypassPrefixChordPassThrough(event),
               shortcutWhenClauseAllows(action: action, event: event) else {
             return false
         }
