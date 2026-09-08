@@ -414,8 +414,8 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
             )
             KeyboardShortcutSettings.settingsFileStore.reload()
             let chord = StoredShortcut(
-                first: ShortcutStroke(key: "b", control: true),
-                second: ShortcutStroke(key: "p")
+                first: ShortcutStroke(key: "b", command: false, shift: false, option: false, control: true),
+                second: ShortcutStroke(key: "p", command: false, shift: false, option: false, control: false)
             )
             KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
             let binding = try #require(ShortcutPrefixChordBinding(
@@ -458,8 +458,8 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         try withIsolatedShortcutSettings {
             let appDelegate = try #require(AppDelegate.shared)
             let chord = StoredShortcut(
-                first: ShortcutStroke(key: "b", command: true),
-                second: ShortcutStroke(key: "p")
+                first: ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false),
+                second: ShortcutStroke(key: "p", command: false, shift: false, option: false, control: false)
             )
             KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
             let window = NSWindow(
@@ -502,8 +502,8 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         try withIsolatedShortcutSettings {
             let appDelegate = try #require(AppDelegate.shared)
             let chord = StoredShortcut(
-                first: ShortcutStroke(key: "b", command: true),
-                second: ShortcutStroke(key: "media.playPause")
+                first: ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false),
+                second: ShortcutStroke(key: "media.playPause", command: false, shift: false, option: false, control: false)
             )
             KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
             let binding = try #require(ShortcutPrefixChordBinding(
@@ -547,17 +547,17 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
     @Test func resolvedPrefixChordOnlyAllowsTheSelectedAuxiliaryMatcher() throws {
         try withIsolatedShortcutSettings {
             let appDelegate = try #require(AppDelegate.shared)
-            let leader = ShortcutStroke(key: "b", command: true)
+            let leader = ShortcutStroke(key: "b", command: true, shift: false, option: false, control: false)
             KeyboardShortcutSettings.setShortcut(
-                StoredShortcut(first: leader, second: ShortcutStroke(key: "2")),
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "2", command: false, shift: false, option: false, control: false)),
                 for: .selectWorkspaceByNumber
             )
             KeyboardShortcutSettings.setShortcut(
-                StoredShortcut(first: leader, second: ShortcutStroke(key: "b")),
+                StoredShortcut(first: leader, second: ShortcutStroke(key: "b", command: false, shift: false, option: false, control: false)),
                 for: .browserBack
             )
             let event = try #require(makeKeyDownEvent(
-                shortcut: StoredShortcut(first: ShortcutStroke(key: "2"))
+                shortcut: StoredShortcut(first: ShortcutStroke(key: "2", command: false, shift: false, option: false, control: false))
             ))
             let previousActionID = appDelegate.activeResolvedPrefixChordActionID
             let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
