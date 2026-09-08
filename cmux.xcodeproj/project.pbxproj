@@ -2618,6 +2618,7 @@
 		A11C00020000000000000001 /* StackAccountAvatarImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00020000000000000002 /* StackAccountAvatarImageLoader.swift */; };
 		A11C00030000000000000001 /* StackAccountAvatarImageLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */; };
 		A5C017000000000000000005 /* StackAccountAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000006 /* StackAccountAvatarView.swift */; };
+		A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */; };
 		F20F85FC5900550685FA33AD /* StackAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A8BD195031FC4B82B4354297 /* StackAuth */; };
 		C0DE70500000000000000002 /* start-cmux-profiling in Copy CLI */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000001 /* start-cmux-profiling */; };
 		D35B71010000000000000001 /* StartupBreadcrumbLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35B71010000000000000002 /* StartupBreadcrumbLog.swift */; };
@@ -5921,6 +5922,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		A11C00020000000000000002 /* StackAccountAvatarImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarImageLoader.swift; sourceTree = "<group>"; };
 		A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarImageLoaderTests.swift; sourceTree = "<group>"; };
 		A5C017000000000000000006 /* StackAccountAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarView.swift; sourceTree = "<group>"; };
+		A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarViewTests.swift; sourceTree = "<group>"; };
 		C0DE70500000000000000001 /* start-cmux-profiling */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/start-cmux-profiling"; sourceTree = SOURCE_ROOT; };
 		D35B71010000000000000002 /* StartupBreadcrumbLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StartupBreadcrumbLog.swift; sourceTree = "<group>"; };
 		C0DE70530000000000000001 /* submit-cmux-profile */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/submit-cmux-profile"; sourceTree = SOURCE_ROOT; };
@@ -9354,6 +9356,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D36A00050000000000000002 /* RendererRealizationPlannerTests.swift */,
 				C58410010000000000000002 /* RenderableSystemSymbolTests.swift */,
 				A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */,
+				A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */,
 				A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */,
 				DCDC0000000000000000B002 /* DockControlDefinitionDecodingTests.swift */,
 				859100000000000000000002 /* TerminalLinkOpenCoordinatorTests.swift */,
@@ -13753,6 +13756,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				EF70B7123200D1FB6F03DB26 /* SSHStartupManualReconnectTests.swift in Sources */,
 				F6355600A1B2C3D4E5F60718 /* SSHStartupSignalLifecycleTests.swift in Sources */,
 				A11C00030000000000000001 /* StackAccountAvatarImageLoaderTests.swift in Sources */,
+				A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */,
 				5873A6BE37C34CC1082864E2 /* SurfaceCatalogTests.swift in Sources */,
 				560A57B0605EC30E23A20456 /* SurfacePaneFactoryFocusTests.swift in Sources */,
 				842300000000000000000007 /* SurfaceResumeAgentBindingGenerationTests.swift in Sources */,
