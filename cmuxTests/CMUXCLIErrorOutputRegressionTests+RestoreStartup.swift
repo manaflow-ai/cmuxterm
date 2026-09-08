@@ -241,6 +241,10 @@ extension CMUXCLIErrorOutputRegressionTests {
         environment["CMUX_WORKSPACE_ID"] = workspaceID
         environment["CMUX_CLI_TTY_NAME"] = "0"
         environment["CMUX_DEBUG_LOG"] = debugLogPath
+        // Darwin leaves a connect to a bound, non-listening TCP socket pending.
+        // Bound only this fixture's initial attempt so it reaches the startup
+        // waiter while retaining exclusive ownership of the ephemeral port.
+        environment["CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC"] = "1"
 
         var reachedStartupWait = false
         let result = runProcess(
@@ -257,10 +261,8 @@ extension CMUXCLIErrorOutputRegressionTests {
                 guard reachedStartupWait else {
                     return
                 }
-                // Keep the bound TCP endpoint unavailable through the waiter's
-                // first connection attempt. Without relay error classification,
-                // that attempt fails permanently instead of reaching a retry.
-                usleep(100_000)
+                // The startup waiter has its own deadline; a real relay handshake
+                // and restore request must succeed after the listener comes up.
                 responder.startListening()
             }
         )
