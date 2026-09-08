@@ -192,7 +192,7 @@ struct ShellStartupMatrixTests {
             startupPayload: "print 1",
             mode: .nonLogin
         )
-        expectEqual(command, "'/usr/local/bin/nu' -i -e 'print 1'")
+        expectEqual(command, "/usr/bin/env '/usr/local/bin/nu' -i -e 'print 1'")
     }
 
     @Test

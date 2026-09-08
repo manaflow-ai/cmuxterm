@@ -40,6 +40,13 @@ public struct TerminalShellIntegrationCommandBuilder: Sendable {
         mode: TerminalShellStartupMode = .login
     ) -> String {
         let modeFlag = mode == .login ? "-l" : "-i"
-        return "\(quote(shell)) \(modeFlag) -e \(quote(startupPayload))"
+        let arguments = "\(modeFlag) -e \(quote(startupPayload))"
+        if mode == .nonLogin {
+            return TerminalShellStartupPolicy().nonLoginShellCommand(
+                shell: shell,
+                arguments: arguments
+            )
+        }
+        return "\(quote(shell)) \(arguments)"
     }
 }

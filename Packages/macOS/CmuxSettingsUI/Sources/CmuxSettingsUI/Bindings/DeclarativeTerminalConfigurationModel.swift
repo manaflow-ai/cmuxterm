@@ -27,7 +27,17 @@ public final class DeclarativeTerminalConfigurationModel:
     private var fixedPathWatcher: FileWatcher?
     private var fixedPathWatchPath: String?
 
-    /// The latest complete, presence-preserving terminal configuration.
+    private struct PendingWrites: Sendable {
+        var workingDirectoryPolicy: (id: UUID, value: NewSurfaceWorkingDirectoryPolicy)?
+        var workingDirectoryPath: (id: UUID, value: String)?
+        var shellStartupMode: (id: UUID, value: ShellStartupMode)?
+        var shellStartupCommand: (id: UUID, value: String)?
+    }
+
+    private var pendingWrites = PendingWrites()
+
+    /// The latest complete, presence-preserving terminal configuration,
+    /// including pending writes while they are persisted.
     public private(set) var values = DeclarativeTerminalConfiguration.Snapshot()
 
     /// The configuration URL represented by ``values``.
@@ -95,12 +105,20 @@ public final class DeclarativeTerminalConfigurationModel:
     /// Persists a new working-directory policy through the shared JSON store.
     public func setWorkingDirectoryPolicy(_ value: NewSurfaceWorkingDirectoryPolicy) {
         let key = catalog.terminal.newSurfaceWorkingDirectoryPolicy
+        let writeID = UUID()
+        pendingWrites.workingDirectoryPolicy = (writeID, value)
+        updateOptimistically { $0.workingDirectoryPolicy = value }
         saveTasks.replaceOnMainActor("workingDirectoryPolicy") { [weak self] in
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
+                guard !Task.isCancelled else { return }
+                await self.refresh()
             } catch {
+                guard self.pendingWrites.workingDirectoryPolicy?.id == writeID else { return }
+                self.pendingWrites.workingDirectoryPolicy = nil
                 self.errorLog.recordSaveFailure(keyID: key.id)
+                await self.refresh()
             }
         }
     }
@@ -108,12 +126,20 @@ public final class DeclarativeTerminalConfigurationModel:
     /// Persists a fixed working-directory draft through the shared JSON store.
     public func setWorkingDirectoryPath(_ value: String) {
         let key = catalog.terminal.newSurfaceWorkingDirectoryPath
+        let writeID = UUID()
+        pendingWrites.workingDirectoryPath = (writeID, value)
+        updateOptimistically { $0.workingDirectoryPath = value }
         saveTasks.replaceOnMainActor("workingDirectoryPath") { [weak self] in
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
+                guard !Task.isCancelled else { return }
+                await self.refresh()
             } catch {
+                guard self.pendingWrites.workingDirectoryPath?.id == writeID else { return }
+                self.pendingWrites.workingDirectoryPath = nil
                 self.errorLog.recordSaveFailure(keyID: key.id)
+                await self.refresh()
             }
         }
     }
@@ -121,12 +147,20 @@ public final class DeclarativeTerminalConfigurationModel:
     /// Persists the shell startup mode through the shared JSON store.
     public func setShellStartupMode(_ value: ShellStartupMode) {
         let key = catalog.terminal.shellStartupMode
+        let writeID = UUID()
+        pendingWrites.shellStartupMode = (writeID, value)
+        updateOptimistically { $0.shellStartupMode = value }
         saveTasks.replaceOnMainActor("shellStartupMode") { [weak self] in
             guard let self else { return }
             do {
                 try await self.jsonStore.set(value, for: key)
+                guard !Task.isCancelled else { return }
+                await self.refresh()
             } catch {
+                guard self.pendingWrites.shellStartupMode?.id == writeID else { return }
+                self.pendingWrites.shellStartupMode = nil
                 self.errorLog.recordSaveFailure(keyID: key.id)
+                await self.refresh()
             }
         }
     }
@@ -135,12 +169,20 @@ public final class DeclarativeTerminalConfigurationModel:
     public func setShellStartupCommand(_ value: String) {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = catalog.terminal.shellStartupCommand
+        let writeID = UUID()
+        pendingWrites.shellStartupCommand = (writeID, normalized)
+        updateOptimistically { $0.shellStartupCommand = normalized }
         saveTasks.replaceOnMainActor("shellStartupCommand") { [weak self] in
             guard let self else { return }
             do {
                 try await self.jsonStore.set(normalized, for: key)
+                guard !Task.isCancelled else { return }
+                await self.refresh()
             } catch {
+                guard self.pendingWrites.shellStartupCommand?.id == writeID else { return }
+                self.pendingWrites.shellStartupCommand = nil
                 self.errorLog.recordSaveFailure(keyID: key.id)
+                await self.refresh()
             }
         }
     }
@@ -168,9 +210,9 @@ public final class DeclarativeTerminalConfigurationModel:
     private func observeLegacyInheritance() async {
         for await value in userDefaultsStore.values(for: catalog.app.workspaceInheritWorkingDirectory) {
             if Task.isCancelled { return }
-            var terminal = values
-            terminal.legacyInheritanceEnabled = value
-            publish(terminal)
+            var updated = values
+            updated.legacyInheritanceEnabled = value
+            values = updated
         }
     }
 
@@ -182,6 +224,7 @@ public final class DeclarativeTerminalConfigurationModel:
         if let legacyInheritanceEnabled {
             complete.legacyInheritanceEnabled = legacyInheritanceEnabled
         }
+        reconcilePendingWrites(with: &complete)
         values = complete
         configureFixedPathWatcher(for: complete)
         guard !hasInitialSnapshot else { return }
@@ -190,6 +233,48 @@ public final class DeclarativeTerminalConfigurationModel:
         initialSnapshotWaiters.removeAll(keepingCapacity: false)
         for waiter in waiters {
             waiter.resume()
+        }
+    }
+
+    private func updateOptimistically(
+        _ update: (inout DeclarativeTerminalConfiguration.Snapshot) -> Void
+    ) {
+        var updated = values
+        update(&updated)
+        values = updated
+        configureFixedPathWatcher(for: updated)
+    }
+
+    private func reconcilePendingWrites(
+        with snapshot: inout DeclarativeTerminalConfiguration.Snapshot
+    ) {
+        if let pending = pendingWrites.workingDirectoryPolicy {
+            if snapshot.workingDirectoryPolicy == pending.value {
+                pendingWrites.workingDirectoryPolicy = nil
+            } else {
+                snapshot.workingDirectoryPolicy = pending.value
+            }
+        }
+        if let pending = pendingWrites.workingDirectoryPath {
+            if snapshot.workingDirectoryPath == pending.value {
+                pendingWrites.workingDirectoryPath = nil
+            } else {
+                snapshot.workingDirectoryPath = pending.value
+            }
+        }
+        if let pending = pendingWrites.shellStartupMode {
+            if snapshot.shellStartupMode == pending.value {
+                pendingWrites.shellStartupMode = nil
+            } else {
+                snapshot.shellStartupMode = pending.value
+            }
+        }
+        if let pending = pendingWrites.shellStartupCommand {
+            if snapshot.shellStartupCommand == pending.value {
+                pendingWrites.shellStartupCommand = nil
+            } else {
+                snapshot.shellStartupCommand = pending.value
+            }
         }
     }
 
