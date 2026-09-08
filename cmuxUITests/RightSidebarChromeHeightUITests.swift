@@ -6,8 +6,16 @@ import ImageIO
 final class RightSidebarChromeHeightUITests: XCTestCase {
     private var historySampleProcess: Process?
     private var historySampleURL: URL?
+    private var historyDiagnosticsURL: URL?
+    private var historyStateURL: URL?
 
     override func tearDownWithError() throws {
+        if let url = historyStateURL,
+           let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let modified = attributes[.modificationDate] as? Date {
+            print("VAULT_HISTORY_MAIN_RECORDER_AGE_SECONDS=\(Date().timeIntervalSince(modified))")
+        }
+        if let url = historyDiagnosticsURL { try? FileManager.default.removeItem(at: url) }
         if let process = historySampleProcess, process.isRunning { process.terminate() }
         if let url = historySampleURL {
             if let output = try? String(contentsOf: url, encoding: .utf8) {
@@ -22,20 +30,8 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    private func startHistoryProcessSample() throws {
-        let lookup = Process()
-        lookup.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        lookup.arguments = ["-x", "cmux DEV"]
-        let output = Pipe()
-        lookup.standardOutput = output
-        try lookup.run()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        lookup.waitUntilExit()
-        let pids = String(decoding: data, as: UTF8.self).split(whereSeparator: \.isWhitespace).compactMap { Int32($0) }
-        guard pids.count == 1, let pid = pids.first else {
-            print("VAULT_HISTORY_SAMPLE_SKIPPED matching_processes=\(pids.count)")
-            return
-        }
+    private func startHistoryProcessSample(pid: Int32) throws {
+        print("VAULT_HISTORY_PROCESS_ID=\(pid)")
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("vault-history-sample-\(UUID()).txt")
         let sample = Process()
         sample.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
@@ -49,8 +45,12 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication.cmuxTestApplication()
         let dataPath = "/tmp/cmux-ui-test-vault-interaction-\(UUID()).json"
+        let diagnosticsPath = dataPath + ".diagnostics"
+        historyDiagnosticsURL = URL(fileURLWithPath: diagnosticsPath)
+        historyStateURL = URL(fileURLWithPath: dataPath)
         defer { try? FileManager.default.removeItem(atPath: dataPath) }
         app.launchEnvironment["CMUX_UI_TEST_MODE"] = "1"
+        app.launchEnvironment["CMUX_UI_TEST_DIAGNOSTICS_PATH"] = diagnosticsPath
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] = "1"
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH"] = dataPath
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_SHOW_RIGHT_SIDEBAR"] = "1"
@@ -63,6 +63,8 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         app.activate()
         let ready = try XCTUnwrap(waitForJSONKey("ready", equals: "1", atPath: dataPath, timeout: 25))
         XCTAssertTrue((ready["setupError"] ?? "").isEmpty, "Setup failed: \(ready)")
+        let pidText = try XCTUnwrap(loadJSON(atPath: diagnosticsPath)?["pid"])
+        let appPID = try XCTUnwrap(Int32(pidText))
 
         let vault = app.buttons["RightSidebarModeButton.sessions"]
         XCTAssertTrue(vault.waitForExistence(timeout: 10))
@@ -80,7 +82,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
-        try startHistoryProcessSample()
+        try startHistoryProcessSample(pid: appPID)
         // macOS exposes the Menu's visible text as its AXTitle, not its
         // AXDescription (XCUIElement.label). Keep both attributes in the query
         // so it follows the visible grouping across supported macOS versions.
