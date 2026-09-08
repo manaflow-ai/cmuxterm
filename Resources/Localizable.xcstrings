@@ -295992,8 +295992,7 @@
           }
         }
       }
-    }
-  },
+    },
   "browser.chromium.automation.commandTimedOut": {
     "extractionState": "manual",
     "localizations": {
@@ -298686,6 +298685,7 @@
         }
       }
     }
+  }
   },
   "version": "1.0"
 }
