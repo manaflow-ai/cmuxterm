@@ -101,8 +101,7 @@ jobs:
           FREESTYLE_API_KEY: ${{ secrets.FREESTYLE_API_KEY }}
           IMAGE: ${{ inputs.image }}
         run: |
-          # TEMPORARY: prove this job goes red. Reverted in the next commit.
-          bun scripts/check-devbox-image-reachable.ts --kind base --size sm --image freestyle/ubuntu-sm
+          bun scripts/check-devbox-image-reachable.ts --kind base --size sm ${IMAGE:+--image "$IMAGE"}
           # Only a pass is recorded, so a failure re-runs next time.
           echo "${{ steps.pair.outputs.key }}" > .devbox-reachable
 
