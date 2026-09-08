@@ -76,49 +76,52 @@ actor CloudHubPortForwarder {
                 entry = newEntry
             }
 
+            // Only the bind itself is caught here: a failed or cancelled bind
+            // must drop its entry so the next open binds fresh. Everything
+            // after a successful bind is bookkeeping and never clears the
+            // entry another waiter may still own.
+            let forward: CloudLoopbackPortForward
             do {
-                let forward = try await withTaskCancellationHandler {
+                forward = try await withTaskCancellationHandler {
                     try await entry.task.value
                 } onCancel: {
                     Task { await self.cancelStartWaiter(key: key, entryID: entry.id, waiterID: waiterID) }
                 }
-                guard finishStartWaiter(key: key, entryID: entry.id, waiterID: waiterID) else {
-                    if let stored = forwards[key], stored === forward {
-                        await Self.retargetIfNeeded(stored, to: target)
-                        return stored
-                    }
-                    if let current = starting[key], current.id == entry.id {
-                        // This waiter was cancelled; another waiter on the same
-                        // start still owns the bookkeeping and will store it.
-                        throw CancellationError()
-                    }
-                    // Nobody else will keep this listener.
-                    await forward.stop()
-                    throw CancellationError()
-                }
-                // A waiter cancelled after the bind finished still completes the
-                // bookkeeping: other waiters may share this forward, and the
-                // caller simply ignores the result.
-                guard let current = starting[key], current.id == entry.id else {
-                    await forward.stop()
-                    throw CancellationError()
-                }
-                starting[key] = nil
-                forwards[key] = forward
-                await Self.retargetIfNeeded(forward, to: target)
-                guard forwards[key] === forward else {
-                    await forward.stop()
-                    throw CancellationError()
-                }
-                return forward
             } catch {
-                // The bind failed (or was cancelled): the entry must not outlive
-                // its task, or every later open would join the failed start.
                 if starting[key]?.id == entry.id {
                     starting[key] = nil
                 }
                 throw error
             }
+            guard finishStartWaiter(key: key, entryID: entry.id, waiterID: waiterID) else {
+                if let stored = forwards[key], stored === forward {
+                    await Self.retargetIfNeeded(stored, to: target)
+                    return stored
+                }
+                if let current = starting[key], current.id == entry.id {
+                    // This waiter was cancelled; another waiter on the same
+                    // start still owns the bookkeeping and will store it.
+                    throw CancellationError()
+                }
+                // Nobody else will keep this listener.
+                await forward.stop()
+                throw CancellationError()
+            }
+            // A waiter cancelled after the bind finished still completes the
+            // bookkeeping: other waiters may share this forward, and the
+            // caller simply ignores the result.
+            guard let current = starting[key], current.id == entry.id else {
+                await forward.stop()
+                throw CancellationError()
+            }
+            starting[key] = nil
+            forwards[key] = forward
+            await Self.retargetIfNeeded(forward, to: target)
+            guard forwards[key] === forward else {
+                await forward.stop()
+                throw CancellationError()
+            }
+            return forward
         }
     }
 
