@@ -515,6 +515,45 @@ import Testing
         }
     }
 
+    @Test(arguments: ["cmux.splitRight", "cmux.splitDown"])
+    func suppressedConfiguredSplitCompletesWithoutExecuting(actionId: String) async throws {
+        try await withWindowHistory(configuredActionId: actionId) { app, _ in
+            let windowId = app.createMainWindow(shouldActivate: false)
+            let context = try #require(app.mainWindowContexts.values.first { $0.windowId == windowId })
+            let window = try #require(context.window)
+            let workspace = try #require(context.tabManager.selectedWorkspace)
+            let terminal = try #require(workspace.focusedTerminalInputTarget()?.panel)
+            let action = try #require(context.cmuxConfigStore?.resolvedNewWorkspaceAction())
+            let previousRoutingWindow = app.shortcutRoutingKeyWindow
+            let wasHidden = terminal.hostedView.isHidden
+            defer {
+                terminal.hostedView.isHidden = wasHidden
+                app.debugSetShortcutRoutingFocusedWindowForTesting(previousRoutingWindow)
+            }
+            terminal.hostedView.isHidden = true
+            #expect(window.makeFirstResponder(nil))
+            app.debugSetShortcutRoutingFocusedWindowForTesting(window)
+            try #require(app.shouldSuppressSplitShortcutForTransientTerminalFocusState(
+                tabManager: context.tabManager
+            ))
+
+            let originalPanelIds = Set(workspace.panels.keys)
+            var executionCount = 0
+            var completions: [Bool] = []
+            #expect(app.executeConfiguredCmuxAction(
+                action,
+                context: context,
+                preferredWindow: window,
+                onExecuted: { executionCount += 1 },
+                onCompleted: { completions.append($0) }
+            ))
+
+            #expect(executionCount == 0)
+            #expect(completions == [false])
+            #expect(Set(workspace.panels.keys) == originalPanelIds)
+        }
+    }
+
     @Test func browserWorkspaceWithNoWindowsRecordsOnlyTheBrowserWorkspace() async throws {
         try await withWindowHistory { app, log in
             #expect(app.performNewBrowserWorkspaceAction())
