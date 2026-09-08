@@ -683,6 +683,29 @@ private struct FixedGitFilesystemLocalityReader: GitFilesystemLocalityReading {
         #expect(snapshot.remoteVOutput?.contains("https://github.com/continued/repo.git") == true)
     }
 
+    @Test func followsGitConfigContinuationForCRLFRemoteURL() throws {
+        let fixture = try GitRepositoryFixture()
+        try fixture.writeBranch("main")
+        let config = "[remote \"origin\"]\r\n\turl = https://github.com/continued/\\\r\nrepo.git\r\n"
+        try config.write(
+            to: fixture.gitDirectory.appendingPathComponent("config"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let repository = try #require(
+            GitMetadataService.resolveGitRepository(containing: fixture.root.path)
+        )
+        let snapshot = GitMetadataService.gitRemoteConfigSnapshot(
+            repository: repository,
+            environment: [
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+            ]
+        )
+
+        #expect(snapshot.remoteVOutput?.contains("https://github.com/continued/repo.git") == true)
+    }
+
     @Test func worktreeConfigExtensionInIncludedCommonConfigIsHonored() async throws {
         let fixture = try GitRepositoryFixture()
         try fixture.writeBranch("main")

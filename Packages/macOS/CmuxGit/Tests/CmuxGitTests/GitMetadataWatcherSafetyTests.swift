@@ -405,7 +405,7 @@ private final class RecordingGitDirtyStatusReader: GitDirtyStatusReading, @unche
         try fixture.writeBranch("main")
         let globalConfigURL = fixture.root.appendingPathComponent("many-missing.gitconfig")
         let includes = (0..<600).map { index in
-            "[include]\n    path = missing-(index).inc"
+            "[include]\n    path = missing-\(index).inc"
         }
         try includes.joined(separator: "\n")
             .write(to: globalConfigURL, atomically: true, encoding: .utf8)
