@@ -313,7 +313,7 @@ browser <selector> show|navigate|back|forward|reload|activate
 browser <selector> key|text|attach|close
 browser <selector> mouse|wheel --pointer-frame-seq <decimal>
 
-notification list|create
+notification list|create [--subtitle <text>]
 notification clear [--terminal <term_id>]
 notification ack --client <id> <notification-id>...
 notify [--title <text>] [--subtitle <text>] [--body <text>] [--clear] [--surface <term_id|current>] [--workspace <ws_id|current>]

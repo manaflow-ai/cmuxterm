@@ -1330,6 +1330,9 @@ fn parse_notification(words: &[String], flags: &mut Flags) -> Result<CommandPlan
                 return Err(UsageError::new("--title cannot be empty"));
             }
             params.insert("title".into(), Value::String(title));
+            if let Some(subtitle) = flags.take("subtitle") {
+                params.insert("subtitle".into(), Value::String(subtitle));
+            }
             params.insert("body".into(), Value::String(flags.required("body")?));
             if let Some(level) = flags.take("level") {
                 validate_one_of("--level", &level, &["info", "success", "warning", "error"])?;
@@ -4629,6 +4632,8 @@ mod tests {
                 vec![
                     "notification",
                     "create",
+                    "--subtitle",
+                    "api",
                     "--title",
                     "done",
                     "--body",
