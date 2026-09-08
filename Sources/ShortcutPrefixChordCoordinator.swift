@@ -57,6 +57,9 @@ final class ShortcutPrefixChordCoordinator {
         guard let owner else {
             return .passThrough
         }
+        guard event.type == .keyDown || event.type == .systemDefined else {
+            return .passThrough
+        }
 
         let eventWindowID = windowID(for: event)
         let eventID = eventIdentity(for: event, windowID: eventWindowID)
@@ -363,12 +366,22 @@ final class ShortcutPrefixChordCoordinator {
         for event: NSEvent,
         windowID: Int?
     ) -> ShortcutPrefixChordEventIdentity {
-        ShortcutPrefixChordEventIdentity(
+        let systemEvent: ShortcutPrefixChordSystemEventData? = event.type == .systemDefined
+            ? ShortcutPrefixChordSystemEventData(
+                subtype: event.subtype.rawValue,
+                data1: event.data1,
+                data2: event.data2
+            )
+            : nil
+        return ShortcutPrefixChordEventIdentity(
             eventNumber: 0,
             windowID: windowID,
-            keyCode: event.keyCode,
+            // AppKit raises an exception for keyCode on system-defined events.
+            // The payload above preserves their replay identity without that read.
+            keyCode: event.type == .keyDown ? event.keyCode : 0,
             modifierFlags: event.modifierFlags.rawValue,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            systemEvent: systemEvent
         )
     }
 

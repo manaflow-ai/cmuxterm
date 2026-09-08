@@ -3,6 +3,36 @@ import Testing
 
 @Suite("Shortcut prefix pass-through ledger")
 struct ShortcutPrefixChordPassThroughLedgerTests {
+    @Test func systemPayloadsAndKeyboardEventsRemainDistinctAtOneTimestamp() {
+        let payloads: [ShortcutPrefixChordSystemEventData?] = [
+            nil,
+            .init(subtype: 0, data1: 0, data2: 0),
+            .init(subtype: 8, data1: 0, data2: 0),
+            .init(subtype: 8, data1: 1, data2: 0),
+            .init(subtype: 8, data1: 1, data2: 1),
+        ]
+        let identities = payloads.map { payload in
+            ShortcutPrefixChordEventIdentity(
+                windowID: 1,
+                keyCode: 0,
+                modifierFlags: 0,
+                timestamp: 42,
+                systemEvent: payload
+            )
+        }
+        var ledger = ShortcutPrefixChordPassThroughLedger(capacity: identities.count)
+        for identity in identities {
+            ledger.mark(identity)
+        }
+        ledger.mark(identities[2])
+        #expect(ledger.count == identities.count)
+        for identity in identities {
+            #expect(ledger.consume(identity))
+            #expect(!ledger.consume(identity))
+        }
+        #expect(ledger.count == 0)
+    }
+
     @Test func distinctSyntheticIdentitiesAtOneTimestampRemainIndependent() {
         var ledger = ShortcutPrefixChordPassThroughLedger(capacity: 4)
         let first = ShortcutPrefixChordEventIdentity(
