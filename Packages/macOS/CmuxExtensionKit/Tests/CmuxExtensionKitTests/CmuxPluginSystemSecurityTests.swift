@@ -91,6 +91,42 @@ extension CmuxPluginSystemTests {
     }
 
     @Test
+    func overlappingFullAndPartialReloadsRetainAllPluginUpdates() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let pluginIDs = (0 ..< CmuxPluginDirectoryLoader.maximumPluginCount).map {
+            "dev.example.overlap-\($0)"
+        }
+        for pluginID in pluginIDs {
+            try Self.writePlugin(
+                CmuxExtensionManifest.plugin(
+                    id: pluginID,
+                    displayName: pluginID,
+                    entrypoint: "bin/plugin"
+                ),
+                to: root
+            )
+        }
+
+        let registry = CmuxPluginRegistry(
+            loader: CmuxPluginDirectoryLoader(directoryURL: root),
+            permissionStore: CmuxPluginPermissionStore(storageURL: nil)
+        )
+        let fullReload = Task { await registry.reload() }
+        await Task.yield()
+        let partialReload = Task {
+            await registry.reload(affectedPluginIDs: [pluginIDs[0]])
+        }
+
+        let fullSnapshot = await fullReload.value
+        let partialSnapshot = await partialReload.value
+        let expectedIDs = Set(pluginIDs)
+        #expect(Set(fullSnapshot.plugins.map(\.plugin.manifest.id)) == expectedIDs)
+        #expect(Set(partialSnapshot.plugins.map(\.plugin.manifest.id)) == expectedIDs)
+    }
+
+    @Test
     func artifactFingerprintIncludesCaseMismatchedEntrypointInterpreter() throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

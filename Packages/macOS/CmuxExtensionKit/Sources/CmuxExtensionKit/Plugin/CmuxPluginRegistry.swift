@@ -73,6 +73,11 @@ public actor CmuxPluginRegistry {
     private var tokenFingerprintsByID: [String: String] = [:]
     private var reloadGeneration: UInt64 = 0
     private var committedReloadGeneration: UInt64 = 0
+    // Loader and permission-store calls suspend. Serialize the entire
+    // scan-to-projection transaction so an older full scan cannot be eclipsed
+    // by a newer partial merge and lose unrelated plugin updates.
+    private var reloadSlotOccupied = false
+    private var reloadSlotWaiters: [CheckedContinuation<Void, Never>] = []
     private var reloadWaiters: [
         (generation: UInt64, continuation: CheckedContinuation<CmuxPluginRegistrySnapshot, Never>)
     ] = []
@@ -90,6 +95,8 @@ public actor CmuxPluginRegistry {
     /// Reloads manifests and recomputes all effective grants.
     @discardableResult
     public func reload() async -> CmuxPluginRegistrySnapshot {
+        await acquireReloadSlot()
+        defer { releaseReloadSlot() }
         reloadGeneration &+= 1
         let generation = reloadGeneration
         let loadedReport = await loader.load()
@@ -100,6 +107,8 @@ public actor CmuxPluginRegistry {
     @discardableResult
     public func reload(affectedPluginIDs: Set<String>) async -> CmuxPluginRegistrySnapshot {
         guard !affectedPluginIDs.isEmpty else { return await reload() }
+        await acquireReloadSlot()
+        defer { releaseReloadSlot() }
         reloadGeneration &+= 1
         let generation = reloadGeneration
         let partialReport = await loader.load(only: affectedPluginIDs)
@@ -108,6 +117,24 @@ public actor CmuxPluginRegistry {
             with: partialReport
         )
         return await reload(loadedReport: mergedReport, generation: generation)
+    }
+
+    private func acquireReloadSlot() async {
+        guard reloadSlotOccupied else {
+            reloadSlotOccupied = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            reloadSlotWaiters.append(continuation)
+        }
+    }
+
+    private func releaseReloadSlot() {
+        guard !reloadSlotWaiters.isEmpty else {
+            reloadSlotOccupied = false
+            return
+        }
+        reloadSlotWaiters.removeFirst().resume()
     }
 
     private func reload(
