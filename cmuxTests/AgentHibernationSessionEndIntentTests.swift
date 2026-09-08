@@ -48,5 +48,29 @@ struct AgentHibernationSessionEndIntentTests {
                 processIdentity: AgentPIDProcessIdentity(pid: 43219, startSeconds: 18, startMicroseconds: 1)
             )
         )
+        #expect(
+            !controller.shouldPreserveSessionEnd(
+                workspaceID: UUID(),
+                panelID: key.panelId,
+                sessionID: "hibernating-session",
+                processIdentity: identity
+            )
+        )
+        #expect(
+            !controller.shouldPreserveSessionEnd(
+                workspaceID: key.workspaceId,
+                panelID: UUID(),
+                sessionID: "hibernating-session",
+                processIdentity: identity
+            )
+        )
+        #expect(
+            !controller.shouldPreserveSessionEnd(
+                workspaceID: key.workspaceId,
+                panelID: key.panelId,
+                sessionID: "hibernating-session",
+                processIdentity: AgentPIDProcessIdentity(pid: 43220, startSeconds: 17, startMicroseconds: 23)
+            )
+        )
     }
 }
