@@ -4,8 +4,8 @@ import CmuxSettings
 extension AppDelegate {
     /// Resolves the window identity shared by every prefix pass-through seam.
     /// AppKit can omit `event.window` while still carrying a valid event number;
-    /// the configured shortcut resolver provides the same main-window fallback
-    /// used by ordinary shortcut routing before raw event/window values.
+    /// prefer that event identity before falling back to the configured
+    /// shortcut resolver's main-window context.
     func prefixChordWindowNumber(
         for event: NSEvent,
         fallbackWindow: NSWindow? = nil
