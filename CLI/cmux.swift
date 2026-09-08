@@ -28539,6 +28539,7 @@ struct CMUXCLI {
                 targetSurfaceID: liveEndTarget.surfaceId,
                 client: client
             ) else {
+                didSendFeedTelemetry = true
                 printClaudeHookAck()
                 return
             }
