@@ -3925,6 +3925,16 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 return self.malformedRequestResponse(id: payload["id"] as? String, raw: line)
             }
             switch method {
+            case "agent.resolve_delivery_target":
+                return self.v2Response(
+                    id: id,
+                    ok: true,
+                    result: [
+                        "source": "surface",
+                        "workspace_id": workspaceId,
+                        "surface_id": completingSurfaceId,
+                    ]
+                )
             case "surface.list":
                 return self.v2Response(
                     id: id,
