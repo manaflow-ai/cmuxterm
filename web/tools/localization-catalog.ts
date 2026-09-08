@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -142,6 +142,9 @@ const identityAllowedValues = new Set([
   "Pro",
   "Claude OAuth",
   "Codex OAuth",
+  "Claude Code OAuth",
+  "Amazon Bedrock",
+  "OpenCode Go",
   "© {year} Manaflow",
   "Enterprise | cmux",
   "Ghostty VT",
@@ -153,12 +156,6 @@ const identityAllowedValues = new Set([
   "assistant",
   "Dock",
 ]);
-
-const postForkEnglishFallbackPaths = [
-  "dashboard.coderouterAccounts.",
-  "dashboard.accountMenu.theme",
-  "dashboard.teamSwitcher.",
-] as const;
 
 const forbiddenTranslationMarkerPatterns = [
   /\b(?:TODO|FIXME|TBD)\b/u,
@@ -241,9 +238,6 @@ function hasMatchingIcuStructure(source: string, translation: string): boolean {
 }
 
 export function isEnglishIdentityAllowed(pathname: string, value: string): boolean {
-  if (postForkEnglishFallbackPaths.some((prefix) => pathname.startsWith(prefix))) {
-    return true;
-  }
   if (identityAllowedValues.has(value)) return true;
   if (/^(?:https?:\/\/|mailto:|tel:|[\w.+-]+@[\w.-]+\.[a-z]{2,})/iu.test(value)) {
     return true;
@@ -449,6 +443,7 @@ async function exportEntries(locale: ParityLocale, batchSize: number, output: st
   const english = await readCatalog("en");
   const translation = await readCatalog(locale);
   const entries = entriesNeedingTranslation(english, translation, locale);
+  await mkdir(path.resolve(output), { recursive: true });
   const batches = [];
   for (let index = 0; index < entries.length; index += batchSize) {
     batches.push(entries.slice(index, index + batchSize));
