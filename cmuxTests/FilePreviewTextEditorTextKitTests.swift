@@ -134,6 +134,7 @@ struct FilePreviewTextEditorTextKitTests {
             )
             textView.string = "first line\nsecond line"
             textView.applyCurrentPreviewLineHeight()
+            textView.applyFilePreviewTabWidth(4)
 
             let font = try #require(textView.font)
             #expect(font.familyName?.localizedCaseInsensitiveCompare("Helvetica") == .orderedSame)
@@ -147,6 +148,8 @@ struct FilePreviewTextEditorTextKitTests {
                 ) as? NSParagraphStyle
             )
             #expect(abs(paragraphStyle.lineHeightMultiple - 1.5) < 0.01)
+            #expect(paragraphStyle.defaultTabInterval > 0)
+            #expect(abs((textView.defaultParagraphStyle?.lineHeightMultiple ?? 0) - 1.5) < 0.01)
 
             #expect(textView.zoomPreviewFontIn())
             #expect(textView.resetPreviewFontSize())
@@ -260,6 +263,15 @@ struct FilePreviewTextEditorTextKitTests {
             #expect(panel.updateCount == 0)
             #expect(textView.font?.familyName?.localizedCaseInsensitiveCompare("Helvetica") == .orderedSame)
             #expect(abs((textView.font?.pointSize ?? 0) - GlobalFontMagnification.scaledSize(17)) < 0.01)
+            let loadedFont = try #require(
+                textView.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+            )
+            #expect(loadedFont.familyName?.localizedCaseInsensitiveCompare("Helvetica") == .orderedSame)
+            #expect(abs(loadedFont.pointSize - GlobalFontMagnification.scaledSize(17)) < 0.01)
+            let loadedParagraphStyle = try #require(
+                textView.textStorage?.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+            )
+            #expect(abs(loadedParagraphStyle.lineHeightMultiple - 1.5) < 0.01)
             #expect(
                 (textView.typingAttributes[.paragraphStyle] as? NSParagraphStyle)
                     .map { abs($0.lineHeightMultiple - 1.5) < 0.01 } == true

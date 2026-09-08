@@ -64,20 +64,24 @@ extension SavingTextView {
     func applyCurrentPreviewLineHeight() {
         let multiplier = FilePreviewLineHeightSettings.clamp(Double(previewLineHeight))
         let typingStyleKey = NSAttributedString.Key.paragraphStyle
+        let existingStyle = defaultParagraphStyle ?? (typingAttributes[typingStyleKey] as? NSParagraphStyle)
         if abs(multiplier - FilePreviewLineHeightSettings.defaultMultiplier) < 0.0001 {
-            if let naturalStyle = naturalPreviewParagraphStyle(from: typingAttributes[typingStyleKey]) {
+            if let naturalStyle = naturalPreviewParagraphStyle(from: existingStyle) {
+                defaultParagraphStyle = naturalStyle
                 typingAttributes[typingStyleKey] = naturalStyle
             } else {
+                defaultParagraphStyle = nil
                 typingAttributes.removeValue(forKey: typingStyleKey)
             }
             removePreviewLineHeightFromTextStorage()
             return
         }
 
-        let style = NSMutableParagraphStyle()
+        let style = existingStyle?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
         style.lineHeightMultiple = CGFloat(multiplier)
         style.minimumLineHeight = 0
         style.maximumLineHeight = 0
+        defaultParagraphStyle = style
         typingAttributes[typingStyleKey] = style
 
         guard let textStorage, textStorage.length > 0 else { return }

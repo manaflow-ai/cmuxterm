@@ -86,6 +86,11 @@ struct FilePreviewTextEditor<PanelModel>: NSViewRepresentable where PanelModel: 
         panel.attachTextView(textView)
 
         scrollView.documentView = textView
+        // Replacing `string` can reset TextKit's storage and typing attributes after
+        // the initial configuration snapshot. Reapply once the loaded content is in
+        // place so persisted family, size, and line-height settings reach the document.
+        textView.applyCurrentPreviewFont()
+        textView.applyCurrentPreviewLineHeight()
         textView.applyFilePreviewWordWrap(fileEditorWordWrap, scrollView: scrollView)
         Self.installChrome(on: scrollView, textView: textView)
         Self.applyTheme(
