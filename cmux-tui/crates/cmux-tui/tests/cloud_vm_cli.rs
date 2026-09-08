@@ -38,6 +38,9 @@ fn exchange(args: &[&str], result: Value) -> (Output, Value) {
                 Err(error) => panic!("accept failed: {error}"),
             }
         };
+        // Darwin inherits O_NONBLOCK from the listener on accept. This test
+        // server uses blocking reads with a deadline on both platforms.
+        stream.set_nonblocking(false).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
