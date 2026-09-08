@@ -5,6 +5,8 @@ const languages = {
   ko: { title: "cmux — 멀티태스킹을 위해 만든 터미널", heading: "기능" },
   ja: { title: "cmux - マルチタスクのために作られたターミナル", heading: "機能" },
   ar: { title: "cmux — المحطة الطرفية المصممة لتعدد المهام", heading: "الميزات" },
+  de: { title: "cmux — Das Terminal für Multitasking", heading: "Funktionen" },
+  "zh-TW": { title: "cmux — 為多工而打造的終端機", heading: "功能" },
 } as const;
 
 type TestLocale = keyof typeof languages;
@@ -27,7 +29,7 @@ async function expectHomeLocale(page: Page, locale: TestLocale, checkCookie = tr
   }
 }
 
-for (const initialLocale of ["ko", "ja", "ar"] as const) {
+for (const initialLocale of ["ko", "ja", "ar", "de", "zh-TW"] as const) {
   test(`locale ${initialLocale} ↔ English keeps the cookie, URL, document and content together across reloads`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto(`/${initialLocale}${suffix}`);

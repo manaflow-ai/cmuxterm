@@ -155,8 +155,8 @@ describe("support page localization", () => {
 
 describe("website message catalog parity", () => {
   test("keeps the nine release locales complete and translated", async () => {
-    const english = englishMessages as Json;
-    const catalogs = messagesByLocale as Record<string, Json>;
+    const english = englishMessages as unknown as Json;
+    const catalogs = messagesByLocale as unknown as Record<string, Json>;
     for (const locale of parityLocales.slice(1)) {
       expect(await validateCatalog(locale, english, catalogs[locale])).toEqual([]);
     }

@@ -137,230 +137,29 @@ const identityAllowedValues = new Set([
   "beforeShellExecution",
   "Pi",
   "San Francisco",
-  "Dimension",
-  "Isolation",
+  "Linux · x64",
+  "coderouter — cmux",
+  "Pro",
+  "Claude OAuth",
+  "Codex OAuth",
+  "© {year} Manaflow",
+  "Enterprise | cmux",
+  "Ghostty VT",
+  "Kitty",
+  "TextBox (Beta)",
+  "Warp",
+  "X / Twitter",
+  "PermissionRequest",
+  "assistant",
+  "Dock",
 ]);
 
-const identityAllowedPaths = new Set([
-  "browserDownloads.windows.name",
-  "browserDownloads.linux.name",
-  "browserDownloads.linux.requirements",
-  "dashboard.nav.coderouterGroup",
-  "dashboard.home.coderouterName",
-  "dashboard.coderouter.metaTitle",
-  "dashboard.coderouter.title",
-  "dashboard.billing.plan.pro",
-  "dashboard.aiAccounts.providerClaude",
-  "dashboard.aiAccounts.providerCodex",
-  "dashboard.aiAccounts.oauthJsonField",
-  "dashboard.aiAccounts.anthropicKeyPlaceholder",
-  "dashboard.aiAccounts.openAiKeyPlaceholder",
-  "dashboard.aiAccounts.codexTool",
-  "dashboard.aiAccounts.opencodeTool",
-  "footer.eula",
-  "footer.github",
-  "footer.discord",
-  "footer.copyright",
-  "brandLogoMenu.label",
-  "cloudBillingReturn.eyebrow",
-  "legal.eula",
-  "nightly.title",
-  "enterprise.metaTitle",
-  "support.channels.email.label",
-  "tui.marketing.sectionLabel",
-  "tui.marketing.facts.engine.value",
-  "tui.docs.title",
-]);
-
-const localeIdentityAllowedPaths: Record<string, Set<string>> = {
-  de: new Set([
-    "dashboard.nav.iosGroup",
-    "dashboard.nav.testflight",
-    "dashboard.cloud.nameLabel",
-    "dashboard.testflight.title",
-    "dashboard.testflight.details.status",
-    "dashboard.admin.sections.teams",
-    "dashboard.admin.results.team",
-    "dashboard.admin.access.team",
-    "dashboard.admin.plans.team",
-    "dashboard.admin.grant.current",
-    "dashboard.admin.grant.by",
-    "dashboard.aiAccounts.teamSwitcherLabel",
-    "dashboard.claudeUpstream.optionalPlaceholder",
-    "vault.cliAuth.coderouterEyebrow",
-    "vault.sessions.agent",
-    "nav.blog",
-    "nav.jobs",
-    "footer.blog",
-    "footer.jobs",
-    "footer.twitter",
-    "jobs.section",
-    "jobs.details",
-    "jobs.location",
-    "jobs.foundingDesigner.section",
-    "jobs.foundingDesigner.details",
-    "jobs.foundingDesigner.location",
-    "pricing.team.name",
-    "community.linkedin",
-    "community.categoryLabels.pi",
-    "blog.title",
-    "blog.metaTitle",
-    "blog.tokenMultitasking.metaKeywords.1",
-    "blog.tokenMultitasking.metaKeywords.8",
-    "blog.passkeyAuth.metaKeywords.2",
-    "blog.cmuxSsh.metaTitle",
-    "blog.posts.cmuxSsh.title",
-    "docs.remoteTmux.mapTmux",
-    "docs.gettingStarted.homebrew",
-    "docs.sessionRestore.agentHeader",
-    "docs.sessionRestore.feedPermissionRequest",
-    "docs.sessionRestore.feedPreToolUsePermissionRequest",
-    "docs.sessionRestore.feedBeforeShellExecution",
-    "docs.sessionRestore.feedPreToolUse",
-    "docs.sessionRestore.feedPrePostToolUse",
-    "docs.sessionRestore.feedHermes",
-    "docs.concepts.tab",
-    "docs.concepts.panelTitle",
-    "docs.configuration.settingsFile",
-    "docs.keyboardShortcuts.cat.app",
-    "docs.keyboardShortcuts.cat.browser",
-    "docs.keyboardShortcuts.cat.terminal",
-    "docs.notifications.python",
-    "docs.notifications.nodejs",
-    "docs.notifications.hooksJsonTitle",
-    "docs.browserAutomation.navigation",
-    "docs.browserAutomation.tabsSection",
-    "docs.browserAutomation.downloadsSection",
-    "docs.skills.markdownName",
-    "docs.skills.suggestSshName",
-    "docs.ssh.title",
-    "docs.ssh.metaTitle",
-    "docs.ssh.deepLinkParam",
-    "docs.claudeCodeTeams.metaTitle",
-    "docs.navItems.ssh",
-    "docs.navItems.dock",
-    "docs.navItems.textBox",
-    "docs.dock.metaTitle",
-    "docs.dock.title",
-    "docs.textBox.title",
-    "docs.textBox.metaTitle",
-    "docs.textBox.configTitle",
-    "deeplink.section",
-    "deeplink.nativeURL",
-    "landing.bestTerminal.thTerminal",
-    "landing.bestTerminal.thRenderer",
-    "landing.bestTerminal.iterm2Title",
-    "landing.bestTerminal.warpTitle",
-    "landing.bestTerminal.terminalAppTitle",
-    "landing.bestTerminal.tmuxTitle",
-    "landing.bestTerminal.rGpuLib",
-    "landing.bestTerminal.rCpu",
-    "landing.bestTerminal.pMacLinux",
-    "landing.bestTerminal.pMacLinuxWin",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.3.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.5.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.8.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.9.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.11.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.12.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.13.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.14.0",
-    "landing.compare.pages.bestTerminalForAgents.table.rows.15.0",
-    "landing.compare.pages.cmuxVsAlacritty.table.rows.0.0",
-    "landing.compare.pages.cmuxVsAlacritty.table.rows.2.0",
-    "landing.compare.pages.cmuxVsConductor.table.rows.0.0",
-    "landing.compare.pages.multipleClaudeAgents.table.rows.1.0",
-    "landing.compare.pages.cmuxVsSuperset.table.rows.0.0",
-    "landing.compare.pages.cmuxVsCursor.table.rows.0.0",
-    "landing.compare.pages.cmuxVsCursor.table.rows.2.0",
-    "landing.compare.pages.cmuxVsDevin.table.rows.0.0",
-    "landing.compare.pages.cmuxVsDevin.table.rows.2.0",
-    "landing.compare.pages.cmuxVsIterm2.table.rows.0.0",
-    "landing.compare.pages.cmuxVsIterm2.table.rows.2.0",
-    "landing.compare.pages.cmuxVsKitty.table.rows.0.0",
-    "landing.compare.pages.cmuxVsKitty.table.rows.2.0",
-    "landing.compare.pages.cmuxVsHerdr.table.rows.0.0",
-    "landing.compare.pages.cmuxVsHerdr.table.rows.2.0",
-    "landing.compare.pages.cmuxVsOpencode.table.rows.0.0",
-    "landing.compare.pages.cmuxVsTmux.table.rows.0.0",
-    "landing.compare.pages.cmuxVsTmux.table.rows.2.0",
-    "landing.compare.pages.cmuxVsVscode.table.rows.0.0",
-    "landing.compare.pages.cmuxVsWindsurf.table.rows.0.0",
-    "landing.compare.pages.cmuxVsZed.table.rows.0.0",
-    "landing.compare.pages.cmuxVsZed.table.rows.2.0",
-    "landing.compare.pages.cmuxVsWarp.table.rows.0.0",
-    "landing.compare.pages.cmuxVsWezterm.table.rows.0.0",
-    "landing.compare.pages.cmuxVsWezterm.table.rows.2.0",
-    "landing.compare.pages.cmuxVsGhostty.table.rows.0.0",
-    "platforms.ios",
-    "support.form.name",
-    "tui.marketing.facts.platforms.value",
-    "tui.marketing.features.browser.number",
-  ]),
-};
-
-const localeIdentityAllowedValues: Record<string, Set<string>> = {
-  de: new Set([
-    "Actions",
-    "Agent",
-    "App",
-    "Browser",
-    "Configuration",
-    "Concepts",
-    "Details",
-    "Dimension",
-    "Documentation",
-    "Guides",
-    "Isolation",
-    "Machine",
-    "Machines",
-    "Name",
-    "Navigation",
-    "Notifications",
-    "Optional",
-    "Parameter",
-    "Panel",
-    "Programmable",
-    "Renderer",
-    "Scriptable",
-    "Source",
-    "Status",
-    "Surface",
-    "Tab",
-    "Team",
-    "Terminal",
-    "Variable",
-  ]),
-  fr: new Set([
-    "Actions",
-    "Agent",
-    "App",
-    "Assistant",
-    "Configuration",
-    "Concepts",
-    "Documentation",
-    "Guides",
-    "Mode",
-    "Machine",
-    "Machines",
-    "Navigation",
-    "Notifications",
-    "Parameter",
-    "Panel",
-    "Pro",
-    "Programmable",
-    "Scriptable",
-    "Source",
-    "Status",
-    "Suppression",
-    "Surface",
-    "Surfaces",
-    "Action",
-    "assistant",
-    "Variable",
-  ]),
-  es: new Set(["Blog", "No"]),
-};
+const forbiddenTranslationMarkerPatterns = [
+  /\b(?:TODO|FIXME|TBD)\b/u,
+  /\b(?:machine[- ]translated|machine translation|translation pending|translate me)\b/iu,
+  /(?:\[\[(?:TODO|FIXME|TBD|TRANSLATE|MACHINE_TRANSLATION)[^\]]*\]\]|<translation-needed>)/iu,
+  /(?:CMUXTOKEN|__CMUXPH)/iu,
+];
 
 function isObject(value: JsonValue): value is { [key: string]: JsonValue } {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -435,25 +234,8 @@ function hasMatchingIcuStructure(source: string, translation: string): boolean {
   );
 }
 
-export function isEnglishIdentityAllowed(
-  pathname: string,
-  value: string,
-  locale?: string,
-): boolean {
-  if (
-    identityAllowedPaths.has(pathname) ||
-    localeIdentityAllowedPaths[locale ?? ""]?.has(pathname) ||
-    localeIdentityAllowedValues[locale ?? ""]?.has(value) ||
-    identityAllowedValues.has(value)
-  ) {
-    return true;
-  }
-  if (
-    locale === "de" &&
-    /^landing\.compare\.pages\..+\.table\.headers\.[012]$/u.test(pathname)
-  ) {
-    return true;
-  }
+export function isEnglishIdentityAllowed(value: string): boolean {
+  if (identityAllowedValues.has(value)) return true;
   if (/^(?:https?:\/\/|mailto:|tel:|[\w.+-]+@[\w.-]+\.[a-z]{2,})/iu.test(value)) {
     return true;
   }
@@ -474,6 +256,10 @@ export function isEnglishIdentityAllowed(
     return true;
   }
   return false;
+}
+
+function hasForbiddenTranslationMarker(value: string): boolean {
+  return forbiddenTranslationMarkerPatterns.some((pattern) => pattern.test(value));
 }
 
 export async function readCatalog(locale: string): Promise<JsonValue> {
@@ -516,6 +302,19 @@ export async function validateCatalog(
     ) {
       issues.push({ locale, path: englishLeaf.path, message: "empty value" });
     }
+    if (
+      locale !== "en" &&
+      typeof translatedLeaf.value === "string" &&
+      hasForbiddenTranslationMarker(translatedLeaf.value)
+    ) {
+      issues.push({
+        locale,
+        path: englishLeaf.path,
+        message: "forbidden translation marker",
+        source: typeof englishLeaf.value === "string" ? englishLeaf.value : undefined,
+        value: translatedLeaf.value,
+      });
+    }
     if (typeof englishLeaf.value === "string" && typeof translatedLeaf.value === "string") {
       const sourceTokens = syntaxTokens(englishLeaf.value);
       if (!hasMatchingIcuStructure(englishLeaf.value, translatedLeaf.value)) {
@@ -543,7 +342,7 @@ export async function validateCatalog(
       if (
         locale !== "en" &&
         englishLeaf.value === translatedLeaf.value &&
-        !isEnglishIdentityAllowed(englishLeaf.path, englishLeaf.value, locale)
+        !isEnglishIdentityAllowed(englishLeaf.value)
       ) {
         issues.push({
           locale,
@@ -624,7 +423,7 @@ function entriesNeedingTranslation(
     ) {
       return [];
     }
-    if (isEnglishIdentityAllowed(leaf.path, leaf.value, locale)) return [];
+    if (isEnglishIdentityAllowed(leaf.value)) return [];
     const tokens = syntaxTokens(leaf.value);
     return [
       {
@@ -664,7 +463,10 @@ async function readTranslationInputs(inputs: string[]): Promise<Map<string, stri
     const content = JSON.parse(await readFile(path.resolve(input), "utf8")) as
       | Record<string, string>
       | { entries: TranslationEntry[] };
-    const entries = "entries" in content ? content.entries : undefined;
+    const entries =
+      "entries" in content && Array.isArray(content.entries)
+        ? (content.entries as TranslationEntry[])
+        : undefined;
     if (entries) {
       for (const entry of entries) {
         if (entry.translation !== undefined) translations.set(entry.path, entry.translation);
@@ -735,4 +537,7 @@ async function main() {
   throw new Error(`Unknown command: ${command}`);
 }
 
-if (import.meta.main) await main();
+const entrypoint = process.argv[1]
+  ? path.resolve(process.argv[1])
+  : undefined;
+if (entrypoint === fileURLToPath(import.meta.url)) await main();

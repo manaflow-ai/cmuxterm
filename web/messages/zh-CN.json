@@ -2920,7 +2920,7 @@
     "ohMyOpenCode": {
       "title": "oh-my-opencode",
       "metaTitle": "oh-my-opencode：在 cmux 中运行 OpenCode 多 agent",
-      "metaDescription": "oh-my-opencode（cmux omo）在 cmux 中运行带 oh-my-openagent 插件的 OpenCode CLI。将 Claude、GPT、Gemini 和 Grok 作为并行 agent 编排，每个都在独立的原生 cmux 分屏中。",
+      "metaDescription": "oh-my-opencode（cmux omo）在 cmux 中运行带 oh-my-openagent 插件的 OpenCode CLI，并将 Claude、GPT、Gemini 和 Grok 作为并行 agent 编排，每个都在独立的原生 cmux 分屏中。",
       "nightlyWarning": "仅适用于 <nightly>nightly 版本 </nightly>。",
       "intro": "cmux omo 在 cmux 感知环境中使用 oh-my-openagent 插件启动 OpenCode。 oh-my-openagent 协调多个 AI 模型（Claude、GPT、Gemini、Grok）作为并行工作的专业代理。当它生成代理窗格时，它们将成为本机 cmux 拆分。",
       "usage": "用途",

@@ -8,6 +8,7 @@ import {
   featureWorkflowContentLocales,
   featureWorkflowDocRequestForPathname,
   hasFallbackContent,
+  baseDocsLocales,
   managedPoliciesDocsLocales,
   remoteTmuxDocsLocales,
 } from "./i18n/locale-availability";
@@ -282,20 +283,23 @@ export default function middleware(incomingRequest: NextRequest) {
     }
   }
 
-  // Base docs are English-only. Keep the canonical URL unprefixed and bypass
-  // locale detection so browser language preferences cannot select a 404.
+  // Keep unsupported Base docs locales on the canonical URL, while allowing
+  // every authored locale to use the normal localized route.
   const baseDocsMatch = pathname.match(
     /^\/([a-z]{2}(?:-[A-Z]{2})?)\/docs\/base\/?$/,
   );
-  if (baseDocsMatch && baseDocsMatch[1] !== "en") {
+  if (
+    baseDocsMatch &&
+    !baseDocsLocales.includes(
+      baseDocsMatch[1] as (typeof baseDocsLocales)[number],
+    )
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/docs/base";
     return NextResponse.redirect(url, 301);
   }
   if (pathname === "/docs/base" || pathname === "/docs/base/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/en/docs/base";
-    return NextResponse.rewrite(url);
+    return localizedContentResponse(request, "/docs/base", baseDocsLocales);
   }
 
   const remoteTmuxMatch = pathname.match(
@@ -312,9 +316,11 @@ export default function middleware(incomingRequest: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
   if (pathname === "/docs/remote-tmux" || pathname === "/docs/remote-tmux/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/en/docs/remote-tmux";
-    return NextResponse.rewrite(url);
+    return localizedContentResponse(
+      request,
+      "/docs/remote-tmux",
+      remoteTmuxDocsLocales,
+    );
   }
 
   const managedPoliciesMatch = pathname.match(
@@ -334,9 +340,11 @@ export default function middleware(incomingRequest: NextRequest) {
     pathname === "/docs/managed-policies" ||
     pathname === "/docs/managed-policies/"
   ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/en/docs/managed-policies";
-    return NextResponse.rewrite(url);
+    return localizedContentResponse(
+      request,
+      "/docs/managed-policies",
+      managedPoliciesDocsLocales,
+    );
   }
 
   const response = intlMiddleware(request);
@@ -405,6 +413,25 @@ function setFallbackContentLinkHeader(
       availableLocales,
     ),
   );
+}
+
+function localizedContentResponse(
+  request: NextRequest,
+  path: string,
+  availableLocales: readonly (typeof routing.locales)[number][],
+): NextResponse {
+  const preferredLocale = preferredFallbackContentLocale(
+    request,
+    availableLocales,
+  );
+  const url = request.nextUrl.clone();
+  url.pathname = `/${preferredLocale}${path}`;
+  const response =
+    preferredLocale === routing.defaultLocale
+      ? NextResponse.rewrite(url)
+      : NextResponse.redirect(url, 307);
+  setFallbackContentLinkHeader(response, request, path, availableLocales);
+  return response;
 }
 
 function preferredFallbackContentLocale(

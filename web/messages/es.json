@@ -681,7 +681,7 @@
   },
   "nav": {
     "docs": "Documentación",
-    "blog": "Blog",
+    "blog": "Artículos",
     "changelog": "Registro de cambios",
     "community": "Comunidad",
     "jobs": "Empleos",
@@ -693,7 +693,7 @@
     "resources": "Recursos",
     "legal": "Legales",
     "social": "Redes sociales",
-    "blog": "Blog",
+    "blog": "Artículos",
     "community": "Comunidad",
     "jobs": "Empleos",
     "pricing": "Precios",
@@ -1336,9 +1336,9 @@
     }
   },
   "blog": {
-    "title": "Blog",
+    "title": "Artículos",
     "layoutTitle": "blog cmux",
-    "metaTitle": "Blog",
+    "metaTitle": "Artículos",
     "metaDescription": "Noticias y novedades del equipo de cmux",
     "description": "Noticias y actualizaciones del equipo de cmux",
     "tokenMultitasking": {
@@ -2615,7 +2615,7 @@
       "cmpNotificationId": "ID de notificación",
       "cmpComplexity": "Complejidad",
       "cmpYes": "Sí",
-      "cmpNo": "No",
+      "cmpNo": "No disponible",
       "cmpHigher": "Mayor",
       "cmpLower": "Menor",
       "comparisonCallout": "Use OSC 777 para notificaciones simples. Use OSC 99 cuando necesite subtítulos o IDs de notificación. Use la CLI (cmux notify) para la integración más sencilla.",
@@ -3141,7 +3141,7 @@
     },
     "ios": {
       "metaTitle": "App para iOS",
-      "metaDescription": "Configura la app complementaria de cmux para iOS: acceso por TestFlight, tu propia red con Tailscale o WireGuard, emparejamiento, notificaciones y qué datos almacena cmux.",
+      "metaDescription": "Configura la app complementaria de cmux para iOS: TestFlight, Tailscale o WireGuard, emparejamiento, notificaciones y datos de cmux.",
       "title": "App para iOS",
       "intro": "La app de cmux para iOS es un complemento para tu Mac. Empareja tu iPhone o iPad con un Mac que ejecute cmux y conéctate a tus terminales desde el teléfono, con reenvío opcional de las notificaciones de la terminal.",
       "betaNote": "La app para iOS está en beta. Se distribuye en TestFlight como cmux BETA.",
@@ -3862,7 +3862,7 @@
         },
         "multipleClaudeAgents": {
           "metaTitle": "Cómo ejecutar varios agentes Claude Code en paralelo: cmux",
-          "metaDescription": "Ejecuta varias sesiones de Claude Code, Codex, OpenCode y otros agentes CLI en paralelo con espacios de trabajo de cmux, pestañas verticales, navegación de no leídos y anillos de notificación activados por hooks, secuencias de escape OSC o cmux notify.",
+          "metaDescription": "Ejecuta sesiones paralelas de Claude Code, Codex, OpenCode y otros agentes CLI con workspaces, pestañas verticales y notificaciones de cmux.",
           "title": "Cómo ejecutar varios agentes Claude Code en paralelo",
           "intro": "El trabajo paralelo con Claude Code necesita aislamiento, visibilidad y una forma rápida de encontrar la sesión que requiere entrada. cmux da a cada tarea un workspace visible y mantiene las sesiones de Claude legibles mientras se ejecutan lado a lado.",
           "summaryTitle": "Flujo paralelo seguro",

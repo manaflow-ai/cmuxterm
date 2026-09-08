@@ -57,6 +57,26 @@ body {
   color: var(--foreground);
 }
 
+.font-script-arabic {
+  --font-geist-sans: "Geeza Pro", "Noto Naskh Arabic", "Segoe UI", sans-serif;
+}
+
+.font-script-japanese {
+  --font-geist-sans: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+}
+
+.font-script-korean {
+  --font-geist-sans: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+}
+
+.font-script-simplified-chinese {
+  --font-geist-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+.font-script-traditional-chinese {
+  --font-geist-sans: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+}
+
 ::selection {
   background: #3b82f620;
 }

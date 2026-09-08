@@ -209,7 +209,7 @@
       "rename": "umbenennen",
       "revoke": "widerrufen",
       "renameTitle": "Benennen Sie diesen Mac um",
-      "nameLabel": "Name",
+      "nameLabel": "Bezeichnung",
       "cancel": "stornieren",
       "save": "speichern",
       "renameError": "Dieser Mac konnte nicht umbenannt werden.",
@@ -343,7 +343,7 @@
       },
       "details": {
         "email": "E-Mail",
-        "status": "Status",
+        "status": "Zustand",
         "enrolled": "Eingeschrieben"
       },
       "actions": {
@@ -365,12 +365,12 @@
       },
       "sections": {
         "users": "Benutzer ({count})",
-        "teams": "Teams ({count})",
+        "teams": "Teams insgesamt: {count}",
         "pending": "Ausstehende E-Mail-Gewährungen ({count})"
       },
       "results": {
         "user": "Benutzer",
-        "team": "Team",
+        "team": "Teamkonto",
         "email": "E-Mail",
         "plan": "Planen",
         "access": "Zugang",
@@ -388,13 +388,13 @@
       },
       "access": {
         "pro": "Profi",
-        "team": "Team",
+        "team": "Teamzugang",
         "free": "Frei"
       },
       "plans": {
         "pro": "Profi",
         "founders": "Gründer",
-        "team": "Team"
+        "team": "Teamtarif"
       },
       "grant": {
         "none": "keiner",
@@ -499,7 +499,7 @@
       "title": "KI-Konten",
       "description": "Verwalte die Anbieterkonten, die dieses Team für cmux AI nutzen kann.",
       "personalTeam": "Persönlich",
-      "teamSwitcherLabel": "Team",
+      "teamSwitcherLabel": "Teamkonto",
       "notConfiguredTitle": "KI-Kontoverwaltung ist noch nicht verfügbar",
       "notConfiguredBody": "Team-KI-Konten sind für diese Bereitstellung nicht aktiviert. Versuche es später erneut oder wende dich an den Support.",
       "migrationPendingTitle": "Konten vorübergehend nicht verfügbar",
@@ -571,7 +571,7 @@
       "accessKeyIdField": "Zugriffsschlüssel-ID",
       "secretAccessKeyField": "Geheimer Zugangsschlüssel",
       "sessionTokenField": "Sitzungstoken",
-      "optionalPlaceholder": "Optional",
+      "optionalPlaceholder": "Optionales Feld",
       "saveAction": "Konto hinzufügen",
       "savingAction": "Hinzufügen",
       "saveSuccess": "Konto hinzugefügt.",
@@ -628,7 +628,7 @@
       "title": "Synchronisierte Sitzungen",
       "description": "Aktuelle Coding-Agent-Transkripte, die von Ihren lokalen Computern synchronisiert wurden.",
       "backToOverview": "Zurück zur Übersicht",
-      "agent": "Agent",
+      "agent": "KI-Agent",
       "session": "Sitzung",
       "cwd": "Arbeitsverzeichnis",
       "rawSize": "Rohgröße",
@@ -681,10 +681,10 @@
   },
   "nav": {
     "docs": "Dokumentation",
-    "blog": "Blog",
+    "blog": "Blogbeiträge",
     "changelog": "Änderungsprotokoll",
     "community": "Gemeinschaft",
-    "jobs": "Jobs",
+    "jobs": "Stellenangebote",
     "pricing": "Preise",
     "github": "GitHub"
   },
@@ -693,9 +693,9 @@
     "resources": "Ressourcen",
     "legal": "Rechtliches",
     "social": "Soziale Medien",
-    "blog": "Blog",
+    "blog": "Blogbeiträge",
     "community": "Gemeinschaft",
-    "jobs": "Jobs",
+    "jobs": "Stellenangebote",
     "pricing": "Preise",
     "docs": "Dokumentation",
     "changelog": "Änderungsprotokoll",
@@ -719,7 +719,7 @@
   "jobs": {
     "metaTitle": "Founding Engineer bei cmux",
     "metaDescription": "Werden Sie Founding Engineer bei cmux und bauen Sie die Zukunft des Programmierens mit KI für macOS, Windows, Linux, iOS und die Cloud.",
-    "section": "Jobs",
+    "section": "Stellenangebote",
     "eyebrow": "Wir stellen ein",
     "title": "Gründungsingenieur",
     "tagline": "Bauen Sie die Zukunft des Programmierens mit KI.",
@@ -741,7 +741,7 @@
       "Open-Source-Betreuer, ehemalige Gründer, Leute, die komplette Produkte liefern.",
       "Senden Sie CMUX-PRs, damit wir benutzerdefinierte CMUX-Plugins/Workflows überprüfen oder vorführen können."
     ],
-    "details": "Details",
+    "details": "Einzelheiten",
     "roleTitle": "Gründungsingenieur",
     "compensationLabel": "Vergütung",
     "compensation": "$130k–$170k + 0,5 %–1,5 % Beteiligung",
@@ -755,7 +755,7 @@
     "foundingDesigner": {
       "metaTitle": "Founding Designer bei cmux",
       "metaDescription": "Werden Sie Founding Designer bei cmux und gestalten Sie die Zukunft des Programmierens mit KI für macOS, TUI, Windows, Linux, iOS, Cloud, cmux.com und chatmux.",
-      "section": "Jobs",
+      "section": "Stellenangebote",
       "eyebrow": "Über die Rolle",
       "title": "Gründungsdesigner",
       "tagline": "Gestalten Sie die Zukunft des Programmierens mit KI.",
@@ -776,7 +776,7 @@
         "Sie erstellen Prototypen im Code und liefern eine echte Benutzeroberfläche.",
         "Typografie, Bewegung und Systemdenken; Ihnen sind die 1px-Details, die Polsterung usw. wichtig."
       ],
-      "details": "Details",
+      "details": "Einzelheiten",
       "roleTitle": "Gründungsdesigner",
       "compensationLabel": "Vergütung",
       "compensation": "$130k–$170k + 0,5 %–1,5 % Beteiligung",
@@ -843,7 +843,7 @@
       ]
     },
     "team": {
-      "name": "Team",
+      "name": "Teamtarif",
       "cta": "Holen Sie sich Teams",
       "featuresLead": "Alles in Pro, plus:",
       "features": [
@@ -1336,9 +1336,9 @@
     }
   },
   "blog": {
-    "title": "Blog",
+    "title": "Blogbeiträge",
     "layoutTitle": "cmux-Blog",
-    "metaTitle": "Blog",
+    "metaTitle": "Blogbeiträge",
     "metaDescription": "Neuigkeiten und Updates vom cmux-Team",
     "description": "Neuigkeiten und Updates vom cmux-Team",
     "tokenMultitasking": {
@@ -2010,7 +2010,7 @@
       "surfaceBindingsDesc": "Fortgeschrittene Nutzer und Integrationen können jede Terminal-Surface an einen Neustartbefehl binden. cmux speichert über öffentliche CLI oder Socket erstellte Bindungen zur Prüfung und manuellen Wiederaufnahme.",
       "surfaceBindingsNote": "Genehmigte Präfixe können unter Settings > Terminal > Resume Commands geprüft oder bearbeitet werden. cmux startet nur Wiederaufnahme-Bindungen automatisch, die als vertrauenswürdig markiert sind, zum Beispiel aus laufenden Prozessen erkannte tmux-Bindungen oder vom Benutzer genehmigte Präfixe. cmux checkpointet weiterhin keinen beliebigen Prozessspeicher. Sensible Umgebungsvariablen wie Tokens, Passwörter, Secrets und API-Keys werden verworfen, bevor eine Wiederaufnahme-Bindung gespeichert wird. Genehmigungen sind außerdem an Arbeitsverzeichnis und exakte Umgebungswerte gebunden, wenn sie vorhanden sind.",
       "supportedTitle": "Unterstützte Agents",
-      "agentHeader": "Agent",
+      "agentHeader": "KI-Agent",
       "binaryHeader": "Binärdatei",
       "resumeHeader": "Wiederaufnahmebefehl",
       "feedHeader": "Feed-Brücke",
@@ -2050,7 +2050,7 @@
       "contextHeader": "Kontext",
       "termUsedHeader": "Verwendeter Begriff",
       "sidebarUI": "Seitenleisten-UI",
-      "tab": "Tab",
+      "tab": "Registerkarte",
       "keyboardShortcuts": "Tastaturkürzel",
       "workspaceOrTab": "Workspace oder Tab",
       "socketAPI": "Socket-API",
@@ -2062,7 +2062,7 @@
       "surfaceTitle": "Oberfläche",
       "surfaceDesc": "Ein Tab innerhalb eines Bereichs. Jeder Bereich hat seine eigene Tab-Leiste und kann mehrere Oberflächen enthalten. Erstellt mit {new}, navigiert mit {prev} / {next} oder {jump}.",
       "surfaceNote": "Oberflächen sind die einzelnen Terminal- oder Browser-Sitzungen, mit denen Sie interagieren. Jede Oberfläche hat ihre eigene CMUX_SURFACE_ID Umgebungsvariable.",
-      "panelTitle": "Panel",
+      "panelTitle": "Bereich",
       "panelDesc": "Der Inhalt innerhalb einer Oberfläche. Derzeit zwei Typen:",
       "panelTerminal": "Terminal: Eine Ghostty-Terminal-Sitzung",
       "panelBrowser": "Browser: Eine eingebettete Webansicht",
@@ -2436,7 +2436,7 @@
       "noResults": "Keine Kürzel gefunden",
       "noResultsHint": "Versuchen Sie einen anderen Suchbegriff",
       "cat": {
-        "app": "App",
+        "app": "Anwendung",
         "appBlurb": "Anwendungs-, Fenster- und Befehlsverknüpfungen der obersten Ebene.",
         "workspaces": "Arbeitsbereiche",
         "workspacesBlurb": "Workspaces befinden sich in der Seitenleiste. Jeder Workspace hat seine eigenen Bereiche und Oberflächen.",
@@ -2445,10 +2445,10 @@
         "splitPanes": "Geteilte Bereiche",
         "canvas": "Leinwand",
         "canvasBlurb": "Ein freier 2D-Layoutmodus, in dem Panels auf einem unendlichen, verschiebbaren Canvas schweben. Ausrichtungs- und Verteilungsbefehle sind über die Befehlspalette verfügbar.",
-        "browser": "Browser",
+        "browser": "Webbrowser",
         "notifications": "Benachrichtigungen",
         "find": "Suche",
-        "terminal": "Terminal",
+        "terminal": "Terminalfenster",
         "window": "Fenster",
         "diffViewer": "Diff-Viewer"
       },
@@ -2661,7 +2661,7 @@
       "tabsAndLogs": "Tabs und Logs",
       "targetingSurface": "Eine Browser-Oberfläche ansprechen",
       "targetingDesc": "Die meisten Unterbefehle erfordern eine Ziel-Oberfläche. Sie können sie positionell oder mit --surface übergeben.",
-      "navigation": "Navigation",
+      "navigation": "Seitenführung",
       "waitingSection": "Warten",
       "waitingDesc": "Verwenden Sie wait, um zu blockieren, bis Selektoren, Text, URL-Fragmente, Ladezustand oder eine JavaScript-Bedingung erfüllt ist.",
       "domSection": "DOM-Interaktion",
@@ -2671,12 +2671,12 @@
       "jsSection": "JavaScript Eval und Injection",
       "stateSection": "Zustand",
       "stateDesc": "Sitzungsdaten-Befehle umfassen Cookies, Local/Session Storage und vollständige Browser-Zustandssnapshots.",
-      "tabsSection": "Tabs",
+      "tabsSection": "Registerkarten",
       "tabsDesc": "Browser-Tab-Operationen werden auf Browser-Oberflächen in der aktiven Browser-Tab-Gruppe abgebildet.",
       "consoleSection": "Konsole und Fehler",
       "dialogsSection": "Dialoge",
       "framesSection": "Rahmen",
-      "downloadsSection": "Downloads",
+      "downloadsSection": "Heruntergeladene Dateien",
       "commonPatterns": "Häufige Muster",
       "patternNavigate": "Navigieren, warten, inspizieren",
       "patternForm": "Formular ausfüllen und Erfolgstext überprüfen",
@@ -2720,7 +2720,7 @@
       "browserName": "cmux-Browser",
       "browserDescription": "Automatisiert cmux-Webview-Flächen mit Snapshot-Referenzen, DOM-Aktionen, Wartebedingungen, Screenshots und Sitzungsstatus.",
       "browserUse": "Nutze ihn für Browseraufgaben, die innerhalb von cmux statt in einem separaten Browserautomatisierungstool laufen sollen.",
-      "markdownName": "cmux Markdown Viewer",
+      "markdownName": "cmux Markdown-Anzeige",
       "markdownDescription": "Öffnet Markdown-Dateien in einem formatierten cmux-Panel mit Live-Reload.",
       "markdownUse": "Nutze ihn, um Pläne, Dokumentation, Notizen und Aufgabenlisten während der Arbeit neben dem Terminal anzuzeigen.",
       "coverageTitle": "Was die Fähigkeiten abdecken",
@@ -2824,7 +2824,7 @@
       "deepLinksPromptRulesDesc": "Eingabeaufforderungs- und Regelschaltflächen verwenden dieselbe Fallback-Form. Kommas, Doppelpunkte und wörtliche Pluszeichen bleiben erhalten, wenn sie URL-codiert werden:",
       "deepLinksIconDesc": "Verwenden Sie das SVG-Symbol für Dashboard-Schaltflächen oder das PNG-Logo, wenn ein Rasterbild erforderlich ist:",
       "deepLinksButtonDesc": "Erstellen Sie die Fallback-URL mit URLSearchParams, damit Titel, Host-Aliase und Benutzernamen sicher codiert werden:",
-      "deepLinkParam": "Parameter",
+      "deepLinkParam": "Deep-Link-Parameter",
       "deepLinkMeaning": "Bedeutung",
       "deepLinkHost": "Erforderlicher SSH-Host oder ~/.ssh/config-Alias.",
       "deepLinkUser": "Optionaler SSH-Benutzer. cmux kombiniert es mit Host als user@host.",
@@ -3141,7 +3141,7 @@
     },
     "ios": {
       "metaTitle": "iOS-App",
-      "metaDescription": "Richte die cmux-Begleit-App für iOS ein: TestFlight-Zugang, eigenes Netzwerk mit Tailscale oder WireGuard, Kopplung, Benachrichtigungen und welche Daten cmux speichert.",
+      "metaDescription": "Richte die cmux-Begleit-App für iOS ein: TestFlight, Tailscale oder WireGuard, Kopplung, Benachrichtigungen und gespeicherte cmux-Daten.",
       "title": "iOS-App",
       "intro": "Die cmux-App für iOS ist ein Begleiter für deinen Mac. Koppele dein iPhone oder iPad mit einem Mac, auf dem cmux läuft, und verbinde dich vom Telefon aus mit deinen Terminals, mit optionaler Weiterleitung von Terminal-Benachrichtigungen.",
       "betaNote": "Die iOS-App ist in der Beta. Sie wird über TestFlight als cmux BETA bereitgestellt.",
@@ -3221,10 +3221,10 @@
     }
   },
   "deeplink": {
-    "section": "Deeplink",
+    "section": "Deep Links",
     "open": "In cmux öffnen",
     "download": "Laden Sie cmux herunter",
-    "nativeURL": "Native URL",
+    "nativeURL": "Native-URL",
     "missingParams": "Diesem Link fehlen erforderliche Parameter: {params}",
     "duplicateParams": "Dieser Link wiederholt Parameter, die cmux ablehnt: {params}",
     "unsupportedParams": "Dieser Link enthält nicht unterstützte Parameter, die cmux ablehnt: {params}",
@@ -3409,9 +3409,9 @@
       "title": "Das beste Terminal für den Mac",
       "intro": "Es gibt nicht das eine beste Terminal, nur das beste für deine Arbeitsweise. Unten findest du einen ehrlichen Vergleich der starken macOS-Optionen. Wir entwickeln cmux, also sagen wir es klar: cmux ist für Multitasking, Organisation und Programmierbarkeit gebaut, und wir sagen, wo die anderen die bessere Wahl sind.",
       "glance": "Auf einen Blick",
-      "thTerminal": "Terminal",
+      "thTerminal": "Terminal-App",
       "thBuiltFor": "Gebaut für",
-      "thRenderer": "Renderer",
+      "thRenderer": "Render-Engine",
       "thPlatform": "Plattform",
       "cmuxBuiltFor": "Multitasking, Organisation, Programmierbarkeit (KI-Agenten)",
       "ghosttyBuiltFor": "Ein schnelles, klares einzelnes Terminal",
@@ -3707,7 +3707,7 @@
           "summaryBody": "Nutze Alacritty, wenn du ein minimales, leistungsstarkes Terminal möchtest und den Rest mit Alacritty-Konfiguration, alacritty msg, Shell-Tools oder einem Multiplexer zusammensetzen willst. Nutze cmux, wenn du native macOS-Performance plus sichtbare Workspaces, Cmd+Shift+U, Cmd+Control+U, Browser-Panes, Benachrichtigungen und eine Socket-API für agentenlastige Arbeit willst.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Alacritty"
             ],
@@ -3788,7 +3788,7 @@
           "summaryBody": "Verwenden Sie Conductor, wenn Sie einen verpackten Agentenaufgaben-Workflow mit isolierten Kopien und Überprüfungsoberflächen wünschen. Verwenden Sie cmux, wenn Sie ein kostenloses natives Open-Source-Terminal benötigen, das Claude Code, Codex, OpenCode, Gemini CLI, Aider, Skripte, SSH, Browser und Entwicklungsserver in einem programmierbaren Arbeitsbereich ausführen kann.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Dirigent"
             ],
@@ -3870,7 +3870,7 @@
           "table": {
             "headers": [
               "Ansatz",
-              "Isolation",
+              "Abschirmung",
               "Sichtbarkeit",
               "Beste Verwendung"
             ],
@@ -3942,7 +3942,7 @@
           "summaryBody": "Wähle cmux, wenn du ein schnelles natives Terminal, sichtbares Multitasking, tastaturgesteuertes Aufmerksamkeitsmanagement und eine programmierbare Socket-API willst. Wähle Superset, wenn du einen stärker vorgegebenen Task-Workspace rund um Worktree-Orchestrierung und eingebaute Review-Flows willst.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Obermenge"
             ],
@@ -4028,7 +4028,7 @@
           "summaryBody": "Nutze Cursor, wenn du KI im Editor, Cursor CLI, Browser-Tools oder Cloud-Agenten möchtest. Nutze cmux, wenn du ein kostenloses Open-Source-Terminal willst, um CLI-Agenten, Dev-Server, SSH-Sitzungen und Browser-Checks auszuführen und zu überwachen, ohne einen Editor, ein Konto oder eine Cloud-Agent-Laufzeit zum Zentrum jedes Workflows zu machen.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Cursor"
             ],
@@ -4105,7 +4105,7 @@
           "summaryBody": "Verwenden Sie Devin, wenn Sie technische Arbeiten einer verwalteten Agentenplattform zuweisen möchten. Verwenden Sie cmux, wenn Sie die produktivste lokale Schleife wünschen: ein kostenloses Open-Source-Terminal, das Claude Code, Codex, OpenCode, Gemini CLI, Aider, SSH, Skripte, Benachrichtigungen und Browser auf Ihrem Mac mit nativer Leistung und einem programmierbaren Socket sichtbar hält.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Devin"
             ],
@@ -4186,7 +4186,7 @@
           "summaryBody": "Verwenden Sie iTerm2, wenn Sie einen umfassenden, konfigurierbaren Terminalemulator wünschen. Verwenden Sie cmux, wenn Ihr Terminal zu einer Agenten-Betriebskonsole geworden ist und Sie möchten, dass das libghostty-Terminal-Rendering sowie jede Sitzung, jeder Zweig, jeder Port, jeder ungelesene Status, jede Browserprüfung, jeder Benachrichtigungsring und jede Cmd+Shift+U/Cmd+Control+U-Überprüfungsverknüpfung sichtbar bleiben.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "iTerm2"
             ],
@@ -4267,7 +4267,7 @@
           "summaryBody": "Verwenden Sie Kitty, wenn Sie ein leistungsstarkes konfigurierbares Terminal wünschen. Verwenden Sie cmux, wenn Codierungsagenten Ihr Terminal in eine Multitasking-Warteschlange verwandelt haben und Sie Cmd+Shift+U, Cmd+Control+U, Benachrichtigungsringe, Arbeitsbereichsmetadaten, Browserprüfungen und skriptfähige Steuerung benötigen.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Kitty"
             ],
@@ -4348,7 +4348,7 @@
           "summaryBody": "Nutze Herdr, wenn du einen tmux-artigen Agent-Multiplexer in jedem Terminal willst, besonders über SSH oder von einem kleinen Bildschirm. Nutze cmux, wenn du eine native Mac-Terminal-App mit libghostty-Rendering, App-Workspaces, eingebauter Browser-Automation, Notification-Rings, Cmd+Shift+U, Cmd+Control+U und programmierbarer lokaler Steuerung willst. Eine praktische Kombination ist Herdr in einem cmux-Terminalpane, lokal oder in einer aus cmux geöffneten SSH-Sitzung.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Herdr"
             ],
@@ -4430,7 +4430,7 @@
           "summaryBody": "Nutze OpenCode, wenn du einen Open-Source-Coding-Agenten möchtest. Nutze cmux, wenn du einen nativen macOS-Workspace willst, der OpenCode, Claude Code, Codex CLI, Gemini CLI, Aider, Amp, Cursor CLI und normale Shell-Workflows gemeinsam überwachen kann, neben separaten Codex-App- und IDE-Erweiterungs-Workflows.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "OpenCode"
             ],
@@ -4502,7 +4502,7 @@
           "summaryBody": "Verwenden Sie tmux, wenn Portabilität, Trennen/Wiederanschließen und Remote-Terminal-Multiplexing Priorität haben. Verwenden Sie cmux, wenn Sie macOS verwenden und eine libghostty-basierte native Terminal-App mit sichtbaren Agentenmetadaten, Browserautomatisierung, ungelesener Navigation und reibungsloser Überprüfung über viele lokale Agentensitzungen hinweg wünschen.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "tmux"
             ],
@@ -4583,7 +4583,7 @@
           "summaryBody": "Nutze VS Code, wenn du Bearbeitung, Erweiterungen, eingebaute Agent-Sitzungen und Agent-/Browser-Tools in VS Code möchtest. Nutze cmux, wenn du Claude Code, Codex, OpenCode, Gemini CLI, Dev-Server, SSH, Skripte und Browser-Checks in einem libghostty-basierten Terminal-Workspace mit Benachrichtigungsringen und Tastaturkürzeln für ungelesene Arbeit sichtbar haben willst.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "VS-Code"
             ],
@@ -4660,7 +4660,7 @@
           "summaryBody": "Nutze Devin Desktop, ehemals Windsurf, wenn du agentisches Coding in einer IDE möchtest. Nutze cmux, wenn du eine kostenlose Open-Source-Terminal-Kontrollfläche für Terminal-Agenten, Shells, Tests, lokale Server, Browser-Checks, SSH und mehrere Editoren willst.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Devin Desktop (ehemals Windsurf)"
             ],
@@ -4737,7 +4737,7 @@
           "summaryBody": "Nutze Zed, wenn du einen schnellen Open-Source-Editor mit Kollaboration, integrierter KI, ACP External Agents und Terminal Threads möchtest. Nutze cmux, wenn du Claude Code, Codex, OpenCode, Gemini CLI, Test-Runner, Dev-Server, SSH und Browser-Checks in einer libghostty-basierten Terminal-App mit Benachrichtigungsringen, Cmd+Shift+U, Cmd+Control+U und einer skriptbaren Socket-API sichtbar haben willst.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Zed"
             ],
@@ -4814,7 +4814,7 @@
           "summaryBody": "Warp ist am stärksten, wenn du eine agentische Entwicklungsumgebung mit eingebauten Agenten, Unterstützung für CLI-Agenten von Drittanbietern, Cloud-Runs und Oz-Automation willst. cmux ist am stärksten, wenn du ein GPL-lizenziertes, local-first, libghostty-basiertes natives Mac-Terminal für die CLI-Agenten willst, die du bereits nutzt, mit Benachrichtigungsringen, Cmd+Shift+U, Cmd+Control+U, Browser-Panes und einem programmierbaren Socket.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Warp"
             ],
@@ -4896,7 +4896,7 @@
           "summaryBody": "Nutze WezTerm, wenn du ein leistungsstarkes plattformübergreifendes Terminal, Lua-Konfiguration und Terminal-/Mux-Automation willst. Nutze cmux, wenn du lokal auf einem Mac arbeitest, viele Coding-Agenten ausführst und Benachrichtigungsringe, Cmd+Shift+U, Cmd+Control+U, Browser-Panes, Seitenleisten-Metadaten und App-Level-Socket-Steuerung möchtest.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "WezTerm"
             ],
@@ -4977,7 +4977,7 @@
           "summaryBody": "Nutze Ghostty, wenn du einen fokussierten Terminal-Emulator möchtest. Nutze cmux, wenn du libghostty-Rendering in einem Agent-Workspace mit persistentem Ungelesen-Status, Browser-Panes und einem Unix-Socket willst, über den Agenten Panes erstellen, Terminals lesen, Screenshots erfassen und Web-Checks steuern können.",
           "table": {
             "headers": [
-              "Dimension",
+              "Merkmal",
               "cmux",
               "Ghostty"
             ],
@@ -5297,7 +5297,7 @@
     },
     "formAriaLabel": "Support-Kontaktformular",
     "form": {
-      "name": "Name",
+      "name": "Bezeichnung",
       "email": "E-Mail-Adresse",
       "topic": "Thema",
       "message": "Wie können wir helfen?",
@@ -5372,7 +5372,7 @@
           "body": "Platzieren Sie Codierungsagenten neben Tests, Protokollen und Überprüfungsbefehlen. Benachrichtigungen und Agentenstatus bleiben an ihren Oberflächen hängen."
         },
         "browser": {
-          "number": "03 / BROWSER",
+          "number": "03 / WEBBROWSER",
           "title": "Öffnen Sie echte Browser-Tabs",
           "body": "Steuern Sie Chrome-Ziele als Registerkarten neben Terminalprozessen mit dauerhaften Profilen, Tastatureingaben, Mauseingaben und Live-Frames."
         },
