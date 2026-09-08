@@ -793,9 +793,9 @@ extension Workspace {
                         continue
                     }
                     guard !binding.isAgentHookBinding ||
-                            binding.restoreWorkingDirectorySelection.map {
+                            (binding.restoreWorkingDirectorySelection.map {
                                 if case .exact = $0 { true } else { false }
-                            } == true else {
+                            } == true) else {
                         cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                         continue
                     }

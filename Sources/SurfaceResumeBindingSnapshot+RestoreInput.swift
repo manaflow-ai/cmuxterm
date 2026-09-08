@@ -110,4 +110,3 @@ extension SurfaceResumeBindingSnapshot {
         return restoreLaunch.applying(toStoredCommand: repaired)
     }
 }
-}

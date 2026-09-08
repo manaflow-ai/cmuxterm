@@ -22,6 +22,8 @@ extension SurfaceResumeBindingSnapshot {
         )
     }
 
+}
+
 
 extension AgentRestoreLaunch {
     func applying(toStoredCommand command: String) -> String {
