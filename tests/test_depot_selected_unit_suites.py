@@ -104,6 +104,24 @@ class DepotSelectedUnitSuitesTests(unittest.TestCase):
                 self.assertIn("No tests executed for FirstSuite", result.stderr)
                 self.assertEqual(len(calls), 1)
 
+    def test_singular_success_summary_runs_every_selected_suite(self):
+        for summary in (
+            "Test run with 1 test in 1 suite passed after 0.075 seconds.\n",
+            "Executed 1 test, with 0 failures (0 unexpected).\n",
+        ):
+            with self.subTest(summary=summary):
+                result, calls, cleanups = self.run_step(
+                    [
+                        {"text": "Test run with 7 tests in 1 suite passed.\n"},
+                        {"text": summary + LARGE_TAIL},
+                    ]
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(len(calls), 2)
+                self.assertIn("-only-testing:cmuxTests/FirstSuite", calls[0])
+                self.assertIn("-only-testing:cmuxTests/SecondSuite", calls[1])
+                self.assertEqual(cleanups, 0)
+
     def test_failed_suite_preserves_exit_status_and_stops_later_suites(self):
         result, calls, _ = self.run_step(
             [{"text": "Executed 2 tests, with 1 failure.\n", "status": 65}]
