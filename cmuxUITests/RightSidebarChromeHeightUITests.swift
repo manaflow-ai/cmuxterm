@@ -32,13 +32,10 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
 
     private func startHistoryProcessSample(pid: Int32) throws {
         print("VAULT_HISTORY_PROCESS_ID=\(pid)")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("vault-history-sample-\(UUID()).txt")
-        let sample = Process()
-        sample.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
-        sample.arguments = [String(pid), "10", "-file", url.path]
-        historySampleURL = url
-        historySampleProcess = sample
-        try sample.run()
+        let state = try XCTUnwrap(historyStateURL)
+        let request = URL(fileURLWithPath: state.path + ".sample-request")
+        try String(pid).write(to: request, atomically: true, encoding: .utf8)
+        print("VAULT_HISTORY_SAMPLE_REQUEST=\(request.path)")
     }
 
     func testVaultTabsGroupingAndPopoutStayInteractive() throws {

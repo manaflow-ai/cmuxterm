@@ -330,6 +330,15 @@ jobs:
             sleep $((attempt * 5))
           done
 
+      - name: Start diagnostic-only History sampler
+        run: |
+          diagnostic_dir="$RUNNER_TEMP/vault-history-diagnostic-$GITHUB_RUN_ID"
+          mkdir -p "$diagnostic_dir"
+          nohup bash scripts/ci/collect-vault-ui-diagnostics.sh "$diagnostic_dir" \
+            > "$diagnostic_dir/collector.log" 2>&1 < /dev/null &
+          echo "VAULT_DIAGNOSTIC_PID=$!" >> "$GITHUB_ENV"
+          echo "VAULT_DIAGNOSTIC_DIR=$diagnostic_dir" >> "$GITHUB_ENV"
+
       - name: Run selected tests
         id: tests
         env:
@@ -515,6 +524,28 @@ jobs:
             } >> "$GITHUB_OUTPUT"
             exit 1
           fi
+
+      - name: Print diagnostic-only History sample
+        if: always()
+        run: |
+          if [ -n "${VAULT_DIAGNOSTIC_PID:-}" ]; then
+            kill "$VAULT_DIAGNOSTIC_PID" 2>/dev/null || true
+          fi
+          for evidence in "$VAULT_DIAGNOSTIC_DIR/collector.log" "$VAULT_DIAGNOSTIC_DIR/sample.txt"; do
+            if [ -f "$evidence" ]; then
+              echo "VAULT_HISTORY_SHELL_SAMPLE_BEGIN $evidence"
+              head -n 2500 "$evidence"
+              echo VAULT_HISTORY_SHELL_SAMPLE_END
+            fi
+          done
+
+      - name: Upload diagnostic-only History evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vault-history-shell-diagnostics
+          path: ${{ env.VAULT_DIAGNOSTIC_DIR }}
+          retention-days: 7
 
       - name: Stop recording and trim
         if: ${{ always() && steps.filter.outputs.record_video == 'true' && env.RECORD_PID != '' }}
