@@ -21,6 +21,10 @@ import ukrainianMessages from "../messages/uk.json";
 import simplifiedChineseMessages from "../messages/zh-CN.json";
 import traditionalChineseMessages from "../messages/zh-TW.json";
 import { locales } from "../i18n/routing";
+import {
+  parityLocales,
+  validateCatalog,
+} from "../tools/localization-catalog";
 
 const messagesByLocale = {
   en: englishMessages,
@@ -145,6 +149,16 @@ describe("support page localization", () => {
     // Simplified-only characters that must not leak into the Traditional catalog.
     for (const fragment of ["发送", "帐户", "报告", "订阅", "文档", "请"]) {
       expect(traditional).not.toContain(fragment);
+    }
+  });
+});
+
+describe("website message catalog parity", () => {
+  test("keeps the nine release locales complete and translated", async () => {
+    const english = englishMessages as Json;
+    const catalogs = messagesByLocale as Record<string, Json>;
+    for (const locale of parityLocales.slice(1)) {
+      expect(await validateCatalog(locale, english, catalogs[locale])).toEqual([]);
     }
   });
 });
