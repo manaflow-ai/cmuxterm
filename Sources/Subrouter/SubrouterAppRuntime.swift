@@ -216,6 +216,13 @@ final class SubrouterAppRuntime {
             serverRegistryWatchRefreshPending = true
             return
         }
+        // A visible-surface/activation refresh may already be reading the
+        // registry. The vnode event is newer than that in-flight snapshot, so
+        // retain a follow-up request instead of letting the watch join the
+        // stale single-flight task and then declare the refresh complete.
+        if selectionRefreshTask != nil {
+            serverRegistryWatchRefreshPending = true
+        }
         serverRegistryWatchRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.refreshServerSelectionAndApply()
