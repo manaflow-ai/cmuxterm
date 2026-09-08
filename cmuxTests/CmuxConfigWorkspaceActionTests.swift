@@ -234,7 +234,7 @@ struct CmuxConfigWorkspaceActionTests {
             ),
             sourcePath: nil
         ))
-        #expect(action.title == "   ")
+        #expect(action.title == "Workspace action")
 
         let actionCommand = try #require(action.inlineWorkspaceSyntheticCommand)
         #expect(actionCommand.name == "Workspace action")

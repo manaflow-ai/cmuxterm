@@ -6,6 +6,17 @@ import Foundation
 import CmuxSettings
 import OSLog
 
+
+private func cmuxFirstNonBlank(_ values: String?...) -> String? {
+    for value in values {
+        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            continue
+        }
+        return value
+    }
+    return nil
+}
+
 extension CodingUserInfoKey {
     static let cmuxWorkspaceColorDefaults = CodingUserInfoKey(rawValue: "cmuxWorkspaceColorDefaults")!
     static let cmuxWorkspaceColorPalette = CodingUserInfoKey(rawValue: "cmuxWorkspaceColorPalette")!
@@ -1036,7 +1047,7 @@ struct CmuxSurfaceTabBarButton: Codable, Sendable, Hashable, Identifiable {
     var inlineWorkspaceSyntheticCommand: CmuxCommandDefinition? {
         guard let inline = action.inlineWorkspace else { return nil }
         return CmuxCommandDefinition(
-            name: title ?? tooltip ?? inline.definition.name ?? id,
+            name: cmuxFirstNonBlank(title, tooltip, inline.definition.name, id) ?? id,
             restart: inline.restart,
             workspace: inline.definition,
             confirm: confirm
@@ -1337,7 +1348,7 @@ struct CmuxResolvedConfigAction: Identifiable, Sendable, Hashable {
     var inlineWorkspaceSyntheticCommand: CmuxCommandDefinition? {
         guard let inline = action.inlineWorkspace else { return nil }
         return CmuxCommandDefinition(
-            name: title,
+            name: cmuxFirstNonBlank(title, tooltip, inline.definition.name, id) ?? id,
             restart: inline.restart,
             workspace: inline.definition,
             confirm: confirm
@@ -1377,8 +1388,7 @@ struct CmuxResolvedConfigAction: Identifiable, Sendable, Hashable {
         sourcePath: String?
     ) -> CmuxResolvedConfigAction? {
         guard let action = definition.action else { return nil }
-        let title = definition.title
-            ?? definition.tooltip
+        let title = cmuxFirstNonBlank(definition.title, definition.tooltip)
             ?? Self.defaultTitle(for: id, action: action)
         return CmuxResolvedConfigAction(
             id: id,
@@ -1436,7 +1446,7 @@ struct CmuxResolvedConfigAction: Identifiable, Sendable, Hashable {
         case .workspaceCommand(let commandName):
             return commandName
         case .workspace(let definition, _):
-            return definition.name ?? id
+            return cmuxFirstNonBlank(definition.name, id) ?? id
         case .builtIn(let builtIn):
             return builtIn.configID
         case .actionReference(let identifier):
