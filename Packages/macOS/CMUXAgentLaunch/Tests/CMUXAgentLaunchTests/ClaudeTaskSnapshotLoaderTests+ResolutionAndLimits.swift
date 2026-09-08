@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CMUXAgentLaunch
 
 extension ClaudeTaskSnapshotLoaderTests {
     @Test("Task snapshot reads honor an injected monotonic deadline")
