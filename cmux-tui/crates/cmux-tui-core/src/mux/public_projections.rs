@@ -12,6 +12,7 @@ pub(super) struct RestoredPublicProjections {
     pub(super) agent_hook_fences: HashMap<TerminalPublicId, HookFence>,
     pub(super) terminal_notifications: HashMap<TerminalPublicId, SurfaceNotification>,
     pub(super) notification_ledger: VecDeque<ResourceNotification>,
+    pub(super) notification_reads: HashMap<NotificationPublicId, BTreeSet<String>>,
 }
 
 pub(super) fn restore_public_projections(
@@ -22,6 +23,7 @@ pub(super) fn restore_public_projections(
     let default_colors = projections.terminal_defaults.unwrap_or_default();
     let mut notification_ledger = VecDeque::with_capacity(projections.notifications.len());
     let mut terminal_notifications = HashMap::new();
+    let mut notification_reads = HashMap::new();
     for (index, notification) in projections.notifications.into_iter().enumerate() {
         let numeric_id =
             u64::try_from(index).context("notification count exceeds uint64")?.saturating_add(1);
@@ -44,6 +46,12 @@ pub(super) fn restore_public_projections(
                     SurfaceNotification { notification: numeric_id, level, unread: true },
                 );
             }
+        }
+        if !notification.read_by.is_empty() {
+            notification_reads.insert(
+                notification.id.clone(),
+                notification.read_by.into_iter().collect::<BTreeSet<String>>(),
+            );
         }
         notification_ledger.push_back(ResourceNotification {
             id: notification.id,
@@ -128,6 +136,7 @@ pub(super) fn restore_public_projections(
         agent_hook_fences,
         terminal_notifications,
         notification_ledger,
+        notification_reads,
     })
 }
 
@@ -217,6 +226,7 @@ mod tests {
                 terminal_id: Some(terminal.clone()),
                 created_at_ms: 1,
                 unread: true,
+                read_by: vec![],
             }],
             agents: vec![RegistryAgentProjection {
                 id: AgentPublicId::parse("agent_00000000000000000000000000000001").unwrap(),
@@ -254,6 +264,7 @@ mod tests {
                 terminal_id: None,
                 created_at_ms: 2,
                 unread: true,
+                read_by: vec![],
             }],
             agents: Vec::new(),
             agent_hook_states: Vec::new(),
@@ -278,6 +289,7 @@ mod tests {
                 terminal_id: Some(terminal.clone()),
                 created_at_ms: 3,
                 unread: true,
+                read_by: vec![],
             }],
             agents: Vec::new(),
             agent_hook_states: Vec::new(),

@@ -378,11 +378,18 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 )
                 guard isCurrentRefresh(lifecycle: lifecycle, refresh: generation) else { return false }
                 var allSurfaceIDsResolved = true
+                var exitedTerminalIDs: Set<String> = []
                 for session in sessions {
                     switch resolutions[session.terminalID] {
                     case let .resolved(surfaceID):
                         session.updateRemoteSurfaceID(surfaceID)
                         reconnectableSessionIDs.insert(ObjectIdentifier(session))
+                    case .exited:
+                        // The remote shell ended. Stop reconnecting; the pane
+                        // closes when this graph is published.
+                        exitedTerminalIDs.insert(session.terminalID)
+                        session.markSurfaceResolutionUnavailable()
+                        reconnectableSessionIDs.remove(ObjectIdentifier(session))
                     case .none, .noPlacement, .unsupported, .failed:
                         session.markSurfaceResolutionUnavailable()
                         reconnectableSessionIDs.remove(ObjectIdentifier(session))
@@ -392,6 +399,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 if allSurfaceIDsResolved {
                     manualMirrorSurfaceIDsSocketPath = connected.socketPath
                 }
+                closePanes(forExitedTerminals: exitedTerminalIDs)
             }
             for session in manualMirrorSessions.values
             where reconnectableSessionIDs.contains(ObjectIdentifier(session)) {
@@ -623,6 +631,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         if reconcileTitles {
             catalog.reconcileCloudRemoteState(machine: machine, state: state)
         }
+        closePanesForVanishedRemoteTerminals(observation: observation)
     }
 
     /// Applies a contiguous event to the catalog's canonical graph. Row-local changes rebuild
@@ -672,6 +681,58 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         // need a full projection scan for every title event.
         if changed.contains(where: { $0.kind == .terminal && !previousIDs.contains($0) }) {
             reprojectRestoredPanes(generation: lifecycleGeneration)
+        }
+        closePanesForVanishedRemoteTerminals(observation: .current)
+    }
+
+    /// Closes the panes of terminals the resolver reported as exited. The
+    /// graph-driven sweep covers the usual case; this covers a daemon that
+    /// still lists an exited terminal because a stale tab row survives it.
+    private func closePanes(forExitedTerminals terminalIDs: Set<String>) {
+        guard !terminalIDs.isEmpty else { return }
+        for (panelID, session) in manualMirrorSessions where terminalIDs.contains(session.terminalID) {
+            closeManualMirrorPane(panelID: panelID, terminalID: session.terminalID)
+        }
+    }
+
+    private func closeManualMirrorPane(panelID: UUID, terminalID: String) {
+        materializedPanels.remove(panelID)
+        manualMirrorSessions.removeValue(forKey: panelID)?.stop()
+        guard let workspace = AppDelegate.shared?.workspace(containingSurfaceID: panelID) else { return }
+        SurfacePaneFactory.closeExited(panelID: panelID, in: workspace.id)
+    }
+
+    /// Closes attach panes whose remote terminal is gone from the accepted
+    /// graph.
+    ///
+    /// A cloud pane owns no process, so nothing local notices when the remote
+    /// shell ends: after `exit` or Ctrl+D the daemon drops the tab and marks
+    /// the terminal exited, the byte attachment reports `detached`, and the
+    /// session would otherwise keep reconnecting behind a frozen pane. Closing
+    /// it here matches a local pane, which disappears when its shell exits, and
+    /// it goes through the same close path as the menu, the CLI, and the
+    /// keyboard shortcut.
+    ///
+    /// Only a current graph may close a pane: a stale or unavailable read means
+    /// the machine is unreachable, not that the terminal ended.
+    private func closePanesForVanishedRemoteTerminals(observation: CloudVMStateObservation) {
+        guard !manualMirrorSessions.isEmpty else { return }
+        let live = Set(
+            catalog.snapshot.resources(on: machine)
+                .filter { $0.id.kind == .terminal }
+                .map(\.id.key)
+        )
+        let closing = CloudTerminalPaneClosure.panelsToClose(
+            boundTerminals: manualMirrorSessions.mapValues(\.terminalID),
+            liveTerminalKeys: live,
+            freshness: observation.freshness
+        )
+        for panelID in closing {
+            guard let terminalID = manualMirrorSessions[panelID]?.terminalID else { continue }
+#if DEBUG
+            cmuxDebugLog("cloud.pane.closeExited panel=\(panelID) terminal=\(terminalID)")
+#endif
+            closeManualMirrorPane(panelID: panelID, terminalID: terminalID)
         }
     }
 
