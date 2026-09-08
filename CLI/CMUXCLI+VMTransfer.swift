@@ -1179,42 +1179,7 @@ extension CMUXCLI {
     /// until the first unrecognized token; the remainder is kept behind `--`
     /// so provider flags and subcommands cannot be mistaken for cmux options.
     static func vmAgentAliasArgs(_ rest: [String]) -> [String] {
-        guard let first = rest.first, first != "--agent" else { return rest }
-        let agent = first.lowercased()
-        guard vmAgentNames.contains(agent) else { return rest }
-
-        let tail = Array(rest.dropFirst())
-        var normalized = ["--agent", agent]
-        if tail.contains("--") {
-            normalized.append(contentsOf: tail)
-            return normalized
-        }
-
-        let valueOptions: Set<String> = [
-            "--machine", "--cwd", "--name", "--remote-workspace", "--size",
-        ]
-        let flagOptions: Set<String> = ["--sync", "--no-open", "--new", "--json"]
-        var index = 0
-        while index < tail.count {
-            let token = tail[index]
-            if flagOptions.contains(token) {
-                normalized.append(token)
-                index += 1
-                continue
-            }
-            if valueOptions.contains(token), index + 1 < tail.count {
-                normalized.append(token)
-                normalized.append(tail[index + 1])
-                index += 2
-                continue
-            }
-            break
-        }
-        if index < tail.count {
-            normalized.append("--")
-            normalized.append(contentsOf: tail[index...])
-        }
-        return normalized
+        CmuxTuiRemoteRouting.vmAgentAliasArgs(rest)
     }
 
     /// The default terminal name for an agent run: the agent plus the start of its prompt.

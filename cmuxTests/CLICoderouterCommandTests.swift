@@ -13,6 +13,16 @@ import Testing
 // provider-first alias is a pure routing helper shared with the app instead.
 typealias CMUXCLI = CmuxTuiRemoteRouting
 
+@Suite struct AgentAliasArgumentTests {
+    @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--machine", "--size", "--cwd", "--name", "--remote-workspace"])
+    func incompleteVMOptionRemainsAnOption(agent: String, option: String) {
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, option]) == ["--agent", agent, option])
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "--no-open", option]) == ["--agent", agent, "--no-open", option])
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "--", option]) == ["--agent", agent, "--", option])
+        #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "prompt", option]) == ["--agent", agent, "--", "prompt", option])
+    }
+}
+
 // `cmux coderouter <status|machines|claude>` drives the app's `coderouter.*`
 // socket methods; every other `cmux coderouter` verb still execs the installed
 // CodeRouter CLI. These run the bundled CLI against a mock socket server and

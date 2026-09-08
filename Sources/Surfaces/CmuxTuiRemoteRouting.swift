@@ -31,8 +31,9 @@ enum CmuxTuiRemoteRouting {
                 index += 1
                 continue
             }
-            if valueOptions.contains(token), index + 1 < tail.count {
+            if valueOptions.contains(token) {
                 normalized.append(token)
+                guard index + 1 < tail.count else { return normalized }
                 normalized.append(tail[index + 1])
                 index += 2
                 continue
