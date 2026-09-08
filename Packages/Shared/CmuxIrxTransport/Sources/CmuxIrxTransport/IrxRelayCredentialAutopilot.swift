@@ -317,6 +317,7 @@ public actor IrxRelayCredentialAutopilot {
             case .succeeded:
                 self.hintRetryFailureCount = 0
             case .stopped:
+                self.finishLifecycleIfCurrent(generation: lifecycleGeneration)
                 return
             case .exhausted:
                 self.scheduleHintRetry(lifecycleGeneration: lifecycleGeneration)
