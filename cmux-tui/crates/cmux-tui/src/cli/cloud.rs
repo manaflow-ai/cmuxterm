@@ -56,9 +56,7 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
                 if *action == "read" { View::Text } else { View::Json },
             )
         }
-        ["terminal", "send", vm, terminal, rest @ ..]
-            if valid_id(vm) && valid_id(terminal) =>
-        {
+        ["terminal", "send", vm, terminal, rest @ ..] if valid_id(vm) && valid_id(terminal) => {
             let mut params = json!({"id":vm,"terminal_id":terminal});
             let mut text = Vec::new();
             let mut tail = rest.iter().copied();
@@ -98,7 +96,10 @@ fn usage() -> UsageError {
 }
 
 #[derive(Debug)]
-struct AppFailure { code: String, message: String }
+struct AppFailure {
+    code: String,
+    message: String,
+}
 
 impl std::fmt::Display for AppFailure {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -109,7 +110,8 @@ impl std::fmt::Display for AppFailure {
 impl std::error::Error for AppFailure {}
 
 pub(super) fn run(global: GlobalArgs, plan: Plan) -> i32 {
-    if global.session.is_some() || global.machine.is_some()
+    if global.session.is_some()
+        || global.machine.is_some()
         || (matches!(plan, Plan::Tui { .. }) && global.output != OutputMode::Human)
     {
         return super::wire::print_local_error(
@@ -128,9 +130,13 @@ pub(super) fn run(global: GlobalArgs, plan: Plan) -> i32 {
     match result {
         Ok(code) => code,
         Err(error) => {
-            let code = error.downcast_ref::<AppFailure>().map_or("cloud.failed", |error| error.code.as_str());
+            let code = error
+                .downcast_ref::<AppFailure>()
+                .map_or("cloud.failed", |error| error.code.as_str());
             super::wire::print_local_error(
-                &json!({"code":code,"message":format!("{error:#}")}), global.output, 1,
+                &json!({"code":code,"message":format!("{error:#}")}),
+                global.output,
+                1,
             )
         }
     }
@@ -142,8 +148,12 @@ fn run_unix(global: &GlobalArgs, plan: Plan) -> anyhow::Result<i32> {
     use std::path::PathBuf;
     use std::time::Duration;
 
-    let socket = global.socket.clone()
-        .or_else(|| std::env::var_os("CMUX_SOCKET_PATH").filter(|v| !v.is_empty()).map(PathBuf::from))
+    let socket = global
+        .socket
+        .clone()
+        .or_else(|| {
+            std::env::var_os("CMUX_SOCKET_PATH").filter(|v| !v.is_empty()).map(PathBuf::from)
+        })
         .unwrap_or_else(|| PathBuf::from("/tmp/cmux.sock"));
     let (method, params, view, tui) = match plan {
         Plan::Request { method, params, view } => (method, params, view, false),
@@ -176,7 +186,8 @@ fn run_unix(global: &GlobalArgs, plan: Plan) -> anyhow::Result<i32> {
     } else {
         match view {
             View::List => {
-                let vms = result["vms"].as_array()
+                let vms = result["vms"]
+                    .as_array()
                     .ok_or_else(|| anyhow::anyhow!(catalog().cloud_vm.invalid_response))?;
                 if vms.is_empty() {
                     writeln!(out, "{}", catalog().cloud_vm.empty)?;
@@ -187,7 +198,8 @@ fn run_unix(global: &GlobalArgs, plan: Plan) -> anyhow::Result<i32> {
                 }
             }
             View::Text => {
-                let text = result["text"].as_str()
+                let text = result["text"]
+                    .as_str()
                     .ok_or_else(|| anyhow::anyhow!(catalog().cloud_vm.invalid_response))?;
                 out.write_all(text.as_bytes())?;
             }
@@ -203,17 +215,34 @@ fn connect_args(info: &Value) -> anyhow::Result<Vec<String>> {
     use anyhow::{anyhow, ensure};
     let messages = &catalog().cloud_vm;
     ensure!(info["trusted_carrier"].as_bool() == Some(true), messages.trust_required);
-    let hub = info["wireguard_hub_socket"].as_str().filter(|p| std::path::Path::new(p).is_absolute())
+    let hub = info["wireguard_hub_socket"]
+        .as_str()
+        .filter(|p| std::path::Path::new(p).is_absolute())
         .ok_or_else(|| anyhow!(messages.hub_required))?;
     let route = info["route"].as_str().ok_or_else(|| anyhow!(messages.invalid_response))?;
     let url = url::Url::parse(route).map_err(|_| anyhow!(messages.invalid_response))?;
-    ensure!(matches!(url.scheme(), "ws" | "wss") && url.host().is_some()
-        && url.username().is_empty() && url.password().is_none()
-        && url.query().is_none() && url.fragment().is_none(), messages.invalid_response);
+    ensure!(
+        matches!(url.scheme(), "ws" | "wss")
+            && url.host().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none(),
+        messages.invalid_response
+    );
     if let Some(protocol) = info["daemon_build"]["remote_protocol"].as_u64() {
-        ensure!(protocol == u64::from(cmux_remote_protocol::REMOTE_PROTOCOL_VERSION), messages.protocol_mismatch);
+        ensure!(
+            protocol == u64::from(cmux_remote_protocol::REMOTE_PROTOCOL_VERSION),
+            messages.protocol_mismatch
+        );
     }
-    Ok(vec!["connect".into(), route.into(), "--carrier".into(), "--wireguard-hub".into(), hub.into()])
+    Ok(vec![
+        "connect".into(),
+        route.into(),
+        "--carrier".into(),
+        "--wireguard-hub".into(),
+        hub.into(),
+    ])
 }
 
 #[cfg(unix)]
@@ -223,46 +252,46 @@ fn app_request(
     params: Value,
     timeout: std::time::Duration,
 ) -> anyhow::Result<Value> {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use anyhow::{Context, anyhow, ensure};
+    use anyhow::Context;
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    runtime.block_on(async {
+        tokio::select! {
+            result = tokio::time::timeout(timeout, app_exchange(socket, method, params)) => {
+                result.context(catalog().cloud_vm.read_failed)?
+            }
+            result = crate::wait_for_shutdown_signal_async() => {
+                result?;
+                Err(anyhow::anyhow!(catalog().cloud_vm.read_failed))
+            }
+        }
+    })
+}
 
-    const MAX_RESPONSE: u64 = 16 * 1024 * 1024;
+#[cfg(unix)]
+async fn app_exchange(socket: &std::path::Path, method: &str, params: Value) -> anyhow::Result<Value> {
+    use anyhow::{Context, ensure};
+    use tokio::io::BufReader;
+    use tokio::net::UnixStream;
+
     let messages = &catalog().cloud_vm;
-    let stream = UnixStream::connect(socket).context(messages.app_required)?;
+    let stream = UnixStream::connect(socket).await.context(messages.app_required)?;
     cmux_remote::admin::verify_unix_peer_owner(&stream).context(messages.invalid_owner)?;
-    stream.set_read_timeout(Some(timeout))?;
-    stream.set_write_timeout(Some(std::time::Duration::from_secs(10)))?;
     let mut reader = BufReader::new(stream);
     let capability = std::env::var("CMUX_SOCKET_CAPABILITY").ok().filter(|v| !v.is_empty());
     if let Some(capability) = &capability {
         ensure!(!capability.chars().any(char::is_whitespace), messages.invalid_auth);
     }
-    let send = |reader: &mut BufReader<UnixStream>, line: &str| -> anyhow::Result<()> {
-        if let Some(capability) = &capability {
-            write!(reader.get_mut(), "_cmux_capability_v1 {capability} ")?;
-        }
-        writeln!(reader.get_mut(), "{line}")?;
-        reader.get_mut().flush()?;
-        Ok(())
-    };
-    let receive = |reader: &mut BufReader<UnixStream>| -> anyhow::Result<Vec<u8>> {
-        let mut bytes = Vec::new();
-        reader.take(MAX_RESPONSE + 1).read_until(b'\n', &mut bytes).context(messages.read_failed)?;
-        ensure!(bytes.len() as u64 <= MAX_RESPONSE && bytes.last() == Some(&b'\n'), messages.invalid_response);
-        Ok(bytes)
-    };
     if let Some(password) = std::env::var("CMUX_SOCKET_PASSWORD").ok().filter(|v| !v.is_empty()) {
         ensure!(!password.contains(['\n', '\r']), messages.invalid_auth);
-        send(&mut reader, &format!("auth {password}"))?;
-        let auth = receive(&mut reader)?;
+        app_send(&mut reader, &format!("auth {password}"), capability.as_deref()).await?;
+        let auth = app_receive(&mut reader).await?;
         ensure!(auth.starts_with(b"OK"), messages.auth_failed);
     }
     let id = uuid::Uuid::new_v4().to_string();
     let line = serde_json::to_string(&json!({"id":id,"method":method,"params":params}))?;
     ensure!(line.len() <= 4 * 1024 * 1024, messages.request_too_large);
-    send(&mut reader, &line)?;
-    let bytes = receive(&mut reader)?;
+    app_send(&mut reader, &line, capability.as_deref()).await?;
+    let bytes = app_receive(&mut reader).await?;
     ensure!(!bytes.starts_with(b"ERROR:"), messages.auth_failed);
     let response: Value = serde_json::from_slice(&bytes).context(messages.invalid_response)?;
     ensure!(response["id"].as_str() == Some(&id), messages.invalid_response);
@@ -271,8 +300,37 @@ fn app_request(
         return Err(AppFailure {
             code: error["code"].as_str().unwrap_or("cloud.failed").to_owned(),
             message: error["message"].as_str().unwrap_or(messages.invalid_response).to_owned(),
-        }.into());
+        }
+        .into());
     }
     ensure!(response["result"].is_object(), messages.invalid_response);
     Ok(response["result"].clone())
+}
+
+#[cfg(unix)]
+async fn app_send(
+    reader: &mut tokio::io::BufReader<tokio::net::UnixStream>,
+    line: &str,
+    capability: Option<&str>,
+) -> anyhow::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    if let Some(capability) = capability {
+        reader.get_mut().write_all(format!("_cmux_capability_v1 {capability} ").as_bytes()).await?;
+    }
+    reader.get_mut().write_all(line.as_bytes()).await?;
+    reader.get_mut().write_all(b"\n").await?;
+    reader.get_mut().flush().await?;
+    Ok(())
+}
+
+#[cfg(unix)]
+async fn app_receive(reader: &mut tokio::io::BufReader<tokio::net::UnixStream>) -> anyhow::Result<Vec<u8>> {
+    use anyhow::{Context, ensure};
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt};
+    const MAX_RESPONSE: u64 = 16 * 1024 * 1024;
+    let messages = &catalog().cloud_vm;
+    let mut bytes = Vec::new();
+    reader.take(MAX_RESPONSE + 1).read_until(b'\n', &mut bytes).await.context(messages.read_failed)?;
+    ensure!(bytes.len() as u64 <= MAX_RESPONSE && bytes.last() == Some(&b'\n'), messages.invalid_response);
+    Ok(bytes)
 }

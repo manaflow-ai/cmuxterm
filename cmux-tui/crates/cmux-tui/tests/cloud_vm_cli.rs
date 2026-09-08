@@ -87,7 +87,10 @@ fn cloud_vm_cli_sends_literal_text_and_keys_without_shell_interpolation() {
     );
     success(&output);
     assert_eq!(request["method"], "vm.terminal_write");
-    assert_eq!(request["params"], json!({"id":"vm-test","terminal_id":"term-test","text":literal,"keys":["enter"]}));
+    assert_eq!(
+        request["params"],
+        json!({"id":"vm-test","terminal_id":"term-test","text":literal,"keys":["enter"]})
+    );
 }
 
 #[test]
@@ -121,7 +124,12 @@ fn cloud_vm_cli_tui_refuses_a_route_without_the_userspace_hub() {
     assert!(!output.status.success());
     assert_eq!(request["method"], "vm.cmux_remote_info");
     assert_eq!(request["params"]["id"], "vm-test");
-    assert!(request["params"]["client_capabilities"].as_array().unwrap().contains(&json!("wireguard-hub")));
+    assert!(
+        request["params"]["client_capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("wireguard-hub"))
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("userspace"));
 }
 

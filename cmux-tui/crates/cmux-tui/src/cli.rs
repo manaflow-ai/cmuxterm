@@ -4,8 +4,8 @@
 //! is deliberately isolated in `cli/wire.rs`, so public commands cannot
 //! accidentally fall back to the private command protocol.
 
-mod command;
 mod cloud;
+mod command;
 mod lifecycle;
 mod raw;
 mod wire;
@@ -501,7 +501,9 @@ Run `cmux <scope> --help` for scope-specific paths.
 fn root_help(messages: &crate::localization::LocalServerMessages) -> String {
     format!(
         "{ROOT_HELP_PROCESS_PREFIX}{}\n{ROOT_HELP_PROCESS_SUFFIX}{}\n{ROOT_HELP_GLOBALS}{}\n  vm            {}\n{ROOT_HELP_SCOPES_SUFFIX}",
-        messages.root_remote_usage, messages.root_server_usage, messages.root_server_scope,
+        messages.root_remote_usage,
+        messages.root_server_usage,
+        messages.root_server_scope,
         crate::localization::catalog().cloud_vm.scope,
     )
 }
