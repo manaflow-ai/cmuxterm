@@ -147,8 +147,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         self.summary = summary
         self.links = links
         self.catalog = catalog
-        installNotificationSync()
         info = Self.info(from: summary, linkState: summary.status == "running" ? .connecting : .asleep, linkError: nil, stats: nil)
+        installNotificationSync()
     }
 
     var isAwake: Bool { summary.status == "running" }
