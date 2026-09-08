@@ -26,6 +26,9 @@ IGNORED_IDENTIFIERS = {
     "cmux.bootstrap",
     # Cursor-anchored textbox completion popup; it never becomes key/main.
     "cmux.textbox.mentionCompletionPanel",
+    # Non-activating, mouse-transparent prefix hint; its coordinator owns dismissal.
+    # It must not take Cmd+W away from the window handling the pending chord.
+    "cmux.shortcutPrefixHUD",
     # Full-screen Sleepy Mode screensaver overlay: it intentionally consumes
     # every key (including Cmd+W, via performKeyEquivalent) to wake/dismiss the
     # cover, so it must not own a standard Close-window shortcut.
