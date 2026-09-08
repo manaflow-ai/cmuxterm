@@ -38,8 +38,17 @@ class Member:
     end: int
 
 
-def members(text: str, start: int = 0) -> list[Member]:
-    decoder = json.JSONDecoder()
+def unique_object(pairs: list[tuple[str, object]]) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate object member {key!r}")
+        result[key] = value
+    return result
+
+
+def members(text: str, start: int = 0, *, strict_values: bool = False) -> list[Member]:
+    decoder = json.JSONDecoder(object_pairs_hook=unique_object if strict_values else None)
     position = start + 1
     result = []
     while True:
@@ -55,7 +64,10 @@ def members(text: str, start: int = 0) -> list[Member]:
         position += 1
         while text[position].isspace():
             position += 1
-        value, end = decoder.raw_decode(text, position)
+        try:
+            value, end = decoder.raw_decode(text, position)
+        except ValueError as error:
+            raise ValueError(f"{key}: {error}") from error
         result.append(Member(key, value, position, end))
         position = end
 
@@ -67,8 +79,11 @@ def catalog_entries(text: str) -> list[Member]:
     unexpected = set(parsed) - {"sourceLanguage", "strings", "version"}
     if unexpected:
         raise ValueError(f"records outside the strings object: {', '.join(sorted(unexpected))}")
-    strings = next(item for item in members(text, len(text) - len(text.lstrip())) if item.key == "strings")
-    return members(text, strings.start)
+    root_members = members(text, len(text) - len(text.lstrip()))
+    unique_object([(item.key, None) for item in root_members])
+    strings = next(item for item in root_members if item.key == "strings")
+    # String records remain lossless; every object inside each record must be unique.
+    return members(text, strings.start, strict_values=True)
 
 
 def discover(root: Path) -> list[Path]:

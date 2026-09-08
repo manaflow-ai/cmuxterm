@@ -2978,7 +2978,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يكمل"
+            "value": "متابعة"
           }
         },
         "es": {
@@ -15827,7 +15827,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يرسل"
+            "value": "إرسال"
           }
         },
         "es": {
@@ -34192,7 +34192,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يرسل"
+            "value": "إرسال"
           }
         },
         "bs": {
@@ -36193,7 +36193,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "قف"
+            "value": "إيقاف"
           }
         },
         "bs": {
@@ -47606,7 +47606,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -119530,7 +119530,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -119943,7 +119943,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -148505,7 +148505,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يخلق"
+            "value": "إنشاء"
           }
         },
         "es": {
@@ -172753,7 +172753,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يمسح"
+            "value": "حذف"
           }
         },
         "es": {
@@ -179463,7 +179463,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -188035,7 +188035,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يمسح"
+            "value": "حذف"
           }
         },
         "bs": {
@@ -193403,7 +193403,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "bs": {
@@ -217923,7 +217923,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -221820,7 +221820,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يمسح"
+            "value": "حذف"
           }
         },
         "es": {
@@ -257173,7 +257173,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -280535,7 +280535,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -313001,7 +313001,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -330450,7 +330450,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -357155,7 +357155,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -363199,7 +363199,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يمسح"
+            "value": "حذف"
           }
         },
         "es": {
@@ -386978,7 +386978,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يفتح"
+            "value": "فتح"
           }
         },
         "es": {
@@ -393878,7 +393878,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feedback ist zurzeit nicht verfügbar. Sende stattdessen eine E-Mail an founders@manaflow.com."
+            "value": "Feedback ist zurzeit nicht verfügbar. Senden Sie stattdessen eine E-Mail an founders@manaflow.com."
           }
         },
         "fr": {
@@ -394398,7 +394398,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+            "value": "Sie können uns auch unter founders@manaflow.com erreichen."
           }
         },
         "fr": {
@@ -394599,7 +394599,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يرسل"
+            "value": "إرسال"
           }
         },
         "es": {
@@ -394658,7 +394658,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+            "value": "Sie können uns auch unter founders@manaflow.com erreichen."
           }
         },
         "fr": {
@@ -394806,7 +394806,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "傳送回饋"
+            "value": "傳送意見反應"
           }
         },
         "zh-Hans": {
@@ -402584,7 +402584,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -443802,7 +443802,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ينعش"
+            "value": "تحديث"
           }
         },
         "es": {
@@ -449442,7 +449442,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يرسل"
+            "value": "إرسال"
           }
         },
         "bs": {
@@ -471991,7 +471991,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يخلق"
+            "value": "إنشاء"
           }
         },
         "es": {
@@ -475737,7 +475737,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يمسح"
+            "value": "حذف"
           }
         },
         "es": {

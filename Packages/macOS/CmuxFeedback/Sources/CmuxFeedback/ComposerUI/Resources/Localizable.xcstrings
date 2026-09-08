@@ -682,7 +682,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feedback ist zurzeit nicht verfügbar. Sende stattdessen eine E-Mail an founders@manaflow.com."
+            "value": "Feedback ist zurzeit nicht verfügbar. Senden Sie stattdessen eine E-Mail an founders@manaflow.com."
           }
         },
         "fr": {
@@ -1137,7 +1137,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+            "value": "Sie können uns auch unter founders@manaflow.com erreichen."
           }
         },
         "fr": {
@@ -1344,7 +1344,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يرسل"
+            "value": "إرسال"
           }
         },
         "es": {
@@ -1397,7 +1397,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+            "value": "Sie können uns auch unter founders@manaflow.com erreichen."
           }
         },
         "fr": {
@@ -1551,7 +1551,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "傳送回饋"
+            "value": "傳送意見反應"
           }
         },
         "zh-Hans": {
