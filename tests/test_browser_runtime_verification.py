@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import plistlib
 import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
 
 
@@ -436,7 +438,46 @@ def test_browser_gate_uses_exact_head_and_nonzero_test_contract() -> None:
     assert "Validate browser engine selector from artifact" in workflow
     assert "Re-verify browser runtime after tests" in workflow
     assert "xcodebuild test" in workflow
-    assert "pgrep -af '[c]mux CEF Helper'" in workflow
+
+
+def test_browser_helper_cleanup_distinguishes_absence_survivors_and_scan_errors() -> None:
+    # Execute the workflow's actual cleanup step. A string assertion previously
+    # preserved a Linux-only pgrep flag while macOS silently skipped the check.
+    workflow = E2E_WORKFLOW.read_text(encoding="utf-8")
+    step = workflow.split("      - name: Verify browser helper cleanup\n", 1)[1]
+    step = step.split("\n      - name:", 1)[0]
+    script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+    with tempfile.TemporaryDirectory() as temp_dir:
+        tools = Path(temp_dir)
+        pgrep = tools / "pgrep"
+        pgrep.write_text(
+            "#!/bin/sh\n"
+            "case \"$PGREP_RESULT\" in\n"
+            "  found) printf '%s\\n' '12345 cmux CEF Helper'; exit 0 ;;\n"
+            "  absent) exit 1 ;;\n"
+            "  error) printf '%s\\n' 'pgrep: simulated scan error' >&2; exit 2 ;;\n"
+            "esac\n",
+            encoding="utf-8",
+        )
+        pgrep.chmod(0o755)
+        for outcome, expected_status, expected_message in (
+            ("absent", 0, "No CEF helper processes remain"),
+            ("found", 1, "CEF helper processes survived"),
+            ("error", 2, "Could not inspect browser helper processes"),
+        ):
+            result = subprocess.run(
+                ["bash", "-c", script],
+                env={
+                    **os.environ,
+                    "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+                    "PGREP_RESULT": outcome,
+                },
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert result.returncode == expected_status, result
+            assert expected_message in result.stdout + result.stderr, result
 
 
 def test_all_mac_build_lanes_run_the_fail_closed_artifact_guard() -> None:

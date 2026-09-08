@@ -878,8 +878,13 @@ jobs:
           # The app-host wrapper must tear down every CEF child before the
           # verification job can pass. A leftover helper retains profile locks
           # and can poison the next tagged run on a reused macOS host.
-          leftovers="$(pgrep -af '[c]mux CEF Helper' || true)"
-          if [ -n "$leftovers" ]; then
+          scan_status=0
+          leftovers="$(pgrep -fl '[c]mux CEF Helper')" || scan_status=$?
+          if [ "$scan_status" -gt 1 ]; then
+            echo "::error::Could not inspect browser helper processes (pgrep exit $scan_status)." >&2
+            exit "$scan_status"
+          fi
+          if [ "$scan_status" -eq 0 ]; then
             echo "::error::CEF helper processes survived browser verification:"
             echo "$leftovers"
             exit 1
