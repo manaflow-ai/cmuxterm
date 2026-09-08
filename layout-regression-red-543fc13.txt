@@ -1,0 +1,28 @@
+543fc13bdf85e38b478c40f8eb96572de4cfdce9
+◇ Test run started.
+◇ Suite RemoteWorkspaceLayoutTests started.
+◇ Test thousandWorkspacesRetainEveryPlacement() started.
+◇ Test decodesEveryLayoutKindForSnapshotsAndDeltas() started.
+◇ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() started.
+◇ Test ordersScreensPanesAndHiddenTabsFromOneProjection() started.
+◇ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() started.
+◇ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() started.
+◇ Test paneLessResourcesFollowPanesInStableKindOrder() started.
+◇ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() started.
+◇ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() started.
+◇ Test refreshedFocusKeepsMixedResourceTabsInOnePane() started.
+✔ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() passed after 0.001 seconds.
+✔ Test ordersScreensPanesAndHiddenTabsFromOneProjection() passed after 0.001 seconds.
+✔ Test paneLessResourcesFollowPanesInStableKindOrder() passed after 0.001 seconds.
+✔ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() passed after 0.001 seconds.
+✔ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() passed after 0.001 seconds.
+✔ Test refreshedFocusKeepsMixedResourceTabsInOnePane() passed after 0.001 seconds.
+✔ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() passed after 0.001 seconds.
+✔ Test decodesEveryLayoutKindForSnapshotsAndDeltas() passed after 0.001 seconds.
+✘ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() recorded an issue at RemoteWorkspaceLayoutTests.swift:60:9: Expectation failed: (rows.map(\.shownIndex) → [1, 0]) == [1, 2, 5, 0, 3]
+✘ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() recorded an issue at RemoteWorkspaceLayoutTests.swift:61:9: Expectation failed: (rows.first?.hiddenIndices → [4, 2, 3, 5]) == [4]
+✘ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() failed after 0.001 seconds with 2 issues.
+RemoteWorkspaceLayout: 1000 workspaces, 32000 placements, 0.004507958 seconds
+✔ Test thousandWorkspacesRetainEveryPlacement() passed after 0.007 seconds.
+✘ Suite RemoteWorkspaceLayoutTests failed after 0.007 seconds with 2 issues.
+✘ Test run with 10 tests in 1 suite failed after 0.007 seconds with 2 issues.

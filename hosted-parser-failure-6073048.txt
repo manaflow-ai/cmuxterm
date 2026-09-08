@@ -1,0 +1,11 @@
+Run 34193492992; requested source 6073048803234ea79f7667cc0baa74844e123514
+No source exclusions. App tests did not execute.
+e2e	Run selected tests	2026-09-08T06:23:06.0301840Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:81:39: error: cannot find 'LocalTmuxSessionIdentity' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0305960Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:81:29: error: generic parameter 'T' could not be inferred
+e2e	Run selected tests	2026-09-08T06:23:06.0307400Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:82:23: error: cannot find 'LocalTmuxSessionBinding' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0308060Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:87:23: error: cannot find 'LocalTmuxCommandBuilder' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0308860Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:129:23: error: cannot find 'LocalTmuxCommandBuilder' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0309460Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:133:26: error: cannot find 'LocalTmuxProcessRunner' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0310100Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:138:27: error: cannot find 'LocalTmuxSessionListParser' in scope
+e2e	Run selected tests	2026-09-08T06:23:06.0310880Z /Users/runner/work/cmux/cmux/cmuxTests/CLILocalTmuxReviewRegressionTests.swift:139:36: error: cannot infer key path type from context; consider explicitly specifying a root type
+e2e	Run selected tests	2026-09-08T06:23:07.2919630Z Testing failed:

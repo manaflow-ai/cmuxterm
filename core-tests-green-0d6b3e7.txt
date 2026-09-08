@@ -1,0 +1,207 @@
+0d6b3e7e9e475fdd4352912ddaddaefd274648a9
+Xcode 26.3
+Build version 17C529
+◇ Test run started.
+◇ Suite RemoteWorkspaceLayoutTests started.
+◇ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() started.
+◇ Test paneLessResourcesFollowPanesInStableKindOrder() started.
+◇ Test thousandWorkspacesRetainEveryPlacement() started.
+◇ Test refreshedFocusKeepsMixedResourceTabsInOnePane() started.
+◇ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() started.
+◇ Test ordersScreensPanesAndHiddenTabsFromOneProjection() started.
+◇ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() started.
+◇ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() started.
+◇ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() started.
+◇ Test decodesEveryLayoutKindForSnapshotsAndDeltas() started.
+✔ Test paneLessResourcesFollowPanesInStableKindOrder() passed after 0.001 seconds.
+✔ Test refreshedFocusKeepsMixedResourceTabsInOnePane() passed after 0.001 seconds.
+✔ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() passed after 0.001 seconds.
+✔ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() passed after 0.001 seconds.
+✔ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() passed after 0.001 seconds.
+✔ Test ordersScreensPanesAndHiddenTabsFromOneProjection() passed after 0.001 seconds.
+✔ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() passed after 0.001 seconds.
+✔ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() passed after 0.001 seconds.
+✔ Test decodesEveryLayoutKindForSnapshotsAndDeltas() passed after 0.001 seconds.
+RemoteWorkspaceLayout: 1000 workspaces, 32000 placements, 0.004854292 seconds
+✔ Test thousandWorkspacesRetainEveryPlacement() passed after 0.007 seconds.
+✔ Suite RemoteWorkspaceLayoutTests passed after 0.008 seconds.
+✔ Test run with 10 tests in 1 suite passed after 0.008 seconds.
+◇ Test run started.
+◇ Suite "WorkspaceRemoteWebSocketDaemonEndpoint" started.
+◇ Suite "Workspace group identity resolution" started.
+◇ Suite "WorkspaceRemoteDaemonManifest decoding" started.
+◇ Suite "SessionRemoteWorkspaceSnapshot persistence shape" started.
+◇ Suite "WorkspaceRemoteConfiguration SSH batch command composition" started.
+◇ Suite "RemoteLoopbackProxyAlias" started.
+◇ Test "proxy broker key component trims and binds url, session, and expiry" started.
+◇ Test "rejects malformed, blank, and mismatched inputs" started.
+◇ Test "normalizes either accepted alias" started.
+◇ Test "accepts matching aliases after normalization" started.
+◇ Test "decodes the embedded manifest JSON shape" started.
+◇ Suite "Port scan snapshot reconciliation" started.
+◇ Test "omitted and null-equivalent inputs produce no identity" started.
+◇ Test "entry lookup matches on the exact GOOS/GOARCH pair" started.
+◇ Suite RemoteWorkspaceLayoutTests started.
+◇ Suite "Remote status values" started.
+◇ Test "decodes from an Info dictionary under the wire-pinned key" started.
+◇ Test "daemonTransportArguments injects accept-new and drops control master options" started.
+◇ Test "daemonTransportArguments override a host-configured RemoteCommand" started.
+◇ Suite "WorkspaceRemoteConfiguration value behavior" started.
+◇ Test "codable round trip preserves every field" started.
+◇ Test "reverseRelayControlMasterArguments uses the configured ControlPath" started.
+◇ Test "daemonTransportArguments without a persistent slot" started.
+◇ Test "host normalization strips schemes, ports, brackets, and dots" started.
+◇ Test "decodes the persisted wire keys, optional fields absent" started.
+◇ Test "loopback detection covers exact hosts and localhost subdomains" started.
+◇ Test "daemonTransportArguments with a persistent daemon slot" started.
+◇ Test "batch command reuses the supplied authenticated ControlPath" started.
+◇ Test "daemonTransportArguments keeps persistent transport compatible without a relay lease" started.
+◇ Test "alias host constant is the wire value" started.
+◇ Test "alias host maps back to localhost" started.
+◇ Test "loopback host maps to the alias" started.
+◇ Test "resolved ControlPath replaces every unresolved option" started.
+◇ Test "Info-dictionary decode rejects a missing, blank, or undecodable manifest" started.
+◇ Test "daemonSocketForwardArguments shape" started.
+◇ Test "reverse relay ControlMaster commands require a usable ControlPath" started.
+◇ Suite "WorkspaceRemoteConfiguration SSH option normalization" started.
+✔ Test "normalizes either accepted alias" passed after 0.001 seconds.
+◇ Test "browser alias host falls back to the bare alias" started.
+✔ Test "proxy broker key component trims and binds url, session, and expiry" passed after 0.001 seconds.
+◇ Test "transport raw values are the persisted wire strings" started.
+◇ Test "Incomplete scans merge positive evidence without removing missing ports" started.
+◇ Suite "Bounded port snapshot retirement" started.
+◇ Test "Stopping tracking removes ports immediately" started.
+◇ Test "Per-port complete evidence retires a port despite unrelated incomplete evidence" started.
+◇ Test "Per-port complete evidence upgrades a port learned by an incomplete scan" started.
+◇ Test "Reset clears every snapshot immediately" started.
+◇ Test "Explicit removal clears the selected snapshot immediately" started.
+◇ Test "Completeness advances misses independently for each scanned key" started.
+◇ Test "One complete miss cannot remove a known port" started.
+◇ Test "Tentative ports learned from incomplete scans are recency bounded" started.
+◇ Test "Sustained complete misses eventually remove a port" started.
+◇ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() started.
+◇ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() started.
+✔ Test "accepts matching aliases after normalization" passed after 0.001 seconds.
+◇ Test decodesEveryLayoutKindForSnapshotsAndDeltas() started.
+◇ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() started.
+◇ Test refreshedFocusKeepsMixedResourceTabsInOnePane() started.
+◇ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() started.
+◇ Test paneLessResourcesFollowPanesInStableKindOrder() started.
+◇ Test ordersScreensPanesAndHiddenTabsFromOneProjection() started.
+◇ Test "default daemon status matches the legacy zero value" started.
+◇ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() started.
+◇ Test "payload keeps wire keys and NSNull placeholders" started.
+◇ Test "connection state raw values are pinned wire strings" started.
+◇ Test "daemon state raw values are pinned wire strings" started.
+✔ Test "omitted and null-equivalent inputs produce no identity" passed after 0.001 seconds.
+◇ Test thousandWorkspacesRetainEveryPlacement() started.
+◇ Test "sessionSnapshot persists restorable transports with a non-empty destination" started.
+◇ Test "Mosh terminals disable SSH persistent-PTY state" started.
+◇ Test "persistent daemon slot is gated on preserveAfterTerminalExit" started.
+◇ Test "sshTerminalStartupEnvironment carries SSH_AUTH_SOCK only when an agent socket exists" started.
+◇ Test "terminal profile participates in value equality and snapshots" started.
+◇ Test "managed Cloud VM persistent identity ignores local owner workspace" started.
+◇ Test "hasSamePersistentPTYIdentity requires preserve on both sides and a matching slot" started.
+◇ Test "remote relay namespace follows the remote endpoint and relay port" started.
+◇ Test "sessionSnapshot keeps relay port and slot only for preserved sessions" started.
+◇ Test "Mosh snapshots retain the relay namespace without persistent SSH PTY state" started.
+◇ Test "displayTarget hides the provider hostname for the managed Cloud VM" started.
+✔ Test "entry lookup matches on the exact GOOS/GOARCH pair" passed after 0.001 seconds.
+◇ Test "persistent PTY lookup keys cover exact and managed wildcard owners" started.
+◇ Test "remote configuration resolves terminal transport and supported pairings" started.
+◇ Test "displayTarget appends the port only when present" started.
+◇ Test "terminal transport participates in value equality and snapshots" started.
+◇ Test "proxy broker transport key separates bootstrap modes and ignores transient options" started.
+✔ Test "decodes the embedded manifest JSON shape" passed after 0.001 seconds.
+✔ Test "host normalization strips schemes, ports, brackets, and dots" passed after 0.001 seconds.
+✔ Test "alias host constant is the wire value" passed after 0.001 seconds.
+✔ Test "alias host maps back to localhost" passed after 0.001 seconds.
+✔ Test "loopback detection covers exact hosts and localhost subdomains" passed after 0.001 seconds.
+✔ Test "loopback host maps to the alias" passed after 0.001 seconds.
+✔ Test "codable round trip preserves every field" passed after 0.001 seconds.
+✔ Test "decodes the persisted wire keys, optional fields absent" passed after 0.001 seconds.
+✔ Test "decodes from an Info dictionary under the wire-pinned key" passed after 0.001 seconds.
+✔ Test "Info-dictionary decode rejects a missing, blank, or undecodable manifest" passed after 0.001 seconds.
+✔ Test "rejects malformed, blank, and mismatched inputs" passed after 0.001 seconds.
+✔ Test "daemonSocketForwardArguments shape" passed after 0.001 seconds.
+✔ Test "resolved ControlPath replaces every unresolved option" passed after 0.001 seconds.
+◇ Test "identity path trims and expands a leading tilde" started.
+◇ Test "normalizedOptionalValue trims and rejects whitespace-only input" started.
+◇ Test "forked workspace options equal the durable subset" started.
+◇ Test "trimmed options keep control-socket keys but trim whitespace and drop empties" started.
+◇ Test "hasSSHOptionKey matches case-insensitively across separators" started.
+◇ Test "persistent daemon slot validation enforces charset, length, and dot names" started.
+◇ Test "durable options drop transient control-socket keys, any separator or case" started.
+✔ Suite "WorkspaceRemoteWebSocketDaemonEndpoint" passed after 0.002 seconds.
+✔ Test "browser alias host falls back to the bare alias" passed after 0.001 seconds.
+✔ Test "transport raw values are the persisted wire strings" passed after 0.001 seconds.
+◇ Test "Complete scans retire a stopped listener within one burst in every scope" started.
+✔ Test "daemonTransportArguments override a host-configured RemoteCommand" passed after 0.002 seconds.
+✔ Test "Reset clears every snapshot immediately" passed after 0.001 seconds.
+✔ Test "Stopping tracking removes ports immediately" passed after 0.001 seconds.
+✔ Test "Incomplete scans merge positive evidence without removing missing ports" passed after 0.001 seconds.
+✔ Test "Per-port complete evidence upgrades a port learned by an incomplete scan" passed after 0.001 seconds.
+✔ Test "Sustained complete misses eventually remove a port" passed after 0.001 seconds.
+✔ Test "Per-port complete evidence retires a port despite unrelated incomplete evidence" passed after 0.001 seconds.
+✔ Test "Explicit removal clears the selected snapshot immediately" passed after 0.001 seconds.
+✔ Test "daemonTransportArguments keeps persistent transport compatible without a relay lease" passed after 0.002 seconds.
+✔ Test "daemonTransportArguments without a persistent slot" passed after 0.002 seconds.
+✔ Test "One complete miss cannot remove a known port" passed after 0.001 seconds.
+✔ Test "Completeness advances misses independently for each scanned key" passed after 0.001 seconds.
+✔ Test "daemonTransportArguments with a persistent daemon slot" passed after 0.002 seconds.
+✔ Test "default daemon status matches the legacy zero value" passed after 0.001 seconds.
+✔ Test stableScreenIdentityTakesPrecedenceOverScreenPosition() passed after 0.001 seconds.
+✔ Test "Tentative ports learned from incomplete scans are recency bounded" passed after 0.001 seconds.
+✔ Test refreshedFocusKeepsMixedResourceTabsInOnePane() passed after 0.001 seconds.
+✔ Test "daemonTransportArguments injects accept-new and drops control master options" passed after 0.002 seconds.
+✔ Test ordersScreensPanesAndHiddenTabsFromOneProjection() passed after 0.001 seconds.
+✔ Test unreadableAndFutureLayoutsHaveNoInventedCoordinates() passed after 0.001 seconds.
+✔ Test legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() passed after 0.001 seconds.
+✔ Test missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() passed after 0.001 seconds.
+✔ Test equalCoordinatesAndMultipleFocusFlagsHaveStableFallbacks() passed after 0.001 seconds.
+✔ Test "reverse relay ControlMaster commands require a usable ControlPath" passed after 0.002 seconds.
+✔ Test "connection state raw values are pinned wire strings" passed after 0.001 seconds.
+✔ Test "batch command reuses the supplied authenticated ControlPath" passed after 0.002 seconds.
+✔ Test paneLessResourcesFollowPanesInStableKindOrder() passed after 0.001 seconds.
+✔ Test "payload keeps wire keys and NSNull placeholders" passed after 0.001 seconds.
+✔ Test "daemon state raw values are pinned wire strings" passed after 0.001 seconds.
+✔ Test "Mosh terminals disable SSH persistent-PTY state" passed after 0.001 seconds.
+✔ Test decodesEveryLayoutKindForSnapshotsAndDeltas() passed after 0.001 seconds.
+✔ Test "managed Cloud VM persistent identity ignores local owner workspace" passed after 0.001 seconds.
+✔ Suite "WorkspaceRemoteDaemonManifest decoding" passed after 0.002 seconds.
+✔ Test "remote configuration resolves terminal transport and supported pairings" passed after 0.001 seconds.
+✔ Test "sshTerminalStartupEnvironment carries SSH_AUTH_SOCK only when an agent socket exists" passed after 0.001 seconds.
+✔ Test "Mosh snapshots retain the relay namespace without persistent SSH PTY state" passed after 0.001 seconds.
+✔ Test "terminal profile participates in value equality and snapshots" passed after 0.001 seconds.
+✔ Test "sessionSnapshot keeps relay port and slot only for preserved sessions" passed after 0.001 seconds.
+✔ Test "hasSamePersistentPTYIdentity requires preserve on both sides and a matching slot" passed after 0.001 seconds.
+✔ Test "persistent daemon slot is gated on preserveAfterTerminalExit" passed after 0.001 seconds.
+✔ Suite "SessionRemoteWorkspaceSnapshot persistence shape" passed after 0.002 seconds.
+✔ Test "reverseRelayControlMasterArguments uses the configured ControlPath" passed after 0.002 seconds.
+✔ Test "displayTarget appends the port only when present" passed after 0.001 seconds.
+✔ Test "sessionSnapshot persists restorable transports with a non-empty destination" passed after 0.001 seconds.
+✔ Test "normalizedOptionalValue trims and rejects whitespace-only input" passed after 0.001 seconds.
+✔ Test "displayTarget hides the provider hostname for the managed Cloud VM" passed after 0.001 seconds.
+✔ Test "terminal transport participates in value equality and snapshots" passed after 0.001 seconds.
+✔ Test "remote relay namespace follows the remote endpoint and relay port" passed after 0.001 seconds.
+✔ Suite "Workspace group identity resolution" passed after 0.002 seconds.
+✔ Test "persistent PTY lookup keys cover exact and managed wildcard owners" passed after 0.001 seconds.
+✔ Test "persistent daemon slot validation enforces charset, length, and dot names" passed after 0.001 seconds.
+✔ Test "trimmed options keep control-socket keys but trim whitespace and drop empties" passed after 0.001 seconds.
+✔ Suite "RemoteLoopbackProxyAlias" passed after 0.002 seconds.
+✔ Test "Complete scans retire a stopped listener within one burst in every scope" passed after 0.001 seconds.
+✔ Suite "Remote status values" passed after 0.002 seconds.
+✔ Test "hasSSHOptionKey matches case-insensitively across separators" passed after 0.001 seconds.
+✔ Suite "Port scan snapshot reconciliation" passed after 0.002 seconds.
+✔ Suite "Bounded port snapshot retirement" passed after 0.002 seconds.
+✔ Suite "WorkspaceRemoteConfiguration SSH batch command composition" passed after 0.002 seconds.
+✔ Test "forked workspace options equal the durable subset" passed after 0.001 seconds.
+✔ Test "durable options drop transient control-socket keys, any separator or case" passed after 0.001 seconds.
+✔ Test "proxy broker transport key separates bootstrap modes and ignores transient options" passed after 0.001 seconds.
+✔ Suite "WorkspaceRemoteConfiguration value behavior" passed after 0.002 seconds.
+✔ Test "identity path trims and expands a leading tilde" passed after 0.001 seconds.
+✔ Suite "WorkspaceRemoteConfiguration SSH option normalization" passed after 0.002 seconds.
+RemoteWorkspaceLayout: 1000 workspaces, 32000 placements, 0.004713417 seconds
+✔ Test thousandWorkspacesRetainEveryPlacement() passed after 0.008 seconds.
+✔ Suite RemoteWorkspaceLayoutTests passed after 0.009 seconds.
+✔ Test run with 76 tests in 12 suites passed after 0.009 seconds.
