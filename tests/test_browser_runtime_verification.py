@@ -433,7 +433,8 @@ def test_browser_gate_uses_exact_head_and_nonzero_test_contract() -> None:
     assert "blacksmith-*|warp-*|depot-*" in workflow
     assert "Required browser runner identity verified" in workflow
     assert "requires an approved runner" in workflow
-    assert "CMUX_UI_TEST_BROWSER_ENGINE=${CMUX_UI_TEST_BROWSER_ENGINE:-}" in workflow
+    assert '"TEST_RUNNER_CMUX_UI_TEST_BROWSER_ENGINE=${CMUX_UI_TEST_BROWSER_ENGINE:-}"' in workflow
+    assert '"CMUX_UI_TEST_BROWSER_ENGINE=${CMUX_UI_TEST_BROWSER_ENGINE:-}"' not in workflow
     assert "Verify browser helper cleanup" in workflow
     assert "Validate browser engine selector from artifact" in workflow
     assert "Re-verify browser runtime after tests" in workflow

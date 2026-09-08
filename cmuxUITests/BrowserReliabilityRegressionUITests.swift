@@ -170,8 +170,11 @@ final class BrowserReliabilityRegressionUITests: BrowserFixtureSocketTestCase {
         )
 
         let firstOrigin = try BrowserRecoveryHTTPServer()
-        let secondOrigin = try BrowserRecoveryHTTPServer()
         try firstOrigin.start()
+        // Keep the first listener bound before reserving the second port. The
+        // helper's ephemeral-port reservation is released before NWListener
+        // starts, so constructing both servers first can select the same port.
+        let secondOrigin = try BrowserRecoveryHTTPServer()
         try secondOrigin.start()
         defer {
             firstOrigin.stop()

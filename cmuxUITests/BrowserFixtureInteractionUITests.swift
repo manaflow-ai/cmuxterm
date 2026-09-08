@@ -188,8 +188,13 @@ class BrowserFixtureSocketTestCase: XCTestCase {
             "workspace_id": workspaceID,
             "surface_id": sourceSurfaceID,
         ]
-        let requestedEngine = ProcessInfo.processInfo.environment["CMUX_UI_TEST_BROWSER_ENGINE"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestedEngine = [
+            "TEST_RUNNER_CMUX_UI_TEST_BROWSER_ENGINE",
+            "CMUX_UI_TEST_BROWSER_ENGINE",
+        ]
+        .compactMap { ProcessInfo.processInfo.environment[$0] }
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
         if let requestedEngine, !requestedEngine.isEmpty {
             // The CI browser gate sets this only after it has proved that the
             // exact artifact contains native CEF.  Keep ordinary WebKit tests

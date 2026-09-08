@@ -701,7 +701,10 @@ jobs:
             "TMPDIR=${TMPDIR:-/tmp}"
             "CMUX_CEF_ALLOW_DOWNLOAD=${CMUX_CEF_ALLOW_DOWNLOAD:-0}"
             "CMUX_CEF_REQUIRED=${CMUX_CEF_REQUIRED:-0}"
-            "CMUX_UI_TEST_BROWSER_ENGINE=${CMUX_UI_TEST_BROWSER_ENGINE:-}"
+            # Xcode forwards TEST_RUNNER_-prefixed values into the XCTest
+            # runner; an unprefixed value can stop at xcodebuild and leave a
+            # native CEF artifact exercising WebKit instead.
+            "TEST_RUNNER_CMUX_UI_TEST_BROWSER_ENGINE=${CMUX_UI_TEST_BROWSER_ENGINE:-}"
           )
           if [ "${#DISPLAY_ENV_PREFIX[@]}" -gt 0 ]; then
             XCODEBUILD_ENV+=("${DISPLAY_ENV_PREFIX[@]}")
