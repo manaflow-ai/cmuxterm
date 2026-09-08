@@ -57,6 +57,9 @@ extension ClaudeHookSessionRecord {
     /// Returns the persisted identity for a hook's process, including a
     /// recent prior generation retained across same-session resumes.
     func processIdentity(for pid: Int) -> AgentPIDProcessIdentity? {
+        if self.pid == pid, pidStartSeconds == nil || pidStartMicroseconds == nil {
+            return nil
+        }
         let generations = priorProcessGenerations ?? []
         let currentGeneration: ClaudeHookProcessGeneration? = if self.pid == pid,
             let pidStartSeconds,
