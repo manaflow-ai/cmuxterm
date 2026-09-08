@@ -60,7 +60,17 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(result.text.contains("vm agent: unknown size '1'"), "\(result.text)")
     }
 
-    private func runWithoutMutationRequests(_ arguments: [String]) throws -> (status: Int32, text: String) {
+    @Test(arguments: ["--help", "-h"])
+    func topLevelAgentHelpDoesNotConnect(help: String) throws {
+        for command in [["agent", help], ["agent", "claude", help], ["agent", "--agent", "claude", help]] {
+            let result = try runWithoutMutationRequests(command)
+            #expect(result.status == 0, "\(result.text)")
+            #expect(result.text.contains("Usage:") && result.text.contains("cmux agent"), "\(result.text)")
+            #expect(!result.connected, "Help unexpectedly connected to the app socket")
+        }
+    }
+
+    private func runWithoutMutationRequests(_ arguments: [String]) throws -> (status: Int32, text: String, connected: Bool) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -113,7 +123,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
                 }
                 #expect(received == 0, "Unexpected socket request: \(String(decoding: buffer.prefix(max(received, 0)), as: UTF8.self))")
             }
-            return (process.terminationStatus, text)
+            return (process.terminationStatus, text, connection >= 0)
         }
     }
 
