@@ -1,4 +1,5 @@
 import CmuxWorkspaces
+import Combine
 import Foundation
 import Testing
 
@@ -186,4 +187,170 @@ struct RestoredStartupInputResendTests {
         #expect(!workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId))
         #expect(!workspace.restoredAgentLifecycle.armStartupInputResend(panelId: panelId))
     }
+
+    // MARK: - Workspace/Dock transfers
+
+    /// A transfer for a launch whose typed selector is still outstanding. The
+    /// default shell state models the case that matters: the shell settled at
+    /// an idle prompt before the move, so the destination never sees that
+    /// transition itself.
+    private func awaitingTransfer(
+        panel: any Panel,
+        sourceWorkspaceId: UUID,
+        shellActivityState: PanelShellActivityState? = .promptIdle
+    ) -> Workspace.DetachedSurfaceTransfer {
+        Workspace.DetachedSurfaceTransfer(
+            sourceWorkspaceId: sourceWorkspaceId,
+            sessionRestoreSourceWorkspaceId: nil,
+            panelId: panel.id,
+            panel: panel,
+            title: panel.displayTitle,
+            icon: panel.displayIcon,
+            iconImageData: nil,
+            kind: "terminal",
+            isLoading: false,
+            isPinned: false,
+            directory: nil,
+            directoryIsTrustedRemoteReport: false,
+            directoryDisplayLabel: nil,
+            ttyName: nil,
+            cachedTitle: nil,
+            customTitle: nil,
+            customTitleSource: nil,
+            manuallyUnread: false,
+            restoredUnreadIndicator: nil,
+            restorableAgent: nil,
+            restorableAgentResumeState: .awaitingAutoResumeCommand,
+            restoredAgentCompletedGeneration: nil,
+            shellActivityState: shellActivityState,
+            restoredResumeSessionWorkingDirectory: nil,
+            restoredStartupInput: selector,
+            resumeBinding: nil,
+            managedAgentResumeBinding: nil,
+            agentRuntime: nil,
+            isRemoteTerminal: false,
+            remoteRelayPort: nil,
+            remotePTYSessionID: nil,
+            remoteCleanupConfiguration: nil
+        )
+    }
+
+    private func waitForReplay(
+        _ coordinator: RestoredAgentLifecycleCoordinator,
+        panelId: UUID
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while coordinator.awaitsStartupInput(panelId: panelId),
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    @Test("Re-stamping a transfer's remote cleanup configuration keeps the retained selector")
+    func remoteCleanupCopyKeepsStartupInput() {
+        let panel = RestoredStartupInputTransferTestPanel()
+        let transfer = awaitingTransfer(panel: panel, sourceWorkspaceId: UUID())
+
+        let copied = transfer.withRemoteCleanupConfiguration(nil)
+
+        #expect(copied.restoredStartupInput == selector)
+        #expect(copied.restorableAgentResumeState == .awaitingAutoResumeCommand)
+        #expect(copied.shellActivityState == .promptIdle)
+    }
+
+    @Test("A workspace that adopts a pane whose shell already idled replays the selector itself")
+    func workspaceReplaysAfterAdoptingIdleTransfer() async throws {
+        let previousGrace = Workspace.restoredStartupInputResendGrace
+        Workspace.restoredStartupInputResendGrace = 0.05
+        defer { Workspace.restoredStartupInputResendGrace = previousGrace }
+
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+        let panel = try #require(workspace.panels[panelId])
+
+        workspace.seedDetachedRestoredAgentState(
+            from: awaitingTransfer(panel: panel, sourceWorkspaceId: UUID())
+        )
+
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .awaitingAutoResumeCommand)
+        #expect(workspace.panelShellActivityStates[panelId] == .promptIdle)
+        #expect(workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId))
+        // The idle prompt was reported to the previous owner and never repeats
+        // here, so adoption itself must have armed the replay.
+        #expect(!workspace.restoredAgentLifecycle.armStartupInputResend(panelId: panelId))
+
+        try await waitForReplay(workspace.restoredAgentLifecycle, panelId: panelId)
+        #expect(!workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId))
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .awaitingAutoResumeCommand)
+    }
+
+    @Test("A Dock that adopts a pane whose shell already idled replays the selector itself")
+    func dockReplaysAfterAdoptingIdleTransfer() async throws {
+        let previousGrace = Workspace.restoredStartupInputResendGrace
+        Workspace.restoredStartupInputResendGrace = 0.05
+        defer { Workspace.restoredStartupInputResendGrace = previousGrace }
+
+        let sourceWorkspaceId = UUID()
+        let panel = TerminalPanel(workspaceId: sourceWorkspaceId)
+        let store = DockSplitStore(workspaceId: UUID(), baseDirectoryProvider: { nil })
+        defer { store.closeAllPanels() }
+        let rootPane = try #require(store.bonsplitController.allPaneIds.first)
+
+        let attached = store.attachDetachedSurface(
+            awaitingTransfer(panel: panel, sourceWorkspaceId: sourceWorkspaceId),
+            inPane: rootPane,
+            focus: false
+        )
+
+        #expect(attached == panel.id)
+        #expect(panel.shellActivity.state == .promptIdle)
+        #expect(store.restoredAgentLifecycle.awaitsStartupInput(panelId: panel.id))
+        #expect(!store.restoredAgentLifecycle.armStartupInputResend(panelId: panel.id))
+
+        try await waitForReplay(store.restoredAgentLifecycle, panelId: panel.id)
+        #expect(!store.restoredAgentLifecycle.awaitsStartupInput(panelId: panel.id))
+        #expect(store.restoredAgentLifecycle.resumeStatesByPanelId[panel.id] == .awaitingAutoResumeCommand)
+    }
+
+    @Test("Detaching from a Dock carries the retained selector to the next owner")
+    func dockDetachCarriesStartupInput() throws {
+        let sourceWorkspaceId = UUID()
+        let panel = TerminalPanel(workspaceId: sourceWorkspaceId)
+        let store = DockSplitStore(workspaceId: UUID(), baseDirectoryProvider: { nil })
+        defer { store.closeAllPanels() }
+        let rootPane = try #require(store.bonsplitController.allPaneIds.first)
+        _ = store.attachDetachedSurface(
+            awaitingTransfer(
+                panel: panel,
+                sourceWorkspaceId: sourceWorkspaceId,
+                shellActivityState: nil
+            ),
+            inPane: rootPane,
+            focus: false
+        )
+        #expect(store.restoredAgentLifecycle.awaitsStartupInput(panelId: panel.id))
+
+        let detached = try #require(store.detachSurface(panelId: panel.id))
+        defer { panel.close() }
+
+        #expect(detached.restorableAgentResumeState == .awaitingAutoResumeCommand)
+        #expect(detached.restoredStartupInput == selector)
+    }
+}
+
+@MainActor
+private final class RestoredStartupInputTransferTestPanel: Panel {
+    let objectWillChange = ObservableObjectPublisher()
+    let id = UUID()
+    let stableSurfaceIdentity = PanelStableSurfaceIdentity()
+    let panelType: PanelType = .terminal
+    var displayTitle = "Restored"
+    let displayIcon: String? = "terminal.fill"
+    let isDirty = false
+
+    func close() {}
+    func focus() {}
+    func unfocus() {}
+    func triggerFlash(reason: WorkspaceAttentionFlashReason) {}
 }
