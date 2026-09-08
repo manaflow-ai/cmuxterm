@@ -19,6 +19,19 @@ final class FakeWorkspaceTodoControlCommandContext: ControlCommandContext {
     var lastSetItems: [ControlWorkspaceTodoSetItemParam]?
     var lastOpenRequestedFocus: Bool?
     var lastWorkspaceID: UUID??
+    var queueResolution: ControlWorkspaceTaskQueueResolution = .tabManagerUnavailable
+    var queueDispatchResolution: ControlWorkspaceTaskQueueDispatchResolution = .tabManagerUnavailable
+    var queueRevealResolution: ControlWorkspaceTaskQueueRevealResolution = .tabManagerUnavailable
+    var queueTargetResolution: ControlWorkspaceTaskQueueTargetResolution = .tabManagerUnavailable
+    var queueStrings = ControlWorkspaceTaskQueueStrings()
+    var lastQueueStatusRaw: String?
+    var lastQueueWindowID: UUID?
+    var lastQueueTarget: (workingDirectory: String?, agentCommand: String?, agentName: String?)?
+    var queueTargetCallCount = 0
+
+    var controlWorkspaceTaskQueueStrings: ControlWorkspaceTaskQueueStrings {
+        queueStrings
+    }
 
     func controlWorkspaceTaskStatus(
         routing: ControlRoutingSelectors,
@@ -104,6 +117,40 @@ final class FakeWorkspaceTodoControlCommandContext: ControlCommandContext {
         lastWorkspaceID = workspaceID
         lastOpenRequestedFocus = requestedFocus
         return openResolution
+    }
+
+    func controlWorkspaceTaskQueueList(
+        statusRaw: String?,
+        workspaceID: UUID?,
+        windowID: UUID?
+    ) -> ControlWorkspaceTaskQueueResolution {
+        lastQueueStatusRaw = statusRaw
+        lastQueueWindowID = windowID
+        queueResolution
+    }
+
+    func controlWorkspaceTaskQueueDispatch(
+        itemID: UUID,
+        routing: ControlRoutingSelectors
+    ) -> ControlWorkspaceTaskQueueDispatchResolution {
+        queueDispatchResolution
+    }
+
+    func controlWorkspaceTaskQueueReveal(
+        itemID: UUID
+    ) -> ControlWorkspaceTaskQueueRevealResolution {
+        queueRevealResolution
+    }
+
+    func controlWorkspaceTaskQueueSetTarget(
+        itemID: UUID,
+        workingDirectory: String?,
+        agentCommand: String?,
+        agentName: String?
+    ) -> ControlWorkspaceTaskQueueTargetResolution {
+        queueTargetCallCount += 1
+        lastQueueTarget = (workingDirectory, agentCommand, agentName)
+        queueTargetResolution
     }
 }
 

@@ -139,6 +139,148 @@ import Testing
         }
     }
 
+    @Test func testTodoTargetParsesOptionsBeforeSelector() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = "/tmp/cmux-todo-target-\(UUID().uuidString.prefix(8)).sock"
+        let responder = try UnixSocketResponder(
+            path: socketPath,
+            response: #"{"ok":true,"result":{"updated":true}}"#
+        )
+        defer { responder.stop() }
+
+        var environment = ProcessInfo.processInfo.environment
+        for key in Array(environment.keys) where key.hasPrefix("CMUX_") {
+            environment.removeValue(forKey: key)
+        }
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: [
+                "todo", "target", "--status", "pending", "--command", "claude", "1",
+                "--cwd", "/tmp/project", "--agent", "claude",
+            ],
+            environment: environment,
+            timeout: 5
+        )
+        XCTAssertFalse(result.timedOut, result.diagnostics)
+        XCTAssertEqual(result.status, 0, result.diagnostics)
+
+        let request = try XCTUnwrap(responder.receivedRequests.first)
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(request.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(payload["method"] as? String, "workspace.todo.queue.target")
+        let params = try XCTUnwrap(payload["params"] as? [String: Any])
+        XCTAssertEqual(params["index"] as? Int, 0)
+        XCTAssertEqual(params["status"] as? String, "pending")
+        let target = try XCTUnwrap(params["target"] as? [String: Any])
+        XCTAssertEqual(target["agent_command"] as? String, "claude")
+        XCTAssertEqual(target["working_directory"] as? String, "/tmp/project")
+        XCTAssertEqual(target["agent"] as? String, "claude")
+    }
+
+    @Test func testTodoQueueFilteredActionsForwardStatus() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = "/tmp/cmux-todo-queue-filter-\(UUID().uuidString.prefix(8)).sock"
+        let response = #"{"ok":true,"result":{"focused":false,"selected":false}}"#
+        let responder = try UnixSocketResponder(path: socketPath, responses: [response, response])
+        defer { responder.stop() }
+
+        var environment = ProcessInfo.processInfo.environment
+        for key in Array(environment.keys) where key.hasPrefix("CMUX_") {
+            environment.removeValue(forKey: key)
+        }
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+
+        for command in ["dispatch", "reveal"] {
+            let result = runProcess(
+                executablePath: cliPath,
+                arguments: ["todo", command, "--status", "pending", "1"],
+                environment: environment,
+                timeout: 5
+            )
+            XCTAssertFalse(result.timedOut, result.diagnostics)
+            XCTAssertEqual(result.status, 0, result.diagnostics)
+        }
+
+        let requests = try responder.receivedRequests.map { request in
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(request.utf8)) as? [String: Any])
+        }
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests[0]["method"] as? String, "workspace.todo.queue.dispatch")
+        XCTAssertEqual(requests[1]["method"] as? String, "workspace.todo.queue.reveal")
+        for request in requests {
+            let params = try XCTUnwrap(request["params"] as? [String: Any])
+            XCTAssertEqual(params["index"] as? Int, 0)
+            XCTAssertEqual(params["status"] as? String, "pending")
+        }
+    }
+
+    @Test func testTodoTargetRejectsTargetOnlyOptionsWithoutCommand() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = "/tmp/cmux-todo-target-validation-\(UUID().uuidString.prefix(8)).sock"
+        let responder = try UnixSocketResponder(
+            path: socketPath,
+            response: #"{"ok":true,"result":{"updated":true}}"#
+        )
+        defer { responder.stop() }
+
+        var environment = ProcessInfo.processInfo.environment
+        for key in Array(environment.keys) where key.hasPrefix("CMUX_") {
+            environment.removeValue(forKey: key)
+        }
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["todo", "target", "--cwd", "/tmp/project", "1"],
+            environment: environment,
+            timeout: 5
+        )
+        XCTAssertFalse(result.timedOut, result.diagnostics)
+        XCTAssertNotEqual(result.status, 0, result.diagnostics)
+        XCTAssertTrue(result.stderr.contains("requires --command"), result.diagnostics)
+        XCTAssertTrue(responder.receivedRequests.isEmpty, result.diagnostics)
+    }
+
+    @Test func testTodoQueueTextIncludesStableItemID() throws {
+        let cliPath = try bundledCLIPath()
+        let socketPath = "/tmp/cmux-todo-queue-output-\(UUID().uuidString.prefix(8)).sock"
+        let itemID = UUID().uuidString.lowercased()
+        let response = try jsonResponse(result: [
+            "count": 1,
+            "items": [[
+                "id": itemID,
+                "state": "pending",
+                "text": "Ship the fix",
+                "workspace_title": "Feature",
+            ]],
+        ])
+        let responder = try UnixSocketResponder(path: socketPath, response: response)
+        defer { responder.stop() }
+
+        var environment = ProcessInfo.processInfo.environment
+        for key in Array(environment.keys) where key.hasPrefix("CMUX_") {
+            environment.removeValue(forKey: key)
+        }
+        environment["CMUX_SOCKET_PATH"] = socketPath
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: ["todo", "queue"],
+            environment: environment,
+            timeout: 5
+        )
+        XCTAssertFalse(result.timedOut, result.diagnostics)
+        XCTAssertEqual(result.status, 0, result.diagnostics)
+        XCTAssertTrue(result.stdout.contains(itemID), result.diagnostics)
+    }
+
     @Test func testSurfaceResumeSetCLIRejectsUnknownFlagWithoutReplacingBinding() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = "/tmp/cmux-resume-flag-\(UUID().uuidString.prefix(8)).sock"
