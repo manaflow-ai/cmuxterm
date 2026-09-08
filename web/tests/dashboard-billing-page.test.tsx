@@ -222,6 +222,8 @@ describe("dashboard billing page", () => {
       expect(html).toContain("cmux Pro");
       expect(html).toContain('href="/api/billing/portal"');
       expect(html).toContain("Manage billing");
+      expect(html).toContain(enMessages.dashboard.billing.pro.entitledBody);
+      expect(html).not.toContain(enMessages.dashboard.billing.pro.grantedBody);
       expect(html).not.toContain("/api/billing/subscription");
       expect(html).not.toContain("/api/billing/checkout?plan=pro");
     });

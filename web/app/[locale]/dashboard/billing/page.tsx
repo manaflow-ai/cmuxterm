@@ -166,10 +166,12 @@ export default async function DashboardBillingPage({
           subscription={subscription}
           canManageBilling={canManagePersonalBilling && hasStripeCustomer}
         />
-      ) : hasPaidManualGrant ? (
-        <GrantedPlan t={t} />
       ) : (
-        <ProEntitlement t={t} />
+        <ProEntitlement
+          t={t}
+          granted={hasPaidManualGrant}
+          canManageBilling={canManagePersonalBilling && hasStripeCustomer}
+        />
       )}
 
       {billingTeam && teamSubscription ? (
@@ -257,15 +259,7 @@ function FreePlan({
       <h2 className="text-sm font-medium">{t("free.name")}</h2>
       <p className="mt-2 max-w-2xl text-muted">{t("free.body")}</p>
       {showBillingPortal ? (
-        // The portal route creates a Stripe session and needs a full document
-        // navigation rather than a Next.js client transition.
-        // eslint-disable-next-line @next/next/no-html-link-for-pages
-        <a
-          href="/api/billing/portal"
-          className="mt-3 inline-block border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background"
-        >
-          {t("actions.manageBilling")}
-        </a>
+        <PersonalBillingPortalLink t={t} className="mt-3" />
       ) : (
         <Link
           href="/pricing"
@@ -278,23 +272,42 @@ function FreePlan({
   );
 }
 
-function ProEntitlement({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }) {
+function ProEntitlement({
+  t,
+  granted,
+  canManageBilling,
+}: {
+  t: Awaited<ReturnType<typeof getTranslations>>;
+  granted: boolean;
+  canManageBilling: boolean;
+}) {
   return (
     <section className="border border-border p-3">
       <h2 className="text-sm font-medium">{t("pro.name")}</h2>
-      <p className="mt-2 max-w-2xl text-muted">{t("pro.entitledBody")}</p>
+      <p className="mt-2 max-w-2xl text-muted">
+        {t(granted && !canManageBilling ? "pro.grantedBody" : "pro.entitledBody")}
+      </p>
+      {canManageBilling ? <PersonalBillingPortalLink t={t} className="mt-3" /> : null}
     </section>
   );
 }
 
-// Pro granted by an operator (`cmuxVmPlan`), with no Stripe subscription to
-// manage. Shown so a granted account never reads as Free with an upgrade CTA.
-function GrantedPlan({ t }: { t: Awaited<ReturnType<typeof getTranslations>> }) {
+function PersonalBillingPortalLink({
+  t,
+  className = "",
+}: {
+  t: Awaited<ReturnType<typeof getTranslations>>;
+  className?: string;
+}) {
   return (
-    <section className="border border-border p-3">
-      <h2 className="text-sm font-medium">{t("pro.name")}</h2>
-      <p className="mt-2 max-w-2xl text-muted">{t("pro.grantedBody")}</p>
-    </section>
+    // The API creates a Stripe session and requires a full document navigation.
+    // eslint-disable-next-line @next/next/no-html-link-for-pages
+    <a
+      href="/api/billing/portal"
+      className={`${className} inline-block border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background`}
+    >
+      {t("actions.manageBilling")}
+    </a>
   );
 }
 
@@ -490,15 +503,7 @@ function StripePlan({
         )}
 
         {canManageBilling ? (
-          // This API route creates a Stripe portal session and must perform a
-          // full document navigation rather than a Next.js client transition.
-          // eslint-disable-next-line @next/next/no-html-link-for-pages
-          <a
-            href="/api/billing/portal"
-            className="border border-border bg-background px-3 py-1.5 text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground hover:bg-foreground hover:text-background"
-          >
-            {t("actions.manageBilling")}
-          </a>
+          <PersonalBillingPortalLink t={t} />
         ) : null}
       </div>
     </section>
