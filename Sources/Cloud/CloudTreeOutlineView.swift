@@ -1054,6 +1054,9 @@ final class CloudTreeMenuItem: NSMenuItem {
 
 /// Scroll view + outline host for the Cloud tree.
 final class CloudTreeContainerView: NSView {
+    // The row adds a 1pt selection inset, making the visible outer margin 6pt.
+    // Keep this outside the scroll view so document layout cannot consume it.
+    private static let outerPadding: CGFloat = 5
     private let scrollView = NSScrollView()
     private let outlineView = CloudTreeNSOutlineView()
     private let coordinator: CloudTreeOutlineView.Coordinator
@@ -1123,13 +1126,12 @@ final class CloudTreeContainerView: NSView {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
         scrollView.documentView = outlineView
-        scrollView.contentInsets = NSEdgeInsets(top: 6, left: 0, bottom: 6, right: 0)
         addSubview(scrollView)
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.outerPadding),
+            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.outerPadding),
+            scrollView.topAnchor.constraint(equalTo: topAnchor, constant: Self.outerPadding),
+            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.outerPadding),
         ])
     }
 
