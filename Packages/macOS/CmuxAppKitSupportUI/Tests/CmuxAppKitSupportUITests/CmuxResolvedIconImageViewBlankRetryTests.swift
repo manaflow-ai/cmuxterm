@@ -33,6 +33,43 @@ import Testing
         #expect(pixel.redComponent > pixel.blueComponent)
     }
 
+    /// A source that stays blank stops re-rendering after the bounded number
+    /// of layout passes, so a permanently empty icon never re-rasterizes on
+    /// every layout.
+    @Test func imageViewStopsRecoveringAfterBoundedLayoutPasses() {
+        let view = CmuxResolvedIconImageView(frame: NSRect(origin: .zero, size: size))
+        view.appearance = NSAppearance(named: .aqua)
+        let sourceImage = NSImage(size: size)
+        sourceImage.addRepresentation(transparentBitmapRepresentation(pixels: 16))
+
+        view.apply(CmuxResolvedIconRequest(source: .image(sourceImage), size: size))
+        for _ in 0..<(CmuxResolvedIconImageView.blankRecoveryLayoutPasses + 2) {
+            view.layout()
+        }
+
+        #expect(renderedImage(in: view) == nil)
+        #expect(view.blankRecoveryPassesUsed == CmuxResolvedIconImageView.blankRecoveryLayoutPasses)
+    }
+
+    /// A new request gets a fresh recovery budget and renders immediately.
+    @Test func imageViewResetsRecoveryBudgetWhenRequestChanges() throws {
+        let view = CmuxResolvedIconImageView(frame: NSRect(origin: .zero, size: size))
+        view.appearance = NSAppearance(named: .aqua)
+        let blankImage = NSImage(size: size)
+        blankImage.addRepresentation(transparentBitmapRepresentation(pixels: 16))
+        view.apply(CmuxResolvedIconRequest(source: .image(blankImage), size: size))
+        view.layout()
+        #expect(view.blankRecoveryPassesUsed == 1)
+
+        let visibleImage = NSImage(size: size)
+        visibleImage.addRepresentation(solidBitmapRepresentation(color: .systemBlue, pixels: 16))
+        view.apply(CmuxResolvedIconRequest(source: .image(visibleImage), size: size))
+
+        #expect(view.blankRecoveryPassesUsed == 0)
+        let pixel = try #require(renderedImage(in: view).flatMap(centerPixelColor))
+        #expect(pixel.blueComponent > pixel.redComponent)
+    }
+
     private func renderedImage(in view: CmuxResolvedIconImageView) -> NSImage? {
         view.subviews.compactMap { ($0 as? NSImageView)?.image }.first
     }
