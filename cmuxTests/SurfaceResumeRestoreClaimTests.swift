@@ -240,6 +240,56 @@ struct SurfaceResumeRestoreClaimTests {
     }
 
     @Test
+    func dockFreshRemoteSelectionWinsAfterRetainedSnapshotClears() throws {
+        let store = DockSplitStore(
+            workspaceId: UUID(),
+            baseDirectoryProvider: { nil }
+        )
+        defer { store.closeAllPanels() }
+        let panel = TerminalPanel(workspaceId: store.workspaceId)
+        store.panels[panel.id] = panel
+        let remoteContext = SurfaceResumeRemoteContext(
+            workspaceID: store.workspaceId,
+            surfaceID: panel.id,
+            persistentPTYSessionID: "dock-remote-pty"
+        )
+        let sessionID = "dock-cleared-snapshot-session"
+        let previous = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID) -C '/home/remote/old-project'",
+            cwd: "/home/remote/old-project",
+            checkpointId: sessionID,
+            source: "agent-hook",
+            restoreWorkingDirectorySelection: .exact("/home/remote/old-project"),
+            autoResume: true,
+            resumeEvidenceProvenance: "tui",
+            launchFlavor: .persistentSSH(remoteContext),
+            updatedAt: 1
+        )
+        #expect(store.setSurfaceResumeBinding(previous, panelId: panel.id))
+        store.restoredAgentLifecycle.clearSessionRestore(panelId: panel.id)
+
+        let fresh = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID) -C '/home/remote/new-project'",
+            cwd: "/home/remote/new-project",
+            checkpointId: sessionID,
+            source: "agent-hook",
+            restoreWorkingDirectorySelection: .exact("/home/remote/new-project"),
+            autoResume: true,
+            resumeEvidenceProvenance: "tui",
+            launchFlavor: .persistentSSH(remoteContext),
+            updatedAt: 2
+        )
+        #expect(store.setSurfaceResumeBinding(fresh, panelId: panel.id))
+        let stored = try #require(store.surfaceResumeBinding(panelId: panel.id))
+        #expect(stored.cwd == "/home/remote/new-project")
+        #expect(
+            stored.restoreWorkingDirectorySelection == .exact("/home/remote/new-project")
+        )
+    }
+
+    @Test
     func restoreClaimRequiresExactBindingGeneration() throws {
         let workspace = Workspace()
         defer { workspace.teardownAllPanels() }

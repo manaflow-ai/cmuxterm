@@ -106,6 +106,15 @@ extension DockSplitStore {
                 )
             }
 
+            // A fresh authenticated remote report is authoritative even when
+            // the retained snapshot was cleared or cannot be matched. Do not
+            // let the prior binding's cwd policy overwrite the new selection.
+            if binding.isAgentHookBinding,
+               binding.launchFlavor.remoteContext != nil,
+               binding.restoreWorkingDirectorySelection != nil {
+                return binding
+            }
+
             // Same-session refreshes can omit the cwd policy. Preserve the
             // retained, already-constrained snapshot while the execution
             // location remains the same; local refreshes must never inherit a
