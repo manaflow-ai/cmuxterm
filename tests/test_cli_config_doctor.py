@@ -34,6 +34,7 @@ def run_cli(
     args: list[str],
     home: Path,
     cwd: Path | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["HOME"] = str(home)
@@ -197,8 +198,60 @@ def main() -> int:
             payload = parse_json_output(color_result.stdout, "unknown named workspace color", failures)
             if payload is not None:
                 finding = first_finding(payload, "unknown named workspace color", color_result.stdout, failures)
-                if finding is not None and finding.get("status") != "error":
-                    failures.append(f"unknown named workspace color did not report an error: {color_result.stdout}")
+                if finding is not None:
+                    if finding.get("status") != "error":
+                        failures.append(f"unknown named workspace color did not report an error: {color_result.stdout}")
+                    message = str(finding.get("message", ""))
+                    if "Invalid color" not in message or "6-digit hex format (#RRGGBB)" not in message:
+                        failures.append(f"unknown named workspace color guidance was missing: {color_result.stdout}")
+
+        palette_domain = f"com.cmux.tests.config-doctor.{os.getpid()}.{id(home)}"
+        palette_config_path = home / "palette.json"
+        palette_config_path.write_text(
+            '{"commands": [{"name": "custom-color", "workspace": {"color": "Codex Test"}}]}\n',
+            encoding="utf-8",
+        )
+        defaults_write = subprocess.run(
+            [
+                "/usr/bin/defaults",
+                "write",
+                palette_domain,
+                "workspaceTabColor.colors",
+                "-dict",
+                "Codex Test",
+                "#112233",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if defaults_write.returncode != 0:
+            failures.append(f"could not seed app color defaults: {defaults_write.stderr}")
+        else:
+            try:
+                palette_result = run_cli(
+                    cli_path,
+                    ["--json", "config", "doctor", "--path", str(palette_config_path)],
+                    home,
+                    extra_env={"CMUX_BUNDLE_ID": palette_domain},
+                )
+                if palette_result.returncode != 0:
+                    failures.append(
+                        f"config doctor rejected the app palette domain: {palette_result.stdout} {palette_result.stderr}"
+                    )
+                else:
+                    payload = parse_json_output(palette_result.stdout, "app palette domain", failures)
+                    if payload is not None:
+                        finding = first_finding(payload, "app palette domain", palette_result.stdout, failures)
+                        if finding is not None and finding.get("status") != "ok":
+                            failures.append(f"app palette color was not accepted: {palette_result.stdout}")
+            finally:
+                subprocess.run(
+                    ["/usr/bin/defaults", "delete", palette_domain],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
 
         directory_path = home / "config-directory"
         directory_path.mkdir()

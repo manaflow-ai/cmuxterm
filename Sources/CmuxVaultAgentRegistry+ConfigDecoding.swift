@@ -9,7 +9,8 @@ extension CmuxVaultAgentRegistry {
     static func decodeConfig(
         at path: String,
         fileManager: FileManager,
-        cache: CmuxConfigDecodeCache
+        cache: CmuxConfigDecodeCache,
+        workspaceColorDefaults: UserDefaults = .standard
     ) -> CmuxConfigFile? {
         guard fileManager.fileExists(atPath: path),
               let data = fileManager.contents(atPath: path),
@@ -17,6 +18,7 @@ extension CmuxVaultAgentRegistry {
             return nil
         }
 
+        _ = workspaceColorDefaults
         let cacheKey = cache.key(path: path, data: data, fileManager: fileManager)
         let lookup = cache.lookupOrClaim(cacheKey)
         if case .hit(let cached) = lookup {
