@@ -77,6 +77,7 @@ extension CmuxPluginProcessSupervisor {
             interpreterPath: executionSnapshot.interpreterURL?.path,
             interpreterSnapshotPath: executionSnapshot.interpreterFileDescriptor.map { _ in
                 executionSnapshot.directoryURL
+                    .deletingLastPathComponent()
                     .appendingPathComponent(".cmux-interpreter/executable", isDirectory: false)
                     .path
             },
