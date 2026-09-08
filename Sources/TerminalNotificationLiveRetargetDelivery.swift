@@ -67,9 +67,9 @@ extension TerminalController {
             replyShape: replyShape,
             retargetsToLiveSurfaceOwner: retargetsToLiveSurfaceOwner,
             correlationKey: correlationKey,
+            agentMutationGuard: agentMutationGuard,
             agent: agent,
-            soundContext: soundContext,
-            agentMutationGuard: agentMutationGuard
+            soundContext: soundContext
         )
     }
 }
@@ -119,9 +119,9 @@ extension TerminalNotificationStore {
             retargetsToLiveSurfaceOwner: true,
             correlationKey: correlationKey,
             notificationGeneration: notificationGeneration,
+            agentMutationGuard: agentMutationGuard,
             agent: agent,
-            soundContext: soundContext,
-            agentMutationGuard: agentMutationGuard
+            soundContext: soundContext
         )
     }
 
