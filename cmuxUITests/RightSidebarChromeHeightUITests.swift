@@ -31,11 +31,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
     }
 
     private func startHistoryProcessSample(pid: Int32) throws {
-        print("VAULT_HISTORY_PROCESS_ID=\(pid)")
-        let state = try XCTUnwrap(historyStateURL)
-        let request = URL(fileURLWithPath: state.path + ".sample-request")
-        try String(pid).write(to: request, atomically: true, encoding: .utf8)
-        print("VAULT_HISTORY_SAMPLE_REQUEST=\(request.path)")
+        FileHandle.standardOutput.write(Data("VAULT_HISTORY_PROCESS_ID=\(pid)\n".utf8))
     }
 
     func testVaultTabsGroupingAndPopoutStayInteractive() throws {
