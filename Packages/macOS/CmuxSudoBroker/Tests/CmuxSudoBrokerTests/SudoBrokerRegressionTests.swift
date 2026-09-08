@@ -520,6 +520,56 @@ struct SudoBrokerRegressionTests {
         #expect(fixture.store.manifest(id: request.id) == nil)
         #expect(fixture.store.result(id: request.id)?.errorCode == .processCleanupFailed)
     }
+
+    @Test("Exhausted cleanup failures stop counting toward runner capacity")
+    func exhaustedCleanupFailuresDoNotConsumeRunnerCapacity() async throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let now = Date(timeIntervalSince1970: 1_786_000_000)
+        // One durable cleanup failure: an approved run whose process tree could
+        // not be reaped keeps its state on disk as evidence.
+        let stale = try fixture.enqueue(id: "stale-cleanup", createdAt: now)
+        let stalePending = try #require(
+            fixture.store.pendingRequests().first(where: { $0.request.id == stale.id })
+        )
+        _ = try fixture.store.transitionToApproved(
+            pending: stalePending,
+            now: now,
+            executionGraceSeconds: 90
+        )
+        try fixture.store.settle(
+            SudoResult(id: stale.id, status: .failed, errorCode: .processCleanupFailed)
+        )
+        #expect(fixture.store.cleanupFailureStates().map(\.id) == [stale.id])
+        let launcher = TestRunnerLauncher()
+        let broker = SudoBroker(
+            paths: fixture.paths,
+            dependencies: SudoBrokerDependencies(
+                clock: TestSudoClock(date: now),
+                pam: TestPAMChecker(enabled: true),
+                runner: launcher,
+                recovery: TestExecutionRecovery(disposition: .cleanupIncomplete),
+                watcher: nil,
+                requesterInspector: TestSudoProcessInspector()
+            ),
+            messages: messages,
+            resourcePolicy: SudoResourcePolicy(
+                maximumActiveRunnerCount: 1,
+                maximumCleanupRecoveryAttempts: 1
+            )
+        )
+
+        // Startup spends the single recovery attempt and parks the failure.
+        _ = try await broker.start()
+        let fresh = try fixture.enqueue(id: "fresh-request", createdAt: now)
+        _ = try await broker.refresh()
+        await broker.approve(id: fresh.id)
+
+        #expect(await launcher.launchedRequestIDs == [fresh.id])
+        #expect(fixture.store.result(id: fresh.id) == nil)
+        #expect(fixture.store.cleanupFailureStates().map(\.id) == [stale.id])
+        await broker.stop()
+    }
 }
 
 private struct ImmediateRequesterExitObserver: SudoProcessExitObserving {
@@ -530,3 +580,4 @@ private struct ImmediateRequesterExitObserver: SudoProcessExitObserving {
         }
     }
 }
+

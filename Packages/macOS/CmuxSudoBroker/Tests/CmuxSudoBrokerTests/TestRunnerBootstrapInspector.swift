@@ -5,10 +5,16 @@ struct TestRunnerBootstrapInspector: SudoProcessInspecting {
     private let parentProcessIdentifier: Int32
     private let parentExecutableURL: URL
     private let parentIdentity: SudoProcessIdentity
+    private let runnerProcessIdentifier: Int32?
 
-    init(parentProcessIdentifier: Int32, parentExecutableURL: URL) {
+    init(
+        parentProcessIdentifier: Int32,
+        parentExecutableURL: URL,
+        runnerProcessIdentifier: Int32? = nil
+    ) {
         self.parentProcessIdentifier = parentProcessIdentifier
         self.parentExecutableURL = parentExecutableURL
+        self.runnerProcessIdentifier = runnerProcessIdentifier
         parentIdentity = SudoProcessIdentity(
             processIdentifier: parentProcessIdentifier,
             startSeconds: 10,
@@ -17,7 +23,15 @@ struct TestRunnerBootstrapInspector: SudoProcessInspecting {
     }
 
     func identity(for processIdentifier: Int32) -> SudoProcessIdentity? {
-        processIdentifier == parentProcessIdentifier ? parentIdentity : nil
+        if processIdentifier == parentProcessIdentifier { return parentIdentity }
+        if let runnerProcessIdentifier, processIdentifier == runnerProcessIdentifier {
+            return SudoProcessIdentity(
+                processIdentifier: runnerProcessIdentifier,
+                startSeconds: 30,
+                startMicroseconds: 40
+            )
+        }
+        return nil
     }
 
     func executableURL(for processIdentifier: Int32) -> URL? {

@@ -442,4 +442,59 @@ struct SudoProcessLifecycleTests {
         #expect(fixture.store.result(id: request.id)?.errorCode == .runnerLaunchFailed)
         #expect(fixture.store.state(id: request.id) == nil)
     }
+
+    @Test("Hidden runner does not re-validate the requester after approval")
+    func runnerProceedsAfterRequesterExit() throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let createdAt = Date.now
+        let request = try fixture.enqueue(id: "requester-gone", createdAt: createdAt)
+        let pending = try #require(
+            fixture.store.pendingRequests().first(where: { $0.request.id == request.id })
+        )
+        _ = try fixture.store.transitionToApproved(
+            pending: pending,
+            now: createdAt,
+            executionGraceSeconds: 90
+        )
+        let expectedParentURL = URL(fileURLWithPath: "/Applications/cmux.app/Contents/MacOS/cmux")
+        // The `cmux sudo` waiter left at its approval deadline after the user
+        // approved: this inspector reports no requester process as running.
+        let inspector = TestRunnerBootstrapInspector(
+            parentProcessIdentifier: 2_000_000_000,
+            parentExecutableURL: expectedParentURL,
+            runnerProcessIdentifier: getpid()
+        )
+        #expect(!inspector.isRunning(SudoTestFixture.defaultRequesterIdentity))
+        let capability = SudoReviewedScriptCapability(
+            bytes: Data(pending.script.utf8),
+            temporaryDirectoryURL: fixture.root
+        )
+
+        let exitCode = try capability.withDescriptor { descriptor in
+            SudoExecutionRunner(
+                store: fixture.store,
+                pam: TestPAMChecker(enabled: false),
+                inspector: inspector,
+                parentValidator: SudoRunnerParentValidator(
+                    inspector: inspector,
+                    parentProcessIdentifier: { 2_000_000_000 }
+                ),
+                processRunner: SudoBoundedProcessRunner(
+                    spawner: SudoPOSIXProcessSpawner(inspector: inspector),
+                    inspector: inspector,
+                    signaler: SystemSudoProcessSignaler()
+                ),
+                reviewedScriptReader: SudoReviewedScriptReader(descriptor: descriptor),
+                expectedParentExecutableURL: expectedParentURL,
+                messages: .testMessages,
+                now: { createdAt }
+            ).run(requestID: request.id)
+        }
+
+        // Approval already validated the requester. The runner must continue to
+        // the next gate (here the PAM preflight) instead of cancelling the run.
+        #expect(exitCode == 0)
+        #expect(fixture.store.result(id: request.id)?.errorCode == .pamTidUnavailable)
+    }
 }
