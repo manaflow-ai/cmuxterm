@@ -15,9 +15,7 @@ struct SidebarWorkspaceRowSuspensionTests {
     ) -> SidebarWorkspaceSnapshotBuilder.Snapshot {
         SidebarWorkspaceSnapshotBuilder.Snapshot(
             presentationKey: SidebarWorkspaceSnapshotFactory.presentationKey(
-                settings: SidebarTabItemSettingsSnapshot(defaults: UserDefaults(suiteName: UUID().uuidString)!),
-                showsAgentActivity: false
-            ),
+                settings: SidebarTabItemSettingsSnapshot(defaults: UserDefaults(suiteName: UUID().uuidString)!), showsAgentActivity: false),
             title: "Workspace",
             customDescription: customDescription,
             isPinned: false,
@@ -55,12 +53,8 @@ struct SidebarWorkspaceRowSuspensionTests {
             checklistCompletedCount: checklistItems.filter { $0.state == .completed }.count,
             checklistTotalCount: checklistItems.count,
             checklistFirstUncheckedText: checklistItems.first { $0.state != .completed }?.text,
-            remoteReconnectHelpText: "",
-            loadingTooltip: "",
-            taskStatusCompactLabel: manualTaskStatus.map(SidebarWorkspaceRowLocalizedStrings.statusCompactLabel),
-            taskStatusTooltip: manualTaskStatus.map {
-                SidebarWorkspaceRowLocalizedStrings.statusTooltip(status: $0, hasOverride: true)
-            }
+            remoteReconnectHelpText: "", loadingTooltip: "", taskStatusCompactLabel: manualTaskStatus.map(SidebarWorkspaceRowLocalizedStrings.statusCompactLabel),
+            taskStatusTooltip: manualTaskStatus.map { SidebarWorkspaceRowLocalizedStrings.statusTooltip(status: $0, hasOverride: true) }
         )
     }
 
