@@ -1,6 +1,6 @@
 import Darwin
 import CMUXAgentLaunch
-import CmuxTerminal
+@testable import CmuxTerminal
 import Foundation
 import Testing
 
@@ -601,8 +601,8 @@ struct AgentPromptSubmissionTests {
             source: "codex",
             workspaceId: workspace.id.uuidString,
             surfaceId: panelID.uuidString,
-            ppid: Int(getpid()),
-            toolInputJSON: #"{"prompt":"foreign human hook"}"#
+            toolInputJSON: #"{"prompt":"foreign human hook"}"#,
+            ppid: Int(getpid())
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: event)
 
@@ -653,8 +653,8 @@ struct AgentPromptSubmissionTests {
             source: "codex",
             workspaceId: workspace.id.uuidString,
             surfaceId: panelID.uuidString,
-            ppid: nil,
-            toolInputJSON: #"{"prompt":"human prompt"}"#
+            toolInputJSON: #"{"prompt":"human prompt"}"#,
+            ppid: nil
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: event)
 
@@ -803,8 +803,8 @@ struct AgentPromptSubmissionTests {
             source: "codex",
             workspaceId: workspace.id.uuidString,
             surfaceId: panelID.uuidString,
-            ppid: Int(getpid()),
-            toolInputJSON: #"{"prompt":"real prompt"}"#
+            toolInputJSON: #"{"prompt":"real prompt"}"#,
+            ppid: Int(getpid())
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: event)
 
@@ -853,8 +853,8 @@ struct AgentPromptSubmissionTests {
             source: "claude",
             workspaceId: workspace.id.uuidString,
             surfaceId: panelID.uuidString,
-            ppid: Int(getpid()) + 1,
-            toolInputJSON: #"{"prompt":"stale hook"}"#
+            toolInputJSON: #"{"prompt":"stale hook"}"#,
+            ppid: Int(getpid()) + 1
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: event)
 
@@ -866,8 +866,8 @@ struct AgentPromptSubmissionTests {
             source: "claude",
             workspaceId: workspace.id.uuidString,
             surfaceId: panelID.uuidString,
-            ppid: Int(getpid()),
-            toolInputJSON: #"{"prompt":"current hook"}"#
+            toolInputJSON: #"{"prompt":"current hook"}"#,
+            ppid: Int(getpid())
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: currentEvent)
 
@@ -1019,8 +1019,8 @@ struct AgentPromptSubmissionTests {
             source: "codex",
             workspaceId: workspace.id.uuidString,
             surfaceId: nil,
-            ppid: Int(getpid()),
-            toolInputJSON: #"{"prompt":"target prompt"}"#
+            toolInputJSON: #"{"prompt":"target prompt"}"#,
+            ppid: Int(getpid())
         )
         TerminalController.shared.v2ApplyIMessageModeSideEffects(for: event)
 
