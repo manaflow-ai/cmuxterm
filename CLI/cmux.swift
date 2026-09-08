@@ -30801,7 +30801,7 @@ struct CMUXCLI {
                         transcriptPath: currentTranscriptPath,
                         workspaceId: workspaceId,
                         surfaceId: surfaceId,
-                        lastAssistantMessage: lastAssistantMessage, boundary: .turnEnd
+                        lastAssistantMessage: lastAssistantMessage
                     ) {
                         try replayStop(replay)
                     }
@@ -33842,6 +33842,17 @@ export default CMUXSessionRestore;
             return max(0.01, min(cap, cursorShellDeadline.timeIntervalSinceNow))
         }
         telemetry.breadcrumb("\(def.name)-hook.\(subcommand)")
+
+        if def.name == "codex", subcommand == "sync-native-title" {
+            runCodexNativeTitleSyncHook(
+                commandArgs: hookArgs,
+                environment: env,
+                client: client,
+                telemetry: telemetry
+            )
+            print("OK")
+            return
+        }
         if def.name == "codex", subcommand == "monitor" {
             try runCodexTranscriptMonitor(commandArgs: hookArgs, client: client) { replay in
                 try runGenericAgentHook(
