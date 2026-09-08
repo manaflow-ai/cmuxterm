@@ -824,7 +824,9 @@ struct CLICodexHookTimeoutRegressionTests {
         let workspaceId = "11111111-1111-1111-1111-111111111111"
         let surfaceId = "22222222-2222-2222-2222-222222222222"
         let sessionId = "codex-installed-stale-stop-session"
+        let transcriptURL = root.appendingPathComponent("rollout.jsonl")
         try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        try Data().write(to: transcriptURL)
         defer {
             Darwin.close(listenerFD)
             unlink(socketPath)
@@ -873,7 +875,7 @@ struct CLICodexHookTimeoutRegressionTests {
             "CMUX_AGENT_HOOK_STATE_DIR": root.path,
             "CMUX_CLI_SENTRY_DISABLED": "1",
             "CMUX_BUNDLED_CLI_PATH": cliPath,
-            "CMUX_CODEX_PID": "4242",
+            "CMUX_CODEX_PID": String(ProcessInfo.processInfo.processIdentifier),
             "CMUX_CODEX_INVOCATION_ID": "installed-\(sessionId)",
             "CMUX_CODEX_TURN_LEDGER_PATH": ledgerURL.path,
         ]
@@ -885,7 +887,7 @@ struct CLICodexHookTimeoutRegressionTests {
             executablePath: "/bin/sh",
             arguments: ["-c", sessionStartCommand],
             environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"SessionStart"}"#,
+            standardInput: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","transcript_path":"\#(transcriptURL.path)","hook_event_name":"SessionStart"}"#,
             timeout: 3
         )
         #expect(sessionStart.status == 0, Comment(rawValue: sessionStart.stderr))
@@ -905,6 +907,13 @@ struct CLICodexHookTimeoutRegressionTests {
             commands.snapshot().contains { $0.hasPrefix("set_status codex Running ") }
         })
 
+        let rollout = """
+        {"type":"event_msg","payload":{"type":"task_complete","turn_id":"old-turn"}}
+        {"type":"turn_context","payload":{"turn_id":"current-turn"}}
+        {"type":"event_msg","payload":{"type":"task_started","turn_id":"current-turn"}}
+        """
+        try Data((rollout + "\n").utf8).write(to: transcriptURL, options: .atomic)
+
         let currentPromptStart = commands.snapshot().count
         let currentPrompt = runCodexHookProcess(
             executablePath: "/bin/sh",
@@ -915,7 +924,7 @@ struct CLICodexHookTimeoutRegressionTests {
         )
         #expect(currentPrompt.status == 0, Comment(rawValue: currentPrompt.stderr))
         #expect(currentPrompt.stdout == "{}\n")
-        #expect(waitForConditionBlocking(timeout: 2) {
+        let currentTurnBecameVisible = waitForConditionBlocking(timeout: 2) {
             let snapshot = Array(commands.snapshot().dropFirst(currentPromptStart))
             return AgentJournalAppendCapture.captures(in: snapshot).contains { capture in
                 let attention = capture.draft["attention"] as? [String: Any]
@@ -926,7 +935,8 @@ struct CLICodexHookTimeoutRegressionTests {
                     && attention?["turnIdentity"] as? String == "current-turn"
             }
                 && snapshot.contains { $0.hasPrefix("set_status codex Running ") }
-        })
+        }
+        #expect(currentTurnBecameVisible, Comment(rawValue: commands.snapshot().joined(separator: "\n")))
 
         let staleStopStart = commands.snapshot().count
         let staleStop = runCodexHookProcess(
