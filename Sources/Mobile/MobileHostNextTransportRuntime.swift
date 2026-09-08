@@ -99,6 +99,7 @@ final class MobileHostNextTransportRuntime {
     var signer: GrantSigner?
     private var startTask: Task<Void, Never>?
     var endpointCloseTask: Task<Bool, Never>?
+    var endpointCloseOperation: (@MainActor @Sendable () async -> Bool)?
     var acceptTask: Task<Void, Never>?
     var credentialTask: Task<Void, Never>?
     var serveTasks: [UInt64: Task<Void, Never>] = [:]
@@ -255,13 +256,11 @@ final class MobileHostNextTransportRuntime {
             // Closing also unblocks the accept loop and any hello reads the
             // cancelled tasks are still parked on (uniffi futures do not
             // observe Swift task cancellation).
-            let previousClose = endpointCloseTask
-            endpointCloseTask = Task {
-                let previousSucceeded = await previousClose?.value
+            beginEndpointClose {
                 do {
                     try await closing.close()
                     Self.logger.notice("host endpoint closed")
-                    return previousSucceeded != false
+                    return true
                 } catch {
                     Self.logger.error("host endpoint close failed; next generation blocked")
                     return false
@@ -269,6 +268,17 @@ final class MobileHostNextTransportRuntime {
             }
         }
         MobileHostNextTransportRuntime.logger.notice("host stop done state=off")
+    }
+
+    /// Owns the asynchronous close operation independently of a startup caller.
+    func beginEndpointClose(_ operation: @escaping @MainActor @Sendable () async -> Bool) {
+        let previousClose = endpointCloseTask
+        endpointCloseOperation = operation
+        endpointCloseTask = Task {
+            let previousSucceeded = await previousClose?.value
+            let succeeded = await operation()
+            return succeeded && previousSucceeded != false
+        }
     }
 
     /// Drives the host's grant lifecycle while the endpoint is live. Admission
