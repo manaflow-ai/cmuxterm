@@ -48,6 +48,32 @@ struct RemoteWorkspaceLayoutTests {
     }
 
     @Test
+    func missingScreenIdentitiesKeepIndexedAndUnknownScreensDistinct() {
+        let rows = RemoteWorkspaceLayout(placements: [
+            RemoteWorkspacePlacement(screenID: "0", paneID: "pane", screenIndex: 8),
+            RemoteWorkspacePlacement(paneID: "pane", screenIndex: 0, tabIndex: 0),
+            RemoteWorkspacePlacement(paneID: "pane", screenIndex: 1),
+            RemoteWorkspacePlacement(paneID: "pane"),
+            RemoteWorkspacePlacement(paneID: "pane", screenIndex: 0, tabIndex: 1),
+            RemoteWorkspacePlacement(screenID: "", paneID: "pane", screenIndex: 2),
+        ]).rows
+        #expect(rows.map(\.shownIndex) == [1, 2, 5, 0, 3])
+        #expect(rows.first?.hiddenIndices == [4])
+        #expect(rows.dropFirst().allSatisfy { $0.hiddenIndices.isEmpty })
+    }
+
+    @Test
+    func stableScreenIdentityTakesPrecedenceOverScreenPosition() {
+        let rows = RemoteWorkspaceLayout(placements: [
+            RemoteWorkspacePlacement(screenID: "screen", paneID: "pane", screenIndex: 0, tabIndex: 0),
+            RemoteWorkspacePlacement(screenID: "screen", paneID: "pane", screenIndex: 1, tabIndex: 1, focused: true),
+            RemoteWorkspacePlacement(screenID: "other", paneID: "pane", screenIndex: 0),
+        ]).rows
+        #expect(rows.map(\.shownIndex) == [1, 2])
+        #expect(rows.first?.hiddenIndices == [0])
+    }
+
+    @Test
     func legacyPanesKeepArrivalOrderAndSelectTheirFirstOrderedTab() {
         let rows = RemoteWorkspaceLayout(placements: [
             RemoteWorkspacePlacement(paneID: "first", tabIndex: 2),

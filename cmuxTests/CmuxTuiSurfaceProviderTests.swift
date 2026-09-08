@@ -44,6 +44,19 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         ],
     ]
 
+    @Test func legacyScreensKeepArrivalOrderAndExplicitPositions() throws {
+        var snapshot = Self.sessionSnapshot
+        snapshot["screens"] = [
+            ["id": "screen_2", "workspace_id": "ws_api"],
+            ["id": "screen_1", "workspace_id": "ws_main", "index": 7],
+        ]
+        let resources = CmuxTuiSnapshotParser.terminals(fromSnapshot: snapshot, machine: Self.machine)
+        let terminal = try #require(resources.first { $0.id.key == "term_build" })
+        let views = try #require(terminal.remoteViews)
+        #expect(views.first { $0.screenID == "screen_2" }?.screenIndex == 0)
+        #expect(views.first { $0.screenID == "screen_1" }?.screenIndex == 7)
+    }
+
     @Test func layoutDocumentOrdersPanesAndPlacesEveryView() throws {
         let layout: [String: Any] = [
             "version": 1, "screen_id": "screen_1", "active_pane_id": "pane_b", "zoomed_pane_id": NSNull(),
