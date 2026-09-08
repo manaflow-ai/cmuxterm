@@ -35,6 +35,21 @@ Supported agent names are `codex`, `grok`, `opencode`, `pi`, `omp`, `campfire`, 
 | Qoder | `qodercli` | `~/.qoder/settings.json` | `qodercli --resume <id>` | PreToolUse |
 | Kimi Code | `kimi` | `~/.kimi-code/config.toml` or `~/.kimi/config.toml` | not yet | PreToolUse, PostToolUse |
 
+### Codex wrapper precedence
+
+When cmux launches Codex, the wrapper adds its lifecycle and Feed handlers for
+that invocation only. Codex treats each command-line `-c hooks.<event>=...`
+assignment as the complete value for that event, so cmux reads the existing
+array from `hooks.json` and appends its handler after the user-owned groups.
+User handlers therefore run first, followed by cmux's handler; cmux does not
+rewrite `hooks.json`. If a matching cmux handler is already installed
+persistently, the wrapper does not add a duplicate for that event.
+
+Set `CMUX_CODEX_HOOKS_DISABLED=1` for a launch to keep Codex's configuration
+entirely untouched. This preserves user hook behavior but also disables cmux's
+Codex lifecycle registration, Feed and notification bridge, rebinding, and
+hibernation integration for that process.
+
 OpenCode also supports project-local Feed installation:
 
 ```bash

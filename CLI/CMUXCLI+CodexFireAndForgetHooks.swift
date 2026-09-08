@@ -89,8 +89,9 @@ extension CMUXCLI {
     /// native child lifecycle hooks synchronously commit their ledger event and
     /// then return. All larger socket delivery remains non-blocking.
     /// Persistent hooks are inventoried read-only so the wrapper does not add a
-    /// duplicate cmux producer. Codex combines hook sources, so user-owned hooks
-    /// continue to run alongside these process-local entries. Only explicit
+    /// duplicate cmux producer. User-owned hook groups are copied into the
+    /// process-local override before the cmux group is appended, because Codex
+    /// treats an event-level `-c` assignment as a replacement. Only explicit
     /// `cmux hooks codex install` or `uninstall` commands mutate `CODEX_HOME`.
     /// No live socket is required.
     func emitCodexWrapperInjectArgs() throws {
@@ -98,6 +99,7 @@ extension CMUXCLI {
             throw CLIError(message: "Codex hook integration is unavailable.")
         }
         let persistentEvents = codexPersistentHookEventNamesForWrapper()
+        let userHookValues = Self.codexWrapperUserHookValues(for: codexDef)
         let eventsToInject = CodexHookInjectionSchema.current.events.filter {
             !persistentEvents.contains($0.agentEvent)
         }
@@ -136,7 +138,26 @@ extension CMUXCLI {
             guard !command.contains("'''") else {
                 throw CLIError(message: "Codex hook command contains a triple single quote and cannot be TOML-encoded.")
             }
-            let toml = "hooks.\(event.agentEvent)=[{hooks=[{type=\"command\",command='''\(command)''',timeout=\(event.timeoutMs)}]}]"
+            let toml: String
+            if let existingValue = userHookValues[event.agentEvent] {
+                let cmuxGroup: [String: Any] = [
+                    "hooks": [[
+                        "type": "command",
+                        "command": command,
+                        "timeout": event.timeoutMs,
+                    ]],
+                ]
+                guard let combinedValue = Self.codexWrapperTOMLValue(
+                    existingValue + [cmuxGroup]
+                ) else {
+                    // Never replace an unrepresentable user-owned value with
+                    // a cmux-only assignment. The user's configuration wins.
+                    continue
+                }
+                toml = "hooks.\(event.agentEvent)=\(combinedValue)"
+            } else {
+                toml = "hooks.\(event.agentEvent)=[{hooks=[{type=\"command\",command='''\(command)''',timeout=\(event.timeoutMs)}]}]"
+            }
             args.append("-c")
             args.append(toml)
         }
@@ -150,6 +171,88 @@ extension CMUXCLI {
             out.append(0)
         }
         FileHandle.standardOutput.write(out)
+    }
+
+    /// Reads user-owned Codex hook groups without modifying the config file.
+    private static func codexWrapperUserHookValues(
+        for def: AgentHookDef
+    ) -> [String: [Any]] {
+        let fileURL = URL(fileURLWithPath: def.resolvedConfigDir(), isDirectory: true)
+            .appendingPathComponent(def.configFile, isDirectory: false)
+        guard let data = try? Data(contentsOf: fileURL),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = root["hooks"] as? [String: Any] else {
+            return [:]
+        }
+        return hooks.compactMapValues { $0 as? [Any] }
+    }
+
+    /// Encodes the JSON values used by hooks.json as TOML inline values.
+    /// Codex's command-line config parser accepts the same nested array/table
+    /// shape, but JSON's colon separators are not valid TOML syntax.
+    private static func codexWrapperTOMLValue(_ value: Any) -> String? {
+        if let string = value as? String {
+            return codexWrapperTOMLString(string)
+        }
+        if let boolean = value as? Bool {
+            return boolean ? "true" : "false"
+        }
+        if let number = value as? NSNumber {
+            return number.stringValue
+        }
+        if let array = value as? [Any] {
+            var values: [String] = []
+            values.reserveCapacity(array.count)
+            for element in array {
+                guard let encoded = codexWrapperTOMLValue(element) else { return nil }
+                values.append(encoded)
+            }
+            return "[\(values.joined(separator: ", "))]"
+        }
+        if let table = value as? [String: Any] {
+            var fields: [String] = []
+            fields.reserveCapacity(table.count)
+            for key in table.keys.sorted() {
+                guard let fieldValue = table[key],
+                      let encodedValue = codexWrapperTOMLValue(fieldValue) else {
+                    return nil
+                }
+                fields.append("\(codexWrapperTOMLKey(key)) = \(encodedValue)")
+            }
+            return "{\(fields.joined(separator: ", "))}"
+        }
+        return nil
+    }
+
+    private static func codexWrapperTOMLKey(_ key: String) -> String {
+        let isBareKey = !key.isEmpty && key.unicodeScalars.allSatisfy { scalar in
+            scalar.value == 0x2D || scalar.value == 0x5F ||
+                (scalar.value >= 0x30 && scalar.value <= 0x39) ||
+                (scalar.value >= 0x41 && scalar.value <= 0x5A) ||
+                (scalar.value >= 0x61 && scalar.value <= 0x7A)
+        }
+        return isBareKey ? key : codexWrapperTOMLString(key)
+    }
+
+    private static func codexWrapperTOMLString(_ string: String) -> String {
+        var escaped = ""
+        escaped.reserveCapacity(string.utf8.count)
+        for scalar in string.unicodeScalars {
+            switch scalar.value {
+            case 0x08: escaped += "\\b"
+            case 0x09: escaped += "\\t"
+            case 0x0A: escaped += "\\n"
+            case 0x0C: escaped += "\\f"
+            case 0x0D: escaped += "\\r"
+            case 0x22: escaped += "\\\""
+            case 0x5C: escaped += "\\\\"
+            case 0x00...0x1F, 0x7F:
+                escaped += String(format: "\\u%04X", scalar.value)
+            default:
+                escaped.append(Character(scalar))
+            }
+        }
+        return "\"\(escaped)\""
     }
 
     /// The cmux-owned directory holding the generated codex hook scripts.
