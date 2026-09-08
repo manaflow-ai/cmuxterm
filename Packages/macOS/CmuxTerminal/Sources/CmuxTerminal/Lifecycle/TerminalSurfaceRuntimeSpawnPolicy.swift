@@ -41,35 +41,39 @@ public struct TerminalSurfaceRuntimeSpawnPolicy: Equatable, Sendable {
         cancelsStartupRestoreAdmissionOnExplicitInput: false
     )
 
-    /// Adds explicit restore admission without discarding the current timing.
+    /// Adds explicit restore admission without discarding the current timing
+    /// or allowing declarative defaults to affect the restored surface.
     ///
     /// This lets relaunch restoration remain paced after its topology owner
     /// releases the runtime, while one-off Vault restores can remain immediate.
     ///
-    /// - Returns: A policy with the same spawn timing and an admission gate.
+    /// - Returns: A policy with the same spawn timing, an admission gate, and
+    ///   both declarative default families disabled.
     public func requiringStartupRestoreAdmission() -> Self {
         Self(
             spawnTiming: spawnTiming,
             requiresStartupRestoreAdmission: true,
-            allowsDeclarativeStartupDefaults: allowsDeclarativeStartupDefaults,
-            allowsDeclarativeWorkingDirectoryDefaults: allowsDeclarativeWorkingDirectoryDefaults,
+            allowsDeclarativeStartupDefaults: false,
+            allowsDeclarativeWorkingDirectoryDefaults: false,
             cancelsStartupRestoreAdmissionOnExplicitInput:
                 cancelsStartupRestoreAdmissionOnExplicitInput
         )
     }
 
-    /// Holds a deferred agent resume until ownership is freshly resolved.
+    /// Holds a deferred agent resume until ownership is freshly resolved while
+    /// disabling declarative defaults for the restored surface.
     ///
     /// Unlike a topology commit gate, explicit user input cancels this pending
     /// automatic resume before a shell runtime can receive the command.
     ///
-    /// - Returns: A policy with the same spawn timing and a cancellable gate.
+    /// - Returns: A policy with the same spawn timing, a cancellable gate, and
+    ///   both declarative default families disabled.
     public func requiringDeferredAgentResumeAdmission() -> Self {
         Self(
             spawnTiming: spawnTiming,
             requiresStartupRestoreAdmission: true,
-            allowsDeclarativeStartupDefaults: allowsDeclarativeStartupDefaults,
-            allowsDeclarativeWorkingDirectoryDefaults: allowsDeclarativeWorkingDirectoryDefaults,
+            allowsDeclarativeStartupDefaults: false,
+            allowsDeclarativeWorkingDirectoryDefaults: false,
             cancelsStartupRestoreAdmissionOnExplicitInput: true
         )
     }

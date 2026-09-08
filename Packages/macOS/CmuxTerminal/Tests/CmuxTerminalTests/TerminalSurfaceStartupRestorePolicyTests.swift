@@ -8,6 +8,19 @@ import Testing
 @MainActor
 @Suite
 struct TerminalSurfaceStartupRestorePolicyTests {
+    @Test("Restore admission suppresses declarative defaults")
+    func restoreAdmissionSuppressesDeclarativeDefaults() {
+        let startupAdmission = TerminalSurfaceRuntimeSpawnPolicy.immediate
+            .requiringStartupRestoreAdmission()
+        let deferredResume = TerminalSurfaceRuntimeSpawnPolicy.immediate
+            .requiringDeferredAgentResumeAdmission()
+
+        #expect(!startupAdmission.allowsDeclarativeStartupDefaults)
+        #expect(!startupAdmission.allowsDeclarativeWorkingDirectoryDefaults)
+        #expect(!deferredResume.allowsDeclarativeStartupDefaults)
+        #expect(!deferredResume.allowsDeclarativeWorkingDirectoryDefaults)
+    }
+
     @Test("Explicit startup work suppresses shell defaults without suppressing cwd defaults")
     func explicitStartupWorkKeepsWorkingDirectoryDefaultsEligible() {
         let policy = TerminalSurfaceRuntimeSpawnPolicy.immediate

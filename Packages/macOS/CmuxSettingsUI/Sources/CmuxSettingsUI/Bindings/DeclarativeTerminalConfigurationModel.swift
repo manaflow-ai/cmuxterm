@@ -239,8 +239,17 @@ public final class DeclarativeTerminalConfigurationModel:
     private func updateOptimistically(
         _ update: (inout DeclarativeTerminalConfiguration.Snapshot) -> Void
     ) {
+        let previousFixedPath = values.workingDirectoryPolicy == .fixedPath
+            ? values.expandedWorkingDirectoryPath
+            : nil
         var updated = values
         update(&updated)
+        let updatedFixedPath = updated.workingDirectoryPolicy == .fixedPath
+            ? updated.expandedWorkingDirectoryPath
+            : nil
+        if previousFixedPath != updatedFixedPath {
+            updated.fixedPathIsUsable = false
+        }
         values = updated
         configureFixedPathWatcher(for: updated)
     }
@@ -253,6 +262,7 @@ public final class DeclarativeTerminalConfigurationModel:
                 pendingWrites.workingDirectoryPolicy = nil
             } else {
                 snapshot.workingDirectoryPolicy = pending.value
+                snapshot.fixedPathIsUsable = false
             }
         }
         if let pending = pendingWrites.workingDirectoryPath {
@@ -260,6 +270,7 @@ public final class DeclarativeTerminalConfigurationModel:
                 pendingWrites.workingDirectoryPath = nil
             } else {
                 snapshot.workingDirectoryPath = pending.value
+                snapshot.fixedPathIsUsable = false
             }
         }
         if let pending = pendingWrites.shellStartupMode {
@@ -299,6 +310,9 @@ public final class DeclarativeTerminalConfigurationModel:
         fixedPathWatcher = watcher
         let reader = self.reader
         fixedPathObservationTasks.replaceOnMainActor("fixedPath") { [weak self, watcher, reader] in
+            let isInitiallyUsable = await reader.validateFixedPath(desiredPath)
+            guard !Task.isCancelled, let self else { return }
+            self.applyFixedPathValidation(isInitiallyUsable, for: desiredPath)
             for await _ in watcher.events {
                 guard !Task.isCancelled else { return }
                 let isUsable = await reader.validateFixedPath(desiredPath)
