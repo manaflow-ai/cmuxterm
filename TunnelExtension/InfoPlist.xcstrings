@@ -15,6 +15,12 @@
             "state" : "translated",
             "value" : "cmux クラウドトンネル"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel"
+          }
         }
       }
     }

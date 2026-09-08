@@ -28,6 +28,12 @@
             "state": "translated",
             "value": "첨부"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anhängen"
+          }
         }
       }
     },
@@ -56,6 +62,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "이미지 첨부"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder anhängen"
           }
         }
       }
@@ -86,6 +98,12 @@
             "state": "translated",
             "value": "이미지 첨부"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder anhängen"
+          }
         }
       }
     },
@@ -114,6 +132,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "최대 10장의 이미지."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis zu 10 Bilder."
           }
         }
       }
@@ -168,6 +192,12 @@
             "state": "translated",
             "value": "取消"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
         }
       }
     },
@@ -196,6 +226,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "피드백을 보내지 못했습니다. 연결을 확인하고 다시 시도하세요."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback konnte nicht gesendet werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut."
           }
         }
       }
@@ -291,6 +327,12 @@
             "state": "translated",
             "value": "이메일 주소"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre E-Mail"
+          }
         }
       }
     },
@@ -319,6 +361,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "you@example.com"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ihre-adresse@example.com"
           }
         }
       }
@@ -349,6 +397,12 @@
             "state": "translated",
             "value": "보내기 전에 메시지를 입력하세요."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie eine Nachricht ein, bevor Sie senden."
+          }
         }
       }
     },
@@ -377,6 +431,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "현재 피드백을 사용할 수 없습니다. 대신 founders@manaflow.com으로 이메일을 보내주세요."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback ist zurzeit nicht verfügbar. Sende stattdessen eine E-Mail an founders@manaflow.com."
           }
         }
       }
@@ -407,6 +467,12 @@
             "state": "translated",
             "value": "피드백을 보내지 못했습니다. 다시 시도하세요."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+          }
         }
       }
     },
@@ -436,6 +502,12 @@
             "state": "translated",
             "value": "올바른 이메일 주소를 입력하세요."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie eine gültige E-Mail-Adresse ein."
+          }
         }
       }
     },
@@ -464,6 +536,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "선택한 파일 중 하나를 첨부할 수 없습니다."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine der ausgewählten Dateien konnte nicht angehängt werden."
           }
         }
       }
@@ -553,6 +631,12 @@
             "state": "translated",
             "value": "피드백, 기능 요청 또는 문제를 공유하세요."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teilen Sie Feedback, Funktionsanfragen oder Probleme."
+          }
         }
       }
     },
@@ -581,6 +665,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "메시지가 너무 깁니다."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Nachricht ist zu lang."
           }
         }
       }
@@ -611,6 +701,12 @@
             "state": "translated",
             "value": "founders@manaflow.com으로도 연락하실 수 있습니다."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+          }
         }
       }
     },
@@ -639,6 +735,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "피드백 시도가 너무 많습니다. 나중에 다시 시도하세요."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu viele Feedback-Versuche. Bitte versuchen Sie es später noch einmal."
           }
         }
       }
@@ -775,6 +877,12 @@
             "state": "translated",
             "value": "founders@manaflow.com으로도 연락하실 수 있습니다."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst uns auch unter founders@manaflow.com erreichen."
+          }
         }
       }
     },
@@ -803,6 +911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "피드백을 보내주셔서 감사합니다."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vielen Dank für das Feedback."
           }
         }
       }
@@ -898,6 +1012,12 @@
             "state": "translated",
             "value": "최대 10장의 이미지를 첨부할 수 있습니다."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie können bis zu 10 Bilder anhängen."
+          }
         }
       }
     },
@@ -927,6 +1047,12 @@
             "state": "translated",
             "value": "이미지가 너무 커서 함께 보낼 수 없습니다. 몇 개를 제거하고 다시 시도하세요."
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Bilder sind zu groß, um sie zusammen zu senden. Entfernen Sie einige und versuchen Sie es erneut."
+          }
         }
       }
     },
@@ -955,6 +1081,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "메시지와 첨부 파일을 확인한 후 다시 시도하세요."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überprüfen Sie Ihre Nachricht und Anhänge und versuchen Sie es dann erneut."
           }
         }
       }

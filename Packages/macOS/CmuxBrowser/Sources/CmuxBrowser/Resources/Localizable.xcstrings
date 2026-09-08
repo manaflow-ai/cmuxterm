@@ -16,6 +16,12 @@
             "state": "translated",
             "value": "差分ビューアの許可リストが大きすぎます"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff-Viewer-Erlaubnisliste ist zu groß"
+          }
         }
       }
     },
@@ -32,6 +38,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "差分ビューアの許可リスト項目が重複しています"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doppelter Eintrag in der Diff-Viewer-Erlaubnisliste"
           }
         }
       }
@@ -50,6 +62,12 @@
             "state": "translated",
             "value": "差分ビューアの許可リストが空です"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff-Viewer-Erlaubnisliste ist leer"
+          }
         }
       }
     },
@@ -66,6 +84,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "差分ビューアの許可リスト項目が無効です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiger Eintrag in der Diff-Viewer-Erlaubnisliste"
           }
         }
       }
@@ -84,6 +108,12 @@
             "state": "translated",
             "value": "差分ビューアのマニフェストが無効です"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiges Diff-Viewer-Manifest"
+          }
         }
       }
     },
@@ -100,6 +130,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "差分ビューアのトークンが無効です"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiges Diff-Viewer-Token"
           }
         }
       }
@@ -118,6 +154,12 @@
             "state": "translated",
             "value": "差分ビューアのマニフェストが大きすぎます"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff-Viewer-Manifest ist zu groß"
+          }
         }
       }
     },
@@ -135,6 +177,12 @@
             "state": "translated",
             "value": "差分ビューアのファイルを読み取れません"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff-Viewer-Datei ist nicht lesbar"
+          }
         }
       }
     },
@@ -151,6 +199,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "差分ビューアの信頼済みディレクトリは安全ではありません"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vertrauenswürdiges Diff-Viewer-Verzeichnis ist unsicher"
           }
         }
       }
