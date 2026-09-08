@@ -4515,7 +4515,11 @@ class TerminalController {
                 : workspace.panelIdFromSurfaceId(TabID(uuid: panelId))
             guard let resolvedPanelId else { return }
             found = true
-            applied = workspace.updatePanelTitle(panelId: resolvedPanelId, title: title)
+            applied = tabManager.updatePanelTitle(
+                tabId: workspaceId,
+                panelId: resolvedPanelId,
+                title: title
+            )
         }
 
         guard found else {

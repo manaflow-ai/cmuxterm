@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import CmuxSettings
 import Testing
@@ -350,6 +351,38 @@ import Testing
                 #expect(workspace.panelTitles[panelId] == "測試 cmux 與 codex Tab 同步")
                 #expect(workspace.panelCustomTitles[panelId] == nil)
             }
+        }
+    }
+
+    @Test func codexNativeTitleSyncRefreshesWindowTitleAndPublishesWorkspaceChange() async throws {
+        try await withManagerAsync { manager, workspace in
+            let panelId = try #require(workspace.focusedPanelId)
+            manager.selectedTabId = workspace.id
+            let window = NSWindow()
+            manager.window = window
+            window.title = "stale window title"
+            let title = "Codex native window title"
+            var notifiedWorkspaceIds: [UUID] = []
+            let observer = NotificationCenter.default.addObserver(
+                forName: .workspaceTitleDidChange,
+                object: manager,
+                queue: nil
+            ) { notification in
+                if let workspaceId = notification.userInfo?[GhosttyNotificationKey.tabId] as? UUID {
+                    notifiedWorkspaceIds.append(workspaceId)
+                }
+            }
+            defer { NotificationCenter.default.removeObserver(observer) }
+
+            let envelope = try await callAsync(method: "surface.sync_codex_native_title", params: [
+                "workspace_id": workspace.id.uuidString,
+                "panel_id": panelId.uuidString,
+                "title": title
+            ])
+            let result = try #require(envelope["result"] as? [String: Any])
+            #expect(result["applied"] as? Bool == true)
+            #expect(window.title == title)
+            #expect(notifiedWorkspaceIds == [workspace.id])
         }
     }
 
