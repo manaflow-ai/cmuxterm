@@ -15594,7 +15594,7 @@ private struct SidebarHelpMenuButton: View {
     private func perform(_ action: SidebarHelpMenuAction) {
         switch action {
         case .upgrade:
-            ProUpgradePresenter.present()
+            ProUpgradePresenter.present(source: .sidebarHelpMenu)
         case .importBrowserData:
             isPopoverPresented = false
             DispatchQueue.main.async {

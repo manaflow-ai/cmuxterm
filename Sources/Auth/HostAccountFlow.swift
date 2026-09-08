@@ -203,12 +203,12 @@ final class HostAccountFlow: AccountFlow, AccountSignInFlow {
         }
     }
 
-    func openProUpgrade() {
-        ProUpgradePresenter.present()
+    func openProUpgrade(source: ProUpgradeSource) {
+        ProUpgradePresenter.present(source: source)
     }
 
-    func prefetchProUpgrade() {
-        ProUpgradePresenter.prefetch()
+    func prefetchProUpgrade(source: ProUpgradeSource) {
+        ProUpgradePresenter.prefetch(source: source)
     }
 
     func openBillingPortal() {
