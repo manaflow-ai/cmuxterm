@@ -438,12 +438,6 @@ struct CloudTreeTerminalRowContent: View {
                 .accessibilityLabel(row.hasUnreadNotification
                                     ? String(localized: "cloudTree.terminal.unread.help", defaultValue: "This terminal has a notification you have not read on this Mac")
                                     : "")
-            if let agent = agentLabel {
-                Image(systemName: "sparkle")
-                    .font(.system(size: max(style.iconSize - 1, 8), weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .help(agent)
-            }
             if showsDetachedState {
                 // Zero views: still running on the machine, no daemon tab shows it.
                 // Greyed with a "detached" mark (austin, 2026-09-02 — reversing the
@@ -462,6 +456,9 @@ struct CloudTreeTerminalRowContent: View {
                     .help(Self.viewsHelp(views))
             }
         }
+        // Agent state stays on hover and in `cmux vm tree`; the row itself
+        // carries only the unread dot.
+        .help(agentLabel ?? "")
     }
 
     /// The view-count badge a pool row shows: the count when several daemon tabs
