@@ -165,7 +165,7 @@ public struct IrohSubstrate: Sendable {
         return EndpointAddr(id: endpoint.id(), relayUrl: nil, addresses: addresses)
     }
 
-    /// Establishes QUIC and starts lane acceptance with cancellation forwarded to the FFI attempt.
+    /// Establishes QUIC and starts lane acceptance with cancellation-safe ownership transfer.
     /// - Parameters:
     ///   - endpoint: Bound local endpoint, owned by the caller.
     ///   - addr: Remote identity and current direct/relay routing hints.
@@ -221,8 +221,15 @@ public struct IrohSubstrate: Sendable {
         return peer
     }
 
-    /// Pull and complete the next incoming connection. Returns nil once the
-    /// endpoint is closed.
+    /// Pulls and completes the next incoming connection, or returns nil after endpoint closure.
+    ///
+    /// Cancellation rejects an unconsumed incoming attempt or closes a completed
+    /// connection. The endpoint owner must close its endpoint to interrupt a
+    /// native accept/handshake that has not returned; closing it here would also
+    /// disconnect unrelated sessions on the shared endpoint.
+    /// - Parameter endpoint: Shared listening endpoint, owned by the caller.
+    /// - Returns: An acceptor peer whose stream task has started, or nil after closure.
+    /// - Throws: Cancellation or an underlying handshake error.
     #if compiler(>=6.2)
     @concurrent
     #endif
@@ -232,6 +239,11 @@ public struct IrohSubstrate: Sendable {
                 TransportDebugLog.core.notice("substrate acceptOne: endpoint closed (nil incoming)")
             }
             return nil
+        }
+        do { try Task.checkCancellation() }
+        catch {
+            try? await incoming.refuse()
+            throw error
         }
         let acceptStart = ContinuousClock.now
         let peer: IrohPeerConnection

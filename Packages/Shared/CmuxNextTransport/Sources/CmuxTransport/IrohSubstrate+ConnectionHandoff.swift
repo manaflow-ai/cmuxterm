@@ -7,9 +7,17 @@ extension IrohSubstrate {
         connect: @Sendable () async throws -> Connection
     ) async throws -> IrohPeerConnection {
         let connection = try await connect()
-        if case .dialer = role { try Task.checkCancellation() }
         let peer = IrohPeerConnection(connection: connection, role: role)
-        await peer.start()
-        return peer
+        do {
+            // Native success transfers ownership here even when cancellation
+            // won concurrently. The attempt token cannot close a live result.
+            try Task.checkCancellation()
+            await peer.start()
+            try Task.checkCancellation()
+            return peer
+        } catch {
+            await peer.closeAll()
+            throw error
+        }
     }
 }

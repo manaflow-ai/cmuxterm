@@ -54,7 +54,7 @@ struct IrohConnectionHandoffTests {
             accepting.cancel()
             try? await server.close()
             try? await client.close()
-            _ = try? await accepting.result
+            _ = await accepting.result
             throw error
         }
     }
@@ -81,6 +81,7 @@ struct IrohConnectionHandoffTests {
                 addr: substrate.directAddr(of: server), alpn: Data("unsupported-alpn".utf8))
             return try await attempt.connect()
         }
+        var nextAccept: Task<IrohPeerConnection?, Error>?
         do {
             await #expect(throws: (any Error).self) {
                 _ = try await substrate.acceptOne(endpoint: server)
@@ -91,10 +92,11 @@ struct IrohConnectionHandoffTests {
                 Issue.record("An unsupported ALPN was accepted")
                 try connection.close(errorCode: 0, reason: Data())
             }
-            let nextAccept = Task { try await substrate.acceptOne(endpoint: server) }
+            let accepting = Task { try await substrate.acceptOne(endpoint: server) }
+            nextAccept = accepting
             let dialer = try await substrate.dial(
                 endpoint: client, to: substrate.directAddr(of: server))
-            let acceptor = try #require(try await nextAccept.value)
+            let acceptor = try #require(try await accepting.value)
             let outbound = await dialer.lane("after-failure")
             let inbound = await acceptor.lane("after-failure")
             let frame = Frame.dataChunk(seq: 1, data: Data("still-usable".utf8))
@@ -109,10 +111,12 @@ struct IrohConnectionHandoffTests {
         } catch {
             deadline.cancel()
             invalidDial.cancel()
+            nextAccept?.cancel()
             try? await server.close()
             try? await client.close()
             await deadline.value
             _ = await invalidDial.result
+            _ = await nextAccept?.result
             throw error
         }
     }
