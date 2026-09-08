@@ -4,8 +4,9 @@
 // adds the VM-bound route token on the wire; the guest sends only the public
 // placeholder bearer (services/coderouter/vmGuestEnv.ts).
 //
-// Installed by the driver at create, restore, and attach-heal, so it reaches
-// machines created from any existing snapshot. POSIX sh plus curl and jq,
+// Installed by the driver on every attach and, when missing, in the same
+// round trip as any `vm exec`, so it reaches machines created from any
+// existing snapshot without a rebake. POSIX sh plus curl and jq,
 // which the devbox image ships. Every other verb is refused with a pointer to
 // the Mac CLI, so an agent learns the boundary from the tool, not from a doc.
 
@@ -83,7 +84,12 @@ fetch_self() {
     set -- --cacert /usr/local/share/ca-certificates/freestyle-tls.crt "$@"
   fi
   if ! raw="$(curl "$@" "\${CMUX_CODEROUTER_URL%/}/api/vm/self" 2>&1)"; then
-    die 1 unreachable "$(hostname 2>/dev/null || echo unknown)" "$(printf '%s' "$raw" | tail -n 1)"
+    # curl still appends the --write-out status ("000") after its error line;
+    # the error line is the reason worth showing. The edge becomes active
+    # about half a minute after a machine boots, so a fresh machine can land
+    # here once before the same command succeeds.
+    reason="$(printf '%s' "$raw" | grep -m 1 '^curl:' || printf '%s' "$raw" | sed '$d' | tail -n 1)"
+    die 1 unreachable "$(hostname 2>/dev/null || echo unknown)" "\${reason:-$raw}"
   fi
   http_status="$(printf '%s' "$raw" | tail -n 1)"
   body="$(printf '%s' "$raw" | sed '$d')"

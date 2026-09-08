@@ -30,7 +30,7 @@ let requestLog = "";
 
 const fakeCurl = (body: string, status: string, fail = false) => `#!/bin/sh
 printf '%s\\n' "$*" >> "${requestLog}"
-${fail ? `echo "curl: (6) Could not resolve host: coderouter.cmux.internal" >&2; exit 6` : `printf '%s\\n%s' '${body.replace(/'/g, `'\\''`)}' '${status}'`}
+${fail ? `echo "curl: (6) Could not resolve host: coderouter.cmux.internal" >&2; printf '\\n000'; exit 6` : `printf '%s\\n%s' '${body.replace(/'/g, `'\\''`)}' '${status}'`}
 `;
 
 const run = (args: string[], env: Record<string, string> = {}) =>
@@ -107,7 +107,10 @@ describe("guest cmux self-discovery shim", () => {
     const result = run(["self"]);
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
-    expect(result.stderr).toMatch(/^cmux: cannot reach the cmux API from this machine \(.+\): curl: \(6\) Could not resolve host/);
+    // Real curl prints its error line and then the --write-out status; the
+    // reason shown is the error line, never the trailing "000".
+    expect(result.stderr).toBe("cmux: cannot reach the cmux API from this machine (" + result.stderr.split("(")[1]?.split(")")[0] + "): curl: (6) Could not resolve host: coderouter.cmux.internal\n");
+    expect(result.stderr).not.toContain("000");
   });
 
   test("a rejected machine exits 1 with the API's message", () => {
