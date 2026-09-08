@@ -2345,7 +2345,8 @@ jobs:
           if [ -d "$cache_path" ]; then
             # A warm build leaves a dead CAS generation behind, which doubles
             # the directory and used to trip this bound on every warm run.
-            python3 scripts/ci/prune-xcode-compilation-cache.py "$cache_path"
+            python3 scripts/ci/prune-xcode-compilation-cache.py "$cache_path" \
+              || echo "::warning::Xcode compilation cache pruning failed; measuring it unpruned"
             cache_kib=$(du -sk "$cache_path" | awk '{print $1}')
           else
             cache_kib=0
