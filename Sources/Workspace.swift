@@ -6524,9 +6524,6 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         plainSSHDetectionMissesByPanelId = plainSSHDetectionMissesByPanelId.filter {
             validSurfaceIds.contains($0.key)
         }
-        restoredAgentResumeStatesByPanelId = restoredAgentResumeStatesByPanelId.filter {
-            validSurfaceIds.contains($0.key)
-        }
         for panelId in Array(deferredAgentResumeRestoresByPanelId.keys)
         where !validSurfaceIds.contains(panelId) {
             removeDeferredAgentResumeRestore(panelId: panelId)
