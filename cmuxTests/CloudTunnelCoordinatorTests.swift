@@ -95,6 +95,28 @@ struct CloudTunnelCoordinatorTests {
         }
     }
 
+    @Test("revocation cleans an install that completes after approval and orders a replacement start")
+    func revocationDuringInstall() async throws {
+        let harness = Harness()
+        harness.controller.holdInstallForApproval = true
+        await harness.coordinator.beginUp(pin: true)
+        try #require(await harness.awaitState(.awaitingApproval) == .awaitingApproval)
+        try await harness.coordinator.revoke()
+        #expect(harness.controller.installedConfigurations.isEmpty)
+
+        harness.controller.holdInstallForApproval = false
+        await harness.coordinator.beginUp(pin: true)
+        harness.controller.approve()
+        try #require(await harness.awaitState(.up) == .up)
+        #expect(harness.controller.installedConfigurations.count == 1)
+        let calls = harness.controller.calls
+        let secondInstall = try #require(calls.lastIndex(of: "install"))
+        let lastRemoval = try #require(calls.lastIndex(of: "remove"))
+        #expect(lastRemoval < secondInstall)
+        #expect(calls.filter { $0 == "remove" }.count == 2)
+        await harness.coordinator.requestDown()
+    }
+
     @Test("the first Cloud use enrolls, installs, starts, and waits for the link")
     func onDemandStart() async {
         let harness = Harness()

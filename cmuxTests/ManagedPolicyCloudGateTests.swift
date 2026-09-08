@@ -69,6 +69,29 @@ struct ManagedPolicyCloudGateTests {
         withExtendedLifetime(observer) {}
     }
 
+    @Test func irohPolicyEnforcesBothTransitionsAndPublishesSettingsChanges() {
+        let policy = ManagedPolicyFlag()
+        let recorder = EnforcementRecorder()
+        let observer = ManagedPolicyEnforcementObserver(
+            notificationCenter: NotificationCenter(),
+            isBrowserDisabledByPolicy: { false },
+            isRemoteControlDisabledByPolicy: { false },
+            isCloudDisabledByPolicy: { false },
+            isIrohDisabledByPolicy: { policy.isEnforced },
+            enforceBrowserPolicy: {},
+            enforceBrowserURLAllowlistPolicy: {},
+            enforceRemoteControlPolicy: { recorder.recordRemoteControl() }
+        )
+        policy.isEnforced = true
+        observer.reevaluate()
+        #expect(recorder.remoteControl == 1)
+        observer.reevaluate()
+        #expect(recorder.remoteControl == 1)
+        policy.isEnforced = false
+        observer.reevaluate()
+        #expect(recorder.remoteControl == 2)
+    }
+
     // MARK: - Service boundary
 
     @Test func theCloudServiceRefusesEveryCallBeforeTheNetworkAndKeepsRevocationOpen() async throws {
@@ -114,15 +137,13 @@ struct ManagedPolicyCloudGateTests {
 
         // Revocation is the one call allowed through: it ends this Mac's
         // access. It reaches the session check and, with a session, the wire.
-        _ = await waitUntil(timeout: Self.notificationTimeout) { coordinator.isAuthenticated }
+        try #require(await waitUntil(timeout: Self.notificationTimeout) { coordinator.isAuthenticated })
         do {
             try await client.revokeCloudAccess(deviceID: "device-1")
             let recorded = RecordingCloudURLProtocol.recorder.requests
             #expect(recorded.count == 1)
             #expect(recorded.first?.httpMethod == "DELETE")
             #expect(recorded.first?.url?.path.hasSuffix("/api/vm/tunnel") == true)
-        } catch VMClientError.notSignedIn {
-            // Past the policy gate; the fixture coordinator held no session.
         } catch VMClientError.disabledByManagedPolicy {
             Issue.record("revocation must stay available under DisableCloud")
         }

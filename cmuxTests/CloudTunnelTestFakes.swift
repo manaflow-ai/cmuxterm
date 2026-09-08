@@ -102,14 +102,14 @@ final class FakeTunnelController: CloudTunnelControlling, @unchecked Sendable {
     ) async throws {
         lock.withLock {
             recorded.append("install")
-            configurations.append(configuration)
         }
         if holdInstallForApproval {
-            onNeedsUserApproval()
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
                 lock.withLock { approvalContinuations.append(continuation) }
+                onNeedsUserApproval()
             }
         }
+        lock.withLock { configurations.append(configuration) }
     }
 
     func start() async throws {
@@ -137,7 +137,10 @@ final class FakeTunnelController: CloudTunnelControlling, @unchecked Sendable {
     }
 
     func remove() async throws {
-        lock.withLock { recorded.append("remove") }
+        lock.withLock {
+            recorded.append("remove")
+            configurations.removeAll()
+        }
     }
 
     nonisolated func stopForTermination() {
