@@ -31,7 +31,7 @@ private final class CmuxCachedFont {
 
 /// NSCache synchronizes access internally; its references and cached font entries are immutable.
 private final class CmuxFontResolverCache: @unchecked Sendable {
-    let familyAvailability = NSCache<NSString, NSNumber>()
+    let familyAvailability = NSCache<NSString, NSString>()
     let familyFonts = NSCache<NSString, CmuxCachedFont>()
 
     init() {
@@ -78,8 +78,8 @@ public enum CmuxFontResolver {
     ) -> Font {
         var font: Font
         if let family = CmuxFontFamily(family),
-           familyFont(family, size: size, weight: .regular) != nil {
-            font = Font.custom(family.name, size: size).weight(weight)
+           let resolved = familyFont(family, size: size, weight: .regular) {
+            font = Font.custom(resolved.familyName ?? resolved.fontName, size: size).weight(weight)
         } else {
             font = Font.system(size: size, weight: weight, design: design)
         }
@@ -97,22 +97,23 @@ public enum CmuxFontResolver {
     ) -> NSFont? {
         guard let family else { return nil }
         let familyKey = family.name.lowercased() as NSString
-        if let available = cache.familyAvailability.object(forKey: familyKey) {
-            guard available.boolValue else { return nil }
+        let canonicalFamily: String
+        if let cachedFamily = cache.familyAvailability.object(forKey: familyKey) {
+            canonicalFamily = cachedFamily as String
         } else {
-            let available = NSFontManager.shared.availableFontFamilies.contains {
+            canonicalFamily = NSFontManager.shared.availableFontFamilies.first {
                 $0.caseInsensitiveCompare(family.name) == .orderedSame
-            }
-            cache.familyAvailability.setObject(NSNumber(value: available), forKey: familyKey)
-            guard available else { return nil }
+            } ?? ""
+            cache.familyAvailability.setObject(canonicalFamily as NSString, forKey: familyKey)
         }
+        guard !canonicalFamily.isEmpty else { return nil }
 
         let fontKey = "\(familyKey)|\(size)|\(weight.rawValue)|\(monospacedDigits)" as NSString
         if let cached = cache.familyFonts.object(forKey: fontKey) {
             return cached.font
         }
         let source = NSFont.systemFont(ofSize: size, weight: weight)
-        let familyResolved = NSFontManager.shared.convert(source, toFamily: family.name)
+        let familyResolved = NSFontManager.shared.convert(source, toFamily: canonicalFamily)
         let resolved: NSFont?
         if familyResolved.familyName?.caseInsensitiveCompare(family.name) != .orderedSame {
             resolved = nil

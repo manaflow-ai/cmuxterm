@@ -18,7 +18,8 @@ struct CmuxFontFamilyTests {
 
     @Test("Installed family names are retained by AppKit resolution")
     func installedFamilyResolves() throws {
-        let family = try #require(NSFontManager.shared.availableFontFamilies.first)
+        let family = "Georgia"
+        _ = try #require(NSFont(name: family, size: 13))
         let font = CmuxFontResolver.appKitFont(
             family: family,
             size: 13,
@@ -45,5 +46,14 @@ struct CmuxFontFamilyTests {
         let font = CmuxFontResolver.appKitFont(family: "Georgia", size: 13, monospaced: true)
 
         #expect(font.familyName == "Georgia")
+    }
+
+    @Test("Differently cased family names share a valid resolution")
+    func caseVariantsDoNotPoisonCache() {
+        for family in ["menlo", "MENLO", "Menlo"] {
+            let font = CmuxFontResolver.appKitFont(family: family, size: 13.25)
+
+            #expect(font.familyName == "Menlo")
+        }
     }
 }
