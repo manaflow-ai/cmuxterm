@@ -89,18 +89,23 @@ struct CmuxPluginInterpreterSnapshotter {
         guard Darwin.fchflags(copiedDescriptor, UInt32(UF_IMMUTABLE)) == 0 else {
             throw CmuxPluginExecutionSnapshotError.entrypointDescriptorFailed
         }
-        let executableDescriptor = Darwin.open(
+        // The pinned descriptor is used for inode identity and byte
+        // verification before launch. The launcher inherits it only to
+        // compare against the copied pathname; execution still uses the
+        // separately trusted source interpreter path, so a readable
+        // descriptor is the correct capability here.
+        let pinnedDescriptor = Darwin.open(
             copiedURL.path,
-            O_EXEC | O_NOFOLLOW
+            O_RDONLY | O_NOFOLLOW | O_CLOEXEC
         )
-        guard executableDescriptor >= 0 else {
+        guard pinnedDescriptor >= 0 else {
             throw CmuxPluginExecutionSnapshotError.entrypointDescriptorFailed
         }
-        guard sameFile(copiedDescriptor, executableDescriptor) else {
-            Darwin.close(executableDescriptor)
+        guard sameFile(copiedDescriptor, pinnedDescriptor) else {
+            Darwin.close(pinnedDescriptor)
             throw CmuxPluginExecutionSnapshotError.fingerprintMismatch
         }
-        return (executableDescriptor, data, resolvedInterpreterURL)
+        return (pinnedDescriptor, data, resolvedInterpreterURL)
     }
 
     /// Rejects interpreter indirection that would resolve outside the pinned

@@ -11,10 +11,10 @@ extension CmuxPluginRuntime {
 
     /// Requests a coalesced manifest rescan after filesystem or settings changes.
     func reload() {
-        lock.lock()
-        pluginReloadRequiresFullScan = true
-        let continuation = pluginReloadContinuation
-        lock.unlock()
+        let continuation = lock.withLock {
+            pluginReloadRequiresFullScan = true
+            return pluginReloadContinuation
+        }
         if let continuation {
             // The bufferingNewest(1) stream keeps a continuous filesystem storm
             // at one in-flight scan plus one latest pending request.
@@ -30,18 +30,18 @@ extension CmuxPluginRuntime {
     /// path-aware filesystem event.
     func reload(affectedPluginIDs: Set<String>) {
         guard !affectedPluginIDs.isEmpty else { return reload() }
-        lock.lock()
-        if !pluginReloadRequiresFullScan {
-            pendingPluginReloadIDs.formUnion(affectedPluginIDs)
+        let continuation = lock.withLock {
+            if !pluginReloadRequiresFullScan {
+                pendingPluginReloadIDs.formUnion(affectedPluginIDs)
+            }
+            return pluginReloadContinuation
         }
-        let continuation = pluginReloadContinuation
-        lock.unlock()
         if let continuation {
             continuation.yield(())
         } else {
-            lock.lock()
-            pendingPluginReloadIDs.subtract(affectedPluginIDs)
-            lock.unlock()
+            lock.withLock {
+                pendingPluginReloadIDs.subtract(affectedPluginIDs)
+            }
             _ = enqueueRegistryUpdate { registry in
                 await registry.reload(affectedPluginIDs: affectedPluginIDs)
             }
@@ -50,12 +50,14 @@ extension CmuxPluginRuntime {
 
     /// Performs one serialized reload for the bounded request stream.
     func performPluginReload() async {
-        lock.lock()
-        let requiresFullScan = pluginReloadRequiresFullScan
-        let affectedPluginIDs = pendingPluginReloadIDs
-        pluginReloadRequiresFullScan = false
-        pendingPluginReloadIDs.removeAll()
-        lock.unlock()
+        let reloadState = lock.withLock {
+            let state = (pluginReloadRequiresFullScan, pendingPluginReloadIDs)
+            pluginReloadRequiresFullScan = false
+            pendingPluginReloadIDs.removeAll()
+            return state
+        }
+        let requiresFullScan = reloadState.0
+        let affectedPluginIDs = reloadState.1
         let task = enqueueRegistryUpdate { registry in
             if requiresFullScan || affectedPluginIDs.isEmpty {
                 return await registry.reload()
@@ -107,45 +109,43 @@ extension CmuxPluginRuntime {
         errorPluginID: String? = nil,
         _ operation: @escaping @Sendable (CmuxPluginRegistry) async throws -> CmuxPluginRegistrySnapshot
     ) -> Task<Void, Never> {
-        lock.lock()
-        guard !isStopping else {
-            lock.unlock()
-            return Task {}
-        }
-        let predecessor = registryUpdateTail
-        let registryActor = registry
-        let task = Task { [weak self, registryActor] in
-            await predecessor?.value
-            guard !Task.isCancelled, let self else { return }
-            do {
-                let next = try await operation(registryActor)
-                guard !Task.isCancelled else { return }
-                var tokens: [String: String] = [:]
-                for descriptor in next.plugins where descriptor.isEnabled {
-                    if let token = try? await registryActor.sessionToken(
-                        pluginID: descriptor.plugin.manifest.id
-                    ) {
-                        tokens[descriptor.plugin.manifest.id] = token
+        let task: Task<Void, Never>? = lock.withLock {
+            guard !isStopping else { return nil }
+            let predecessor = registryUpdateTail
+            let registryActor = registry
+            let task = Task { [weak self, registryActor] in
+                await predecessor?.value
+                guard !Task.isCancelled, let self else { return }
+                do {
+                    let next = try await operation(registryActor)
+                    guard !Task.isCancelled else { return }
+                    var tokens: [String: String] = [:]
+                    for descriptor in next.plugins where descriptor.isEnabled {
+                        if let token = try? await registryActor.sessionToken(
+                            pluginID: descriptor.plugin.manifest.id
+                        ) {
+                            tokens[descriptor.plugin.manifest.id] = token
+                        }
                     }
+                    guard !Task.isCancelled else { return }
+                    self.replace(snapshot: next, tokens: tokens)
+                    if let errorPluginID {
+                        self.recordPluginError(nil, for: errorPluginID)
+                    }
+                } catch {
+                    guard !Task.isCancelled, let errorPluginID else { return }
+                    self.recordPluginError(
+                        String(
+                            localized: "settings.plugins.error.permissionUpdate",
+                            defaultValue: "The plugin permission change could not be saved."
+                        ),
+                        for: errorPluginID
+                    )
                 }
-                guard !Task.isCancelled else { return }
-                self.replace(snapshot: next, tokens: tokens)
-                if let errorPluginID {
-                    self.recordPluginError(nil, for: errorPluginID)
-                }
-            } catch {
-                guard !Task.isCancelled, let errorPluginID else { return }
-                self.recordPluginError(
-                    String(
-                        localized: "settings.plugins.error.permissionUpdate",
-                        defaultValue: "The plugin permission change could not be saved."
-                    ),
-                    for: errorPluginID
-                )
             }
+            registryUpdateTail = task
+            return task
         }
-        registryUpdateTail = task
-        lock.unlock()
-        return task
+        return task ?? Task {}
     }
 }

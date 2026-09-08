@@ -150,6 +150,20 @@ public actor CmuxPluginDirectoryLoader {
         guard fileManager.fileExists(atPath: directoryURL.path) else {
             return CmuxPluginLoadReport(plugins: [], failures: [])
         }
+        guard let rootValues = try? directoryURL.resourceValues(
+            forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+        ),
+        rootValues.isDirectory == true,
+        rootValues.isSymbolicLink != true else {
+            return CmuxPluginLoadReport(
+                plugins: [],
+                failures: [CmuxPluginLoadFailure(
+                    directoryURL: directoryURL,
+                    code: .unreadableDirectory,
+                    detail: "plugin root could not be enumerated"
+                )]
+            )
+        }
         guard let enumerator = fileManager.enumerator(
             at: directoryURL,
             includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
@@ -201,11 +215,21 @@ public actor CmuxPluginDirectoryLoader {
         var ids = Set<String>()
 
         for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard let resourceValues = try? directory.resourceValues(forKeys: [.isDirectoryKey]),
-                  resourceValues.isDirectory == true else {
+            guard let resourceValues = try? directory.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            ),
+            resourceValues.isDirectory == true else {
                 continue
             }
             if let pluginIDs, !pluginIDs.contains(directory.lastPathComponent) {
+                continue
+            }
+            if resourceValues.isSymbolicLink == true {
+                failures.append(CmuxPluginLoadFailure(
+                    directoryURL: directory,
+                    code: .invalidManifest,
+                    detail: "plugin directory must not be a symbolic link"
+                ))
                 continue
             }
             let manifestURL = directory.appendingPathComponent("manifest.json", isDirectory: false)
