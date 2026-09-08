@@ -420,7 +420,7 @@ extension TerminalController {
             )
             return v2VmCall(
                 id: id,
-                transportUnsupportedContext: (command: "vm tui", machineID: vmId)
+                transportUnsupportedMachineID: vmId
             ) {
                 let registry = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared }
                 let cachedCapabilities = await MainActor.run { registry.provider(machineID: vmId)?.capabilities }
