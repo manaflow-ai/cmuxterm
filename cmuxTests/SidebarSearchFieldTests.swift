@@ -10,6 +10,43 @@ import Testing
 
 @MainActor
 @Suite struct SidebarSearchFieldTests {
+    @Test func viewRefreshPreservesMarkedText() throws {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 100), styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+
+        func view(placeholder: String) -> SidebarSearchFieldView {
+            SidebarSearchFieldView(
+                text: .constant(""), placeholder: placeholder,
+                accessibilityIdentifier: "CompositionSearchField",
+                onSubmit: {}, onCommandSubmit: {}
+            )
+        }
+        func searchField(in view: NSView) -> SidebarSearchField? {
+            if let field = view as? SidebarSearchField { return field }
+            return view.subviews.compactMap { searchField(in: $0) }.first
+        }
+
+        let host = NSHostingView(rootView: view(placeholder: "Search"))
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let field = try #require(searchField(in: host))
+        #expect(window.makeFirstResponder(field))
+        let editor = try #require(field.currentEditor() as? NSTextView)
+        editor.setMarkedText("に", selectedRange: NSRange(location: 1, length: 0), replacementRange: NSRange(location: NSNotFound, length: 0))
+        #expect(editor.hasMarkedText())
+
+        host.rootView = view(placeholder: "Search updated")
+        host.layoutSubtreeIfNeeded()
+        let deadline = Date.now.addingTimeInterval(2)
+        while field.placeholderString != "Search updated", Date.now < deadline {
+            RunLoop.main.run(until: Date.now.addingTimeInterval(0.01))
+        }
+        #expect(field.placeholderString == "Search updated")
+        #expect(editor.hasMarkedText())
+        #expect(editor.string == "に")
+    }
+
     @Test func textEditsAndNativeClearUpdateTheBinding() {
         var text = ""
         let coordinator = makeCoordinator(text: Binding(get: { text }, set: { text = $0 }))
