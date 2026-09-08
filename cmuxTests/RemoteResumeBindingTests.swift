@@ -131,7 +131,7 @@ private enum RemoteResumeHookSocketServer {
 /// Holds an ephemeral loopback port open for the lifetime of one relay fixture.
 /// Keeping the descriptor alive makes the allocation collision-safe across test
 /// suites that may be running in parallel.
-private final class RemoteResumeRelayPortReservation {
+final class RemoteResumeRelayPortReservation {
     let port: Int
     private let fileDescriptor: Int32
 
