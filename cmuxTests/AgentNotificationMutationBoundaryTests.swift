@@ -35,13 +35,15 @@ extension AgentNotificationRegressionTests {
         let readyMarker = root.appendingPathComponent("ready")
         let execMarker = root.appendingPathComponent("execed")
         try """
-        touch '\(readyMarker.path)'
         trap 'exec /bin/sh "\(scopedScript.path)"' USR1
+        touch '\(readyMarker.path)'
         while :; do sleep 1; done
         """.write(to: initialScript, atomically: true, encoding: .utf8)
+        // The marker comes from the final scoped process image. Do not exec
+        // again after it: delivery-time scope reads must not race another exec.
         try """
         export CMUX_SURFACE_ID='\(fixture.panelId.uuidString)'
-        exec /bin/sh -c 'touch "\(execMarker.path)"; exec sleep 30'
+        exec /bin/sh -c 'touch "\(execMarker.path)"; while :; do sleep 1; done'
         """.write(to: scopedScript, atomically: true, encoding: .utf8)
 
         let process = Process()
