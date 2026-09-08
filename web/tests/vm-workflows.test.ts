@@ -5655,6 +5655,9 @@ describe("VM Effect workflows", () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+    // Warm the repository's own pool first so the timed window below measures
+    // the lock, not the first connection.
+    expect(await Effect.runPromise(vmRepositoryLiveShape.findNetwork!(input.userId, input.provider))).toBeNull();
     // Mirrors repository.ts's networkUpsertLockKey: `network:<provider>:<user>`.
     const lockKey = `network:${input.provider}:${input.userId}`;
     const holder = sql.begin(async (tx) => {
@@ -5667,7 +5670,7 @@ describe("VM Effect workflows", () => {
       settled = true;
       return row;
     });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
     expect(settled).toBe(false);
     release();
     await holder;
