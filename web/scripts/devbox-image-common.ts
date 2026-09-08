@@ -38,6 +38,7 @@ export const DEVBOX_TEMPLATE_FILES = [
   "cmux-motd",
   "cmux-terminfo.sh",
   "cmux-terminfo.src",
+  "codex-managed.toml",
   "seed-history",
 ] as const;
 
