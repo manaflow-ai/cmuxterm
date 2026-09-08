@@ -978,6 +978,8 @@ extension TerminalController {
                     "name": view.name ?? NSNull(),
                     "index": view.index ?? NSNull(),
                     "focused": view.focused ?? NSNull(),
+                    "screen_index": view.screenIndex ?? NSNull(),
+                    "pane_index": view.paneIndex ?? NSNull(),
                 ] as [String: Any]
             }
         } else {

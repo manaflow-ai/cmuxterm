@@ -1606,9 +1606,7 @@ extension CMUXCLI {
             name: String,
             index: Int,
             focused: Bool,
-            terminals: [[String: Any]],
-            browsers: [[String: Any]],
-            displays: [[String: Any]]
+            placements: [VMTreePlacement]
         )] = []
         // Terminal views can be numerous; keep membership assignment O(1)
         // instead of scanning every workspace for every view.
@@ -1629,49 +1627,39 @@ extension CMUXCLI {
                     name: (raw["name"] as? String) ?? "",
                     index: vmTreeNumber(raw["index"]).map { Int($0) } ?? Int.max,
                     focused: (raw["focused"] as? Bool) == true,
-                    terminals: [],
-                    browsers: [],
-                    displays: []
+                    placements: []
                 ))
             }
         }
         for resource in resources {
-            // Every workspace view contributes a pointer row. The sidebar uses
-            // this same partition: terminals, daemon browsers, then displays.
-            var workspacePayloads: [[String: Any]?] = []
+            // Every workspace view contributes a pointer row: one placement per daemon
+            // tab, the same partition the sidebar draws (grouped by pane below).
+            let kind = resource["kind"] as? String
+            guard ["terminal", "browser", "display", "screen"].contains(kind ?? "") else { continue }
+            var placements: [(workspace: [String: Any], view: [String: Any]?)] = []
             if let views = resource["remote_views"] as? [[String: Any]] {
-                var seen = Set<String>()
                 for view in views {
-                    guard let workspace = view["workspace"] as? [String: Any],
-                          let workspaceId = workspace["id"] as? String,
-                          seen.insert(workspaceId).inserted else { continue }
-                    workspacePayloads.append(workspace)
+                    guard let workspace = view["workspace"] as? [String: Any] else { continue }
+                    placements.append((workspace, view))
                 }
-            } else {
+            } else if let workspace = resource["remote_workspace"] as? [String: Any] {
                 // Only pre-multi-view payloads fall back to this field. An
                 // explicit empty `remote_views` is authoritative.
-                workspacePayloads = [resource["remote_workspace"] as? [String: Any]]
+                placements.append((workspace, nil))
             }
-            for workspace in workspacePayloads {
-                guard let workspaceId = workspace?["id"] as? String, !workspaceId.isEmpty else { continue }
+            for placement in placements {
+                guard let workspaceId = placement.workspace["id"] as? String, !workspaceId.isEmpty else { continue }
+                let member = VMTreePlacement(resource: resource, view: placement.view)
                 if let index = workspaceIndexByID[workspaceId] {
-                    switch resource["kind"] as? String {
-                    case "terminal": workspaces[index].terminals.append(resource)
-                    case "browser": workspaces[index].browsers.append(resource)
-                    case "display", "screen": workspaces[index].displays.append(resource)
-                    default: break
-                    }
+                    workspaces[index].placements.append(member)
                 } else {
                     workspaceIndexByID[workspaceId] = workspaces.count
-                    let kind = resource["kind"] as? String
                     workspaces.append((
                         id: workspaceId,
-                        name: (workspace?["name"] as? String) ?? "",
-                        index: vmTreeNumber(workspace?["index"]).map { Int($0) } ?? Int.max,
-                        focused: (workspace?["focused"] as? Bool) == true,
-                        terminals: kind == "terminal" ? [resource] : [],
-                        browsers: kind == "browser" ? [resource] : [],
-                        displays: kind == "display" || kind == "screen" ? [resource] : []
+                        name: (placement.workspace["name"] as? String) ?? "",
+                        index: vmTreeNumber(placement.workspace["index"]).map { Int($0) } ?? Int.max,
+                        focused: (placement.workspace["focused"] as? Bool) == true,
+                        placements: [member]
                     ))
                 }
             }
@@ -1712,14 +1700,21 @@ extension CMUXCLI {
             let workspaceId = workspace.id
             let name = workspace.name.isEmpty ? workspaceId : workspace.name
             lines.append("    \(name)  \(workspaceId)\(workspace.focused ? "  *" : "")  (cmux vm open \(id)/\(workspaceId))")
-            for terminal in workspace.terminals {
-                lines.append("      " + vmTreeResourceCell(terminal, openHint: "cmux vm open \(id)/\(workspaceId)", addressKey: "key"))
-            }
-            for browser in workspace.browsers {
-                lines.append("      " + vmTreeResourceCell(browser, openHint: "cmux surface open", showFullKey: true))
-            }
-            for display in workspace.displays {
-                lines.append("      " + vmTreeResourceCell(display, openHint: "cmux surface open", showFullKey: true))
+            // Rows follow the layout, as in the sidebar: one per pane (the tab it shows),
+            // the pane's other tabs indented beneath it.
+            for row in vmTreeLayoutRows(workspace.placements) {
+                var cell = "      " + vmTreeWorkspaceCell(row.placement, machineID: id, workspaceID: workspaceId)
+                if !row.hiddenTabs.isEmpty {
+                    cell += "  " + String(
+                        format: String(localized: "cli.vm.tree.hiddenTabs", defaultValue: "(+%d hidden)"),
+                        row.hiddenTabs.count
+                    )
+                }
+                lines.append(cell)
+                for hidden in row.hiddenTabs {
+                    lines.append("        " + String(localized: "cli.vm.tree.hiddenTab", defaultValue: "↳ tab") + "  "
+                        + vmTreeWorkspaceCell(hidden, machineID: id, workspaceID: workspaceId))
+                }
             }
         }
         // Ports come before displays, matching the Cloud sidebar's group order.
@@ -1812,6 +1807,82 @@ extension CMUXCLI {
     /// and the address to open it. `addressKey` picks the resource's `key` (cloud terminal
     /// workspace rows) or its full id (pool rows); display rows set `showFullKey` so each
     /// screen number remains visible instead of being truncated to the common prefix.
+    /// One workspace placement as the catalog payload describes it: the resource and the
+    /// daemon tab (`remote_views` entry) showing it in this workspace; nil for payloads
+    /// that predate views.
+    struct VMTreePlacement {
+        let resource: [String: Any]
+        let view: [String: Any]?
+    }
+
+    /// One row of a workspace listing: the placement it shows and, for a pane holding
+    /// several tabs, the tabs behind the shown one.
+    struct VMTreeLayoutRow {
+        let placement: VMTreePlacement
+        let hiddenTabs: [VMTreePlacement]
+    }
+
+    /// The rows a workspace shows for its placements, shaped like the layout exactly as the
+    /// sidebar shapes them (`CloudTreeNodeBuilder.layoutRows`): one row per daemon pane in
+    /// layout order (screen index, then the pane's position in its split tree, else arrival
+    /// order), carrying the tab the pane shows (`focused`; the first tab when no view says),
+    /// with the pane's other tabs nested in tab order. Placements without a pane stay flat
+    /// after the panes: terminals, then browsers, then displays.
+    static func vmTreeLayoutRows(_ placements: [VMTreePlacement]) -> [VMTreeLayoutRow] {
+        struct PaneKey: Hashable {
+            let screenID: String
+            let paneID: String
+        }
+        func position(_ view: [String: Any]?, _ key: String) -> Int {
+            vmTreeNumber(view?[key]).map { Int($0) } ?? Int.max
+        }
+        var paneOrder: [PaneKey] = []
+        var tabsByPane: [PaneKey: [VMTreePlacement]] = [:]
+        var loose: [VMTreePlacement] = []
+        for placement in placements {
+            guard let view = placement.view, let paneID = view["pane_id"] as? String, !paneID.isEmpty else {
+                loose.append(placement)
+                continue
+            }
+            let key = PaneKey(screenID: (view["screen_id"] as? String) ?? "", paneID: paneID)
+            if tabsByPane[key] == nil { paneOrder.append(key) }
+            tabsByPane[key, default: []].append(placement)
+        }
+        let orderedPanes = paneOrder.enumerated().sorted { lhs, rhs in
+            let left = tabsByPane[lhs.element]?.first?.view
+            let right = tabsByPane[rhs.element]?.first?.view
+            return (position(left, "screen_index"), position(left, "pane_index"), lhs.offset)
+                < (position(right, "screen_index"), position(right, "pane_index"), rhs.offset)
+        }.map(\.element)
+        var rows: [VMTreeLayoutRow] = []
+        for key in orderedPanes {
+            let tabs = (tabsByPane[key] ?? []).enumerated().sorted { lhs, rhs in
+                (position(lhs.element.view, "index"), lhs.offset) < (position(rhs.element.view, "index"), rhs.offset)
+            }.map(\.element)
+            let shownIndex = tabs.firstIndex { ($0.view?["focused"] as? Bool) == true } ?? 0
+            rows.append(VMTreeLayoutRow(
+                placement: tabs[shownIndex],
+                hiddenTabs: tabs.enumerated().filter { $0.offset != shownIndex }.map(\.element)
+            ))
+        }
+        let kindRank: [String: Int] = ["terminal": 0, "browser": 1, "display": 2, "screen": 2]
+        let looseInKindOrder = loose.enumerated().sorted { lhs, rhs in
+            (kindRank[lhs.element.resource["kind"] as? String ?? ""] ?? 3, lhs.offset)
+                < (kindRank[rhs.element.resource["kind"] as? String ?? ""] ?? 3, rhs.offset)
+        }.map(\.element)
+        rows.append(contentsOf: looseInKindOrder.map { VMTreeLayoutRow(placement: $0, hiddenTabs: []) })
+        return rows
+    }
+
+    /// A workspace pointer cell: terminals address through the workspace (`cmux vm open <m>/<ws>/<term>`),
+    /// browsers and displays through `cmux surface open`.
+    private static func vmTreeWorkspaceCell(_ placement: VMTreePlacement, machineID: String, workspaceID: String) -> String {
+        if (placement.resource["kind"] as? String) == "terminal" {
+            return vmTreeResourceCell(placement.resource, openHint: "cmux vm open \(machineID)/\(workspaceID)", addressKey: "key")
+        }
+        return vmTreeResourceCell(placement.resource, openHint: "cmux surface open", showFullKey: true)
+    }
+
     private static func vmTreeResourceCell(
         _ terminal: [String: Any],
         openHint: String,

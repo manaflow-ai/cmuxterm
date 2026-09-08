@@ -67044,6 +67044,40 @@
         }
       }
     },
+    "cli.vm.tree.hiddenTabs": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(+%d hidden)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(+%d 非表示)"
+          }
+        }
+      }
+    },
+    "cli.vm.tree.hiddenTab": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↳ tab"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↳ タブ"
+          }
+        }
+      }
+    },
     "cli.vm.tree.ports": {
       "extractionState": "manual",
       "localizations": {
@@ -69766,6 +69800,57 @@
         }
       }
     },
+    "cloudTree.terminal.badge.hiddenTabs": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%d"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%d"
+          }
+        }
+      }
+    },
+    "cloudTree.terminal.badge.hiddenTabs.help.one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 more tab in this pane, listed beneath this row. The pane shows this tab."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このペインには他に 1 個のタブがあり、この行の下に表示されます。ペインにはこのタブが表示されています。"
+          }
+        }
+      }
+    },
+    "cloudTree.terminal.badge.hiddenTabs.help.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d more tabs in this pane, listed beneath this row. The pane shows this tab."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このペインには他に %d 個のタブがあり、この行の下に表示されます。ペインにはこのタブが表示されています。"
+          }
+        }
+      }
+    },
     "cloudTree.terminal.detached": {
       "extractionState": "manual",
       "localizations": {
@@ -69847,6 +69932,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "ターミナル %d 個"
+          }
+        }
+      }
+    },
+    "cloudTree.workspace.hiddenTabs.one": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 more tab"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他に 1 個のタブ"
+          }
+        }
+      }
+    },
+    "cloudTree.workspace.hiddenTabs.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d more tabs"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "他に %d 個のタブ"
           }
         }
       }

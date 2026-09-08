@@ -389,6 +389,44 @@ struct CmuxTuiSnapshotParser: Sendable {
         return values.filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
+    /// The panes of one screen in layout order, read from its `layout` document
+    /// (`screens[].layout`): depth-first over the split tree with the first child
+    /// before the second, stacked panes in their listed order, viewport columns
+    /// left to right. Panes the document does not mention, and an unreadable
+    /// document, get no position, so callers fall back to arrival order.
+    static func layoutPaneOrder(fromLayout layout: Any?) -> [String: Int] {
+        guard let document = layout as? [String: Any] else { return [:] }
+        var order: [String: Int] = [:]
+        func record(_ paneID: Any?) {
+            guard let paneID = nonEmptyString(paneID), order[paneID] == nil else { return }
+            order[paneID] = order.count
+        }
+        func visit(_ value: Any?) {
+            guard let node = value as? [String: Any] else { return }
+            switch node["kind"] as? String {
+            case "leaf":
+                record(node["pane_id"])
+            case "split":
+                visit(node["first"])
+                visit(node["second"])
+            case "stack":
+                for paneID in (node["pane_ids"] as? [Any]) ?? [] { record(paneID) }
+            case "viewport":
+                for column in (node["columns"] as? [[String: Any]]) ?? [] { visit(column["root"]) }
+            default:
+                break
+            }
+        }
+        visit(document["root"])
+        return order
+    }
+
+    /// The same order read from a screen state's opaque layout data (the delta path).
+    static func layoutPaneOrder(fromLayoutData data: Data?) -> [String: Int] {
+        guard let data, let layout = try? JSONSerialization.jsonObject(with: data) else { return [:] }
+        return layoutPaneOrder(fromLayout: layout)
+    }
+
     /// Orders wire rows by their semantic index when one is present. The
     /// daemon's older snapshots omit indexes on some rows, so their original
     /// order remains the compatibility fallback. An explicit index wins over
@@ -483,18 +521,30 @@ struct CmuxTuiSnapshotParser: Sendable {
             )
         }
 
+        // One layout-order read per screen for this delta, not one per row.
+        var paneOrderByScreen: [String: [String: Int]] = [:]
+        func paneIndex(on screen: CloudVMScreenState, paneID: String) -> Int? {
+            if let order = paneOrderByScreen[screen.id] { return order[paneID] }
+            let order = layoutPaneOrder(fromLayoutData: screen.layout)
+            paneOrderByScreen[screen.id] = order
+            return order[paneID]
+        }
+
         func view(for tab: CloudVMTabState) -> SurfaceRemoteView? {
             guard let workspace = workspace(for: tab) else { return nil }
+            let screen = state.lookupIndex.pane(id: tab.paneID).flatMap {
+                state.lookupIndex.screen(id: $0.screenID)
+            }
             return SurfaceRemoteView(
                 tabID: tab.id,
                 workspace: workspace,
-                screenID: state.lookupIndex.pane(id: tab.paneID).flatMap {
-                    state.lookupIndex.screen(id: $0.screenID)?.id
-                },
+                screenID: screen?.id,
                 paneID: tab.paneID,
                 name: tab.name,
                 index: tab.index,
-                focused: tab.focused
+                focused: tab.focused,
+                screenIndex: screen?.index,
+                paneIndex: screen.flatMap { paneIndex(on: $0, paneID: tab.paneID) }
             )
         }
 
@@ -1336,6 +1386,18 @@ struct CmuxTuiSnapshotParser: Sendable {
                 workspaceOfScreen[id] = workspaceID
             }
         }
+        // Layout coordinates for every view: the screen's index and the pane's
+        // position in that screen's layout document, so rows can follow the layout
+        // rather than tab arrival order.
+        var indexOfScreen: [String: Int] = [:]
+        var paneOrderOfPane: [String: Int] = [:]
+        for screen in screensRaw {
+            guard let id = screen["id"] as? String else { continue }
+            indexOfScreen[id] = integer(screen["index"])
+            for (paneID, position) in layoutPaneOrder(fromLayout: screen["layout"]) {
+                paneOrderOfPane[paneID] = position
+            }
+        }
         var screenOfPane: [String: String] = [:]
         for pane in panesRaw {
             if let id = pane["id"] as? String, let screenID = pane["screen_id"] as? String {
@@ -1411,7 +1473,9 @@ struct CmuxTuiSnapshotParser: Sendable {
                     paneID: paneID,
                     name: nameOfTab[tabID],
                     index: indexOfTab[tabID],
-                    focused: focusedOfTab[tabID]
+                    focused: focusedOfTab[tabID],
+                    screenIndex: indexOfScreen[screenID],
+                    paneIndex: paneOrderOfPane[paneID]
                 )
             }
             terminal.remoteWorkspace = terminal.remoteViews?.first?.workspace
@@ -1439,7 +1503,9 @@ struct CmuxTuiSnapshotParser: Sendable {
                     paneID: paneID,
                     name: nameOfTab[tabID],
                     index: indexOfTab[tabID],
-                    focused: focusedOfTab[tabID]
+                    focused: focusedOfTab[tabID],
+                    screenIndex: indexOfScreen[screenID],
+                    paneIndex: paneOrderOfPane[paneID]
                 )]
             }
             var browser = SurfaceResource(
@@ -1477,7 +1543,9 @@ struct CmuxTuiSnapshotParser: Sendable {
                 paneID: paneID,
                 name: nameOfTab[tabID],
                 index: indexOfTab[tabID],
-                focused: focusedOfTab[tabID]
+                focused: focusedOfTab[tabID],
+                screenIndex: indexOfScreen[screenID],
+                paneIndex: paneOrderOfPane[paneID]
             ))
         }
         for contentID in displayOrder {
