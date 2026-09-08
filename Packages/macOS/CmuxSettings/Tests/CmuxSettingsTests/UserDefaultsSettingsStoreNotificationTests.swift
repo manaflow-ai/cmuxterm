@@ -31,12 +31,10 @@ struct UserDefaultsSettingsStoreNotificationTests {
         #expect(storedValue == "#EXTERNAL")
     }
 
-    @Test func observedDirectDefaultsOverwriteWithSupersededSourceRejectsOlderPendingSource() async {
+    @Test(.timeLimit(.minutes(1))) func observedDirectDefaultsOverwriteWithSupersededSourceRejectsOlderPendingSource() async {
         let suiteName = "cmux.tests.\(UUID().uuidString)"
         let store = UserDefaultsSettingsStore(defaults: UserDefaults(suiteName: suiteName)!)
-        let externalDefaults = UserDefaults(suiteName: suiteName)!
         let key = SettingCatalog().workspaceColors.selectionColorHex
-        let recorder = UserDefaultsSettingsEventRecorder<String>()
         let firstSource = UserDefaultsSettingsMutationSource(
             ownerID: UUID(),
             sequence: 1,
@@ -47,31 +45,26 @@ struct UserDefaultsSettingsStoreNotificationTests {
             sequence: 1,
             logicalOrder: 11
         )
-        let task = Task {
-            let stream = await store.valueEvents(for: key)
-            for await event in stream {
-                await recorder.append(event)
-                if await recorder.count() >= 2 {
-                    break
-                }
-            }
-        }
-        defer {
-            task.cancel()
-        }
+        let stream = await store.valueEvents(for: key)
+        var iterator = stream.makeAsyncIterator()
+        let initialEvent = await iterator.next()
+        #expect(initialEvent?.value == key.defaultValue)
 
-        await waitForEventCount(1, in: recorder)
-
-        await store.set("#LOCAL", for: key, source: firstSource)
-        externalDefaults.set("#EXTERNAL", forKey: key.userDefaultsKey)
-        NotificationCenter.default.post(
-            name: UserDefaults.didChangeNotification,
-            object: externalDefaults
-        )
-
-        let externalEvent = await waitForEvent(in: recorder) { event in
-            event.value == "#EXTERNAL" && event.supersededMutationSource == firstSource
+        // Keep both writes in one actor turn so observation cannot consume the
+        // local source before the external write supersedes it.
+        func overwriteBeforeObservation(on store: isolated UserDefaultsSettingsStore) {
+            store.set("#LOCAL", for: key, source: firstSource)
+            let externalDefaults = UserDefaults(suiteName: suiteName)!
+            externalDefaults.set("#EXTERNAL", forKey: key.userDefaultsKey)
+            NotificationCenter.default.post(
+                name: UserDefaults.didChangeNotification,
+                object: externalDefaults
+            )
         }
+        await overwriteBeforeObservation(on: store)
+
+        let externalEvent = await iterator.next()
+        #expect(externalEvent?.value == "#EXTERNAL")
         #expect(externalEvent?.mutationSource == nil)
         #expect(externalEvent?.supersededMutationSource == firstSource)
 
