@@ -99,6 +99,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Panels this provider created (or replaced) in this process. A projection whose
     /// panel is not here came back from a restored session as a placeholder shell.
     var materializedPanels: Set<UUID> = []
+    /// Browser panes still resolving their endpoint, by panel id. The opener owns the
+    /// pane's placeholder token and retry loop, so it must outlive `materialize`; it
+    /// leaves when the page loads or the pane goes away.
+    private var browserPaneOpeners: [UUID: CloudBrowserPaneOpener] = [:]
     /// Native cloud terminals own a manual attachment separate from their
     /// catalog projection. The provider retains it for the life of the pane.
     var manualMirrorSessions: [UUID: CloudTuiManualMirrorSession] = [:]
@@ -1127,30 +1131,23 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             // address until the Network Extension is connected. This is the
             // only action that can cause the one-time macOS approval request.
             let label = Self.paneLabel(machineID: machineID, port: port, desktop: desktop)
-            let machineWasAwake = isAwake
             created = try SurfacePaneFactory.makeBrowserPane(url: SurfacePaneFactory.blankURL, at: destination, focus: focus)
-            SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: created.panelID, in: created.workspaceID)
-            let pane = created
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                do {
-                    guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
-                    try await client.requireCloudBrowserAccess(machineID: self.machineID)
-                    if !machineWasAwake {
-                        // Waking a paused machine is an explicit management
-                        // operation. Ignore the returned URL and keep the
-                        // private address captured above.
-                        _ = try await client.openPort(id: self.machineID, port: port)
-                    }
-                    SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: directURL)
-                } catch {
-                    let text = CloudMachineLink.errorText(error)
-                    SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.failed(label, error: text), panelID: pane.panelID, in: pane.workspaceID)
-                    #if DEBUG
-                    cmuxDebugLog("cloud.provider.endpointFailed machine=\(self.machineID) port=\(port) error=\(String(reflecting: error))")
-                    #endif
-                }
-            }
+            let opener = CloudBrowserPaneOpener(
+                pane: created,
+                machineID: machineID,
+                machineName: info.name,
+                privateAddress: info.privateAddress,
+                port: port,
+                label: label,
+                directURL: directURL,
+                machineWasAwake: isAwake,
+                // The desktop is a VNC page served only on the private network;
+                // a `cmux.sh` publication of it would expose the desktop token.
+                proxyAvailable: !desktop,
+                onFinish: { [weak self] panelID in self?.browserPaneOpeners[panelID] = nil }
+            )
+            browserPaneOpeners[created.panelID] = opener
+            opener.start()
         }
         materializedPanels.insert(created.panelID)
         let selectedView = remoteView ?? Self.defaultRemoteView(for: resource)
@@ -1629,12 +1626,14 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func projectionDidEnd(_ projection: SurfaceProjection) {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserPaneOpeners.removeValue(forKey: projection.panelID)?.cancel()
     }
 
     @discardableResult
     func discardMaterialization(_ projection: SurfaceProjection) -> Bool {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserPaneOpeners.removeValue(forKey: projection.panelID)?.cancel()
         SurfacePaneFactory.close(panelID: projection.panelID, in: projection.workspaceID)
         return false
     }
@@ -2122,5 +2121,184 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 }
             }
         }
+    }
+}
+
+/// One optimistic cloud browser pane, from "Connecting…" to a loaded page.
+///
+/// Owns the pane's placeholder token and every retry, so the page's buttons
+/// (Check Again after the extension approval, Try Again after a failure, and
+/// the `cmux.sh` escape hatch) act on THIS pane. The tunnel gate reports its
+/// state while it waits; `.awaitingApproval` swaps the spinner for the approval
+/// instructions and opens System Settings once, because that wait never ends on
+/// its own and a bare spinner told nobody what to do (the 2026-09-08 NIGHTLY report).
+@MainActor
+final class CloudBrowserPaneOpener {
+    private let pane: (workspaceID: UUID, panelID: UUID)
+    private let machineID: String
+    private let machineName: String
+    private let privateAddress: String?
+    private let port: Int
+    private let label: String
+    private let directURL: URL
+    private let machineWasAwake: Bool
+    private let proxyAvailable: Bool
+    private let openSystemSettings: @MainActor () -> Bool
+    private let onFinish: @MainActor (UUID) -> Void
+    private var token: String?
+    private var attempt: Task<Void, Never>?
+    private var openedSystemSettings = false
+    private(set) var shownState: CloudTunnelState?
+
+    init(
+        pane: (workspaceID: UUID, panelID: UUID),
+        machineID: String,
+        machineName: String,
+        privateAddress: String?,
+        port: Int,
+        label: String,
+        directURL: URL,
+        machineWasAwake: Bool,
+        proxyAvailable: Bool,
+        openSystemSettings: @escaping @MainActor () -> Bool = { CloudTunnelSystemSettings.openNetworkExtensions() },
+        onFinish: @escaping @MainActor (UUID) -> Void = { _ in }
+    ) {
+        self.pane = pane
+        self.machineID = machineID
+        self.machineName = machineName
+        self.privateAddress = privateAddress
+        self.port = port
+        self.label = label
+        self.directURL = directURL
+        self.machineWasAwake = machineWasAwake
+        self.proxyAvailable = proxyAvailable
+        self.openSystemSettings = openSystemSettings
+        self.onFinish = onFinish
+    }
+
+    var isFinished: Bool { token == nil }
+
+    func start() {
+        let token = SurfaceBrowserPlaceholderBridge.shared.register { [weak self] action in
+            self?.handle(action)
+        }
+        self.token = token
+        runAttempt()
+    }
+
+    private func handle(_ action: SurfaceBrowserPlaceholderAction) {
+        switch action {
+        case .retry:
+            runAttempt()
+        case .openSystemSettings:
+            _ = openSystemSettings()
+        case .openProxy:
+            openProxy()
+        }
+    }
+
+    /// The whole open, from the top: tunnel gate (with live state), optional
+    /// wake, then navigation. A retry while an attempt is still waiting joins
+    /// the same tunnel start (the coordinator runs one at a time), so pressing
+    /// Check Again repeatedly is harmless.
+    private func runAttempt() {
+        attempt?.cancel()
+        SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: pane.panelID, in: pane.workspaceID)
+        shownState = nil
+        attempt = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                guard let client = VMClient.shared else { throw CmuxTuiSurfaceProvider.ProviderError.notSignedIn }
+                try await client.requireCloudBrowserAccess(machineID: machineID) { [weak self] state in
+                    Task { @MainActor in self?.tunnelStateDidChange(state) }
+                }
+                try Task.checkCancellation()
+                if !machineWasAwake {
+                    // Waking a paused machine is an explicit management
+                    // operation. Ignore the returned URL and keep the
+                    // private address captured above.
+                    _ = try await client.openPort(id: machineID, port: port)
+                    try Task.checkCancellation()
+                }
+                finish()
+                SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: directURL)
+            } catch is CancellationError {
+                // Superseded by a newer attempt, which owns the pane now.
+            } catch {
+                let text = CloudMachineLink.errorText(error)
+                SurfacePaneFactory.showPlaceholder(
+                    SurfaceBrowserPlaceholder.failed(label, error: text, token: token, proxyAvailable: proxyAvailable),
+                    panelID: pane.panelID,
+                    in: pane.workspaceID
+                )
+                #if DEBUG
+                cmuxDebugLog("cloud.provider.endpointFailed machine=\(machineID) port=\(port) error=\(String(reflecting: error))")
+                #endif
+            }
+        }
+    }
+
+    func tunnelStateDidChange(_ state: CloudTunnelState) {
+        guard state != shownState else { return }
+        shownState = state
+        switch state {
+        case .awaitingApproval:
+            guard let token else { return }
+            SurfacePaneFactory.showPlaceholder(
+                SurfaceBrowserPlaceholder.tunnelApproval(
+                    label: label,
+                    machineName: machineName,
+                    privateAddress: privateAddress,
+                    port: port,
+                    token: token,
+                    proxyAvailable: proxyAvailable
+                ),
+                panelID: pane.panelID,
+                in: pane.workspaceID
+            )
+            if !openedSystemSettings {
+                openedSystemSettings = true
+                _ = openSystemSettings()
+            }
+        case .starting, .stopping:
+            SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: pane.panelID, in: pane.workspaceID)
+        case .up, .off, .failed:
+            break
+        }
+    }
+
+    /// The private route is stuck; open the port's public `cmux.sh` URL, signed in
+    /// as this account, in the placeholder's place.
+    private func openProxy() {
+        attempt?.cancel()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let url = try await CloudPortProxy.url(vmID: machineID, port: port)
+                SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(url.host ?? label), panelID: pane.panelID, in: pane.workspaceID)
+                _ = try await CloudPortProxy.open(url, replacing: pane)
+                finish()
+            } catch {
+                SurfacePaneFactory.showPlaceholder(
+                    SurfaceBrowserPlaceholder.failed(label, error: CloudMachineLink.errorText(error), token: token, proxyAvailable: proxyAvailable),
+                    panelID: pane.panelID,
+                    in: pane.workspaceID
+                )
+            }
+        }
+    }
+
+    /// The pane went away: stop any in-flight attempt and drop the token.
+    func cancel() {
+        attempt?.cancel()
+        attempt = nil
+        finish()
+    }
+
+    private func finish() {
+        guard let token else { return }
+        SurfaceBrowserPlaceholderBridge.shared.unregister(token)
+        self.token = nil
+        onFinish(pane.panelID)
     }
 }

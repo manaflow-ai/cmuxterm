@@ -94,7 +94,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
 
     /// Browser navigation must not race or bypass the Network Extension. The
     /// pane stays on its connecting screen until this returns successfully.
-    func requirePrivateNetworkUse(_ use: CloudPrivateNetworkUse) async throws {
+    func requirePrivateNetworkUse(
+        _ use: CloudPrivateNetworkUse,
+        onStateChange: @escaping @Sendable (CloudTunnelState) -> Void
+    ) async throws {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
         }
@@ -104,7 +107,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         }
         clearFailureBackoff()
         logger.info("Cloud browser use for \(use.machineID, privacy: .public): requiring the tunnel")
-        try await ensureUp()
+        try await ensureUp(onStateChange: onStateChange)
         restartIdleTimer()
     }
 
@@ -205,11 +208,14 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// Start if needed and wait for the outcome. Waits on the state stream
     /// rather than the start task's value so a caller's deadline can release
     /// it while the start itself carries on.
-    private func ensureUp() async throws {
+    private func ensureUp(
+        onStateChange: @escaping @Sendable (CloudTunnelState) -> Void = { _ in }
+    ) async throws {
         if state == .up { return }
         _ = startTaskIfNeeded()
         let updates = subscribeToState(current: state)
         for await candidate in updates {
+            onStateChange(candidate)
             switch candidate {
             case .up:
                 return

@@ -69455,6 +69455,244 @@
         }
       }
     },
+    "cloudTree.pane.approval.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow the cmux Cloud Tunnel to open %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel を許可して %@ を開く"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.why": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Port %1$d on %2$@ is served at %3$@, an address on your private Cloud network. macOS reaches it through the cmux Cloud Tunnel, a VPN extension bundled with cmux. macOS blocks every new VPN extension until you allow it once in System Settings; the tunnel start is waiting on that switch."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ のポート %1$d は、プライベート Cloud ネットワーク上のアドレス %3$@ で提供されています。macOS は cmux に同梱された VPN 機能拡張「cmux Cloud Tunnel」を通じてこのアドレスに到達します。新しい VPN 機能拡張はシステム設定で一度許可するまで macOS にブロックされるため、トンネルの開始はその許可を待っています。"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.step1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Open System Settings › General › Login Items & Extensions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. システム設定 › 一般 › ログイン項目と機能拡張 を開きます。"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.step2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. Under Extensions, open Network Extensions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. 「機能拡張」の中の「ネットワーク機能拡張」を開きます。"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.step3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3. Turn on cmux Cloud Tunnel, then confirm with your password or Touch ID."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3. 「cmux Cloud Tunnel」をオンにし、パスワードまたは Touch ID で確認します。"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.step4": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4. Come back here and press Check Again. The page loads as soon as the tunnel is up."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "4. ここに戻って「再確認」を押します。トンネルが接続されるとページが読み込まれます。"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.approval.openSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定を開く"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.checkAgain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check Again"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再確認"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.tryAgain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
+          }
+        }
+      }
+    },
+    "cloudTree.pane.openProxy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open through cmux.sh instead"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代わりに cmux.sh 経由で開く"
+          }
+        }
+      }
+    },
+    "cloudTree.menu.copyLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクをコピー"
+          }
+        }
+      }
+    },
+    "cloudTree.menu.copyProxyURL": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Proxy URL (cmux.sh)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロキシ URL をコピー (cmux.sh)"
+          }
+        }
+      }
+    },
+    "cloudTree.menu.openProxyURL": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Proxy URL (cmux.sh)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プロキシ URL を開く (cmux.sh)"
+          }
+        }
+      }
+    },
+    "cloudTree.operation.proxy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publishing %@:%d on cmux.sh…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@:%d を cmux.sh に公開しています…"
+          }
+        }
+      }
+    },
     "cloudTree.pane.retryHint": {
       "extractionState": "manual",
       "localizations": {

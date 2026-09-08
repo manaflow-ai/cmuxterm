@@ -48,6 +48,10 @@ struct CloudTreeNodeActions {
     /// Select a local workspace.
     let selectLocalWorkspace: @MainActor (_ workspaceID: UUID) -> Void
     let copyToPasteboard: @MainActor (_ text: String) -> Void
+    /// Copy a port's public `cmux.sh` URL (creating the personal publication on first use).
+    let copyProxyURL: @MainActor (_ resource: SurfaceResourceID) -> Void
+    /// Open a port's public `cmux.sh` URL in a browser pane signed in as this account.
+    let openProxyURL: @MainActor (_ resource: SurfaceResourceID) -> Void
     let refresh: @MainActor () -> Void
 
     @MainActor
@@ -87,6 +91,17 @@ struct CloudTreeNodeActions {
         }
         let openingLabel: (SurfaceMachineID) -> String = { machine in
             String(format: String(localized: "cloudTree.operation.project", defaultValue: "Opening on %@\u{2026}"), machineName(machine))
+        }
+        let proxyLabel: (SurfaceMachineID, Int) -> String = { machine, port in
+            String(format: String(localized: "cloudTree.operation.proxy", defaultValue: "Publishing %@:%d on cmux.sh\u{2026}"), machineName(machine), port)
+        }
+        let copyToPasteboard: @MainActor (String) -> Void = { text in
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            let ok = pasteboard.setString(text, forType: .string)
+            #if DEBUG
+            cmuxDebugLog("cloudTree.copyToPasteboard ok=\(ok) chars=\(text.count)")
+            #endif
         }
         let startingLabel: (SurfaceMachineID) -> String = { machine in
             String(format: String(localized: "cloudTree.operation.newTerminal", defaultValue: "Starting a terminal on %@\u{2026}"), machineName(machine))
@@ -338,13 +353,29 @@ struct CloudTreeNodeActions {
                 }
             },
             selectLocalWorkspace: selectLocalWorkspace,
-            copyToPasteboard: { text in
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                let ok = pasteboard.setString(text, forType: .string)
-                #if DEBUG
-                cmuxDebugLog("cloudTree.copyToPasteboard ok=\(ok) chars=\(text.count)")
-                #endif
+            copyToPasteboard: copyToPasteboard,
+            copyProxyURL: { resource in
+                guard let vmID = resource.machine.cloudMachineID, let port = resource.forwardedPort else { return }
+                run(proxyLabel(resource.machine, port)) { _ in
+                    let url = try await CloudPortProxy.url(vmID: vmID, port: port)
+                    copyToPasteboard(url.absoluteString)
+                }
+            },
+            openProxyURL: { resource in
+                guard let vmID = resource.machine.cloudMachineID, let port = resource.forwardedPort else { return }
+                let capturedWorkspaceID = selectedWorkspaceID()
+                run(proxyLabel(resource.machine, port)) { catalog in
+                    guard let workspaceID = catalog.preferredLocalWorkspaceID(for: resource, fallback: capturedWorkspaceID) else {
+                        throw SurfaceCatalogError.destinationNotFound(SurfaceCatalog.portDestinationUnavailableMessage(machine: resource.machine))
+                    }
+                    let url = try await CloudPortProxy.url(vmID: vmID, port: port)
+                    let opened = try await SurfacePaneFactory.makeAuthenticatedBrowserPane(
+                        url: url,
+                        at: .workspace(id: workspaceID, placement: .split),
+                        focus: true
+                    )
+                    SurfacePaneFactory.focus(panelID: opened.panelID, in: opened.workspaceID)
+                }
             },
             refresh: refresh
         )

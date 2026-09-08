@@ -765,9 +765,13 @@ actor VMClient {
 
     /// Do not let a Cloud webview navigate until the browser tunnel is ready.
     /// Direct private URLs call this without a control-plane request.
-    func requireCloudBrowserAccess(machineID: String) async throws {
+    func requireCloudBrowserAccess(
+        machineID: String,
+        onStateChange: @escaping @Sendable (CloudTunnelState) -> Void = { _ in }
+    ) async throws {
         try await privateNetwork.requirePrivateNetworkUse(
-            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort)
+            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort),
+            onStateChange: onStateChange
         )
     }
 

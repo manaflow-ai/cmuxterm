@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 struct CloudTunnelStatus: Sendable, Equatable {
@@ -35,5 +36,21 @@ struct CloudTunnelStatus: Sendable, Equatable {
                 defaultValue: "This Mac's tunnel to your Cloud VM network is down; reopen the machine to start it."
             )
         }
+    }
+}
+
+/// Where macOS keeps the switch for the cmux Cloud Tunnel extension.
+enum CloudTunnelSystemSettings {
+    /// System Settings › General › Login Items & Extensions, scrolled to Network
+    /// Extensions. The `extensionPointIdentifier` query is what Apple's own
+    /// `systemextensionsctl` guidance points at; older releases ignore it and
+    /// land on the Login Items pane, which still lists the extension.
+    static let networkExtensionsURL = URL(
+        string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension?extensionPointIdentifier=com.apple.system_extension.network_extension.extension-point"
+    )!
+
+    @MainActor
+    static func openNetworkExtensions(open: (URL) -> Bool = { NSWorkspace.shared.open($0) }) -> Bool {
+        open(networkExtensionsURL)
     }
 }

@@ -767,6 +767,10 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             items.append(.separator())
             if let portURL {
                 items.append(item(String(localized: "cloudTree.menu.copyLink", defaultValue: "Copy Link")) { [nodeActions] in nodeActions.copyToPasteboard(portURL) })
+                // The public route needs no tunnel: a personal `cmux.sh` publication
+                // that signs in through cmux. Same verbs as the private link.
+                items.append(item(String(localized: "cloudTree.menu.copyProxyURL", defaultValue: "Copy Proxy URL (cmux.sh)")) { [nodeActions] in nodeActions.copyProxyURL(resource.id) })
+                items.append(item(String(localized: "cloudTree.menu.openProxyURL", defaultValue: "Open Proxy URL (cmux.sh)")) { [nodeActions] in nodeActions.openProxyURL(resource.id) })
             } else if let port = resource.port, resource.kind == .browser {
                 items.append(item(String(localized: "cloudTree.menu.copyPort", defaultValue: "Copy Port")) { [nodeActions] in nodeActions.copyToPasteboard(String(port)) })
             }

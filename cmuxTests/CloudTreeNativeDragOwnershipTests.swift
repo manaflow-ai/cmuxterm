@@ -285,6 +285,8 @@ struct CloudTreeNativeDragOwnershipTests {
         renameTerminal: { _, _ in },
         selectLocalWorkspace: { _ in },
         copyToPasteboard: { _ in },
+        copyProxyURL: { _ in },
+        openProxyURL: { _ in },
         refresh: {}
     )
 
