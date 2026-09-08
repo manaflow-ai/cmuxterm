@@ -630,7 +630,7 @@ final class AgentChatTranscriptService {
     }
 
     private func handleRecordChange(_ record: AgentChatSessionRecord, previous: AgentChatSessionRecord?) {
-        sessionOutlineChangeBus.yield(surfaceID: record.surfaceID)
+        sessionOutlineChangeBus.yield(surfaceIDs: [previous?.surfaceID, record.surfaceID])
         let endedRecordIsListable: Bool
         if record.state == .ended {
             endedRecordIsListable = record.agentKind == .codex
@@ -681,6 +681,7 @@ final class AgentChatTranscriptService {
 
     private func handleRecordRemoval(_ record: AgentChatSessionRecord) {
         sessionOutlineCache.remove(sessionID: record.sessionID)
+        sessionOutlineChangeBus.yield(surfaceID: record.surfaceID)
         fallbackResolutionCoordinator.cancel(sessionID: record.sessionID)
         endProseTurn(sessionID: record.sessionID)
         latestTranscriptSeqBySessionID[record.sessionID] = nil

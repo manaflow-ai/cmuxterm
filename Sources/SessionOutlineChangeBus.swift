@@ -25,8 +25,16 @@ final class SessionOutlineChangeBus {
     }
 
     func yield(surfaceID: String?) {
-        guard let surfaceID, !surfaceID.isEmpty else { return }
-        for observer in observers.values where observer.surfaceID == surfaceID {
+        yield(surfaceIDs: [surfaceID])
+    }
+
+    func yield(surfaceIDs: [String?]) {
+        let surfaceIDs = Set(surfaceIDs.compactMap { surfaceID in
+            guard let surfaceID, !surfaceID.isEmpty else { return nil }
+            return surfaceID
+        })
+        guard !surfaceIDs.isEmpty else { return }
+        for observer in observers.values where surfaceIDs.contains(observer.surfaceID) {
             observer.continuation.yield()
         }
     }

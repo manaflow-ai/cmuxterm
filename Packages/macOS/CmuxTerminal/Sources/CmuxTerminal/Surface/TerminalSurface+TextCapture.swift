@@ -34,7 +34,7 @@ extension TerminalSurface {
         let selection = ghostty_selection_s(
             top_left: topLeft,
             bottom_right: bottomRight,
-            rectangle: false
+            rectangle: region.preservesPhysicalRows
         )
 
         var text = ghostty_text_s()

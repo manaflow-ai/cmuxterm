@@ -37,7 +37,7 @@ final class SessionOutlineModel {
 
     @discardableResult
     func togglePresentation() -> Bool {
-        guard transcriptService != nil else { return false }
+        guard transcriptService != nil, isAvailable else { return false }
         isPresented.toggle()
         if !isPresented {
             cancelJump()
@@ -65,8 +65,12 @@ final class SessionOutlineModel {
 
     @discardableResult
     func jump(to entry: ChatOutlineEntry) async -> Bool {
-        guard let panel,
-              let history = panel.surface.readText(region: .history) else {
+        guard let panel else {
+            return false
+        }
+        let surfaceView = panel.hostedView.surfaceView
+        guard let geometry = surfaceView.authoritativeScrollbarGeometry(),
+              let history = panel.surface.readText(region: .screenRows) else {
             return false
         }
         let entries = entries
@@ -80,11 +84,6 @@ final class SessionOutlineModel {
         guard !Task.isCancelled, let row else {
             return false
         }
-        let surfaceView = panel.hostedView.surfaceView
-        guard let geometry = surfaceView.authoritativeScrollbarGeometry() else {
-            return false
-        }
-
         let lastTopRow = Int(clamping: geometry.scrollbar.total - min(
             geometry.scrollbar.total,
             geometry.scrollbar.len
@@ -104,8 +103,8 @@ final class SessionOutlineModel {
     }
 
     private func refresh() async {
-        guard !Task.isCancelled,
-              let panel,
+        guard !Task.isCancelled else { return }
+        guard let panel,
               let transcriptService else {
             entries = []
             isAvailable = false

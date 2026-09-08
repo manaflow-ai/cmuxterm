@@ -43,4 +43,38 @@ struct ChatOutlineAnchorResolverTests {
             in: "\u{1B}[31mReview the login flow\u{1B}[0m\n"
         ) == nil)
     }
+
+    @Test("matches wrapped prompts without counting incidental mentions")
+    func matchesWrappedPromptWithoutCountingIncidentalMentions() {
+        let first = ChatOutlineEntry(
+            id: "first",
+            seq: 1,
+            timestamp: Date(timeIntervalSince1970: 1),
+            title: "Review the login flow",
+            hasAlert: false
+        )
+        let second = ChatOutlineEntry(
+            id: "second",
+            seq: 2,
+            timestamp: Date(timeIntervalSince1970: 2),
+            title: "Review the login flow",
+            hasAlert: false
+        )
+
+        let history = "shell\nI will review the login flow\n❯ Review the\nlogin flow\n"
+        let resolver = ChatOutlineAnchorResolver()
+        let firstRow = resolver.row(
+            for: first,
+            among: [first, second],
+            in: history
+        )
+        let secondRow = resolver.row(
+            for: second,
+            among: [first, second],
+            in: history
+        )
+
+        #expect(firstRow == 2)
+        #expect(secondRow == nil)
+    }
 }

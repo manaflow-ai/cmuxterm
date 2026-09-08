@@ -11,7 +11,7 @@ public struct ChatOutlineAnchorResolver: Sendable {
     ///   - entry: The prompt to locate.
     ///   - entries: The complete visible outline, used to disambiguate equal
     ///     prompt titles.
-    ///   - history: Terminal history rows in top-to-bottom order.
+    ///   - history: Physical terminal rows in top-to-bottom order.
     /// - Returns: The matching row, or `nil` when terminal history no longer
     ///   contains the prompt.
     public func row(
@@ -26,13 +26,47 @@ public struct ChatOutlineAnchorResolver: Sendable {
             .filter { normalized($0.title) == target }
             .count
 
+        let rows = history
+            .components(separatedBy: .newlines)
+            .map(normalized)
         var matchingOccurrence = 0
-        for (row, rawLine) in history.components(separatedBy: .newlines).enumerated() {
-            guard normalized(rawLine).contains(target) else { continue }
+        for row in rows.indices {
+            guard matches(target: target, startingAt: row, in: rows) else { continue }
             if matchingOccurrence == occurrence { return row }
             matchingOccurrence += 1
         }
         return nil
+    }
+
+    private func matches(target: String, startingAt row: Int, in rows: [String]) -> Bool {
+        let firstRow = rows[row]
+        if isPromptMatch(firstRow, target: target) {
+            return true
+        }
+
+        var candidate = firstRow
+        for nextRow in rows.dropFirst(row + 1) {
+            guard !candidate.isEmpty else {
+                candidate = nextRow
+                continue
+            }
+            candidate += " " + nextRow
+            if candidate.count >= target.count {
+                return isWrappedPromptMatch(candidate, target: target)
+            }
+        }
+        return false
+    }
+
+    private func isPromptMatch(_ candidate: String, target: String) -> Bool {
+        candidate == target
+    }
+
+    private func isWrappedPromptMatch(_ candidate: String, target: String) -> Bool {
+        let promptPrefixes = ["❯ ", "> ", "$ ", "% ", "# ", ">>> "]
+        return promptPrefixes.contains { prefix in
+            candidate.hasPrefix(prefix) && candidate.hasSuffix(" " + target)
+        }
     }
 
     private func normalized(_ text: String) -> String {

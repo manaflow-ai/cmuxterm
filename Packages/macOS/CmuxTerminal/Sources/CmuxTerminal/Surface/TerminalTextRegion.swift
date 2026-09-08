@@ -6,6 +6,8 @@ public enum TerminalTextRegion: Sendable {
     case viewport
     /// The current terminal screen.
     case screen
+    /// The current terminal screen with one output line per physical row.
+    case screenRows
     /// The complete surface history.
     case history
     /// The active screen or history region selected by Ghostty.
@@ -15,12 +17,21 @@ public enum TerminalTextRegion: Sendable {
         switch self {
         case .viewport:
             GHOSTTY_POINT_VIEWPORT
-        case .screen:
+        case .screen, .screenRows:
             GHOSTTY_POINT_SCREEN
         case .history:
             GHOSTTY_POINT_SURFACE
         case .active:
             GHOSTTY_POINT_ACTIVE
+        }
+    }
+
+    var preservesPhysicalRows: Bool {
+        switch self {
+        case .screenRows:
+            true
+        default:
+            false
         }
     }
 }
