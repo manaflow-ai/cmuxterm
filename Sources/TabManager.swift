@@ -1,5 +1,6 @@
 import AppKit
 import CmuxAgentChat
+import CmuxArtifacts
 import CmuxFoundation
 import CmuxTerminalCore
 import SwiftUI
@@ -461,6 +462,8 @@ class TabManager: ObservableObject {
     private var lastFocusHistoryIncludesPanesAndTabs: Bool
     let nativeSSHConnectionBroker: NativeSSHConnectionBroker
     let agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording
+    /// Shared durable artifact catalog injected by the application composition root.
+    let artifactRepository: any ArtifactStoring
 
     @Published private(set) var focusHistoryRevision: UInt64 = 0 {
         didSet {
@@ -558,7 +561,8 @@ class TabManager: ObservableObject {
         workspaceCustomizationStore: WorkspaceCustomizationStore? = nil,
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
-        closeTabWarningDefaults: UserDefaults = .standard
+        closeTabWarningDefaults: UserDefaults = .standard,
+        artifactRepository: (any ArtifactStoring)? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -574,6 +578,7 @@ class TabManager: ObservableObject {
         )
         self.nativeSSHConnectionBroker = nativeSSHConnectionBroker
         self.agentChatResumeIntentRecorder = agentChatResumeIntentRecorder
+        self.artifactRepository = artifactRepository ?? InMemoryArtifactRepository()
         self.panelTitleUpdateCoalescer = panelTitleUpdateCoalescer ?? NotificationBurstCoalescer()
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
@@ -714,7 +719,6 @@ class TabManager: ObservableObject {
                 workspaceCurrentDirectoryDidChange(workspaceId: workspaceId)
             }
         })
-
         startAgentPIDSweepTimer()
         observers.append(NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
@@ -722,10 +726,15 @@ class TabManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { [weak self] in
-                self?.sidebarMetadataSettingsDidChange()
-                self?.focusHistoryScopeSettingsDidChange()
-                self?.refreshTabCloseButtonVisibility()
-                self?.refreshWindowTitle()
+                guard let self else { return }
+                sidebarMetadataSettingsDidChange()
+                focusHistoryScopeSettingsDidChange()
+                refreshTabCloseButtonVisibility()
+                refreshWindowTitle()
+                applyLinksSettings(
+                    retentionLimit: settings.value(for: settingsCatalog.artifacts.retentionLimit),
+                    fetchTitlesEnabled: settings.value(for: settingsCatalog.artifacts.fetchTitles)
+                )
             }
         })
 #if DEBUG
@@ -1132,7 +1141,8 @@ class TabManager: ObservableObject {
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            artifactRepository: artifactRepository
         )
     }
 
@@ -1153,7 +1163,8 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-            nativeSSHConnectionBroker: nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+            artifactRepository: artifactRepository
         )
     }
 
@@ -6202,6 +6213,7 @@ extension TabManager {
             hasher.combine(workspace.panelPullRequests.count)
             hasher.combine(workspace.panelGitBranches.count)
             hasher.combine(workspace.surfaceListeningPorts.count); workspace.combineTodoStateIntoSessionAutosaveFingerprint(into: &hasher)
+            workspace.combineLinksStateIntoSessionAutosaveFingerprint(into: &hasher)
             hasher.combine(notificationStore?.hasManualUnread(forTabId: workspace.id) ?? false)
             hasher.combine(notificationStore?.workspaceIsUnread(forTabId: workspace.id) ?? false)
             Self.hashNotifications(
@@ -6636,7 +6648,8 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                artifactRepository: artifactRepository
             )
             workspace.owningTabManager = self
             let restoredPanelIds = workspace.restoreSessionSnapshot(
@@ -6671,7 +6684,8 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
-                nativeSSHConnectionBroker: nativeSSHConnectionBroker
+                nativeSSHConnectionBroker: nativeSSHConnectionBroker,
+                artifactRepository: artifactRepository
             )
             fallback.owningTabManager = self
             wireClosedBrowserTracking(for: fallback)
