@@ -652,6 +652,7 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
         catalog.replaceResources(
             [terminalResource],
             on: machine,
@@ -665,6 +666,112 @@ final class MachinesPanelModelTests: XCTestCase {
     }
 
     @MainActor
+    func testCatalogWorkspaceGroupFollowsLayoutOrderNotKindBuckets() throws {
+        let machine = SurfaceMachineID.cloud("group-layout")
+        let workspace = SurfaceRemoteWorkspace(id: "ws_main", name: "main", index: 0, focused: true)
+        var browser = SurfaceResource(
+            id: SurfaceResourceID(machine: machine, kind: .browser, key: "docs"),
+            title: "Docs",
+            detail: nil,
+            lifecycle: .running,
+            agent: nil,
+            remoteWorkspace: workspace,
+            port: nil,
+            url: "https://example.com"
+        )
+        browser.remoteViews = [SurfaceRemoteView(
+            tabID: "tab_docs",
+            workspace: workspace,
+            screenID: "screen_1",
+            paneID: "pane_left",
+            name: nil,
+            index: 0,
+            focused: true,
+            screenIndex: 0,
+            paneIndex: 0
+        )]
+        var terminalResource = terminal(machine, "term_1", title: "shell")
+        terminalResource.remoteWorkspace = workspace
+        terminalResource.remoteViews = [SurfaceRemoteView(
+            tabID: "tab_shell",
+            workspace: workspace,
+            screenID: "screen_1",
+            paneID: "pane_right",
+            name: nil,
+            index: 0,
+            focused: true,
+            screenIndex: 0,
+            paneIndex: 1
+        )]
+        let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
+        catalog.replaceResources(
+            [terminalResource, browser],
+            on: machine,
+            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
+        )
+
+        let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
+        XCTAssertEqual(group.placements.map(\.remoteTabID), ["tab_docs", "tab_shell"])
+        XCTAssertEqual(group.resources.map(\.kind), [.browser, .terminal])
+
+        let nodes = CloudTreeNodeBuilder.nodes(
+            machines: [machineSnapshot(id: machine.rawValue)],
+            snapshot: catalog.snapshot,
+            localWorkspaces: [],
+            includeLocalMachine: false
+        )
+        let workspaceNode = CloudTreeNodeBuilder.flattened(nodes).first { $0.id == "machine:group-layout/ws/ws_main" }
+        XCTAssertEqual(
+            workspaceNode?.dragGroup?.placements.map(\.remoteTabID),
+            group.placements.map(\.remoteTabID),
+            "the sidebar row and `vm workspace open` must open in the same order"
+        )
+    }
+
+    @MainActor
+    func testCatalogWorkspaceGroupListsTheShownTabBeforeHiddenTabs() throws {
+        let machine = SurfaceMachineID.cloud("group-shown-tab")
+        let workspace = SurfaceRemoteWorkspace(id: "ws_main", name: "main", index: 0, focused: true)
+        var first = terminal(machine, "term_a", title: "build")
+        first.remoteWorkspace = workspace
+        first.remoteViews = [SurfaceRemoteView(
+            tabID: "tab_a",
+            workspace: workspace,
+            screenID: "screen_1",
+            paneID: "pane_1",
+            name: "build",
+            index: 0,
+            focused: false,
+            screenIndex: 0,
+            paneIndex: 0
+        )]
+        var second = terminal(machine, "term_b", title: "shell")
+        second.remoteWorkspace = workspace
+        second.remoteViews = [SurfaceRemoteView(
+            tabID: "tab_b",
+            workspace: workspace,
+            screenID: "screen_1",
+            paneID: "pane_1",
+            name: "shell",
+            index: 1,
+            focused: true,
+            screenIndex: 0,
+            paneIndex: 0
+        )]
+        let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
+        catalog.replaceResources(
+            [first, second],
+            on: machine,
+            info: machineInfo(machine, hasDesktop: false, remoteWorkspaces: [workspace])
+        )
+
+        let group = try catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id)
+        XCTAssertEqual(group.placements.map(\.remoteTabID), ["tab_b", "tab_a"])
+    }
+
+    @MainActor
     func testCatalogWorkspaceGroupUsesLegacyWorkspaceWhenRemoteViewsAreEmpty() throws {
         let machine = SurfaceMachineID.cloud("legacy-group-test")
         let workspace = SurfaceRemoteWorkspace(id: "ws_legacy", name: "legacy", index: 0, focused: true)
@@ -674,6 +781,7 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
         catalog.replaceResources(
             [resource],
             on: machine,
