@@ -39285,6 +39285,11 @@ export default CMUXSessionRestore;
         ) else { return }
         let evidence = Self.semanticAttentionContext(eventDict)
         if classification.clearsNativeApprovalPrompt {
+            if source == "codex", approvalIdentity != nil {
+                _ = try? activeClient.send(command: attentionLine,
+                    responseTimeout: min(Self.codexApprovalResolutionResponseTimeoutSeconds, remainingBudget() / 2),
+                    deadline: deadline)
+            }
             guard evidence.requestIdentity != nil,
                   let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
                   let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }

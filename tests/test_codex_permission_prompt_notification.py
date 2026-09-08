@@ -80,7 +80,7 @@ EXPECTED_APPROVAL_ID = approval_id(codex_payload("PermissionRequest"))
 EXPECTED_NOTIFY_COMMAND = (
     f"notify_target_async {FAKE_WORKSPACE_ID} {FAKE_SURFACE_ID} "
     "Codex|Permission|shell needs approval|c=needs-permission;p=0"
-    f";a={EXPECTED_APPROVAL_ID};d=1"
+    f";a={EXPECTED_APPROVAL_ID};d=1;o=feed"
 )
 EXPECTED_CLEAR_COMMAND = (
     f"clear_notifications --tab={FAKE_WORKSPACE_ID} --panel={FAKE_SURFACE_ID} "
@@ -387,6 +387,20 @@ def test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path: str,
     assert backup.read_text(encoding="utf-8") == "previous recovery backup"
 
 
+def test_completion_only_tool_use_id_preserves_legacy_settling(cli_path: str, root: Path) -> None:
+    payload = codex_payload("PermissionRequest")
+    payload.pop("tool_use_id")
+    _, request_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-derived-request.sock", "PermissionRequest", payload=payload,
+    )
+    assert EXPECTED_NOTIFY_COMMAND in raw_commands(request_frames), request_frames
+    assert notification_views(request_frames) == [], request_frames
+    _, completion_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-derived-completion.sock", "PostToolUse",
+    )
+    assert EXPECTED_CLEAR_COMMAND in raw_commands(completion_frames), completion_frames
+
+
 def main() -> int:
     try:
         cli_path = resolve_cmux_cli()
@@ -408,6 +422,7 @@ def main() -> int:
             test_permission_notification_targets_rehomed_pane(cli_path, root)
             test_stalled_live_target_probe_does_not_starve_notification(cli_path, root)
             test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path, root)
+            test_completion_only_tool_use_id_preserves_legacy_settling(cli_path, root)
         except Exception as exc:
             print(f"FAIL: {exc}")
             return 1

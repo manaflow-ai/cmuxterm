@@ -12,6 +12,12 @@ extension CMUXCLI {
         let fields = payload.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
         guard fields.count >= 3 else { throw CLIError(message: String(localized: "cli.notification.invalidPayload", defaultValue: "Invalid notification payload")) }
         let meta = fields.count > 3 ? fields[3].split(separator: ";").map(String.init) : []
+        if source == "codex", kind == .approvalRequested,
+           Self.semanticAttentionContext(rawObject).requestIdentity == nil,
+           let approval = CodexApprovalNotificationIdentity.make(rawObject: rawObject, fallbackSessionID: sessionId),
+           meta.contains("a=\(approval.approvalID)") {
+            return "notify_target_async \(workspaceId) \(surfaceId) \(payload)"
+        }
         let category = meta.first { $0.hasPrefix("c=") }.map { String($0.dropFirst(2)) }
             ?? (kind == .turnCompleted ? "turn-complete" : "other")
         let notification = AgentJournalNotification(title: fields[0], subtitle: fields[1], body: fields[2],
