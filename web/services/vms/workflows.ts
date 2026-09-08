@@ -1077,6 +1077,97 @@ export function snapshotVm(input: {
   });
 }
 
+export type VmPauseResumeResult = {
+  readonly id: string;
+  readonly status: "paused" | "running";
+};
+
+/**
+ * Park a machine: its compute stops billing while the persistent home and the
+ * daemon's durable session survive; `resumeVm` (or any open/exec) brings it
+ * back. Idempotent — pausing a paused machine is a no-op success. Providers
+ * without a pause operation fail with the unsupported error the route turns
+ * into a 501, so a caller can tell "cannot" from "did not".
+ */
+export function pauseVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (vm.status === "destroyed") {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    if (vm.status === "paused") {
+      return { id: providerVmId, status: "paused" } satisfies VmPauseResumeResult;
+    }
+    const pause = providers.pause;
+    if (!pause) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "pause" }));
+    }
+    yield* pause(vm.provider, providerVmId);
+    const recorded = yield* repo.markProviderObservedStatus({ id: vm.id, providerVmId, status: "paused" });
+    if (!recorded) {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    yield* repo.recordUsageEvent({
+      userId: vm.userId,
+      billingTeamId: vm.billingTeamId,
+      billingPlanId: vm.billingPlanId,
+      vmId: vm.id,
+      eventType: "vm.paused",
+      provider: vm.provider,
+      imageId: vm.imageId,
+      metadata: { source: "user" },
+    }).pipe(Effect.catchAll(() => Effect.void));
+    return { id: providerVmId, status: "paused" } satisfies VmPauseResumeResult;
+  });
+}
+
+/**
+ * Wake a parked machine through the same suspended-resume path every open and
+ * exec uses, so plan limits (`reservePausedResume`) and the free window apply
+ * and a provider-side pause the row never saw is handled too. Idempotent — a
+ * running machine answers `running` without touching the provider beyond the
+ * status probe. Providers without resume fail with the unsupported error.
+ */
+export function resumeVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+  readonly maxActiveVms?: number | null;
+  readonly callerPlanId?: string | null;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireAccessibleUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (vm.status === "destroyed") {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    if (!providers.resume || !providers.getStatus) {
+      if (vm.status === "running") return { id: providerVmId, status: "running" } satisfies VmPauseResumeResult;
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "resume" }));
+    }
+    yield* preflightResumeIfSuspended(
+      repo,
+      providers,
+      vm,
+      providerVmId,
+      "user",
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
+    );
+    return { id: providerVmId, status: "running" } satisfies VmPauseResumeResult;
+  });
+}
+
 type SnapshotProviderResources = {
   readonly vcpus: number | null;
   readonly memoryMb: number | null;
@@ -1990,7 +2081,7 @@ function boundedVmStatusReconcileLimit(limit: number | undefined): number {
 const RESUME_STATUS_PROBE_TIMEOUT = "5 seconds";
 const RESUME_SETTLE_ATTEMPTS = 10;
 const RESUME_SETTLE_INTERVAL = "1 second";
-type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize";
+type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize" | "user";
 
 type ResumePreflightOptions = {
   /** Resolved billing-scope allowance; null is unlimited, undefined uses the plan default. */

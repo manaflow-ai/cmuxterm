@@ -486,6 +486,15 @@ if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = wait ]; then
   printf '{"matched":%s,"text":"λ "}\\n' "\${FAKE_MATCHED:-true}"; exit 0
 fi
 if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = read ]; then printf '{"cols":80,"rows":24,"text":"hello screen"}\\n'; exit 0; fi
+if [ "$a" = terminal ] && [ "$c" = process ] && [ "$d" = wait ]; then
+  if [ "\${FAKE_EXIT_PENDING:-0}" = 1 ]; then printf '{"value":{"terminal_id":"%s","state":"pending"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
+  case "\${FAKE_EXIT_KIND:-exit}" in
+    signal) printf '{"value":{"terminal_id":"%s","state":"exited","outcome":{"kind":"signal","signal":9,"core_dumped":false}},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" ;;
+    *) printf '{"value":{"terminal_id":"%s","state":"exited","outcome":{"kind":"exit","code":3}},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" ;;
+  esac
+  exit 0
+fi
+if [ "$a" = terminal ] && [ "$c" = output ] && [ "$d" = read ]; then printf '{"value":{"terminal_id":"%s","text":"line one\\\\nline two\\\\n","start_offset":0,"next_offset":18,"complete":true},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
 if [ "$a" = remote ] && [ "$b" = connect ]; then printf '{"event":"connection-snapshot","local_socket":"%s"}\\n' "\${FAKE_LINK_SOCKET:-}"; exit 0; fi
 printf '{}\\n'
 `;
@@ -653,12 +662,14 @@ describe("in-VM cmux shim: agent primitives", () => {
       "cmux send [--terminal <id>] <text>",
       "cmux send-key [--terminal <id>] <key> [key...]",
       "cmux read-screen [--terminal <id>] [--json]",
-      "cmux terminal send|read|wait|close <id>",
-      "cmux vm terminal send|read|wait|close <peer> <term>",
-      "cmux vm workspace new|rename|close|rm <peer>",
-      "cmux vm agent <peer> --agent <claude|codex|opencode|pi>",
-      "cmux vm layout export|apply <peer>",
-      "cmux env set|ls|rm|path",
+      "cmux terminal send|read|wait|wait-exit|output|close <id>",
+      "cmux vm terminal send|read|wait|wait-exit|output|close <machine> <term>",
+      "cmux vm workspace new|rename|close|rm <machine>",
+      "cmux vm agent <machine> --agent <claude|codex|opencode|pi>",
+      "cmux vm layout export|apply <machine>",
+      "cmux vm env set|ls|rm|path <machine>",
+      "cmux self [--json]",
+      "cmux vm ls [--json]",
     ]) {
       expect(run.stdout).toContain(line);
     }
@@ -1270,9 +1281,18 @@ describe("in-VM cmux shim: agent primitives", () => {
 // ---------------------------------------------------------------------------
 // Reflection: the machine asking the control plane who it is and what it can
 // reach, through the model-plane alias (the edge injects the VM-bound route
-// token). The server side is /api/vm/reflection/*; here a fake curl plays it.
+// token). The server side is /api/vm/reflection/* (superset of /api/vm/self);
+// here a fake curl plays it.
 // ---------------------------------------------------------------------------
-const REFLECTION_INDEX = {
+/** The owner's machines as the control plane lists them (VmSelfMachine + route/reachable/network), newest first, the caller included. */
+const REFLECTION_MACHINES = [
+  { id: "fs-build", vmId: "11111111-2222-4333-8444-555555555555", name: "Build box", displayName: "Build box", slug: "build-box", status: "running", createdAt: "2026-09-06T00:00:00.000Z", self: true, route: null, reachable: false, network: { ipv4: "10.0.0.2", ipv6: "fd00::2" } },
+  { id: "fs-a", vmId: "aaaa", name: "Reviewer", displayName: "Reviewer", slug: "brave-otter", status: "running", createdAt: "2026-09-05T00:00:00.000Z", self: false, route: "ws://[fd00::4]:1337/v1/link", reachable: true, network: { ipv4: "10.0.0.4", ipv6: "fd00::4" } },
+  { id: "fs-b", vmId: "bbbb", name: "Sleepy", displayName: "Sleepy", slug: "sleepy-otter", status: "running", createdAt: "2026-09-04T00:00:00.000Z", self: false, route: "ws://[fd00::5]:1337/v1/link", reachable: true, network: { ipv4: "10.0.0.5", ipv6: "fd00::5" } },
+  { id: "fs-c", vmId: "cccc", name: "asleep-mole", displayName: null, slug: "asleep-mole", status: "paused", createdAt: "2026-09-03T00:00:00.000Z", self: false, route: null, reachable: false, network: { ipv4: null, ipv6: null } },
+];
+/** A reflection index from before the superset: identity only, no machine/machines. */
+const REFLECTION_INDEX_PLAIN = {
   name: "build-box",
   display_name: "Build box",
   emoji: null,
@@ -1286,6 +1306,10 @@ const REFLECTION_INDEX = {
   urls: { reflection: ["https://coderouter.cmux.internal/api/vm/reflection", "https://reflection.cmux.internal/"] },
   paths: [{ path: "/owner", description: "owner of this machine" }, { path: "/peers", description: "other machines" }],
 };
+const REFLECTION_INDEX = { schema: 1, ...REFLECTION_INDEX_PLAIN, machine: REFLECTION_MACHINES[0], team: { id: "team_1" }, machines: REFLECTION_MACHINES };
+/** GET /api/vm/self, the bootstrap shim's endpoint: no owner/plan, no routes. */
+const withoutRoute = ({ id, vmId, name, displayName, slug, status, createdAt, self }: (typeof REFLECTION_MACHINES)[number]) => ({ id, vmId, name, displayName, slug, status, createdAt, self });
+const SELF_LEGACY = { schema: 1, machine: withoutRoute(REFLECTION_MACHINES[0]), team: { id: "team_1" }, machines: REFLECTION_MACHINES.map(withoutRoute) };
 const REFLECTION_PEERS = {
   peers: [
     { name: "brave-otter", display_name: "Reviewer", vm_id: "aaaa", provider_vm_id: "fs-a", status: "running", network: { ipv4: "10.0.0.4", ipv6: "fd00::4" }, route: "ws://[fd00::4]:1337/v1/link", reachable: true, help: "cmux vm exec brave-otter -- <command>" },
@@ -1295,32 +1319,48 @@ const REFLECTION_PEERS = {
 };
 const REFLECTION_INTEGRATIONS = { integrations: [{ type: "llm", name: "coderouter", help: "cmux coderouter models" }] };
 
-/** A curl that answers the reflection paths (and the CodeRouter usage probe) by URL suffix; CMUX_TEST_REFLECTION=deny|down simulates no identity / no edge. */
+/**
+ * A curl that answers the reflection paths, /api/vm/self, and the CodeRouter usage probe by URL
+ * suffix. It speaks both capture styles: `-o <file>` + `-w '%{http_code}'` (the auth probes) and
+ * the bootstrap shim's body-then-status on stdout (`--write-out '\n%{http_code}'`).
+ * CMUX_TEST_REFLECTION=deny|down simulates no identity / no edge; plain = a reflection server
+ * before the superset; legacy = no reflection at all (index 404), only /api/vm/self.
+ */
 function fakeReflectionCurl(directory: string): void {
   const body = (value: unknown) => JSON.stringify(value).replace(/'/g, "'\\''");
   writeFileSync(
     join(directory, "curl"),
     `#!/bin/sh
-out=/dev/null; url=""
+out=""; url=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift 2 ;;
-    --cacert|-w|-H|--connect-timeout|--max-time) shift 2 ;;
+    --cacert|-w|--write-out|-H|--connect-timeout|--max-time) shift 2 ;;
     -*) shift ;;
     *) url="$1"; shift ;;
   esac
 done
 printf '%s\\n' "$url" >> "$HOME/curl.log"
-case "\${CMUX_TEST_REFLECTION:-ok}" in
+answer() {
+  if [ -n "$out" ]; then printf '%s' "$2" > "$out"; printf '%s' "$1"; else printf '%s\\n%s' "$2" "$1"; fi
+}
+mode="\${CMUX_TEST_REFLECTION:-ok}"
+case "$mode" in
   down) exit 7 ;;
-  deny) printf '%s' '{"error":"vm_principal_required","message":"only a cmux Cloud machine can call reflection"}' > "$out"; printf 401; exit 0 ;;
+  deny) answer 401 '{"error":"vm_principal_required","message":"only a cmux Cloud machine can call reflection"}'; exit 0 ;;
 esac
 case "$url" in
-  */api/vm/reflection) printf '%s' '${body(REFLECTION_INDEX)}' > "$out"; printf 200 ;;
-  */api/vm/reflection/peers) printf '%s' '${body(REFLECTION_PEERS)}' > "$out"; printf 200 ;;
-  */api/vm/reflection/integrations) printf '%s' '${body(REFLECTION_INTEGRATIONS)}' > "$out"; printf 200 ;;
-  */api/coderouter/vm-usage/self) printf '%s' '{}' > "$out"; printf 200 ;;
-  *) printf '%s' '{"error":"not_found","message":"no such path"}' > "$out"; printf 404 ;;
+  */api/vm/reflection)
+    case "$mode" in
+      legacy) answer 404 '{"error":"not_found","message":"no such route"}' ;;
+      plain) answer 200 '${body(REFLECTION_INDEX_PLAIN)}' ;;
+      *) answer 200 '${body(REFLECTION_INDEX)}' ;;
+    esac ;;
+  */api/vm/self) answer 200 '${body(SELF_LEGACY)}' ;;
+  */api/vm/reflection/peers) answer 200 '${body(REFLECTION_PEERS)}' ;;
+  */api/vm/reflection/integrations) answer 200 '${body(REFLECTION_INTEGRATIONS)}' ;;
+  */api/coderouter/vm-usage/self) answer 200 '{}' ;;
+  *) answer 404 '{"error":"not_found","message":"no such path"}' ;;
 esac
 `,
   );
@@ -1328,45 +1368,93 @@ esac
 }
 
 const REFLECTION_ENV = { CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal", OPENAI_API_KEY: "cmux-vm-edge-placeholder" };
+const SELF_HUMAN = "Build box\tfs-build\trunning\t(this machine)\nteam\tteam_1\t4 machines\nowner\towner@example.com\nplan\tpro\n";
+const VM_LS_HUMAN = "* Build box\tfs-build\trunning\t(this machine)\n  Reviewer\tfs-a\trunning\treachable\tlinked\n  Sleepy\tfs-b\trunning\treachable\tconnected\n  asleep-mole\tfs-c\tpaused\tunreachable\n";
+
+/** Peer files as the Mac or a first `cmux vm exec` leaves them: brave-otter linked, Sleepy linked with a live link process. */
+function linkTwoPeers(directory: string): void {
+  mkdirSync(join(directory, ".cmux", "peers"), { recursive: true });
+  mkdirSync(join(directory, ".cmux", "peer-links"), { recursive: true });
+  writeFileSync(join(directory, ".cmux", "peers", "brave-otter.json"), JSON.stringify({ route: "ws://[fd00::4]:1337/v1/link" }));
+  writeFileSync(join(directory, ".cmux", "peers", "Sleepy.json"), JSON.stringify({ route: "ws://[fd00::5]:1337/v1/link" }));
+  writeFileSync(join(directory, ".cmux", "peer-links", "Sleepy.pid"), String(process.pid));
+}
 
 describe("in-VM cmux shim: reflection", () => {
-  test("whoami prints the machine's identity from reflection, human and JSON", () => {
-    const run = runShim(["whoami"], REFLECTION_ENV, fakeReflectionCurl);
+  test("self prints who this machine is, human and JSON; whoami and reflect are aliases", () => {
+    const run = runShim(["self"], REFLECTION_ENV, fakeReflectionCurl);
     expect(run.stderr).toBe("");
     expect(run.status).toBe(0);
-    expect(run.stdout).toBe("build-box  11111111-2222-4333-8444-555555555555  owner=owner@example.com  plan=pro  status=running\n");
-    const json = runShim(["whoami", "--json"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(run.stdout).toBe(SELF_HUMAN);
+    const json = runShim(["self", "--json"], REFLECTION_ENV, fakeReflectionCurl);
     expect(json.status).toBe(0);
     expect(JSON.parse(json.stdout)).toEqual(REFLECTION_INDEX);
     // The probe carries only the public placeholder bearer: the edge adds the real token.
-    expect(runShim(["whoami", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout).not.toContain("crt_");
+    expect(json.stdout).not.toContain("crt_");
+    expect(runShim(["whoami"], REFLECTION_ENV, fakeReflectionCurl).stdout).toBe(SELF_HUMAN);
+    expect(runShim(["reflect"], REFLECTION_ENV, fakeReflectionCurl).stdout).toBe(SELF_HUMAN);
+    expect(JSON.parse(runShim(["whoami", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout)).toEqual(REFLECTION_INDEX);
   });
 
-  test("whoami explains a missing alias, a machine without identity, and an unreachable edge", () => {
-    const unconfigured = runShim(["whoami"]);
+  test("self answers without the daemon binary: identity precedes cmux-tui on a fresh machine", () => {
+    const run = runShim(["self"], { ...REFLECTION_ENV, CMUX_TUI_BIN: "/nonexistent/cmux-tui" }, fakeReflectionCurl);
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe(SELF_HUMAN);
+    expect(runShim(["vm", "ls", "--json"], { ...REFLECTION_ENV, CMUX_TUI_BIN: "/nonexistent/cmux-tui" }, fakeReflectionCurl).status).toBe(0);
+    // Everything else still needs the daemon.
+    const tree = runShim(["tree"], { ...REFLECTION_ENV, CMUX_TUI_BIN: "/nonexistent/cmux-tui" }, fakeReflectionCurl);
+    expect(tree.status).toBe(1);
+    expect(tree.stderr).toContain("/nonexistent/cmux-tui");
+  });
+
+  test("self explains a missing alias, a machine without identity, and an unreachable edge", () => {
+    const unconfigured = runShim(["self"]);
     expect(unconfigured.status).toBe(2);
     expect(unconfigured.stdout).toBe("");
-    const denied = runShim(["whoami"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "deny" }, fakeReflectionCurl);
+    const denied = runShim(["self"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "deny" }, fakeReflectionCurl);
     expect(denied.status).toBe(1);
     expect(denied.stderr).toContain("this machine has no VM identity");
     expect(denied.stderr).toContain("HTTP 401");
-    const down = runShim(["whoami"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" }, fakeReflectionCurl);
+    const down = runShim(["self"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" }, fakeReflectionCurl);
     expect(down.status).toBe(1);
     expect(down.stderr).toContain("reflection unreachable at https://coderouter.cmux.internal/api/vm/reflection");
   });
 
-  test("reflect passes any reflection path through and surfaces server errors", () => {
-    const peers = runShim(["reflect", "peers"], REFLECTION_ENV, fakeReflectionCurl);
+  test("self <path> passes any reflection path through and surfaces server errors", () => {
+    const peers = runShim(["self", "peers"], REFLECTION_ENV, fakeReflectionCurl);
     expect(peers.status).toBe(0);
     expect(JSON.parse(peers.stdout)).toEqual(REFLECTION_PEERS);
-    expect(JSON.parse(runShim(["reflect", "/integrations", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout)).toEqual(REFLECTION_INTEGRATIONS);
-    expect(JSON.parse(runShim(["reflect"], REFLECTION_ENV, fakeReflectionCurl).stdout).name).toBe("build-box");
-    const missing = runShim(["reflect", "nope"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(JSON.parse(runShim(["self", "/integrations", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout)).toEqual(REFLECTION_INTEGRATIONS);
+    expect(JSON.parse(runShim(["reflect", "peers/"], REFLECTION_ENV, fakeReflectionCurl).stdout)).toEqual(REFLECTION_PEERS);
+    const missing = runShim(["self", "nope"], REFLECTION_ENV, fakeReflectionCurl);
     expect(missing.status).toBe(1);
     expect(missing.stderr).toContain("HTTP 404");
     expect(missing.stderr).toContain("no such path");
-    expect(runShim(["reflect", "peers?x=1"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
-    expect(runShim(["reflect", "--bogus"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+    expect(runShim(["self", "peers?x=1"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+    expect(runShim(["self", "--bogus"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+    expect(runShim(["self", "peers", "owner"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+  });
+
+  test("self falls back to GET /api/vm/self when the control plane has no reflection index", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cmux-guest-legacy-"));
+    const run = runShim(["self"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "legacy", HOME: dir }, (directory) => {
+      fakeReflectionCurl(directory);
+      fakeReflectionCurl(dir);
+    });
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    // No owner or plan there; the same first lines as main's bootstrap `cmux self`.
+    expect(run.stdout).toBe("Build box\tfs-build\trunning\t(this machine)\nteam\tteam_1\t4 machines\n");
+    expect(readFileSync(join(dir, "curl.log"), "utf8").trim().split("\n")).toEqual([
+      "https://coderouter.cmux.internal/api/vm/reflection",
+      "https://coderouter.cmux.internal/api/vm/self",
+    ]);
+    expect(JSON.parse(runShim(["self", "--json"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "legacy" }, fakeReflectionCurl).stdout)).toEqual(SELF_LEGACY);
+    // A pre-superset reflection index still identifies the machine; it just cannot count the fleet.
+    const plain = runShim(["self"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "plain" }, fakeReflectionCurl);
+    expect(plain.status).toBe(0);
+    expect(plain.stdout).toBe("Build box\tfs-build\trunning\t(this machine)\nteam\tteam_1\nowner\towner@example.com\nplan\tpro\n");
   });
 
   test("auth status reports the identity next to the daemon and CodeRouter checks", () => {
@@ -1384,20 +1472,51 @@ describe("in-VM cmux shim: reflection", () => {
     expect((JSON.parse(runShim(["auth", "status", "--json"]).stdout) as Record<string, any>).identity).toBeNull();
   });
 
-  test("vm peers names this machine from reflection and appends reachable peers that are not linked yet", () => {
+  test("vm ls lists the owner's machines: this one marked, reachability, and this machine's link state", () => {
     const dir = makeStatefulDir();
     fakeReflectionCurl(dir);
-    mkdirSync(join(dir, ".cmux", "peers"), { recursive: true });
-    writeFileSync(join(dir, ".cmux", "peers", "brave-otter.json"), JSON.stringify({ route: "ws://[fd00::4]:1337/v1/link" }));
-    const run = runStateful(dir, ["vm", "peers"], REFLECTION_ENV);
+    linkTwoPeers(dir);
+    const run = runStateful(dir, ["vm", "ls"], REFLECTION_ENV);
     expect(run.stderr).toBe("");
     expect(run.status).toBe(0);
-    expect(run.stdout).toBe("build-box\t(this machine)\nbrave-otter\tlinked\nsleepy-otter\trunning\treachable\nasleep-mole\tpaused\tunreachable\n");
-    // No reflection: the old output, hostname first, nothing invented.
-    const offline = runStateful(dir, ["vm", "peers"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
-    expect(offline.status).toBe(0);
-    expect(offline.stdout).toBe(`${offline.stdout.split("\t")[0]}\t(this machine)\nbrave-otter\tlinked\n`);
-    expect(offline.stdout.startsWith("build-box")).toBe(false);
+    expect(run.stdout).toBe(VM_LS_HUMAN);
+    expect(run.calls).toEqual([]);
+    // list, peers, and links are silent aliases of the one listing.
+    for (const alias of ["list", "peers", "links"]) {
+      expect(runStateful(dir, ["vm", alias], REFLECTION_ENV).stdout).toBe(VM_LS_HUMAN);
+    }
+    const json = runStateful(dir, ["vm", "ls", "--json"], REFLECTION_ENV);
+    expect(json.status).toBe(0);
+    expect(JSON.parse(json.stdout)).toEqual({ machines: REFLECTION_MACHINES });
+    expect(runStateful(dir, ["vm", "ls", "--bogus"], REFLECTION_ENV).status).toBe(2);
+  });
+
+  test("vm ls reads the same list from /peers or /api/vm/self when the index predates machines[]", () => {
+    const dir = makeStatefulDir();
+    fakeReflectionCurl(dir);
+    linkTwoPeers(dir);
+    // A reflection server before the superset: the index plus /peers give the same lines.
+    const plain = runStateful(dir, ["vm", "ls"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "plain" });
+    expect(plain.stderr).toBe("");
+    expect(plain.stdout).toBe(VM_LS_HUMAN);
+    const plainJson = JSON.parse(runStateful(dir, ["vm", "ls", "--json"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "plain" }).stdout) as { machines: Array<Record<string, unknown>> };
+    expect(plainJson.machines.map((machine) => [machine.name, machine.id, machine.self, machine.reachable, machine.route])).toEqual([
+      ["Build box", "fs-build", true, false, null],
+      ["Reviewer", "fs-a", false, true, "ws://[fd00::4]:1337/v1/link"],
+      ["Sleepy", "fs-b", false, true, "ws://[fd00::5]:1337/v1/link"],
+      ["asleep-mole", "fs-c", false, false, null],
+    ]);
+    // No reflection at all: /api/vm/self knows the machines but not their routes.
+    const legacy = runStateful(dir, ["vm", "ls"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "legacy" });
+    expect(legacy.stderr).toBe("");
+    expect(legacy.stdout).toBe("* Build box\tfs-build\trunning\t(this machine)\n  Reviewer\tfs-a\trunning\tlinked\n  Sleepy\tfs-b\trunning\tconnected\n  asleep-mole\tfs-c\tpaused\n");
+    expect(JSON.parse(runStateful(dir, ["vm", "ls", "--json"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "legacy" }).stdout)).toEqual({ machines: SELF_LEGACY.machines });
+    // Nothing is invented when the control plane cannot answer.
+    const down = runStateful(dir, ["vm", "ls"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
+    expect(down.status).toBe(1);
+    expect(down.stdout).toBe("");
+    expect(down.stderr).toContain("reflection unreachable");
+    expect(runStateful(dir, ["vm", "ls"]).status).toBe(2);
   });
 
   describe("peer discovery through reflection", () => {
@@ -1439,6 +1558,20 @@ describe("in-VM cmux shim: reflection", () => {
       expect(JSON.parse(readFileSync(join(dir, ".cmux", "peers", "Sleepy.json"), "utf8")).route).toBe("ws://[fd00::5]:1337/v1/link");
     });
 
+    test("wait-exit and output take the same road to a peer terminal", () => {
+      const dir = makeStatefulDir();
+      fakeReflectionCurl(dir);
+      const exit = runStateful(dir, ["vm", "terminal", "wait-exit", "sleepy-otter", "term_x", "--timeout", "2"], { ...REFLECTION_ENV, FAKE_LINK_SOCKET: sockPath });
+      expect(exit.stderr).toBe("");
+      expect(exit.status).toBe(0);
+      expect(exit.stdout).toBe("exited code=3\n");
+      expect(exit.calls.at(-1)).toEqual(["--socket", sockPath, "--json", "terminal", "term_x", "process", "wait", "--timeout-ms", "2000"]);
+      const output = runStateful(dir, ["vm", "terminal", "output", "sleepy-otter", "term_x", "--after", "18"], { ...REFLECTION_ENV, FAKE_LINK_SOCKET: sockPath });
+      expect(output.status).toBe(0);
+      expect(output.stdout).toBe("line one\nline two\n");
+      expect(output.calls.at(-1)).toEqual(["--socket", sockPath, "--json", "terminal", "term_x", "output", "read", "--after", "18"]);
+    });
+
     test("unknown, route-less, and reflection-less peers fail closed with the reason", () => {
       const dir = makeStatefulDir();
       fakeReflectionCurl(dir);
@@ -1460,11 +1593,72 @@ describe("in-VM cmux shim: reflection", () => {
     });
   });
 
-  test("help advertises the identity verbs", () => {
+  test("help is one page in the Mac's grammar: this machine, who am I, other machines, the human, models, auth", () => {
     const run = runShim(["--help"]);
-    expect(run.stdout).toContain("cmux whoami [--json]");
-    expect(run.stdout).toContain("cmux reflect [<path>] [--json]");
-    expect(runShim(["vm", "help"]).stdout).toContain("reachable peers from reflection");
-    expect(runShim(["whoami", "--help"]).stdout).toContain("SELF IDENTITY");
+    expect(run.status).toBe(0);
+    const sections = ["THIS MACHINE", "WHO AM I", "OTHER MACHINES", "REACH THE HUMAN", "MODELS AND AGENTS", "AUTH"];
+    const positions = sections.map((section) => run.stdout.indexOf(section));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(run.stdout).toContain("cmux self [--json]");
+    expect(run.stdout).toContain("cmux vm ls [--json]");
+    expect(run.stdout).toContain("cmux vm exec <machine> -- <cmd...>");
+    expect(run.stdout).toContain("cmux notify --title <text>");
+    // One spelling per concept: whoami/reflect appear only as aliases, and no verb is listed twice.
+    expect(run.stdout).not.toContain("cmux whoami [--json]");
+    expect(run.stdout).not.toContain("cmux vm peers");
+    expect(runShim(["vm", "help"]).stdout).toContain("cmux vm ls [--json]");
+    for (const alias of [["self", "--help"], ["whoami", "--help"], ["reflect", "-h"]]) {
+      const help = runShim(alias);
+      expect(help.status).toBe(0);
+      expect(help.stdout).toContain("cmux self peers [--json]");
+      expect(help.stdout).toContain("cmux whoami = cmux self");
+    }
+    const terminalHelp = runShim(["terminal", "help"]);
+    expect(terminalHelp.stdout).toContain("cmux terminal wait-exit <id> [--timeout <seconds>] [--json]");
+    expect(terminalHelp.stdout).toContain("cmux terminal output <id> [--after <offset>] [--max-bytes <n>] [--json]");
+  });
+});
+
+describe("in-VM cmux shim: terminal exit and output", () => {
+  test("wait-exit blocks on process wait and reports the exit the way the Mac CLI does", () => {
+    const dir = makeStatefulDir();
+    const run = runStateful(dir, ["terminal", "wait-exit", "term_x", "--timeout", "5"]);
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("exited code=3\n");
+    expect(run.calls).toEqual([["--session", "cloud", "--json", "terminal", "term_x", "process", "wait", "--timeout-ms", "5000"]]);
+    // No timeout: the daemon waits as long as it takes.
+    expect(runStateful(dir, ["terminal", "wait-exit", "term_x"]).calls).toEqual([["--session", "cloud", "--json", "terminal", "term_x", "process", "wait"]]);
+    expect(runStateful(dir, ["terminal", "wait-exit", "term_x"], { FAKE_EXIT_KIND: "signal" }).stdout).toBe("exited signal=9\n");
+    const json = runStateful(dir, ["terminal", "wait-exit", "term_x", "--json"]);
+    expect(json.status).toBe(0);
+    expect(JSON.parse(json.stdout).value).toMatchObject({ state: "exited", outcome: { kind: "exit", code: 3 } });
+    // Still running: say so on stdout and exit 1, so scripts can loop on it.
+    const pending = runStateful(dir, ["terminal", "wait-exit", "term_x", "--timeout", "0.5"], { FAKE_EXIT_PENDING: "1" });
+    expect(pending.status).toBe(1);
+    expect(pending.stdout).toBe("pending\n");
+    expect(pending.calls.at(-1)?.slice(-2)).toEqual(["--timeout-ms", "500"]);
+    const pendingJson = runStateful(dir, ["terminal", "wait-exit", "term_x", "--json"], { FAKE_EXIT_PENDING: "1" });
+    expect(pendingJson.status).toBe(1);
+    expect(JSON.parse(pendingJson.stdout).value.state).toBe("pending");
+    expect(runStateful(dir, ["terminal", "wait-exit", "term_x", "--timeout", "nope"]).status).toBe(2);
+    expect(runStateful(dir, ["terminal", "wait-exit"]).status).toBe(2);
+  });
+
+  test("output reads the terminal's stream by offset and prints only the text unless --json", () => {
+    const dir = makeStatefulDir();
+    const run = runStateful(dir, ["terminal", "output", "term_x", "--after", "5", "--max-bytes", "100"]);
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("line one\nline two\n");
+    expect(run.calls).toEqual([["--session", "cloud", "--json", "terminal", "term_x", "output", "read", "--after", "5", "--max-bytes", "100"]]);
+    expect(runStateful(dir, ["terminal", "output", "term_x"]).calls).toEqual([["--session", "cloud", "--json", "terminal", "term_x", "output", "read"]]);
+    const json = runStateful(dir, ["terminal", "output", "term_x", "--json"]);
+    expect(json.status).toBe(0);
+    expect(JSON.parse(json.stdout).value).toEqual({ terminal_id: "term_x", text: "line one\nline two\n", start_offset: 0, next_offset: 18, complete: true });
+    for (const bad of [["--max-bytes", "0"], ["--max-bytes", "4194305"], ["--after", "x"], ["--bogus"]]) {
+      expect(runStateful(dir, ["terminal", "output", "term_x", ...bad]).status).toBe(2);
+    }
   });
 });

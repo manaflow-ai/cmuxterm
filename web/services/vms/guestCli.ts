@@ -28,25 +28,16 @@
 // images/devbox/cmux must stay byte-identical (vm-devbox-image.test.ts).
 
 import { GUEST_CMUX_MESSAGE_SHELL } from "./guestCliMessages";
-import { GUEST_CMUX_SELF_SHIM } from "./guestSelfCli";
 
 export const GUEST_CMUX_SHIM_PATH = "/usr/local/bin/cmux";
 
 export const GUEST_CMUX_SHIM = `#!/bin/sh
-# cmux — in-VM CLI over this machine's cmux-tui daemon and linked peer machines.
-# Local verbs forward to cmux-tui (session "cloud"). \`cmux vm …\` talks to peers
-# this machine was linked to from the Mac (\`cmux vm link <src> <dst>\`).
+# cmux — in-VM CLI. One grammar, the same as on a Mac:
+#   cmux <verb> …               THIS machine's session (cmux-tui, session "cloud")
+#   cmux vm <verb> <machine> …  ANOTHER machine of the same owner, over a peer link
+#   cmux vm ls                  the owner's machines, this one marked *
+#   cmux self [<path>]          who am I (reflection; aliases whoami, reflect)
 set -eu
-
-case "\${1:-}:\${2:-}" in
-  self:*|vm:ls|vm:list)
-    guest_self_cli() (
-${GUEST_CMUX_SELF_SHIM}
-    )
-    guest_self_cli "\$@"
-    exit \$?
-    ;;
-esac
 
 ${GUEST_CMUX_MESSAGE_SHELL}
 
@@ -87,7 +78,13 @@ warn() {
   return 0
 }
 
-[ -x "\$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "\$CMUX_TUI_BIN"
+# Identity, discovery, and help come from the control plane or this file, so
+# they answer while cmux-tui is still installing (the bootstrap shim's
+# contract); every other verb needs the daemon.
+case "\${1:-}:\${2:-}" in
+  self:*|whoami:*|reflect:*|reflection:*|vm:ls|vm:list|vm:peers|vm:links|vm:help|vm:--help|vm:-h|vm:|:*|help:*|--help:*|-h:*|--version:*|-V:*) ;;
+  *) [ -x "\$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "\$CMUX_TUI_BIN" ;;
+esac
 
 # One routing target for every verb: this machine's session, or — after
 # use_peer — a linked peer's headless-link socket. tui() prepends it, so the
@@ -105,8 +102,6 @@ use_peer() {
 
 guest_usage() {
   cmux_message help
-  cmux_message identityHelp
-  cmux_message agentHelp
 }
 
 load_model_env() {
@@ -186,12 +181,21 @@ reflection_fetch() {
   # The canonical form carries no trailing slash (Next redirects '/x/' to '/x',
   # and a redirect is not an answer): the index is the bare base URL.
   while [ "\${cmux_rf_path%/}" != "\$cmux_rf_path" ]; do cmux_rf_path="\${cmux_rf_path%/}"; done
+  reflection_fetch_url "\$cmux_rf_base\$cmux_rf_path" "\$2"
+}
+
+# reflection_fetch_url <url> <out-file>: one GET through the edge. The status
+# rides stdout as the last line (curl --write-out), the way the image's
+# bootstrap shim reads it, so both shims see the same edge the same way.
+reflection_fetch_url() {
   cmux_rf_out="\$2"
   : > "\$cmux_rf_out"
-  cmux_rf_status="\$(cmux_curl -sSL -o "\$cmux_rf_out" -w '%{http_code}' --connect-timeout 5 --max-time 20 \\
+  cmux_rf_raw="\$(cmux_curl -sSL --connect-timeout 5 --max-time 20 \\
     -H "authorization: Bearer \${OPENAI_API_KEY:-cmux-vm-edge-placeholder}" -H 'accept: application/json' \\
-    "\$cmux_rf_base\$cmux_rf_path" 2>/dev/null)" || cmux_rf_status=000
-  case "\$cmux_rf_status" in ''|*[!0-9]*) cmux_rf_status=000 ;; esac
+    --write-out '\\n%{http_code}' "\$1" 2>/dev/null)" || :
+  cmux_rf_status="\$(printf '%s' "\$cmux_rf_raw" | tail -n 1)"
+  case "\$cmux_rf_status" in ''|*[!0-9]*) cmux_rf_status=000; return 1 ;; esac
+  printf '%s' "\$cmux_rf_raw" | sed '\$d' > "\$cmux_rf_out"
   case "\$cmux_rf_status" in 2[0-9][0-9]) return 0 ;; esac
   return 1
 }
@@ -211,55 +215,152 @@ reflection_print() {
   if [ -n "\$(tail -c 1 "\$1" 2>/dev/null)" ]; then printf '\\n'; fi
 }
 
-guest_whoami() {
-  cmux_wi_json=0
-  for cmux_arg in "\$@"; do
-    case "\$cmux_arg" in
-      --json) cmux_wi_json=1 ;;
-      --help|-h) cmux_message identityHelp; return 0 ;;
-      *) die "whoami: unknown option \$cmux_arg" 2 ;;
-    esac
-  done
-  cmux_wi_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-whoami.XXXXXX")"
-  reflection_fetch / "\$cmux_wi_out" && cmux_wi_rc=0 || cmux_wi_rc=\$?
-  if [ "\$cmux_wi_rc" -eq 2 ]; then rm -f "\$cmux_wi_out"; die_message 2 missingCodeRouter; fi
-  if [ "\$cmux_wi_rc" -ne 0 ]; then
-    cmux_wi_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_wi_out")"
-    rm -f "\$cmux_wi_out"
-    die "\$cmux_wi_why" 1
-  fi
-  if [ "\$cmux_wi_json" -eq 1 ]; then
-    reflection_print "\$cmux_wi_out"
-  elif ! jq -r '"\\(.name // "?")  \\(.vm_id // "?")  owner=\\(.owner.email // .owner.user_id // "unknown")  plan=\\(.plan_id // "unknown")  status=\\(.status // "unknown")"' "\$cmux_wi_out" 2>/dev/null; then
-    rm -f "\$cmux_wi_out"
-    die_message 1 reflectionInvalid
-  fi
-  rm -f "\$cmux_wi_out"
+# self_fetch <out-file>: the identity index. Reflection's "/" is the whole
+# picture (owner, plan, the owner's machines with routes); a control plane that
+# answers 404 there still serves GET /api/vm/self (machine, team, machines), so
+# \`cmux self\` and \`cmux vm ls\` read the same either way. Returns as
+# reflection_fetch; cmux_sf_source is reflection or self.
+self_fetch() {
+  cmux_sf_source=reflection
+  reflection_fetch / "\$1" && return 0
+  cmux_sf_rc=\$?
+  [ "\$cmux_sf_rc" -ne 2 ] || return 2
+  [ "\$cmux_rf_status" = 404 ] || return 1
+  cmux_sf_source=self
+  cmux_rf_base="\${CMUX_CODEROUTER_URL%/}/api/vm/self"
+  reflection_fetch_url "\$cmux_rf_base" "\$1"
 }
 
-guest_reflect() {
-  cmux_re_path=/
+# self_machines <index-file>: make sure the index carries machines[] (the
+# owner's machines, this one flagged self). A reflection server from before the
+# superset has none; its /peers plus the index itself give the same list.
+self_machines() {
+  if jq -e '(.machines | type) == "array"' "\$1" >/dev/null 2>&1; then return 0; fi
+  [ "\$cmux_sf_source" = reflection ] || return 0
+  cmux_sm_peers="\$(mktemp "\${TMPDIR:-/tmp}/cmux-peers.XXXXXX")"
+  if reflection_fetch /peers "\$cmux_sm_peers"; then
+    jq --slurpfile peers "\$cmux_sm_peers" '. + {machines: (
+        [{id: (.provider_vm_id // .vm_id), vmId: .vm_id, name: (.display_name // .name), displayName: .display_name, slug: .name,
+          status: .status, createdAt: .created_at, self: true, route: null, reachable: false}]
+        + [(\$peers[0].peers // [])[] | {id: (.provider_vm_id // .vm_id), vmId: .vm_id, name: (.display_name // .name), displayName: .display_name,
+          slug: .name, status: .status, self: false, route: .route, reachable: (.reachable // (.route != null)), network: .network}])}' \\
+      "\$1" > "\$1.machines" 2>/dev/null && mv "\$1.machines" "\$1" || rm -f "\$1.machines"
+  fi
+  rm -f "\$cmux_sm_peers"
+  return 0
+}
+
+# The human index: the lines main's \`cmux self\` prints, from either source.
+self_human() {
+  jq -r --arg self "\$(cmux_message thisMachine)" --arg team "\$(cmux_message labelTeam)" \\
+    --arg machines "\$(cmux_message labelMachines)" --arg owner "\$(cmux_message labelOwner)" --arg plan "\$(cmux_message labelPlan)" '
+    (.machine.name // .display_name // .name // "?") as \$name
+    | (.machine.id // .provider_vm_id // .vm_id // "?") as \$id
+    | (.machine.status // .status // "unknown") as \$status
+    | (.team.id // .team_id // null) as \$team_id
+    | (if (.machines | type) == "array" then "\\t\\(.machines | length) \\(\$machines)" else "" end) as \$count
+    | (.owner.email // .owner.user_id // null) as \$owner_id
+    | (.plan_id // null) as \$plan_id
+    | ["\\(\$name)\\t\\(\$id)\\t\\(\$status)\\t\\(\$self)"]
+      + (if \$team_id != null then ["\\(\$team)\\t\\(\$team_id)\\(\$count)"] else [] end)
+      + (if \$owner_id != null then ["\\(\$owner)\\t\\(\$owner_id)"] else [] end)
+      + (if \$plan_id != null then ["\\(\$plan)\\t\\(\$plan_id)"] else [] end)
+    | .[]' "\$1"
+}
+
+# cmux self [<path>] [--json]: who am I, as the control plane knows it (the
+# edge asserts the identity; nothing here is a credential). <path> is any
+# reflection path: peers, integrations, owner, machine. whoami and reflect are
+# aliases of this verb.
+guest_self() {
+  cmux_self_json=0
+  cmux_self_path=""
   for cmux_arg in "\$@"; do
     case "\$cmux_arg" in
-      --json) ;;
-      --help|-h) cmux_message identityHelp; return 0 ;;
-      -*) die "reflect: unknown option \$cmux_arg" 2 ;;
-      *) cmux_re_path="\$cmux_arg" ;;
+      --json) cmux_self_json=1 ;;
+      --help|-h) cmux_message selfHelp; return 0 ;;
+      -*) die "self: unknown option \$cmux_arg" 2 ;;
+      *) [ -z "\$cmux_self_path" ] || die "self: one path at most (cmux self peers)" 2; cmux_self_path="\$cmux_arg" ;;
     esac
   done
-  case "\$cmux_re_path" in
-    *[!A-Za-z0-9/_.-]*) die "reflect: path must look like /peers" 2 ;;
-  esac
-  cmux_re_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-reflect.XXXXXX")"
-  reflection_fetch "\$cmux_re_path" "\$cmux_re_out" && cmux_re_rc=0 || cmux_re_rc=\$?
-  if [ "\$cmux_re_rc" -eq 2 ]; then rm -f "\$cmux_re_out"; die_message 2 missingCodeRouter; fi
-  if [ "\$cmux_re_rc" -ne 0 ]; then
-    cmux_re_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_re_out")"
-    rm -f "\$cmux_re_out"
-    die "\$cmux_re_why" 1
+  case "\$cmux_self_path" in *[!A-Za-z0-9/_.-]*) die "self: path must look like peers or /peers" 2 ;; esac
+  while [ "\${cmux_self_path%/}" != "\$cmux_self_path" ]; do cmux_self_path="\${cmux_self_path%/}"; done
+  cmux_self_path="\${cmux_self_path#/}"
+  cmux_self_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-self.XXXXXX")"
+  if [ -z "\$cmux_self_path" ]; then
+    self_fetch "\$cmux_self_out" && cmux_self_rc=0 || cmux_self_rc=\$?
+  else
+    reflection_fetch "\$cmux_self_path" "\$cmux_self_out" && cmux_self_rc=0 || cmux_self_rc=\$?
   fi
-  reflection_print "\$cmux_re_out"
-  rm -f "\$cmux_re_out"
+  if [ "\$cmux_self_rc" -eq 2 ]; then rm -f "\$cmux_self_out"; die_message 2 missingCodeRouter; fi
+  if [ "\$cmux_self_rc" -ne 0 ]; then
+    cmux_self_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_self_out")"
+    rm -f "\$cmux_self_out"
+    die "\$cmux_self_why" 1
+  fi
+  if [ "\$cmux_self_json" -eq 1 ] || [ -n "\$cmux_self_path" ]; then
+    reflection_print "\$cmux_self_out"
+  elif ! self_human "\$cmux_self_out" 2>/dev/null; then
+    rm -f "\$cmux_self_out"
+    die_message 1 reflectionInvalid
+  fi
+  rm -f "\$cmux_self_out"
+}
+
+# cmux vm ls [--json]: the owner's machines from the same index, this one
+# marked *. Reachability is the control plane's word (a private-network route
+# exists); linked/connected is this machine's own peer-link state.
+guest_vm_ls() {
+  cmux_ls_json=0
+  for cmux_arg in "\$@"; do
+    case "\$cmux_arg" in
+      --json) cmux_ls_json=1 ;;
+      --help|-h) peer_usage; return 0 ;;
+      *) die "usage: cmux vm ls [--json]" 2 ;;
+    esac
+  done
+  cmux_ls_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-ls.XXXXXX")"
+  self_fetch "\$cmux_ls_out" && cmux_ls_rc=0 || cmux_ls_rc=\$?
+  if [ "\$cmux_ls_rc" -eq 2 ]; then rm -f "\$cmux_ls_out"; die_message 2 missingCodeRouter; fi
+  if [ "\$cmux_ls_rc" -ne 0 ]; then
+    cmux_ls_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_ls_out")"
+    rm -f "\$cmux_ls_out"
+    die "\$cmux_ls_why" 1
+  fi
+  self_machines "\$cmux_ls_out"
+  if ! jq -e '(.machines | type) == "array"' "\$cmux_ls_out" >/dev/null 2>&1; then
+    rm -f "\$cmux_ls_out"
+    die_message 1 reflectionInvalid
+  fi
+  if [ "\$cmux_ls_json" -eq 1 ]; then
+    jq -c '{machines: .machines}' "\$cmux_ls_out"
+    rm -f "\$cmux_ls_out"
+    return 0
+  fi
+  cmux_ls_tab="\$(printf '\\t')"
+  # "-" stands for an empty field: a tab is IFS whitespace, so empty fields would not survive read.
+  jq -r --arg self "\$(cmux_message thisMachine)" '.machines[]
+    | [ (if .self then "*" else "-" end), (.name // "?"), (.id // .provider_vm_id // "?"), (.status // "unknown"),
+        (if .self then \$self elif .reachable == true then "reachable" elif .reachable == false then "unreachable" else "-" end),
+        (.displayName // "-"), (.slug // "-"), (.vmId // "-") ]
+    | @tsv' "\$cmux_ls_out" | while IFS="\$cmux_ls_tab" read -r cmux_ls_mark cmux_ls_name cmux_ls_id cmux_ls_status cmux_ls_reach cmux_ls_display cmux_ls_slug cmux_ls_vmid; do
+    cmux_ls_link=""
+    if [ "\$cmux_ls_mark" != "*" ]; then
+      cmux_ls_mark=" "
+      for cmux_ls_key in "\$cmux_ls_name" "\$cmux_ls_display" "\$cmux_ls_slug" "\$cmux_ls_vmid" "\$cmux_ls_id"; do
+        [ "\$cmux_ls_key" != "-" ] || continue
+        [ -f "\$PEERS_DIR/\$cmux_ls_key.json" ] || continue
+        cmux_ls_link=linked
+        if [ -f "\$LINKS_DIR/\$cmux_ls_key.pid" ] && kill -0 "\$(cat "\$LINKS_DIR/\$cmux_ls_key.pid")" 2>/dev/null; then cmux_ls_link=connected; fi
+        break
+      done
+    fi
+    printf '%s %s\\t%s\\t%s' "\$cmux_ls_mark" "\$cmux_ls_name" "\$cmux_ls_id" "\$cmux_ls_status"
+    [ "\$cmux_ls_reach" = "-" ] || printf '\\t%s' "\$cmux_ls_reach"
+    [ -z "\$cmux_ls_link" ] || printf '\\t%s' "\$cmux_ls_link"
+    printf '\\n'
+  done
+  rm -f "\$cmux_ls_out"
 }
 
 # When ~/.cmux/peers/<peer>.json is missing, ask reflection for the owner's
@@ -986,11 +1087,65 @@ terminal_verb() {
         die "timed out after \${cmux_tv_timeout}s waiting for /\$cmux_tv_pattern/ on \$cmux_tv_term" 1
       fi
       ;;
+    wait-exit)
+      cmux_tv_timeout=""
+      cmux_tv_json=0
+      while [ "\$#" -gt 0 ]; do
+        case "\$1" in
+          --timeout) [ "\$#" -ge 2 ] || die "terminal wait-exit: --timeout needs seconds" 2; cmux_tv_timeout="\$2"; shift 2 ;;
+          --timeout=*) cmux_tv_timeout="\${1#--timeout=}"; shift ;;
+          --json) cmux_tv_json=1; shift ;;
+          *) die "terminal wait-exit: unknown option \$1" 2 ;;
+        esac
+      done
+      set -- terminal "\$cmux_tv_term" process wait
+      if [ -n "\$cmux_tv_timeout" ]; then
+        cmux_tv_ms="\$(timeout_ms "\$cmux_tv_timeout")"
+        set -- "\$@" --timeout-ms "\$cmux_tv_ms"
+      fi
+      if cmux_tv_out="\$(tui --json "\$@" 2>&1)"; then :; else
+        die "terminal wait-exit failed on \$cmux_tv_term: \$cmux_tv_out" 1
+      fi
+      cmux_tv_state="\$(printf '%s\\n' "\$cmux_tv_out" | jq -r '(.value // .) | if .state == "exited" then ((.outcome // {}) | if .kind == "exit" then "exited code=\\(.code)" elif .kind == "signal" then "exited signal=\\(.signal)" else "exited unknown=\\(.reason // "?")" end) else "pending" end' 2>/dev/null || printf pending)"
+      if [ "\$cmux_tv_json" -eq 1 ]; then printf '%s\\n' "\$cmux_tv_out"; else printf '%s\\n' "\$cmux_tv_state"; fi
+      case "\$cmux_tv_state" in exited*) ;; *) exit 1 ;; esac
+      ;;
+    output)
+      cmux_tv_after=""
+      cmux_tv_max=""
+      cmux_tv_json=0
+      while [ "\$#" -gt 0 ]; do
+        case "\$1" in
+          --after) [ "\$#" -ge 2 ] || die "terminal output: --after needs a byte offset" 2; cmux_tv_after="\$2"; shift 2 ;;
+          --after=*) cmux_tv_after="\${1#--after=}"; shift ;;
+          --max-bytes) [ "\$#" -ge 2 ] || die "terminal output: --max-bytes needs a count" 2; cmux_tv_max="\$2"; shift 2 ;;
+          --max-bytes=*) cmux_tv_max="\${1#--max-bytes=}"; shift ;;
+          --json) cmux_tv_json=1; shift ;;
+          *) die "terminal output: unknown option \$1" 2 ;;
+        esac
+      done
+      case "\$cmux_tv_after" in *[!0-9]*) die "terminal output: --after takes a byte offset, got '\$cmux_tv_after'" 2 ;; esac
+      case "\$cmux_tv_max" in *[!0-9]*) die "terminal output: --max-bytes takes 1..4194304, got '\$cmux_tv_max'" 2 ;; esac
+      if [ -n "\$cmux_tv_max" ] && { [ "\$cmux_tv_max" -lt 1 ] || [ "\$cmux_tv_max" -gt 4194304 ]; }; then
+        die "terminal output: --max-bytes takes 1..4194304, got '\$cmux_tv_max'" 2
+      fi
+      set -- terminal "\$cmux_tv_term" output read
+      [ -z "\$cmux_tv_after" ] || set -- "\$@" --after "\$cmux_tv_after"
+      [ -z "\$cmux_tv_max" ] || set -- "\$@" --max-bytes "\$cmux_tv_max"
+      if cmux_tv_out="\$(tui --json "\$@" 2>&1)"; then :; else
+        die "terminal output failed on \$cmux_tv_term: \$cmux_tv_out" 1
+      fi
+      if [ "\$cmux_tv_json" -eq 1 ]; then
+        printf '%s\\n' "\$cmux_tv_out"
+      else
+        printf '%s\\n' "\$cmux_tv_out" | jq -j '(.value // .) | .text // ""'
+      fi
+      ;;
     close)
       tui terminal "\$cmux_tv_term" close
       ;;
     *)
-      die "terminal: unknown verb '\$cmux_tv_verb' (send, read, wait, close)" 2
+      die "terminal: unknown verb '\$cmux_tv_verb' (send, read, wait, wait-exit, output, close)" 2
       ;;
   esac
 }
@@ -1777,13 +1932,9 @@ case "\${1:-}" in
   ai-accounts|remotes)
     host_only_command "cmux \$1"
     ;;
-  whoami)
+  self|whoami|reflect|reflection)
     shift
-    guest_whoami "\$@"
-    ;;
-  reflect|reflection)
-    shift
-    guest_reflect "\$@"
+    guest_self "\$@"
     ;;
   env)
     shift
@@ -1844,7 +1995,10 @@ case "\${1:-}" in
     # The Mac's verb-first spelling (\`terminal send <id> …\`); cmux-tui's own
     # id-first grammar (\`terminal <id> write …\`, \`terminal list\`) passes through.
     case "\${2:-}" in
-      send|write|read|screen|wait|close)
+      help|--help|-h)
+        terminal_usage
+        ;;
+      send|write|read|screen|wait|wait-exit|output|close)
         cmux_verb="\$2"
         cmux_term="\${3:-}"
         shift 2
@@ -1860,40 +2014,8 @@ case "\${1:-}" in
     shift
     sub="\${1:-}"; [ "\$#" -gt 0 ] && shift
     case "\$sub" in
-      peers|links)
-        # This machine (its reflection name when the edge can say), every linked
-        # peer, then the owner's other machines that reflection reports — those
-        # link on first use (cmux vm exec <name> …), no Mac step needed.
-        cmux_ls_self="\$(hostname 2>/dev/null || echo local)"
-        cmux_ls_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-ls.XXXXXX")"
-        cmux_ls_have_peers=0
-        if reflection_fetch / "\$cmux_ls_out"; then
-          cmux_ls_name="\$(jq -r '.name // empty' "\$cmux_ls_out" 2>/dev/null || true)"
-          [ -z "\$cmux_ls_name" ] || cmux_ls_self="\$cmux_ls_name"
-          if reflection_fetch /peers "\$cmux_ls_out"; then cmux_ls_have_peers=1; fi
-        fi
-        printf '%s\\t%s\\n' "\$cmux_ls_self" "\$(cmux_message thisMachine)"
-        cmux_ls_linked=" "
-        if [ -d "\$PEERS_DIR" ]; then
-          for f in "\$PEERS_DIR"/*.json; do
-            [ -e "\$f" ] || continue
-            name="\$(basename "\$f" .json)"
-            cmux_ls_linked="\$cmux_ls_linked\$name "
-            state=linked
-            pidf="\$LINKS_DIR/\$name.pid"
-            if [ -f "\$pidf" ] && kill -0 "\$(cat "\$pidf")" 2>/dev/null; then state=connected; fi
-            printf '%s\\t%s\\n' "\$name" "\$state"
-          done
-        fi
-        if [ "\$cmux_ls_have_peers" -eq 1 ]; then
-          cmux_ls_tab="\$(printf '\\t')"
-          jq -r '.peers // [] | .[] | "\\(.name)\\t\\(.status // "unknown")\\t\\(if .route then "reachable" else "unreachable" end)"' "\$cmux_ls_out" 2>/dev/null | while IFS= read -r cmux_ls_line; do
-            cmux_ls_pname="\${cmux_ls_line%%"\$cmux_ls_tab"*}"
-            case "\$cmux_ls_linked" in *" \$cmux_ls_pname "*) continue ;; esac
-            printf '%s\\n' "\$cmux_ls_line"
-          done
-        fi
-        rm -f "\$cmux_ls_out"
+      ls|list|peers|links)
+        guest_vm_ls "\$@"
         ;;
       connect)
         peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 connectUsage
@@ -1913,7 +2035,7 @@ case "\${1:-}" in
         ;;
       terminal)
         case "\${1:-}" in
-          send|write|read|screen|wait|close)
+          send|write|read|screen|wait|wait-exit|output|close)
             cmux_verb="\$1"
             peer="\${2:-}"
             cmux_term="\${3:-}"

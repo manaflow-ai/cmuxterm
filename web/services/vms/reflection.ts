@@ -9,6 +9,7 @@
 // Pure: every builder takes rows and an owner snapshot and returns JSON-ready data,
 // so the route is a thin loader and the tests need no database.
 import { VM_RESOURCE_RESERVATION_METADATA_KEY } from "./machineSpec";
+import { VM_SELF_SCHEMA, vmSelfMachine, type VmSelfMachine } from "./selfDiscovery";
 import { VM_PRINCIPAL_LIVE_STATUSES, type VmPrincipalRow } from "./vmPrincipalContract";
 
 export type ReflectionRow = VmPrincipalRow;
@@ -113,6 +114,78 @@ export function reflectionUrls(context: Pick<ReflectionContext, "aliasOrigin" | 
   return [`${context.aliasOrigin}/api/vm/reflection`, `${context.reflectionOrigin}/`];
 }
 
+/**
+ * One owner machine in the `cmux self` / `cmux vm ls` shape (`VmSelfMachine`),
+ * plus how a peer would reach it. The caller's own entry carries no route: a
+ * machine does not link to itself.
+ */
+export type ReflectionMachineEntry = VmSelfMachine & {
+  readonly network: ReflectionNetwork;
+  readonly route: string | null;
+  readonly reachable: boolean;
+};
+
+function reflectionMachineEntry(row: ReflectionRow, self: ReflectionRow): ReflectionMachineEntry | null {
+  const base = vmSelfMachine(
+    {
+      vmId: row.id,
+      providerVmId: row.providerVmId,
+      displayName: row.displayName,
+      slug: row.slug,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+    },
+    self.id,
+  );
+  if (!base) return null;
+  const network = reflectionNetwork(row.providerMetadata);
+  const route = row.id === self.id ? null : reflectionPeerRoute(network);
+  return { ...base, network, route, reachable: route !== null };
+}
+
+/**
+ * Every live machine of the owner, the caller included and marked `self`,
+ * newest first — the list `GET /api/vm/self` has always served, so the guest's
+ * `cmux self` and `cmux vm ls` read one shape whichever endpoint answers, now
+ * with each machine's private route beside it.
+ */
+export function reflectionMachines(context: ReflectionContext): ReflectionMachineEntry[] {
+  const { self } = context;
+  const seen = new Set<string>();
+  const rows = [self, ...context.siblings].filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return row.id === self.id || (reflectionIsLive(row) && reflectionSharesOwner(self, row));
+  });
+  return rows
+    .map((row) => reflectionMachineEntry(row, self))
+    .filter((entry): entry is ReflectionMachineEntry => entry !== null)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+}
+
+/** The caller as a `VmSelfMachine`; a still-provisioning machine falls back to its row id as the address. */
+export function reflectionSelfMachine(context: ReflectionContext): ReflectionMachineEntry {
+  const { self } = context;
+  return reflectionMachineEntry(self, self) ?? {
+    id: self.id,
+    vmId: self.id,
+    name: reflectionDisplayName(self),
+    displayName: self.displayName,
+    slug: self.slug,
+    status: self.status,
+    createdAt: self.createdAt.toISOString(),
+    self: true,
+    network: reflectionNetwork(self.providerMetadata),
+    route: null,
+    reachable: false,
+  };
+}
+
+/**
+ * The index: the machine's own name at the top level (exe.dev parity), the
+ * owner, and the paths — plus the `GET /api/vm/self` fields (`schema`, `machine`,
+ * `team`, `machines`) so this one answer serves `cmux self` and `cmux vm ls`.
+ */
 export function reflectionIndex(context: ReflectionContext): Record<string, unknown> {
   const { self, owner } = context;
   return {
@@ -128,6 +201,10 @@ export function reflectionIndex(context: ReflectionContext): Record<string, unkn
     plan_id: owner.planId,
     urls: { reflection: reflectionUrls(context) },
     paths: REFLECTION_PATHS,
+    schema: VM_SELF_SCHEMA,
+    machine: reflectionSelfMachine(context),
+    team: { id: owner.teamId },
+    machines: reflectionMachines(context),
   };
 }
 

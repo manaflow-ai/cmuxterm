@@ -1,146 +1,10 @@
 #!/bin/sh
-# cmux — in-VM CLI over this machine's cmux-tui daemon and linked peer machines.
-# Local verbs forward to cmux-tui (session "cloud"). `cmux vm …` talks to peers
-# this machine was linked to from the Mac (`cmux vm link <src> <dst>`).
+# cmux — in-VM CLI. One grammar, the same as on a Mac:
+#   cmux <verb> …               THIS machine's session (cmux-tui, session "cloud")
+#   cmux vm <verb> <machine> …  ANOTHER machine of the same owner, over a peer link
+#   cmux vm ls                  the owner's machines, this one marked *
+#   cmux self [<path>]          who am I (reflection; aliases whoami, reflect)
 set -eu
-
-case "${1:-}:${2:-}" in
-  self:*|vm:ls|vm:list)
-    guest_self_cli() (
-#!/bin/sh
-# cmux — inside a cmux Cloud machine. Self-discovery only; every other verb
-# runs on the Mac. Managed by cmux, reinstalled on attach; do not edit.
-set -eu
-
-case "${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}" in
-  ja*) cmux_lang=ja ;;
-  *) cmux_lang=en ;;
-esac
-
-msg() {
-  key="$1"; shift
-  case "$cmux_lang/$key" in
-    en/help) printf '%s' 'cmux (inside a cmux Cloud machine)
-
-  cmux self [--json]     which machine this is: name, id, status, team
-  cmux vm ls [--json]    the team'"'"'s machines, this one marked with *
-
-Every other cmux verb (vm new, vm exec, vm push, notify, …) runs on the Mac
-cmux CLI. This machine holds no account token; the TLS edge authenticates it.
-' ;;
-    ja/help) printf '%s' 'cmux（cmux Cloud マシン内）
-
-  cmux self [--json]     このマシンの名前、ID、状態、チーム
-  cmux vm ls [--json]    チームのマシン一覧。このマシンには * が付きます
-
-その他の cmux コマンド（vm new、vm exec、vm push、notify など）は Mac の
-cmux CLI で実行してください。このマシンはアカウントトークンを持たず、
-TLS エッジが認証します。
-' ;;
-    en/hostOnly) printf 'cmux: %s runs on the Mac cmux CLI, not inside a machine (try cmux --help)\n' "$@" ;;
-    ja/hostOnly) printf 'cmux: %s は Mac の cmux CLI で実行してください。マシン内では使えません（cmux --help を参照）\n' "$@" ;;
-    en/noEdge) printf 'cmux: no cmux API endpoint in this machine (CMUX_CODEROUTER_URL is missing)\n' ;;
-    ja/noEdge) printf 'cmux: このマシンに cmux API エンドポイントがありません（CMUX_CODEROUTER_URL が未設定）\n' ;;
-    en/unreachable) printf 'cmux: cannot reach the cmux API from this machine (%s): %s\n' "$@" ;;
-    ja/unreachable) printf 'cmux: このマシン（%s）から cmux API に到達できません: %s\n' "$@" ;;
-    en/rejected) printf 'cmux: the cmux API rejected this machine (HTTP %s): %s\n' "$@" ;;
-    ja/rejected) printf 'cmux: cmux API がこのマシンを拒否しました（HTTP %s）: %s\n' "$@" ;;
-    en/badOption) printf 'cmux: unknown option %s\n' "$@" ;;
-    ja/badOption) printf 'cmux: 不明なオプション %s\n' "$@" ;;
-    en/thisMachine) printf 'this machine' ;;
-    ja/thisMachine) printf 'このマシン' ;;
-    en/team) printf 'team' ;;
-    ja/team) printf 'チーム' ;;
-    en/machines) printf 'machines' ;;
-    ja/machines) printf 'マシン' ;;
-  esac
-}
-
-die() { status="$1"; shift; msg "$@" >&2; exit "$status"; }
-
-load_env() {
-  if [ -f "${HOME:-/root}/.config/cmux/model-plane.env" ]; then
-    . "${HOME:-/root}/.config/cmux/model-plane.env"
-  elif [ -f /etc/cmux/model-plane.env ]; then
-    . /etc/cmux/model-plane.env
-  fi
-  [ -n "${CMUX_CODEROUTER_URL:-}" ] || die 2 noEdge
-}
-
-# One request; body on stdout, HTTP status in $http_status. A transport failure
-# (DNS, TLS, timeout) exits 1 with curl's own reason so the cause is visible.
-fetch_self() {
-  load_env
-  set -- --silent --show-error --connect-timeout 5 --max-time 20 \
-    --header "authorization: Bearer ${OPENAI_API_KEY:-cmux-vm-edge-placeholder}" \
-    --header "accept: application/json" \
-    --write-out '\n%{http_code}'
-  if [ -f /usr/local/share/ca-certificates/freestyle-tls.crt ]; then
-    set -- --cacert /usr/local/share/ca-certificates/freestyle-tls.crt "$@"
-  fi
-  if ! raw="$(curl "$@" "${CMUX_CODEROUTER_URL%/}/api/vm/self" 2>&1)"; then
-    # curl still appends the --write-out status ("000") after its error line;
-    # the error line is the reason worth showing. The edge becomes active
-    # about half a minute after a machine boots, so a fresh machine can land
-    # here once before the same command succeeds.
-    reason="$(printf '%s' "$raw" | grep -m 1 '^curl:' || printf '%s' "$raw" | sed '$d' | tail -n 1)"
-    die 1 unreachable "$(hostname 2>/dev/null || echo unknown)" "${reason:-$raw}"
-  fi
-  http_status="$(printf '%s' "$raw" | tail -n 1)"
-  body="$(printf '%s' "$raw" | sed '$d')"
-  case "$http_status" in
-    200) ;;
-    *) die 1 rejected "$http_status" "$(printf '%s' "$body" | jq -r '.message // .error // "unexpected response"' 2>/dev/null || echo "$body")" ;;
-  esac
-}
-
-want_json() {
-  json=0
-  for arg in "$@"; do
-    case "$arg" in
-      --json) json=1 ;;
-      --help|-h) msg help; exit 0 ;;
-      *) die 2 badOption "$arg" ;;
-    esac
-  done
-}
-
-cmd_self() {
-  want_json "$@"
-  fetch_self
-  if [ "$json" -eq 1 ]; then printf '%s\n' "$body"; return 0; fi
-  printf '%s' "$body" | jq -r --arg self "$(msg thisMachine)" --arg team "$(msg team)" --arg machines "$(msg machines)" '
-    "\(.machine.name)\t\(.machine.id)\t\(.machine.status)\t(\($self))",
-    "\($team)\t\(.team.id)\t\(.machines | length) \($machines)"'
-}
-
-cmd_vm_ls() {
-  want_json "$@"
-  fetch_self
-  if [ "$json" -eq 1 ]; then printf '%s' "$body" | jq -c '{machines: .machines}'; printf '\n'; return 0; fi
-  printf '%s' "$body" | jq -r '.machines[] | "\(if .self then "*" else " " end) \(.name)\t\(.id)\t\(.status)"'
-}
-
-case "${1:-}" in
-  self) shift; cmd_self "$@" ;;
-  vm)
-    shift
-    case "${1:-}" in
-      ls|list) shift; cmd_vm_ls "$@" ;;
-      ""|--help|-h|help) msg help ;;
-      *) die 2 hostOnly "cmux vm $1" ;;
-    esac
-    ;;
-  ""|--help|-h|help) msg help ;;
-  --version|-v|version) printf 'cmux guest self-discovery CLI\n' ;;
-  *) die 2 hostOnly "cmux $1" ;;
-esac
-
-    )
-    guest_self_cli "$@"
-    exit $?
-    ;;
-esac
 
 cmux_message() {
   case "${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}" in
@@ -149,24 +13,6 @@ cmux_message() {
   esac
   cmux_message_key="$1"; shift
   case "$cmux_message_locale/$cmux_message_key" in
-    en/agentHelp) printf '
-AGENT WORKSPACE COMMANDS
-  cmux tree [--json]
-  cmux new-workspace [--name <name>]
-  cmux new-split <right|down> [--pane <pane_id>]
-  cmux layout export [--workspace <ws>] [--raw]
-  cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
-  cmux env set|ls|rm|path
-  cmux send [--terminal <id>] <text>
-  cmux send-key [--terminal <id>] <key> [key...]
-  cmux read-screen [--terminal <id>] [--json]
-  cmux terminal send|read|wait|close <id>
-  cmux vm terminal send|read|wait|close <peer> <term>
-  cmux vm workspace new|rename|close|rm <peer>
-  cmux vm agent <peer> --agent <claude|codex|opencode|pi>
-  cmux vm layout export|apply <peer>
-  cmux vm env set|ls|rm|path <peer>
-' "$@" ;;
     en/envHelp) printf 'cmux env — environment for every cmux shell and agent on this machine.
 
   cmux env set -                             KEY=VALUE lines on stdin (preferred: values stay out of ps and history)
@@ -185,6 +31,8 @@ are already open need `. ~/.config/cmux/env`. From the Mac: cmux vm env … <mac
     en/terminalHelp) printf 'cmux terminal send <id> [text] [--keys k1,k2,...]   type text as-is (no newline), then press named keys
 cmux terminal read <id> [--json]                    the visible screen
 cmux terminal wait <id> --pattern <regex> [--timeout <seconds>]   exit 1 when the screen never matches
+cmux terminal wait-exit <id> [--timeout <seconds>] [--json]   block until the process ends: "exited code=<n>" / "exited signal=<n>"; exit 1 while pending
+cmux terminal output <id> [--after <offset>] [--max-bytes <n>] [--json]   the output stream (scrollback), resumable from next_offset
 cmux terminal close <id>                            end the terminal (process and tab)
 cmux send [--terminal <id>] <text> / cmux send-key [--terminal <id>] <key...> / cmux read-screen [--terminal <id>]
    default terminal: the one this shell runs in ($CMUX_TUI_TERMINAL_ID). Ids: cmux terminal list.
@@ -240,13 +88,6 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
     en/hostOwned) printf '%s is host-owned; run it on the Mac cmux CLI (the VM uses scoped daemon/edge auth instead of Stack tokens)
 ' "$@" ;;
     en/missingLink) printf 'no link for machine '\''%s'\'': %s
-' "$@" ;;
-    en/identityHelp) printf '
-SELF IDENTITY (reflection)
-  cmux whoami [--json]              this machine'\''s name, id, owner and plan, as the control plane knows it
-  cmux reflect [<path>] [--json]    raw reflection JSON: /, /owner, /machine, /peers, /integrations
-  cmux vm ls                        linked peers, plus the owner'\''s other machines reflection can reach
-
 ' "$@" ;;
     en/identityLine) printf 'Identity: %s (%s)
 ' "$@" ;;
@@ -310,77 +151,84 @@ SELF IDENTITY (reflection)
 ' "$@" ;;
     en/connected) printf 'OK connected %s socket=%s
 ' "$@" ;;
-    en/help) printf 'cmux - Cloud workspace CLI
+    en/help) printf 'cmux - Cloud workspace CLI (inside a cmux Cloud machine)
 
-USAGE
-  cmux <scope> <action> [options]
+THIS MACHINE (your session; the same verbs as on a Mac)
+  cmux tree [--json]                          workspaces, panes, and terminals here
+  cmux new-workspace [--name <name>]          cmux new-split <right|down> [--pane <pane_id>]
+  cmux send [--terminal <id>] <text>          cmux send-key [--terminal <id>] <key> [key...]
+  cmux read-screen [--terminal <id>] [--json]
+  cmux terminal send|read|wait|wait-exit|output|close <id> ...   drive any terminal headlessly (cmux terminal help)
+  cmux layout export [--workspace <ws>] [--raw]
+  cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
+  cmux env set|ls|rm|path                     environment for every shell and agent here (cmux env help)
+  cmux workspace|pane|tab|terminal|browser|session <action> ...   cmux-tui'\''s own resource grammar (cmux <resource> --help)
 
-LOCAL WORKSPACE COMMANDS (this VM)
-  cmux workspace list|create|<id> <action>
-  cmux terminal list|<id> <action>
-  cmux pane list|<id> <action>
-  cmux session current snapshot|events
-  cmux notification list|create
+WHO AM I
+  cmux self [--json]                          name, id, status, team, owner, plan, as the control plane knows it
+  cmux self peers|integrations|owner|machine [--json]   what I can reach and use (aliases: cmux whoami, cmux reflect)
 
-CLOUD AND AGENT COMMANDS
-  cmux self [--json]
-  cmux vm ls [--json]
-  cmux vm peers|connect|exec|tree <peer> ...
-  cmux coderouter status|usage|models
-  cmux coderouter agent <claude|codex|opencode|pi> [args...]
-  cmux agent <claude|codex|opencode|pi> [args...]
-  cmux agent list|report|hook ...    Local cmux-tui agent state/hooks
+OTHER MACHINES (cmux vm <verb> <machine> ...; the same grammar as on a Mac)
+  cmux vm ls [--json]                         the owner'\''s machines, this one marked *
+  cmux vm exec <machine> -- <cmd...>          cmux vm tree <machine>
+  cmux vm terminal send|read|wait|wait-exit|output|close <machine> <term> ...
+  cmux vm workspace new|rename|close|rm <machine> ...      cmux vm layout export|apply <machine> ...
+  cmux vm agent <machine> --agent <claude|codex|opencode|pi> -- <prompt>
+  cmux vm env set|ls|rm|path <machine> ...    (cmux vm help lists them all)
+
+REACH THE HUMAN
   cmux notify --title <text> [--subtitle <text>] [--body <text>]
 
-AUTHENTICATION
-  cmux auth status [--json]       Check this daemon and the injected CodeRouter edge
-  cmux auth login|logout          Account sign-in is host-owned; run it on the Mac
+MODELS AND AGENTS
+  cmux coderouter status|usage|models
+  cmux coderouter agent <claude|codex|opencode|pi> [args...]
+  cmux agent <claude|codex|opencode|pi> [args...]      cmux agent list|report|hook ...
 
-This VM uses cmux-tui as its local transport. The Mac cmux CLI adds
-Mac-window and account-management commands; no Stack token is copied into
-this machine. CodeRouter requests use the Freestyle TLS edge, which injects
-the short-lived machine credential on the wire.
+AUTH
+  cmux auth status [--json]                   this daemon, the injected CodeRouter edge, and the machine identity
+  cmux auth login|logout                      account sign-in is host-owned; run it on the Mac
 
-Run cmux <scope> --help for the complete local resource grammar.
+No account token lives in this machine: the TLS edge authenticates it on the wire.
 ' "$@" ;;
-    en/peerHelp) printf 'cmux vm — talk to other cmux Cloud machines from inside this one.
+    en/peerHelp) printf 'cmux vm - other cmux Cloud machines of the same owner, from inside this one (the same grammar as on a Mac).
 
-  cmux vm peers                          linked machines and their link state, plus reachable peers from reflection
+  cmux vm ls [--json]                 the owner'\''s machines: this one marked *, status, reachable, linked/connected
   cmux vm connect <machine>           bring up the link (done lazily otherwise)
-  cmux vm exec <machine> -- <cmd…>    run a command on the peer (durable terminal)
-  cmux vm tree <machine>              the peer'\''s workspace/terminal snapshot
-  cmux vm terminal send|read|wait|close <machine> <term> …   drive a peer terminal headlessly
+  cmux vm exec <machine> -- <cmd…>    run a command on the machine (durable terminal)
+  cmux vm tree <machine>              the machine'\''s workspace/terminal snapshot
+  cmux vm terminal send|read|wait|wait-exit|output|close <machine> <term> …   drive a terminal there headlessly
   cmux vm send|send-key|read-screen <machine> <term> …       the same, Mac spelling
-  cmux vm workspace new|rename|close|rm <machine> …          peer workspaces (rm kills its terminals)
+  cmux vm workspace new|rename|close|rm <machine> …          its workspaces (rm kills their terminals)
   cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--workspace <ws>] -- <prompt or args…>
-                                      start a coding agent in a durable terminal on the peer
-  cmux vm layout export|apply <machine> …    the peer'\''s workspace layouts as data (see cmux layout help)
-  cmux vm env set|ls|rm|path <machine> …     the peer'\''s machine env (values travel only over the link; see cmux env help)
-  cmux vm <resource> <machine> …      any cmux-tui resource verb on the peer
+                                      start a coding agent in a durable terminal there
+  cmux vm layout export|apply <machine> …    its workspace layouts as data (see cmux layout help)
+  cmux vm env set|ls|rm|path <machine> …     its machine env (values travel only over the link; see cmux env help)
+  cmux vm <resource> <machine> …      any cmux-tui resource verb there
 
-A machine with no link yet is found through reflection (cmux reflect peers): its
+A machine with no link yet is found through reflection (cmux self peers): its
 private-network route is enough on current images, so no Mac step is needed.
 Local verbs need no prefix: cmux workspace…, cmux terminal…, cmux session….
 ' "$@" ;;
     en/thisMachine) printf '(this machine)
 ' "$@" ;;
-    ja/agentHelp) printf '
-エージェントのワークスペース操作
-  cmux tree [--json]
-  cmux new-workspace [--name <name>]
-  cmux new-split <right|down> [--pane <pane_id>]
-  cmux layout export [--workspace <ws>] [--raw]
-  cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
-  cmux env set|ls|rm|path
-  cmux send [--terminal <id>] <text>
-  cmux send-key [--terminal <id>] <key> [key...]
-  cmux read-screen [--terminal <id>] [--json]
-  cmux terminal send|read|wait|close <id>
-  cmux vm terminal send|read|wait|close <peer> <term>
-  cmux vm workspace new|rename|close|rm <peer>
-  cmux vm agent <peer> --agent <claude|codex|opencode|pi>
-  cmux vm layout export|apply <peer>
-  cmux vm env set|ls|rm|path <peer>
+    en/selfHelp) printf 'cmux self - who am I. Reflection is the control plane'\''s view of this machine, asserted by the TLS edge (no credential lives here).
+
+  cmux self [--json]                   name, id, status, team, owner, plan
+  cmux self peers [--json]             the owner'\''s other machines: status, private route, reachable
+  cmux self integrations [--json]      what this machine can use, each with a help command
+  cmux self owner|machine [--json]     the owner / this machine'\''s size, image, network, desktop
+  cmux self <path> [--json]            any reflection path (peers, /peers, ...)
+
+Aliases: cmux whoami = cmux self; cmux reflect [<path>] = cmux self [<path>].
+Discovery: cmux vm ls lists the same machines; cmux vm exec <machine> -- <cmd> links on first use.
+' "$@" ;;
+    en/labelTeam) printf 'team
+' "$@" ;;
+    en/labelOwner) printf 'owner
+' "$@" ;;
+    en/labelPlan) printf 'plan
+' "$@" ;;
+    en/labelMachines) printf 'machines
 ' "$@" ;;
     ja/envHelp) printf 'cmux env — このマシンの cmux シェルとエージェントの環境変数。
 
@@ -400,6 +248,8 @@ Local verbs need no prefix: cmux workspace…, cmux terminal…, cmux session…
     ja/terminalHelp) printf 'cmux terminal send <id> [text] [--keys k1,k2,...]   改行せずにテキストを入力し、指定キーを送信
 cmux terminal read <id> [--json]                    現在の画面を表示
 cmux terminal wait <id> --pattern <regex> [--timeout <seconds>]   一致しない場合は終了コード 1
+cmux terminal wait-exit <id> [--timeout <seconds>] [--json]   プロセス終了まで待機: "exited code=<n>" / "exited signal=<n>"。未終了なら終了コード 1
+cmux terminal output <id> [--after <offset>] [--max-bytes <n>] [--json]   出力ストリーム（スクロールバック）。next_offset から続きを取得
 cmux terminal close <id>                            端末のプロセスとタブを終了
 cmux send [--terminal <id>] <text> / cmux send-key [--terminal <id>] <key...> / cmux read-screen [--terminal <id>]
    既定の端末はこのシェルの端末（$CMUX_TUI_TERMINAL_ID）。ID は cmux terminal list で確認できます。
@@ -450,13 +300,6 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
     ja/hostOwned) printf '%s はホストで管理します。Mac の cmux CLI で実行してください（マシンでは用途を制限した認証を使用します）
 ' "$@" ;;
     ja/missingLink) printf 'マシン「%s」へのリンクがありません: %s
-' "$@" ;;
-    ja/identityHelp) printf '
-自己識別（リフレクション）
-  cmux whoami [--json]              コントロールプレーンが把握するこのマシンの名前・ID・所有者・プラン
-  cmux reflect [<path>] [--json]    リフレクションの生 JSON: /, /owner, /machine, /peers, /integrations
-  cmux vm ls                        リンク済みピアと、リフレクションが到達できる所有者の他マシン
-
 ' "$@" ;;
     ja/identityLine) printf '識別: %s (%s)
 ' "$@" ;;
@@ -520,58 +363,84 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
 ' "$@" ;;
     ja/connected) printf 'OK %s に接続しました socket=%s
 ' "$@" ;;
-    ja/help) printf 'cmux - クラウドワークスペース CLI
+    ja/help) printf 'cmux - クラウドワークスペース CLI（cmux Cloud マシン内）
 
-使用方法
-  cmux <scope> <action> [options]
+このマシン（自分のセッション。Mac と同じコマンド）
+  cmux tree [--json]                          ワークスペース・ペイン・端末の一覧
+  cmux new-workspace [--name <name>]          cmux new-split <right|down> [--pane <pane_id>]
+  cmux send [--terminal <id>] <text>          cmux send-key [--terminal <id>] <key> [key...]
+  cmux read-screen [--terminal <id>] [--json]
+  cmux terminal send|read|wait|wait-exit|output|close <id> ...   任意の端末をヘッドレスで操作（cmux terminal help）
+  cmux layout export [--workspace <ws>] [--raw]
+  cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
+  cmux env set|ls|rm|path                     このマシンの全シェルとエージェントの環境変数（cmux env help）
+  cmux workspace|pane|tab|terminal|browser|session <action> ...   cmux-tui のリソース文法（cmux <resource> --help）
 
-ローカルワークスペース（このマシン）
-  cmux workspace list|create|<id> <action>
-  cmux terminal list|<id> <action>
-  cmux pane list|<id> <action>
-  cmux session current snapshot|events
-  cmux notification list|create
+自分は誰か
+  cmux self [--json]                          名前・ID・状態・チーム・所有者・プラン（コントロールプレーンの把握内容）
+  cmux self peers|integrations|owner|machine [--json]   到達できるマシンと使える機能（別名: cmux whoami, cmux reflect）
 
-クラウドとエージェント
-  cmux self [--json]
-  cmux vm ls [--json]
-  cmux vm peers|connect|exec|tree <peer> ...
-  cmux coderouter status|usage|models
-  cmux coderouter agent <claude|codex|opencode|pi> [args...]
-  cmux agent <claude|codex|opencode|pi> [args...]
-  cmux agent list|report|hook ...    ローカルのエージェント状態・フック
+他のマシン（cmux vm <verb> <machine> ...。Mac と同じ文法）
+  cmux vm ls [--json]                         所有者のマシン一覧（このマシンは * 付き）
+  cmux vm exec <machine> -- <cmd...>          cmux vm tree <machine>
+  cmux vm terminal send|read|wait|wait-exit|output|close <machine> <term> ...
+  cmux vm workspace new|rename|close|rm <machine> ...      cmux vm layout export|apply <machine> ...
+  cmux vm agent <machine> --agent <claude|codex|opencode|pi> -- <prompt>
+  cmux vm env set|ls|rm|path <machine> ...    （一覧は cmux vm help）
+
+人間に知らせる
   cmux notify --title <text> [--subtitle <text>] [--body <text>]
 
+モデルとエージェント
+  cmux coderouter status|usage|models
+  cmux coderouter agent <claude|codex|opencode|pi> [args...]
+  cmux agent <claude|codex|opencode|pi> [args...]      cmux agent list|report|hook ...
+
 認証
-  cmux auth status [--json]       マシンと CodeRouter の認証を確認
-  cmux auth login|logout         サインインは Mac で管理します
+  cmux auth status [--json]                   デーモン・CodeRouter エッジ・マシン識別の確認
+  cmux auth login|logout                      サインインは Mac で管理します
 
-このマシンはローカル操作に cmux-tui を使用します。Mac の cmux CLI は
-ウィンドウとアカウントの管理にも対応します。アカウントの認証情報は
-マシンにコピーされません。CodeRouter の認証はホスト管理のルートで行います。
-
-ローカル操作の詳細は cmux <scope> --help を実行してください。
+アカウントの認証情報はマシンにコピーされません。TLS エッジが通信上で認証します。
 ' "$@" ;;
-    ja/peerHelp) printf 'cmux vm — このマシンから他の cmux クラウドマシンを操作。
+    ja/peerHelp) printf 'cmux vm - このマシンから、同じ所有者の他の cmux Cloud マシンを操作（Mac と同じ文法）。
 
-  cmux vm peers                          接続済みのマシンと、リフレクションで到達できるピアを表示
+  cmux vm ls [--json]                 所有者のマシン一覧: このマシンは * 付き、状態、到達可否、linked/connected
   cmux vm connect <machine>           リンクを開始（他の操作時にも自動接続）
-  cmux vm exec <machine> -- <cmd…>    ピアの永続端末でコマンドを実行
-  cmux vm tree <machine>              ピアのワークスペースと端末の状態
-  cmux vm terminal send|read|wait|close <machine> <term> …   ピアの端末を操作
+  cmux vm exec <machine> -- <cmd…>    そのマシンの永続端末でコマンドを実行
+  cmux vm tree <machine>              そのマシンのワークスペースと端末の状態
+  cmux vm terminal send|read|wait|wait-exit|output|close <machine> <term> …   そのマシンの端末を操作
   cmux vm send|send-key|read-screen <machine> <term> …       Mac と同じコマンド名
-  cmux vm workspace new|rename|close|rm <machine> …          ピアのワークスペース（rm は端末も終了）
+  cmux vm workspace new|rename|close|rm <machine> …          そのマシンのワークスペース（rm は端末も終了）
   cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--workspace <ws>] -- <prompt or args…>
-                                      ピアの永続端末でエージェントを開始
-  cmux vm layout export|apply <machine> …    ピアのレイアウト（cmux layout help を参照）
-  cmux vm env set|ls|rm|path <machine> …     ピアの環境変数（値はリンク経由のみ）
-  cmux vm <resource> <machine> …      ピアの cmux-tui リソース操作
+                                      そのマシンの永続端末でエージェントを開始
+  cmux vm layout export|apply <machine> …    そのマシンのレイアウト（cmux layout help を参照）
+  cmux vm env set|ls|rm|path <machine> …     そのマシンの環境変数（値はリンク経由のみ。cmux env help を参照）
+  cmux vm <resource> <machine> …      そのマシンの cmux-tui リソース操作
 
-リンクのないマシンはリフレクション（cmux reflect peers）で見つかります。現在のイメージでは
+リンクのないマシンはリフレクション（cmux self peers）で見つかります。現在のイメージでは
 プライベートネットワークのルートだけで接続でき、Mac での操作は不要です。
 ローカル操作に接頭辞は不要です：cmux workspace…、cmux terminal…、cmux session…。
 ' "$@" ;;
     ja/thisMachine) printf '（このマシン）
+' "$@" ;;
+    ja/selfHelp) printf 'cmux self - 自分は誰か。リフレクションは TLS エッジが保証する、コントロールプレーンから見たこのマシンの情報です（認証情報はマシン内にありません）。
+
+  cmux self [--json]                   名前・ID・状態・チーム・所有者・プラン
+  cmux self peers [--json]             所有者の他のマシン: 状態・プライベートルート・到達可否
+  cmux self integrations [--json]      このマシンで使える機能と、そのヘルプコマンド
+  cmux self owner|machine [--json]     所有者 / このマシンのサイズ・イメージ・ネットワーク・デスクトップ
+  cmux self <path> [--json]            任意のリフレクションパス（peers、/peers など）
+
+別名: cmux whoami = cmux self、cmux reflect [<path>] = cmux self [<path>]。
+探索: cmux vm ls は同じマシン一覧を表示し、cmux vm exec <machine> -- <cmd> は初回に自動でリンクします。
+' "$@" ;;
+    ja/labelTeam) printf 'チーム
+' "$@" ;;
+    ja/labelOwner) printf '所有者
+' "$@" ;;
+    ja/labelPlan) printf 'プラン
+' "$@" ;;
+    ja/labelMachines) printf '台
 ' "$@" ;;
     *) return 1 ;;
   esac
@@ -614,7 +483,13 @@ warn() {
   return 0
 }
 
-[ -x "$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "$CMUX_TUI_BIN"
+# Identity, discovery, and help come from the control plane or this file, so
+# they answer while cmux-tui is still installing (the bootstrap shim's
+# contract); every other verb needs the daemon.
+case "${1:-}:${2:-}" in
+  self:*|whoami:*|reflect:*|reflection:*|vm:ls|vm:list|vm:peers|vm:links|vm:help|vm:--help|vm:-h|vm:|:*|help:*|--help:*|-h:*|--version:*|-V:*) ;;
+  *) [ -x "$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "$CMUX_TUI_BIN" ;;
+esac
 
 # One routing target for every verb: this machine's session, or — after
 # use_peer — a linked peer's headless-link socket. tui() prepends it, so the
@@ -632,8 +507,6 @@ use_peer() {
 
 guest_usage() {
   cmux_message help
-  cmux_message identityHelp
-  cmux_message agentHelp
 }
 
 load_model_env() {
@@ -713,12 +586,21 @@ reflection_fetch() {
   # The canonical form carries no trailing slash (Next redirects '/x/' to '/x',
   # and a redirect is not an answer): the index is the bare base URL.
   while [ "${cmux_rf_path%/}" != "$cmux_rf_path" ]; do cmux_rf_path="${cmux_rf_path%/}"; done
+  reflection_fetch_url "$cmux_rf_base$cmux_rf_path" "$2"
+}
+
+# reflection_fetch_url <url> <out-file>: one GET through the edge. The status
+# rides stdout as the last line (curl --write-out), the way the image's
+# bootstrap shim reads it, so both shims see the same edge the same way.
+reflection_fetch_url() {
   cmux_rf_out="$2"
   : > "$cmux_rf_out"
-  cmux_rf_status="$(cmux_curl -sSL -o "$cmux_rf_out" -w '%{http_code}' --connect-timeout 5 --max-time 20 \
+  cmux_rf_raw="$(cmux_curl -sSL --connect-timeout 5 --max-time 20 \
     -H "authorization: Bearer ${OPENAI_API_KEY:-cmux-vm-edge-placeholder}" -H 'accept: application/json' \
-    "$cmux_rf_base$cmux_rf_path" 2>/dev/null)" || cmux_rf_status=000
-  case "$cmux_rf_status" in ''|*[!0-9]*) cmux_rf_status=000 ;; esac
+    --write-out '\n%{http_code}' "$1" 2>/dev/null)" || :
+  cmux_rf_status="$(printf '%s' "$cmux_rf_raw" | tail -n 1)"
+  case "$cmux_rf_status" in ''|*[!0-9]*) cmux_rf_status=000; return 1 ;; esac
+  printf '%s' "$cmux_rf_raw" | sed '$d' > "$cmux_rf_out"
   case "$cmux_rf_status" in 2[0-9][0-9]) return 0 ;; esac
   return 1
 }
@@ -738,55 +620,152 @@ reflection_print() {
   if [ -n "$(tail -c 1 "$1" 2>/dev/null)" ]; then printf '\n'; fi
 }
 
-guest_whoami() {
-  cmux_wi_json=0
-  for cmux_arg in "$@"; do
-    case "$cmux_arg" in
-      --json) cmux_wi_json=1 ;;
-      --help|-h) cmux_message identityHelp; return 0 ;;
-      *) die "whoami: unknown option $cmux_arg" 2 ;;
-    esac
-  done
-  cmux_wi_out="$(mktemp "${TMPDIR:-/tmp}/cmux-whoami.XXXXXX")"
-  reflection_fetch / "$cmux_wi_out" && cmux_wi_rc=0 || cmux_wi_rc=$?
-  if [ "$cmux_wi_rc" -eq 2 ]; then rm -f "$cmux_wi_out"; die_message 2 missingCodeRouter; fi
-  if [ "$cmux_wi_rc" -ne 0 ]; then
-    cmux_wi_why="$(reflection_failure "$cmux_rf_base" "$cmux_wi_out")"
-    rm -f "$cmux_wi_out"
-    die "$cmux_wi_why" 1
-  fi
-  if [ "$cmux_wi_json" -eq 1 ]; then
-    reflection_print "$cmux_wi_out"
-  elif ! jq -r '"\(.name // "?")  \(.vm_id // "?")  owner=\(.owner.email // .owner.user_id // "unknown")  plan=\(.plan_id // "unknown")  status=\(.status // "unknown")"' "$cmux_wi_out" 2>/dev/null; then
-    rm -f "$cmux_wi_out"
-    die_message 1 reflectionInvalid
-  fi
-  rm -f "$cmux_wi_out"
+# self_fetch <out-file>: the identity index. Reflection's "/" is the whole
+# picture (owner, plan, the owner's machines with routes); a control plane that
+# answers 404 there still serves GET /api/vm/self (machine, team, machines), so
+# `cmux self` and `cmux vm ls` read the same either way. Returns as
+# reflection_fetch; cmux_sf_source is reflection or self.
+self_fetch() {
+  cmux_sf_source=reflection
+  reflection_fetch / "$1" && return 0
+  cmux_sf_rc=$?
+  [ "$cmux_sf_rc" -ne 2 ] || return 2
+  [ "$cmux_rf_status" = 404 ] || return 1
+  cmux_sf_source=self
+  cmux_rf_base="${CMUX_CODEROUTER_URL%/}/api/vm/self"
+  reflection_fetch_url "$cmux_rf_base" "$1"
 }
 
-guest_reflect() {
-  cmux_re_path=/
+# self_machines <index-file>: make sure the index carries machines[] (the
+# owner's machines, this one flagged self). A reflection server from before the
+# superset has none; its /peers plus the index itself give the same list.
+self_machines() {
+  if jq -e '(.machines | type) == "array"' "$1" >/dev/null 2>&1; then return 0; fi
+  [ "$cmux_sf_source" = reflection ] || return 0
+  cmux_sm_peers="$(mktemp "${TMPDIR:-/tmp}/cmux-peers.XXXXXX")"
+  if reflection_fetch /peers "$cmux_sm_peers"; then
+    jq --slurpfile peers "$cmux_sm_peers" '. + {machines: (
+        [{id: (.provider_vm_id // .vm_id), vmId: .vm_id, name: (.display_name // .name), displayName: .display_name, slug: .name,
+          status: .status, createdAt: .created_at, self: true, route: null, reachable: false}]
+        + [($peers[0].peers // [])[] | {id: (.provider_vm_id // .vm_id), vmId: .vm_id, name: (.display_name // .name), displayName: .display_name,
+          slug: .name, status: .status, self: false, route: .route, reachable: (.reachable // (.route != null)), network: .network}])}' \
+      "$1" > "$1.machines" 2>/dev/null && mv "$1.machines" "$1" || rm -f "$1.machines"
+  fi
+  rm -f "$cmux_sm_peers"
+  return 0
+}
+
+# The human index: the lines main's `cmux self` prints, from either source.
+self_human() {
+  jq -r --arg self "$(cmux_message thisMachine)" --arg team "$(cmux_message labelTeam)" \
+    --arg machines "$(cmux_message labelMachines)" --arg owner "$(cmux_message labelOwner)" --arg plan "$(cmux_message labelPlan)" '
+    (.machine.name // .display_name // .name // "?") as $name
+    | (.machine.id // .provider_vm_id // .vm_id // "?") as $id
+    | (.machine.status // .status // "unknown") as $status
+    | (.team.id // .team_id // null) as $team_id
+    | (if (.machines | type) == "array" then "\t\(.machines | length) \($machines)" else "" end) as $count
+    | (.owner.email // .owner.user_id // null) as $owner_id
+    | (.plan_id // null) as $plan_id
+    | ["\($name)\t\($id)\t\($status)\t\($self)"]
+      + (if $team_id != null then ["\($team)\t\($team_id)\($count)"] else [] end)
+      + (if $owner_id != null then ["\($owner)\t\($owner_id)"] else [] end)
+      + (if $plan_id != null then ["\($plan)\t\($plan_id)"] else [] end)
+    | .[]' "$1"
+}
+
+# cmux self [<path>] [--json]: who am I, as the control plane knows it (the
+# edge asserts the identity; nothing here is a credential). <path> is any
+# reflection path: peers, integrations, owner, machine. whoami and reflect are
+# aliases of this verb.
+guest_self() {
+  cmux_self_json=0
+  cmux_self_path=""
   for cmux_arg in "$@"; do
     case "$cmux_arg" in
-      --json) ;;
-      --help|-h) cmux_message identityHelp; return 0 ;;
-      -*) die "reflect: unknown option $cmux_arg" 2 ;;
-      *) cmux_re_path="$cmux_arg" ;;
+      --json) cmux_self_json=1 ;;
+      --help|-h) cmux_message selfHelp; return 0 ;;
+      -*) die "self: unknown option $cmux_arg" 2 ;;
+      *) [ -z "$cmux_self_path" ] || die "self: one path at most (cmux self peers)" 2; cmux_self_path="$cmux_arg" ;;
     esac
   done
-  case "$cmux_re_path" in
-    *[!A-Za-z0-9/_.-]*) die "reflect: path must look like /peers" 2 ;;
-  esac
-  cmux_re_out="$(mktemp "${TMPDIR:-/tmp}/cmux-reflect.XXXXXX")"
-  reflection_fetch "$cmux_re_path" "$cmux_re_out" && cmux_re_rc=0 || cmux_re_rc=$?
-  if [ "$cmux_re_rc" -eq 2 ]; then rm -f "$cmux_re_out"; die_message 2 missingCodeRouter; fi
-  if [ "$cmux_re_rc" -ne 0 ]; then
-    cmux_re_why="$(reflection_failure "$cmux_rf_base" "$cmux_re_out")"
-    rm -f "$cmux_re_out"
-    die "$cmux_re_why" 1
+  case "$cmux_self_path" in *[!A-Za-z0-9/_.-]*) die "self: path must look like peers or /peers" 2 ;; esac
+  while [ "${cmux_self_path%/}" != "$cmux_self_path" ]; do cmux_self_path="${cmux_self_path%/}"; done
+  cmux_self_path="${cmux_self_path#/}"
+  cmux_self_out="$(mktemp "${TMPDIR:-/tmp}/cmux-self.XXXXXX")"
+  if [ -z "$cmux_self_path" ]; then
+    self_fetch "$cmux_self_out" && cmux_self_rc=0 || cmux_self_rc=$?
+  else
+    reflection_fetch "$cmux_self_path" "$cmux_self_out" && cmux_self_rc=0 || cmux_self_rc=$?
   fi
-  reflection_print "$cmux_re_out"
-  rm -f "$cmux_re_out"
+  if [ "$cmux_self_rc" -eq 2 ]; then rm -f "$cmux_self_out"; die_message 2 missingCodeRouter; fi
+  if [ "$cmux_self_rc" -ne 0 ]; then
+    cmux_self_why="$(reflection_failure "$cmux_rf_base" "$cmux_self_out")"
+    rm -f "$cmux_self_out"
+    die "$cmux_self_why" 1
+  fi
+  if [ "$cmux_self_json" -eq 1 ] || [ -n "$cmux_self_path" ]; then
+    reflection_print "$cmux_self_out"
+  elif ! self_human "$cmux_self_out" 2>/dev/null; then
+    rm -f "$cmux_self_out"
+    die_message 1 reflectionInvalid
+  fi
+  rm -f "$cmux_self_out"
+}
+
+# cmux vm ls [--json]: the owner's machines from the same index, this one
+# marked *. Reachability is the control plane's word (a private-network route
+# exists); linked/connected is this machine's own peer-link state.
+guest_vm_ls() {
+  cmux_ls_json=0
+  for cmux_arg in "$@"; do
+    case "$cmux_arg" in
+      --json) cmux_ls_json=1 ;;
+      --help|-h) peer_usage; return 0 ;;
+      *) die "usage: cmux vm ls [--json]" 2 ;;
+    esac
+  done
+  cmux_ls_out="$(mktemp "${TMPDIR:-/tmp}/cmux-ls.XXXXXX")"
+  self_fetch "$cmux_ls_out" && cmux_ls_rc=0 || cmux_ls_rc=$?
+  if [ "$cmux_ls_rc" -eq 2 ]; then rm -f "$cmux_ls_out"; die_message 2 missingCodeRouter; fi
+  if [ "$cmux_ls_rc" -ne 0 ]; then
+    cmux_ls_why="$(reflection_failure "$cmux_rf_base" "$cmux_ls_out")"
+    rm -f "$cmux_ls_out"
+    die "$cmux_ls_why" 1
+  fi
+  self_machines "$cmux_ls_out"
+  if ! jq -e '(.machines | type) == "array"' "$cmux_ls_out" >/dev/null 2>&1; then
+    rm -f "$cmux_ls_out"
+    die_message 1 reflectionInvalid
+  fi
+  if [ "$cmux_ls_json" -eq 1 ]; then
+    jq -c '{machines: .machines}' "$cmux_ls_out"
+    rm -f "$cmux_ls_out"
+    return 0
+  fi
+  cmux_ls_tab="$(printf '\t')"
+  # "-" stands for an empty field: a tab is IFS whitespace, so empty fields would not survive read.
+  jq -r --arg self "$(cmux_message thisMachine)" '.machines[]
+    | [ (if .self then "*" else "-" end), (.name // "?"), (.id // .provider_vm_id // "?"), (.status // "unknown"),
+        (if .self then $self elif .reachable == true then "reachable" elif .reachable == false then "unreachable" else "-" end),
+        (.displayName // "-"), (.slug // "-"), (.vmId // "-") ]
+    | @tsv' "$cmux_ls_out" | while IFS="$cmux_ls_tab" read -r cmux_ls_mark cmux_ls_name cmux_ls_id cmux_ls_status cmux_ls_reach cmux_ls_display cmux_ls_slug cmux_ls_vmid; do
+    cmux_ls_link=""
+    if [ "$cmux_ls_mark" != "*" ]; then
+      cmux_ls_mark=" "
+      for cmux_ls_key in "$cmux_ls_name" "$cmux_ls_display" "$cmux_ls_slug" "$cmux_ls_vmid" "$cmux_ls_id"; do
+        [ "$cmux_ls_key" != "-" ] || continue
+        [ -f "$PEERS_DIR/$cmux_ls_key.json" ] || continue
+        cmux_ls_link=linked
+        if [ -f "$LINKS_DIR/$cmux_ls_key.pid" ] && kill -0 "$(cat "$LINKS_DIR/$cmux_ls_key.pid")" 2>/dev/null; then cmux_ls_link=connected; fi
+        break
+      done
+    fi
+    printf '%s %s\t%s\t%s' "$cmux_ls_mark" "$cmux_ls_name" "$cmux_ls_id" "$cmux_ls_status"
+    [ "$cmux_ls_reach" = "-" ] || printf '\t%s' "$cmux_ls_reach"
+    [ -z "$cmux_ls_link" ] || printf '\t%s' "$cmux_ls_link"
+    printf '\n'
+  done
+  rm -f "$cmux_ls_out"
 }
 
 # When ~/.cmux/peers/<peer>.json is missing, ask reflection for the owner's
@@ -1513,11 +1492,65 @@ terminal_verb() {
         die "timed out after ${cmux_tv_timeout}s waiting for /$cmux_tv_pattern/ on $cmux_tv_term" 1
       fi
       ;;
+    wait-exit)
+      cmux_tv_timeout=""
+      cmux_tv_json=0
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --timeout) [ "$#" -ge 2 ] || die "terminal wait-exit: --timeout needs seconds" 2; cmux_tv_timeout="$2"; shift 2 ;;
+          --timeout=*) cmux_tv_timeout="${1#--timeout=}"; shift ;;
+          --json) cmux_tv_json=1; shift ;;
+          *) die "terminal wait-exit: unknown option $1" 2 ;;
+        esac
+      done
+      set -- terminal "$cmux_tv_term" process wait
+      if [ -n "$cmux_tv_timeout" ]; then
+        cmux_tv_ms="$(timeout_ms "$cmux_tv_timeout")"
+        set -- "$@" --timeout-ms "$cmux_tv_ms"
+      fi
+      if cmux_tv_out="$(tui --json "$@" 2>&1)"; then :; else
+        die "terminal wait-exit failed on $cmux_tv_term: $cmux_tv_out" 1
+      fi
+      cmux_tv_state="$(printf '%s\n' "$cmux_tv_out" | jq -r '(.value // .) | if .state == "exited" then ((.outcome // {}) | if .kind == "exit" then "exited code=\(.code)" elif .kind == "signal" then "exited signal=\(.signal)" else "exited unknown=\(.reason // "?")" end) else "pending" end' 2>/dev/null || printf pending)"
+      if [ "$cmux_tv_json" -eq 1 ]; then printf '%s\n' "$cmux_tv_out"; else printf '%s\n' "$cmux_tv_state"; fi
+      case "$cmux_tv_state" in exited*) ;; *) exit 1 ;; esac
+      ;;
+    output)
+      cmux_tv_after=""
+      cmux_tv_max=""
+      cmux_tv_json=0
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --after) [ "$#" -ge 2 ] || die "terminal output: --after needs a byte offset" 2; cmux_tv_after="$2"; shift 2 ;;
+          --after=*) cmux_tv_after="${1#--after=}"; shift ;;
+          --max-bytes) [ "$#" -ge 2 ] || die "terminal output: --max-bytes needs a count" 2; cmux_tv_max="$2"; shift 2 ;;
+          --max-bytes=*) cmux_tv_max="${1#--max-bytes=}"; shift ;;
+          --json) cmux_tv_json=1; shift ;;
+          *) die "terminal output: unknown option $1" 2 ;;
+        esac
+      done
+      case "$cmux_tv_after" in *[!0-9]*) die "terminal output: --after takes a byte offset, got '$cmux_tv_after'" 2 ;; esac
+      case "$cmux_tv_max" in *[!0-9]*) die "terminal output: --max-bytes takes 1..4194304, got '$cmux_tv_max'" 2 ;; esac
+      if [ -n "$cmux_tv_max" ] && { [ "$cmux_tv_max" -lt 1 ] || [ "$cmux_tv_max" -gt 4194304 ]; }; then
+        die "terminal output: --max-bytes takes 1..4194304, got '$cmux_tv_max'" 2
+      fi
+      set -- terminal "$cmux_tv_term" output read
+      [ -z "$cmux_tv_after" ] || set -- "$@" --after "$cmux_tv_after"
+      [ -z "$cmux_tv_max" ] || set -- "$@" --max-bytes "$cmux_tv_max"
+      if cmux_tv_out="$(tui --json "$@" 2>&1)"; then :; else
+        die "terminal output failed on $cmux_tv_term: $cmux_tv_out" 1
+      fi
+      if [ "$cmux_tv_json" -eq 1 ]; then
+        printf '%s\n' "$cmux_tv_out"
+      else
+        printf '%s\n' "$cmux_tv_out" | jq -j '(.value // .) | .text // ""'
+      fi
+      ;;
     close)
       tui terminal "$cmux_tv_term" close
       ;;
     *)
-      die "terminal: unknown verb '$cmux_tv_verb' (send, read, wait, close)" 2
+      die "terminal: unknown verb '$cmux_tv_verb' (send, read, wait, wait-exit, output, close)" 2
       ;;
   esac
 }
@@ -2304,13 +2337,9 @@ case "${1:-}" in
   ai-accounts|remotes)
     host_only_command "cmux $1"
     ;;
-  whoami)
+  self|whoami|reflect|reflection)
     shift
-    guest_whoami "$@"
-    ;;
-  reflect|reflection)
-    shift
-    guest_reflect "$@"
+    guest_self "$@"
     ;;
   env)
     shift
@@ -2371,7 +2400,10 @@ case "${1:-}" in
     # The Mac's verb-first spelling (`terminal send <id> …`); cmux-tui's own
     # id-first grammar (`terminal <id> write …`, `terminal list`) passes through.
     case "${2:-}" in
-      send|write|read|screen|wait|close)
+      help|--help|-h)
+        terminal_usage
+        ;;
+      send|write|read|screen|wait|wait-exit|output|close)
         cmux_verb="$2"
         cmux_term="${3:-}"
         shift 2
@@ -2387,40 +2419,8 @@ case "${1:-}" in
     shift
     sub="${1:-}"; [ "$#" -gt 0 ] && shift
     case "$sub" in
-      peers|links)
-        # This machine (its reflection name when the edge can say), every linked
-        # peer, then the owner's other machines that reflection reports — those
-        # link on first use (cmux vm exec <name> …), no Mac step needed.
-        cmux_ls_self="$(hostname 2>/dev/null || echo local)"
-        cmux_ls_out="$(mktemp "${TMPDIR:-/tmp}/cmux-ls.XXXXXX")"
-        cmux_ls_have_peers=0
-        if reflection_fetch / "$cmux_ls_out"; then
-          cmux_ls_name="$(jq -r '.name // empty' "$cmux_ls_out" 2>/dev/null || true)"
-          [ -z "$cmux_ls_name" ] || cmux_ls_self="$cmux_ls_name"
-          if reflection_fetch /peers "$cmux_ls_out"; then cmux_ls_have_peers=1; fi
-        fi
-        printf '%s\t%s\n' "$cmux_ls_self" "$(cmux_message thisMachine)"
-        cmux_ls_linked=" "
-        if [ -d "$PEERS_DIR" ]; then
-          for f in "$PEERS_DIR"/*.json; do
-            [ -e "$f" ] || continue
-            name="$(basename "$f" .json)"
-            cmux_ls_linked="$cmux_ls_linked$name "
-            state=linked
-            pidf="$LINKS_DIR/$name.pid"
-            if [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null; then state=connected; fi
-            printf '%s\t%s\n' "$name" "$state"
-          done
-        fi
-        if [ "$cmux_ls_have_peers" -eq 1 ]; then
-          cmux_ls_tab="$(printf '\t')"
-          jq -r '.peers // [] | .[] | "\(.name)\t\(.status // "unknown")\t\(if .route then "reachable" else "unreachable" end)"' "$cmux_ls_out" 2>/dev/null | while IFS= read -r cmux_ls_line; do
-            cmux_ls_pname="${cmux_ls_line%%"$cmux_ls_tab"*}"
-            case "$cmux_ls_linked" in *" $cmux_ls_pname "*) continue ;; esac
-            printf '%s\n' "$cmux_ls_line"
-          done
-        fi
-        rm -f "$cmux_ls_out"
+      ls|list|peers|links)
+        guest_vm_ls "$@"
         ;;
       connect)
         peer="${1:-}"; [ -n "$peer" ] || die_message 2 connectUsage
@@ -2440,7 +2440,7 @@ case "${1:-}" in
         ;;
       terminal)
         case "${1:-}" in
-          send|write|read|screen|wait|close)
+          send|write|read|screen|wait|wait-exit|output|close)
             cmux_verb="$1"
             peer="${2:-}"
             cmux_term="${3:-}"

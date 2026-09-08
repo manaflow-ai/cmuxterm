@@ -159,6 +159,55 @@ describe("reflection payloads", () => {
     expect((index.paths as { path: string }[]).map((entry) => entry.path)).toEqual(["/owner", "/machine", "/peers", "/integrations"]);
   });
 
+  test("the index also serves the /api/vm/self view: schema, this machine, team, and every owner machine with routes", () => {
+    // Distinct creation times so the newest-first order is unambiguous.
+    const newest = row({ id: PEER_ID, slug: "vivid-newt", createdAt: new Date("2026-09-07T00:00:00Z"), providerMetadata: { networkIpv6: "fd00:7::9" } });
+    const oldest = row({ id: ADDRESSLESS_ID, slug: "quiet-fox", status: "paused", createdAt: new Date("2026-09-01T00:00:00Z") });
+    const selfRow = { ...self, createdAt: new Date("2026-09-05T00:00:00Z") };
+    const index = reflectionIndex({ ...context, self: selfRow, siblings: [newest, selfRow, oldest, destroyed, otherOwner] }) as {
+      schema: number;
+      team: { id: string };
+      machine: Record<string, unknown>;
+      machines: Array<Record<string, unknown>>;
+    };
+    expect(index.schema).toBe(1);
+    expect(index.team).toEqual({ id: "team-1" });
+    // The caller, in the VmSelfMachine shape (`name` = label, `id` = provider id), never routed to itself.
+    expect(index.machine).toEqual({
+      id: selfRow.providerVmId,
+      vmId: SELF_ID,
+      name: "build box",
+      displayName: "build box",
+      slug: "brave-otter",
+      status: "running",
+      createdAt: "2026-09-05T00:00:00.000Z",
+      self: true,
+      network: { ipv4: "10.7.0.5", ipv6: "fd00:7::5" },
+      route: null,
+      reachable: false,
+    });
+    // Newest first, self included and flagged, destroyed and foreign rows gone,
+    // a paused machine without an address listed but unreachable.
+    expect(index.machines.map((machine) => [machine.vmId, machine.self, machine.reachable])).toEqual([
+      [PEER_ID, false, true],
+      [SELF_ID, true, false],
+      [ADDRESSLESS_ID, false, false],
+    ]);
+    expect(index.machines[0]).toMatchObject({ id: newest.providerVmId, name: "vivid-newt", route: "ws://[fd00:7::9]:1337/v1/link" });
+    expect(index.machines[2]).toMatchObject({ status: "paused", route: null });
+  });
+
+  test("a caller still provisioning (no provider id) is its own machine entry by row id", () => {
+    const provisioning = row({ id: SELF_ID, providerVmId: null, slug: "new-hare", status: "provisioning" });
+    const index = reflectionIndex({ ...context, self: provisioning, siblings: [provisioning] }) as {
+      machine: Record<string, unknown>;
+      machines: Array<Record<string, unknown>>;
+    };
+    expect(index.machine).toMatchObject({ id: SELF_ID, vmId: SELF_ID, name: "new-hare", self: true, route: null });
+    // The list keeps the /api/vm/self filter: no provider id, no entry.
+    expect(index.machines).toEqual([]);
+  });
+
   test("a machine without a slug or label falls back to its provider id", () => {
     const bare = { ...context, self: row({ id: SELF_ID, providerVmId: "fs-abc" }) };
     const index = reflectionIndex(bare);
