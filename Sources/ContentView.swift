@@ -2672,9 +2672,17 @@ struct ContentView: View {
         let _ = { minimalModeInvalidationProbe.contentViewBody?() }()
 #endif
         let appearance = windowAppearanceSnapshot
+        let backdropPlan = appearance.backdropPlan(
+            glassEffectAvailable: windowChrome.glassEffect.isAvailable,
+            windowBackgroundPolicy: windowChrome.windowBackgroundPolicy
+        )
         var view = AnyView(
             ZStack(alignment: .topLeading) {
-                WindowBackdropLayer(role: .windowRoot, snapshot: appearance)
+                WindowBackdropLayer(
+                    role: .windowRoot,
+                    snapshot: appearance,
+                    rendersBackdrop: backdropPlan.hostingPhase != .opaqueRootBackdrop
+                )
                     .ignoresSafeArea()
                     .allowsHitTesting(false)
 
@@ -3470,13 +3478,11 @@ struct ContentView: View {
         })
 
         let commandPaletteOverlayView = AnyView(commandPaletteOverlay)
-        let appKitWindowMutationID = appearance.appKitWindowMutationID(
-            windowBackgroundPolicy: windowChrome.windowBackgroundPolicy
-        )
-        let mainWindowAccessor = WindowAccessor(refreshID: appKitWindowMutationID) { [appearance, commandPaletteOverlayView] window in
+        let mainWindowAccessor = WindowAccessor(refreshID: backdropPlan.appKitMutationID) { [appearance, backdropPlan, commandPaletteOverlayView] window in
             configureMainWindowChrome(
                 window,
                 appearance: appearance,
+                backdropPlan: backdropPlan,
                 commandPaletteOverlayView: commandPaletteOverlayView
             )
         }
@@ -3496,6 +3502,7 @@ struct ContentView: View {
     private func configureMainWindowChrome(
         _ window: NSWindow,
         appearance: WindowAppearanceSnapshot,
+        backdropPlan: WindowBackdropPlan,
         commandPaletteOverlayView: AnyView
     ) {
         window.identifier = NSUserInterfaceItemIdentifier(windowIdentifier)
@@ -3529,10 +3536,6 @@ struct ContentView: View {
         // User settings decide whether window glass is active. The native Tahoe
         // NSGlassEffectView path vs the older NSVisualEffectView fallback is chosen
         // inside WindowGlassEffect.apply.
-        let backdropPlan = appearance.backdropPlan(
-            glassEffectAvailable: windowChrome.glassEffect.isAvailable,
-            windowBackgroundPolicy: windowChrome.windowBackgroundPolicy
-        )
         windowChrome.nativeTitlebarBackdropCoordinator.removeNativeTitlebarBackdrop(in: window)
 #if DEBUG
         if ProcessInfo.processInfo.environment["CMUX_UI_TEST_MODE"] == "1" {

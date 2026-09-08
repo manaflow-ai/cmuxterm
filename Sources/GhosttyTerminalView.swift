@@ -4075,10 +4075,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
             layer.isOpaque = false
             CATransaction.commit()
         }
-        terminalSurface?.hostedView.setBackgroundColor(
-            color,
-            clearsSharedWindowBackdrop: fillPlan.clearsSharedWindowBackdrop
-        )
+        terminalSurface?.hostedView.setBackgroundColor(color)
         if GhosttyApp.shared.backgroundLogEnabled {
             let signature = "\(fillPlan.usesHostLayerFill ? color.hexString() : "transparent-host"):\(String(format: "%.3f", color.alphaComponent)):\(fillPlan.logBackdropLabel)"
             if signature != lastLoggedSurfaceBackgroundSignature {
@@ -9598,7 +9595,6 @@ final class GhosttySurfaceScrollView: NSView {
         static let lineWidth = PanelOverlayRingMetrics.lineWidth
     }
 
-    private let sharedBackdropCutoutView: TerminalSharedBackdropCutoutView
     private let backgroundView: TerminalPaneBackgroundView
     private let scrollView: GhosttyScrollView
     private let documentView: NSView
@@ -9868,7 +9864,6 @@ final class GhosttySurfaceScrollView: NSView {
         #endif
 
         self.surfaceView = surfaceView
-        sharedBackdropCutoutView = TerminalSharedBackdropCutoutView(frame: .zero)
         backgroundView = TerminalPaneBackgroundView(frame: .zero)
         scrollView = GhosttyScrollView()
         inactiveOverlayView = GhosttyFlashOverlayView(frame: .zero)
@@ -9910,7 +9905,6 @@ final class GhosttySurfaceScrollView: NSView {
         backgroundView.layer?.isOpaque = false
         backgroundView.terminalSurfaceView = surfaceView
         backgroundView.terminalScrollView = scrollView
-        addSubview(sharedBackdropCutoutView)
         addSubview(backgroundView)
         addSubview(scrollView)
         mobileViewportBorderOverlayView.isHidden = true
@@ -10372,7 +10366,6 @@ final class GhosttySurfaceScrollView: NSView {
 
         let didScrollbarAppearanceChange = synchronizeScrollbarAppearance()
         let previousSurfaceSize = surfaceView.frame.size
-        _ = setFrameIfNeeded(sharedBackdropCutoutView, to: bounds)
         _ = setFrameIfNeeded(backgroundView, to: bounds)
         let contentFrame = sessionContentFrame
         _ = setFrameIfNeeded(scrollView, to: contentFrame)
@@ -10735,12 +10728,11 @@ final class GhosttySurfaceScrollView: NSView {
         surfaceView.onTriggerFlash = handler
     }
 
-    /// Applies the host-layer terminal fill and optionally clears the shared backdrop behind it.
-    func setBackgroundColor(_ color: NSColor, clearsSharedWindowBackdrop: Bool = false) {
+    /// Applies the pane-local terminal fill above the shared root backdrop layer.
+    func setBackgroundColor(_ color: NSColor) {
         guard let layer = backgroundView.layer else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        sharedBackdropCutoutView.setClearingSharedBackdrop(clearsSharedWindowBackdrop)
         layer.backgroundColor = color.cgColor
         layer.isOpaque = color.alphaComponent >= 1.0
         CATransaction.commit()
