@@ -858,7 +858,7 @@ function hasCoderouterFounderEntitlement(
   return hasEffectiveFounderEntitlement(metadata, hasActiveFounderSubscription);
 }
 export async function isTestflightEligible(
-  user: Pick<ProReconcileUser, "id">,
+  user: ProReconcileUser,
   options: {
     hasActiveStripeSubscription?: ActiveStripeSubscriptionQuery;
     hasActiveFounderSubscription?: ActiveFounderSubscriptionQuery;
