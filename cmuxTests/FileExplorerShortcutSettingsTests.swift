@@ -404,6 +404,56 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         }
     }
 
+    @Test func resolvedPrefixChordReachesFocusedFileExplorerAndRestoresRoutingContext() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            try writeSettingsFile(
+                """
+                {"shortcuts":{"prefix":"ctrl+b","when":{"fileExplorerOpenSelection":"!browserFocus"}}}
+                """
+            )
+            KeyboardShortcutSettings.settingsFileStore.reload()
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", control: true),
+                second: ShortcutStroke(key: "p")
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let binding = try #require(ShortcutPrefixChordBinding(
+                actionID: KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue,
+                shortcut: chord.cmuxSettingsStoredShortcut
+            ))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let tableView = FileExplorerSearchResultsTableView(frame: window.contentRect(forFrameRect: window.frame))
+            tableView.fileExplorerPanelPlacement = .pane
+            tableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name")))
+            var commitCount = 0
+            tableView.onCommit = { commitCount += 1 }
+            window.contentView = tableView
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            try #require(window.makeFirstResponder(tableView))
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: chord.secondStroke!),
+                windowNumber: window.windowNumber
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+
+            #expect(appDelegate.executeResolvedPrefixChordBinding(binding, event: event))
+            #expect(commitCount == 1)
+            #expect(appDelegate.activeResolvedPrefixChordActionID == previousActionID)
+            #expect(appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent == previousPrefix)
+            #expect(!appDelegate.matchConfiguredShortcut(event: event, shortcut: chord))
+        }
+    }
+
     private func withIsolatedShortcutSettings(_ body: () throws -> Void) rethrows {
         let originalSettingsFileStore = KeyboardShortcutSettings.installIsolatedTestFileStore(
             prefix: "cmux-file-explorer-shortcut-settings"
