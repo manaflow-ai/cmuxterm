@@ -63,10 +63,11 @@ struct CloudManualInputOptionBackspaceTests {
         ))
 
         var collected = Data()
-        switch await Self.firstInput(from: inputs, timeout: .seconds(5)) {
-        case .bytes(let data): collected.append(data)
-        case .namedKey(let name): Issue.record("unexpected named key \(name)")
-        case nil: break
+        if let first = await Self.firstInput(from: inputs, timeout: .seconds(5)) {
+            switch first {
+            case .bytes(let data): collected.append(data)
+            case .namedKey(let name): Issue.record("unexpected named key \(name)")
+            }
         }
 
         #expect(
