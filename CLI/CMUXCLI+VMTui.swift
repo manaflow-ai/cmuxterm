@@ -1131,8 +1131,8 @@ extension CMUXCLI {
           cmux vm workspace new <machine> [--name <name>] [--reuse] [--no-open]
                                                               Create a workspace on the machine (its ⌘N) and open it here.
                                                               --no-open: stage it headlessly (it shows in `vm tree` and the
-                                                              sidebar; nothing opens locally) — the seat for `vm layout apply
-                                                              --workspace <ws>` and `vm agent --remote-workspace <ws>`.
+                                                              sidebar; nothing opens locally) — the seat for
+                                                              `vm agent --remote-workspace <ws>`.
                                                               --reuse: when a workspace with exactly that --name already
                                                               exists, open it instead of creating a second one (get-or-create,
                                                               so a script that runs twice leaves one `tests`, not two).
