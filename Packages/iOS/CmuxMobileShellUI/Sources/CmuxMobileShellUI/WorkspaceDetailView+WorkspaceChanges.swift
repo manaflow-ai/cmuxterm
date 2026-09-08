@@ -59,15 +59,12 @@ extension WorkspaceDetailView {
             workspaceChangesHint = nil
             return
         }
-        // A transient reconnect toggles both capability and connection gates.
-        // Keep the already-presented hint in local view state across that
-        // transport churn; the banner itself is hidden while unavailable and
-        // reuses this same state after the handshake. A dismissed hint is nil
-        // and remains suppressed by the store-backed eligibility check.
-        guard workspaceChangesAreAvailable,
-              workspaceChangesHint == nil else { return }
-        workspaceChangesHint = store.workspaceChangesHint(
-            workspaceID: workspace.rpcWorkspaceID.rawValue
+        workspaceChangesHint = WorkspaceChangesHintRefreshPolicy.next(
+            current: workspaceChangesHint,
+            isAvailable: workspaceChangesAreAvailable,
+            candidate: store.workspaceChangesHint(
+                workspaceID: workspace.rpcWorkspaceID.rawValue
+            )
         )
     }
 }
