@@ -187,6 +187,28 @@ struct SudoApprovalCoordinatorTests {
         #expect(presentation.showsProgress)
         await coordinator.stop()
     }
+
+    @Test("A still-pending decision presents the review window again")
+    func stillPendingDecisionPresentsWindowAgain() async throws {
+        let snapshot = Self.snapshot(id: "request-represent")
+        let broker = RecordingSudoBroker(initialSnapshots: [snapshot])
+        await broker.setDecisionOutcome(.stillPending)
+        let presenter = RecordingSudoApprovalPresenter()
+        let coordinator = SudoApprovalCoordinator(broker: broker, presenter: presenter)
+
+        try await coordinator.start()
+        let presentation = try #require(presenter.presentations["request-represent"])
+        #expect(presenter.presentCallCount == 1)
+
+        // The user may have closed the window while the decision was in flight;
+        // a decision the broker left pending needs the window back.
+        await coordinator.approve(id: "request-represent")
+
+        #expect(presenter.presentCallCount == 2)
+        #expect(presenter.presentations["request-represent"] === presentation)
+        #expect(presentation.canDecide)
+        await coordinator.stop()
+    }
 }
 
 private actor RecordingSudoBroker: SudoBrokerServing {
@@ -334,6 +356,7 @@ private final class RecordingSudoApprovalPresenter: SudoApprovalPresenting {
 
     private(set) var presentations: [String: SudoApprovalPresentation] = [:]
     private(set) var dismissAllCallCount = 0
+    private(set) var presentCallCount = 0
     let events: AsyncStream<Event>
     private let eventContinuation: AsyncStream<Event>.Continuation
 
@@ -348,6 +371,7 @@ private final class RecordingSudoApprovalPresenter: SudoApprovalPresenting {
         approve: @MainActor @Sendable @escaping () async -> Void,
         deny: @MainActor @Sendable @escaping () async -> Void
     ) {
+        presentCallCount += 1
         presentations[presentation.request.id] = presentation
         eventContinuation.yield(.presented(presentation.request.id))
     }

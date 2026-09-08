@@ -497,4 +497,50 @@ struct SudoProcessLifecycleTests {
         #expect(exitCode == 0)
         #expect(fixture.store.result(id: request.id)?.errorCode == .pamTidUnavailable)
     }
+
+    @Test(
+        "Execution waiter drains control markers before reporting an early exit",
+        .timeLimit(.minutes(1))
+    )
+    func executionWaiterDrainsMarkersBeforeEarlyExit() throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let systemInspector = SystemSudoProcessInspector()
+        let markers = SudoExecutionControlMarkers()
+        let marker = String(decoding: markers.executionTimedOut, as: UTF8.self)
+        let goURL = fixture.root.appendingPathComponent("go")
+        let sentinelURL = fixture.root.appendingPathComponent("marker-written")
+        let command = SudoExecutionCommand(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: [
+                "/bin/sh",
+                "-c",
+                "while [ ! -e '\(goURL.path)' ]; do sleep 0.01; done; "
+                    + "printf '%s' '\(marker)'; : > '\(sentinelURL.path)'; exit 0",
+            ],
+            currentDirectoryURL: URL(fileURLWithPath: "/tmp", isDirectory: true),
+            outputURL: fixture.paths.results.appendingPathComponent("early-exit.out"),
+            controlMarkers: markers
+        )
+        let process = try SudoPOSIXProcessSpawner(inspector: systemInspector).spawn(command)
+        defer {
+            var status: Int32 = 0
+            _ = waitpid(process.identity.processIdentifier, &status, 0)
+        }
+        // The first liveness probe happens after the waiter's initial drain. Let the
+        // child write its control marker only now, then answer "exited" once the
+        // marker is in the pipe, so the early-exit path must drain again to see it.
+        let inspector = HookedSudoProcessInspector(base: systemInspector) { _ in
+            FileManager.default.createFile(atPath: goURL.path, contents: nil)
+            while !FileManager.default.fileExists(atPath: sentinelURL.path) {
+                usleep(10_000)
+            }
+            return false
+        }
+
+        let disposition = SudoExecutionEventWaiter(inspector: inspector)
+            .wait(for: process, after: 5)
+
+        #expect(disposition == .privilegedTimedOut)
+    }
 }
