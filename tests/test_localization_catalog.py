@@ -37,6 +37,19 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_check_does_not_hide_an_incomplete_duplicate_record(self):
+        first = {"localizations": {"en": unit("Open")}}
+        last = {"localizations": {"en": unit("Open"), "de": unit("Öffnen")}}
+        text = '{"sourceLanguage":"en","strings":{"duplicate":' + json.dumps(first) + ',"duplicate":' + json.dumps(last) + '},"version":"1.0"}'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Resources/Localizable.xcstrings"
+            path.parent.mkdir()
+            path.write_text(text)
+            with patch.object(MODULE, "load_metadata", return_value={}), \
+                 patch.object(sys, "argv", ["catalog", "check", "--root", directory, "--locale", "de"]), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(MODULE.main(), 1)
+
     def test_package_catalog_uses_the_same_invariant_policy(self):
         catalog = {"sourceLanguage": "en", "strings": {"email": {"localizations": {
             "en": unit("you@example.com"), "ar": unit("you@example.com")}}}, "version": "1.0"}
@@ -122,15 +135,23 @@ class LocalizationCatalogTests(unittest.TestCase):
         variants["few"] = {}
         self.assertTrue(MODULE.validate_localization("%d matches", arabic, "ar"))
 
-    def test_info_plist_duplicate_records_remain_lossless(self):
-        path = ROOT / "Resources/InfoPlist.xcstrings"
-        text = path.read_text(encoding="utf-8")
-        entries = MODULE.catalog_entries(text)
-        keys = [entry.key for entry in entries]
-        self.assertEqual(keys.count("NSLocalNetworkUsageDescription"), 2)
-        self.assertEqual(keys.count("NSMotionUsageDescription"), 2)
-        self.assertEqual(keys.count("NSSpeechRecognitionUsageDescription"), 2)
-        self.assertEqual(keys.count("NSSystemAdministrationUsageDescription"), 2)
+    def test_merge_updates_duplicate_records_without_losing_other_data(self):
+        originals = [
+            {"comment": "First record", "localizations": {"en": unit("Open"), "ja": unit("開く")}},
+            {"comment": "Second record", "localizations": {"en": unit("Open"), "ja": unit("開く")}},
+        ]
+        text = '{"sourceLanguage":"en","strings":{' + ",".join(
+            '"example":' + json.dumps(entry, ensure_ascii=False) for entry in originals
+        ) + '},"version":"1.0"}'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Localizable.xcstrings"
+            path.write_text(text, encoding="utf-8")
+            self.assertEqual(MODULE.merge(path, "de", [{"key": "example", "source": "Open", "value": "Öffnen"}], {}), 2)
+            updated = MODULE.catalog_entries(path.read_text(encoding="utf-8"))
+            self.assertEqual(len(updated), 2)
+            for original, actual in zip(originals, updated):
+                self.assertEqual(actual.value["comment"], original["comment"])
+                self.assertEqual(actual.value["localizations"], {**original["localizations"], "de": unit("Öffnen")})
 
     def test_merge_rejects_stale_source_and_wrong_placeholder(self):
         original = {
