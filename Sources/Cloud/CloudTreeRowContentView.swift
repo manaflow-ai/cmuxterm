@@ -421,12 +421,23 @@ struct CloudTreeTerminalRowContent: View {
             titleDimmed: terminal.lifecycle == .exited || showsDetachedState,
             detail: terminal.detail.flatMap { $0.isEmpty ? nil : Self.abbreviated($0) }
         ) {
-            if let agent = agentLabel {
-                Image(systemName: "sparkle")
-                    .font(.system(size: max(style.iconSize - 1, 8), weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .help(agent)
-            }
+            // Per-client attention from the machine: this Mac has not read a
+            // notification for the terminal. Reading it here or on any pane
+            // showing the terminal acknowledges it on the machine. The dot is
+            // always in the layout and only its opacity changes: an in-place
+            // row refresh (reloadData(forRowIndexes:)) re-hosts the same
+            // SwiftUI tree, and a structural insert there is not repainted.
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: max(style.iconSize * 0.5, 6), height: max(style.iconSize * 0.5, 6))
+                .opacity(row.hasUnreadNotification ? 1 : 0)
+                .accessibilityHidden(!row.hasUnreadNotification)
+                .help(row.hasUnreadNotification
+                      ? String(localized: "cloudTree.terminal.unread.help", defaultValue: "This terminal has a notification you have not read on this Mac")
+                      : "")
+                .accessibilityLabel(row.hasUnreadNotification
+                                    ? String(localized: "cloudTree.terminal.unread.help", defaultValue: "This terminal has a notification you have not read on this Mac")
+                                    : "")
             if showsDetachedState {
                 // Zero views: still running on the machine, no daemon tab shows it.
                 // Greyed with a "detached" mark (austin, 2026-09-02 — reversing the
@@ -445,6 +456,9 @@ struct CloudTreeTerminalRowContent: View {
                     .help(Self.viewsHelp(views))
             }
         }
+        // Agent state stays on hover and in `cmux vm tree`; the row itself
+        // carries only the unread dot.
+        .help(agentLabel ?? "")
     }
 
     /// The view-count badge a pool row shows: the count when several daemon tabs

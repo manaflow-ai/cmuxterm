@@ -88,11 +88,22 @@ extension CMUXCLI {
     /// Turn/status hooks use `codexFireAndForgetAgentHookShellCommand(...)`;
     /// native child lifecycle hooks synchronously commit their ledger event and
     /// then return. All larger socket delivery remains non-blocking.
+    ///
+    /// Layering contract (verified against codex-cli 0.146.0 and 0.153.4;
+    /// tests/test_codex_wrapper_hook_append.py repeats it against the
+    /// installed codex): Codex discovers hooks per configuration layer and
+    /// appends them from lowest to highest, so the user's `hooks.json` and
+    /// `[hooks]` in `config.toml` and a trusted project's `.codex/hooks.json`
+    /// are all registered ahead of these session-flag entries. Codex dispatches
+    /// an event's handlers together and orders only their results, so nothing
+    /// may depend on cmux's handler running first or last. A `-c hooks.<event>=`
+    /// value only defines the session-flags layer; it never replaces a lower
+    /// layer, and copying lower layers into it would make Codex discover and
+    /// run every user handler twice. Each value therefore carries exactly one
+    /// cmux group.
     /// Persistent hooks are inventoried read-only so the wrapper does not add a
-    /// duplicate cmux producer. Codex combines hook sources, so user-owned hooks
-    /// continue to run alongside these process-local entries. Only explicit
-    /// `cmux hooks codex install` or `uninstall` commands mutate `CODEX_HOME`.
-    /// No live socket is required.
+    /// duplicate cmux producer. Only explicit `cmux hooks codex install` or
+    /// `uninstall` commands mutate `CODEX_HOME`. No live socket is required.
     func emitCodexWrapperInjectArgs() throws {
         guard let codexDef = Self.agentDef(named: "codex") else {
             throw CLIError(message: "Codex hook integration is unavailable.")
