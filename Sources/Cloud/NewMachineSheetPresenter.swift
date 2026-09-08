@@ -73,7 +73,7 @@ final class NewMachineSheetPresenter {
         // the default argument expression (which is evaluated at the caller).
         let resolvedCoordinator = coordinator ?? MachineCreateCoordinator.shared
         if let plan, plan.isAtLimit, !plan.isPaidPlan {
-            ProUpgradePresenter.present()
+            ProUpgradePresenter.present(source: .newMachineAtLimit)
             return
         }
         let model = NewMachineModel(
