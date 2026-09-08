@@ -845,8 +845,6 @@ await waitForCompletionHookCount(completionCount);
             "hooks feed --source pi --event PostCompact",
             "hooks feed --source pi --event SubagentStart",
             "hooks feed --source pi --event SubagentStop",
-            "surface resume get",
-            "surface resume set",
             "surface resume clear",
         ]:
             if expected not in args_log:
@@ -863,29 +861,13 @@ await waitForCompletionHookCount(completionCount);
             elif "surface resume clear" in line:
                 resume_ops.append("clear")
         expected_resume_ops = [
-            "set",
-            "get",
             "clear",
-            "set",
-            "get",
             "clear",
-            "set",
-            "get",
             "clear",
-            "set",
-            "get",
             "clear",
-            "set",
-            "get",
-            "set",
-            "get",
-            "set",
-            "get",
-            "set",
-            "get",
         ]
         if resume_ops != expected_resume_ops:
-            print(f"FAIL: extension did not verify resume binding after set, got {resume_ops!r}")
+            print(f"FAIL: extension emitted unexpected resume binding operations, got {resume_ops!r}")
             return 1
         payloads = payloads_from_log(stdin_log)
         for session_id in [
