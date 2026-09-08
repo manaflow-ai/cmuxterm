@@ -601,11 +601,25 @@ struct AppDelegateSurfaceShortcutRoutingTests {
                     keyCode: 29,
                     windowNumber: window.windowNumber
                 ))
+                let widthRepeatEvent = try #require(makeKeyDownEvent(
+                    key: "0",
+                    modifiers: [.command, .option],
+                    keyCode: 29,
+                    windowNumber: window.windowNumber,
+                    isARepeat: true
+                ))
                 let heightEvent = try #require(makeKeyDownEvent(
                     key: "0",
                     modifiers: [.command, .option, .shift],
                     keyCode: 29,
                     windowNumber: window.windowNumber
+                ))
+                let heightRepeatEvent = try #require(makeKeyDownEvent(
+                    key: "0",
+                    modifiers: [.command, .option, .shift],
+                    keyCode: 29,
+                    windowNumber: window.windowNumber,
+                    isARepeat: true
                 ))
                 let snapshot = firstWorkspace.bonsplitController.treeSnapshot()
                 let widthSplitId = try #require(splitNodes(in: snapshot, orientation: "horizontal").first?.id)
@@ -615,17 +629,18 @@ struct AppDelegateSurfaceShortcutRoutingTests {
 
 #if DEBUG
                 #expect(appDelegate.debugHandleCustomShortcut(event: widthEvent))
-                #expect(appDelegate.debugHandleCustomShortcut(event: widthEvent))
+                #expect(appDelegate.debugHandleCustomShortcut(event: widthRepeatEvent))
                 #expect(appDelegate.debugHandleCustomShortcut(event: heightEvent))
-                #expect(appDelegate.debugHandleCustomShortcut(event: heightEvent))
+                #expect(appDelegate.debugHandleCustomShortcut(event: heightRepeatEvent))
 #else
                 Issue.record("debugHandleCustomShortcut is only available in DEBUG")
 #endif
                 let grownSnapshot = firstWorkspace.bonsplitController.treeSnapshot()
                 let grownWidth = try #require(dividerPosition(of: widthSplitId, in: grownSnapshot))
                 let grownHeight = try #require(dividerPosition(of: heightSplitId, in: grownSnapshot))
-                #expect(grownWidth < originalWidth)
-                #expect(grownHeight < originalHeight)
+                #expect(abs(grownWidth - (originalWidth - (40.0 / 900.0))) < 0.000_1)
+                #expect(abs(grownHeight - (originalHeight - (40.0 / 600.0))) < 0.000_1)
+                #expect(firstWorkspace.focusedPanelId == bottomPanel.id)
 
                 _ = manager.addWorkspace(select: true, eagerLoadTerminal: false)
 #if DEBUG
@@ -638,11 +653,46 @@ struct AppDelegateSurfaceShortcutRoutingTests {
         }
     }
 
+    @Test func explicitLegacyBindingWinsOverImplicitPaneGrowthDefault() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let windowId = appDelegate.createMainWindow()
+            defer { closeWindow(withId: windowId) }
+
+            let window = try #require(mainWindow(for: windowId))
+            let manager = try #require(appDelegate.tabManagerFor(windowId: windowId))
+            let workspace = try #require(manager.selectedWorkspace)
+            let paneCount = workspace.bonsplitController.allPaneIds.count
+            let shortcut = StoredShortcut(
+                key: "0",
+                command: true,
+                shift: false,
+                option: true,
+                control: false
+            )
+            KeyboardShortcutSettings.setShortcut(shortcut, for: .splitRight)
+            let event = try #require(makeKeyDownEvent(
+                key: "0",
+                modifiers: [.command, .option],
+                keyCode: 29,
+                windowNumber: window.windowNumber
+            ))
+
+#if DEBUG
+            #expect(appDelegate.debugHandleCustomShortcut(event: event))
+#else
+            Issue.record("debugHandleCustomShortcut is only available in DEBUG")
+#endif
+            #expect(workspace.bonsplitController.allPaneIds.count == paneCount + 1)
+        }
+    }
+
     private func makeKeyDownEvent(
         key: String,
         modifiers: NSEvent.ModifierFlags = [.control],
         keyCode: UInt16,
-        windowNumber: Int
+        windowNumber: Int,
+        isARepeat: Bool = false
     ) -> NSEvent? {
         NSEvent.keyEvent(
             with: .keyDown,
@@ -653,7 +703,7 @@ struct AppDelegateSurfaceShortcutRoutingTests {
             context: nil,
             characters: key,
             charactersIgnoringModifiers: key,
-            isARepeat: false,
+            isARepeat: isARepeat,
             keyCode: keyCode
         )
     }

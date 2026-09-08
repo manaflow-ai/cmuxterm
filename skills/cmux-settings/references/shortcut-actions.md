@@ -79,8 +79,10 @@ Values for `shortcuts.bindings.<action>`:
 - `shortcuts.bindings.decreaseWorkspaceTerminalFontSize`
 - `shortcuts.bindings.resetWorkspaceTerminalFontSize`
 - `shortcuts.bindings.equalizeSplits`
-- `shortcuts.bindings.growPaneWidth` (`cmd+opt+0`; each press grows the focused pane by 20 px at its nearest width split)
-- `shortcuts.bindings.growPaneHeight` (`cmd+opt+shift+0`; each press grows the focused pane by 20 px at its nearest height split)
+- `shortcuts.bindings.growPaneWidth` (`cmd+opt+0`; each press grows the focused local workspace or Dock pane by 20 px at its nearest width split)
+- `shortcuts.bindings.growPaneHeight` (`cmd+opt+shift+0`; each press grows the focused local workspace or Dock pane by 20 px at its nearest height split)
+
+Remote tmux mirrors keep tmux as the authoritative layout owner, so these two local actions do not resize them.
 
 ## Canvas
 

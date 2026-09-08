@@ -55,6 +55,16 @@ public struct PaneLayoutService {
 
     /// Grows the focused branch on the nearest split matching `axis`.
     ///
+    /// ```swift
+    /// layout.growPane(
+    ///     in: controller.treeSnapshot(),
+    ///     targetPaneId: focusedPaneId,
+    ///     axis: .width,
+    ///     amountPixels: 20,
+    ///     controller: controller
+    /// )
+    /// ```
+    ///
     /// - Parameter node: The current external split-tree snapshot.
     /// - Parameter targetPaneId: The identifier of the focused pane.
     /// - Parameter axis: The split axis whose focused branch should grow.

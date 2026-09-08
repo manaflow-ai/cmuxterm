@@ -1207,6 +1207,65 @@ struct DockShortcutRoutingTests {
         }
     }
 
+    @Test("Grow pane width targets either side of the focused Dock split")
+    @MainActor
+    func growPaneWidthTargetsEitherSideOfFocusedDockSplit() async throws {
+        try await AppContextSerialGate.withExclusiveAppContext {
+            try await Self.withHarness { harness in
+                let leftPanel = try #require(
+                    harness.dock.newSurface(
+                        kind: .terminal,
+                        inPane: harness.rootPane,
+                        focus: true
+                    )
+                )
+                let rightPanel = try #require(
+                    harness.dock.newSplit(
+                        kind: .terminal,
+                        orientation: .horizontal,
+                        insertFirst: false,
+                        sourcePanelId: leftPanel,
+                        focus: true
+                    )
+                )
+                harness.dock.bonsplitController.setContainerFrame(
+                    CGRect(x: 0, y: 0, width: 600, height: 400)
+                )
+                let leftPane = try #require(harness.dock.paneId(forPanelId: leftPanel))
+                let rightPane = try #require(harness.dock.paneId(forPanelId: rightPanel))
+                let initialSplit = try #require(
+                    Self.splitNodes(
+                        in: harness.dock.bonsplitController.treeSnapshot()
+                    ).first
+                )
+                let shortcut = Self.customShortcut(key: "y")
+                KeyboardShortcutSettings.setShortcut(shortcut, for: .growPaneWidth)
+                let mainPanelBefore = harness.mainWorkspace.focusedPanelId
+
+                harness.dock.focusPanel(leftPanel)
+                #expect(Self.dispatch(shortcut, in: harness))
+                let afterLeft = try #require(
+                    Self.splitNodes(
+                        in: harness.dock.bonsplitController.treeSnapshot()
+                    ).first { $0.id == initialSplit.id }
+                )
+                #expect(abs(afterLeft.dividerPosition - (initialSplit.dividerPosition + (20.0 / 600.0))) < 0.000_1)
+                #expect(harness.dock.bonsplitController.focusedPaneId == leftPane)
+
+                harness.dock.focusPanel(rightPanel)
+                #expect(Self.dispatch(shortcut, in: harness, isARepeat: true))
+                let afterRight = try #require(
+                    Self.splitNodes(
+                        in: harness.dock.bonsplitController.treeSnapshot()
+                    ).first { $0.id == initialSplit.id }
+                )
+                #expect(abs(afterRight.dividerPosition - initialSplit.dividerPosition) < 0.000_1)
+                #expect(harness.dock.bonsplitController.focusedPaneId == rightPane)
+                #expect(harness.mainWorkspace.focusedPanelId == mainPanelBefore)
+            }
+        }
+    }
+
     @Test("Close other tabs targets the focused Dock pane")
     @MainActor
     func closeOtherTabsTargetsFocusedDockPane() async throws {

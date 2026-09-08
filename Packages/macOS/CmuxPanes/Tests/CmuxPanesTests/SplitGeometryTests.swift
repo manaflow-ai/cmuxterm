@@ -187,6 +187,31 @@ struct SplitGeometryTests {
         #expect(adjustment?.splitId == innerId)
     }
 
+    @Test func resizeSkipsInvalidInnerSplitAndUsesValidOuterSplit() {
+        let outerId = UUID()
+        let tree = split(
+            outerId,
+            orientation: "horizontal",
+            dividerPosition: 0.5,
+            first: pane("a", width: 300, height: 400),
+            second: .split(ExternalSplitNode(
+                id: "not-a-uuid",
+                orientation: "horizontal",
+                dividerPosition: 0.5,
+                first: pane("b", x: 300, width: 150, height: 400),
+                second: pane("c", x: 450, width: 150, height: 400)
+            ))
+        )
+
+        let adjustment = tree.resizeDividerAdjustment(
+            targetPaneId: "c",
+            direction: .left,
+            amountPixels: 30
+        )
+
+        #expect(adjustment?.splitId == outerId)
+    }
+
     @Test func resizeClampsDividerToLegacyBounds() {
         let splitId = UUID()
         let tree = split(

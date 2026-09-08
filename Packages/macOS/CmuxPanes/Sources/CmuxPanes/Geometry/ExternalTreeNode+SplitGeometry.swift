@@ -83,8 +83,9 @@ extension ExternalTreeNode {
     /// Plans a keyboard resize of the pane's controlling divider: walks the
     /// tree for the splits enclosing `targetPaneId` (innermost first, the
     /// legacy candidate order), picks the first split matching the resize
-    /// direction's orientation and child side, and converts `amountPixels`
-    /// into a divider delta along that split's axis, clamped to 0.1-0.9.
+    /// direction's orientation and child side, skipping candidates without a
+    /// valid split identifier, and converts `amountPixels` into a divider
+    /// delta along that split's axis, clamped to 0.1-0.9.
     /// Returns `nil` when the pane is absent or no enclosing split matches.
     public func resizeDividerAdjustment(
         targetPaneId: String,
@@ -99,7 +100,7 @@ extension ExternalTreeNode {
         guard !orientationMatches.isEmpty else { return nil }
 
         guard let candidate = orientationMatches.first(where: {
-            $0.paneInFirstChild == direction.requiresPaneInFirstChild
+            $0.paneInFirstChild == direction.requiresPaneInFirstChild && $0.splitId != nil
         }), let splitId = candidate.splitId else {
             return nil
         }
@@ -111,6 +112,8 @@ extension ExternalTreeNode {
     }
 
     /// Plans one incremental growth step on the nearest split matching `axis`.
+    /// Unlike legacy directional resize, an invalid nearest split identifier
+    /// fails closed rather than applying the growth to a more distant split.
     func growFocusedBranchAdjustment(
         targetPaneId: String,
         axis: PaneAxis,
