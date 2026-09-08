@@ -29,7 +29,6 @@ public struct SubrouterHTTPClient: SubrouterClienting {
     // URLSession does not retain its delegate strongly; keep the stateless
     // redirect policy alive for the lifetime of the client.
     private let redirectDelegate: SubrouterHTTPRedirectRejectingDelegate
-    private let decoder: JSONDecoder
 
     /// Creates the production client.
     /// - Parameter requestTimeout: Per-request timeout in seconds.
@@ -53,7 +52,6 @@ public struct SubrouterHTTPClient: SubrouterClienting {
             delegate: redirectDelegate,
             delegateQueue: nil
         )
-        self.decoder = Self.makeDecoder()
     }
 
     public func health(endpoint: SubrouterEndpoint) async throws -> Bool {
@@ -136,7 +134,10 @@ public struct SubrouterHTTPClient: SubrouterClienting {
             throw SubrouterClientError.responseTooLarge
         }
         do {
-            return try decoder.decode(Payload.self, from: data)
+            // A client can have overlapping health, usage, and session
+            // requests. JSONDecoder is mutable and not safe to share across
+            // those concurrent calls, so each response gets its own decoder.
+            return try Self.makeDecoder().decode(Payload.self, from: data)
         } catch let error as DecodingError {
             Self.logger.error(
                 "Subrouter response decode failed: \(String(describing: error), privacy: .private(mask: .hash))"

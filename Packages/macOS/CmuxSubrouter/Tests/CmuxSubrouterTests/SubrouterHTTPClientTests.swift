@@ -18,7 +18,9 @@ final class RedirectingSubrouterURLProtocol: URLProtocol, @unchecked Sendable {
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
-        request.url?.host == "source.example" || request.url?.host == "redirect.example"
+        request.url?.host == "source.example"
+            || request.url?.host == "redirect.example"
+            || request.url?.host == "health.example"
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -60,6 +62,31 @@ final class RedirectingSubrouterURLProtocol: URLProtocol, @unchecked Sendable {
 
 @Suite(.serialized)
 struct SubrouterHTTPClientTests {
+    @Test func concurrentRequestsDecodeIndependently() async throws {
+        RedirectingSubrouterURLProtocol.reset()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RedirectingSubrouterURLProtocol.self]
+        let client = SubrouterHTTPClient(requestTimeout: 2, configuration: configuration)
+        let endpoint = SubrouterEndpoint(baseURL: URL(string: "https://health.example")!)
+
+        let results = try await withThrowingTaskGroup(of: Bool.self) { group in
+            for _ in 0..<16 {
+                group.addTask {
+                    try await client.health(endpoint: endpoint)
+                }
+            }
+
+            var values: [Bool] = []
+            for try await result in group {
+                values.append(result)
+            }
+            return values
+        }
+
+        #expect(results.count == 16)
+        #expect(results.allSatisfy { $0 })
+    }
+
     @Test func adminTokenIsNeverSentAcrossRedirect() async throws {
         RedirectingSubrouterURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
