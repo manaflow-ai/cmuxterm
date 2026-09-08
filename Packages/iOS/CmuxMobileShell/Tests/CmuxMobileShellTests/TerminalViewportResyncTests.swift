@@ -907,6 +907,41 @@ import Testing
 }
 
 @MainActor
+@Test func terminalViewportClearDropsDeferredColdAttachReplay() async throws {
+    let router = LivenessHostRouter()
+    let box = TransportBox()
+    let clock = TestClock()
+    let store = try await makeConnectedStore(router: router, box: box, clock: clock)
+    let surfaceID = "live-terminal"
+
+    _ = await store.updateTerminalViewport(surfaceID: surfaceID, columns: 80, rows: 48)
+    await router.holdViewportRequest(number: 2)
+    let preparation = try #require(store.prepareTerminalViewport(
+        surfaceID: surfaceID,
+        columns: 80,
+        rows: 48
+    ))
+    let viewportTask = Task {
+        await store.updatePreparedTerminalViewport(preparation)
+    }
+    #expect(await router.waitForCount(of: "mobile.terminal.viewport", atLeast: 2))
+
+    _ = store.terminalOutputStream(surfaceID: surfaceID)
+    #expect(
+        store.terminalViewportDeferredColdReplayGenerationsBySequenceKey.isEmpty == false,
+        "a sink mounted during preparation must leave a deferred replay marker"
+    )
+    store.clearTerminalViewport(surfaceID: surfaceID)
+    #expect(
+        store.terminalViewportDeferredColdReplayGenerationsBySequenceKey.isEmpty,
+        "clearing a terminal must discard its deferred cold replay marker"
+    )
+
+    await router.releaseAllHeld()
+    _ = await viewportTask.value
+}
+
+@MainActor
 @Test func terminalPipelineResetDuringViewportAckDefersToAckReplay() async throws {
     let router = LivenessHostRouter()
     let box = TransportBox()

@@ -386,11 +386,15 @@ extension MobileShellComposite {
     /// detach). Fire-and-forget; the Mac also clears on connection close.
     public func clearTerminalViewport(surfaceID: String) {
         recordAppEvent(.terminalViewportClearStarted, correlationID: surfaceID)
+        let sequenceKey = MobileTerminalViewportSequenceKey(
+            ownerKey: foregroundMacKey,
+            surfaceID: surfaceID
+        )
         terminalViewportPreparationGenerationsBySequenceKey.removeValue(
-            forKey: MobileTerminalViewportSequenceKey(
-                ownerKey: foregroundMacKey,
-                surfaceID: surfaceID
-            )
+            forKey: sequenceKey
+        )
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
+            forKey: sequenceKey
         )
         let workspaceID = workspaceID(forTerminalID: surfaceID)
         // A clear releases the presentation's full local viewport lease. Any
@@ -416,10 +420,6 @@ extension MobileShellComposite {
         // applying after detach and blocks generation reuse across re-attach.
         // Warm focus swaps keep the peer connection alive, so its fence must
         // outlive the focused role. The account boundary clears all sequences.
-        let sequenceKey = MobileTerminalViewportSequenceKey(
-            ownerKey: foregroundMacKey,
-            surfaceID: surfaceID
-        )
         let clearGeneration =
             (viewportReportGenerationsBySequenceKey[sequenceKey] ?? 0) + 1
         viewportReportGenerationsBySequenceKey[sequenceKey] = clearGeneration
