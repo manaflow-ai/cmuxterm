@@ -28,6 +28,13 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(!CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, "--machine", "--", help]))
     }
 
+    @Test func agentSubcommandMatchingIgnoresCase() {
+        #expect(CmuxTuiRemoteRouting.isAgentSubcommand("agent"))
+        #expect(CmuxTuiRemoteRouting.isAgentSubcommand("Agent"))
+        #expect(CmuxTuiRemoteRouting.isAgentSubcommand("AGENT"))
+        #expect(!CmuxTuiRemoteRouting.isAgentSubcommand("agents"))
+    }
+
     @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
     func providerHelpDoesNotBypassWrapperValidation(agent: String, help: String) throws {
         for command in [["vm", "agent", "--agent", agent], ["agent", agent], ["coderouter", "agent", agent]] {

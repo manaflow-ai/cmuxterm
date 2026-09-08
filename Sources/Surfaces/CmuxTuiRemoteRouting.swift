@@ -6,6 +6,10 @@ enum CmuxTuiRemoteRouting {
         "--agent", "--machine", "--cwd", "--name", "--remote-workspace", "--size",
     ]
 
+    static func isAgentSubcommand(_ raw: String?) -> Bool {
+        raw?.lowercased() == "agent"
+    }
+
     static func vmAgentRequestsHelp(_ arguments: [String]) -> Bool {
         let normalized = Array(vmAgentAliasArgs(arguments).prefix { $0 != "--" })
         var index = 0
