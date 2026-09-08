@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 
@@ -82,7 +83,8 @@ struct ClaudeHookWriteAmplificationTests {
         )
     }
 
-    @Test(arguments: ["AskUserQuestion", "ExitPlanMode", "permission_prompt"])
+    @Test(arguments: ["AskUserQuestion", "ExitPlanMode", "permission_prompt",
+                      "permission_prompt_empty", "permission_prompt_write_failure"])
     func resumeClearsAttentionBeforeOrdinaryObservationsBecomeNoOps(_ trigger: String) throws {
         let context = try Harness.makeContext(name: "hook-resume-write-amplification")
         defer { context.cleanup() }
@@ -93,6 +95,15 @@ struct ClaudeHookWriteAmplificationTests {
             to: context.storeURL, sessionId: sessionId,
             workspaceId: workspaceId, surfaceId: surfaceId, cwd: context.root.path
         )
+        let initialObject = try JSONSerialization.jsonObject(with: Data(contentsOf: context.storeURL))
+        var initialState = try #require(initialObject as? [String: Any])
+        var sessions = try #require(initialState["sessions"] as? [String: [String: Any]])
+        sessions[sessionId]?["agentLifecycle"] = "running"
+        sessions[sessionId]?["lastPermissionMode"] = "default"
+        initialState["sessions"] = sessions
+        initialState["pendingCursorApprovalIndexInitialized"] = true
+        try JSONSerialization.data(withJSONObject: initialState, options: [.sortedKeys]).write(to: context.storeURL)
+        let originalData = try Data(contentsOf: context.storeURL)
         _ = Harness.startDeliveryTargetServer(
             context: context, surfacesByWorkspace: [workspaceId: [surfaceId]],
             pidTarget: nil, surfaceTargets: [surfaceId: workspaceId]
@@ -100,9 +111,16 @@ struct ClaudeHookWriteAmplificationTests {
         var environment = Harness.hookEnvironment(context: context)
         environment["CMUX_WORKSPACE_ID"] = workspaceId
         environment["CMUX_SURFACE_ID"] = surfaceId
-        let isPermissionPrompt = trigger == "permission_prompt"
+        let isPermissionPrompt = trigger.hasPrefix("permission_prompt")
+        let isEmptyPrompt = trigger == "permission_prompt_empty"
+        let isWriteFailure = trigger == "permission_prompt_write_failure"
+        if isWriteFailure {
+            try #require(chflags(context.storeURL.path, UInt32(UF_IMMUTABLE)) == 0)
+        }
+        defer { if isWriteFailure { _ = chflags(context.storeURL.path, 0) } }
+        let message = isEmptyPrompt ? "" : "Bash needs approval"
         let blockingInput = isPermissionPrompt
-            ? #"{"session_id":"\#(sessionId)","hook_event_name":"Notification","notification_type":"permission_prompt","message":"Bash needs approval","cwd":"\#(context.root.path)"}"#
+            ? #"{"session_id":"\#(sessionId)","hook_event_name":"Notification","notification_type":"permission_prompt","message":"\#(message)","cwd":"\#(context.root.path)"}"#
             : #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"\#(trigger)","permission_mode":"bypassPermissions","cwd":"\#(context.root.path)"}"#
         let blocking = Harness.runHookProcess(
             context: context,
@@ -111,7 +129,13 @@ struct ClaudeHookWriteAmplificationTests {
         )
         #expect(!blocking.timedOut, Comment(rawValue: blocking.stderr))
         try #require(blocking.status == 0, Comment(rawValue: blocking.stderr))
-        #expect(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)?["agentLifecycle"] as? String == "needsInput")
+        #expect(context.state.snapshot().contains { $0.hasPrefix("set_status claude_code Needs input ") })
+        if isWriteFailure {
+            #expect(try Data(contentsOf: context.storeURL) == originalData, "Fixture must actually prevent persistence")
+            try #require(chflags(context.storeURL.path, 0) == 0)
+        } else {
+            #expect(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)?["agentLifecycle"] as? String == "needsInput")
+        }
         #expect(context.state.snapshot().contains { $0.hasPrefix("notify_target_async ") })
         let beforeResumeCount = context.state.snapshot().count
         let ordinaryInput = #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default","cwd":"\#(context.root.path)"}"#
@@ -128,7 +152,7 @@ struct ClaudeHookWriteAmplificationTests {
 
         let runningData = try Data(contentsOf: context.storeURL)
         let runningAttributes = try FileManager.default.attributesOfItem(atPath: context.storeURL.path)
-        let beforeNoOpCount = context.state.snapshot().count
+        let beforeNoOpCommands = mutations(in: context)
         for _ in 0..<5 {
             let result = Harness.runHookProcess(
                 context: context, arguments: ["hooks", "claude", "pre-tool-use"],
@@ -138,7 +162,7 @@ struct ClaudeHookWriteAmplificationTests {
             #expect(result.status == 0, Comment(rawValue: result.stderr))
             #expect(result.stdout == "{}\n")
         }
-        #expect(context.state.snapshot().count == beforeNoOpCount)
+        #expect(mutations(in: context) == beforeNoOpCommands)
         #expect(try Data(contentsOf: context.storeURL) == runningData)
         let finalAttributes = try FileManager.default.attributesOfItem(atPath: context.storeURL.path)
         #expect(finalAttributes[.systemFileNumber] as? NSNumber == runningAttributes[.systemFileNumber] as? NSNumber)
@@ -235,10 +259,20 @@ struct ClaudeHookWriteAmplificationTests {
             #expect(!result.timedOut && result.status == 0, Comment(rawValue: result.stderr))
             #expect(result.stdout == "{}\n")
         }
-        #expect(context.state.snapshot().isEmpty)
+        #expect(mutations(in: context).isEmpty)
         #expect(try Data(contentsOf: context.storeURL) == repairedData)
         let finalAttributes = try FileManager.default.attributesOfItem(atPath: context.storeURL.path)
         #expect(finalAttributes[.systemFileNumber] as? NSNumber == repairedAttributes[.systemFileNumber] as? NSNumber)
         #expect(finalAttributes[.modificationDate] as? Date == repairedAttributes[.modificationDate] as? Date)
+    }
+
+    private func mutations(in context: Harness.Context) -> [String] {
+        context.state.snapshot().filter { line in
+            guard let data = line.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return true
+            }
+            return object["method"] as? String != "agent.resolve_delivery_target"
+        }
     }
 }

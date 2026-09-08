@@ -118,11 +118,20 @@ enum ClaudeHookLiveDeliveryHarness {
                 }
                 if let surfaceId = params["surface_id"] as? String,
                    let workspaceId = surfaceTargets[surfaceId] {
-                    return v2Response(id: id, ok: true, result: [
+                    var result: [String: Any] = [
                         "workspace_id": workspaceId,
                         "surface_id": surfaceId,
                         "source": "surface",
-                    ])
+                    ]
+                    if params["include_claude_hook_state"] as? Bool == true {
+                        let lastStatus = context.state.snapshot().last {
+                            $0.hasPrefix("set_status claude_code ")
+                        }
+                        result["claude_hook_can_skip_running"] = lastStatus.map {
+                            $0.hasPrefix("set_status claude_code Running ")
+                        } ?? true
+                    }
+                    return v2Response(id: id, ok: true, result: result)
                 }
                 return v2Response(id: id, ok: false, error: ["code": "not_found", "message": "no live target"])
             case "surface.list":
@@ -275,7 +284,7 @@ enum ClaudeHookLiveDeliveryHarness {
             Darwin.close(fd)
             throw NSError(domain: "cmux.tests", code: Int(ENAMETOOLONG))
         }
-        _ = withUnsafeMutablePointer(to: &addr.sun_path) { pointer in
+        withUnsafeMutablePointer(to: &addr.sun_path) { pointer in
             pointer.withMemoryRebound(to: CChar.self, capacity: maxPathLength) { buffer in
                 for index in 0..<utf8.count {
                     buffer[index] = CChar(bitPattern: utf8[index])
@@ -314,6 +323,14 @@ enum ClaudeHookLiveDeliveryHarness {
                 }
                 guard clientFD >= 0 else {
                     if errno == EINTR { continue }
+                    return
+                }
+                // One-way Feed clients may close before the mock replies.
+                // Keep that expected EPIPE local to this socket, not the test process.
+                var noSIGPIPE: Int32 = 1
+                guard setsockopt(clientFD, SOL_SOCKET, SO_NOSIGPIPE, &noSIGPIPE,
+                                 socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+                    Darwin.close(clientFD)
                     return
                 }
 
