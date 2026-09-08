@@ -17,11 +17,7 @@ import { assertVmCreateEnabled } from "../../../services/vms/config";
 import { vmModelPlaneGatewayFor } from "../../../services/vms/modelPlaneGateway";
 import {
   isVmCreateDisabledError,
-  isVmCreateFailedError,
-  isVmCreateCreditsInsufficientError,
-  isVmCreateInProgressError,
   isVmImageConfigError,
-  isVmLimitExceededError,
 } from "../../../services/vms/errors";
 import {
   defaultMemoryMbForPlan,
@@ -50,19 +46,18 @@ import {
   jsonResponse,
   requestedVmTeamIdFromRequest,
   vmErrorResponse,
-  vmWorkflowErrorResponse,
   withAuthedVmApiRoute,
   vmActiveLimitExceededResponse,
   resolveVmProvisioningAccountScope,
   runAfterResponse,
+  type VmWorkflowErrorOverrides,
 } from "../../../services/vms/routeHelpers";
-import { vmRequestLocale } from "../../../services/vms/vmErrorMessages";
+import { runVmRoute } from "../../../services/vms/routeWorkflow";
 import { captureVmProvisionOutcome } from "../../../services/vms/observability";
 import { annotateVmRequestBilling } from "../../../services/vms/requestContext";
 import {
   createVm,
   listUserVms,
-  runVmWorkflow,
 } from "../../../services/vms/workflows";
 import { recordSpanError, setSpanAttributes } from "../../../services/telemetry";
 import {
@@ -110,7 +105,9 @@ export async function GET(request: Request): Promise<Response> {
         throw err;
       }
 
-      const entries = await runVmWorkflow(listUserVms(user.id, billingTeamId));
+      const listed = await runVmRoute(listUserVms(user.id, billingTeamId), { request });
+      if (!listed.ok) return listed.response;
+      const entries = listed.value;
       setSpanAttributes(span, { "cmux.vm.count": entries.length });
       // REST adapter: expose `id` at the top level so existing CLI + curl users don't need to
       // learn the new `providerVmId` field name. Swift CLI reads `vm["id"]`.
@@ -483,74 +480,28 @@ export async function POST(request: Request): Promise<Response> {
         });
         setSpanAttributes(span, { "cmux.vm.model_plane": !!modelPlane });
 
-        let created;
-        try {
-          created = await runVmWorkflow(createVm({
-            userId: user.id,
-            billingCustomerType: entitlements.billingCustomerType,
-            billingTeamId: entitlements.billingTeamId,
-            billingPlanId: entitlements.planId,
-            maxActiveVms: entitlements.maxActiveVms,
-            image,
-            imageVersion: imageSelection.imageVersion,
-            provider,
-            idempotencyKey,
-            persistentHome: candidate.persistentHome === true,
-            perMachineHome: candidate.perMachineHome === true,
-            memoryMb,
-            imageSize: imageSelection.size ?? undefined,
-            modelPlane,
-            timing,
-          }));
-        } catch (err) {
-          if (isVmCreateInProgressError(err)) {
-            return vmErrorResponse({
-              error: "vm_create_in_progress",
-              status: 409,
-              message: "A Cloud VM create is already running for this request.",
-              action: "Wait for the first `cmux vm new` to finish. If your terminal was interrupted, retry the same command and cmux will reuse the in-flight request.",
-              details: { idempotencyKeySet: !!err.idempotencyKey },
-            });
-          }
-          if (isVmCreateFailedError(err)) {
-            return vmErrorResponse({
-              error: "vm_create_failed",
-              status: 500,
-              message: "The previous Cloud VM create attempt failed.",
-              action: "Retry with a fresh `cmux vm new`. If it fails again, copy the details and contact support.",
-              details: {
-                idempotencyKeySet: !!err.idempotencyKey,
-                failureCode: err.code,
-                failureMessage: err.message,
-              },
-            });
-          }
-          if (isVmLimitExceededError(err)) {
-            return vmActiveLimitExceededResponse({
-              limit: err.limit,
-              planId: entitlements.planId,
-              retryAction: "Run `cmux vm ls`, then delete an active VM with `cmux vm rm <id>` before creating another, or upgrade your plan.",
-            });
-          }
-          if (isVmCreateCreditsInsufficientError(err)) {
-            const billsUser = entitlements.billingCustomerType === "user";
-            return vmErrorResponse({
-              error: "vm_create_credits_insufficient",
-              status: 402,
-              message: billsUser
-                ? "Your account has no Cloud VM create credits left."
-                : "This team has no Cloud VM create credits left.",
-              action: billsUser
-                ? "Upgrade your plan or add Cloud VM create credits, then retry."
-                : "Upgrade the team's plan or ask an admin to add Cloud VM create credits, then retry.",
-              extra: { amount: err.amount },
-              details: { amount: err.amount },
-            });
-          }
-          const workflowError = await vmWorkflowErrorResponse(err, { locale: vmRequestLocale(request) });
-          if (workflowError) return workflowError;
-          throw err;
-        }
+        const run = await runVmRoute(createVm({
+          userId: user.id,
+          billingCustomerType: entitlements.billingCustomerType,
+          billingTeamId: entitlements.billingTeamId,
+          billingPlanId: entitlements.planId,
+          maxActiveVms: entitlements.maxActiveVms,
+          image,
+          imageVersion: imageSelection.imageVersion,
+          provider,
+          idempotencyKey,
+          persistentHome: candidate.persistentHome === true,
+          perMachineHome: candidate.perMachineHome === true,
+          memoryMb,
+          imageSize: imageSelection.size ?? undefined,
+          modelPlane,
+          timing,
+        }), {
+          request,
+          onError: createErrorResponders(entitlements),
+        });
+        if (!run.ok) return run.response;
+        const created = run.value;
         setSpanAttributes(span, { "cmux.vm.id": created.providerVmId });
         return jsonResponse({
           id: created.providerVmId,
@@ -592,6 +543,56 @@ export async function withBillingReconcileDeadline(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Create-specific copy for the provisioning failures; everything else uses the shared table. */
+function createErrorResponders(entitlements: {
+  readonly planId: string;
+  readonly billingCustomerType: string;
+}): VmWorkflowErrorOverrides {
+  return {
+    VmCreateInProgressError: (error) =>
+      vmErrorResponse({
+        error: "vm_create_in_progress",
+        status: 409,
+        message: "A Cloud VM create is already running for this request.",
+        action: "Wait for the first `cmux vm new` to finish. If your terminal was interrupted, retry the same command and cmux will reuse the in-flight request.",
+        details: { idempotencyKeySet: !!error.idempotencyKey },
+      }),
+    VmCreateFailedError: (error) =>
+      vmErrorResponse({
+        error: "vm_create_failed",
+        status: 500,
+        message: "The previous Cloud VM create attempt failed.",
+        action: "Retry with a fresh `cmux vm new`. If it fails again, copy the details and contact support.",
+        details: {
+          idempotencyKeySet: !!error.idempotencyKey,
+          failureCode: error.code,
+          failureMessage: error.message,
+        },
+      }),
+    VmLimitExceededError: (error) =>
+      vmActiveLimitExceededResponse({
+        limit: error.limit,
+        planId: entitlements.planId,
+        retryAction: "Run `cmux vm ls`, then delete an active VM with `cmux vm rm <id>` before creating another, or upgrade your plan.",
+      }),
+    VmCreateCreditsInsufficientError: (error) => {
+      const billsUser = entitlements.billingCustomerType === "user";
+      return vmErrorResponse({
+        error: "vm_create_credits_insufficient",
+        status: 402,
+        message: billsUser
+          ? "Your account has no Cloud VM create credits left."
+          : "This team has no Cloud VM create credits left.",
+        action: billsUser
+          ? "Upgrade your plan or add Cloud VM create credits, then retry."
+          : "Upgrade the team's plan or ask an admin to add Cloud VM create credits, then retry.",
+        extra: { amount: error.amount },
+        details: { amount: error.amount },
+      });
+    },
+  };
 }
 
 function invalidTeamIdResponse(): Response {
