@@ -1,6 +1,6 @@
 import CoreGraphics
 
-/// Derives selection and trailing scroll space from the same section activation line.
+/// Derives section selection and trailing scroll space from viewport geometry.
 struct SettingsSectionScrollTracker: Sendable {
     static let coordinateSpace = "settings-detail-scroll"
     let activationLine: CGFloat
