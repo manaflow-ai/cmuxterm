@@ -380,7 +380,8 @@ extension CMUXCLI {
         // session started from one cmux build (stable, nightly, a tagged dev
         // build) is never reported to whichever build last ran `hooks setup`.
         // The pinned install remains the fallback for sanitized hook
-        // environments and for terminals whose app has since exited.
+        // environments, and for a stale socket node left by an exited app: the
+        // ambient invocation must succeed, otherwise the pinned chain runs.
         // https://github.com/manaflow-ai/cmux/issues/5473
         let ambientGuard = pinnedHookAmbientDispatchGuard
         let ambientInvocation = pinnedHookAmbientInvocation(routedArguments: routedArguments)
@@ -392,9 +393,9 @@ extension CMUXCLI {
                 routedArguments: routedArguments,
                 socketPath: socketPath
             )
-            dispatch = "if \(ambientGuard); then \(ambientInvocation); elif [ -x \(quotedCLIPath) ]; then \(primaryInvocation); elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
+            dispatch = "if \(ambientGuard) && \(ambientInvocation); then :; elif [ -x \(quotedCLIPath) ]; then \(primaryInvocation); elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
         } else {
-            dispatch = "if \(ambientGuard); then \(ambientInvocation); elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
+            dispatch = "if \(ambientGuard) && \(ambientInvocation); then :; elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
         }
         return ": \(marker); \(shellTraceStart); printenv \(def.disableEnvVar) | grep -qx 1 && { \(shellTraceDisabled); \(noOpSnippet); } || { \(dispatch); cmux_hook_status=$?; \(shellTraceExit); exit $cmux_hook_status; }"
     }

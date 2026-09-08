@@ -14131,6 +14131,7 @@ extension Workspace: BonsplitDelegate {
                 shellActivityState: panelShellActivityStates[panelId],
                 restoredPanelTitleBoundary: restoredPanelTitleBoundariesByPanelId[panelId],
                 restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectoriesByPanelId[panelId],
+                restoredStartupInput: restoredAgentLifecycle.startupInput(panelId: panelId),
                 resumeBinding: resumeBinding,
                 deferredAgentResumeRestore: deferredAgentResumeRestoresByPanelId.removeValue(
                     forKey: panelId

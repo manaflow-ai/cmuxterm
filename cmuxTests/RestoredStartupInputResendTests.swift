@@ -94,6 +94,37 @@ struct RestoredStartupInputResendTests {
         #expect(coordinator.takeStartupInputForResend(panelId: panelId, shellState: .promptIdle) == nil)
     }
 
+    @Test("A Workspace/Dock transfer carries the retained input only while the launch still awaits it")
+    func transferCarriesInputWhileAwaiting() {
+        let panelId = UUID()
+        let source = awaitingCoordinator(panelId: panelId)
+        let destination = RestoredAgentLifecycleCoordinator(dateProvider: { 1_788_868_000 })
+
+        destination.seedTransferredState(
+            panelId: panelId,
+            snapshot: nil,
+            resumeState: .awaitingAutoResumeCommand,
+            completedGeneration: nil,
+            resumeWorkingDirectory: nil,
+            startupInput: source.startupInput(panelId: panelId)
+        )
+        #expect(destination.awaitsStartupInput(panelId: panelId))
+        #expect(destination.takeStartupInputForResend(panelId: panelId, shellState: .promptIdle) == selector)
+
+        // Once the command ran before the move, nothing may be replayed after it.
+        let settled = RestoredAgentLifecycleCoordinator(dateProvider: { 1_788_868_000 })
+        settled.seedTransferredState(
+            panelId: panelId,
+            snapshot: nil,
+            resumeState: .autoResumeCommandRunning,
+            completedGeneration: nil,
+            resumeWorkingDirectory: nil,
+            startupInput: selector
+        )
+        #expect(!settled.awaitsStartupInput(panelId: panelId))
+        #expect(settled.startupInput(panelId: panelId) == nil)
+    }
+
     @Test("Tearing down the restore forgets the retained input")
     func clearSessionRestoreForgetsInput() {
         let panelId = UUID()
@@ -126,7 +157,11 @@ struct RestoredStartupInputResendTests {
         // The grace period keeps a prompt-then-command sequence from double-typing.
         #expect(workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId))
 
-        try await Task.sleep(for: .milliseconds(400))
+        let deadline = ContinuousClock.now + .seconds(5)
+        while workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId),
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(!workspace.restoredAgentLifecycle.awaitsStartupInput(panelId: panelId))
         #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .awaitingAutoResumeCommand)
     }

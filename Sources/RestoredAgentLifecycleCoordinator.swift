@@ -208,6 +208,11 @@ final class RestoredAgentLifecycleCoordinator {
         armedStartupInputResendPanelIds.remove(panelId)
     }
 
+    /// The retained startup input, so a pane transfer can carry it to the new owner.
+    func startupInput(panelId: UUID) -> String? {
+        pendingStartupInputsByPanelId[panelId]
+    }
+
     /// Whether a restored launch is still waiting for its typed startup input to run.
     func awaitsStartupInput(panelId: UUID) -> Bool {
         resumeStatesByPanelId[panelId] == .awaitingAutoResumeCommand &&
@@ -325,8 +330,15 @@ final class RestoredAgentLifecycleCoordinator {
         snapshot: SessionRestorableAgentSnapshot?,
         resumeState: Workspace.RestoredAgentResumeState?,
         completedGeneration: RestoredAgentCompletedGeneration?,
-        resumeWorkingDirectory: String?
+        resumeWorkingDirectory: String?,
+        startupInput: String? = nil
     ) {
+        // A launch still awaiting its typed selector keeps the replay safety
+        // net across a Workspace/Dock move; any other phase has nothing to replay.
+        registerStartupInput(
+            resumeState == .awaitingAutoResumeCommand ? startupInput : nil,
+            panelId: panelId
+        )
         replaceQueuedRestoreSnapshot(
             Self.retainsStartupRestoreIdentity(resumeState) ? snapshot : nil,
             panelId: panelId
