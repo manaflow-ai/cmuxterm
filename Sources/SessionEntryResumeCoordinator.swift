@@ -18,14 +18,16 @@ struct SessionEntryResumeCoordinator {
     @discardableResult
     private func launchInNewWorkspace(
         _ launch: SessionEntryResumeLaunch,
-        tabManager: TabManager,
-        inheritWorkingDirectory: Bool
+        tabManager: TabManager
     ) -> Workspace? {
-        tabManager.addWorkspaceIfActive(
+        let selected = tabManager.selectedWorkspace
+        let isRemoteSelection = selected?.isRemoteWorkspace == true
+            || selected?.isRemoteTmuxMirror == true
+        return tabManager.addWorkspaceIfActive(
             workingDirectory: launch.workingDirectory,
             initialTerminalInput: launch.initialInput,
             initialTerminalStartupRestoreAgent: launch.startupRestoreAgent,
-            inheritWorkingDirectory: inheritWorkingDirectory
+            inheritWorkingDirectory: !isRemoteSelection
         )
     }
 
@@ -35,13 +37,9 @@ struct SessionEntryResumeCoordinator {
     @discardableResult
     func resume(_ entry: SessionEntry, tabManager: TabManager) -> Bool {
         guard let launch = entry.resumeLaunch else { return false }
-        let selected = tabManager.selectedWorkspace
-        let isRemoteSelection = selected?.isRemoteWorkspace == true
-            || selected?.isRemoteTmuxMirror == true
         return launchInNewWorkspace(
             launch,
-            tabManager: tabManager,
-            inheritWorkingDirectory: !isRemoteSelection
+            tabManager: tabManager
         ) != nil
     }
 
@@ -123,8 +121,7 @@ struct SessionEntryResumeCoordinator {
                   ?? workspace.bonsplitController.allPaneIds.first else {
             return launchInNewWorkspace(
                 launch,
-                tabManager: tabManager,
-                inheritWorkingDirectory: false
+                tabManager: tabManager
             ) != nil
         }
 
@@ -142,8 +139,7 @@ struct SessionEntryResumeCoordinator {
 
         return launchInNewWorkspace(
             launch,
-            tabManager: tabManager,
-            inheritWorkingDirectory: false
+            tabManager: tabManager
         ) != nil
     }
 

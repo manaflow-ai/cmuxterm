@@ -17,7 +17,10 @@ struct VaultResumeRegistrationTemplate: Sendable {
         workingDirectory: String?
     ) -> [String] {
         guard let templateParts = splitShellWords(registration.resumeCommand),
-              !templateParts.isEmpty else {
+              !templateParts.isEmpty,
+              templateParts.contains(where: { part in
+                  part.contains("{{sessionId}}") || part.contains("{{sessionPath}}")
+              }) else {
             return []
         }
         guard let executable = normalized(launchArguments.first)

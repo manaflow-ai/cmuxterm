@@ -924,6 +924,7 @@ private func sessionRowMenuItems(
     onFocus: ((SessionEntry) -> Void)? = nil,
     isActive: Bool = false
 ) -> some View {
+    let resumeLaunch = entry.resumeLaunch
     if let onFocus {
         Button {
             onFocus(entry)
@@ -938,12 +939,13 @@ private func sessionRowMenuItems(
         } label: {
             Text(String(localized: "sessionIndex.row.openSession", defaultValue: "Open Session"))
         }
+        .disabled(resumeLaunch == nil)
     }
     if onFocus != nil || onOpen != nil {
         Divider()
     }
     if let onResume {
-        if let launch = entry.resumeLaunch {
+        if let launch = resumeLaunch {
             let resumeTitle = launch.legacyFallbackReason == nil
                 ? String(localized: "sessionIndex.row.resume", defaultValue: "Resume in New Workspace")
                 : String(
