@@ -113,7 +113,7 @@ struct CloudTunnelLaunchGateTests {
         let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
 
         await coordinator.prepareForPrivateNetworkUse(Self.use)
-        await coordinator.beginUp(pin: true)
+        #expect(await coordinator.beginUp(pin: true) == .cloudMachinesOff)
         await #expect(throws: CloudTunnelError.cloudMachinesOff) {
             try await coordinator.requirePrivateNetworkUse(Self.use)
         }
@@ -232,7 +232,7 @@ struct CloudTunnelLaunchGateTests {
 
         // A machine appears (created elsewhere): the count last seen as zero
         // is re-asked on the next explicit use, which then comes up. The
-        // in-start re-check finds the refilled cache and asks nothing.
+        // in-start re-check reads the refilled cache and asks nothing.
         resolver.hasMachine = true
         try await coordinator.requestUp(pin: true)
         #expect(await coordinator.state == .up)
@@ -240,10 +240,63 @@ struct CloudTunnelLaunchGateTests {
         #expect(factory.builds.count == 1)
         #expect(factory.controller.calls == ["install", "start"])
 
-        // Now known: status and later uses need no resolution.
+        // Up: status and later uses read local state and ask nothing.
         #expect(await coordinator.knownStartRefusal() == nil)
         await coordinator.prepareForPrivateNetworkUse(Self.use)
         #expect(resolver.count == 2)
+    }
+
+    @Test("a marker that still says the account has a machine is re-asked before a start: a machine deleted outside the app refuses")
+    @MainActor
+    func staleMachineMarkerIsReAskedBeforeStarting() async throws {
+        let factory = ControllerFactory()
+        let deferred = CloudTunnelDeferredController { factory.make() }
+        let enroller = FakeTunnelEnroller()
+        // The last poll saw a machine; it has since been deleted on the web.
+        let resolver = Resolver(fleetHasMachine: false)
+        let policy = CloudActivationPolicy(
+            isCloudMachinesEnabled: { true },
+            hasUsedCloud: { true },
+            hasCloudMachine: { resolver.known ?? true },
+            isTunnelConfigured: { false },
+            resolveCloudMachine: { resolver.resolve() }
+        )
+        let coordinator = makeCoordinator(controller: deferred, enroller: enroller, admission: policy.tunnelAdmission)
+
+        // Status trusts the marker; a start does not.
+        #expect(await coordinator.knownStartRefusal() == nil)
+        await #expect(throws: CloudTunnelError.noCloudMachine) {
+            try await coordinator.requirePrivateNetworkUse(Self.use)
+        }
+        #expect(await coordinator.beginUp(pin: true) == .noCloudMachine)
+        await coordinator.prepareForPrivateNetworkUse(Self.use)
+        #expect(resolver.count == 3)
+        #expect(factory.builds.isEmpty)
+        #expect(enroller.enrollCount == 0)
+        #expect(await coordinator.state == .off)
+        #expect(await coordinator.isPinned == false)
+        // The refilled marker now says so for status as well.
+        #expect(await coordinator.knownStartRefusal() == .noCloudMachine)
+    }
+
+    @Test("`beginUp` reports a refusal that arrives after the caller's own check, so `vm.tunnel_up` never reads off as success")
+    func beginUpReportsLateRefusal() async {
+        let controller = FakeTunnelController()
+        let enroller = FakeTunnelEnroller()
+        // Local state admits; the control plane, asked as the start is
+        // scheduled, says the fleet is empty.
+        let admission = CloudTunnelAdmission(
+            knownRefusal: { nil },
+            resolvedRefusal: { .noCloudMachine }
+        )
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, admission: admission)
+        #expect(await coordinator.knownStartRefusal() == nil)
+        #expect(await coordinator.beginUp(pin: true) == .noCloudMachine)
+        #expect(await coordinator.state == .off)
+        #expect(await coordinator.isPinned == false)
+        #expect(await coordinator.recordedStartRefusal() == nil)
+        #expect(controller.calls.isEmpty)
+        #expect(enroller.enrollCount == 0)
     }
 
     @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
@@ -252,13 +305,12 @@ struct CloudTunnelLaunchGateTests {
         let enroller = FakeTunnelEnroller()
         let gate = Gate(nil)
         // Admit the scheduling check, refuse the in-start re-check: the toggle
-        // was turned off in between.
-        let asks = Resolver(fleetHasMachine: nil)
+        // is turned off between the fleet answer and the scheduled start.
         let admission = CloudTunnelAdmission(
             knownRefusal: { gate.refusal },
             resolvedRefusal: {
-                _ = asks.resolve()
-                return asks.count >= 2 ? CloudTunnelStartRefusal.cloudMachinesOff : nil
+                gate.refusal = .cloudMachinesOff
+                return nil
             }
         )
         let coordinator = makeCoordinator(controller: controller, enroller: enroller, admission: admission)

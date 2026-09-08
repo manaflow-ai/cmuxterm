@@ -65,10 +65,9 @@ extension TerminalController {
                         await Self.cloudTunnelCoordinator()?.backend.unavailableReason ?? .entitlementMissing
                     )
                 }
-                if let refusal = await coordinator.startRefusal() {
+                if let refusal = await coordinator.beginUp(pin: true) {
                     throw refusal.error
                 }
-                await coordinator.beginUp(pin: true)
                 let settled = await coordinator.waitForState(timeout: .seconds(60)) { state in
                     state == .awaitingApproval || !state.isSettling
                 }

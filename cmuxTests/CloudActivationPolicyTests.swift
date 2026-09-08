@@ -57,7 +57,7 @@ struct CloudActivationPolicyTests {
         #expect(policy.allowsBackgroundCloudWork)
     }
 
-    @Test("an unknown machine count is resolved through the control plane by a start, never by launch-time decisions")
+    @Test("an explicit start settles the machine count against the control plane whatever the marker says; launch-time decisions never do")
     func unknownMachineCountIsResolvedOnDemand() async {
         let hasMachines = policy(enabled: true, machine: nil, configured: false, resolved: true)
         #expect(hasMachines.allowsBackgroundCloudWork)
@@ -80,9 +80,14 @@ struct CloudActivationPolicyTests {
         let stillNone = policy(enabled: true, machine: false, configured: false, resolved: nil)
         #expect(await stillNone.resolvedTunnelStartRefusal() == .noCloudMachine)
 
-        // A known machine is never re-asked.
-        let known = policy(enabled: true, usedCloud: true, machine: true, configured: false, resolved: false)
-        #expect(await known.resolvedTunnelStartRefusal() == nil)
+        // A marker that knows a machine is re-asked too: the last machine may
+        // have been deleted outside this app since the last poll.
+        let deletedElsewhere = policy(enabled: true, usedCloud: true, machine: true, configured: false, resolved: false)
+        #expect(deletedElsewhere.tunnelStartRefusal() == nil)
+        #expect(await deletedElsewhere.resolvedTunnelStartRefusal() == .noCloudMachine)
+        // Offline with a marker that knows a machine: the local answer stands.
+        let offlineKnown = policy(enabled: true, usedCloud: true, machine: true, configured: false, resolved: nil)
+        #expect(await offlineKnown.resolvedTunnelStartRefusal() == nil)
 
         // The toggle still wins before anything is asked.
         let off = policy(enabled: false, machine: nil, configured: false, resolved: true)

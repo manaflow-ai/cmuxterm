@@ -14,10 +14,12 @@ import Foundation
 /// marker, or a tunnel role enrolled on this Mac) keeps an existing user's
 /// fleet alive across an update. "The account has a machine right now" is
 /// only ever the cached marker, which every fleet list refills, sign-out
-/// clears, and a delete resets to unknown; launch-time decisions treat
-/// anything but a known machine as "no", while an explicit Cloud use (browser
-/// open, `cmux vpn up`) settles an unknown or zero count against the control
-/// plane through `resolveCloudMachine`.
+/// clears, and a delete resets to unknown; launch-time decisions and status
+/// treat anything but a known machine as "no", while an explicit Cloud use
+/// (browser open, `cmux vpn up`) settles the count against the control plane
+/// through `resolveCloudMachine` before a start is scheduled, whatever the
+/// marker says: a machine deleted or created outside this app must not be
+/// trusted or missed on the strength of the last poll.
 ///
 /// The inputs are injected closures so the decision is testable without a
 /// signed bundle; ``live(defaults:machineCache:browserTunnel:terminalTunnel:resolveCloudMachine:)``
@@ -41,8 +43,8 @@ struct CloudActivationPolicy: Sendable {
     /// saved in NetworkExtension preferences.
     let isTunnelConfigured: @Sendable () -> Bool
     /// Asks the control plane whether the account has a machine; `nil` when it
-    /// cannot answer (signed out, offline). Used only when ``hasCloudMachine``
-    /// cannot confirm one, and only from an explicit Cloud use, never at launch.
+    /// cannot answer (signed out, offline). Used only from an explicit Cloud
+    /// use that is about to schedule a start, never at launch or for status.
     let resolveCloudMachine: @Sendable () async -> Bool?
 
     /// Fleet polling and links may run: the user opted in, or this Mac used
@@ -67,23 +69,22 @@ struct CloudActivationPolicy: Sendable {
         return hasCloudMachine() == false ? .noCloudMachine : nil
     }
 
-    /// ``tunnelStartRefusal()`` settled against the control plane whenever
-    /// local state cannot confirm a machine (unknown, or last seen as zero: a
-    /// machine created on the web must not wait for the next fleet poll). An
-    /// answer it cannot get (signed out, offline) keeps the local one; when
-    /// that is unknown, the start proceeds and enrollment reports why it
-    /// cannot, before NetworkExtension is touched.
+    /// ``tunnelStartRefusal()`` settled against the control plane: one fleet
+    /// list decides, whatever the marker last said, so a machine deleted or
+    /// created outside this app is neither trusted nor missed. An answer it
+    /// cannot get (signed out, offline) keeps the local one: a marker that
+    /// positively knows a machine admits, a marker that knows none refuses,
+    /// and an unknown marker lets the start proceed so enrollment reports the
+    /// real cause (sign in, network) before NetworkExtension is touched.
     func resolvedTunnelStartRefusal() async -> CloudTunnelStartRefusal? {
         guard isCloudMachinesEnabled() else { return .cloudMachinesOff }
-        let known = hasCloudMachine()
-        if known == true { return nil }
         switch await resolveCloudMachine() {
         case .some(true):
             return nil
         case .some(false):
             return .noCloudMachine
         case nil:
-            return known == false ? .noCloudMachine : nil
+            return hasCloudMachine() == false ? .noCloudMachine : nil
         }
     }
 
