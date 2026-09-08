@@ -162,7 +162,10 @@ public actor IrxRelayCredentialAutopilot {
             } else if outcome == .exhausted {
                 self.scheduleHintRetry(lifecycleGeneration: generation)
             }
-            guard outcome != .stopped else { return }
+            guard outcome != .stopped else {
+                self.finishLifecycleIfCurrent(generation: generation)
+                return
+            }
             guard !Task.isCancelled else { return }
             // The outer kick task owns the `loop` handle; the nested run must
             // not clear it while this task is still executing.
@@ -224,7 +227,10 @@ public actor IrxRelayCredentialAutopilot {
                 } else if hintOutcome == .succeeded {
                     cancelHintRetry()
                 }
-                guard hintOutcome != .stopped else { return }
+                guard hintOutcome != .stopped else {
+                    finishLifecycleIfCurrent(generation: generation)
+                    return
+                }
                 failureCounts = FailureCounts()
             } catch is CancellationError {
                 return
@@ -245,7 +251,10 @@ public actor IrxRelayCredentialAutopilot {
                     missingAuthenticationFailureCount:
                         failureCounts.missingAuthentication,
                     credentialExpiry: expiry
-                ) else { return }
+                ) else {
+                    finishLifecycleIfCurrent(generation: generation)
+                    return
+                }
                 guard generation == loopGeneration, !Task.isCancelled else { return }
                 failureCounts.transient = nextFailureCount.transient
                 failureCounts.unauthorized = nextFailureCount.unauthorized
@@ -258,6 +267,13 @@ public actor IrxRelayCredentialAutopilot {
     private func clearLoopIfCurrent(generation: UInt64) {
         guard loopGeneration == generation else { return }
         loop = nil
+    }
+
+    private func finishLifecycleIfCurrent(generation: UInt64) {
+        guard loopGeneration == generation else { return }
+        loopGeneration &+= 1
+        loop = nil
+        cancelHintRetry()
     }
 
     /// Arms one bounded-delay hint probe without minting credentials again.
