@@ -99,6 +99,7 @@ enum SocksV5Client {
         guard bytes.count >= replyHeaderLength else { throw ClientError.malformedReply }
         guard bytes[0] == version else { throw ClientError.serverVersion(bytes[0]) }
         guard bytes[1] == replySucceeded else { throw ClientError.connectFailed(code: bytes[1]) }
+        guard bytes[2] == 0x00 else { throw ClientError.malformedReply }
     }
 
     /// RFC 1928 reply codes, as the pane's failure text.

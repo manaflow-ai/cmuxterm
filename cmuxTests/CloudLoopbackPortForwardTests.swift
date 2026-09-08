@@ -22,12 +22,25 @@ struct CloudLoopbackPortForwardTests {
         private let lock = NSLock()
         private var targets: [CloudPortForwardTarget] = []
         private var _replyCode: UInt8 = SocksV5Client.replySucceeded
+        private var _silent = false
+        private var _closesAfterReplyHeader = false
         private(set) var port: UInt16 = 0
 
         var connectTargets: [CloudPortForwardTarget] { lock.withLock { targets } }
         var replyCode: UInt8 {
             get { lock.withLock { _replyCode } }
             set { lock.withLock { _replyCode = newValue } }
+        }
+        /// Accept the socket and never answer, like a hub that hung.
+        var silent: Bool {
+            get { lock.withLock { _silent } }
+            set { lock.withLock { _silent = newValue } }
+        }
+        /// Send only the four-byte reply header, then close (a refusal with
+        /// no bound address).
+        var closesAfterReplyHeader: Bool {
+            get { lock.withLock { _closesAfterReplyHeader } }
+            set { lock.withLock { _closesAfterReplyHeader = newValue } }
         }
         /// A unix socket path when the hub listens the way the real one does,
         /// else a loopback TCP port.
@@ -75,6 +88,7 @@ struct CloudLoopbackPortForwardTests {
         private func serve(_ connection: NWConnection) async {
             do {
                 try await connection.startAndWaitUntilReady(queue: queue)
+                if silent { return }
                 let greeting = try await connection.receiveExactly(3)
                 guard greeting == SocksV5Client.greeting else { throw NSError(domain: "FakeSocksHub", code: 2) }
                 try await connection.sendAll(Data([SocksV5Client.version, SocksV5Client.methodNoAuthentication]))
@@ -90,6 +104,11 @@ struct CloudLoopbackPortForwardTests {
                 let port = Int(rest[addressLength]) << 8 | Int(rest[addressLength + 1])
                 lock.withLock { targets.append(CloudPortForwardTarget(host: host, port: port)) }
                 let code = replyCode
+                if closesAfterReplyHeader {
+                    try await connection.sendAll(Data([SocksV5Client.version, code, 0x00, SocksV5Client.addressTypeIPv4]))
+                    connection.cancel()
+                    return
+                }
                 try await connection.sendAll(Data([SocksV5Client.version, code, 0x00, SocksV5Client.addressTypeIPv4, 0, 0, 0, 0, 0, 0]))
                 guard code == SocksV5Client.replySucceeded else {
                     connection.cancel()
@@ -300,9 +319,53 @@ struct CloudLoopbackPortForwardTests {
         let replacement = try await forwarder.forward(machineID: "vm-1", to: target)
         #expect(replacement !== first)
         #expect(await replacement.isListening)
-        #expect(await replacement.localPort != deadPort)
+        _ = deadPort
+        let client = try await Self.client(port: await replacement.localPort)
+        try await client.sendAll(Data("alive".utf8))
+        #expect(try await client.receiveExactly(5) == Array("alive".utf8), "the replacement carries traffic")
+        client.cancel()
         #expect(await forwarder.count == 1)
         await forwarder.closeAll()
+    }
+
+    @Test("a refusal that closes right after the reply header still reports the SOCKS5 reason")
+    func refusalWithoutBoundAddress() async throws {
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        hub.replyCode = 0x05
+        hub.closesAfterReplyHeader = true
+        let upstream = NWConnection(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: hub.port)!, using: .tcp)
+        try await upstream.startAndWaitUntilReady(queue: DispatchQueue(label: "cmux.tests.socks-direct"))
+        await #expect(throws: SocksV5Client.ClientError.connectFailed(code: 0x05)) {
+            try await CloudPortForwardRelay.connect(upstream, to: CloudPortForwardTarget(host: "10.0.0.7", port: 1))
+        }
+        upstream.cancel()
+    }
+
+    @Test("a hub that accepts and never answers is cut off by the handshake deadline and its claim released")
+    func stalledHubIsCutOff() async throws {
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        hub.silent = true
+        let dialer = FakeHubDialer(endpoint: hub.endpoint)
+        var relay = CloudPortForwardRelay(dialer: dialer)
+        relay.handshakeTimeout = .milliseconds(400)
+        let forward = try CloudLoopbackPortForward(target: CloudPortForwardTarget(host: "10.0.0.7", port: 80), dialer: dialer, relay: relay)
+        let localPort = try await forward.start()
+        let client = try await Self.client(port: localPort)
+        let ended: Bool
+        do {
+            let (_, isComplete) = try await client.receiveChunk()
+            ended = isComplete
+        } catch {
+            ended = true
+        }
+        #expect(ended, "the browser side is closed instead of waiting on a stalled hub")
+        #expect(await Self.waitUntil { dialer.claims == 1 && dialer.releases == 1 })
+        client.cancel()
+        await forward.stop()
     }
 
     @Test("one machine port keeps one local port; a new address retargets it; closing frees it")

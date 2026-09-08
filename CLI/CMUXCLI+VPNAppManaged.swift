@@ -24,14 +24,23 @@ extension CMUXCLI {
     /// moment the app sees the approval.
     func runAppManagedVPNUp(client: SocketClient, jsonOutput: Bool, status before: [String: Any]) throws {
         let wasUp = (before["interface_up"] as? Bool) ?? false
+        let enrolled = (before["config_present"] as? Bool) ?? false
         if !jsonOutput, !wasUp {
             // Say what is about to happen before macOS asks anything: the
             // first start installs a system extension and a VPN configuration,
-            // and the OS dialog that follows explains neither.
-            print(String(
-                localized: "cli.vpn.appManaged.explain",
-                defaultValue: "This installs the cmux Cloud Tunnel network extension and a macOS VPN configuration named “cmux Cloud”, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel. The first time, macOS asks you to allow the extension in System Settings › General › Login Items & Extensions."
-            ))
+            // and the OS dialog that follows explains neither. A Mac that
+            // already enrolled is only turning an installed tunnel back on.
+            if enrolled {
+                print(String(
+                    localized: "cli.vpn.appManaged.explainReconnect",
+                    defaultValue: "This turns the cmux Cloud Tunnel back on, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel."
+                ))
+            } else {
+                print(String(
+                    localized: "cli.vpn.appManaged.explain",
+                    defaultValue: "This installs the cmux Cloud Tunnel network extension and a macOS VPN configuration named “cmux Cloud”, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel. The first time, macOS asks you to allow the extension in System Settings › General › Login Items & Extensions."
+                ))
+            }
             print(String(
                 localized: "cli.vpn.appManaged.bringingUp",
                 defaultValue: "Bringing the tunnel up (app-managed, no sudo needed)…"

@@ -49,9 +49,9 @@ actor CloudLoopbackPortForward {
     private(set) var acceptedConnectionCount = 0
     private var stopped = false
 
-    init(target: CloudPortForwardTarget, dialer: any CloudHubDialing) throws {
+    init(target: CloudPortForwardTarget, dialer: any CloudHubDialing, relay: CloudPortForwardRelay? = nil) throws {
         self.target = target
-        relay = CloudPortForwardRelay(dialer: dialer)
+        self.relay = relay ?? CloudPortForwardRelay(dialer: dialer)
         let tcp = NWProtocolTCP.Options()
         tcp.noDelay = true
         let parameters = NWParameters(tls: nil, tcp: tcp)
@@ -91,6 +91,9 @@ actor CloudLoopbackPortForward {
         listener.start(queue: queue)
         switch await bound.result ?? .failure(.listenerCancelled) {
         case .success(let port):
+            // The failure hop can land before this continuation resumes; a
+            // listener that already died must not be reported as listening.
+            guard !stopped else { throw ForwardError.listenerCancelled }
             localPort = port
             isListening = true
             return port

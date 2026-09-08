@@ -87,7 +87,14 @@ actor CloudHubPortForwarder {
 
     /// Closes every forward on a machine (it left the fleet or was deleted).
     func close(machineID: String) async {
-        for key in Set(forwards.keys).union(starting.keys) where key.machineID == machineID {
+        await close(machineIDs: [machineID])
+    }
+
+    /// One pass over the tables for a whole batch of machines that left the
+    /// fleet, so a refresh that drops many at once pays one actor hop.
+    func close(machineIDs: Set<String>) async {
+        guard !machineIDs.isEmpty else { return }
+        for key in Set(forwards.keys).union(starting.keys) where machineIDs.contains(key.machineID) {
             await close(key)
         }
     }

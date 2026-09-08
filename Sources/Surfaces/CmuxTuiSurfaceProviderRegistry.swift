@@ -169,7 +169,9 @@ final class CmuxTuiSurfaceProviderRegistry {
             providers[id]?.stop()
             providers[id] = nil
             catalog.unregister(machine: .cloud(id))
-            await portForwards?.close(machineID: id)
+        }
+        if !staleIDs.isEmpty {
+            await portForwards?.close(machineIDs: staleIDs)
         }
         await links.retain(machineIDs: seen)
         guard generation == refreshGeneration else { return false }

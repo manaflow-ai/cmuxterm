@@ -73,6 +73,9 @@ struct SocksV5ClientTests {
         #expect(throws: SocksV5Client.ClientError.connectFailed(code: 0x05)) {
             try SocksV5Client.checkReply([0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
         }
+        #expect(throws: SocksV5Client.ClientError.malformedReply, "a nonzero reserved byte is not a SOCKS5 reply") {
+            try SocksV5Client.checkReply([0x05, 0x00, 0x7F, 0x01, 0, 0, 0, 0, 0, 0])
+        }
         #expect(SocksV5Client.ClientError.connectFailed(code: 0x05).errorDescription?.contains("connection refused") == true)
         #expect(SocksV5Client.ClientError.connectFailed(code: 0x02).errorDescription?.contains("not allowed") == true)
     }

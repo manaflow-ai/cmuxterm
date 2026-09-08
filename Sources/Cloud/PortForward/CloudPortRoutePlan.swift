@@ -24,7 +24,7 @@ enum CloudPortRoutePlan: Equatable, Sendable {
         let desktop = resource.kind == .display
         guard let port = resource.id.forwardedPort ?? resource.port ?? (desktop ? CmuxTuiSnapshotParser.desktopPort : nil) else {
             return .unsupported(String(
-                format: String(localized: "cloudTree.port.noPort", defaultValue: "%@ names no port to open."),
+                format: String(localized: "cloudTree.port.noPort", defaultValue: "%@ has no port to open."),
                 resource.id.rawValue
             ))
         }

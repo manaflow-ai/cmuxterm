@@ -17,6 +17,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         case badURL(String)
         /// No user-space WireGuard hub in this build (no bundled cmux-tui client).
         case hubUnavailable
+        /// The private URL could not be rewritten onto the loopback forward.
+        case localForwardURLUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -52,6 +54,11 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 return String(
                     localized: "cloudTree.error.hubUnavailable",
                     defaultValue: "This cmux build has no user-space WireGuard hub, so it cannot reach ports on Cloud machines."
+                )
+            case .localForwardURLUnavailable:
+                return String(
+                    localized: "cloudTree.error.localForwardURLUnavailable",
+                    defaultValue: "cmux could not build a local address for this port forward."
                 )
             }
         }
@@ -226,6 +233,9 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func isCurrentLifecycleGeneration(_ generation: UInt64) -> Bool {
         lifecycleGeneration == generation
     }
+
+    /// The generation to capture before detached work that touches panes.
+    var currentLifecycleGeneration: UInt64 { lifecycleGeneration }
 
     private func isCurrentRefresh(lifecycle: UInt64, refresh: UInt64) -> Bool {
         lifecycleGeneration == lifecycle

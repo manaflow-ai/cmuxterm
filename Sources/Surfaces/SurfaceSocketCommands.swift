@@ -315,7 +315,9 @@ extension TerminalController {
             // private address stays available as `private_url` for callers
             // with their own route into the network (`cmux vpn up`).
             let privateURL = await catalog.resources[resource]?.url
-            let localURL = try? await (catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider)?.localPortURL(port: port)
+            // A forward that cannot be made is an error for the caller, never a
+            // silent fall-back to an address only `cmux vpn up` can reach.
+            let localURL = try await (catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider)?.localPortURL(port: port)
             let url = localURL ?? privateURL ?? ""
             payload["url"] = url
             payload["open_url"] = url
