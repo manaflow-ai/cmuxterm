@@ -28,7 +28,8 @@ struct SidebarWorkspaceGroupBulkToggle: View {
             CmuxSystemSymbolImage(
                 systemName: systemName,
                 pointSize: HeaderChromeControlMetrics.iconSize,
-                weight: .regular
+                weight: .regular,
+                tint: .secondary
             )
             .foregroundStyle(.secondary)
             .frame(
