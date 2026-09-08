@@ -1183,12 +1183,14 @@ normalize_node_options_for_restore() {
 install_cmux_node_options() {
     local guard_path
     if guard_path="$(ensure_node_options_restore_module)"; then
-        if [[ ${NODE_OPTIONS+x} ]]; then
-            export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=1
-            export CMUX_ORIGINAL_NODE_OPTIONS="$(normalize_node_options_for_restore "$NODE_OPTIONS")"
-        else
-            export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=0
-            unset CMUX_ORIGINAL_NODE_OPTIONS
+        if [[ ! ${CMUX_ORIGINAL_NODE_OPTIONS_PRESENT+x} ]]; then
+            if [[ ${NODE_OPTIONS+x} ]]; then
+                export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=1
+                export CMUX_ORIGINAL_NODE_OPTIONS="$(normalize_node_options_for_restore "$NODE_OPTIONS")"
+            else
+                export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=0
+                unset CMUX_ORIGINAL_NODE_OPTIONS
+            fi
         fi
         export NODE_OPTIONS="$(merge_node_options "$guard_path")"
     fi

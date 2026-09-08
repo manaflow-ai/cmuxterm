@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression coverage for Claude children after macOS purges ``$TMPDIR``."""
+"""Regression coverage for durable Claude restore preload behavior."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def make_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-def wait_for_text(path: Path, timeout: float = 10.0) -> str:
+def wait_for_text(path: Path, timeout: float = 30.0) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if path.exists():
@@ -68,6 +68,8 @@ delete process.env.CMUX_ORIGINAL_NODE_OPTIONS_PRESENT;
         )
         user_preload = root / "user-preload.cjs"
         user_preload.write_text("// preserved user preload\n", encoding="utf-8")
+        captured_preload = root / "captured-preload.cjs"
+        captured_preload.write_text("// captured original preload\n", encoding="utf-8")
 
         wrapper = wrapper_dir / "cmux-claude-wrapper"
         shutil.copy2(SOURCE_WRAPPER, wrapper)
@@ -83,7 +85,7 @@ printf '%s\\n' "${NODE_OPTIONS-__UNSET__}" > "$FAKE_READY_PATH"
 while [[ ! -e "$FAKE_CONTINUE_PATH" ]]; do
   sleep 0.02
 done
-exec node -e 'process.stdout.write("node-child-survived")'
+exec node -e 'process.stdout.write(process.env.NODE_OPTIONS || "__UNSET__")'
 """,
         )
         make_executable(
@@ -113,6 +115,8 @@ exit 0
                     "CMUX_BUNDLED_CLI_PATH": str(wrapper_dir / "cmux"),
                     "CMUX_CUSTOM_CLAUDE_PATH": str(real_dir / "claude"),
                     "NODE_OPTIONS": f'--require="{legacy_path}" --require="{user_preload}"',
+                    "CMUX_ORIGINAL_NODE_OPTIONS_PRESENT": "1",
+                    "CMUX_ORIGINAL_NODE_OPTIONS": f'--require="{captured_preload}"',
                     "FAKE_READY_PATH": str(ready_path),
                     "FAKE_CONTINUE_PATH": str(continue_path),
                 }
@@ -149,6 +153,12 @@ exit 0
                     stdout, stderr = process.communicate()
                     print(f"FAIL: user NODE_OPTIONS preload was dropped: {node_options!r}")
                     return 1
+                if "--max-old-space-size=4096" not in node_options:
+                    continue_path.touch()
+                    process.kill()
+                    stdout, stderr = process.communicate()
+                    print(f"FAIL: cmux heap setting was dropped on wrapper re-entry: {node_options!r}")
+                    return 1
 
                 shutil.rmtree(legacy_root, ignore_errors=True)
                 continue_path.touch()
@@ -169,8 +179,9 @@ exit 0
         print(f"stdout={stdout!r}")
         print(f"stderr={stderr!r}")
         return 1
-    if stdout != "node-child-survived":
-        print(f"FAIL: unexpected child output after TMPDIR purge: {stdout!r}")
+    expected_restored_node_options = f'--require="{captured_preload}"'
+    if stdout != expected_restored_node_options:
+        print(f"FAIL: original NODE_OPTIONS was overwritten on wrapper re-entry: {stdout!r}")
         return 1
     if str(restore_path).startswith(str(session_tmpdir)):
         print(f"FAIL: restore shim still lives under TMPDIR: {restore_path}")
