@@ -61,7 +61,7 @@ extension TerminalController {
                 request = parsed
             }
 
-            let relayAuthorization = authorizeRemoteRelayRequest(request)
+            let relayAuthorization = await authorizeRemoteRelayRequestAsync(request)
             if let errorResponse = relayAuthorization.errorResponse {
                 return errorResponse
             }
