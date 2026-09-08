@@ -47,7 +47,7 @@
  *
  * Daemon contract: the session daemon is cmux-tui (docs/cloud-cmux-tui-daemon.md).
  * The bake installs the pinned files.cmux.com build (sha256-verified, the same
- * install command the driver's attach-time heal uses) at /root/.cmux/bin/cmux-tui
+ * install command the driver's attach-time heal uses) in the daemon user's home
  * and the cmux-tui-daemon systemd unit runs /usr/local/bin/cmux-devbox-boot,
  * which starts and supervises it. The bake proves the daemon answers on
  * [::]:1337, then parks it: a snapshot is a memory image, so a daemon left

@@ -31,6 +31,7 @@ import {
   type VmImageSize,
   type VmImageSizeName,
 } from "../services/vms/images/sizes";
+import { CMUX_TUI_SESSION, cmuxTuiRunCommand } from "../services/vms/drivers/cmuxTuiDaemon";
 import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 import { argValue, cmuxTuiWebsocketSmokeCommand, devboxParkDaemonCommand, hasFlag } from "./devbox-image-common";
 
@@ -192,7 +193,7 @@ for (const name of sizes) {
     // to this machine and listening dual-stack.
     let daemon = { code: 1, out: "" };
     for (let i = 0; i < 30 && daemon.code !== 0; i += 1) {
-      daemon = await sh(check.vm, "env HOME=/root /root/.cmux/bin/cmux-tui server status --session cloud >/dev/null 2>&1 && grep -qi ':0539 ' /proc/net/tcp6 && test -s /etc/cmux/daemon-instance-id && echo daemon-up", 30_000);
+      daemon = await sh(check.vm, `${cmuxTuiRunCommand(`server status --session ${CMUX_TUI_SESSION}`)} >/dev/null 2>&1 && grep -qi ':0539 ' /proc/net/tcp6 && test -s /etc/cmux/daemon-instance-id && echo daemon-up`, 30_000);
       if (daemon.code !== 0) await sleep(1000);
     }
     if (daemon.code !== 0) throw new Error(`${name}: cmux-tui daemon did not come up on the derived snapshot ${imageId}: ${daemon.out.slice(-300)}`);
