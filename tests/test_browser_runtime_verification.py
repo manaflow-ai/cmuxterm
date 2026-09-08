@@ -17,6 +17,11 @@ HELPER = ROOT / "scripts" / "ci" / "verify_browser_runtime_artifact.py"
 CI_WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 E2E_WORKFLOW = ROOT / ".github" / "workflows" / "test-e2e.yml"
 RELOAD_WORKFLOW = ROOT / ".github" / "workflows" / "reload-build.yml"
+EXECUTION_GUARD = ROOT / "scripts" / "ci" / "require_selected_test_execution.sh"
+BROWSER_SMOKE_SELECTOR = (
+    "cmuxUITests/BrowserReliabilityRegressionUITests/"
+    "testBrowserEngineSmokeRendersEvaluatesScreenshotsAndReopens"
+)
 
 spec = importlib.util.spec_from_file_location("verify_browser_runtime_artifact", HELPER)
 assert spec and spec.loader
@@ -346,12 +351,56 @@ def test_ci_status_remains_the_compile_aggregate_and_trusted_watcher_owns_browse
     assert "required CI verification failed" in required_ci
 
 
+def test_browser_smoke_execution_guard_rejects_missing_or_zero_test_evidence() -> None:
+    for log in (
+        "** TEST SUCCEEDED **\n",
+        "Executed 0 tests, with 0 failures (0 unexpected)\n",
+        "Test run with 0 tests passed after 0.01 seconds.\n",
+        "XCTExpectFailure: matcher accepted Assertion Failure: Failed to activate application\n"
+        "Executed 1 test, with 0 failures (0 unexpected)\n",
+    ):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as log_file:
+            log_file.write(log)
+            log_file.flush()
+            result = subprocess.run(
+                ["bash", str(EXECUTION_GUARD), log_file.name, BROWSER_SMOKE_SELECTOR],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        assert result.returncode == 1, (log, result)
+        assert not result.stdout, result
+
+
+def test_browser_smoke_execution_guard_reports_real_execution_counts() -> None:
+    for log, count in (
+        ("Executed 1 test, with 0 failures (0 unexpected)\n", 1),
+        ("Executed 2 tests, with 0 failures (0 unexpected)\n", 2),
+        ("Test run with 1 test passed after 0.01 seconds.\n", 1),
+        ("Test run with 2 tests passed after 0.01 seconds.\n", 2),
+        (
+            "Executed 0 tests, with 0 failures (0 unexpected)\n"
+            "Executed 1 test, with 0 failures (0 unexpected)\n",
+            1,
+        ),
+    ):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as log_file:
+            log_file.write(log)
+            log_file.flush()
+            result = subprocess.run(
+                ["bash", str(EXECUTION_GUARD), log_file.name, BROWSER_SMOKE_SELECTOR],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        assert result.returncode == 0, (log, result)
+        assert result.stdout == f"{count}\n", result
+
+
 def test_browser_gate_uses_exact_head_and_nonzero_test_contract() -> None:
     workflow = E2E_WORKFLOW.read_text(encoding="utf-8")
     assert "workflow_call:" in workflow
     assert "verify_browser_runtime" in workflow
-    assert "Could not determine executed test count" in workflow
-    assert "executed 0 tests" in workflow
     assert "EXPECTED_SHA" in workflow or "expected_sha" in workflow
     assert "repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}" in workflow
     assert "Checkout trusted browser verifier" in workflow
