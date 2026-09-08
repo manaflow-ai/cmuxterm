@@ -109,14 +109,6 @@ extension SurfaceResumeBindingSnapshot {
         return " \(executable) restore --surface\n"
     }
 
-    private static func restoreCLIArgument(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
-            return nil
-        }
-        return AgentRestoreCLIArgument(rawValue: value)?.rawValue
-    }
-
     private func resolvedStartupCommand(repairPortableAgentExecutable: Bool) -> String {
         guard isAgentHookBinding else {
             return startupCommand

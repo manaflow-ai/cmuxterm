@@ -223,11 +223,8 @@ enum AgentForkSupport {
             break
         }
 
-        if case .custom = snapshot.kind {
-            guard let registration = snapshot.registration,
-                  let forkCommand = normalized(registration.forkCommand) else {
-                return nil
-            }
+        if let registration = snapshot.registration,
+           let forkCommand = normalized(registration.forkCommand) {
             return [
                 "custom",
                 "registrationID=\(registration.id)",
@@ -236,6 +233,9 @@ enum AgentForkSupport {
                 "cwdPolicy=\(registration.cwd.rawValue)",
                 "sessionDirectory=\(normalized(registration.sessionDirectory) ?? "")",
             ] + launchIdentity
+        }
+        if case .custom = snapshot.kind {
+            return nil
         }
 
         guard let argv = forkArgv.builtInKind(
@@ -271,16 +271,16 @@ enum AgentForkSupport {
             break
         }
 
-        if case .custom = snapshot.kind {
-            guard let registration = snapshot.registration,
-                  let forkCommand = normalized(registration.forkCommand) else {
-                return false
-            }
+        if let registration = snapshot.registration,
+           let forkCommand = normalized(registration.forkCommand) {
             return customForkTemplateCanRenderWithoutFilesystem(
                 forkCommand,
                 registration: registration,
                 snapshot: snapshot
             )
+        }
+        if case .custom = snapshot.kind {
+            return false
         }
 
         return forkArgv.builtInKind(
