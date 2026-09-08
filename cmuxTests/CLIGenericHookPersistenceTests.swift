@@ -1131,11 +1131,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertNil(persistedApprovals.first?["command"])
 
         let approvalCommands = Array(state.snapshot().dropFirst(approvalCommandStart))
+        let approvalCorrelationKey = try XCTUnwrap(persistedApprovals.first?["notificationCorrelationKey"] as? String)
         XCTAssertEqual(
             approvalCommands.filter {
-                $0.contains(
-                    "notify_target_async \(workspaceId) \(surfaceId) Cursor|Permission|Approval needed"
-                )
+                $0.contains("notify_target_async \(workspaceId) \(surfaceId) Cursor|Permission|Approval needed")
+                    && $0.contains(";k=\(approvalCorrelationKey.lowercased())")
             }.count,
             1,
             "Expected exactly one Cursor approval notification for the owning surface, saw \(approvalCommands)"
@@ -1170,7 +1170,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let responseCommands = Array(state.snapshot().dropFirst(responseCommandStart))
         XCTAssertTrue(
             responseCommands.contains {
-                isTargetedCursorSurfaceClear($0)
+                isTargetedCursorSurfaceClear($0) && $0.contains("--correlation-key=\(approvalCorrelationKey)")
             },
             "Expected Cursor's paired completion hook to clear the approval notification, saw \(responseCommands)"
         )
