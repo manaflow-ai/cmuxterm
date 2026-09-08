@@ -4645,6 +4645,8 @@ class TerminalController {
             if let resolvedPanelId {
                 if panelOnlyIfMultiple && workspace.panels.count < 2 {
                     panelApplySkipped = true
+                } else if remotePanelOwnershipBlocked {
+                    panelApplySkipped = true
                 } else if reconciliationCAS,
                           let expectedPanelTitle {
                     let panelSource = workspace.panelCustomTitleSources[resolvedPanelId]
@@ -4679,8 +4681,6 @@ class TerminalController {
                     // The panel changed between the naming probe and this
                     // apply. Preserve the newer title as a compare-and-set
                     // failure, regardless of whether it is local or remote.
-                    panelApplySkipped = true
-                } else if remotePanelOwnershipBlocked {
                     panelApplySkipped = true
                 } else if let expectedPanelTitle,
                           workspace.isRemoteTmuxMirror,
