@@ -66,6 +66,89 @@ struct DeferredAgentResumeIndexFallbackTests {
         #expect(workspace.surfaceResumeBindingsByPanelId[panelId]?.autoResume == true)
     }
 
+    @Test("An index that has not caught up with a fresh hook record does not make its binding stale")
+    func missingIndexEntryIsUnknownNotStale() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+        let binding = agentHookBinding(checkpoint: "fbce5061-b13a-4c00-8000-000000000002")
+        #expect(workspace.setSurfaceResumeBinding(binding, panelId: panelId))
+
+        // The scan finished before the hook wrote this session: no entry at all.
+        #expect(
+            !workspace.isStaleAgentHookBinding(
+                binding,
+                panelId: panelId,
+                restorableAgentIndex: .empty
+            )
+        )
+    }
+
+    @Test("An index entry for the session with no live process still marks the binding stale")
+    func exitedIndexEntryIsStale() throws {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-stale-binding-\(UUID().uuidString)", isDirectory: true)
+        let stateDirectory = homeDirectory.appendingPathComponent(".cmuxterm", isDirectory: true)
+        try fileManager.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: homeDirectory) }
+
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+        let sessionId = "9836696c-cf40-4d00-8000-000000000003"
+        let binding = agentHookBinding(checkpoint: sessionId)
+        #expect(workspace.setSurfaceResumeBinding(binding, panelId: panelId))
+
+        // A hook record for this session that never carried a live PID.
+        let store = try JSONSerialization.data(
+            withJSONObject: [
+                "version": 1,
+                "sessions": [
+                    sessionId: [
+                        "sessionId": sessionId,
+                        "workspaceId": workspace.id.uuidString,
+                        "surfaceId": panelId.uuidString,
+                        "cwd": "/tmp",
+                        "launchCommand": [
+                            "launcher": "antigravity",
+                            "executablePath": "agy",
+                            "arguments": ["agy", "--dangerously-skip-permissions"],
+                            "workingDirectory": "/tmp",
+                            "source": "agent-hook",
+                        ],
+                        "isRestorable": true,
+                        "updatedAt": 1_788_868_000.0,
+                    ],
+                ],
+            ],
+            options: .sortedKeys
+        )
+        try store.write(
+            to: stateDirectory.appendingPathComponent("antigravity-hook-sessions.json"),
+            options: .atomic
+        )
+        let index = RestorableAgentSessionIndex.load(
+            homeDirectory: homeDirectory.path,
+            fileManager: fileManager,
+            registry: CmuxVaultAgentRegistry.load(
+                homeDirectory: homeDirectory.path,
+                fileManager: fileManager
+            ),
+            detectedSnapshots: [:],
+            processArgumentsProvider: { _ in nil }
+        )
+        #expect(index.entryForStablePanel(workspaceId: workspace.id, panelId: panelId) != nil)
+
+        #expect(
+            workspace.isStaleAgentHookBinding(
+                binding,
+                panelId: panelId,
+                restorableAgentIndex: index
+            )
+        )
+    }
+
     @Test("A positive ownership decision still retires the binding")
     func ownershipCancelRetiresBinding() throws {
         let workspace = Workspace()
