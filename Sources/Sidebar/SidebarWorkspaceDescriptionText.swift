@@ -9,9 +9,23 @@ struct SidebarWorkspaceDescriptionText: View {
     let isActive: Bool
     let activeForegroundColor: Color
     let fontScale: CGFloat
-    let fontFamily: String? = nil
+    let fontFamily: String?
     private static let maxDisplayedLines = 12
     private static let maxDisplayedCharacters = 4096
+
+    init(
+        markdown: String,
+        isActive: Bool,
+        activeForegroundColor: Color,
+        fontScale: CGFloat,
+        fontFamily: String? = nil
+    ) {
+        self.markdown = markdown
+        self.isActive = isActive
+        self.activeForegroundColor = activeForegroundColor
+        self.fontScale = fontScale
+        self.fontFamily = fontFamily
+    }
 
     var renderedContent: (displayMarkdown: String, renderedMarkdown: AttributedString?) {
         let displayMarkdown = markdown.sidebarBoundedDisplayString(
