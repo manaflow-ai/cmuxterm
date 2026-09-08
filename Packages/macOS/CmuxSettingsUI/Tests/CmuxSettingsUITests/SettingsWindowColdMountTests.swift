@@ -160,6 +160,24 @@ import Testing
         #expect(model.deferredScroll == nil)
     }
 
+    @Test func targetedOpenDoesNotRestoreTheLastViewedSection() {
+        let fixture = Self.makeFixture()
+        // The user last looked at Keyboard Shortcuts; this open targets
+        // Browser Import. The appear-time restore navigation must follow the
+        // target, or the previous pane gets built in the first pass anyway.
+        fixture.defaults.set(SettingsSectionID.keyboardShortcuts.rawValue, forKey: SettingsWindowRoot.selectedSectionDefaultsKey)
+        fixture.defaults.set("section:\(SettingsSectionID.keyboardShortcuts.rawValue)", forKey: "selectedSettingsSidebarEntry")
+        let model = Self.makeMountModel(initial: .browserImport)
+        let window = Self.host(
+            SettingsWindowRoot(runtime: fixture.runtime, initialSection: .browserImport, mountModel: model),
+            in: fixture
+        )
+        defer { window.orderOut(nil) }
+
+        #expect(model.mounted == [.browser], "first pass mounted \(model.mounted)")
+        #expect(model.pinnedScroll?.section == .browserImport)
+    }
+
     @Test func targetedOpenMountsTheTargetSectionFirst() {
         let fixture = Self.makeFixture()
         let accountWindow = Self.host(SettingsWindowRoot(runtime: fixture.runtime, initialSection: .account), in: fixture)

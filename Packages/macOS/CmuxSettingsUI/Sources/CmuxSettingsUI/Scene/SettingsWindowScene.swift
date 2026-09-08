@@ -14,6 +14,11 @@ import SwiftUI
 public struct SettingsWindowRoot: View {
     let runtime: SettingsRuntime
     private let searchIndex: SettingsSearchIndex
+    /// Section a targeted show asked for, when the host knew it at window
+    /// creation. It is mounted first, and the restore navigation posted on
+    /// appear follows it instead of the persisted last-viewed section, so a
+    /// `cmux settings open <target>` never builds the previous pane.
+    let initialSection: SettingsSectionID?
     /// Progressive mounting of the detail sections (cmux issue #12134):
     /// the section the window opens on is built in the first layout pass,
     /// the rest one per update pass. Window-scoped like the scroll state.
@@ -36,6 +41,7 @@ public struct SettingsWindowRoot: View {
     ) {
         self.runtime = runtime
         self.searchIndex = runtime.searchIndex
+        self.initialSection = initialSection
         // The `@AppStorage` properties below read the same store; the restore
         // target has to be known before the first body evaluation because
         // that pass runs inside `NSWindow(contentViewController:)`.
@@ -387,10 +393,19 @@ public struct SettingsWindowRoot: View {
                     // single scroll path (legacy `applySettingsNavigation`)
                     // while restored setting hits resolve through the
                     // immutable index. Fallback hits collapse to sections.
-                    let section = selectedSection
-                    let anchor = selectedSidebarEntryID.isEmpty
-                        ? sectionEntryID(for: section)
-                        : searchIndex.entries.first { $0.id == selectedSidebarEntryID }?.anchorID ?? selectedSidebarEntryID
+                    // A targeted open restores to its target instead: the
+                    // host posts that same navigation one hop later, and
+                    // restoring the last-viewed pane first would mount it
+                    // for nothing (issue #12134).
+                    let section = initialSection ?? selectedSection
+                    let anchor: String
+                    if let initialSection {
+                        anchor = anchorID(for: initialSection)
+                    } else if selectedSidebarEntryID.isEmpty {
+                        anchor = sectionEntryID(for: section)
+                    } else {
+                        anchor = searchIndex.entries.first { $0.id == selectedSidebarEntryID }?.anchorID ?? selectedSidebarEntryID
+                    }
                     postNavigationRequest(
                         target: section,
                         anchorID: anchor,
