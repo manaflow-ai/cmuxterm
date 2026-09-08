@@ -39142,15 +39142,7 @@ export default CMUXSessionRestore;
         if classification.clearsNativeApprovalPrompt {
             guard let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
                   let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }
-            do {
-                _ = try activeClient.send(
-                    command: attentionLine,
-                    responseTimeout: remainingBudget(),
-                    deadline: deadline
-                )
-            } catch {
-                return
-            }
+            guard (try? activeClient.send(command: attentionLine, responseTimeout: remainingBudget(), deadline: deadline)) != nil else { return }
             emitAgentJournalEvent(client: activeClient, kind: .attentionResolved,
                 source: source, agentKey: Self.agentDef(named: source)?.statusKey ?? source,
                 sessionId: FeedWorkstreamIdentifier(rawValue: eventDict["session_id"] as? String ?? "")?.sessionID,
