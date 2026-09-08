@@ -169,6 +169,60 @@ struct ClaudeHookWriteAmplificationTests {
         #expect(finalAttributes[.modificationDate] as? Date == runningAttributes[.modificationDate] as? Date)
     }
 
+    @Test func runningObservationRehomesMovedSurfaceBeforeBecomingANoOp() throws {
+        let context = try Harness.makeContext(name: "hook-running-pane-move")
+        defer { context.cleanup() }
+        let oldWorkspaceId = "11111111-1111-1111-1111-111111111111"
+        let newWorkspaceId = "33333333-3333-3333-3333-333333333333"
+        let surfaceId = "22222222-2222-2222-2222-222222222222"
+        let sessionId = "running-moved-surface"
+        let now: TimeInterval = 4_102_444_800
+        let active: [String: Any] = ["sessionId": sessionId, "updatedAt": now]
+        let state: [String: Any] = [
+            "version": 1, "pendingCursorApprovalIndexInitialized": true,
+            "sessions": [sessionId: [
+                "sessionId": sessionId, "workspaceId": oldWorkspaceId,
+                "surfaceId": surfaceId, "cwd": context.root.path,
+                "agentLifecycle": "running", "lastPermissionMode": "default",
+                "startedAt": now, "updatedAt": now,
+            ]],
+            "activeSessionsByWorkspace": [oldWorkspaceId: active],
+            "activeSessionsBySurface": [surfaceId: active],
+        ]
+        try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys]).write(to: context.storeURL)
+        _ = Harness.startDeliveryTargetServer(
+            context: context, surfacesByWorkspace: [oldWorkspaceId: [], newWorkspaceId: [surfaceId]],
+            pidTarget: nil, surfaceTargets: [surfaceId: newWorkspaceId]
+        )
+        var environment = Harness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = oldWorkspaceId
+        environment["CMUX_SURFACE_ID"] = surfaceId
+        let input = #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","permission_mode":"default"}"#
+        let moved = Harness.runHookProcess(
+            context: context, arguments: ["hooks", "claude", "pre-tool-use"],
+            environment: environment, standardInput: input
+        )
+        try #require(!moved.timedOut && moved.status == 0, Comment(rawValue: moved.stderr))
+        #expect(moved.stdout == "{}\n")
+        let record = try #require(try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId))
+        #expect(record["workspaceId"] as? String == newWorkspaceId)
+        #expect(record["surfaceId"] as? String == surfaceId)
+        let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: context.storeURL)) as? [String: Any])
+        let workspaces = try #require(saved["activeSessionsByWorkspace"] as? [String: [String: Any]])
+        #expect(workspaces[oldWorkspaceId] == nil)
+        #expect(workspaces[newWorkspaceId]?["sessionId"] as? String == sessionId)
+        #expect(mutations(in: context).contains { $0.hasPrefix("set_status claude_code Running ") && $0.contains("--tab=\(newWorkspaceId)") })
+        let baselineData = try Data(contentsOf: context.storeURL)
+        let baselineMutations = mutations(in: context)
+        let unchanged = Harness.runHookProcess(
+            context: context, arguments: ["hooks", "claude", "pre-tool-use"],
+            environment: environment, standardInput: input
+        )
+        #expect(!unchanged.timedOut && unchanged.status == 0, Comment(rawValue: unchanged.stderr))
+        #expect(try Data(contentsOf: context.storeURL) == baselineData)
+        #expect(mutations(in: context) == baselineMutations)
+    }
+
     @Test(arguments: ["oversized-padding", "oversized-sessions", "oversized-retained-session", "legacy-surface"])
     func unchangedPermissionObservationPersistsLoadRepairs(_ repair: String) throws {
         let context = try Harness.makeContext(name: "hook-load-repair")
