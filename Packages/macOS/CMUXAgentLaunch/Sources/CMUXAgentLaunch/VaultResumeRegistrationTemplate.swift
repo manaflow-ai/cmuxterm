@@ -40,7 +40,7 @@ struct VaultResumeRegistrationTemplate: Sendable {
             guard let value = resolveTemplatePart(part, replacements: replacements) else { return [] }
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return [] }
-            resolved.append(trimmed)
+            resolved.append(value)
         }
         return resolved
     }

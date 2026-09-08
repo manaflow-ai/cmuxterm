@@ -209,7 +209,9 @@ public struct VaultResumeLaunchPlanner: Sendable {
                 launchArguments: capturedArguments.isEmpty
                     ? [parsed.registration.defaultExecutable]
                     : capturedArguments,
-                environment: capturedEnvironment ?? parsed.environment,
+                environment: parsed.environment.merging(capturedEnvironment ?? [:]) { _, capturedValue in
+                    capturedValue
+                },
                 registration: parsed.registration,
                 permissionMode: nil,
                 isSupported: parsed.isSupported,
