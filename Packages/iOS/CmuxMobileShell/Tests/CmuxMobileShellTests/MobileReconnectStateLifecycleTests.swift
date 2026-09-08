@@ -73,6 +73,42 @@ import Testing
     )
 }
 
+/// Verifies canceling a summary task releases the policy's single-flight gate.
+@MainActor
+@Test func transientDisconnectAllowsWorkspaceSummaryRefreshToRestart() async throws {
+    let router = LivenessHostRouter()
+    let box = TransportBox()
+    let clock = TestClock()
+    let summaryClock = ControlPoolManualClock()
+    let store = try await makeConnectedStore(
+        router: router,
+        box: box,
+        clock: clock,
+        workspaceChangesSchedulingClock: summaryClock
+    )
+
+    store.suspendWorkspaceChangesSummaryFetchesPreservingChips()
+    _ = store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
+        scope: .fullSnapshot,
+        force: false
+    )
+    _ = try #require(
+        store.workspaceChangesSummaryRefreshSchedulePolicy.beginFetchAfterDebounce()
+    )
+    #expect(store.workspaceChangesSummaryRefreshSchedulePolicy.isFetchInFlight)
+
+    store.suspendWorkspaceChangesSummaryFetchesPreservingChips()
+
+    #expect(!store.workspaceChangesSummaryRefreshSchedulePolicy.isFetchInFlight)
+    #expect(
+        store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
+            scope: .fullSnapshot,
+            force: false
+        ),
+        "a reconnect must be able to schedule a fresh summary pass"
+    )
+}
+
 /// Verifies a same-ID replacement mount starts with fresh hydration state.
 @MainActor
 @Test func terminalSurfaceIDReuseStartsFreshHydration() async throws {

@@ -35,3 +35,34 @@ import Testing
     replacedProducer.renderEpoch = "epoch-2"
     #expect(state.requiresHydration(for: replacedProducer))
 }
+
+/// Verifies a live full frame cannot replace retained metadata with a stale
+/// producer and make the old local scrollback look reusable.
+@Test func retainedMirrorRejectsLiveFullFrameWithChangedProducer() throws {
+    var state = MobileTerminalMirrorState()
+    let delivered = try MobileTerminalRenderGridFrame(
+        surfaceID: "surface",
+        stateSeq: 10,
+        renderEpoch: "epoch-1",
+        renderRevision: 1,
+        columns: 80,
+        rows: 4,
+        full: true,
+        rowSpans: [],
+        scrollbackRows: 20,
+        anchor: .screen,
+        historyRows: 20,
+        rowSpaceRevision: 1
+    )
+    state.record(delivered)
+    state.prepareForReconnect(hasDeliveredFrame: true)
+
+    var replacement = delivered
+    replacement.renderEpoch = "epoch-2"
+    replacement.historyRows = 21
+    state.record(replacement)
+
+    #expect(state.hydrationNeeded)
+    #expect(!state.retainedAcrossReconnect)
+    #expect(state.requiresHydration(for: delivered))
+}
