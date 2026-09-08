@@ -13080,44 +13080,11 @@ struct VerticalTabsSidebar: View, Equatable {
         guard CmuxExtensionSidebarSelection.resolvesToDefaultSidebar(
             effectiveProviderId: effectiveExtensionSidebarProviderId
         ) else { return [:] }
-        var ownerByPanelID: [UUID: UUID] = [:]
-        var ambiguousPanelIDs = Set<UUID>()
-
-        if let panelIdsByWorkspaceId {
-            // The common scoped path performs dictionary lookups for only the
-            // changed workspace/panel keys. If a workspace identity was
-            // rotated during restore, its lifecycle registration will arm the
-            // current owner; resolving that alias here would require an
-            // all-sidebar panel scan on every index event.
-            guard let workspaceByID else { return [:] }
-            for (workspaceID, panelIDs) in panelIdsByWorkspaceId {
-                guard let workspace = workspaceByID[workspaceID] else { continue }
-                for panelID in panelIDs where workspace.panels[panelID] != nil {
-                    guard !ambiguousPanelIDs.contains(panelID) else { continue }
-                    if let previousOwner = ownerByPanelID[panelID], previousOwner != workspaceID {
-                        ownerByPanelID.removeValue(forKey: panelID)
-                        ambiguousPanelIDs.insert(panelID)
-                    } else {
-                        ownerByPanelID[panelID] = workspaceID
-                    }
-                }
-            }
-        } else {
-            // Only unscoped/legacy notifications pay the full owner traversal.
-            for workspace in workspaces {
-                for panelID in workspace.panels.keys {
-                    guard !ambiguousPanelIDs.contains(panelID) else { continue }
-                    if let previousOwner = ownerByPanelID[panelID], previousOwner != workspace.id {
-                        ownerByPanelID.removeValue(forKey: panelID)
-                        ambiguousPanelIDs.insert(panelID)
-                    } else {
-                        ownerByPanelID[panelID] = workspace.id
-                    }
-                }
-            }
-        }
-
-        return ownerByPanelID
+        return Workspace.sidebarPanelOwnership(
+            in: workspaces,
+            workspaceByID: workspaceByID,
+            scopedTo: panelIdsByWorkspaceId
+        )
     }
 
     private func armSidebarProcessExitWatchers(for ownerByPanelID: [UUID: UUID]) {
