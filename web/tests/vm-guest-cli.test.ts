@@ -1384,17 +1384,17 @@ describe("in-VM cmux shim: reflection", () => {
     expect((JSON.parse(runShim(["auth", "status", "--json"]).stdout) as Record<string, any>).identity).toBeNull();
   });
 
-  test("vm ls names this machine from reflection and appends reachable peers that are not linked yet", () => {
+  test("vm peers names this machine from reflection and appends reachable peers that are not linked yet", () => {
     const dir = makeStatefulDir();
     fakeReflectionCurl(dir);
     mkdirSync(join(dir, ".cmux", "peers"), { recursive: true });
     writeFileSync(join(dir, ".cmux", "peers", "brave-otter.json"), JSON.stringify({ route: "ws://[fd00::4]:1337/v1/link" }));
-    const run = runStateful(dir, ["vm", "ls"], REFLECTION_ENV);
+    const run = runStateful(dir, ["vm", "peers"], REFLECTION_ENV);
     expect(run.stderr).toBe("");
     expect(run.status).toBe(0);
     expect(run.stdout).toBe("build-box\t(this machine)\nbrave-otter\tlinked\nsleepy-otter\trunning\treachable\nasleep-mole\tpaused\tunreachable\n");
     // No reflection: the old output, hostname first, nothing invented.
-    const offline = runStateful(dir, ["vm", "ls"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
+    const offline = runStateful(dir, ["vm", "peers"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
     expect(offline.status).toBe(0);
     expect(offline.stdout).toBe(`${offline.stdout.split("\t")[0]}\t(this machine)\nbrave-otter\tlinked\n`);
     expect(offline.stdout.startsWith("build-box")).toBe(false);
