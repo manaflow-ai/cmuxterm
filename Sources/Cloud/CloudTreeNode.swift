@@ -46,12 +46,12 @@ final class CloudTreeNode: NSObject {
         case portsGroup(machine: SurfaceMachineID)
         /// The resource plus the URL a click actually opens —
         /// `http://<private-ip>:<port>`, reachable over the WireGuard tunnel —
-        /// or nil when the machine has no private address yet (public-only
-        /// machines, or one this Mac hasn't attached to yet). Deliberately the
-        /// raw address, never the `.internal` name: that name only resolves
-        /// once `cmux vpn hosts` has synced `/etc/hosts`, so a link built from
-        /// it would work only sometimes.
-        /// `openIn` is the local workspace that already shows this resource.
+        /// or nil when the machine has no private address yet. Deliberately the
+        /// raw address: Cloud browser URLs need no DNS or `/etc/hosts` changes.
+        /// `openIn` is the local workspace already showing the owning remote
+        /// workspace, when this is a workspace pointer rather than the machine
+        /// pool row. Keeping it on the node prevents a click from consulting
+        /// the globally selected workspace after a refresh.
         case port(SurfaceResource, url: String?, openIn: UUID?)
         /// A single explanatory line (asleep, connecting, link error, empty).
         case placeholder(machine: SurfaceMachineID, CloudTreePlaceholder)
@@ -759,11 +759,13 @@ enum CloudTreeNodeBuilder {
         projectionIndex: LocalProjectionIndex
     ) -> [CloudTreeNode] {
         // The catalog has not registered this machine yet: nothing to expand.
-        guard let info else { return [] }
+        guard let info else {
+            return [placeholder(machine, text: String(localized: "cloudTree.placeholder.connecting", defaultValue: "Connecting…"), style: .connecting)]
+        }
         var children: [CloudTreeNode] = []
         let resources = snapshot.resources(on: machine)
         let terminals = resources.filter { $0.kind == .terminal }
-        let displays = resources.filter { $0.kind == .display }
+        let displays = CloudMachineSurfacePresentation.displays(resources: resources, info: info)
 
         switch info.linkState {
         case .asleep:
@@ -796,11 +798,11 @@ enum CloudTreeNodeBuilder {
                 let right = ($1.id.forwardedPort ?? $1.port ?? 0, $1.id.key)
                 return left.0 != right.0 ? left.0 < right.0 : left.1 < right.1
             }
-        if !portBrowsers.isEmpty {
+        do {
             children.append(CloudTreeNode(
                 id: nodeID(portsGroup: machine),
                 kind: .portsGroup(machine: machine),
-                children: portBrowsers.map {
+                children: portBrowsers.isEmpty ? [CloudMachineSurfacePresentation.emptyPorts(info: info)] : portBrowsers.map {
                     CloudTreeNode(
                         id: nodeID(resource: $0.id),
                         kind: .port(

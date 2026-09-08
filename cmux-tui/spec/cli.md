@@ -16,10 +16,15 @@ cmux server start [START OPTIONS]
 cmux attach [START OPTIONS] [--terminal <terminal-id>]
 cmux relay [ROUTING OPTIONS]
 cmux machine-agent [OPTIONS]
+cmux wg hub --config <wg-quick file> --socket <unix socket>
 ```
 
 `relay` copies private protocol bytes between standard I/O and one session
-socket. Machine connectors use it as a transport primitive. `attach` opens the
+socket. Machine connectors use it as a transport primitive. `wg hub` owns one
+in-process WireGuard tunnel and serves SOCKS5 CONNECT on an owner-only Unix
+socket so several `remote connect --wireguard-hub <socket>` clients share one
+key; it prints one `hub-ready` JSON line when listening and removes the socket
+on SIGTERM or SIGINT. `attach` opens the
 complete session TUI. `attach --terminal <terminal-id>` resolves an exact ID
 from `cmux terminal list` and renders only that terminal, without session
 chrome or unrelated event traffic. Startup attach does not accept internal
@@ -90,7 +95,11 @@ filesystem error text.
 
 Authenticated network operations use `remote connect|ssh|forward|rpc`,
 `remote enroll`, and `remote known-daemons`; they cannot accept local server
-targeting. `remote stop` manages only a replaceable SSH sidecar. A listener
+targeting. `remote connect --carrier` dials a `ws`/`wss` route with carrier
+authentication and no enrollment; only a daemon started with
+`--remote-ws-trusted-carrier` (or `CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1`), whose
+listener is reachable solely from a private network of authorized members,
+accepts it. `remote stop` manages only a replaceable SSH sidecar. A listener
 embedded by `server start` stops only through `server stop`, which also stops
 the local owner and its workspaces. `server start` accepts the explicit
 remote-listener flags when the owning process also serves authenticated
