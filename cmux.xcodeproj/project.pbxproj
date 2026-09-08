@@ -13174,6 +13174,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				93800001AA11BB22CC33EE01 /* AgentDeliveryTTYBindingTests.swift in Sources */,
 				A9E020000000000000000005 /* AgentExecutableResolverTests.swift in Sources */,
 				8740E0018740E0018740E001 /* AgentHibernationEvaluationSchedulingTests.swift in Sources */,
+				D36A00030000000000000003 /* AgentHibernationLifecycleState.swift in Sources */,
 				9090E0039090E0039090E003 /* AgentHibernationPanelCloseCleanupTests.swift in Sources */,
 				F65760010000000000000001 /* AgentHibernationPlannerSwiftTests.swift in Sources */,
 				D72260010000000000000001 /* AgentHibernationPortalVisibilityTests.swift in Sources */,
