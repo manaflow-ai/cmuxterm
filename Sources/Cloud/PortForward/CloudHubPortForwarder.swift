@@ -10,7 +10,11 @@ actor CloudHubPortForwarder {
         let port: Int
     }
 
-    /// Builds one forward; injected so a test can make a bind fail.
+    /// Builds one forward. The forwarder takes its two dependencies through
+    /// `init`: the hub dialer and this builder, whose default binds the app's
+    /// loopback ``CloudLoopbackPortForward``. A loopback listener on an
+    /// ephemeral port cannot be made to fail for real, so a failed bind is
+    /// covered by substituting the builder rather than by a debug hook.
     typealias ForwardFactory = @Sendable (CloudPortForwardTarget, any CloudHubDialing) throws -> CloudLoopbackPortForward
 
     private let dialer: any CloudHubDialing
