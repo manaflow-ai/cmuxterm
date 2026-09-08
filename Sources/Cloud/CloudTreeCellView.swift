@@ -5,7 +5,7 @@ import SwiftUI
 /// pointer event to the outline: the display host never hit-tests, so click,
 /// double-click, drag, and the context menu are handled natively. Machine rows
 /// add a second, hit-testable host for their hover buttons, faded in by a
-/// tracking area (the buttons are always laid out so hovering never reflows).
+/// tracking area. Hidden buttons do not reserve space in the text layout.
 final class CloudTreeCellView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("CloudTreeCell")
 
@@ -13,9 +13,11 @@ final class CloudTreeCellView: NSTableCellView {
     private var buttonsHost: NSHostingView<AnyView>?
     private var buttonsTopConstraint: NSLayoutConstraint?
     private var buttonsCenterConstraint: NSLayoutConstraint?
+    private var displayTrailingConstraint: NSLayoutConstraint?
+    private var buttonsLeadingConstraint: NSLayoutConstraint?
     private var trackingArea: NSTrackingArea?
     private var hovered = false {
-        didSet { buttonsHost?.alphaValue = hovered ? 1 : 0 }
+        didSet { updateButtonVisibility() }
     }
 
     override init(frame frameRect: NSRect) {
@@ -26,6 +28,8 @@ final class CloudTreeCellView: NSTableCellView {
         // The outline's `frameOfCell` already shifted this cell 2pt past the 16pt
         // disclosure slot; the remaining 4pt completes `CloudTreeRowGrid.disclosureGap`.
         // Content pads its own trailing edge (`CloudTreeRowGrid.trailingPadding`).
+        let trailing = displayHost.trailingAnchor.constraint(equalTo: trailingAnchor)
+        displayTrailingConstraint = trailing
         NSLayoutConstraint.activate([
             displayHost.leadingAnchor.constraint(
                 equalTo: leadingAnchor,
@@ -33,7 +37,7 @@ final class CloudTreeCellView: NSTableCellView {
             ),
             displayHost.topAnchor.constraint(equalTo: topAnchor),
             displayHost.bottomAnchor.constraint(equalTo: bottomAnchor),
-            displayHost.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
+            trailing,
         ])
     }
 
@@ -56,7 +60,6 @@ final class CloudTreeCellView: NSTableCellView {
             let buttons = buttonsHost ?? makeButtonsHost()
             buttons.rootView = AnyView(CloudTreeRowHoverButtons(kind: node.kind, machineActions: machineActions, nodeActions: nodeActions))
             buttons.isHidden = false
-            buttons.alphaValue = hovered ? 1 : 0
             // Two-line machine cards pin the buttons to the name line; every
             // other row centers them vertically.
             let pinToNameLine = node.isMachineRow && style.machineRowLayout == .twoLine
@@ -66,6 +69,7 @@ final class CloudTreeCellView: NSTableCellView {
         } else {
             buttonsHost?.isHidden = true
         }
+        updateButtonVisibility()
         if case .machine(let machine, _) = node.kind {
             toolTip = [machine.displayName, machine.activityLabel, machine.image].joined(separator: "\n")
         } else if case .pendingMachine(let operation) = node.kind {
@@ -87,15 +91,32 @@ final class CloudTreeCellView: NSTableCellView {
         // and the status dot; every other row activates the center constraint.
         let top = host.topAnchor.constraint(equalTo: topAnchor, constant: CloudTreeStyleStore.current.machineVerticalPadding)
         let center = host.centerYAnchor.constraint(equalTo: centerYAnchor)
+        buttonsLeadingConstraint = displayHost.trailingAnchor.constraint(
+            equalTo: host.leadingAnchor,
+            constant: -CloudTreeRowGrid.trailingGap
+        )
         NSLayoutConstraint.activate([
             host.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -CloudTreeRowGrid.trailingPadding),
             top,
-            displayHost.trailingAnchor.constraint(lessThanOrEqualTo: host.leadingAnchor, constant: -CloudTreeRowGrid.trailingGap),
         ])
         buttonsTopConstraint = top
         buttonsCenterConstraint = center
         buttonsHost = host
         return host
+    }
+
+    private func updateButtonVisibility() {
+        let showsButtons = hovered && buttonsHost?.isHidden == false
+        buttonsHost?.alphaValue = showsButtons ? 1 : 0
+        // Deactivate the old edge before activating the new one. Reused cells
+        // without actions must regain the full width, even while hovered.
+        displayTrailingConstraint?.isActive = false
+        buttonsLeadingConstraint?.isActive = false
+        if showsButtons {
+            buttonsLeadingConstraint?.isActive = true
+        } else {
+            displayTrailingConstraint?.isActive = true
+        }
     }
 
     override func updateTrackingAreas() {
@@ -139,7 +160,7 @@ final class CloudTreePassthroughHostingView: NSHostingView<AnyView> {
 final class CloudTreeRowView: NSTableRowView {
     override func drawSelection(in dirtyRect: NSRect) {
         guard isSelected else { return }
-        let insetRect = bounds.insetBy(dx: 6, dy: 1)
+        let insetRect = bounds.insetBy(dx: 1, dy: 1)
         let path = NSBezierPath(roundedRect: insetRect, xRadius: 4, yRadius: 4)
         // Gray in both focus states (no accent blue); keyboard focus reads as a
         // slightly stronger shade.
