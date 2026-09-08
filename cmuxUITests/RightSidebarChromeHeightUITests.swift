@@ -4,6 +4,47 @@ import CoreGraphics
 import ImageIO
 
 final class RightSidebarChromeHeightUITests: XCTestCase {
+    private var historySampleProcess: Process?
+    private var historySampleURL: URL?
+
+    override func tearDownWithError() throws {
+        if let process = historySampleProcess, process.isRunning { process.terminate() }
+        if let url = historySampleURL {
+            if let output = try? String(contentsOf: url, encoding: .utf8) {
+                print("VAULT_HISTORY_SAMPLE_BEGIN\n\(output.prefix(250_000))\nVAULT_HISTORY_SAMPLE_END")
+                let attachment = XCTAttachment(string: output)
+                attachment.name = "vault-history-process-sample"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+        try super.tearDownWithError()
+    }
+
+    private func startHistoryProcessSample() throws {
+        let lookup = Process()
+        lookup.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        lookup.arguments = ["-x", "cmux DEV"]
+        let output = Pipe()
+        lookup.standardOutput = output
+        try lookup.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        lookup.waitUntilExit()
+        let pids = String(decoding: data, as: UTF8.self).split(whereSeparator: \.isWhitespace).compactMap { Int32($0) }
+        guard pids.count == 1, let pid = pids.first else {
+            print("VAULT_HISTORY_SAMPLE_SKIPPED matching_processes=\(pids.count)")
+            return
+        }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("vault-history-sample-\(UUID()).txt")
+        let sample = Process()
+        sample.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
+        sample.arguments = [String(pid), "10", "-file", url.path]
+        historySampleURL = url
+        historySampleProcess = sample
+        try sample.run()
+    }
+
     func testVaultTabsGroupingAndPopoutStayInteractive() throws {
         continueAfterFailure = false
         let app = XCUIApplication.cmuxTestApplication()
@@ -39,6 +80,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
+        try startHistoryProcessSample()
         // macOS exposes the Menu's visible text as its AXTitle, not its
         // AXDescription (XCUIElement.label). Keep both attributes in the query
         // so it follows the visible grouping across supported macOS versions.
