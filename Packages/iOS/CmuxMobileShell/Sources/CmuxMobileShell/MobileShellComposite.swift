@@ -1567,6 +1567,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     /// viewport acknowledgement, so cold attach must not race it.
     var terminalViewportPreparationGenerationsBySequenceKey:
         [MobileTerminalViewportSequenceKey: UInt64]
+    var terminalViewportDeferredColdReplayGenerationsBySequenceKey:
+        [MobileTerminalViewportSequenceKey: UInt64]
     var terminalReplayFailureRetryCountsBySurfaceID: [String: Int]
     var terminalReplayBarrierFollowUpCountsBySurfaceID: [String: Int]
     var terminalColdAttachReplayBarrierTokensBySurfaceID: [String: UUID]
@@ -1969,6 +1971,7 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         self.terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID = [:]
         self.terminalViewportReplayBarrierPendingAckTokensBySurfaceID = [:]
         self.terminalViewportPreparationGenerationsBySequenceKey = [:]
+        self.terminalViewportDeferredColdReplayGenerationsBySequenceKey = [:]
         self.terminalReplayFailureRetryCountsBySurfaceID = [:]
         self.terminalReplayBarrierFollowUpCountsBySurfaceID = [:]
         self.terminalColdAttachReplayBarrierTokensBySurfaceID = [:]
@@ -11372,6 +11375,7 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID = [:]
         terminalViewportReplayBarrierPendingAckTokensBySurfaceID = [:]
         terminalViewportPreparationGenerationsBySequenceKey = [:]
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey = [:]
         terminalReplayFailureRetryCountsBySurfaceID = [:]
         terminalReplayBarrierFollowUpCountsBySurfaceID = [:]
         terminalColdAttachReplayBarrierTokensBySurfaceID = [:]
@@ -14506,6 +14510,11 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         ] == nil {
             requestColdAttachTerminalReplay(surfaceID: surfaceID)
         } else {
+            terminalViewportDeferredColdReplayGenerationsBySequenceKey[
+                preparationSequenceKey
+            ] = terminalViewportPreparationGenerationsBySequenceKey[
+                preparationSequenceKey
+            ]
             MobileDebugLog.anchormux(
                 "terminal.output.defer_cold_replay surface=\(surfaceID)"
             )
@@ -14540,6 +14549,12 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         effectiveViewportSizesBySurfaceID.removeValue(forKey: surfaceID); reportedTerminalViewportSizesBySurfaceID.removeValue(forKey: surfaceID)
         terminalViewportReplayBarrierPendingAckTokensBySurfaceID.removeValue(forKey: surfaceID)
         terminalViewportPreparationGenerationsBySequenceKey.removeValue(
+            forKey: MobileTerminalViewportSequenceKey(
+                ownerKey: foregroundMacKey,
+                surfaceID: surfaceID
+            )
+        )
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
             forKey: MobileTerminalViewportSequenceKey(
                 ownerKey: foregroundMacKey,
                 surfaceID: surfaceID

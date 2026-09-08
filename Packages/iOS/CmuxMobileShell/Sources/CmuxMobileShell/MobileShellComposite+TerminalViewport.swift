@@ -99,6 +99,9 @@ extension MobileShellComposite {
         // callback. Keep this generation marked until its acknowledgement
         // settles so registration can let that acknowledgement own the cold
         // replay instead of racing it with a second request.
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
+            forKey: sequenceKey
+        )
         terminalViewportPreparationGenerationsBySequenceKey[sequenceKey] = requestGeneration
         return MobileTerminalViewportPreparation(
             workspaceID: workspaceID,
@@ -133,13 +136,26 @@ extension MobileShellComposite {
             workspaceID: preparedWorkspaceID,
             terminalID: MobileTerminalPreview.ID(rawValue: surfaceID)
         )
-        func finishPreparation(requestColdReplay: Bool = false) {
+        func finishPreparation(
+            requestColdReplay: Bool = false,
+            replayAlreadyRequested: Bool = false
+        ) {
             guard terminalViewportPreparationGenerationsBySequenceKey[sequenceKey]
                     == requestGeneration else { return }
             terminalViewportPreparationGenerationsBySequenceKey.removeValue(
                 forKey: sequenceKey
             )
-            if requestColdReplay, hasTerminalOutputSink(surfaceID: surfaceID) {
+            let deferredColdReplay = !replayAlreadyRequested
+                && terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
+                    forKey: sequenceKey
+                ) == requestGeneration
+            if replayAlreadyRequested {
+                terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
+                    forKey: sequenceKey
+                )
+            }
+            if (requestColdReplay || deferredColdReplay),
+               hasTerminalOutputSink(surfaceID: surfaceID) {
                 requestColdAttachTerminalReplay(surfaceID: surfaceID)
             }
         }
@@ -245,7 +261,10 @@ extension MobileShellComposite {
                     correlationID: surfaceID,
                     failure: .protocolViolation
                 )
-                finishPreparation(requestColdReplay: !replayRequested)
+                finishPreparation(
+                    requestColdReplay: !replayRequested,
+                    replayAlreadyRequested: replayRequested
+                )
                 return nil
             }
             reportedTerminalViewportSizesBySurfaceID[surfaceID] = reportedGrid
@@ -310,10 +329,7 @@ extension MobileShellComposite {
             // unchanged, the normal resync branches above do not request a
             // replay, so fulfill that deferred registration before clearing
             // its preparation marker.
-            finishPreparation(
-                requestColdReplay: hasTerminalOutputSink(surfaceID: surfaceID)
-                    && !replayRequested
-            )
+            finishPreparation(replayAlreadyRequested: replayRequested)
             return (
                 columns: grid.columns,
                 rows: grid.rows,
@@ -344,7 +360,10 @@ extension MobileShellComposite {
                 token: prearmedReplayBarrierToken,
                 reason: "viewport_failed"
             )
-            finishPreparation(requestColdReplay: !replayRequested)
+            finishPreparation(
+                requestColdReplay: !replayRequested,
+                replayAlreadyRequested: replayRequested
+            )
             terminalViewportLog.error("viewport report failed surface=\(surfaceID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             recordAppEvent(
                 .terminalViewportReportFailed,
