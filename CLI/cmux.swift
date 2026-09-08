@@ -32411,7 +32411,14 @@ struct CMUXCLI {
     }
 
     private func claudeRawLaunchArguments(env: [String: String], fallbackPID: Int?) -> [String]? {
-        decodeNULSeparatedBase64(env["CMUX_AGENT_LAUNCH_ARGV_B64"])
+        let capturedLauncher = normalizedHookValue(env["CMUX_AGENT_LAUNCH_KIND"])
+        let capturedArguments = AgentLaunchCaptureTrust.launcherDescribesKind(
+            capturedLauncher,
+            kind: "claude"
+        )
+            ? decodeNULSeparatedBase64(env["CMUX_AGENT_LAUNCH_ARGV_B64"])
+            : nil
+        return capturedArguments
             ?? fallbackPID.flatMap { processArguments(for: pid_t($0)) }
     }
 
@@ -37981,13 +37988,8 @@ export default CMUXSessionRestore;
             let surfaceId = target.surfaceId
 
             let notificationCwd = hookCwd ?? mapped?.cwd
-            let notificationPID = preferredAgentHookEventPID(
-                agentName: def.name,
-                mappedPID: mapped?.pid,
-                inferredPID: inferredPID
-            )
             let suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
-                currentAgentPID: notificationPID,
+                currentAgentPID: inferredPID,
                 env: env
             )
 #if DEBUG
