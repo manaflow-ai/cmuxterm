@@ -1,7 +1,7 @@
 import CmuxSocketStackSampler
 import Darwin
 
-/// Allocates storage before the allocation-free C suspend/read/resume boundary.
+/// Reads a bounded best-effort stack without changing the target's suspend count.
 nonisolated struct MachThreadStackAddressSampler {
     static func captureAddresses(for thread: thread_act_t, maxFrames: Int) -> [UInt] {
         guard maxFrames > 0 else { return [] }

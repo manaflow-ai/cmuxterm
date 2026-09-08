@@ -16,16 +16,19 @@ runs on a separate utility queue, independent of the blocked main actor and the
 cooperative task executor. Completion cancels it; the ticket serializes only the
 short synchronous timer/completion state transitions, not command execution.
 
-``MainThreadSocketCommandBacktraceCapturer`` allocates its address buffer before
-entering a C-only suspend/read/resume boundary. That boundary uses bounded stack
-storage, Mach calls, and pointer arithmetic, never heap allocation, Swift runtime
-calls, locks, or symbolication. The sampled thread resumes before Swift constructs
-arrays or resolves symbols. Sampling is best-effort and limited to 128 frames;
-unreadable frames terminate the walk. Pointer-authentication bits are removed
-before symbolication on arm64. The sampler refuses to suspend its own thread.
+``MainThreadSocketCommandBacktraceCapturer`` never explicitly suspends the target
+thread. It obtains a register snapshot with `thread_get_state`, whose temporary
+thread hold is owned and released inside the kernel, and walks frame records with
+`mach_vm_read_overwrite`. No caller-owned suspend count can leak on error, and
+there is no suspended thread holding a lock needed by Swift allocations or symbol
+resolution. The C walker uses preallocated storage and is bounded to 128 frames;
+unreadable, unaligned, or non-monotonic frames terminate the walk. A running thread
+may change its stack between reads, so the backtrace is explicitly best-effort,
+not an atomic stack snapshot. Pointer-authentication bits are removed before
+symbolication on arm64. The sampler rejects calls targeting its own thread.
 
 The app supplies unified-log and Sentry adapters. Tests exercise the state machine
-without an app host and sample a real worker to verify capture and resumption.
+without an app host and sample a real worker to verify capture and continued execution.
 
 ## Tagged runtime verification
 

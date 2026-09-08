@@ -6,7 +6,7 @@ import Testing
 @Suite
 struct MachThreadStackAddressSamplerTests {
     @Test
-    func refusesToSuspendCallingThread() {
+    func rejectsCallingThreadCapture() {
         let thread = pthread_mach_thread_np(pthread_self())
         #expect(MachThreadStackAddressSampler.captureAddresses(for: thread, maxFrames: 64).isEmpty)
     }
@@ -19,7 +19,7 @@ struct MachThreadStackAddressSamplerTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func capturesWorkerStackAndResumesWorker() async throws {
+    func capturesWorkerStackWithoutStoppingWorker() async throws {
         let started = AsyncStream<thread_act_t>.makeStream()
         let release = DispatchSemaphore(value: 0)
         let finished = AsyncStream<Bool>.makeStream()

@@ -39,6 +39,6 @@ nonisolated final class UnifiedLogMainThreadSocketCommandWatchdogReporter: MainT
     }
 
     private static func backtraceSummary(_ backtrace: [String]) -> String {
-        String(backtrace.prefix(32).joined(separator: " | ").prefix(4096))
+        "best-effort live sample: " + String(backtrace.prefix(32).joined(separator: " | ").prefix(4096))
     }
 }

@@ -42,10 +42,6 @@ size_t CMUXCaptureThreadStackAddresses(thread_act_t thread, uintptr_t *addresses
         return 0;
     }
 
-    if (thread_suspend(thread) != KERN_SUCCESS) {
-        return 0;
-    }
-
     size_t captured_count = 0;
     uintptr_t instruction_pointer = 0;
     uintptr_t frame_pointer = 0;
@@ -77,6 +73,5 @@ size_t CMUXCaptureThreadStackAddresses(thread_act_t thread, uintptr_t *addresses
         }
     }
 
-    thread_resume(thread);
     return captured_count;
 }
