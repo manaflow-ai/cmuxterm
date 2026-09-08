@@ -1334,7 +1334,6 @@
 		C0DEA7710000000000000007 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEA7710000000000000008 /* FeatureFlags.swift */; };
 		FEED0A00000000000000F007 /* feed-tui in Resources */ = {isa = PBXBuildFile; fileRef = FEED0A00000000000000F006 /* feed-tui */; };
 		9466A07A0000000000000001 /* FeedAttentionTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9466A07A0000000000000002 /* FeedAttentionTarget.swift */; };
-		A9523F00000000000000002D /* FeedAttentionTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9523F00000000000000000C /* FeedAttentionTarget.swift */; };
 		FEED0000000000000000F00D /* FeedButtonStyleDebugWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000F00C /* FeedButtonStyleDebugWindowController.swift */; };
 		8672D0018672D0018672D001 /* FeedCoordinator+DeliveryTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8672D0028672D0028672D002 /* FeedCoordinator+DeliveryTarget.swift */; };
 		B7F100090000000000000001 /* FeedCoordinator+NotificationDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F100090000000000000002 /* FeedCoordinator+NotificationDelivery.swift */; };
@@ -4644,7 +4643,6 @@
 		C0DEA7710000000000000008 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		FEED0A00000000000000F006 /* feed-tui */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = "feed-tui"; sourceTree = "<group>"; };
 		9466A07A0000000000000002 /* FeedAttentionTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedAttentionTarget.swift; sourceTree = "<group>"; };
-		A9523F00000000000000000C /* FeedAttentionTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedAttentionTarget.swift; sourceTree = "<group>"; };
 		FEED0000000000000000F00C /* FeedButtonStyleDebugWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedButtonStyleDebugWindowController.swift; sourceTree = "<group>"; };
 		8672D0028672D0028672D002 /* FeedCoordinator+DeliveryTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+DeliveryTarget.swift"; sourceTree = "<group>"; };
 		B7F100090000000000000002 /* FeedCoordinator+NotificationDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FeedCoordinator+NotificationDelivery.swift"; sourceTree = "<group>"; };
@@ -10031,7 +10029,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				FEED0000000000000000F010 /* FeedPanelViewModel.swift */,
 				FEED0000000000000000F00A /* FeedPreviewWindowController.swift */,
 				FEED0000000000000000F00C /* FeedButtonStyleDebugWindowController.swift */,
-				FEED0000000000000000F00E /* FeedTextEditorDebugWindowController.swift */,				A9523F00000000000000000C /* FeedAttentionTarget.swift */,
+				FEED0000000000000000F00E /* FeedTextEditorDebugWindowController.swift */,
 				A9523F00000000000000000F /* FeedPendingAttentionState.swift */,
 				A9523F000000000000000010 /* FeedSurfacedAttention.swift */,
 
@@ -10118,9 +10116,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B900000EA1B2C3D4E5F60719 /* PBXTargetDependency */,
 				D1320AA0D1320AA0D1320AB1 /* PBXTargetDependency */,
 				7A0CE1000000000000000062 /* PBXTargetDependency */,			);
-			dependencies = (
-
-			);
 			name = cmux;
 			packageProductDependencies = (
 				A5001231 /* Sparkle */,
@@ -10195,8 +10190,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			buildRules = (
 			);
 			dependencies = (			);
-			dependencies = (
-			);
 			name = "cmux-cli";
 			packageProductDependencies = (
 				A5B00002A1B2C3D4E5F60718 /* CMUXAgentLaunch */,
@@ -10209,12 +10202,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				CD0CFE5200000000CD0CFE52 /* CmuxSettings */,
 				CF00F00000000000000000A2 /* CmuxFoundation */,
 				CE57E10000000000000000B2 /* CmuxSentryReporting */,
-				CE57E10000000000000000A2 /* CmuxSentryScrubbing */,			);
-			name = "cmux-cli";
-			packageProductDependencies = (
 				A9523E000000000000000002 /* CmuxAgentLifecycle */,
 				A5001251 /* Sentry */,
-
+				CE57E10000000000000000A2 /* CmuxSentryScrubbing */,
 			);
 			productName = cmux;
 			productReference = B9000004A1B2C3D4E5F60719 /* cmux */;
@@ -10232,9 +10222,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			);
 			dependencies = (
 				32568B0DCFC8656BA952468E /* PBXTargetDependency */,			);
-			dependencies = (
-
-			);
 			name = cmuxUITests;
 			productName = cmuxUITests;
 			productReference = 7E7E6EF344A568AC7FEE3715 /* cmuxUITests.xctest */;
@@ -10251,8 +10238,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			buildRules = (
 			);
 			dependencies = (			);
-			dependencies = (
-			);
 			name = CmuxDockTilePlugin;
 			productName = CmuxDockTilePlugin;
 			productReference = D1320AA0D1320AA0D1320AA5 /* CmuxDockTilePlugin.plugin */;
@@ -10270,9 +10255,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			);
 			dependencies = (
 				F1000009A1B2C3D4E5F60718 /* PBXTargetDependency */,			);
-			dependencies = (
-
-			);
 			name = cmuxTests;
 			packageProductDependencies = (
 				29813FE5A6CBC1019289A251 /* CMUXAuthCore */,
@@ -10521,21 +10503,13 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/scripts/write-sidebar-extension-point.sh",			);
-			inputPaths = (
-				"$(SRCROOT)/scripts/write-sidebar-extension-point.sh",				"$(SRCROOT)/scripts/write-sidebar-extension-point.sh",
-			);
 			name = "Write Extension Point";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Extensions/$(CMUX_SIDEBAR_EXTENSION_POINT_ID).appextensionpoint",			);
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Extensions/$(CMUX_SIDEBAR_EXTENSION_POINT_ID).appextensionpoint",				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Extensions/$(CMUX_SIDEBAR_EXTENSION_POINT_ID).appextensionpoint",
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/scripts/write-sidebar-extension-point.sh\"\n";
@@ -10546,17 +10520,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (			);
-			inputPaths = (
-			);
 			outputFileListPaths = (			);
-			outputFileListPaths = (
-			);
 			outputPaths = (			);
-			outputPaths = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -euo pipefail\nDEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nGHOSTTY_DEST=\"${DEST}/ghostty\"\nTERMINFO_DEST=\"${DEST}/terminfo\"\nCMUX_SHELL_DEST=\"${DEST}/shell-integration\"\nBIN_DEST=\"${DEST}/bin\"\nLIBEXEC_DEST=\"${DEST}/libexec\"\nSRC_SHARE=\"${SRCROOT}/ghostty/zig-out/share\"\nGHOSTTY_SRC=\"${SRC_SHARE}/ghostty\"\nTERMINFO_SRC=\"${SRC_SHARE}/terminfo\"\nFALLBACK_GHOSTTY=\"${SRCROOT}/Resources/ghostty\"\nFALLBACK_TERMINFO=\"${SRCROOT}/Resources/ghostty/terminfo\"\nTERMINFO_OVERLAY=\"${SRCROOT}/Resources/terminfo-overlay\"\nCMUX_SHELL_SRC=\"${SRCROOT}/Resources/shell-integration\"\nGHOSTTY_SHELL_SRC=\"${SRCROOT}/ghostty/src/shell-integration\"\nCMUX_GHOSTTY_ZSH_SRC=\"${SRCROOT}/ghostty/src/shell-integration/zsh/ghostty-integration\"\nBUILD_GHOSTTY_HELPER=\"${SRCROOT}/scripts/build-ghostty-cli-helper.sh\"\nGHOSTTY_HELPER_DEST=\"${BIN_DEST}/ghostty\"\nBUILD_CMUX_CUA=\"${SRCROOT}/scripts/build-cmux-cua.sh\"\nCMUX_CUA_DEST=\"${BIN_DEST}/cmux-cua\"\nmkdir -p \"$BIN_DEST\" \"$LIBEXEC_DEST\"\nif [ -d \"$GHOSTTY_SRC\" ]; then\n  mkdir -p \"$GHOSTTY_DEST\"\n  rsync -a --delete \"$GHOSTTY_SRC/\" \"$GHOSTTY_DEST/\"\nelif [ -d \"$FALLBACK_GHOSTTY\" ]; then\n  mkdir -p \"$GHOSTTY_DEST\"\n  rsync -a --delete \"$FALLBACK_GHOSTTY/\" \"$GHOSTTY_DEST/\"\nfi\nif [ ! -d \"$GHOSTTY_SHELL_SRC\" ]; then\n  echo \"error: missing Ghostty shell integration resources at $GHOSTTY_SHELL_SRC\" >&2\n  exit 1\nfi\nmkdir -p \"$GHOSTTY_DEST/shell-integration\"\nrsync -a --delete \"$GHOSTTY_SHELL_SRC/\" \"$GHOSTTY_DEST/shell-integration/\"\nif [ -d \"$TERMINFO_SRC\" ]; then\n  mkdir -p \"$TERMINFO_DEST\"\n  rsync -a --delete \"$TERMINFO_SRC/\" \"$TERMINFO_DEST/\"\nelif [ -d \"$FALLBACK_TERMINFO\" ]; then\n  mkdir -p \"$TERMINFO_DEST\"\n  rsync -a --delete \"$FALLBACK_TERMINFO/\" \"$TERMINFO_DEST/\"\nfi\n# Overlay any cmux-specific terminfo adjustments.\n# This intentionally does not use --delete so we only patch specific entries.\nif [ -d \"$TERMINFO_OVERLAY\" ]; then\n  mkdir -p \"$TERMINFO_DEST\"\n  rsync -a \"$TERMINFO_OVERLAY/\" \"$TERMINFO_DEST/\"\nfi\nif [ -d \"$CMUX_SHELL_SRC\" ]; then\n  mkdir -p \"$CMUX_SHELL_DEST\"\n  # Use '/.' so dotfiles like .zshenv/.zprofile are copied too.\n  rsync -a \"$CMUX_SHELL_SRC/.\" \"$CMUX_SHELL_DEST/\"\nfi\nif [ -f \"$CMUX_GHOSTTY_ZSH_SRC\" ]; then\n  mkdir -p \"$CMUX_SHELL_DEST\"\n  rsync -a \"$CMUX_GHOSTTY_ZSH_SRC\" \"$CMUX_SHELL_DEST/ghostty-integration.zsh\"\nfi\nif [ ! -x \"$BUILD_GHOSTTY_HELPER\" ]; then\n  echo \"error: missing Ghostty CLI helper build script at $BUILD_GHOSTTY_HELPER\" >&2\n  exit 1\nfi\nARCHS_LIST=\" ${ARCHS:-} \"\nHAS_ARM64=0\nHAS_X86_64=0\nGHOSTTY_HELPER_TARGET=\"\"\ncase \"$ARCHS_LIST\" in\n  *\" arm64 \"*) HAS_ARM64=1 ;;\nesac\ncase \"$ARCHS_LIST\" in\n  *\" x86_64 \"*) HAS_X86_64=1 ;;\nesac\nif [ \"$HAS_ARM64\" -eq 1 ] && [ \"$HAS_X86_64\" -eq 1 ]; then\n  \"$BUILD_GHOSTTY_HELPER\" --universal --output \"$GHOSTTY_HELPER_DEST\"\nelif [ \"$HAS_ARM64\" -eq 1 ]; then\n  GHOSTTY_HELPER_TARGET=\"aarch64-macos\"\nelif [ \"$HAS_X86_64\" -eq 1 ]; then\n  GHOSTTY_HELPER_TARGET=\"x86_64-macos\"\nfi\nif [ -n \"$GHOSTTY_HELPER_TARGET\" ]; then\n  \"$BUILD_GHOSTTY_HELPER\" --target \"$GHOSTTY_HELPER_TARGET\" --output \"$GHOSTTY_HELPER_DEST\"\nelif [ \"$HAS_ARM64\" -eq 0 ] || [ \"$HAS_X86_64\" -eq 0 ]; then\n  \"$BUILD_GHOSTTY_HELPER\" --output \"$GHOSTTY_HELPER_DEST\"\nfi\nif [ ! -x \"$GHOSTTY_HELPER_DEST\" ]; then\n  echo \"error: Ghostty CLI helper was not created at $GHOSTTY_HELPER_DEST\" >&2\n  exit 1\nfi\nif [ ! -x \"$BUILD_CMUX_CUA\" ]; then\n  echo \"error: missing cmux-cua build script at $BUILD_CMUX_CUA\" >&2\n  exit 1\nfi\n\"$BUILD_CMUX_CUA\" --output \"$CMUX_CUA_DEST\" --archs \"${ARCHS:-}\"\nif [ ! -x \"$CMUX_CUA_DEST\" ]; then\n  echo \"error: cmux-cua was not created at $CMUX_CUA_DEST\" >&2\n  exit 1\nfi\nINFO_PLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nCOMMIT=\"$(git -C \"${SRCROOT}\" rev-parse --short=9 HEAD 2>/dev/null || true)\"\nif [ -n \"$COMMIT\" ] && [ -f \"$INFO_PLIST\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CMUXCommit $COMMIT\" \"$INFO_PLIST\" >/dev/null 2>&1 || /usr/libexec/PlistBuddy -c \"Add :CMUXCommit string $COMMIT\" \"$INFO_PLIST\" >/dev/null 2>&1 || true\nfi\n";
@@ -10567,30 +10533,16 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.toml",
 				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.lock",
 				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/src/lib.rs",
 				"$(SRCROOT)/scripts/build-command-palette-nucleo-ffi.sh",			);
-			inputPaths = (
-				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.toml",
-				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.lock",
-				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/src/lib.rs",
-				"$(SRCROOT)/scripts/build-command-palette-nucleo-ffi.sh",				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.toml",
-				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/Cargo.lock",
-				"$(SRCROOT)/Native/CommandPaletteNucleoFFI/src/lib.rs",
-				"$(SRCROOT)/scripts/build-command-palette-nucleo-ffi.sh",
-			);
 			name = "Build Command Palette Nucleo FFI";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libcmux_command_palette_nucleo_ffi.dylib",			);
-			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libcmux_command_palette_nucleo_ffi.dylib",				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libcmux_command_palette_nucleo_ffi.dylib",
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/scripts/build-command-palette-nucleo-ffi.sh\"\n";
@@ -10602,8 +10554,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/Native/DiffSidecar/Cargo.toml",
 				"$(SRCROOT)/Native/DiffSidecar/Cargo.lock",
@@ -10617,39 +10567,11 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				"$(SRCROOT)/scripts/build-diff-sidecar.sh",
 				"$(SRCROOT)/scripts/run-diff-sidecar-cargo.sh",
 				"$(SRCROOT)/scripts/verify-diff-sidecar-artifact.sh",			);
-			inputPaths = (
-				"$(SRCROOT)/Native/DiffSidecar/Cargo.toml",
-				"$(SRCROOT)/Native/DiffSidecar/Cargo.lock",
-				"$(SRCROOT)/Native/DiffSidecar/rust-toolchain.toml",
-				"$(SRCROOT)/Native/DiffSidecar/src/benchmark.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/lib.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/main.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/manifest.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/protocol.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/server.rs",
-				"$(SRCROOT)/scripts/build-diff-sidecar.sh",
-				"$(SRCROOT)/scripts/run-diff-sidecar-cargo.sh",
-				"$(SRCROOT)/scripts/verify-diff-sidecar-artifact.sh",				"$(SRCROOT)/Native/DiffSidecar/Cargo.toml",
-				"$(SRCROOT)/Native/DiffSidecar/Cargo.lock",
-				"$(SRCROOT)/Native/DiffSidecar/rust-toolchain.toml",
-				"$(SRCROOT)/Native/DiffSidecar/src/benchmark.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/lib.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/main.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/manifest.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/protocol.rs",
-				"$(SRCROOT)/Native/DiffSidecar/src/server.rs",
-				"$(SRCROOT)/scripts/build-diff-sidecar.sh",
-				"$(SRCROOT)/scripts/run-diff-sidecar-cargo.sh",
-				"$(SRCROOT)/scripts/verify-diff-sidecar-artifact.sh",
-			);
 			name = "Build Diff Sidecar";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/cmux-diff-sidecar",			);
-			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/cmux-diff-sidecar",				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/cmux-diff-sidecar",
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/scripts/build-diff-sidecar.sh\"\n";
@@ -10661,19 +10583,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (			);
-			inputPaths = (
-			);
 			name = "Reject Bundled Provider Binaries";
 			outputFileListPaths = (			);
-			name = "Reject Bundled Provider Binaries";
-			outputFileListPaths = (
-			);
 			outputPaths = (			);
-			outputPaths = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -euo pipefail\nBIN_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin\"\nPROVIDERS=\"codex claude opencode pi\"\nfor provider in $PROVIDERS; do\n  if [ -e \"${SRCROOT}/Resources/bin/${provider}\" ]; then\n    echo \"error: provider executable must not be checked in at Resources/bin/${provider}\" >&2\n    exit 1\n  fi\n  if [ -e \"${BIN_DIR}/${provider}\" ]; then\n    rm -rf \"${BIN_DIR:?}/${provider}\"\n  fi\n  if [ -e \"${BIN_DIR}/${provider}\" ]; then\n    echo \"error: provider executable must not be bundled at ${BIN_DIR}/${provider}\" >&2\n    exit 1\n  fi\ndone\n";
@@ -10685,22 +10598,13 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			files = (
 			);
 			inputFileListPaths = (			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 				"$(SRCROOT)/scripts/compress-markdown-viewer-assets.sh",
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/markdown-viewer",			);
-			inputPaths = (
-				"$(SRCROOT)/scripts/compress-markdown-viewer-assets.sh",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/markdown-viewer",				"$(SRCROOT)/scripts/compress-markdown-viewer-assets.sh",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/markdown-viewer",
-			);
 			name = "Compress Markdown Viewer Assets";
 			outputFileListPaths = (
 			);
 			outputPaths = (			);
-			outputPaths = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/scripts/compress-markdown-viewer-assets.sh\"\n";
@@ -11458,7 +11362,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				E4C001000000000000000003 /* ExtensionWorktreePrototype.swift in Sources */,
 				C0DEA7710000000000000007 /* FeatureFlags.swift in Sources */,
 				9466A07A0000000000000001 /* FeedAttentionTarget.swift in Sources */,
-				A9523F00000000000000002D /* FeedAttentionTarget.swift in Sources */,
 				FEED0000000000000000F00D /* FeedButtonStyleDebugWindowController.swift in Sources */,
 				8672D0018672D0018672D001 /* FeedCoordinator+DeliveryTarget.swift in Sources */,
 				B7F100090000000000000001 /* FeedCoordinator+NotificationDelivery.swift in Sources */,
