@@ -1,11 +1,5 @@
-import CmuxAgentHooks
 import Foundation
 import Testing
-#if canImport(cmux_DEV)
-@testable import cmux_DEV
-#elseif canImport(cmux)
-@testable import cmux
-#endif
 
 /// Regression coverage for issue #7939: Claude cleanup hooks must target the
 /// pane resolved from live identity, never a stale persisted session address.
@@ -45,6 +39,7 @@ struct ClaudeHookLifecycleCleanupTests {
         ]
         try JSONSerialization.data(withJSONObject: store, options: [.prettyPrinted, .sortedKeys])
             .write(to: context.storeURL)
+
         let serverHandled = Harness.startDeliveryTargetServer(
             context: context,
             surfacesByWorkspace: [Self.liveWorkspaceId: [Self.liveSurfaceId, Self.otherSurfaceId]],
@@ -262,12 +257,14 @@ struct ClaudeHookLifecycleCleanupTests {
         assertSuccessfulHook(stopResult)
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         #expect((try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId))?["lastNotificationStatus"] as? String == "error")
+
         let result = Harness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "pre-tool-use"],
             environment: environment,
             standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"\#(context.root.path)"}"#
         )
+
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
@@ -276,6 +273,7 @@ struct ClaudeHookLifecycleCleanupTests {
             "PreToolUse must not dismiss a provider-error notification from the same turn; saw \(commands)"
         )
     }
+
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
     /// scan for frequency) must still re-home via the cheap `{surface_id}`
     /// probe instead of mutating — and re-recording via upsert — the old
@@ -285,6 +283,7 @@ struct ClaudeHookLifecycleCleanupTests {
         defer { context.cleanup() }
         let sessionId = "pre-tool-use-rehome-session"
         let newWorkspaceId = "99999999-9999-9999-9999-999999999999"
+
         try Harness.writeSessionStore(
             to: context.storeURL,
             sessionId: sessionId,
@@ -301,6 +300,7 @@ struct ClaudeHookLifecycleCleanupTests {
             pidTarget: nil,
             surfaceTargets: [Self.liveSurfaceId: newWorkspaceId]
         )
+
         var environment = Harness.hookEnvironment(context: context)
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
@@ -483,14 +483,6 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains { $0.hasPrefix("set_status ") || $0.hasPrefix("clear_notifications ") })
     }
 
-    @Test func stopPayloadUsesHighestPriorityReason() {
-        let inputs = CMUXCLI(args: []).abnormalStopPayloadInputs(from: [
-            "type": "completed", "payload": ["terminationReason": "capacity", "reason": "user_requested"],
-        ])
-        #expect(inputs.signal == "Stop capacity")
-        #expect(inputs.messages.contains("user_requested"))
-        #expect(AgentHookAbnormalStopClassifier().isUserInitiatedStop(signal: inputs.signal, message: inputs.messages.joined(separator: " ")))
-    }
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))

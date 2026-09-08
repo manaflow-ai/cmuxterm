@@ -405,4 +405,22 @@ struct ClaudeBackgroundWorkNotifyTests {
             "A user interrupt must not produce an abnormal provider-error notification, saw \(snapshot)"
         )
     }
+
+    @Test func nestedStopReasonsPreservePriorityAndUserCancellation() throws {
+        for userRequested in [false, true] {
+            let name = userRequested ? "nested-user-cancel" : "nested-capacity"
+            let session = "\(name)-session"
+            let siblingReason = userRequested ? #", "reason":"user_requested""# : ""
+            let stdin = #"{"session_id":"\#(session)","hook_event_name":"Stop","type":"completed","payload":{"terminationReason":"capacity"\#(siblingReason)},"background_tasks":[],"session_crons":[]}"#
+            let (snapshot, _, _) = try runStopHook(name: name, sessionId: session, stdin: stdin)
+            #expect(
+                (notifyLine(snapshot, containing: "|Model at capacity|") != nil) == !userRequested,
+                "A nested capacity reason must outrank the event type, unless a sibling reason records user cancellation; saw \(snapshot)"
+            )
+            #expect(
+                (journalEvent(snapshot, kind: "agent.error.reported") != nil) == !userRequested,
+                "The journal must agree with the notification classification; saw \(snapshot)"
+            )
+        }
+    }
 }
