@@ -174,7 +174,8 @@ enum ClaudeHookLiveDeliveryHarness {
         cwd: String,
         pid: Int? = nil,
         pidStartSeconds: Int64? = nil,
-        pidStartMicroseconds: Int64? = nil
+        pidStartMicroseconds: Int64? = nil,
+        priorProcessGenerations: [[String: Any]]? = nil
     ) throws {
         let now = Date().timeIntervalSince1970
         var record: [String: Any] = [
@@ -189,6 +190,7 @@ enum ClaudeHookLiveDeliveryHarness {
         if let pid { record["pid"] = pid }
         if let pidStartSeconds { record["pidStartSeconds"] = pidStartSeconds }
         if let pidStartMicroseconds { record["pidStartMicroseconds"] = pidStartMicroseconds }
+        if let priorProcessGenerations { record["priorProcessGenerations"] = priorProcessGenerations }
         let store: [String: Any] = [
             "version": 1,
             "sessions": [sessionId: record],
