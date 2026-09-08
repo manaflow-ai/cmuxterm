@@ -35,14 +35,26 @@ extension AppDelegate {
     /// the sidebar and surface catalog return without a relaunch; every
     /// per-call gate (`CloudMachinesFeature`, `VMClient`, the tunnel
     /// coordinator, the socket verbs) already reads the live policy.
+    /// Transitions are serialized on ``managedCloudPolicyTask`` and the policy
+    /// is re-read after every suspension, so a lift that arrives while a
+    /// teardown is still running cannot be overtaken by it.
     func applyManagedCloudPolicy() {
-        if ManagedDevicePolicy().isEnforced(.disableCloud) {
-            Task { @MainActor in
-                await CmuxTuiSurfaceProviderRegistry.shared.accessDidEnd()
-                self.endCloudVMAccess(reason: .managedPolicy)
+        let previous = managedCloudPolicyTask
+        managedCloudPolicyTask = Task { @MainActor [weak self] in
+            _ = await previous?.value
+            guard let self else { return }
+            guard ManagedDevicePolicy().isEnforced(.disableCloud) else {
+                CmuxTuiSurfaceProviderRegistry.shared.start(catalog: .shared)
+                return
             }
-        } else {
-            CmuxTuiSurfaceProviderRegistry.shared.start(catalog: .shared)
+            await CmuxTuiSurfaceProviderRegistry.shared.accessDidEnd()
+            guard ManagedDevicePolicy().isEnforced(.disableCloud) else {
+                // The profile was removed mid-teardown: Cloud is allowed again,
+                // so restart discovery instead of ending live access.
+                CmuxTuiSurfaceProviderRegistry.shared.start(catalog: .shared)
+                return
+            }
+            self.endCloudVMAccess(reason: .managedPolicy)
         }
     }
 
