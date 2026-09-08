@@ -20,6 +20,7 @@ mock.module("@stackframe/stack", () => ({
   ),
 }));
 
+let radioGroupValue = "";
 mock.module("@base-ui-components/react/menu", () => ({
   Menu: {
     Root: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -39,6 +40,14 @@ mock.module("@base-ui-components/react/menu", () => ({
         : <button {...props}>{children}</button>,
     Separator: () => <hr />,
     SubmenuRoot: ({ children }: { children: React.ReactNode }) => <div data-testid="team-submenu">{children}</div>,
+    RadioGroup: ({ children, value }: { children: React.ReactNode; value: string }) => {
+      radioGroupValue = value;
+      return <div role="group">{children}</div>;
+    },
+    RadioItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLElement> & { value: string }) => (
+      <div role="menuitemradio" aria-checked={value === radioGroupValue} {...props}>{children}</div>
+    ),
+    RadioItemIndicator: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
     SubmenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => (
       <button {...props}>{children}</button>
     ),
@@ -118,8 +127,8 @@ describe("dashboard account menu", () => {
     resolvedTheme = "light";
     const html = renderToStaticMarkup(<DashboardAccountMenu />);
     expect(html).toContain(">themeDark<");
-    expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/billing"));
-    expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("signOut"));
+    expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/team"));
+    expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("/dashboard/billing"));
   });
 
   test("lists every permitted team in a submenu and shows the current one on the trigger", () => {
@@ -135,6 +144,7 @@ describe("dashboard account menu", () => {
       { id: "team-3", name: "Side project", personal: false, permissions: { use: true, manageAccounts: false } },
     ];
     teamScope = { status: "ready", teams, selected: teams[1], switchTeam: () => undefined };
+    resolvedTheme = "dark";
     const html = renderToStaticMarkup(<DashboardAccountMenu />);
     teamScope = { status: "unavailable" };
 
@@ -147,9 +157,11 @@ describe("dashboard account menu", () => {
     expect(submenu.match(/aria-checked="false"/g)).toHaveLength(2);
     // The trigger row names the current team under the user's name.
     expect(html.indexOf("Manaflow")).toBeLessThan(html.indexOf("/dashboard/team"));
-    // The team entry sits after settings and billing, before sign out.
-    expect(html.indexOf('data-testid="team-submenu"')).toBeGreaterThan(html.indexOf("/dashboard/billing"));
-    expect(html.indexOf('data-testid="team-submenu"')).toBeLessThan(html.indexOf("signOut"));
+    // Order: settings, theme, billing, team, then sign out.
+    const order = ["/dashboard/team", ">themeLight<", "/dashboard/billing", 'data-testid="team-submenu"', "signOut"]
+      .map((marker) => html.indexOf(marker));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   test("uses the unlocalized auth handler and names the compact sign-in link", () => {

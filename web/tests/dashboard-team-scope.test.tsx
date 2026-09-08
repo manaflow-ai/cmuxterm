@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 type Catalog = {
@@ -72,6 +72,12 @@ const twoTeams: Catalog = {
 };
 
 describe("dashboard team scope", () => {
+  beforeEach(() => {
+    catalog = twoTeams;
+    pending = false;
+    searchTeam = null;
+  });
+
   test("exposes the persisted team as current and only permitted teams", () => {
     catalog = twoTeams;
     pending = false;
