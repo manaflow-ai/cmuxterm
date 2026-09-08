@@ -2315,6 +2315,86 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertNil(record["autoNameLastTitle"])
     }
 
+    func testClaudeAutoNameTitlelessShrinkReseedsBaseline() throws {
+        let context = try makeClaudeHookContext(name: "claude-titleless-shrink-baseline")
+        defer { context.cleanup() }
+
+        let sessionId = "claude-titleless-shrink-baseline-session"
+        let transcriptURL = context.root.appendingPathComponent("conversation.jsonl")
+        let transcript = (0..<12).map { index in
+            #"{"type":"user","message":{"content":"Investigate authentication \#(index)"}}"#
+        }.joined(separator: "\n")
+        try transcript.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        let transcriptLineCount = try autoNamingGrowthMetric(transcriptURL)
+        let now = Date().timeIntervalSince1970
+        try seedClaudeAutoNamingStore(
+            context: context,
+            sessionId: sessionId,
+            transcriptURL: transcriptURL,
+            baselineLineCount: 100,
+            lastTitle: nil,
+            lastNamedAt: now - AutoNamingEngine().config.minInterval - 1,
+            lastAttemptAt: now - AutoNamingEngine().config.minInterval - 1,
+            inFlightAt: nil
+        )
+
+        let summarizerMarker = context.root.appendingPathComponent("summarizer-invocations")
+        let summarizerURL = context.root.appendingPathComponent("fake-claude")
+        try "#!/bin/sh\n/bin/echo x >> \"\(summarizerMarker.path)\"\n/bin/echo 'Unexpected title'\n"
+            .write(to: summarizerURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: summarizerURL.path
+        )
+        startDetachedMockServer(listenerFD: context.listenerFD, state: context.state) { line in
+            guard let payload = self.jsonObject(line),
+                  let id = payload["id"] as? String,
+                  let method = payload["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            guard method == "workspace.set_auto_title" else {
+                return self.v2Response(
+                    id: id,
+                    ok: false,
+                    error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"]
+                )
+            }
+            let params = payload["params"] as? [String: Any] ?? [:]
+            if params["probe"] as? Bool == true {
+                return self.v2Response(id: id, ok: true, result: [
+                    "enabled": true,
+                    "workspace_user_owned": false,
+                ])
+            }
+            return self.v2Response(id: id, ok: true, result: [
+                "workspace_applied": false,
+                "workspace_apply_skipped": true,
+                "panel_applied": NSNull(),
+                "panel_apply_skipped": true,
+                "terminal_skip": false,
+                "target_unresolved": false,
+            ])
+        }
+
+        let result = runClaudeHookWithoutServer(
+            context: context,
+            arguments: ["hooks", "claude", "auto-name"],
+            standardInput: #"{"session_id":"\#(sessionId)","transcript_path":"\#(transcriptURL.path)","hook_event_name":"Stop"}"#,
+            extraEnvironment: ["CMUX_CUSTOM_CLAUDE_PATH": summarizerURL.path]
+        )
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: summarizerMarker.path))
+        XCTAssertEqual(autoNamingApplyRequests(in: context).count, 0)
+
+        let record = try readClaudeHookSession(sessionId, context: context)
+        XCTAssertEqual(record["autoNameLastLineCount"] as? Int, transcriptLineCount)
+        XCTAssertEqual(record["autoNameLastObservedLineCount"] as? Int, transcriptLineCount)
+        XCTAssertNotNil(record["autoNameLastNamedAt"] as? Double)
+        XCTAssertNil(record["autoNameLastTitle"])
+        XCTAssertNil(record["autoNameTitleReconciliationAttemptCount"])
+    }
+
     func testClaudeAutoNameManualRejectionSettlesFirstTitleBaseline() throws {
         let context = try makeClaudeHookContext(name: "claude-manual-rejection-baseline")
         defer { context.cleanup() }

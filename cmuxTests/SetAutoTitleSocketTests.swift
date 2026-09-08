@@ -271,6 +271,36 @@ import Testing
         }
     }
 
+    @Test func reconciliationCASRepairsMissingLocalPanelTitle() throws {
+        try withAutoNamingSetting(true) {
+            try withManager { _, workspace in
+                let pane = try #require(workspace.bonsplitController.allPaneIds.first)
+                let panelId = try #require(workspace.newTerminalSurface(inPane: pane, focus: true)?.id)
+                _ = try #require(workspace.newTerminalSurface(inPane: pane, focus: false)?.id)
+                #expect(workspace.setCustomTitle("Older session topic", source: .auto))
+                #expect(workspace.panelCustomTitles[panelId] == nil)
+                #expect(workspace.panelCustomTitleSources[panelId] == nil)
+
+                let result = try #require(call(method: "workspace.set_auto_title", params: [
+                    "workspace_id": workspace.id.uuidString,
+                    "panel_id": panelId.uuidString,
+                    "panel_only_if_multiple": true,
+                    "expected_workspace_title": "Older session topic",
+                    "expected_panel_title": "Older session topic",
+                    "reconciliation_cas": true,
+                    "title": "Older session topic",
+                ]) ["result"] as? [String: Any])
+
+                #expect(result["workspace_applied"] as? Bool == true)
+                #expect(result["workspace_apply_skipped"] as? Bool == false)
+                #expect(result["panel_applied"] as? Bool == true)
+                #expect(result["panel_apply_skipped"] as? Bool == false)
+                #expect(workspace.panelCustomTitles[panelId] == "Older session topic")
+                #expect(workspace.panelCustomTitleSources[panelId] == .auto)
+            }
+        }
+    }
+
     @Test func notInstalledSurvivesAReportAfterSuccessfulApply() throws {
         // Regression: a missing-override pass applies a fallback title (which
         // clears stale status) and THEN reports not_installed. The order must
