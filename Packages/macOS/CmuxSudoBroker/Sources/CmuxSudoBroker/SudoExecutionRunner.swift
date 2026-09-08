@@ -162,19 +162,11 @@ public struct SudoExecutionRunner {
                 return 1
             }
 
-            guard inspector.isRunning(manifest.requesterIdentity) else {
-                try settle(
-                    SudoResult(
-                        id: requestID,
-                        status: .failed,
-                        errorCode: .requesterUnavailable,
-                        note: messages.requesterUnavailable
-                    ),
-                    auditStatus: "failed requester-validation"
-                )
-                return 0
-            }
-
+            // The broker validated the requester's generation-qualified identity
+            // when it approved the request and stops observing requester exit once
+            // the script is staged. From here on execution is independent of the
+            // `cmux sudo` waiter, which may already have left at its approval
+            // deadline, so the reviewed run is never cancelled for that reason.
             guard pam.touchIDIsEnabled() else {
                 try settle(
                     SudoResult(

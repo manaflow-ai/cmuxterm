@@ -837,7 +837,14 @@ public actor SudoBroker {
                 }
             }
         )
-        activeIDs.formUnion(store.cleanupFailureStates().map(\.id))
+        // Cleanup failures whose bounded recovery attempts are exhausted stay on
+        // disk as evidence but own no reaper thread in this process, so only the
+        // failures still scheduled for another recovery attempt count here.
+        activeIDs.formUnion(
+            store.cleanupFailureStates()
+                .map(\.id)
+                .filter { cleanupRetryNotBefore[$0] != .distantFuture }
+        )
         return activeIDs.count
     }
 
