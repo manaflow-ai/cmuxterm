@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import Testing
 
 #if canImport(cmux_DEV)
@@ -183,7 +184,7 @@ struct CloudMutationReceiptReconciliationTests {
     func canonicalCloudStateSurvivesCursorlessStatusRefresh() throws {
         let machine = SurfaceMachineID.cloud("vivid-newt")
         let catalog = SurfaceCatalog()
-        let provider = FakeProvider(machine: machine)
+        let provider = CloudTreeCatalogFakeProvider(machine: machine)
         catalog.register(provider)
 
         let snapshot: [String: Any] = [
@@ -221,4 +222,60 @@ private final class CloudTreeMenuVerbRecorder {
     var newTerminals: [SurfaceMachineID] = []
     var commands: [(id: String, verb: [String])] = []
     var deletions: [String] = []
+}
+
+/// Minimal catalog provider for the cursorless-refresh regression. The full
+/// SurfaceCatalog fixture is file-private, so keep this moved test self-contained.
+@MainActor
+private final class CloudTreeCatalogFakeProvider: SurfaceProvider {
+    let machine: SurfaceMachineID
+    var info: SurfaceMachineInfo
+
+    init(machine: SurfaceMachineID) {
+        self.machine = machine
+        self.info = SurfaceMachineInfo(
+            id: machine,
+            name: machine.rawValue,
+            status: "running",
+            image: nil,
+            hasDesktop: false,
+            memoryMb: nil,
+            diskMb: nil,
+            linkState: .connected,
+            linkError: nil,
+            cpuPercent: nil,
+            memoryUsedMb: nil,
+            diskUsedMb: nil
+        )
+    }
+
+    func refresh() async {}
+
+    func materialize(
+        _ resource: SurfaceResource,
+        at destination: SurfaceDestination,
+        focus: Bool
+    ) async throws -> SurfaceProjection {
+        SurfaceProjection(resource: resource.id, workspaceID: destination.workspaceID, panelID: UUID())
+    }
+
+    func createTerminal(
+        command: [String]?,
+        cwd: String?,
+        name: String?,
+        remoteWorkspaceID: String?
+    ) async throws -> SurfaceResource {
+        SurfaceResource(
+            id: SurfaceResourceID(machine: machine, kind: .terminal, key: "term_new"),
+            title: name ?? "shell",
+            detail: cwd,
+            lifecycle: .launching,
+            agent: nil,
+            remoteWorkspace: nil,
+            port: nil,
+            url: nil
+        )
+    }
+
+    func projectionDidEnd(_ projection: SurfaceProjection) {}
 }
