@@ -478,7 +478,10 @@ extension TerminalController {
             let clientCapabilities = Self.socketWorkerStringArray(
                 params["client_capabilities"] ?? params["clientCapabilities"]
             )
-            return v2VmCall(id: id) {
+            return v2VmCall(
+                id: id,
+                transportUnsupportedContext: (command: "vm tui", machineID: vmId)
+            ) {
                 let registry = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared }
                 let cachedCapabilities = await MainActor.run { registry.provider(machineID: vmId)?.capabilities }
                 let capabilities: VMCapabilities
