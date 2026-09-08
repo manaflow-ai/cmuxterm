@@ -53,7 +53,11 @@ actor ChromiumExtensionStore {
                 }
             } catch let error as ChromiumExtensionError { throw error }
             catch {
-                throw ChromiumExtensionError(path: source.path, reason: error.localizedDescription)
+                throw failure(
+                    source.path,
+                    "browser.chromium.extensions.prepare",
+                    "Could not prepare the extension. Check the directory and try again."
+                )
             }
             prepared.append(destination)
         }
