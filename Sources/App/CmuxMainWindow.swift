@@ -110,14 +110,12 @@ final class CmuxMainWindow: NSWindow {
         super.performDrag(with: event)
     }
 
-    override func setFrameOrigin(_ newOrigin: NSPoint) {
-        zoomIntent.recordUserPlacement()
-        super.setFrameOrigin(newOrigin)
+    func setFrameForManagedPlacement(_ frameRect: NSRect, display flag: Bool) {
+        setFrame(frameRect, display: flag)
     }
 
-    func setFrameForManagedPlacement(_ frameRect: NSRect, display flag: Bool) {
-        zoomIntent.beginManagedPlacement()
-        defer { zoomIntent.endManagedPlacement() }
+    func setFrameForRestoredPlacement(_ frameRect: NSRect, display flag: Bool) {
+        zoomIntent.recordUserPlacement()
         setFrame(frameRect, display: flag)
     }
 

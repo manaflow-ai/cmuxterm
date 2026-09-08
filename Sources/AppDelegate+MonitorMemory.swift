@@ -237,7 +237,7 @@ extension AppDelegate {
                     "applied={\(nsRectLogDescription(restored))}"
             )
 #endif
-            window.setFrameForManagedPlacement(restored, display: true)
+            window.setFrameForRestoredPlacement(restored, display: true)
         }
     }
 

@@ -1,6 +1,5 @@
 struct MainWindowZoomIntentState: Sendable, Equatable {
     private(set) var isZoomed = false
-    private(set) var isApplyingManagedPlacement = false
 
     var wantsZoomedFrame: Bool {
         isZoomed
@@ -10,16 +9,7 @@ struct MainWindowZoomIntentState: Sendable, Equatable {
         self.isZoomed = isZoomed
     }
 
-    mutating func beginManagedPlacement() {
-        isApplyingManagedPlacement = true
-    }
-
-    mutating func endManagedPlacement() {
-        isApplyingManagedPlacement = false
-    }
-
     mutating func recordUserPlacement() {
-        guard !isApplyingManagedPlacement else { return }
         isZoomed = false
     }
 }

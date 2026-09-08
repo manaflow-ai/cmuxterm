@@ -372,15 +372,4 @@ struct MainWindowZoomIntentTests {
 
         #expect(!state.wantsZoomedFrame)
     }
-
-    @Test func managedPlacementPreservesZoomIntent() {
-        var state = MainWindowZoomIntentState()
-        state.recordZoom(isZoomed: true)
-
-        state.beginManagedPlacement()
-        state.recordUserPlacement()
-        state.endManagedPlacement()
-
-        #expect(state.wantsZoomedFrame)
-    }
 }
