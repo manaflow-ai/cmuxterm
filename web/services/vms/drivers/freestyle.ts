@@ -47,6 +47,7 @@ import {
   DEVBOX_DESKTOP_UNIT,
   devboxDesktopOpenUrl,
 } from "../images/desktop";
+import { guestSelfCliInstallCommand } from "../guestSelfCli";
 import { recordSpanError, setSpanAttributes, withVmSpan } from "../telemetry";
 import {
   CMUX_TUI_BINARY_PATH,
@@ -1383,6 +1384,13 @@ export class FreestyleProvider implements VMProvider {
     fingerprint: string | undefined,
   ) {
     const bundleOptions = { deviceFingerprint: fingerprint };
+    // Every attach re-installs the guest `cmux` self-discovery shim, so a
+    // machine from any snapshot has it before its first terminal opens.
+    // Best-effort: a missing shim degrades `cmux self`, never the attach.
+    const shim = await this.execResult(vm, guestSelfCliInstallCommand());
+    if (shim?.exitCode !== 0) {
+      console.warn(`[freestyle] guest cmux shim install in ${vmId} failed: ${(shim?.stderr || shim?.stdout || "no exec result").slice(0, 200)}`);
+    }
     let result = await this.execResult(
       vm,
       cmuxTuiAttachBundleCommand({ readyGate: freestyleDaemonSettledCommand(), ...bundleOptions }),

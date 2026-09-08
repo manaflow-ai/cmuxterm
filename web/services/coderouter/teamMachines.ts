@@ -17,6 +17,10 @@ export type TeamMachine = {
   /** The provider's machine id, the `id` that `GET /api/vm` lists. */
   readonly providerVmId: string | null;
   readonly displayName: string | null;
+  /** Generated three-word name, when the row has one. */
+  readonly slug: string | null;
+  /** The `cloud_vms.status` value; `destroyed` is its boolean shorthand. */
+  readonly status: string;
   readonly destroyed: boolean;
   readonly createdAt: string;
 };
@@ -38,6 +42,7 @@ function machineFromRow(row: {
   id: string;
   providerVmId: string | null;
   displayName: string | null;
+  slug: string | null;
   status: string;
   createdAt: Date;
 }): TeamMachine {
@@ -46,6 +51,8 @@ function machineFromRow(row: {
     vmId: row.id,
     providerVmId: row.providerVmId?.trim() || null,
     displayName: displayName ? displayName : null,
+    slug: row.slug?.trim() || null,
+    status: row.status,
     destroyed: row.status === "destroyed",
     createdAt: row.createdAt.toISOString(),
   };
@@ -62,6 +69,7 @@ export async function findTeamMachine(
       id: cloudVms.id,
       providerVmId: cloudVms.providerVmId,
       displayName: cloudVms.displayName,
+      slug: cloudVms.slug,
       status: cloudVms.status,
       createdAt: cloudVms.createdAt,
     })
@@ -79,6 +87,7 @@ export async function listTeamMachines(
       id: cloudVms.id,
       providerVmId: cloudVms.providerVmId,
       displayName: cloudVms.displayName,
+      slug: cloudVms.slug,
       status: cloudVms.status,
       createdAt: cloudVms.createdAt,
     })
