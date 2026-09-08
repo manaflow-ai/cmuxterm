@@ -390,7 +390,9 @@ class TerminalController {
         let responder: (_ accept: Bool, _ text: String?) -> Void
     }
 
-    private final class V2BrowserUndefinedSentinel: Sendable {}
+    /// Marker returned when Chromium evaluates a JavaScript expression to undefined.
+    /// Kept internal because the extracted Chromium automation bridge shares the type.
+    final class V2BrowserUndefinedSentinel: Sendable {}
 
     internal nonisolated static let v2BrowserEvalEnvelopeTypeKey = "__cmux_t"
     internal nonisolated static let v2BrowserEvalEnvelopeValueKey = "__cmux_v"
