@@ -833,7 +833,8 @@ struct EmptyPanelView: View {
         let button = Button(action: action) {
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
-                    CmuxSystemSymbolImage(systemName: systemImage, pointSize: 13)
+                    // `.borderedProminent` paints its label white on the accent fill.
+                    CmuxSystemSymbolImage(systemName: systemImage, pointSize: 13, tint: .white)
                     Text(title)
                 }
                 ShortcutHint(text: shortcut.displayString)
@@ -850,8 +851,7 @@ struct EmptyPanelView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            CmuxSystemSymbolImage(magnified: "terminal.fill", pointSize: 48)
-                .foregroundStyle(.tertiary)
+            CmuxSystemSymbolImage(magnified: "terminal.fill", pointSize: 48, tint: .tertiary)
 
             Text(String(localized: "emptyPanel.title", defaultValue: "Empty Panel"))
                 .cmuxFont(.headline)
