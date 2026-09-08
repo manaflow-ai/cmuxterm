@@ -1805,7 +1805,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         let rows = CloudVMNotificationRow.rows(from: state)
         notificationSync.apply(rows: rows)
         #if DEBUG
-        cmuxDebugLog("cloud.notifications.sync machine=\(machineID) revision=\(state.cursor?.revision.map(String.init) ?? "nil") rows=\(rows.count) unreadTerminals=\(notificationSync.unreadTerminalIDs.count) pending=\(notificationSync.state.pendingAcks.count)")
+        cmuxDebugLog("cloud.notifications.sync machine=\(machineID) revision=\((state.cursor?.revision).map(String.init) ?? "nil") rows=\(rows.count) unreadTerminals=\(notificationSync.unreadTerminalIDs.count) pending=\(notificationSync.state.pendingAcks.count)")
         #endif
     }
 
@@ -1943,7 +1943,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 // through the single bounded recovery owner so a burst of out-of-order events
                 // cannot start one full snapshot request per line.
                 #if DEBUG
-                cmuxDebugLog("cloud.state.deltaGap machine=\(machineID) previous=\(previousRevision) revision=\(revision) current=\(cloudState?.cursor?.revision.map(String.init) ?? "nil")")
+                cmuxDebugLog("cloud.state.deltaGap machine=\(machineID) previous=\(previousRevision) revision=\(revision) current=\((cloudState?.cursor?.revision).map(String.init) ?? "nil")")
                 #endif
                 scheduleStateRecoveryRefresh()
             case .installSnapshot:
