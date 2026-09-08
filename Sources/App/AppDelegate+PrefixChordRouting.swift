@@ -16,13 +16,16 @@ extension AppDelegate {
         if let window = event.window {
             return window.windowNumber
         }
+        if event.windowNumber > 0 {
+            return event.windowNumber
+        }
         if let configured = configuredShortcutChordWindowNumber(for: event) {
             return configured
         }
         if let fallbackWindow {
             return fallbackWindow.windowNumber
         }
-        return event.windowNumber > 0 ? event.windowNumber : 0
+        return 0
     }
 
     /// Returns whether this event was explicitly marked as an unmatched
