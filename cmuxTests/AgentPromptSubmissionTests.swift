@@ -222,6 +222,12 @@ struct AgentPromptSubmissionTests {
         let probe = await MainActor.run {
             let firstPanel = TerminalPanel(workspaceId: UUID())
             let secondPanel = TerminalPanel(workspaceId: UUID())
+            firstPanel.surface.synchronizePromptInputAgentScope(
+                "agentPIDKey:codex.first"
+            )
+            secondPanel.surface.synchronizePromptInputAgentScope(
+                "agentPIDKey:codex.second"
+            )
             firstPanel.surface.releaseSurfaceForTesting()
             secondPanel.surface.releaseSurfaceForTesting()
             return AgentPromptTransactionProbe(
