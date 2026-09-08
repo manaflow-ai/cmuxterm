@@ -1968,12 +1968,7 @@ struct ContentView: View {
             }
         }
 
-        // The workspace titlebar band is intentionally layered above the main
-        // content so its drag surface remains available across the window.
-        // Keep the right sidebar above that band as well: its mode bar occupies
-        // the same titlebar-height strip and must win AppKit hit-testing for its
-        // own controls (notably the close/toggle button).
-        return panel.zIndex(101)
+        return panel
     }
 
     private func rightSidebarPanel(appearance: WindowAppearanceSnapshot) -> some View {

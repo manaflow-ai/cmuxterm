@@ -153,6 +153,10 @@ struct RightSidebarPanelView: View {
     private var dockEnabled = RightSidebarBetaFeatureSettings.defaultDockEnabled
     @AppStorage(RightSidebarChromeSettings.showOpenAsPaneButtonKey)
     private var showOpenAsPaneButton = RightSidebarChromeSettings.defaultShowOpenAsPaneButton
+    @AppStorage(RightSidebarChromeSettings.showTitlebarToggleKey)
+    private var showTitlebarToggle = RightSidebarChromeSettings.defaultShowTitlebarToggle
+    @AppStorage(WorkspacePresentationModeSettings.modeKey)
+    private var workspacePresentationModeRawValue = WorkspacePresentationModeSettings.defaultMode.rawValue
     @AppStorage(RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
     private var cloudMachinesBetaEnabled = RightSidebarBetaFeatureSettings.defaultCloudMachinesEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
@@ -203,6 +207,16 @@ struct RightSidebarPanelView: View {
 
     private var modeBarItems: [RightSidebarModeBarItem] {
         availableModes.map { RightSidebarModeBarItem(kind: .mode($0)) }
+    }
+
+    private var modeBarTrailingPadding: CGFloat {
+        RightSidebarChromeMetrics.headerTrailingPadding
+            + (reservesTitlebarToggleSpace ? RightSidebarChromeMetrics.titlebarToggleReservationWidth : 0)
+    }
+
+    private var reservesTitlebarToggleSpace: Bool {
+        showTitlebarToggle
+            && WorkspacePresentationModeSettings.mode(for: workspacePresentationModeRawValue) == .standard
     }
 
     private var focusShortcutHintAnimationValue: Bool {
@@ -333,7 +347,7 @@ struct RightSidebarPanelView: View {
         }
         .rightSidebarChromeBar(
             leadingPadding: RightSidebarChromeMetrics.headerLeadingPadding,
-            trailingPadding: RightSidebarChromeMetrics.headerTrailingPadding,
+            trailingPadding: modeBarTrailingPadding,
             height: titlebarHeight
         )
         .contextMenu { tabCustomizationMenu }
