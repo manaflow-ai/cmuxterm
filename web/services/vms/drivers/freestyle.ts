@@ -92,9 +92,9 @@ import {
 // loopback nor the public NIC.
 //
 // Creates take NO ports field, NO create-time env, and NO systemd injection;
-// `firewall` is mandatory. The model-plane env is baked into the snapshot at
-// /etc/cmux/model-plane.env (services/coderouter/vmGuestEnv.ts): the same
-// bytes for every machine, so create writes nothing into the guest.
+// `firewall` is mandatory. The model-plane env is the static placeholder file
+// baked at /etc/cmux/model-plane.env; no per-machine credential or create-time
+// env is written into the guest.
 //
 // Create runs no guest bootstrap. The devbox snapshot carries the pinned
 // cmux-tui build and the cmux-tui-daemon systemd unit, and its supervisor
