@@ -85,6 +85,7 @@ private actor FakeLane: MobileSimulatorStreamLaneConnection {
         }
     }
 }
+
 private final class FakePresenter: SimStreamFramePresenting, @unchecked Sendable {
     private let lock = NSLock()
     private var _configs: [SimStreamConfig] = []
@@ -369,3 +370,4 @@ struct SimStreamViewerEngineTests {
         #expect(presenter.presented.isEmpty)
     }
 }
+
