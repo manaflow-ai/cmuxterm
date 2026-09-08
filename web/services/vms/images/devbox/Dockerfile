@@ -32,7 +32,7 @@ FROM ubuntu:24.04
 # Cache-buster: bump the date to force remote builders past stale layer
 # caches (a remote builder served stale layers for chatmux on 2026-08-21 and
 # 2026-08-25). Also the image version /etc/cmux/image-stamp carries.
-ENV CMUX_IMAGE_EPOCH=2026-09-02-r4
+ENV CMUX_IMAGE_EPOCH=2026-09-07-r1
 
 ENV LANG=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive
@@ -215,6 +215,14 @@ RUN mkdir -p /etc/claude-code \
   && echo '{ "cleanupPeriodDays": 99999 }' > /etc/claude-code/managed-settings.json \
   && node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))'
 
+# Identity (web/services/vms/images/identity.ts): a cmux Cloud machine is
+# `cmux`, never the provider's base name. The Freestyle bake owns that step
+# (hostname, the 127.0.1.1 alias, fresh SSH host keys, a reset journal) because
+# a container has no identity of its own to bake: `docker build` mounts
+# /etc/hostname and /etc/hosts from the daemon and discards writes to them, and
+# the runtime names every container it starts. cmux-devbox-boot regenerates the
+# host keys on a clone for both recipes.
+#
 # The work user is the uid-1000 account (`ubuntu` on the Ubuntu base, as on
 # Freestyle): the desktop session runs as it, and it gets passwordless sudo
 # so a person shelling in through the provider's own surfaces can still
