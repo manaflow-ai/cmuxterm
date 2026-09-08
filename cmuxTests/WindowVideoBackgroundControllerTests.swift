@@ -22,8 +22,8 @@ struct VideoBackgroundLocalPlaybackTests {
 
     @Test func loopingMediaReportsReadinessAndPlaysAtLeastThreeTimes() async throws {
         let fileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-video-loop-\(UUID().uuidString).wav")
-        try silentAudio().write(to: fileURL)
+            .appendingPathComponent("cmux-video-loop-\(UUID().uuidString).mp4")
+        try silentVideo().write(to: fileURL)
         defer { try? FileManager.default.removeItem(at: fileURL) }
         let events = PlaybackEvents()
         let observer = NotificationCenter.default.addObserver(
@@ -74,28 +74,32 @@ struct VideoBackgroundLocalPlaybackTests {
         #expect(events.failures == ["local-file-failed"])
     }
 
-    private func silentAudio() -> Data {
-        let sampleCount: UInt32 = 4_000
-        let byteCount = sampleCount * 2
-        var data = Data()
-        func appendInteger<Value: FixedWidthInteger>(_ value: Value) {
-            var littleEndian = value.littleEndian
-            withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
-        }
-        data.append(contentsOf: "RIFF".utf8)
-        appendInteger(UInt32(36) + byteCount)
-        data.append(contentsOf: "WAVEfmt ".utf8)
-        appendInteger(UInt32(16))
-        appendInteger(UInt16(1))
-        appendInteger(UInt16(1))
-        appendInteger(UInt32(8_000))
-        appendInteger(UInt32(16_000))
-        appendInteger(UInt16(2))
-        appendInteger(UInt16(16))
-        data.append(contentsOf: "data".utf8)
-        appendInteger(byteCount)
-        data.append(Data(repeating: 0, count: Int(byteCount)))
-        return data
+    private func silentVideo() throws -> Data {
+        try #require(Data(base64Encoded: """
+            AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAN1bW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAAfQAAQAAAQAA
+            AAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAA
+            Ap90cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAAfQAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAA
+            AAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAH0AAAIAAABAAAAAAIXbWRpYQAAACBtZGhk
+            AAAAAAAAAAAAAAAAAAAoAAAAFABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABwm1p
+            bmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAYJzdGJsAAAAvnN0c2QA
+            AAAAAAAAAQAAAK5hdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDIgbGli
+            eDI2NAAAAAAAAAAAAAAAGP//AAAANGF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADAFA8SJZYAQAGaOvjyyLA/fj4AAAAABBw
+            YXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAC+gAAAAAAAAABhzdHRzAAAAAAAAAAEAAAAFAAAEAAAAABRzdHNzAAAAAAAAAAEAAAAB
+            AAAAOGN0dHMAAAAAAAAABQAAAAEAAAgAAAAAAQAAFAAAAAABAAAIAAAAAAEAAAAAAAAAAQAABAAAAAAcc3RzYwAAAAAAAAABAAAA
+            AQAAAAUAAAABAAAAKHN0c3oAAAAAAAAAAAAAAAUAAALKAAAADAAAAAwAAAAMAAAADAAAABRzdGNvAAAAAAAAAAEAAAOlAAAAYnVk
+            dGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAAB
+            AAAAAExhdmY2Mi4xMi4xMDIAAAAIZnJlZQAAAwJtZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSBy
+            MzIyMiBiMzU2MDVhIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlk
+            ZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDEx
+            MyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0x
+            IHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0
+            aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAg
+            Ymx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9
+            MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTEwIHNjZW5lY3V0
+            PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBt
+            aW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAFGWIhAAQ//7mwPmWWrhc4Ae+iwi/AAAA
+            CEGaJGxDf/7gAAAACEGeQniHf7eBAAAACAGeYXRDf7qAAAAACAGeY2pDf7qB
+            """, options: .ignoreUnknownCharacters))
     }
 }
 
