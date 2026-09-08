@@ -11659,14 +11659,13 @@ struct VerticalTabsSidebar: View, Equatable {
         // O(workspaces) projection pipeline. Reveal rebuilds one authoritative
         // snapshot from the current model before the controller applies again.
         let scope = hiveScope.scope
-        let tabs: [Workspace]
-        if !isPresented {
-            tabs = []
+        let tabs: [Workspace] = if !isPresented {
+            []
         } else if scope == .allComputers
                     || (scope == .thisMac && !HiveComputerMirrorController.shared.hasMirrors) {
-            tabs = tabManager.tabs
+            tabManager.tabs
         } else {
-            tabs = tabManager.tabs.filter { workspace in
+            tabManager.tabs.filter { workspace in
                 HiveSidebarScopeModel.isVisible(
                     deviceID: HiveComputerMirrorController.shared.deviceID(forWorkspace: workspace.id),
                     scope: scope
