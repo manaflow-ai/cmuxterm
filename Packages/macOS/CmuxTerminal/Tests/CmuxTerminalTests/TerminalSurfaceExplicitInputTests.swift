@@ -89,6 +89,43 @@ struct TerminalSurfaceExplicitInputTests {
         )
     }
 
+    @Test func contextManagementInputRemainsRetryableDuringRuntimeClipboardRead() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.canAcceptImmediateContextManagementInput = false
+        fixture.nativeView.hasContextManagementInputDeferral = true
+
+        #expect(
+            fixture.surface.sendContextManagementInputOutcome("/clear\n")
+                == .temporarilyDeferred
+        )
+        #expect(!fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(fixture.paneHost.explicitInputCount == 0)
+        #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
+    }
+
+    @Test func contextManagementInputFailsClosedWithoutOrderedAdmission() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.canAcceptImmediateContextManagementInput = false
+
+        #expect(!fixture.surface.sendContextManagementInput("/clear\n"))
+        #expect(
+            fixture.surface.sendContextManagementInputOutcome("/clear\n")
+                == .rejected
+        )
+        #expect(fixture.paneHost.explicitInputCount == 0)
+        #expect(fixture.nativeView.deferredRuntimeInputs.isEmpty)
+    }
+
     @Test func pasteTextNotifiesPaneHostBeforeQueueingOnAColdSurface() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }
@@ -116,6 +153,39 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(fixture.surface.sendInputResult("hello") == .queued)
 
         #expect(acceptedInputCount == 1)
+    }
+
+    @Test func userInputCancellationCallbackIsSeparateFromProgrammaticWrites() {
+        let fixture = makeFixture()
+        defer { fixture.surface.releaseSurfaceForTesting() }
+        var userInputCount = 0
+        fixture.surface.onUserExplicitInput = { userInputCount += 1 }
+
+        _ = fixture.surface.sendText("programmatic")
+        #expect(userInputCount == 0)
+
+        fixture.surface.didReceiveExplicitInput(isUserInitiated: true)
+        #expect(userInputCount == 1)
+
+        _ = fixture.surface.sendNamedKey("enter", isUserInitiated: true)
+        #expect(userInputCount == 2)
+
+        _ = fixture.surface.sendText("accepted user input", isUserInitiated: true)
+        #expect(userInputCount == 3)
+    }
+
+    @Test func nonPromptShortcutInputDoesNotNotifyUserInput() {
+        let fixture = makeFixture()
+        defer { fixture.surface.releaseSurfaceForTesting() }
+        var userInputCount = 0
+        fixture.surface.onUserExplicitInput = { userInputCount += 1 }
+
+        // Workspace font-size shortcuts use the non-user explicit-input path;
+        // they must not cancel pending context recovery as if prompt text was typed.
+        fixture.surface.didReceiveExplicitInput()
+        fixture.surface.didAcceptExplicitInput()
+
+        #expect(userInputCount == 0)
     }
 
     @Test func rejectedParsedInputDoesNotNotifyItsOwner() {

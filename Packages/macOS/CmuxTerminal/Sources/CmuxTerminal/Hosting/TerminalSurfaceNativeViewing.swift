@@ -55,6 +55,14 @@ public protocol TerminalSurfaceNativeViewing: NSView, TerminalSurfaceHosting {
         replay: @escaping () -> Void
     ) -> Bool
 
+    /// Whether cmux-authored context recovery can reach the PTY without
+    /// queuing behind an active clipboard read.
+    var canAcceptImmediateContextManagementInput: Bool { get }
+
+    /// Whether a clipboard read is currently holding terminal input for this
+    /// runtime surface. Recovery must remain retryable until the read drains.
+    var hasContextManagementInputDeferral: Bool { get }
+
     /// Positions the native pointer at the center of a mobile-selected cell.
     func positionMobilePointer(
         on surface: ghostty_surface_t,
@@ -71,6 +79,17 @@ public protocol TerminalSurfaceNativeViewing: NSView, TerminalSurfaceHosting {
 }
 
 public extension TerminalSurfaceNativeViewing {
+    /// Hosts must explicitly opt in after wiring clipboard sequencing.
+    ///
+    /// The fail-closed default prevents context recovery from overtaking a
+    /// host's deferred clipboard/user-input queue when the host forgets to
+    /// provide its readiness witness.
+    var canAcceptImmediateContextManagementInput: Bool { false }
+
+    /// Unsupported hosts have no sequencer, so they cannot identify a
+    /// temporary deferral and must fail closed.
+    var hasContextManagementInputDeferral: Bool { false }
+
     /// Leaves input synchronous for hosts without clipboard sequencing.
     ///
     /// - Parameters:

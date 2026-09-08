@@ -247,7 +247,6 @@ extension DockSplitStore {
             let policy = Workspace.makeSessionRestorePolicyService()
             let localTmuxStartCommand = policy
                 .localTmuxStartCommand(terminal.surface.debugTmuxStartCommand())
-            let managedResumeBinding = managedAgentResumeBinding(panelId: panelId)
             let resumeBinding = effectiveSessionResumeBinding(
                 panelId: panelId,
                 detected: detectedResumeBinding,
@@ -255,6 +254,12 @@ extension DockSplitStore {
                     downgradeStoredProcessDetectedResumeBindingsWhenDetectionUnavailable,
                 detectedIsAmbiguous: detectedResumeBindingIsAmbiguous
             )
+            // Read the managed accessor only after effective binding
+            // reconciliation. That accessor promotes a complete effective
+            // binding into the managed map; reading it first would hide that
+            // promotion from `managedBindingChanged` and skip the coordinator
+            // initialization callback.
+            let managedResumeBinding = managedAgentResumeBinding(panelId: panelId)
             let restorableAgent = localTmuxStartCommand == nil
                 ? effectiveSessionRestorableAgent(
                     panelId: panelId,
@@ -452,11 +457,13 @@ extension DockSplitStore {
         detectedIsAmbiguous: Bool
     ) -> SurfaceResumeBindingSnapshot? {
         let stored = surfaceResumeBindingsByPanelId[panelId]
+        let previousManagedBinding = managedAgentResumeBindingsByPanelId[panelId]
         if let stored,
            stored.hasCompleteManagedSessionIdentity,
            managedAgentResumeBindingsByPanelId[panelId] == nil {
             managedAgentResumeBindingsByPanelId[panelId] = stored
         }
+        let managedBindingChanged = previousManagedBinding != managedAgentResumeBindingsByPanelId[panelId]
         let effective: SurfaceResumeBindingSnapshot?
         if let stored, let detected {
             effective = stored.shouldYieldToDetectedSurfaceResumeBinding(detected) ? detected : stored
@@ -481,14 +488,32 @@ extension DockSplitStore {
         }
         if let effective {
             guard surfaceResumeBindingMutationAllowed(effective, panelId: panelId) else {
+                updateSurfaceResumeBinding(
+                    panelId: panelId,
+                    to: stored,
+                    notifyWhenUnchanged: managedBindingChanged
+                )
                 return stored
             }
-            surfaceResumeBindingsByPanelId[panelId] = effective
+            updateSurfaceResumeBinding(
+                panelId: panelId,
+                to: effective,
+                notifyWhenUnchanged: managedBindingChanged
+            )
         } else {
             guard surfaceResumeBindingRemovalAllowed(panelId: panelId) else {
+                updateSurfaceResumeBinding(
+                    panelId: panelId,
+                    to: stored,
+                    notifyWhenUnchanged: managedBindingChanged
+                )
                 return stored
             }
-            surfaceResumeBindingsByPanelId.removeValue(forKey: panelId)
+            updateSurfaceResumeBinding(
+                panelId: panelId,
+                to: nil,
+                notifyWhenUnchanged: managedBindingChanged
+            )
         }
         return effective
     }
