@@ -43,13 +43,17 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         }
 
         let normalizedMessageTrimmed = normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        let reasonOnlyMessage = normalizedMessageTrimmed.hasPrefix("stop ")
-            ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
-            : normalizedMessageTrimmed
+        let reasonOnlyMessage = Self.stripBannerMarker(
+            normalizedMessageTrimmed.hasPrefix("stop ")
+                ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
+                : normalizedMessageTrimmed
+        )
         let normalizedSignalTrimmed = normalizedSignal.trimmingCharacters(in: .whitespacesAndNewlines)
-        let signalReasonOnly = normalizedSignalTrimmed.hasPrefix("stop ")
-            ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
-            : normalizedSignalTrimmed
+        let signalReasonOnly = Self.stripBannerMarker(
+            normalizedSignalTrimmed.hasPrefix("stop ")
+                ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
+                : normalizedSignalTrimmed
+        )
 
         let overloadCue = (normalized.contains("overloaded") || normalized.contains("overload"))
             && (
@@ -110,25 +114,16 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("no remaining credits")
             || normalized.contains("out of credits")
             || normalized.contains("insufficient credits")
+            || Self.isQuotaReason(reasonOnlyMessage)
+            || Self.isQuotaReason(signalReasonOnly)
             || (normalized.contains("quota") && (
                 normalized.contains("error")
                     || normalized.contains("reached")
                     || normalized.contains("remaining")
                     || normalized.contains("reset")
             ))
-        let explicitQuotaReason = reasonOnlyMessage == "quota exceeded"
-            || reasonOnlyMessage == "quota exhausted"
-            || reasonOnlyMessage == "usage limit"
-            || reasonOnlyMessage == "usage exhausted"
-            || reasonOnlyMessage == "limit reached"
-            || reasonOnlyMessage == "quota limit"
-            || reasonOnlyMessage == "credit limit"
-            || reasonOnlyMessage == "credits exhausted"
-            || reasonOnlyMessage == "no remaining credits"
-            || reasonOnlyMessage == "out of credits"
-            || reasonOnlyMessage == "insufficient credits"
-            || reasonOnlyMessage.hasPrefix("you've hit your usage limit")
-            || reasonOnlyMessage.hasPrefix("you have hit your usage limit")
+        let explicitQuotaReason = Self.isQuotaReason(reasonOnlyMessage)
+            || Self.isQuotaReason(signalReasonOnly)
         let quotaTokens = Self.notificationCueTokens(normalizedMessage)
         let quotaProviderQualifiers: Set<Substring> = [
             "api", "model", "provider", "service", "server", "llm", "endpoint",
@@ -333,6 +328,24 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
 
     private static func notificationCueTokens(_ lowercasedText: String) -> [Substring] {
         lowercasedText.split { !$0.isLetter && !$0.isNumber }
+    }
+
+    /// Removes the marker used by terminal error banners before exact-reason matching.
+    private static func stripBannerMarker(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("■") else { return trimmed }
+        return trimmed.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isQuotaReason(_ reason: String) -> Bool {
+        let reasons = [
+            "quota", "quota exceeded", "quota exhausted", "usage limit", "usage exhausted",
+            "hit your limit", "limit reached", "quota limit", "credit limit", "credits exhausted",
+            "no remaining credits", "out of credits", "insufficient credits",
+        ]
+        return reasons.contains(reason)
+            || reason.hasPrefix("you've hit your usage limit")
+            || reason.hasPrefix("you have hit your usage limit")
     }
 
     /// Reports whether a provider message contains details that must stay out of UI.

@@ -117,6 +117,14 @@ struct AgentHookAbnormalStopClassifierTests {
         #expect(classifier.abnormalStopClass(signal: "Stop connection refused", message: "") == .network)
     }
 
+    @Test func recognizesBannerMarkersAndShortQuotaReasons() {
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ rate limited") == .rateLimit)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "■ 429 Too Many Requests") == .rateLimit)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "quota") == .quota)
+        #expect(classifier.abnormalStopClass(signal: "Stop quota", message: "") == .quota)
+        #expect(classifier.abnormalStopClass(signal: "Stop", message: "hit your limit") == .quota)
+    }
+
     @Test func embeddedStatusCodesAndSensitiveDetailsFailClosed() {
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "request-429-attempt") == nil)
         #expect(classifier.abnormalStopClass(signal: "Stop", message: "correlation_id=abc529xyz") == nil)
