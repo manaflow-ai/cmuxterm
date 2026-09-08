@@ -23,6 +23,122 @@ struct RestorableAgentProcessGenerationTests {
         storeURL: URL
     )
 
+    @Test("A PID lost before watcher installation is revalidated without a TTL reload",
+          .timeLimit(.minutes(1)), arguments: [false, true])
+    func deadPIDAtWatcherInstallationRefreshesCachedLiveness(useBatchArming: Bool) async throws {
+        let fixture = try makeFixture(prefix: "cmux-dead-pid-watcher-arm")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        try writeStoredProcessIdentity(identity, to: fixture)
+        let cachedIndex = loadRunningFixture(
+            fixture,
+            processArguments: codexProcessArguments(for: fixture),
+            processIdentity: identity
+        )
+        let sharedIndex = SharedLiveAgentIndex(
+            indexLoader: {
+                (index: cachedIndex,
+                 liveAgentProcessFingerprint: cachedIndex.liveAgentProcessFingerprint(),
+                 processScopeFingerprint: [],
+                 forkValidatedPanels: [])
+            },
+            hookStoreDirectoryProvider: { fixture.hookStateDirectory.path },
+            dateProvider: { Date(timeIntervalSince1970: fixture.updatedAt) }
+        )
+        _ = await sharedIndex.indexRefreshingNow()
+        #expect(sharedIndex.index?.entry(
+            workspaceId: fixture.workspaceID, panelId: fixture.panelID
+        )?.processLiveness == .running)
+        // The injected cache describes a former generation; this PID cannot
+        // be armed on the real process table used by the watcher boundary.
+        try #require(AgentPIDProcessIdentity(pid: pid_t(fixture.processID)) == nil)
+
+        let ownerID = UUID()
+        sharedIndex.setSidebarProcessMonitoringEnabled(true, ownerID: ownerID)
+        defer { sharedIndex.setSidebarProcessMonitoringEnabled(false, ownerID: ownerID) }
+        let panelID = fixture.panelID
+        let (changes, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let observer = NotificationCenter.default.addObserver(
+            forName: .sharedLiveAgentIndexDidChange, object: sharedIndex, queue: nil
+        ) { notification in
+            if (notification.userInfo?["panelIds"] as? Set<UUID>)?.contains(panelID) == true {
+                continuation.yield(())
+            }
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+            continuation.finish()
+        }
+
+        if useBatchArming {
+            sharedIndex.armSidebarProcessExitWatchers(
+                panelIDs: [panelID], workspaceIDByPanelID: [panelID: fixture.workspaceID]
+            )
+        } else {
+            sharedIndex.armSidebarProcessExitWatcher(
+                pid: fixture.processID, panelID: panelID, workspaceID: fixture.workspaceID
+            )
+        }
+        var iterator = changes.makeAsyncIterator()
+        guard case .some = await iterator.next() else {
+            Issue.record("Watcher installation did not publish the lost process generation")
+            return
+        }
+        #expect(sharedIndex.index?.entry(
+            workspaceId: fixture.workspaceID, panelId: panelID
+        )?.processLiveness == .exited)
+    }
+
+    @Test("Stale other-kind runtime metadata cannot hide a live hook session", arguments: [false, true])
+    func liveHookSessionSurvivesOtherKindRuntime(hasLifecycle: Bool) throws {
+        let fixture = try makeFixture(prefix: "cmux-other-kind-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        if hasLifecycle {
+            workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["claude_code": .running]
+        } else {
+            workspace.agentPIDKeysByPanelId[fixture.panelID] = ["claude_code.old-session"]
+        }
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let codex = try #require(activity.agents.first { $0.statusKey == "codex" })
+        #expect(codex.state == .running)
+        #expect(codex.startedAt == startedAt)
+        #expect(codex.elapsed(at: Date(timeIntervalSince1970: fixture.updatedAt)) == 120)
+        #expect(activity.primaryElapsedStart == startedAt)
+        #expect(activity.agents.first { $0.statusKey == "claude_code" }?.startedAt == nil)
+    }
+
+    @Test("A live replacement kind still supersedes a non-live cached hook")
+    func liveReplacementKindSupersedesNonLiveHook() throws {
+        let fixture = try makeFixture(prefix: "cmux-replacement-kind-sidebar")
+        defer { cleanup(fixture) }
+        try writeHookTimingState(startedAt: fixture.updatedAt - 120, lifecycle: .running, to: fixture)
+        let index = loadHookFixture(fixture)
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["claude_code": .running]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        #expect(activity.agents.map(\.statusKey) == ["claude_code"])
+        #expect(activity.primaryState == .running)
+        #expect(activity.primaryElapsedStart == nil)
+    }
+
     @Test("Shared cache publishes unknown-to-exited liveness transitions")
     func sharedCachePublishesUnknownToExitedLivenessTransitions() async throws {
         let fixture = try makeFixture(prefix: "cmux-liveness-publication")
