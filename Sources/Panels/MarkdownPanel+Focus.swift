@@ -54,7 +54,7 @@ extension MarkdownPanel {
     }
 
     /// Invalidates deferred notifications that could otherwise reclaim focus.
-    fileprivate func invalidateSearchFocusRequests() {
+    func invalidateSearchFocusRequests() {
         searchFocusRequestGeneration &+= 1
         activeSearchFocusRequestGeneration = nil
     }

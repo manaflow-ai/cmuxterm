@@ -88,16 +88,16 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
 
     /// Incremented whenever find focus ownership changes, so stale async
     /// focus requests posted before a hide/re-show can never steal focus.
-    @Published fileprivate(set) var searchFocusRequestGeneration: UInt64 = 0
+    @Published internal(set) var searchFocusRequestGeneration: UInt64 = 0
 
     /// The generation currently allowed to claim the find field. Leaving the
     /// pane clears this lease even though the monotonic counter continues, so
     /// a newly mounted overlay cannot mistake an invalidated request for a
     /// fresh one.
-    fileprivate var activeSearchFocusRequestGeneration: UInt64?
+    var activeSearchFocusRequestGeneration: UInt64?
 
     private var searchNeedleCancellable: AnyCancellable?
-    fileprivate var lastSearchNeedle = ""
+    var lastSearchNeedle = ""
     private lazy var findService = BrowserFindService(
         evaluator: MarkdownFindWebViewEvaluator(panel: self)
     )
@@ -119,8 +119,8 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
     private var pendingSearchNeedle: String?
     /// Set when activation asks a preview panel to focus before SwiftUI has
     /// mounted its WKWebView. The renderer fulfills this at window attach.
-    fileprivate var pendingPreviewFocus = false
-    fileprivate weak var textView: NSTextView?
+    var pendingPreviewFocus = false
+    weak var textView: NSTextView?
     private let selectionReader = NativeTextSurfaceSelectionReader()
     var isClosed: Bool = false
     // NotificationCenter token; removal is thread-safe so deinit can drop it.
