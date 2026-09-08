@@ -165,7 +165,11 @@ jobs:
               suite_output=$(run_unit_suite "-only-testing:cmuxTests/$suite") || suite_status=$?
               printf '%s\n' "$suite_output"
               if [ "$suite_status" -ne 0 ]; then return "$suite_status"; fi
-              if ! printf '%s\n' "$suite_output" | grep -Eq 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests'; then
+              # Drain the full captured log before deciding. `grep -q` can
+              # exit as soon as it sees the terminal summary, which makes
+              # printf receive SIGPIPE under pipefail and falsely report zero
+              # executed tests for otherwise successful suites.
+              if ! printf '%s\n' "$suite_output" | grep -E 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests' >/dev/null; then
                 echo "No tests executed for $suite" >&2
                 return 1
               fi
