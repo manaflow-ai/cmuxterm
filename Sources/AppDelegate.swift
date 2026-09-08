@@ -543,7 +543,7 @@ final class CmuxMainThreadTurnProfiler {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuItemValidation, NSMenuDelegate, CmuxConfigStoreReloadEnvironment {
-    typealias ConfiguredActionExecutor = (
+    typealias ConfiguredActionExecutor = @MainActor (
         CmuxResolvedConfigAction,
         MainWindowContext,
         NSWindow?,
@@ -552,7 +552,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     ) -> Bool
 
     private var configuredActionExecutor: ConfiguredActionExecutor?
-    private var windowConfigStoreFactory: () -> CmuxConfigStore = { CmuxConfigStore() }
+    private var windowConfigStoreFactory: @MainActor () -> CmuxConfigStore = { CmuxConfigStore() }
 
     nonisolated(unsafe) static var shared: AppDelegate?
     /// Stateless control-socket syscall layer (CmuxControlSocket); composition-root owned.
@@ -1321,7 +1321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Allows lifecycle consumers to supply an isolated History store before any window is created.
     convenience init(
         vaultHistoryEventLog: VaultHistoryEventLog,
-        windowConfigStoreFactory: @escaping () -> CmuxConfigStore = { CmuxConfigStore() },
+        windowConfigStoreFactory: @escaping @MainActor () -> CmuxConfigStore = { CmuxConfigStore() },
         configuredActionExecutor: ConfiguredActionExecutor? = nil
     ) {
         self.init()
