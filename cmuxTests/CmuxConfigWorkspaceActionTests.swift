@@ -224,6 +224,30 @@ struct CmuxConfigWorkspaceActionTests {
 
     // MARK: - Executor
 
+    @Test func inlineWorkspaceSyntheticCommandSkipsBlankLabels() throws {
+        let action = try #require(CmuxResolvedConfigAction.fromDefinition(
+            id: "workspace-action",
+            definition: CmuxConfigActionDefinition(
+                action: .workspace(CmuxWorkspaceDefinition(name: nil), restart: nil),
+                title: "   ",
+                tooltip: "Workspace action"
+            ),
+            sourcePath: nil
+        ))
+        #expect(action.title == "   ")
+
+        let actionCommand = try #require(action.inlineWorkspaceSyntheticCommand)
+        #expect(actionCommand.name == "Workspace action")
+
+        let button = CmuxSurfaceTabBarButton(
+            id: "workspace-button",
+            title: "\t",
+            action: .workspace(CmuxWorkspaceDefinition(name: nil), restart: nil)
+        )
+        let buttonCommand = try #require(button.inlineWorkspaceSyntheticCommand)
+        #expect(buttonCommand.name == "workspace-button")
+    }
+
     @Test func inlineWorkspaceSyntheticCommandCarriesConfirm() throws {
         let action = try #require(CmuxResolvedConfigAction.fromDefinition(
             id: "confirm-me",
