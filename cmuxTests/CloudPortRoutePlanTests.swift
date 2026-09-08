@@ -63,6 +63,12 @@ struct CloudPortRoutePlanTests {
         #expect(CloudPortRoutePlan.localURL(rewriting: remoteURL, toLoopbackPort: 40_000) == nil)
     }
 
+    @Test("an https private URL is never rewritten onto the raw TCP loopback forward")
+    func httpsIsRejected() {
+        #expect(CloudPortRoutePlan.localURL(rewriting: "https://10.0.0.7:8443/", toLoopbackPort: 40_001) == nil)
+        #expect(CloudPortRoutePlan.localURL(rewriting: "http://10.0.0.7:8080/", toLoopbackPort: 40_001)?.absoluteString == "http://127.0.0.1:40001/")
+    }
+
     @Test("no private address but a preview capability asks the control plane")
     func controlPlaneFallback() {
         let resource = CmuxTuiSnapshotParser.portBrowser(machine: machine, port: 3000)

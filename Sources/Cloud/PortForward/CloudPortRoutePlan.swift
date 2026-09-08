@@ -52,7 +52,10 @@ enum CloudPortRoutePlan: Equatable, Sendable {
     static func localURL(rewriting remoteURL: String, toLoopbackPort localPort: UInt16) -> URL? {
         guard var parts = URLComponents(string: remoteURL) else { return nil }
         if parts.scheme == nil { parts.scheme = "http" }
-        guard let scheme = parts.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
+        // A raw TCP relay carries no TLS routing: the client would validate the
+        // VM's certificate against 127.0.0.1 and send no usable SNI, so only
+        // plain HTTP is rewritten onto the loopback listener.
+        guard parts.scheme?.lowercased() == "http" else { return nil }
         parts.host = "127.0.0.1"
         parts.port = Int(localPort)
         return parts.url

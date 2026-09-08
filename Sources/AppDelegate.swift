@@ -9097,7 +9097,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Closes every workspace attached to a Cloud VM that no longer exists.
     /// Deleting a machine from the Cloud panel otherwise leaves a "Connected"
     /// workspace behind that can never reconnect.
-    func closeWorkspaces(forManagedCloudVMID vmID: String) async {
+    func closeWorkspaces(forManagedCloudVMID vmID: String) {
         let target = vmID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !target.isEmpty else { return }
         var managers = mainWindowContexts.values.map(\.tabManager)
@@ -9125,7 +9125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         // The sidebar's headless link to that machine has nothing left to talk to.
-        await CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(vmID.trimmingCharacters(in: .whitespacesAndNewlines))
+        CmuxTuiSurfaceProviderRegistry.shared.machineWasDeleted(target)
     }
 
     /// The local workspace attached to a cloud machine, through either transport: the

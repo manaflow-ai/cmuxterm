@@ -30,6 +30,9 @@ final class CmuxTuiSurfaceProviderRegistry {
     private var refreshGeneration: UInt64 = 0
     /// Same cadence as the Machines panel's list refresh.
     private let pollInterval: Duration = .seconds(45)
+    /// In-flight forward and link teardowns for deleted machines, keyed by
+    /// machine id; sign-out waits for them before stopping the hub.
+    private var machineTeardowns: [String: Task<Void, Never>] = [:]
 
     init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
         self.links = links
@@ -133,12 +136,18 @@ final class CmuxTuiSurfaceProviderRegistry {
         return providers[machineID]
     }
 
-    func machineWasDeleted(_ id: String) async {
+    /// The machine is gone: drop its provider and catalog entry now, and tear
+    /// down its forwards and link on a task the registry owns (awaited by
+    /// ``accessDidEnd()``), so no caller has to hold an unstructured task.
+    func machineWasDeleted(_ id: String) {
         providers[id]?.stop()
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
-        await portForwards?.close(machineID: id)
-        await links.disconnect(machineID: id)
+        machineTeardowns[id]?.cancel()
+        machineTeardowns[id] = Task { [links, portForwards] in
+            await portForwards?.close(machineID: id)
+            await links.disconnect(machineID: id)
+        }
     }
 
     /// The headless link's local mux socket for a machine, connecting if needed.
@@ -197,6 +206,9 @@ final class CmuxTuiSurfaceProviderRegistry {
         for provider in providers.values { provider.stop() }
         for id in providers.keys { catalog?.unregister(machine: .cloud(id)) }
         providers.removeAll()
+        let teardowns = machineTeardowns.values
+        machineTeardowns.removeAll()
+        for teardown in teardowns { await teardown.value }
         await portForwards?.closeAll()
         await links.disconnectAll()
         // Signing out drops the tunnel too: the next account enrolls its own.

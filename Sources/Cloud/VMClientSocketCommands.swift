@@ -348,7 +348,9 @@ extension TerminalController {
                     // normal CLI completion path dismisses the operation and
                     // never traps the person in an error sheet.
                     if case .httpStatus(404, _) = error {
-                        await AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: vmId)
+                        await MainActor.run {
+                            AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: vmId)
+                        }
                         return ["ok": true, "already_gone": true]
                     }
                     throw error
@@ -358,7 +360,9 @@ extension TerminalController {
                 // handler, so this is the one place the app learns a machine
                 // died before the next 45 s list poll: close its workspaces
                 // and its URL-backed panes now, not up to 45 s later.
-                await AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: vmId)
+                await MainActor.run {
+                    AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: vmId)
+                }
                 return ["ok": true]
             }
         case "vm.exec":

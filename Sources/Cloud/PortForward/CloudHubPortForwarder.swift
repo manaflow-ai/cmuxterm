@@ -12,7 +12,12 @@ actor CloudHubPortForwarder {
 
     private let dialer: any CloudHubDialing
     private var forwards: [Key: CloudLoopbackPortForward] = [:]
-    private var starting: [Key: Task<CloudLoopbackPortForward, any Error>] = [:]
+    private struct StartEntry {
+        let id: UUID
+        let task: Task<CloudLoopbackPortForward, any Error>
+        var waiters: Set<UUID>
+    }
+    private var starting: [Key: StartEntry] = [:]
 
     init(dialer: any CloudHubDialing) {
         self.dialer = dialer
@@ -24,48 +29,96 @@ actor CloudHubPortForwarder {
     /// keep their URL; a listener that died is torn down before it is replaced.
     func forward(machineID: String, to target: CloudPortForwardTarget) async throws -> CloudLoopbackPortForward {
         let key = Key(machineID: machineID, port: target.port)
-        if let existing = forwards[key] {
-            if await existing.isListening {
-                await Self.retargetIfNeeded(existing, to: target)
-                return existing
+        while true {
+            if let existing = forwards[key] {
+                let listening = await existing.isListening
+                guard forwards[key] === existing else { continue }
+                if listening {
+                    await Self.retargetIfNeeded(existing, to: target)
+                    guard forwards[key] === existing else { continue }
+                    return existing
+                }
+                forwards[key] = nil
+                await existing.stop()
+                guard forwards[key] == nil else { continue }
             }
-            forwards[key] = nil
-            await existing.stop()
-        }
-        let task: Task<CloudLoopbackPortForward, any Error>
-        if let inFlight = starting[key] {
-            task = inFlight
-        } else {
-            let dialer = self.dialer
-            task = Task { () throws -> CloudLoopbackPortForward in
-                let forward = try CloudLoopbackPortForward(target: target, dialer: dialer)
-                try await forward.start()
+
+            let entry: StartEntry
+            let waiterID = UUID()
+            if var inFlight = starting[key] {
+                inFlight.waiters.insert(waiterID)
+                starting[key] = inFlight
+                entry = inFlight
+            } else {
+                let dialer = self.dialer
+                let task = Task { () throws -> CloudLoopbackPortForward in
+                    let forward = try CloudLoopbackPortForward(target: target, dialer: dialer)
+                    do {
+                        try await forward.start()
+                        try Task.checkCancellation()
+                        return forward
+                    } catch {
+                        await forward.stop()
+                        throw error
+                    }
+                }
+                let newEntry = StartEntry(id: UUID(), task: task, waiters: [waiterID])
+                starting[key] = newEntry
+                entry = newEntry
+            }
+
+            do {
+                let forward = try await withTaskCancellationHandler {
+                    try await entry.task.value
+                } onCancel: {
+                    Task { await self.cancelStartWaiter(key: key, entryID: entry.id, waiterID: waiterID) }
+                }
+                guard finishStartWaiter(key: key, entryID: entry.id, waiterID: waiterID) else {
+                    if let stored = forwards[key], stored === forward {
+                        await Self.retargetIfNeeded(stored, to: target)
+                        return stored
+                    }
+                    await forward.stop()
+                    throw CancellationError()
+                }
+                // A waiter cancelled after the bind finished still completes the
+                // bookkeeping: other waiters may share this forward, and the
+                // caller simply ignores the result.
+                guard let current = starting[key], current.id == entry.id else {
+                    await forward.stop()
+                    throw CancellationError()
+                }
+                starting[key] = nil
+                forwards[key] = forward
+                await Self.retargetIfNeeded(forward, to: target)
+                guard forwards[key] === forward else {
+                    await forward.stop()
+                    throw CancellationError()
+                }
                 return forward
+            } catch {
+                _ = finishStartWaiter(key: key, entryID: entry.id, waiterID: waiterID)
+                throw error
             }
-            starting[key] = task
         }
-        let forward: CloudLoopbackPortForward
-        do {
-            forward = try await task.value
-        } catch {
-            if starting[key] == task { starting[key] = nil }
-            throw error
+    }
+
+    private func finishStartWaiter(key: Key, entryID: UUID, waiterID: UUID) -> Bool {
+        guard var entry = starting[key], entry.id == entryID else { return false }
+        guard entry.waiters.remove(waiterID) != nil else { return false }
+        starting[key] = entry
+        return true
+    }
+
+    private func cancelStartWaiter(key: Key, entryID: UUID, waiterID: UUID) {
+        guard var entry = starting[key], entry.id == entryID else { return }
+        guard entry.waiters.remove(waiterID) != nil else { return }
+        if entry.waiters.isEmpty {
+            starting[key] = nil
+            entry.task.cancel()
+        } else {
+            starting[key] = entry
         }
-        if let stored = forwards[key], stored === forward {
-            // Another waiter on the same start finished the bookkeeping first.
-            await Self.retargetIfNeeded(stored, to: target)
-            return stored
-        }
-        guard starting[key] == task else {
-            // Closed while starting: nothing may keep a listener for a machine
-            // that left the fleet, and no waiter may receive a stopped one.
-            await forward.stop()
-            throw CancellationError()
-        }
-        starting[key] = nil
-        forwards[key] = forward
-        await Self.retargetIfNeeded(forward, to: target)
-        return forward
     }
 
     private static func retargetIfNeeded(_ forward: CloudLoopbackPortForward, to target: CloudPortForwardTarget) async {
@@ -106,8 +159,9 @@ actor CloudHubPortForwarder {
     }
 
     private func close(_ key: Key) async {
-        starting[key]?.cancel()
-        starting[key] = nil
+        if let entry = starting.removeValue(forKey: key) {
+            entry.task.cancel()
+        }
         if let forward = forwards.removeValue(forKey: key) {
             await forward.stop()
         }
