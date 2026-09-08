@@ -1412,8 +1412,7 @@ fn parse_notify(words: &[String], flags: &mut Flags) -> Result<CommandPlan, Usag
     {
         validate_prefixed_id("workspace", "ws", workspace)?;
     }
-    let caller_terminal =
-        std::env::var("CMUX_TUI_TERMINAL_ID").ok().filter(|id| !id.is_empty());
+    let caller_terminal = std::env::var("CMUX_TUI_TERMINAL_ID").ok().filter(|id| !id.is_empty());
     let surface = match flags.take_dashed("--surface") {
         Some(value) if value == "current" => match caller_terminal.clone() {
             Some(terminal) => Some(terminal),
@@ -3398,7 +3397,10 @@ mod tests {
             "no reply channel across the link"
         );
         if std::env::var_os("CMUX_TUI_TERMINAL_ID").is_none() {
-            assert!(parse(&strings(&["notify", "--clear"])).is_err(), "no implicit whole-session clear");
+            assert!(
+                parse(&strings(&["notify", "--clear"])).is_err(),
+                "no implicit whole-session clear"
+            );
             assert!(parse(&strings(&["notify", "--surface", "current"])).is_err());
         }
         assert!(parse(&strings(&["notify", "--title", ""])).is_err());

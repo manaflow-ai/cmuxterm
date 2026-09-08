@@ -1470,7 +1470,10 @@ fn clear_notifications(mux: &Mux, request: ParsedResourceRequest) -> Result<Valu
             if mapped.code == "revision.conflict" {
                 return mapped;
             }
-            mux.report_internal_diagnostic(format!("notification.clear failed: {}", mapped.message));
+            mux.report_internal_diagnostic(format!(
+                "notification.clear failed: {}",
+                mapped.message
+            ));
             ResourceError::operation_failed(
                 "notification.clear",
                 "the machine could not clear notifications; retry after the next state refresh",
