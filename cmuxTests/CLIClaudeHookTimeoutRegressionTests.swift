@@ -908,41 +908,6 @@ struct CLIClaudeHookTimeoutRegressionTests {
         )
     }
 
-    @Test("Pinned ambient queue admission declares a bounded response timeout")
-    func pinnedAmbientQueueAdmissionHasBoundedResponseTimeout() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "cmux-pinned-ambient-timeout-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        let captureURL = root.appendingPathComponent("timeout.txt", isDirectory: false)
-        let fakeCLI = root.appendingPathComponent("cmux", isDirectory: false)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeCodexHookExecutableShellFile(at: fakeCLI, lines: [
-            "#!/bin/sh",
-            "printf '%s' \"${CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC:-missing}\" > \"$CMUX_TEST_CAPTURE\"",
-        ])
-
-        let command = CMUXCLI.pinnedHookAmbientInvocation(
-            routedArguments: "hooks enqueue grok notification"
-        )
-        let result = runProcess(
-            executablePath: "/bin/sh",
-            arguments: ["-c", command],
-            environment: [
-                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_BUNDLED_CLI_PATH": fakeCLI.path,
-                "CMUX_SOCKET_PATH": "/tmp/cmux-pinned-ambient-timeout.sock",
-                "CMUX_TEST_CAPTURE": captureURL.path,
-            ],
-            timeout: 2
-        )
-
-        #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 0, Comment(rawValue: result.stderr))
-        #expect(try String(contentsOf: captureURL, encoding: .utf8) == "0.5")
-    }
-
     @Test(
         "Relay-origin delivery skips local PID and TTY routing",
         arguments: [("claude", "CMUX_CLAUDE_PID"), ("codex", "CMUX_CODEX_PID")]
@@ -1149,7 +1114,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             (feedParams["wait_timeout_seconds"] as? NSNumber)?.doubleValue
         )
         #expect(
-            waitTimeout < CMUXCLI.feedHookDecisionWaitSeconds,
+            waitTimeout < 115,
             "The barrier elapsed time must come out of the shortest 120s decision-hook deadline"
         )
         #expect(

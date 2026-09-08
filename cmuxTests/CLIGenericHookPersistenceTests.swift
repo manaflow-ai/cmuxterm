@@ -4134,10 +4134,19 @@ extension CLINotifyProcessIntegrationRegressionTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let pinnedCLI = root.appendingPathComponent("cmux pinned dev cli", isDirectory: false)
-        try "#!/bin/sh\nexit 0\n".write(to: pinnedCLI, atomically: true, encoding: .utf8)
+        let captureURL = root.appendingPathComponent("timeout.txt", isDirectory: false)
+        try makeCodexHookExecutableShellFile(at: pinnedCLI, lines: [
+            "#!/bin/sh",
+            "printf '%s' \"${CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC:-missing}\" > \"$CMUX_TEST_CAPTURE\"",
+        ])
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: pinnedCLI.path)
 
-        let socketPath = "/tmp/cmux-debug-grok-pin.sock"
+        let socketPath = makeSocketPath("grok-pin")
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
         let result = runProcess(
             executablePath: cliPath,
             arguments: ["hooks", "grok", "install", "--yes"],
@@ -4180,10 +4189,22 @@ extension CLINotifyProcessIntegrationRegressionTests {
             allCommands.allSatisfy { $0.contains("--socket '\(socketPath)'") },
             "Expected installed Grok hooks to pin the installing socket path, saw \(allCommands)"
         )
-        XCTAssertFalse(
-            allCommands.contains { $0.contains("$CMUX_") },
-            "Grok hook commands must not depend on CMUX environment interpolation, saw \(allCommands)"
+        let notificationCommand = try XCTUnwrap(
+            allCommands.first { $0.contains("hooks enqueue grok notification") }
         )
+        let ambientResult = runProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", notificationCommand],
+            environment: [
+                "CMUX_BUNDLED_CLI_PATH": pinnedCLI.path,
+                "CMUX_SOCKET_PATH": socketPath,
+                "CMUX_TEST_CAPTURE": captureURL.path,
+            ],
+            timeout: 2
+        )
+        XCTAssertFalse(ambientResult.timedOut, ambientResult.stderr)
+        XCTAssertEqual(ambientResult.status, 0, ambientResult.stderr)
+        XCTAssertEqual(try String(contentsOf: captureURL, encoding: .utf8), "0.5")
     }
 
     func testGrokHookInstallPreservesUserWrappedLegacyCommands() throws {
