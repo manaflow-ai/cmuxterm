@@ -145,4 +145,5 @@ async function main(): Promise<void> {
   console.log(`REACHABLE ${kind}/${size} ${target} in ${elapsed()}`);
 }
 
-if (import.meta.main) await main();
+// Bun sets import.meta.main; the web tsconfig has no bun-types, so cast to keep `tsgo --noEmit` green.
+if ((import.meta as ImportMeta & { main?: boolean }).main) await main();
