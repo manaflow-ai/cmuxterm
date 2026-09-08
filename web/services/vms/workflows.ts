@@ -1077,6 +1077,182 @@ export function snapshotVm(input: {
   });
 }
 
+/**
+ * The machine as the Mac-facing reflection route reads it (`cmux vm self <m>`):
+ * the owned row itself, so the route can build the same reflection context a
+ * machine gets from inside. List/status semantics (`requireUserVm`): a locked
+ * free-window machine still describes itself.
+ */
+export function reflectVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const vm: CloudVmRow = yield* requireUserVm(input);
+    return vm;
+  });
+}
+
+/** Every snapshot taken from a machine the caller owns, newest first (`cmux vm snapshot ls`). */
+export function listVmSnapshots(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (!providers.listSnapshots) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "listSnapshots" }));
+    }
+    const snapshots = yield* providers.listSnapshots(vm.provider, providerVmId);
+    return [...snapshots].sort((a, b) => b.createdAt - a.createdAt);
+  });
+}
+
+export type VmSnapshotDeleteResult = {
+  readonly id: string;
+  readonly deleted: true;
+};
+
+/**
+ * Delete one snapshot of a machine the caller owns (`cmux vm snapshot rm`).
+ * Scoped to the machine: the provider refuses a snapshot taken from another
+ * VM as not-found, which the route answers as 404 vm_snapshot_not_found. The
+ * ledger records the deletion so `hasOwnedSnapshot` stops offering it to restore.
+ */
+export function deleteVmSnapshot(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+  readonly snapshotId: string;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (!providers.deleteSnapshot) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "deleteSnapshot" }));
+    }
+    yield* providers.deleteSnapshot(vm.provider, providerVmId, input.snapshotId).pipe(
+      Effect.catchAll((err) =>
+        Effect.fail<VmProviderOperationError | VmSnapshotNotFoundError>(
+          isProviderNotFoundError(err) ? new VmSnapshotNotFoundError({ snapshotId: input.snapshotId }) : err,
+        ),
+      ),
+    );
+    yield* repo.recordUsageEvent({
+      userId: vm.userId,
+      billingTeamId: vm.billingTeamId,
+      billingPlanId: vm.billingPlanId,
+      vmId: vm.id,
+      eventType: "vm.snapshot.deleted",
+      provider: vm.provider,
+      imageId: vm.imageId,
+      metadata: { snapshotId: input.snapshotId },
+    });
+    const result: VmSnapshotDeleteResult = { id: input.snapshotId, deleted: true };
+    return result;
+  });
+}
+
+export type VmPauseResumeResult = {
+  readonly id: string;
+  readonly status: "paused" | "running";
+};
+
+/**
+ * Park a machine: its compute stops billing while the persistent home and the
+ * daemon's durable session survive; `resumeVm` (or any open/exec) brings it
+ * back. Idempotent — pausing a paused machine is a no-op success. Providers
+ * without a pause operation fail with the unsupported error the route turns
+ * into a 501, so a caller can tell "cannot" from "did not".
+ */
+export function pauseVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (vm.status === "destroyed") {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    if (vm.status === "paused") {
+      return { id: providerVmId, status: "paused" } satisfies VmPauseResumeResult;
+    }
+    const pause = providers.pause;
+    if (!pause) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "pause" }));
+    }
+    yield* pause(vm.provider, providerVmId);
+    const recorded = yield* repo.markProviderObservedStatus({ id: vm.id, providerVmId, status: "paused" });
+    if (!recorded) {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    yield* repo.recordUsageEvent({
+      userId: vm.userId,
+      billingTeamId: vm.billingTeamId,
+      billingPlanId: vm.billingPlanId,
+      vmId: vm.id,
+      eventType: "vm.paused",
+      provider: vm.provider,
+      imageId: vm.imageId,
+      metadata: { source: "user" },
+    }).pipe(Effect.catchAll(() => Effect.void));
+    return { id: providerVmId, status: "paused" } satisfies VmPauseResumeResult;
+  });
+}
+
+/**
+ * Wake a parked machine through the same suspended-resume path every open and
+ * exec uses, so plan limits (`reservePausedResume`) and the free window apply
+ * and a provider-side pause the row never saw is handled too. Idempotent — a
+ * running machine answers `running` without touching the provider beyond the
+ * status probe. Providers without resume fail with the unsupported error.
+ */
+export function resumeVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+  readonly maxActiveVms?: number | null;
+  readonly callerPlanId?: string | null;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireAccessibleUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (vm.status === "destroyed") {
+      return yield* Effect.fail(new VmNotFoundError({ vmId: input.providerVmId }));
+    }
+    if (!providers.resume || !providers.getStatus) {
+      if (vm.status === "running") return { id: providerVmId, status: "running" } satisfies VmPauseResumeResult;
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "resume" }));
+    }
+    yield* preflightResumeIfSuspended(
+      repo,
+      providers,
+      vm,
+      providerVmId,
+      "user",
+      { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
+    );
+    return { id: providerVmId, status: "running" } satisfies VmPauseResumeResult;
+  });
+}
+
 type SnapshotProviderResources = {
   readonly vcpus: number | null;
   readonly memoryMb: number | null;
@@ -1990,7 +2166,7 @@ function boundedVmStatusReconcileLimit(limit: number | undefined): number {
 const RESUME_STATUS_PROBE_TIMEOUT = "5 seconds";
 const RESUME_SETTLE_ATTEMPTS = 10;
 const RESUME_SETTLE_INTERVAL = "1 second";
-type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize";
+type VmResumeSource = "exec" | "attach" | "ssh" | "fork" | "open_port" | "resize" | "user";
 
 type ResumePreflightOptions = {
   /** Resolved billing-scope allowance; null is unlimited, undefined uses the plan default. */
@@ -2594,7 +2770,7 @@ export function getVmStats(input: {
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "getStats",
-          cause: new Error("machine stats are not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "getStats" }),
         }),
       );
     }
@@ -2862,12 +3038,21 @@ export function openVmCmuxRemote(input: {
     const repo = yield* VmRepository;
     const providers = yield* VmProviderGateway;
     const vm = yield* requireAccessibleUserVm(input);
+    const supportedTransports = providers.attachTransports?.(vm.provider);
+    if (supportedTransports && !supportedTransports.includes("cmux-remote")) {
+      return yield* Effect.fail(new VmAttachTransportUnsupportedError({
+        provider: vm.provider,
+        vmId: input.providerVmId,
+        requested: "cmux-remote",
+        supported: supportedTransports,
+      }));
+    }
     if (!providers.openCmuxRemote) {
       return yield* Effect.fail(
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "openCmuxRemote",
-          cause: new Error("the cmux-tui remote daemon is not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "openCmuxRemote" }),
         }),
       );
     }
@@ -2951,7 +3136,7 @@ export function approveVmCmuxRemoteEnrollment(input: {
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "approveCmuxRemoteEnrollment",
-          cause: new Error("the cmux-tui remote daemon is not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "approveCmuxRemoteEnrollment" }),
         }),
       );
     }

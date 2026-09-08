@@ -6,6 +6,11 @@ declare module "bun:test" {
     only: TestFunction;
     skip: TestFunction;
     todo: (name: string) => void;
+    each: <Value>(values: readonly Value[]) => (
+      name: string,
+      fn: (...args: Value extends readonly unknown[] ? [...Value] : [Value]) => unknown | Promise<unknown>,
+      timeout?: number,
+    ) => void;
   };
   type MatcherFunction = (...args: unknown[]) => unknown;
   type Matchers = Record<string, MatcherFunction> & {
@@ -42,6 +47,7 @@ declare module "bun:test" {
   };
   export const mock: Mock;
   export const setSystemTime: (time?: Date | number) => void;
+  export const setDefaultTimeout: (milliseconds: number) => void;
   export const spyOn: <T extends object, K extends keyof T>(
     target: T,
     method: K,

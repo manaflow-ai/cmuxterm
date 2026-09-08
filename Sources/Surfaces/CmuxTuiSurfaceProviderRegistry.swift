@@ -34,7 +34,7 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// machine id; sign-out waits for them before stopping the hub.
     private var machineTeardowns: [String: Task<Void, Never>] = [:]
 
-    init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
+    init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub? = nil) {
         self.links = links
         self.wireGuardHub = wireGuardHub
         portForwards = wireGuardHub.map { CloudHubPortForwarder(dialer: CloudWireGuardHubDialer(hub: $0)) }

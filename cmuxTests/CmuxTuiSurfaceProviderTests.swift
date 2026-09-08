@@ -7,7 +7,6 @@ import Testing
 @testable import cmux
 #endif
 
-typealias CMUXCLI = CmuxTuiRemoteRouting
 
 /// The cmux-tui provider's pure parts: snapshot → resources, the argv it hands the
 /// client, the URLs it opens, and the client identity paths it shares with the CLI.
@@ -796,6 +795,41 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             == ["--socket", "/tmp/s.sock", "--json", "workspace", "ws_1", "close"])
     }
 
+    @Test func newTerminalJoinsTheFocusedElseFirstWorkspace() {
+        // Without `--remote-workspace`, a terminal lands in the daemon's focused workspace,
+        // else the first in daemon order; an empty workspace list means the provider has
+        // to ask the daemon (and only then create `main` — never a workspace named after
+        // the terminal).
+        let main = SurfaceRemoteWorkspace(id: "ws_main", name: "main", index: 0, focused: false)
+        let api = SurfaceRemoteWorkspace(id: "ws_api", name: "api", index: 1, focused: true)
+        let docs = SurfaceRemoteWorkspace(id: "ws_docs", name: "docs", index: 2, focused: false)
+        #expect(CmuxTuiSurfaceProvider.preferredWorkspace([docs, api, main])?.id == "ws_api")
+        #expect(CmuxTuiSurfaceProvider.preferredWorkspace([docs, main])?.id == "ws_main")
+        #expect(CmuxTuiSurfaceProvider.preferredWorkspace([]) == nil)
+        #expect(CmuxTuiSurfaceProvider.firstWorkspaceName == "main")
+    }
+
+    @Test func defaultWorkspaceNamesDoNotReuseSurvivingNames() {
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: []) == "main")
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: ["workspace-2"]) == "workspace-3")
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: ["main", "workspace-3"]) == "workspace-4")
+    }
+
+
+    @Test(.timeLimit(.minutes(1))) @MainActor
+    func forcedRegistryRefreshCompletesAfterAnEmptyPass() async {
+        // A registry without a catalog/client makes performRefresh return immediately.
+        // A forced caller must still clear that completed flight; otherwise the old
+        // implementation re-entered its `while let refreshInFlight` loop forever and
+        // pinned the main actor at 100% CPU (the live `vm tree --refresh` repro).
+        let links = CloudMachineLinkManager(
+            clientURL: nil,
+            hostThemeColors: { nil }
+        )
+        let registry = CmuxTuiSurfaceProviderRegistry(links: links)
+        #expect(await registry.refresh(force: true) == false)
+    }
+
     @Test func headlessTerminalIOArgvFollowsTheCLIGrammar() {
         // Verified live against a machine: `write --text` types as-is (no newline),
         // `keys` takes bare key names, `screen read` / `screen wait --pattern` read back.
@@ -810,6 +844,24 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         // No timeout (or a non-positive one) leaves the daemon default in charge.
         #expect(CloudTuiCommandLine.screenWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", pattern: "λ", timeoutMs: nil).contains("--timeout-ms") == false)
         #expect(CloudTuiCommandLine.screenWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", pattern: "λ", timeoutMs: 0).contains("--timeout-ms") == false)
+    }
+
+    @Test func terminalExitAndOutputArgvFollowTheCLIGrammar() {
+        // `terminal <id> process wait` is the exit fact behind `cmux vm terminal wait-exit`;
+        // `terminal <id> output read` is the retained log behind `cmux vm terminal output`.
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: 45_000)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "process", "wait", "--timeout-ms", "45000"])
+        // No timeout (or a non-positive one) leaves the daemon default in charge.
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: nil)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "process", "wait"])
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: 0).contains("--timeout-ms") == false)
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: 1_024, maxBytes: 65_536)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read", "--after", "1024", "--max-bytes", "65536"])
+        // Offset 0 is a real cursor (read from the start); a zero byte cap is not a cap.
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: 0, maxBytes: 0)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read", "--after", "0"])
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: nil, maxBytes: nil)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read"])
     }
 
     @Test @MainActor func waitTimeoutNormalizesToTheDaemonDefaultAndClamps() {
@@ -1004,6 +1056,24 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         try whole.fileHandleForWriting.close()
         let data = await CloudLinkPipe.readToEnd(whole.fileHandleForReading)
         #expect(String(decoding: data, as: UTF8.self) == "all of it")
+    }
+
+    @Test func linkPipeDropsAnOversizedLineInsteadOfBufferingIt() async throws {
+        // The daemon caps a message at 4 MiB; a peer that withholds the newline must not
+        // pin Mac memory, and the line after the oversized one still arrives intact.
+        let pipe = Pipe()
+        let lines = CloudLinkPipe.lines(from: pipe.fileHandleForReading)
+        let writer = pipe.fileHandleForWriting
+        let chunk = Data(repeating: 0x41, count: 1024 * 1024)
+        let writeTask = Task.detached {
+            for _ in 0..<5 { writer.write(chunk) }
+            writer.write(Data("\nok\n".utf8))
+            try writer.close()
+        }
+        var received: [String] = []
+        for await line in lines { received.append(line) }
+        try await writeTask.value
+        #expect(received == ["ok"])
     }
 
     @Test func linkFirstValueResolvesOnce() async {

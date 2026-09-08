@@ -10,6 +10,7 @@ import {
   CMUX_TUI_SESSION,
   cmuxTuiDaemonCommand,
 } from "../services/vms/drivers/cmuxTuiDaemon";
+import { GUEST_CMUX_SHIM } from "../services/vms/guestCli";
 import { DEVBOX_TEMPLATE_FILES, devboxAgentPins, devboxCuaDriverVersion, devboxGhosttyVersion, devboxParkDaemonCommand } from "../scripts/devbox-image-common";
 
 // Contract tests for the shared cmux Cloud devbox image template
@@ -74,6 +75,7 @@ describe("devbox image template", () => {
       "README.md",
       "agent-config.sh",
       "chrome-managed-policy.json",
+      "cmux",
       "cmux-bashrc",
       "cmux-devbox-boot",
       "cmux-motd",
@@ -89,6 +91,7 @@ describe("devbox image template", () => {
       "Dockerfile",
       "agent-config.sh",
       "chrome-managed-policy.json",
+      "cmux",
       "cmux-bashrc",
       "cmux-devbox-boot",
       "cmux-motd",
@@ -110,9 +113,31 @@ describe("devbox image template", () => {
       const result = spawnSync("bash", ["-n", path.join(templateDir, name)]);
       expect({ name, status: result.status }).toEqual({ name, status: 0 });
     }
+    const guestShim = spawnSync("sh", ["-n", path.join(templateDir, "cmux")]);
+    expect({ name: "cmux", status: guestShim.status }).toEqual({ name: "cmux", status: 0 });
     for (const name of ["cmux-devbox-boot", "cmux-motd"]) {
       const result = spawnSync("sh", ["-n", path.join(templateDir, name)]);
       expect({ name, status: result.status }).toEqual({ name, status: 0 });
+    }
+  });
+
+  test("the interactive prompt uses cmux instead of the provider hostname", () => {
+    const home = mkdtempSync(path.join(tmpdir(), "cmux-prompt-"));
+    try {
+      // A pipe is not a TTY, so Bash deliberately does not render PS1. Read
+      // the configured prompt variable directly instead of asserting on
+      // terminal output; this also exercises the non-TTY startup path used by
+      // provider probes and `vm exec`.
+      const result = spawnSync("bash", ["--rcfile", path.join(templateDir, "cmux-bashrc"), "-i", "-c", 'printf "%s" "$PS1"'], {
+        input: "exit\n",
+        encoding: "utf8",
+        env: { ...process.env, HOME: home, TERM: "xterm-256color" },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("@${CMUX_PROMPT_HOST}");
+      expect(result.stdout).not.toContain("@freestyle-vm");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
     }
   });
 
@@ -178,6 +203,7 @@ describe("devbox image template", () => {
     // The interactive probe is a real pty (tmux) as the work user and requires the cmux prompt.
     expect(freestyleScript).toContain("interactiveShellProbe(1)");
     expect(freestyleScript).toContain("interactiveShellProbe(2)");
+    expect(freestyleScript).toContain('grep -q "@cmux"');
     expect(freestyleScript).toContain('grep -q "λ"');
     expect(readScript("verify-devbox-image.ts")).toContain("ubuntu-login-silent-");
     expect(readScript("verify-devbox-image.ts")).toContain("home-owned-by-ubuntu");
@@ -187,6 +213,7 @@ describe("devbox image template", () => {
     expect(verify).toContain("-login-pin-ok");
     expect(verify).toContain("-nonlogin-pin-ok");
     expect(verify).toContain("test ! -e /opt/mise");
+    expect(read("cmux")).toBe(GUEST_CMUX_SHIM);
   });
 
   test("ble.sh integration stays minimal: no token highlighting, ghost text only", () => {
@@ -319,6 +346,11 @@ describe("devbox image template", () => {
     expect(freestyleScript).toContain("ExecStart=/usr/local/bin/cmux-devbox-boot");
     expect(freestyleScript).toContain("cmux-tui-daemon.service");
     expect(freestyleScript).toContain("Restart=always");
+    // The guest adapter must be present in a fresh snapshot; otherwise a
+    // shell sees the raw cmux-tui help until an attach-time heal happens.
+    expect(freestyleScript).toContain('GUEST_CMUX_SHIM_PATH');
+    expect(freestyleScript).toContain('"guest-cli"');
+    expect(readScript("verify-devbox-image.ts")).toContain("guest-cli-ok");
   });
 
   test("the Freestyle replay carries the ble.sh cache bake", () => {
