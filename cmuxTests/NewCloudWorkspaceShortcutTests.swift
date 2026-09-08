@@ -167,7 +167,9 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         let (store, root) = try loadStore(globalJSON: "{}")
         defer { try? FileManager.default.removeItem(at: root) }
         XCTAssertFalse(store.newWorkspaceContextMenuIsConfigured)
-        let appDelegate = AppDelegate()
+        // Never construct a bare AppDelegate here: its init reassigns
+        // AppDelegate.shared, and the routing tests below dispatch on shared.
+        let appDelegate = try XCTUnwrap(AppDelegate.shared)
         let tabManager = TabManager()
         let windowId = appDelegate.registerMainWindowContextForTesting(
             tabManager: tabManager,
@@ -250,7 +252,9 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         """)
         defer { try? FileManager.default.removeItem(at: root) }
         XCTAssertTrue(store.configurationIssues.isEmpty)
-        let appDelegate = AppDelegate()
+        // Never construct a bare AppDelegate here: its init reassigns
+        // AppDelegate.shared, and the routing tests below dispatch on shared.
+        let appDelegate = try XCTUnwrap(AppDelegate.shared)
         let tabManager = TabManager()
         let windowId = appDelegate.registerMainWindowContextForTesting(tabManager: tabManager, cmuxConfigStore: store)
         defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
@@ -271,7 +275,9 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
 
         let (store, root) = try loadStore(globalJSON: "{}")
         defer { try? FileManager.default.removeItem(at: root) }
-        let appDelegate = AppDelegate()
+        // Never construct a bare AppDelegate here: its init reassigns
+        // AppDelegate.shared, and the routing tests below dispatch on shared.
+        let appDelegate = try XCTUnwrap(AppDelegate.shared)
         let tabManager = TabManager()
         let windowId = appDelegate.registerMainWindowContextForTesting(tabManager: tabManager, cmuxConfigStore: store)
         defer { appDelegate.unregisterMainWindowContextForTesting(windowId: windowId) }
@@ -281,21 +287,21 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         XCTAssertEqual(presenter.presentCount, 1)
     }
 
-    func testSharedActionBeepsInsteadOfPresentingWhenFeatureIsOff() {
+    func testSharedActionBeepsInsteadOfPresentingWhenFeatureIsOff() throws {
         setCloudMachinesEnabled(false)
         let presenter = RecordingSheetPresenter()
         AppDelegate.newCloudWorkspaceSheetPresenterOverride = presenter
         AppDelegate.newCloudWorkspaceAuthStateOverride = .signedIn
-        XCTAssertFalse(AppDelegate().performNewCloudWorkspaceAction(debugSource: "test.featureOff"))
+        XCTAssertFalse(try XCTUnwrap(AppDelegate.shared).performNewCloudWorkspaceAction(debugSource: "test.featureOff"))
         XCTAssertEqual(presenter.presentCount, 0)
     }
 
-    func testSharedActionDoesNotPresentSheetWhenSignedOut() {
+    func testSharedActionDoesNotPresentSheetWhenSignedOut() throws {
         setCloudMachinesEnabled(true)
         let presenter = RecordingSheetPresenter()
         AppDelegate.newCloudWorkspaceSheetPresenterOverride = presenter
         AppDelegate.newCloudWorkspaceAuthStateOverride = .signedOut
-        XCTAssertFalse(AppDelegate().performNewCloudWorkspaceAction(debugSource: "test.signedOut"))
+        XCTAssertFalse(try XCTUnwrap(AppDelegate.shared).performNewCloudWorkspaceAction(debugSource: "test.signedOut"))
         XCTAssertEqual(presenter.presentCount, 0)
     }
 
