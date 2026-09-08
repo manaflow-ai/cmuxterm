@@ -193,6 +193,19 @@ describe("devbox image template", () => {
     }
   });
 
+  test("keeps Alt+Backspace word delete working in ble.sh", () => {
+    // Once ble.sh identifies the terminal from its DA2 reply it enables xterm
+    // modifyOtherKeys, and then Alt+Backspace does nothing: the legacy ESC DEL
+    // binding is gone and CSI 27;3;127~ does not decode back to M-C-?. Cloud
+    // panes send the legacy form, so the bashrc pins the legacy encoding and
+    // binds both backspace spellings.
+    expect(bashrc).toContain(
+      "bleopt term_modifyOtherKeys_internal=0 term_modifyOtherKeys_external=0",
+    );
+    expect(bashrc).toContain("ble-bind -f 'M-C-?' kill-backward-cword");
+    expect(bashrc).toContain("ble-bind -f 'M-C-h' kill-backward-cword");
+  });
+
   test("bakes ble.sh cache seeds for every shared devbox provider", () => {
     // The shared bashrc guard is useful only when each bake creates the seed.
     for (const term of ["xterm-256color", "screen-256color", "tmux-256color", "linux"]) {
