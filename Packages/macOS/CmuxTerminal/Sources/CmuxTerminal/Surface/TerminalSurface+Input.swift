@@ -683,6 +683,7 @@ extension TerminalSurface {
             )
         if deferredPromptSubmissionAwaitingClipboardReplay != nil
             || !deferredPromptSubmissionRetries.isEmpty {
+            deliveryReceipt?.finish(.inputQueueFull)
             return .inputQueueFull
         }
 

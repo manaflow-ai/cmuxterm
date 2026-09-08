@@ -510,6 +510,33 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(!fixture.surface.hasPendingProgrammaticPromptSubmission)
     }
 
+    @Test func queueFullPromptCompletesItsDeliveryReceipt() async {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.shouldDeferRuntimeInput = true
+        let receipt = PromptSubmissionDeliveryReceipt()
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "first deferred prompt",
+                submitKey: "return"
+            ) == .queued
+        )
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "second prompt",
+                submitKey: "return",
+                deliveryReceipt: receipt
+            ) == .inputQueueFull
+        )
+
+        #expect(await receipt.wait() == .inputQueueFull)
+    }
+
     @Test func nativePromptDoesNotRetainAReplacedAgentScope() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }
