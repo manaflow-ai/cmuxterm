@@ -33,6 +33,15 @@ struct ControlTerminalSocketTarget {
         return surface.sendInputResult(text)
     }
 
+    /// Sends text owned by an app control without recording human composer
+    /// input, while retaining the canonical panel/surface routing above.
+    func sendAppOwnedInputResult(_ text: String) -> TerminalSurface.InputSendResult {
+        if surface === panel.surface {
+            return panel.sendAppOwnedInputResult(text)
+        }
+        return surface.sendAppOwnedInputResult(text)
+    }
+
     /// Sends a bracketed-paste payload through the canonical surface.
     func sendText(_ text: String) -> Bool {
         if surface === panel.surface {
@@ -48,6 +57,17 @@ struct ControlTerminalSocketTarget {
             return panel.sendNamedKeyResult(key)
         }
         return surface.sendNamedKey(key)
+    }
+
+    /// Sends a named key owned by an app control without recording human
+    /// composer input, while retaining canonical panel/surface routing.
+    func sendAppOwnedNamedKeyResult(
+        _ key: String
+    ) -> TerminalSurface.NamedKeySendResult {
+        if surface === panel.surface {
+            return panel.sendAppOwnedNamedKeyResult(key)
+        }
+        return surface.sendAppOwnedNamedKeyResult(key)
     }
 
     /// Performs a Ghostty binding action against the canonical surface.
