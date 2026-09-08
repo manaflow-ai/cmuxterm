@@ -6563,6 +6563,7 @@ struct CMUXCLI {
 
             case "env":
                 try runVMEnvCommand(rest: rest, client: client, jsonOutput: jsonOutput)
+
             case "tab":
                 try runVMTabCommand(rest: rest, client: client, jsonOutput: jsonOutput)
 
@@ -18775,10 +18776,6 @@ struct CMUXCLI {
                                         its ~/.config/cmux/env; names only are echoed back).
               env ls <machine> [--show]  List them (names; --show adds values).
               env rm <machine> KEY…      Remove them.
-              link <src> <dst>          Grant machine <src> access to machine <dst>:
-                                        inside <src>, `cmux vm exec <dst> -- <cmd>`,
-                                        `cmux vm tree <dst>`, and the other in-VM
-                                        `cmux vm` verbs then drive <dst> directly.
               tab rename <machine> <tab-id> <name>
                                         Rename one daemon tab placement.
               prompt [--open <agent>]   Install the cmux-cloud skill file and print the

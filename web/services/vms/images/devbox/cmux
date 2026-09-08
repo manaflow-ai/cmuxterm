@@ -67,6 +67,10 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
     {"pane":{"surfaces":[{"type":"terminal","command":"bun test --watch"},
                          {"type":"browser","url":"http://localhost:3000"}]}}]}
 ' "$@" ;;
+    en/workspaceCreateFailed) printf 'Could not create a workspace on the peer. No command was started.
+' "$@" ;;
+    en/workspaceMissingID) printf 'The peer did not return a workspace ID. No command was started.
+' "$@" ;;
     en/missingDaemon) printf 'cmux-tui daemon binary not found at %s
 ' "$@" ;;
     en/routeToken) printf 'refusing a coderouter route token in the VM; use the Freestyle TLS edge
@@ -240,6 +244,10 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
     指定した既存のワークスペースは空である必要があります。
     端末は cwd と環境変数を持つログインシェルです。command は入力として送信されます。
     ブラウザーのサーフェスはタブを開きます。
+' "$@" ;;
+    ja/workspaceCreateFailed) printf 'ピアにワークスペースを作成できませんでした。コマンドは開始されていません。
+' "$@" ;;
+    ja/workspaceMissingID) printf 'ピアからワークスペース ID が返されませんでした。コマンドは開始されていません。
 ' "$@" ;;
     ja/missingDaemon) printf 'マシンの接続プログラムが %s に見つかりません
 ' "$@" ;;
@@ -1709,9 +1717,11 @@ ensure_link() {
 # The workspace a durable command runs in on the current target: the current
 # one, or a fresh `main` when the session has none (a brand-new machine).
 target_workspace() {
-  if tui workspace current get >/dev/null 2>&1; then printf 'current'; return 0; fi
-  cmux_tw_created="$(tui --json workspace create --name main 2>/dev/null | jq -r '(.value // .) | .id // .workspace_id // .workspace.id // empty' | head -n 1)"
-  if [ -n "$cmux_tw_created" ]; then printf '%s' "$cmux_tw_created"; else printf 'current'; fi
+  if tui workspace current show >/dev/null 2>&1; then printf 'current'; return 0; fi
+  cmux_tw_creation="$(tui --json workspace create --name main 2>/dev/null)" || die_message 3 workspaceCreateFailed
+  cmux_tw_created="$(printf '%s' "$cmux_tw_creation" | jq -r '(.value // .) | .workspace_id // .id // .workspace.id // empty')" || die_message 3 workspaceMissingID
+  [ -n "$cmux_tw_created" ] || die_message 3 workspaceMissingID
+  printf '%s' "$cmux_tw_created"
 }
 
 peer_usage() {

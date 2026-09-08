@@ -5,6 +5,7 @@ setDefaultTimeout(60_000);
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createServer } from "node:net";
 import { join } from "node:path";
 
 import { GUEST_CMUX_SHIM, GUEST_CMUX_SHIM_PATH, guestCliInstallCommand } from "../services/vms/guestCli";
@@ -41,6 +42,61 @@ const TERMINAL_ID = "term_0123456789abcdef0123456789abcdef";
 // The in-VM `cmux` shim is shipped as driver-written bytes; a syntax error
 // would surface only inside a live machine, so validate it here.
 describe("in-VM cmux shim", () => {
+  test.each(["existing", "create", "create-failed", "missing-id"])("peer exec selects a supported workspace and fails closed (%s)", async (mode) => {
+    const directory = mkdtempSync(join(tmpdir(), "cmux-peer-exec-"));
+    const socket = join(directory, "peer.sock");
+    const server = createServer();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(socket, resolve);
+      });
+      const peers = join(directory, ".cmux", "peers");
+      const links = join(directory, ".cmux", "peer-links");
+      mkdirSync(peers, { recursive: true });
+      mkdirSync(links, { recursive: true });
+      writeFileSync(join(peers, "peer.json"), "{}");
+      writeFileSync(join(links, "peer.sock-path"), socket);
+      writeFileSync(join(links, "peer.pid"), String(process.pid));
+      const shim = join(directory, "cmux");
+      const daemon = join(directory, "cmux-tui");
+      writeFileSync(shim, GUEST_CMUX_SHIM);
+      writeFileSync(daemon, `#!/bin/sh
+printf '%s\\n' "$*" >> "$HOME/calls"
+case "$*" in
+  *"workspace current show") [ "$MODE" = existing ] ;;
+  *"workspace create --name main")
+    [ "$MODE" != create-failed ] || exit 74
+    if [ "$MODE" = missing-id ]; then printf '{}'; else printf '{"value":{"workspace_id":"ws_created"}}'; fi ;;
+  *"workspace current run "*|*"workspace ws_created run "*) printf '%s\\n' "$*" ;;
+  *) exit 91 ;;
+esac
+`);
+      chmodSync(daemon, 0o755);
+      const result = spawnSync("sh", [shim, "vm", "exec", "peer", "--", "printf", "hello"], {
+        encoding: "utf8",
+        timeout: 10_000,
+        env: { PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
+      });
+      const calls = readFileSync(join(directory, "calls"), "utf8");
+      expect(calls).toContain("workspace current show");
+      if (mode === "existing") {
+        expect(result.status).toBe(0);
+        expect(calls).not.toContain("workspace create");
+        expect(result.stdout).toContain("workspace current run");
+      } else if (mode === "create") {
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("workspace ws_created run");
+      } else {
+        expect(result.status).toBe(3);
+        expect(calls).not.toContain(" run ");
+      }
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test("localizes help and interpolated errors using the guest locale", () => {
     const help = runShim(["--help"], { LANG: "ja_JP.UTF-8" });
     expect(help.status).toBe(0);
@@ -415,7 +471,7 @@ if [ "$a" = workspace ] && [ "$b" = create ]; then
   esac
   exit 0
 fi
-if [ "$a" = workspace ] && [ "$b" = current ] && [ "$c" = get ]; then [ "\${FAKE_NO_CURRENT:-0}" = 1 ] && exit 1; printf '{"id":"ws_cur"}\\n'; exit 0; fi
+if [ "$a" = workspace ] && [ "$b" = current ] && [ "$c" = show ]; then [ "\${FAKE_NO_CURRENT:-0}" = 1 ] && exit 1; printf '{"id":"ws_cur"}\\n'; exit 0; fi
 if [ "$a" = workspace ] && [ "$c" = run ]; then printf '{"value":{"kind":"terminal","workspace_id":"%s","screen_id":"screen_%s","pane_id":"pane_%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" "$n" "$n" "$n" "$n"; exit 0; fi
 if [ "$a" = pane ] && [ "$c" = split ]; then printf '{"value":{"kind":"terminal","workspace_id":"ws_x","screen_id":"screen_1","pane_id":"pane_%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$n" "$n" "$n" "$n"; exit 0; fi
 if [ "$a" = pane ] && [ "$c" = run ]; then printf '{"value":{"kind":"terminal","workspace_id":"ws_x","screen_id":"screen_1","pane_id":"%s","tab_id":"tab_%s","terminal_id":"term_%s"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" "$n" "$n"; exit 0; fi
@@ -1081,7 +1137,7 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(run.stderr).toBe("");
       expect(run.status).toBe(0);
       expect(run.calls).toEqual([
-        ["--socket", sockPath, "workspace", "current", "get"],
+        ["--socket", sockPath, "workspace", "current", "show"],
         ["--socket", sockPath, "--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "claude", "--cwd", "/root/work/app", "--", "cmux", "agent", "claude", "fix", "the tests"],
       ]);
       expect(run.stdout).toContain(`OK terminal=term_2 workspace=current machine=${peer} agent=claude`);
@@ -1089,7 +1145,7 @@ describe("in-VM cmux shim: agent primitives", () => {
       const fresh = runStateful(dir, ["vm", "agent", peer, "codex", "--name", "docs", "--", "write docs"], { FAKE_NO_CURRENT: "1" });
       expect(fresh.status).toBe(0);
       expect(fresh.calls.map((call) => call.slice(2))).toEqual([
-        ["workspace", "current", "get"],
+        ["workspace", "current", "show"],
         ["--json", "workspace", "create", "--name", "main"],
         ["--json", "workspace", "ws_new2", "run", "--on-exit", "keep", "--name", "docs", "--", "cmux", "agent", "codex", "write docs"],
       ]);
@@ -1105,7 +1161,7 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(run.stderr).toBe("");
       expect(run.status).toBe(0);
       const ops = run.calls.map((call) => call.slice(2));
-      expect(ops[0]).toEqual(["workspace", "current", "get"]);
+      expect(ops[0]).toEqual(["workspace", "current", "show"]);
       expect(ops[1]).toEqual(["--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "cmux env", "--", "cmux", "env", "receive"]);
       expect(ops[2]).toEqual(["--json", "terminal", "term_2", "screen", "wait", "--pattern", "CMUX-ENV-READY", "--timeout-ms", "15000"]);
       const writes = ops.filter((call) => call[1] === "terminal" && call[3] === "write");
@@ -1144,7 +1200,7 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(applied.status).toBe(0);
       expect(applied.calls[0]).toEqual(["--socket", sockPath, "--json", "workspace", "create", "--empty", "--name", "remote"]);
       expect(runStateful(dir, ["vm", "env", "ls", peer, "--json"]).calls).toEqual([
-        ["--socket", sockPath, "workspace", "current", "get"],
+        ["--socket", sockPath, "workspace", "current", "show"],
         ["--socket", sockPath, "workspace", "current", "run", "--on-exit", "close", "--", "cmux", "env", "ls", "--json"],
       ]);
       expect(runStateful(dir, ["vm", "env", "rm", peer, "K"]).calls.at(-1)).toEqual(["--socket", sockPath, "workspace", "current", "run", "--on-exit", "close", "--", "cmux", "env", "rm", "K"]);

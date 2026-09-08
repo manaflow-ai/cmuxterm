@@ -1376,9 +1376,11 @@ ensure_link() {
 # The workspace a durable command runs in on the current target: the current
 # one, or a fresh \`main\` when the session has none (a brand-new machine).
 target_workspace() {
-  if tui workspace current get >/dev/null 2>&1; then printf 'current'; return 0; fi
-  cmux_tw_created="\$(tui --json workspace create --name main 2>/dev/null | jq -r '(.value // .) | .id // .workspace_id // .workspace.id // empty' | head -n 1)"
-  if [ -n "\$cmux_tw_created" ]; then printf '%s' "\$cmux_tw_created"; else printf 'current'; fi
+  if tui workspace current show >/dev/null 2>&1; then printf 'current'; return 0; fi
+  cmux_tw_creation="\$(tui --json workspace create --name main 2>/dev/null)" || die_message 3 workspaceCreateFailed
+  cmux_tw_created="\$(printf '%s' "\$cmux_tw_creation" | jq -r '(.value // .) | .workspace_id // .id // .workspace.id // empty')" || die_message 3 workspaceMissingID
+  [ -n "\$cmux_tw_created" ] || die_message 3 workspaceMissingID
+  printf '%s' "\$cmux_tw_created"
 }
 
 peer_usage() {
