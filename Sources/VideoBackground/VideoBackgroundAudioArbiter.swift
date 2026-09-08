@@ -16,7 +16,15 @@ final class VideoBackgroundAudioArbiter {
     /// Windows admitted by ``register(_:window:)`` are the only valid audio
     /// handoff targets. A key auxiliary window must never become an audio
     /// owner merely because AppKit reports it as the fallback.
-    private let registeredWindows = NSHashTable<NSWindow>.weakObjects()
+    private var registeredWindows: [WindowReference] = []
+
+    private final class WindowReference {
+        weak var window: NSWindow?
+
+        init(_ window: NSWindow) {
+            self.window = window
+        }
+    }
 
     /// Creates an independent arbiter for one application composition root.
     init() {}
@@ -38,7 +46,9 @@ final class VideoBackgroundAudioArbiter {
     /// notification. The app controller uses ``register(_:window:)``; the
     /// narrow internal method keeps lifecycle tests on the same path.
     func registerWindow(_ window: NSWindow) {
-        registeredWindows.add(window)
+        if !registeredWindows.contains(where: { $0.window === window }) {
+            registeredWindows.append(WindowReference(window))
+        }
         if ownerWindow == nil || window.isKeyWindow {
             windowDidBecomeKey(window)
         }
@@ -51,21 +61,23 @@ final class VideoBackgroundAudioArbiter {
 
     /// Transfers audio ownership to the window that just became key.
     func windowDidBecomeKey(_ window: NSWindow) {
-        guard registeredWindows.contains(window) else { return }
+        guard registeredWindows.contains(where: { $0.window === window }) else { return }
+        registeredWindows.removeAll { $0.window == nil || $0.window === window }
+        registeredWindows.insert(WindowReference(window), at: 0)
         guard ownerWindow !== window else { return }
         ownerWindow = window
         notifyControllers()
     }
 
-    /// Releases ownership held by a closing window, handing it to `fallback`
-    /// (typically the app's current key window) when one exists.
+    /// Releases a closing owner to a registered fallback or the most recently
+    /// focused surviving window, even before AppKit chooses a new key window.
     func windowWillClose(_ window: NSWindow, fallback: NSWindow?) {
-        registeredWindows.remove(window)
+        registeredWindows.removeAll { $0.window == nil || $0.window === window }
         guard ownerWindow === window else { return }
         ownerWindow = fallback.flatMap { candidate in
-            guard candidate !== window, registeredWindows.contains(candidate) else { return nil }
+            guard registeredWindows.contains(where: { $0.window === candidate }) else { return nil }
             return candidate
-        }
+        } ?? registeredWindows.first?.window
         notifyControllers()
     }
 

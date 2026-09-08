@@ -795,7 +795,8 @@ extension CMUXCLI {
                 snapshot: updated,
                 socketPath: socketPath,
                 explicitPassword: explicitPassword,
-                jsonOutput: wantsJSON
+                jsonOutput: wantsJSON,
+                restartVideoBackground: true
             )
 
         case "add", "enqueue":
@@ -879,7 +880,8 @@ extension CMUXCLI {
                 snapshot: updated,
                 socketPath: socketPath,
                 explicitPassword: explicitPassword,
-                jsonOutput: wantsJSON
+                jsonOutput: wantsJSON,
+                restartVideoBackground: true
             )
 
         case "quality", "resolution":
@@ -1153,12 +1155,13 @@ extension CMUXCLI {
         snapshot: VideoBackgroundConfigEditor.Snapshot,
         socketPath: String?,
         explicitPassword: String?,
-        jsonOutput: Bool
+        jsonOutput: Bool,
+        restartVideoBackground: Bool = false
     ) throws {
         let reload = reloadConfigAfterFontSizeSet(
             socketPath: socketPath,
             explicitPassword: explicitPassword,
-            restartVideoBackground: ["set", "play", "next"].contains(action)
+            restartVideoBackground: restartVideoBackground
         )
         if jsonOutput {
             print(jsonString([
