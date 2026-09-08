@@ -97,10 +97,8 @@ extension NextTransportDialClient {
                     ? "dialing relay-first via \(relayURL ?? "none")"
                     : "dialing via \(dialAddrs.joined(separator: ", ")) relay \(relayURL ?? "none")")
             do {
-                let result = try await withThrowingTaskGroup(
-                    of: ConnectAttemptResult.self
-                ) { group in
-                    group.addTask {
+                let result = try await ConnectAttemptDeadline().run(
+                    connect: {
                         let conn = try await IrohSubstrate().dial(endpoint: endpoint, to: addr)
                         let outcome: TransportClient.ConnectOutcome
                         do {
@@ -133,22 +131,14 @@ extension NextTransportDialClient {
                                 "denied: \(code.rawValue) after \(Self.elapsedMs(since: dialStart))ms")
                             return .denied(code)
                         }
-                    }
-                    group.addTask {
+                    }, timeout: {
                         // Structured timeout race: the losing dial leg is
                         // cancelled below and unwinds through the owner's
                         // normal failure path.
                         try await self.sleep(Self.dialAttemptTimeout)
                         await self.log(
                             "dial TIMEOUT after \(Self.elapsedMs(since: dialStart))ms")
-                        throw TransportError.dialTimeout
-                    }
-                    guard let first = try await group.next() else {
-                        throw TransportError.dialTimeout
-                    }
-                    group.cancelAll()
-                    return first
-                }
+                    })
                 await self.noteAttemptEnded(failed: false, relayOnly: relayOnly)
                 return result
             } catch {
