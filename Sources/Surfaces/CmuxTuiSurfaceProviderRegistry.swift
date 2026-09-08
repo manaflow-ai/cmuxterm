@@ -16,6 +16,10 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// The app's one WireGuard hub for private-network machines; nil when no cmux-tui
     /// client is bundled (then no link can be made at all).
     let wireGuardHub: CloudWireGuardHub?
+    /// Loopback forwards to VM ports over the hub (Ports and Desktop rows); nil
+    /// without a hub. One table for the fleet so a (machine, port) keeps its
+    /// local port until the machine leaves the fleet or the account signs out.
+    let portForwards: CloudHubPortForwarder?
     private var pollTask: Task<Void, Never>?
     private var accessObserver: NSObjectProtocol?
     private var themeObserver: NSObjectProtocol?
@@ -26,10 +30,14 @@ final class CmuxTuiSurfaceProviderRegistry {
     private var refreshGeneration: UInt64 = 0
     /// Same cadence as the Machines panel's list refresh.
     private let pollInterval: Duration = .seconds(45)
+    /// In-flight forward and link teardowns for deleted machines, keyed by
+    /// machine id; sign-out waits for them before stopping the hub.
+    private var machineTeardowns: [String: Task<Void, Never>] = [:]
 
     init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
         self.links = links
         self.wireGuardHub = wireGuardHub
+        portForwards = wireGuardHub.map { CloudHubPortForwarder(dialer: CloudWireGuardHubDialer(hub: $0)) }
     }
 
     /// The production registry: one hub over the bundled client, shared by every link.
@@ -107,7 +115,10 @@ final class CmuxTuiSurfaceProviderRegistry {
             }
             refreshInFlight = task
             let listed = await task.value
-            if refreshGeneration == generation {
+            // Clear by identity: a delete can bump the generation under this
+            // refresh, and a finished (even aborted) task must never stay
+            // cached for the next poll to wait on.
+            if refreshInFlight == task {
                 refreshInFlight = nil
             }
             return listed
@@ -128,11 +139,38 @@ final class CmuxTuiSurfaceProviderRegistry {
         return providers[machineID]
     }
 
-    func machineWasDeleted(_ id: String) {
+    /// The machine is gone: drop its provider and catalog entry now, and tear
+    /// down its forwards and link on a task the registry owns (awaited by
+    /// ``accessDidEnd()``), so no caller has to hold an unstructured task.
+    func machineWasDeleted(_ rawID: String) {
+        // Callers may hand over a canonicalized (lowercased) id while the
+        // registry keys everything by the control plane's own `summary.id`;
+        // resolve to the registered key so no table is left behind.
+        let id = registeredMachineID(matching: rawID)
         providers[id]?.stop()
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
-        Task { await links.disconnect(machineID: id) }
+        // A fleet page fetched before the delete must not re-register the
+        // machine on top of this teardown.
+        refreshGeneration &+= 1
+        // Teardowns for one machine run in order: a repeated delete waits for
+        // the earlier pass instead of racing it (cancellation would not stop
+        // a pass already inside the managers), so a refresh that re-lists the
+        // machine awaits the whole chain through the newest task.
+        let previousTeardown = machineTeardowns[id]
+        machineTeardowns[id] = Task { [links, portForwards] in
+            await previousTeardown?.value
+            await portForwards?.close(machineID: id)
+            await links.disconnect(machineID: id)
+        }
+    }
+
+    /// The id the registry stores for a machine, matched case-insensitively;
+    /// the caller's spelling when nothing is registered under it.
+    private func registeredMachineID(matching rawID: String) -> String {
+        if providers[rawID] != nil { return rawID }
+        let candidates = Set(providers.keys).union(machineTeardowns.keys)
+        return candidates.first { $0.caseInsensitiveCompare(rawID) == .orderedSame } ?? rawID
     }
 
     /// The headless link's local mux socket for a machine, connecting if needed.
@@ -164,14 +202,24 @@ final class CmuxTuiSurfaceProviderRegistry {
             providers[id] = nil
             catalog.unregister(machine: .cloud(id))
         }
+        if !staleIDs.isEmpty {
+            await portForwards?.close(machineIDs: staleIDs)
+        }
         await links.retain(machineIDs: seen)
         guard generation == refreshGeneration else { return false }
         for summary in page.vms {
+            // A machine listed again after a delete waits for that delete's
+            // teardown, so the teardown cannot close the new provider's
+            // forwards or link.
+            if let teardown = machineTeardowns.removeValue(forKey: summary.id) {
+                await teardown.value
+                guard generation == refreshGeneration else { return false }
+            }
             await links.setPrivateAddress(summary.preferredPrivateAddress, for: summary.id)
             if let provider = providers[summary.id] {
                 provider.update(summary: summary)
             } else {
-                let provider = CmuxTuiSurfaceProvider(summary: summary, links: links, catalog: catalog)
+                let provider = CmuxTuiSurfaceProvider(summary: summary, links: links, catalog: catalog, portForwards: portForwards)
                 providers[summary.id] = provider
                 catalog.register(provider)
             }
@@ -188,6 +236,10 @@ final class CmuxTuiSurfaceProviderRegistry {
         for provider in providers.values { provider.stop() }
         for id in providers.keys { catalog?.unregister(machine: .cloud(id)) }
         providers.removeAll()
+        let teardowns = machineTeardowns.values
+        machineTeardowns.removeAll()
+        for teardown in teardowns { await teardown.value }
+        await portForwards?.closeAll()
         await links.disconnectAll()
         // Signing out drops the tunnel too: the next account enrolls its own.
         await wireGuardHub?.stop()
