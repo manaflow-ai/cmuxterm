@@ -1,3 +1,4 @@
+import CmuxCore
 import Foundation
 
 /// Cloud machines attach through their cmux-tui remote daemon
@@ -1803,10 +1804,6 @@ extension CMUXCLI {
         return terminal["remote_workspace"] == nil
     }
 
-    /// One resource line: lifecycle glyph, id, title, detail, agent badge, open marker,
-    /// and the address to open it. `addressKey` picks the resource's `key` (cloud terminal
-    /// workspace rows) or its full id (pool rows); display rows set `showFullKey` so each
-    /// screen number remains visible instead of being truncated to the common prefix.
     /// One workspace placement as the catalog payload describes it: the resource and the
     /// daemon tab (`remote_views` entry) showing it in this workspace; nil for payloads
     /// that predate views.
@@ -1822,56 +1819,30 @@ extension CMUXCLI {
         let hiddenTabs: [VMTreePlacement]
     }
 
-    /// The rows a workspace shows for its placements, shaped like the layout exactly as the
-    /// sidebar shapes them (`CloudTreeNodeBuilder.layoutRows`): one row per daemon pane in
-    /// layout order (screen index, then the pane's position in its split tree, else arrival
-    /// order), carrying the tab the pane shows (`focused`; the first tab when no view says),
-    /// with the pane's other tabs nested in tab order. Placements without a pane stay flat
-    /// after the panes: terminals, then browsers, then displays.
+    /// Maps wire placements through the same ``RemoteWorkspaceLayout`` used by the sidebar.
+    /// Formatting stays in the CLI; pane grouping, ordering, and active-tab selection do not.
     static func vmTreeLayoutRows(_ placements: [VMTreePlacement]) -> [VMTreeLayoutRow] {
-        struct PaneKey: Hashable {
-            let screenID: String
-            let paneID: String
-        }
-        func position(_ view: [String: Any]?, _ key: String) -> Int {
-            vmTreeNumber(view?[key]).map { Int($0) } ?? Int.max
-        }
-        var paneOrder: [PaneKey] = []
-        var tabsByPane: [PaneKey: [VMTreePlacement]] = [:]
-        var loose: [VMTreePlacement] = []
-        for placement in placements {
-            guard let view = placement.view, let paneID = view["pane_id"] as? String, !paneID.isEmpty else {
-                loose.append(placement)
-                continue
-            }
-            let key = PaneKey(screenID: (view["screen_id"] as? String) ?? "", paneID: paneID)
-            if tabsByPane[key] == nil { paneOrder.append(key) }
-            tabsByPane[key, default: []].append(placement)
-        }
-        let orderedPanes = paneOrder.enumerated().sorted { lhs, rhs in
-            let left = tabsByPane[lhs.element]?.first?.view
-            let right = tabsByPane[rhs.element]?.first?.view
-            return (position(left, "screen_index"), position(left, "pane_index"), lhs.offset)
-                < (position(right, "screen_index"), position(right, "pane_index"), rhs.offset)
-        }.map(\.element)
-        var rows: [VMTreeLayoutRow] = []
-        for key in orderedPanes {
-            let tabs = (tabsByPane[key] ?? []).enumerated().sorted { lhs, rhs in
-                (position(lhs.element.view, "index"), lhs.offset) < (position(rhs.element.view, "index"), rhs.offset)
-            }.map(\.element)
-            let shownIndex = tabs.firstIndex { ($0.view?["focused"] as? Bool) == true } ?? 0
-            rows.append(VMTreeLayoutRow(
-                placement: tabs[shownIndex],
-                hiddenTabs: tabs.enumerated().filter { $0.offset != shownIndex }.map(\.element)
-            ))
+        func position(_ view: [String: Any]?, _ key: String) -> Int? {
+            vmTreeNumber(view?[key]).flatMap { Int(exactly: $0) }
         }
         let kindRank: [String: Int] = ["terminal": 0, "browser": 1, "display": 2, "screen": 2]
-        let looseInKindOrder = loose.enumerated().sorted { lhs, rhs in
-            (kindRank[lhs.element.resource["kind"] as? String ?? ""] ?? 3, lhs.offset)
-                < (kindRank[rhs.element.resource["kind"] as? String ?? ""] ?? 3, rhs.offset)
-        }.map(\.element)
-        rows.append(contentsOf: looseInKindOrder.map { VMTreeLayoutRow(placement: $0, hiddenTabs: []) })
-        return rows
+        let layout = RemoteWorkspaceLayout(placements: placements.map { placement in
+            RemoteWorkspacePlacement(
+                screenID: placement.view?["screen_id"] as? String,
+                paneID: placement.view?["pane_id"] as? String,
+                screenIndex: position(placement.view, "screen_index"),
+                paneIndex: position(placement.view, "pane_index"),
+                tabIndex: position(placement.view, "index"),
+                focused: placement.view?["focused"] as? Bool == true,
+                kindOrder: kindRank[placement.resource["kind"] as? String ?? ""] ?? 3
+            )
+        })
+        return layout.rows.map { row in
+            VMTreeLayoutRow(
+                placement: placements[row.shownIndex],
+                hiddenTabs: row.hiddenIndices.map { placements[$0] }
+            )
+        }
     }
 
     /// A workspace pointer cell: terminals address through the workspace (`cmux vm open <m>/<ws>/<term>`),
