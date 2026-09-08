@@ -342,7 +342,7 @@ struct MachinesPanelView: View {
         .multilineTextAlignment(.center)
         .padding(.horizontal, 24)
         Button {
-            ProUpgradePresenter.present()
+            ProUpgradePresenter.present(source: .machinesPanelRequiresPro)
         } label: {
             Text(String(localized: "machines.requiresPro.upgrade", defaultValue: "Upgrade to Pro"))
                 .cmuxFont(size: 12)
@@ -454,6 +454,7 @@ struct MachinesPanelView: View {
             pendingCreates: viewModel.pendingCreates,
             snapshot: viewModel.catalog,
             localWorkspaces: viewModel.localWorkspaces,
+            unreadTerminalIDs: viewModel.unreadTerminalIDs,
             machineActions: machineActions,
             nodeActions: nodeActions,
             expansionStore: expansionStore,
@@ -508,7 +509,7 @@ struct MachinesPanelView: View {
                     // The upgrade nudge under the create button: same Pro flow
                     // as the meter's at-limit hint and the ＋ at the ceiling.
                     Button {
-                        ProUpgradePresenter.present()
+                        ProUpgradePresenter.present(source: .machinesPanelUpgradeNudge)
                     } label: {
                         Text(upgradeNudgeLabel(plan))
                             .cmuxFont(size: 11)
@@ -634,7 +635,7 @@ private struct MachinesFreeAccessBanner: View {
 
     var body: some View {
         Button {
-            ProUpgradePresenter.present()
+            ProUpgradePresenter.present(source: .machinesPanelTrialBanner)
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: isExpired ? "lock.fill" : "clock")
@@ -764,7 +765,7 @@ struct MachineRowActions {
                 }
             },
             promptUpgrade: {
-                ProUpgradePresenter.present()
+                ProUpgradePresenter.present(source: .machinesPanelMachineAction)
             }
         )
     }
