@@ -1940,6 +1940,101 @@ extension CLINotifyProcessIntegrationRegressionTests {
         }
     }
 
+    /// A socket node can outlive the app that owned it. When the ambient
+    /// invocation fails, the hook must fall through to the pinned build instead
+    /// of dropping the event and the session record with it.
+    func testAntigravityHookFallsBackToPinnedBuildWhenAmbientDispatchFails() throws {
+        let cliPath = try bundledCLIPath()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("agy-fb-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let callLogPath = root.appendingPathComponent("calls.log").path
+
+        func writeFakeCLI(_ name: String, exitCode: Int32) throws -> String {
+            let path = root.appendingPathComponent(name).path
+            let script = "#!/bin/sh\nprintf '%s %s\\n' '\(name)' \"$*\" >> '\(callLogPath)'\necho '{}'\nexit \(exitCode)\n"
+            try script.write(toFile: path, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+            return path
+        }
+        let pinnedCLI = try writeFakeCLI("pinned-cmux", exitCode: 0)
+        let ambientCLI = try writeFakeCLI("ambient-cmux", exitCode: 7)
+        let pinnedSocketPath = root.appendingPathComponent("pinned.sock").path
+
+        let install = runProcess(
+            executablePath: cliPath,
+            arguments: ["hooks", "agy", "install", "--yes"],
+            environment: [
+                "HOME": root.path,
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "CMUX_BUNDLED_CLI_PATH": pinnedCLI,
+                "CMUX_SOCKET_PATH": pinnedSocketPath,
+                "CMUX_CLI_SENTRY_DISABLED": "1",
+            ],
+            timeout: 5
+        )
+        XCTAssertFalse(install.timedOut, install.stderr)
+        XCTAssertEqual(install.status, 0, install.stderr)
+
+        let hookURL = root
+            .appendingPathComponent(".gemini", isDirectory: true)
+            .appendingPathComponent("config", isDirectory: true)
+            .appendingPathComponent("hooks.json", isDirectory: false)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: hookURL)) as? [String: Any])
+        let cmuxGroup = try XCTUnwrap(json["cmux"] as? [String: Any])
+        let sessionStart = try XCTUnwrap(cmuxGroup["SessionStart"] as? [[String: Any]])
+        let command = try XCTUnwrap(sessionStart.first?["command"] as? String)
+
+        // A socket node that was bound once and is no longer served.
+        let staleSocketPath = root.appendingPathComponent("stale.sock").path
+        let socketFD = socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(socketFD, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let pathBytes = Array(staleSocketPath.utf8CString)
+        XCTAssertLessThan(pathBytes.count, MemoryLayout.size(ofValue: address.sun_path))
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            for (index, byte) in pathBytes.enumerated() {
+                buffer[index] = UInt8(bitPattern: byte)
+            }
+        }
+        let bindResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                Darwin.bind(socketFD, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(bindResult, 0, String(cString: strerror(errno)))
+        close(socketFD)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleSocketPath))
+
+        let run = runProcess(
+            executablePath: "/bin/sh",
+            arguments: ["-c", command],
+            environment: [
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+                "CMUX_BUNDLED_CLI_PATH": ambientCLI,
+                "CMUX_SOCKET_PATH": staleSocketPath,
+            ],
+            timeout: 10
+        )
+        XCTAssertFalse(run.timedOut, run.stderr)
+        XCTAssertEqual(run.status, 0, run.stderr)
+
+        let calls = try String(contentsOfFile: callLogPath, encoding: .utf8)
+            .split(separator: "\n")
+            .map(String.init)
+        XCTAssertEqual(calls.count, 2, "expected the ambient attempt and then the pinned fallback, saw \(calls)")
+        XCTAssertEqual(
+            calls.first,
+            "ambient-cmux --socket \(staleSocketPath) hooks antigravity session-start"
+        )
+        XCTAssertEqual(
+            calls.last,
+            "pinned-cmux --socket \(pinnedSocketPath) hooks antigravity session-start"
+        )
+    }
+
     func testKiroHookInstallUsesAgentConfigShapeAndPreservesDenyExit() throws {
         let cliPath = try bundledCLIPath()
         let root = FileManager.default.temporaryDirectory
