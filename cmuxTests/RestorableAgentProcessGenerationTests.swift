@@ -20,9 +20,216 @@ struct RestorableAgentProcessGenerationTests {
         sessionID: String,
         processID: Int,
         updatedAt: TimeInterval,
-        storeURL: URL,
-        previousHookStateDirectory: String?
+        storeURL: URL
     )
+
+    @Test("A PID lost before watcher installation is revalidated without a TTL reload",
+          .timeLimit(.minutes(1)), arguments: [false, true])
+    func deadPIDAtWatcherInstallationRefreshesCachedLiveness(useBatchArming: Bool) async throws {
+        let fixture = try makeFixture(prefix: "cmux-dead-pid-watcher-arm")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        try writeStoredProcessIdentity(identity, to: fixture)
+        let cachedIndex = loadRunningFixture(
+            fixture,
+            processArguments: codexProcessArguments(for: fixture),
+            processIdentity: identity
+        )
+        let sharedIndex = SharedLiveAgentIndex(
+            indexLoader: {
+                (index: cachedIndex,
+                 liveAgentProcessFingerprint: cachedIndex.liveAgentProcessFingerprint(),
+                 processScopeFingerprint: [],
+                 forkValidatedPanels: [])
+            },
+            hookStoreDirectoryProvider: { fixture.hookStateDirectory.path },
+            dateProvider: { Date(timeIntervalSince1970: fixture.updatedAt) }
+        )
+        _ = await sharedIndex.indexRefreshingNow()
+        #expect(sharedIndex.index?.entry(
+            workspaceId: fixture.workspaceID, panelId: fixture.panelID
+        )?.processLiveness == .running)
+        // The injected cache describes a former generation; this PID cannot
+        // be armed on the real process table used by the watcher boundary.
+        try #require(AgentPIDProcessIdentity(pid: pid_t(fixture.processID)) == nil)
+
+        let ownerID = UUID()
+        sharedIndex.setSidebarProcessMonitoringEnabled(true, ownerID: ownerID)
+        defer { sharedIndex.setSidebarProcessMonitoringEnabled(false, ownerID: ownerID) }
+        let panelID = fixture.panelID
+        let (changes, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let observer = NotificationCenter.default.addObserver(
+            forName: .sharedLiveAgentIndexDidChange, object: sharedIndex, queue: nil
+        ) { notification in
+            if (notification.userInfo?["panelIds"] as? Set<UUID>)?.contains(panelID) == true {
+                continuation.yield(())
+            }
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+            continuation.finish()
+        }
+
+        if useBatchArming {
+            sharedIndex.armSidebarProcessExitWatchers(
+                panelIDs: [panelID], workspaceIDByPanelID: [panelID: fixture.workspaceID]
+            )
+        } else {
+            sharedIndex.armSidebarProcessExitWatcher(
+                pid: fixture.processID, panelID: panelID, workspaceID: fixture.workspaceID
+            )
+        }
+        var iterator = changes.makeAsyncIterator()
+        guard case .some = await iterator.next() else {
+            Issue.record("Watcher installation did not publish the lost process generation")
+            return
+        }
+        #expect(sharedIndex.index?.entry(
+            workspaceId: fixture.workspaceID, panelId: panelID
+        )?.processLiveness == .exited)
+    }
+
+    @Test("Stale other-kind runtime metadata cannot hide a live hook session", arguments: [false, true])
+    func liveHookSessionSurvivesOtherKindRuntime(hasLifecycle: Bool) throws {
+        let fixture = try makeFixture(prefix: "cmux-other-kind-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        if hasLifecycle {
+            workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["claude_code": .running]
+        } else {
+            workspace.agentPIDKeysByPanelId[fixture.panelID] = ["claude_code.old-session"]
+        }
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let codex = try #require(activity.agents.first { $0.statusKey == "codex" })
+        #expect(codex.state == .running)
+        #expect(codex.startedAt == startedAt)
+        #expect(codex.elapsed(at: Date(timeIntervalSince1970: fixture.updatedAt)) == 120)
+        #expect(activity.primaryElapsedStart == startedAt)
+        #expect(activity.agents.first { $0.statusKey == "claude_code" }?.startedAt == nil)
+    }
+
+    @Test("Stale same-kind PID bindings cannot hide the current live hook generation",
+          arguments: ["same-session", "previous-session", "legacy-key", "missing-identity"],
+          [AgentHibernationLifecycleState.running, .needsInput, .idle, .unknown])
+    func liveHookSessionSurvivesStaleSameKindRuntime(
+        binding: String,
+        lifecycle: AgentHibernationLifecycleState
+    ) throws {
+        let fixture = try makeFixture(prefix: "cmux-same-kind-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: lifecycle, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        let runtimeKey = switch binding {
+        case "previous-session": "codex.previous-session"
+        case "legacy-key": "codex"
+        default: "codex.\(fixture.sessionID)"
+        }
+        workspace.agentPIDKeysByPanelId[fixture.panelID] = [runtimeKey]
+        if binding != "missing-identity" {
+            workspace.agentPIDProcessIdentitiesByKey[runtimeKey] = AgentPIDProcessIdentity(
+                pid: identity.pid, startSeconds: identity.startSeconds - 60, startMicroseconds: 0
+            )
+            // A delayed lifecycle cleanup must not override the new hook either.
+            workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .needsInput]
+        }
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let expectedState: SidebarAgentResolvedState = switch lifecycle {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .idle: .idle
+        case .unknown: .unknown
+        }
+        #expect(activity.agents.count == 1)
+        #expect(activity.activity(forStatusKey: "codex")?.state == expectedState)
+        #expect(activity.primaryState == expectedState)
+        #expect(activity.agents.first?.startedAt == startedAt)
+        #expect(activity.activeCodingAgentCount == (lifecycle == .running ? 1 : 0))
+        #expect(activity.primaryElapsedStart == (lifecycle == .running ? startedAt : nil))
+    }
+
+    @Test("A lifecycle-only update keeps the cached hook session elapsed anchor")
+    func lifecycleOnlyRuntimeRetainsCachedHookElapsedAnchor() throws {
+        let fixture = try makeFixture(prefix: "cmux-lifecycle-only-sidebar")
+        defer { cleanup(fixture) }
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture, processArguments: codexProcessArguments(for: fixture), processIdentity: identity
+        )
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .needsInput]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        let codex = try #require(activity.activity(forStatusKey: "codex"))
+
+        #expect(codex.state == .needsInput)
+        #expect(codex.startedAt == startedAt)
+    }
+
+    @Test("An unverified index cannot promote a stale runtime PID to running")
+    func unverifiedHookCannotPromoteStaleSameKindRuntime() throws {
+        let fixture = try makeFixture(prefix: "cmux-unverified-same-kind-sidebar")
+        defer { cleanup(fixture) }
+        try writeHookTimingState(startedAt: fixture.updatedAt - 120, lifecycle: .running, to: fixture)
+        let index = loadHookFixture(fixture)
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentPIDKeysByPanelId[fixture.panelID] = ["codex.\(fixture.sessionID)"]
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["codex": .running]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == .unknown)
+        #expect(activity.primaryElapsedStart == nil)
+        #expect(activity.activeCodingAgentCount == 0)
+    }
+
+    @Test("A live replacement kind still supersedes a non-live cached hook")
+    func liveReplacementKindSupersedesNonLiveHook() throws {
+        let fixture = try makeFixture(prefix: "cmux-replacement-kind-sidebar")
+        defer { cleanup(fixture) }
+        try writeHookTimingState(startedAt: fixture.updatedAt - 120, lifecycle: .running, to: fixture)
+        let index = loadHookFixture(fixture)
+        let workspace = Workspace(id: fixture.workspaceID, initialSurface: .cloudVMLoading)
+        workspace.agentLifecycleStatesByPanelId[fixture.panelID] = ["claude_code": .running]
+
+        let activity = workspace.sidebarWorkspaceAgentActivity(index: index)
+        #expect(activity.agents.map(\.statusKey) == ["claude_code"])
+        #expect(activity.primaryState == .running)
+        #expect(activity.primaryElapsedStart == nil)
+    }
 
     @Test("Shared cache publishes unknown-to-exited liveness transitions")
     func sharedCachePublishesUnknownToExitedLivenessTransitions() async throws {
@@ -34,6 +241,7 @@ struct RestorableAgentProcessGenerationTests {
             fileManager: fixture.fileManager,
             registry: CmuxVaultAgentRegistry(registrations: []),
             detectedSnapshots: [:],
+            environment: ["CMUX_AGENT_HOOK_STATE_DIR": fixture.hookStateDirectory.path],
             processArgumentsProvider: { _ in nil },
             processPresenceProvider: { _ in .unknown },
             processIdentityProvider: { _ in nil }
@@ -43,6 +251,7 @@ struct RestorableAgentProcessGenerationTests {
             fileManager: fixture.fileManager,
             registry: CmuxVaultAgentRegistry(registrations: []),
             detectedSnapshots: [:],
+            environment: ["CMUX_AGENT_HOOK_STATE_DIR": fixture.hookStateDirectory.path],
             processArgumentsProvider: { _ in nil },
             processPresenceProvider: { _ in .absent },
             processIdentityProvider: { _ in nil }
@@ -144,6 +353,86 @@ struct RestorableAgentProcessGenerationTests {
         #expect(resolved?.snapshot.sessionId == fixture.sessionID)
         #expect(identityProbeCount == 0)
         #expect(presenceProbeCount == 0)
+    }
+
+    @Test("Restored sidebar liveness validates the launch workspace, not its new UI owner", arguments: [false, true])
+    func restoredSidebarLivenessUsesLaunchWorkspace(processUsesRestoredWorkspace: Bool) throws {
+        let fixture = try makeFixture(prefix: "cmux-restored-sidebar-liveness")
+        defer { cleanup(fixture) }
+        let restoredWorkspaceID = UUID()
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture,
+            processArguments: codexProcessArguments(for: fixture),
+            processIdentity: identity
+        )
+        let before = try #require(index.sidebarEntry(
+            workspaceId: restoredWorkspaceID,
+            panelId: fixture.panelID
+        ))
+        #expect(before.processLiveness == .running)
+        #expect(before.startedAt == startedAt)
+
+        let processWorkspaceID = processUsesRestoredWorkspace ? restoredWorkspaceID : fixture.workspaceID
+        let processSnapshot = CmuxTopProcessSnapshot(
+            processes: [CmuxTopProcessInfo(
+                pid: fixture.processID,
+                parentPID: 1,
+                name: "codex",
+                path: "/usr/local/bin/codex",
+                ttyDevice: nil,
+                cmuxWorkspaceID: processWorkspaceID,
+                cmuxSurfaceID: fixture.panelID,
+                cmuxAttributionReason: "environment",
+                processGroupID: nil,
+                terminalProcessGroupID: nil,
+                cpuPercent: 0,
+                residentBytes: 1,
+                virtualBytes: 1,
+                threadCount: 1
+            )],
+            sampledAt: Date(timeIntervalSince1970: fixture.updatedAt),
+            includesProcessDetails: true
+        )
+        let revalidated = index.revalidatingCachedProcesses(
+            against: processSnapshot,
+            panelIDs: [fixture.panelID],
+            processArgumentsProvider: { _ in
+                CmuxTopProcessArguments(
+                    arguments: ["/usr/local/bin/codex"],
+                    environment: [
+                        "CMUX_AGENT_LAUNCH_KIND": "codex",
+                        "CMUX_WORKSPACE_ID": processWorkspaceID.uuidString,
+                        "CMUX_SURFACE_ID": fixture.panelID.uuidString,
+                    ]
+                )
+            },
+            processIdentityProvider: { _ in identity }
+        )
+        let after = try #require(revalidated.sidebarEntry(
+            workspaceId: restoredWorkspaceID,
+            panelId: fixture.panelID
+        ))
+        #expect(after.processLiveness == (processUsesRestoredWorkspace ? .exited : .running))
+        #expect(after.agentProcessIDs == (processUsesRestoredWorkspace ? [] : [fixture.processID]))
+        #expect(after.processIDs == (processUsesRestoredWorkspace ? [] : [fixture.processID]))
+        #expect(after.startedAt == startedAt)
+        #expect(after.snapshot.sessionId == fixture.sessionID)
+        let state = SidebarAgentResolvedState(
+            lifecycle: after.lifecycle,
+            processLiveness: after.processLiveness,
+            hasExactProcessIdentity: !after.agentProcessIdentities.isEmpty,
+            hasLiveLifecycleSignal: false,
+            hasDeterministicSignal: true
+        )
+        #expect(state == (processUsesRestoredWorkspace ? .unknown : .running))
     }
 
     @Test("A later process generation cannot satisfy a stale hook PID")
@@ -358,6 +647,60 @@ struct RestorableAgentProcessGenerationTests {
         )?.agentProcessIdentities[fixture.processID] == secondIdentity)
     }
 
+    @Test("Live index fingerprint publishes lifecycle and elapsed-anchor changes")
+    func liveIndexFingerprintPublishesLifecycleAndElapsedAnchorChanges() throws {
+        let fixture = try makeFixture(prefix: "cmux-agent-elapsed-fingerprint")
+        defer { cleanup(fixture) }
+
+        try writeHookTimingState(startedAt: 100, lifecycle: .running, to: fixture)
+        let first = loadHookFixture(fixture)
+        try writeHookTimingState(startedAt: 200, lifecycle: .running, to: fixture)
+        let second = loadHookFixture(fixture)
+        try writeHookTimingState(startedAt: 200, lifecycle: .needsInput, to: fixture)
+        let third = loadHookFixture(fixture)
+
+        #expect(first.entry(
+            workspaceId: fixture.workspaceID,
+            panelId: fixture.panelID
+        )?.startedAt == 100)
+        #expect(second.entry(
+            workspaceId: fixture.workspaceID,
+            panelId: fixture.panelID
+        )?.startedAt == 200)
+        #expect(first.liveAgentProcessFingerprint() != second.liveAgentProcessFingerprint())
+        #expect(second.liveAgentProcessFingerprint() != third.liveAgentProcessFingerprint())
+    }
+
+    @Test("Index fingerprint changes stay scoped to affected workspace panels")
+    func indexFingerprintChangesStayScopedToAffectedWorkspacePanels() {
+        let firstWorkspace = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
+        let firstPanel = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
+        let secondWorkspace = UUID(uuidString: "00000000-0000-0000-0000-000000000201")!
+        let secondPanel = UUID(uuidString: "00000000-0000-0000-0000-000000000202")!
+        let addedWorkspace = UUID(uuidString: "00000000-0000-0000-0000-000000000301")!
+        let addedPanel = UUID(uuidString: "00000000-0000-0000-0000-000000000302")!
+
+        let previous: Set<String> = [
+            "\(firstWorkspace.uuidString)|\(firstPanel.uuidString)|old",
+            "\(secondWorkspace.uuidString)|\(secondPanel.uuidString)|same",
+        ]
+        let current: Set<String> = [
+            "\(firstWorkspace.uuidString)|\(firstPanel.uuidString)|new",
+            "\(secondWorkspace.uuidString)|\(secondPanel.uuidString)|same",
+            "\(addedWorkspace.uuidString)|\(addedPanel.uuidString)|added",
+        ]
+
+        let changeSet = RestorableAgentSessionIndexChangeSet(
+            previous: previous,
+            current: current
+        )
+
+        #expect(changeSet.panelIdsByWorkspaceId == [
+            firstWorkspace: Set([firstPanel]),
+            addedWorkspace: Set([addedPanel]),
+        ])
+    }
+
     private func loadRunningFixture(
         _ fixture: Fixture,
         processArguments: CmuxTopProcessArguments,
@@ -368,6 +711,7 @@ struct RestorableAgentProcessGenerationTests {
             fileManager: fixture.fileManager,
             registry: CmuxVaultAgentRegistry(registrations: []),
             detectedSnapshots: [:],
+            environment: ["CMUX_AGENT_HOOK_STATE_DIR": fixture.hookStateDirectory.path],
             processArgumentsProvider: { pid in
                 pid == fixture.processID ? processArguments : nil
             },
@@ -375,6 +719,19 @@ struct RestorableAgentProcessGenerationTests {
             processIdentityProvider: { pid in
                 pid == fixture.processID ? processIdentity : nil
             }
+        )
+    }
+
+    private func loadHookFixture(_ fixture: Fixture) -> RestorableAgentSessionIndex {
+        RestorableAgentSessionIndex.load(
+            homeDirectory: fixture.root.path,
+            fileManager: fixture.fileManager,
+            registry: CmuxVaultAgentRegistry(registrations: []),
+            detectedSnapshots: [:],
+            environment: ["CMUX_AGENT_HOOK_STATE_DIR": fixture.hookStateDirectory.path],
+            processArgumentsProvider: { _ in nil },
+            processPresenceProvider: { _ in .unknown },
+            processIdentityProvider: { _ in nil }
         )
     }
 
@@ -409,13 +766,32 @@ struct RestorableAgentProcessGenerationTests {
         try data.write(to: fixture.storeURL, options: .atomic)
     }
 
+    private func writeHookTimingState(
+        startedAt: TimeInterval,
+        lifecycle: AgentHibernationLifecycleState,
+        to fixture: Fixture
+    ) throws {
+        var store = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixture.storeURL)) as? [String: Any]
+        )
+        var sessions = try #require(store["sessions"] as? [String: Any])
+        var record = try #require(sessions[fixture.sessionID] as? [String: Any])
+        record["startedAt"] = startedAt
+        record["agentLifecycle"] = lifecycle.rawValue
+        sessions[fixture.sessionID] = record
+        store["sessions"] = sessions
+        let data = try JSONSerialization.data(
+            withJSONObject: store,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: fixture.storeURL, options: .atomic)
+    }
+
     private func makeFixture(prefix: String) throws -> Fixture {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
         let hookStateDirectory = root.appendingPathComponent("hook-state", isDirectory: true)
-        let previousHookStateDirectory = getenv("CMUX_AGENT_HOOK_STATE_DIR").map { String(cString: $0) }
-
         let workspaceID = UUID()
         let panelID = UUID()
         let sessionID = "codex-generation-session"
@@ -440,7 +816,7 @@ struct RestorableAgentProcessGenerationTests {
                 "arguments": ["/usr/local/bin/codex"],
                 "workingDirectory": "/tmp/repo",
                 "capturedAt": updatedAt,
-                "source": "test",
+                "source": "default",
             ],
         ]
         let data = try JSONSerialization.data(
@@ -448,7 +824,6 @@ struct RestorableAgentProcessGenerationTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try data.write(to: storeURL, options: .atomic)
-        setenv("CMUX_AGENT_HOOK_STATE_DIR", hookStateDirectory.path, 1)
         return (
             root: root,
             hookStateDirectory: hookStateDirectory,
@@ -458,17 +833,11 @@ struct RestorableAgentProcessGenerationTests {
             sessionID: sessionID,
             processID: processID,
             updatedAt: updatedAt,
-            storeURL: storeURL,
-            previousHookStateDirectory: previousHookStateDirectory
+            storeURL: storeURL
         )
     }
 
     private func cleanup(_ fixture: Fixture) {
-        if let previousHookStateDirectory = fixture.previousHookStateDirectory {
-            setenv("CMUX_AGENT_HOOK_STATE_DIR", previousHookStateDirectory, 1)
-        } else {
-            unsetenv("CMUX_AGENT_HOOK_STATE_DIR")
-        }
         try? fixture.fileManager.removeItem(at: fixture.root)
     }
 }

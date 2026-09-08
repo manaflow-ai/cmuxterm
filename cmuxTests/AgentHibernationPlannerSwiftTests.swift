@@ -193,6 +193,7 @@ struct AgentHibernationPlannerSwiftTests {
             ),
             lifecycle: .idle,
             updatedAt: 0,
+            provenance: .heuristicProcessDetection,
             processLiveness: .exited,
             processIDs: [],
             processIdentities: [:],
