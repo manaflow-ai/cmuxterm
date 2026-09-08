@@ -399,6 +399,59 @@ struct AgentPromptSubmissionServiceTests {
     }
 
     @MainActor
+    @Test func hookConfirmationDuringDeliveryReleasesBarrierWithoutStall() {
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 8)
+        let workspaceID = UUID()
+        let surfaceID = UUID()
+        let state = SubmissionTestState()
+
+        let first = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: surfaceID,
+            text: "first",
+            delivery: { messageID in
+                #expect(service.confirm(
+                    workspaceID: workspaceID,
+                    surfaceID: surfaceID,
+                    messageID: messageID
+                ))
+                state.nestedReceipt = service.submit(
+                    workspaceID: workspaceID,
+                    requestedSurfaceID: surfaceID,
+                    text: "nested",
+                    delivery: { _ in
+                        .submitted(
+                            workspaceID: workspaceID,
+                            surfaceID: surfaceID,
+                            queued: false
+                        )
+                    }
+                )
+                return .submitted(
+                    workspaceID: workspaceID,
+                    surfaceID: surfaceID,
+                    queued: false
+                )
+            }
+        )
+
+        #expect(first.result == .submitted(
+            workspaceID: workspaceID,
+            surfaceID: surfaceID,
+            queued: false
+        ))
+        #expect(state.nestedReceipt?.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: surfaceID,
+            reason: "workspace_fifo"
+        ))
+        #expect(!service.hasInFlight(workspaceID: workspaceID))
+        #expect(service.drain(workspaceID: workspaceID).map(\.messageID) == [
+            state.nestedReceipt?.messageID,
+        ].compactMap { $0 })
+    }
+
+    @MainActor
     @Test func terminalDrainAndRemovalReconcilePendingByteBudget() {
         let workspaceID = UUID()
         let surfaceID = UUID()

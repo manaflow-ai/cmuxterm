@@ -178,12 +178,19 @@ public final class AgentPromptSubmissionService {
             )
         }
 
-        // Install the re-entrancy barrier before invoking user-owned delivery
-        // code. A synchronous hook/observer callback may submit another
-        // message for this workspace from inside `delivery`.
+        // Install the workspace barrier before invoking user-owned delivery
+        // code. A synchronous hook/observer callback may confirm this message
+        // (or submit another message) from inside `delivery`. The provisional
+        // surface is reconciled with the delivery result below.
+        beginInFlight(
+            messageID: messageID,
+            workspaceID: workspaceID,
+            surfaceID: requestedSurfaceID
+        )
         let result = deliver(request)
         switch result {
         case .rejectedComposerBusy(let resolvedWorkspaceID, let surfaceID):
+            discardInFlight(messageID: messageID, workspaceID: workspaceID)
             guard enqueue(request, surfaceID: surfaceID, atFront: true) else {
                 return Receipt(
                     messageID: messageID,
@@ -202,6 +209,7 @@ public final class AgentPromptSubmissionService {
                 )
             )
         case .agentBusy(let resolvedWorkspaceID, let surfaceID):
+            discardInFlight(messageID: messageID, workspaceID: workspaceID)
             guard enqueue(request, surfaceID: surfaceID, atFront: true) else {
                 return Receipt(
                     messageID: messageID,
@@ -220,6 +228,7 @@ public final class AgentPromptSubmissionService {
                 )
             )
         case .agentScopeUnavailable(let resolvedWorkspaceID, let surfaceID):
+            discardInFlight(messageID: messageID, workspaceID: workspaceID)
             guard enqueue(request, surfaceID: surfaceID, atFront: true) else {
                 return Receipt(
                     messageID: messageID,
@@ -239,6 +248,7 @@ public final class AgentPromptSubmissionService {
             )
         case .submitted(let resolvedWorkspaceID, let surfaceID, let queued):
             if queued {
+                discardInFlight(messageID: messageID, workspaceID: workspaceID)
                 // The terminal already owns the compound transaction in its
                 // cold-surface queue. Re-enqueuing it here would replay the
                 // same message after startup and can duplicate delivery.
@@ -251,7 +261,7 @@ public final class AgentPromptSubmissionService {
                     )
                 )
             }
-            beginInFlight(
+            reconcileSubmittedInFlight(
                 messageID: messageID,
                 workspaceID: workspaceID,
                 surfaceID: surfaceID
@@ -265,6 +275,7 @@ public final class AgentPromptSubmissionService {
                 )
             )
         case .queued(let resolvedWorkspaceID, let surfaceID, let reason):
+            discardInFlight(messageID: messageID, workspaceID: workspaceID)
             // A delivery implementation may itself defer a transaction. Keep
             // the original request ahead of any submissions made re-entrantly
             // by that implementation; otherwise the callback-created request
@@ -287,6 +298,7 @@ public final class AgentPromptSubmissionService {
                 )
             )
         default:
+            discardInFlight(messageID: messageID, workspaceID: workspaceID)
             return Receipt(messageID: messageID, result: result)
         }
     }
@@ -309,6 +321,13 @@ public final class AgentPromptSubmissionService {
 
         var completed: [Receipt] = []
         while let first = pendingByWorkspace[workspaceID]?.first {
+            // Keep the workspace barrier installed while the delivery callback
+            // runs so an early hook confirmation cannot be lost.
+            beginInFlight(
+                messageID: first.messageID,
+                workspaceID: workspaceID,
+                surfaceID: first.surfaceID
+            )
             let result = deliver(first)
             switch result {
             case .rejectedComposerBusy,
@@ -316,12 +335,16 @@ public final class AgentPromptSubmissionService {
                  .agentScopeUnavailable,
                  .agentNotFound,
                  .ambiguousAgent:
+                discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
                 // Target resolution can briefly lose an agent while a cold
                 // or hibernated surface is rebinding. Retain the request;
                 // explicit workspace/surface removal is the terminal cleanup
                 // path and prevents a prompt from being lost on a wake race.
                 return completed
             case .submitted(let resolvedWorkspaceID, let surfaceID, let queued):
+                if queued {
+                    discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
+                }
                 guard var pending = pendingByWorkspace[workspaceID],
                       pending.first?.messageID == first.messageID else {
                     return completed
@@ -349,7 +372,7 @@ public final class AgentPromptSubmissionService {
                     )
                     return completed
                 }
-                beginInFlight(
+                reconcileSubmittedInFlight(
                     messageID: first.messageID,
                     workspaceID: workspaceID,
                     surfaceID: surfaceID
@@ -369,11 +392,13 @@ public final class AgentPromptSubmissionService {
                 // explicit confirmation deadline) before delivery.
                 return completed
             case .queued:
+                discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
                 // The delivery closure already deferred this request. It is
                 // still the first FIFO item and must not be removed or retried
                 // recursively until a later readiness event calls `drain`.
                 return completed
             default:
+                discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
                 // A permanently missing workspace or surface is terminal for
                 // the retained request; do not retry it forever.
                 guard var pending = pendingByWorkspace[workspaceID],
@@ -410,12 +435,18 @@ public final class AgentPromptSubmissionService {
         surfaceID: UUID,
         messageID: UUID
     ) -> Bool {
-        guard let inFlight = inFlightByWorkspace[workspaceID],
-              inFlight.surfaceID == surfaceID,
-              inFlight.messageID == messageID else {
+        guard var inFlight = inFlightByWorkspace[workspaceID],
+              inFlight.messageID == messageID,
+              (inFlight.surfaceID == nil || inFlight.surfaceID == surfaceID) else {
             return false
         }
-        inFlightByWorkspace.removeValue(forKey: workspaceID)
+        inFlight.surfaceID = surfaceID
+        inFlight.didConfirm = true
+        if deliveryInProgressWorkspaces.contains(workspaceID) {
+            inFlightByWorkspace[workspaceID] = inFlight
+        } else {
+            inFlightByWorkspace.removeValue(forKey: workspaceID)
+        }
         return true
     }
 
@@ -526,13 +557,39 @@ public final class AgentPromptSubmissionService {
     private func beginInFlight(
         messageID: UUID,
         workspaceID: UUID,
-        surfaceID: UUID
+        surfaceID: UUID?
     ) {
         inFlightByWorkspace[workspaceID] = AgentPromptSubmissionInFlightRequest(
             messageID: messageID,
             surfaceID: surfaceID,
-            acceptedAt: now()
+            acceptedAt: now(),
+            didConfirm: false
         )
+    }
+
+    private func reconcileSubmittedInFlight(
+        messageID: UUID,
+        workspaceID: UUID,
+        surfaceID: UUID
+    ) {
+        guard var inFlight = inFlightByWorkspace[workspaceID],
+              inFlight.messageID == messageID else {
+            return
+        }
+        if inFlight.didConfirm {
+            inFlightByWorkspace.removeValue(forKey: workspaceID)
+            return
+        }
+        inFlight.surfaceID = surfaceID
+        inFlight.acceptedAt = now()
+        inFlightByWorkspace[workspaceID] = inFlight
+    }
+
+    private func discardInFlight(messageID: UUID, workspaceID: UUID) {
+        guard inFlightByWorkspace[workspaceID]?.messageID == messageID else {
+            return
+        }
+        inFlightByWorkspace.removeValue(forKey: workspaceID)
     }
 
     private func enqueue(
