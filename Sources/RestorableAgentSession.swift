@@ -1082,14 +1082,17 @@ struct RestorableAgentSessionIndex: Sendable {
     /// Whether the hook store that owns `kind` was read and decoded.
     ///
     /// Callers without a kind, and fixtures that mark the whole index
-    /// incomplete without naming a store, keep the global answer.
+    /// incomplete without naming a store, keep the global answer. Stores are
+    /// matched by kind id: registry-owned kinds (pi, grok, antigravity, kimi,
+    /// ollama) load as `.custom(id)` while their raw value parses to the
+    /// native case, and both name the same store file.
     private func hookStoreIsComplete(forKind kind: String?) -> Bool {
         if isComplete { return true }
         guard !incompleteHookStoreKinds.isEmpty,
-              let kind = kind.flatMap({ RestorableAgentKind(rawValue: $0) }) else {
+              let kindID = kind.flatMap({ RestorableAgentKind(rawValue: $0)?.rawValue }) else {
             return false
         }
-        return !incompleteHookStoreKinds.contains(kind)
+        return !incompleteHookStoreKinds.contains { $0.rawValue == kindID }
     }
 
     /// Fingerprint used by the shared index cache to publish scoped completion

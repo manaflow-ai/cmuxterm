@@ -129,11 +129,24 @@ struct AgentRestoreLiveOwnerAdmissionTests {
 
     @Test("An unreadable store for another agent kind does not block Amp admission")
     func corruptStoreForAnotherKindDoesNotBlockAmpAdmission() throws {
-        let fixture = try makeFixture(kind: .amp, ownerState: .dead, corruptStoreKinds: [.claude])
+        // Pi is registry-owned: its store loads as `.custom("pi")` while the
+        // kind string parses to the native case. Both must name the same
+        // (corrupt) store.
+        let fixture = try makeFixture(
+            kind: .amp,
+            ownerState: .dead,
+            corruptStoreKinds: [.claude, .custom("pi")]
+        )
         defer { fixture.cleanup() }
         let index = fixture.index
 
         #expect(!index.isComplete)
+        #expect(!index.isComplete(
+            forWorkspaceId: fixture.ownerWorkspaceID,
+            panelId: fixture.ownerSurfaceID,
+            kind: "pi"
+        ))
+        #expect(!index.isComplete(forPanelId: fixture.ownerSurfaceID, kind: "pi"))
         #expect(
             index.isComplete(
                 forWorkspaceId: fixture.ownerWorkspaceID,
@@ -568,7 +581,7 @@ struct AgentRestoreLiveOwnerAdmissionTests {
             RestorableAgentSessionIndex.load(
                 homeDirectory: rootPath,
                 fileManager: .default,
-                registry: CmuxVaultAgentRegistry(registrations: [.builtInGrok, .builtInAmp]),
+                registry: CmuxVaultAgentRegistry(registrations: [.builtInGrok, .builtInAmp, .builtInPi]),
                 detectedSnapshots: [:],
                 environment: hookEnvironment,
                 processArgumentsProvider: { candidatePID in
