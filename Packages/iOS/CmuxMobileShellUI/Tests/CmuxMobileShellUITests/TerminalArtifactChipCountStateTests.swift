@@ -223,6 +223,28 @@ struct TerminalArtifactChipCountStateTests {
         ) == .provisionalReport(.init(count: 0, surfaceGeneration: 2)))
     }
 
+    @Test("an unchanged visible count refreshes after the dedupe window")
+    func unchangedVisibleCountRefreshesAfterDedupeWindow() throws {
+        var state = TerminalArtifactChipCountState()
+        _ = try request(from: state.trigger(
+            localCount: 0,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+
+        let refreshGeneration = TerminalArtifactChipCountState.maxDedupeSurfaceGenerationGap + 1
+        guard case .reportAndRequest(_, let refresh) = state.trigger(
+            localCount: 0,
+            surfaceGeneration: refreshGeneration,
+            supportsSessionCount: true
+        ) else {
+            Issue.record("Expected the unchanged count to refresh after the dedupe window")
+            throw UnexpectedAction()
+        }
+        #expect(refresh.localCount == 0)
+        #expect(refresh.surfaceGeneration == refreshGeneration)
+    }
+
     @Test("a repeated queued count keeps its follow-up scan")
     func repeatedQueuedCountKeepsTrailingScan() throws {
         var state = TerminalArtifactChipCountState()
