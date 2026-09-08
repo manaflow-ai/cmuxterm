@@ -295760,6 +295760,40 @@
         }
       }
     },
+    "agentRestore.admission.unavailable.hookStoreUnreadable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux could not read its saved session records for this agent, so it cannot tell whether the session is already running. Retry 'cmux restore --surface'."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このエージェントの保存済みセッション記録を読み取れなかったため、セッションがすでに実行中かどうかを cmux で判断できません。「cmux restore --surface」を再試行してください。"
+          }
+        }
+      }
+    },
+    "agentRestore.admission.unavailable.timedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux could not finish checking whether this agent session is already running before the time limit. Retry 'cmux restore --surface'."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このエージェントセッションがすでに実行中かどうかの確認が制限時間内に終わりませんでした。「cmux restore --surface」を再試行してください。"
+          }
+        }
+      }
+    },
     "agentRestore.liveOwner.notice": {
       "extractionState": "manual",
       "localizations": {
@@ -295773,6 +295807,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "このエージェントセッションはプロセス %1$lld ですでに実行中です。cmux は別のコピーを起動しませんでした。このターミナルで引き継ぐには、プロセス %1$lld を停止してから、もう一度「cmux restore --surface」を実行してください。"
+          }
+        }
+      }
+    },
+    "agentRestore.unverifiable.notice": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux could not verify whether this agent session is already running, so it did not resume the session automatically. Run 'cmux restore --surface' to resume it here."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このエージェントセッションがすでに実行中かどうかを cmux で確認できなかったため、セッションを自動的に再開しませんでした。このターミナルで再開するには「cmux restore --surface」を実行してください。"
           }
         }
       }

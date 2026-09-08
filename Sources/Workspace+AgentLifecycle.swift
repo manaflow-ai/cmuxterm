@@ -618,15 +618,18 @@ extension Workspace {
         deferredAgentResumeRestoresByPanelId[panelId] = restore
         guard deferredAgentResumeIndexTask == nil else { return }
         deferredAgentResumeIndexTask = Task { @MainActor [weak self] in
-            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow()
+            let outcome = await SharedLiveAgentIndex.shared.indexForOwnershipDecision()
             guard !Task.isCancelled else { return }
             guard let self else { return }
             self.deferredAgentResumeIndexTask = nil
-            guard let index else {
+            switch outcome {
+            case .index(let index):
+                self.resolveDeferredAgentResumeRestores(using: index)
+            case .timedOut:
+                self.explainUnverifiableDeferredAgentResumeRestores()
+            case .cancelled:
                 self.clearDeferredAgentResumeRestores()
-                return
             }
-            self.resolveDeferredAgentResumeRestores(using: index)
         }
     }
 
@@ -704,36 +707,14 @@ extension Workspace {
                 nil
             }
             if let liveSessionOwner {
-                let noticeInput = AgentRestoreLiveOwnerNotice(
-                    processID: liveSessionOwner.processID
-                ).startupInput(
-                    dialect: restore.restoresRemoteWorkspaceTerminalSnapshot
-                        ? .remoteHost
-                        : .loginShell
+                explainDeferredAgentResumeRestore(
+                    panelId: panelId,
+                    restore: restore,
+                    terminal: terminal,
+                    noticeInput: AgentRestoreLiveOwnerNotice(
+                        processID: liveSessionOwner.processID
+                    ).startupInput(dialect: Self.deferredNoticeDialect(for: restore))
                 )
-                removeDeferredAgentResumeRestore(panelId: panelId)
-                restoredAgentLifecycle.setResumeState(
-                    .manualResumeAvailable,
-                    panelId: panelId
-                )
-                if restore.remoteResumeCommandEmbedded {
-                    if let remoteResumeContext = restore.remoteResumeContext,
-                       let remoteNoticeCommand = persistentSSHLiveOwnerNoticeCommand(
-                           noticeInput
-                       ) {
-                        terminal.surface.setStartupRestoreAdmissionFallbackCommand(
-                            remotePTYAttachStartupCommand(
-                                sessionID: remoteResumeContext.persistentPTYSessionID,
-                                remoteCommand: remoteNoticeCommand
-                            )
-                        )
-                    }
-                    terminal.surface.cancelStartupRestoreAdmission()
-                } else {
-                    _ = terminal.surface.admitStartupRestoreRuntime(
-                        initialInput: noticeInput
-                    )
-                }
                 AgentRestoreSuppressionJournal().record(
                     kind: liveSessionOwner.kind,
                     sessionID: liveSessionOwner.sessionID,
@@ -969,6 +950,76 @@ extension Workspace {
             return
         }
         retireAgentHookResumeBinding(panelId: panelId)
+    }
+
+    /// Replaces a deferred automatic resume with a typed explanation, so the
+    /// pane says why nothing was resumed and how to resume it by hand.
+    private func explainDeferredAgentResumeRestore(
+        panelId: UUID,
+        restore: DeferredAgentResumeRestore,
+        terminal: TerminalPanel,
+        noticeInput: String
+    ) {
+        removeDeferredAgentResumeRestore(panelId: panelId)
+        restoredAgentLifecycle.setResumeState(
+            .manualResumeAvailable,
+            panelId: panelId
+        )
+        if restore.remoteResumeCommandEmbedded {
+            if let remoteResumeContext = restore.remoteResumeContext,
+               let remoteNoticeCommand = persistentSSHLiveOwnerNoticeCommand(
+                   noticeInput
+               ) {
+                terminal.surface.setStartupRestoreAdmissionFallbackCommand(
+                    remotePTYAttachStartupCommand(
+                        sessionID: remoteResumeContext.persistentPTYSessionID,
+                        remoteCommand: remoteNoticeCommand
+                    )
+                )
+            }
+            // The original remote attach command contains the agent resume
+            // payload. Cancel admission so the attach-only/notice fallback
+            // replaces it and the payload can never execute.
+            terminal.surface.cancelStartupRestoreAdmission()
+        } else {
+            _ = terminal.surface.admitStartupRestoreRuntime(
+                initialInput: noticeInput
+            )
+        }
+    }
+
+    private static func deferredNoticeDialect(
+        for restore: DeferredAgentResumeRestore
+    ) -> TerminalStartupShellDialect {
+        restore.restoresRemoteWorkspaceTerminalSnapshot ? .remoteHost : .loginShell
+    }
+
+    /// The live-agent scan did not finish inside the admission deadline, so
+    /// liveness is unknown. Say so in each pane instead of leaving a bare
+    /// prompt; the manual resume path re-checks ownership at exec (#12158).
+    private func explainUnverifiableDeferredAgentResumeRestores() {
+        for (panelId, restore) in Array(deferredAgentResumeRestoresByPanelId) {
+            guard deferredAgentResumeRestoresByPanelId[panelId] != nil else {
+                continue
+            }
+            guard let terminal = panels[panelId] as? TerminalPanel else {
+                removeDeferredAgentResumeRestore(panelId: panelId)
+                continue
+            }
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.admissionUnverifiable workspace=\(id.uuidString) panel=\(panelId.uuidString) kind=\(restore.restorableAgent?.kind.rawValue ?? restore.resumeBinding?.kind ?? "unknown")"
+            )
+#endif
+            explainDeferredAgentResumeRestore(
+                panelId: panelId,
+                restore: restore,
+                terminal: terminal,
+                noticeInput: AgentRestoreUnverifiableNotice()
+                    .startupInput(dialect: Self.deferredNoticeDialect(for: restore))
+            )
+        }
+        deferredAgentResumeRestoresByPanelId.removeAll()
     }
 
     func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
