@@ -806,6 +806,24 @@ jobs:
             exit 1
           fi
 
+      - name: Preserve browser test results and diagnostics
+        if: ${{ always() && inputs.verify_browser_runtime == true }}
+        run: |
+          set -euo pipefail
+          if [ -d "$CMUX_DERIVED_DATA_PATH/Logs/Test" ]; then
+            tar -czf "$RUNNER_TEMP/browser-test-results.tgz" \
+              -C "$CMUX_DERIVED_DATA_PATH/Logs" Test
+          fi
+
+      - name: Upload browser test results
+        if: ${{ always() && inputs.verify_browser_runtime == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/browser-test-results.tgz
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Re-verify browser runtime after tests
         if: ${{ always() && inputs.verify_browser_runtime == true }}
         env:
