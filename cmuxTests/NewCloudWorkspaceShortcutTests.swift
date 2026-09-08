@@ -113,7 +113,7 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
     }
 
     func testRebindPersistsThroughSettingsAPI() {
-        let rebound = StoredShortcut(key: "k", command: true, shift: true, option: false, control: false)
+        let rebound = StoredShortcut(key: "y", command: true, shift: false, option: true, control: false)
         KeyboardShortcutSettings.setShortcut(rebound, for: .newCloudWorkspace)
         XCTAssertEqual(KeyboardShortcutSettings.shortcut(for: .newCloudWorkspace), rebound)
         XCTAssertEqual(KeyboardShortcutSettings.menuShortcut(for: .newCloudWorkspace), rebound)
@@ -205,13 +205,13 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
     func testPlusMenuHintFollowsRebindAndUnbind() throws {
         setCloudMachinesEnabled(true)
         KeyboardShortcutSettings.setShortcut(
-            StoredShortcut(key: "k", command: true, shift: true, option: false, control: false),
+            StoredShortcut(key: "y", command: true, shift: false, option: true, control: false),
             for: .newCloudWorkspace
         )
         try withDefaultPlusMenu { menu in
             let item = try XCTUnwrap(builtInMenuRows(menu).first { $0.action == .newCloudWorkspace }?.item)
-            XCTAssertEqual(item.keyEquivalent, "k")
-            XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])
+            XCTAssertEqual(item.keyEquivalent, "y")
+            XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .option])
         }
 
         KeyboardShortcutSettings.setShortcut(.unbound, for: .newCloudWorkspace)
@@ -335,10 +335,13 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         let presenter = RecordingSheetPresenter()
         AppDelegate.newCloudWorkspaceSheetPresenterOverride = presenter
         AppDelegate.newCloudWorkspaceAuthStateOverride = .signedIn
-        KeyboardShortcutSettings.setShortcut(
-            StoredShortcut(key: "k", command: true, shift: true, option: false, control: false),
-            for: .newCloudWorkspace
-        )
+        // Option+Cmd+Y: no cmux default uses it, so the dispatcher reaches
+        // the newCloudWorkspace branch instead of an earlier action's match.
+        let rebound = StoredShortcut(key: "y", command: true, shift: false, option: true, control: false)
+        for action in KeyboardShortcutSettings.Action.allCases {
+            XCTAssertNotEqual(action.defaultShortcut, rebound, "\(action) defaults to the test rebind")
+        }
+        KeyboardShortcutSettings.setShortcut(rebound, for: .newCloudWorkspace)
         appDelegate.debugResetShortcutRoutingStateForTesting(clearFocusedWindowOverride: false)
 
         func keyEvent(_ characters: String, _ modifiers: NSEvent.ModifierFlags, _ keyCode: UInt16) throws -> NSEvent {
@@ -359,7 +362,7 @@ final class NewCloudWorkspaceShortcutTests: XCTestCase {
         _ = appDelegate.debugHandleCustomShortcut(event: try keyEvent("y", [.command], 16))
         XCTAssertEqual(presenter.presentCount, 0, "the old ⌘Y binding must not fire after a rebind")
 
-        XCTAssertTrue(appDelegate.debugHandleCustomShortcut(event: try keyEvent("K", [.command, .shift], 40)))
+        XCTAssertTrue(appDelegate.debugHandleCustomShortcut(event: try keyEvent("y", [.command, .option], 16)))
         XCTAssertEqual(presenter.presentCount, 1)
 #else
         throw XCTSkip("Shortcut routing seam is DEBUG-only")
