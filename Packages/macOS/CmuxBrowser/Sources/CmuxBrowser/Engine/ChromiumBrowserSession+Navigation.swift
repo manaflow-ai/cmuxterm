@@ -38,6 +38,16 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goBack() async throws {
+        if owlRuntime != nil {
+            beginNavigation()
+            do {
+                _ = try await evaluateJavaScript("history.back()", awaitPromise: false)
+            } catch {
+                failNavigation()
+                throw error
+            }
+            return
+        }
         beginNavigation()
         do {
             let history = try await navigationHistory(using: connection)
@@ -59,6 +69,16 @@ extension ChromiumBrowserSession {
     ///
     /// - Throws: A CDP transport error or malformed navigation history.
     public func goForward() async throws {
+        if owlRuntime != nil {
+            beginNavigation()
+            do {
+                _ = try await evaluateJavaScript("history.forward()", awaitPromise: false)
+            } catch {
+                failNavigation()
+                throw error
+            }
+            return
+        }
         beginNavigation()
         do {
             let history = try await navigationHistory(using: connection)
@@ -91,6 +111,20 @@ extension ChromiumBrowserSession {
     }
 
     private func reload(ignoreCache: Bool) async throws {
+        if owlRuntime != nil {
+            beginNavigation()
+            do {
+                // OWL has no cache-control Mojo command. A location reload
+                // still exercises the native renderer and preserves the same
+                // navigation lifecycle contract; hardReload therefore uses
+                // the renderer's ordinary reload semantics on this engine.
+                _ = try await evaluateJavaScript("location.reload()", awaitPromise: false)
+            } catch {
+                failNavigation()
+                throw error
+            }
+            return
+        }
         beginNavigation()
         do {
             _ = try await send(

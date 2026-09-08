@@ -99,9 +99,17 @@ final class ChromiumBrowserPaneEngineAdapter: BrowserPaneEngineAdapter {
                 }
                 try Task.checkCancellation()
                 try await session.start()
+                // OWL exposes a native Mojo surface and page evaluation, but
+                // it does not expose the CDP domains used for document-start
+                // script registration or media emulation. Do not turn a
+                // successful native startup into a failure by sending those
+                // CDP-only commands through its intentionally connectionless
+                // session.
                 if case .running(nil) = await session.snapshot().state {
-                    try await installStoredDocumentScripts()
-                    try await applyStoredColorScheme()
+                    if !(await session.usesNativeOWL()) {
+                        try await installStoredDocumentScripts()
+                        try await applyStoredColorScheme()
+                    }
                 }
                 if let initialURL {
                     try await session.navigate(to: initialURL)
