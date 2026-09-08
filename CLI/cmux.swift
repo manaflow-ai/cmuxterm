@@ -2947,7 +2947,8 @@ final class ClaudeHookSessionStore {
             existing.pidStartMicroseconds.map { (seconds, $0) }
         }
         if let expectedGeneration {
-            guard existingGeneration == expectedGeneration else { return false }
+            guard let existingGeneration,
+                  existingGeneration == expectedGeneration else { return false }
         } else if let expectedPID = expected.pid,
                   let existingPID = existing.pid,
                   expectedPID != existingPID {
