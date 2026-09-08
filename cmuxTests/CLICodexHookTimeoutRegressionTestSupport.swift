@@ -3,6 +3,9 @@ import Foundation
 import Darwin
 import Testing
 
+@_silgen_name("flock")
+private func cmuxTestFlock(_ fileDescriptor: Int32, _ operation: Int32) -> Int32
+
 struct InstalledHookEntry {
     let eventName: String
     let command: String
@@ -321,7 +324,7 @@ func verifyAgentHookClockSamplesOnlyAfterLockAcquisition(
         }
     }
 
-    let clockReachedLock = waitForCondition(timeout: 3) {
+    let clockReachedLock = waitForConditionBlocking(timeout: 3) {
         processTreeContainsExecutable(rootPID: process.processIdentifier, named: "lockf")
     }
     try #require(clockReachedLock, "Agent hook clock never reached its shared lock")
@@ -337,7 +340,7 @@ func verifyAgentHookClockSamplesOnlyAfterLockAcquisition(
         throw NSError(domain: "cmux.tests.agent-hook-clock", code: Int(ETIMEDOUT))
     }
     let rawValue = try String(contentsOf: outputURL, encoding: .utf8)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
     let capturedTime = try #require(TimeInterval(rawValue))
     #expect(capturedTime.isFinite && capturedTime > 0, Comment(rawValue: rawValue))
     #expect(

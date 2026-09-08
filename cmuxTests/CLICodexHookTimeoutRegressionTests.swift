@@ -290,7 +290,7 @@ struct CLICodexHookTimeoutRegressionTests {
         let promptHook = try #require(
             codexHookEntries(in: codexHome).first { $0.eventName == "UserPromptSubmit" }
         )
-        let clockShell = try agentHookCaptureClockShell(commandBody: promptHook.body)
+        let clockShell = try agentHookCaptureClockShell(in: promptHook.body)
         let clockDirectory = root.appendingPathComponent("cmux-agent-hook-clock-v2", isDirectory: true)
         let stateDirectory = clockDirectory.appendingPathComponent("state", isDirectory: true)
         try FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)

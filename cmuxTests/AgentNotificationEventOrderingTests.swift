@@ -1,5 +1,6 @@
 import CmuxControlSocket
 import CmuxCore
+import CmuxSidebar
 import Darwin
 import Foundation
 import Testing
@@ -10,6 +11,48 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
+    @Test("Newer lifecycle events do not veto a guarded current-binding clear", arguments: [false, true])
+    func newerLifecycleDoesNotInvalidateCurrentResumeBindingClear(useDock: Bool) throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let target: ControlSurfaceResumeTarget
+        let bindingTime: TimeInterval = 1_893_456_100
+        if useDock {
+            let dock = try #require(fixture.source.dockSplit)
+            let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
+            let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
+            try #require(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)
+            target = .dock(tabManager: fixture.manager, dock: dock, surfaceID: fixture.panelId)
+        } else {
+            target = .workspace(tabManager: fixture.manager, workspace: fixture.source, surfaceID: fixture.panelId)
+        }
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "codex", command: "codex resume current-checkpoint",
+            checkpointId: "current-checkpoint", source: "agent-hook", updatedAt: bindingTime
+        )
+        try #require(target.setBinding(binding, agentEventTime: bindingTime, requiresAgentEventTime: true))
+        switch target {
+        case .workspace(_, let workspace, let panelID):
+            try #require(workspace.setAgentLifecycle(
+                key: "codex", panelId: panelID, lifecycle: .running,
+                agentEventTime: bindingTime + 100, enforceAgentEventOrdering: true
+            ))
+        case .dock(_, let dock, let panelID):
+            try #require(dock.setAgentLifecycle(
+                key: "codex", panelId: panelID, lifecycle: .running,
+                agentEventTime: bindingTime + 100, enforceAgentEventOrdering: true
+            ))
+        }
+        // The restore verifier's generation guard still names this binding.
+        // Status/lifecycle delivery cannot silently turn that guard stale.
+        #expect(target.binding?.updatedAt == bindingTime)
+        #expect(target.acceptsBindingMutation(agentEventTime: bindingTime, requiresAgentEventTime: true))
+        #expect(target.clearBinding(
+            binding, agentSessionEnded: true, agentEventTime: bindingTime, requiresAgentEventTime: true
+        ))
+        #expect(target.binding == nil)
+    }
+
     @Test("Dock-owned notifications use the pane runtime ordering watermark")
     func dockOwnedNotificationsUsePaneRuntimeOrderingWatermark() throws {
         let fixture = try makeFixture()
@@ -18,7 +61,7 @@ extension AgentNotificationRegressionTests {
         bus.discardPendingNotifications()
         defer { bus.discardPendingNotifications() }
 
-        let dock = fixture.source.dockSplit
+        let dock = try #require(fixture.source.dockSplit)
         let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
         let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
         #expect(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)
@@ -81,7 +124,7 @@ extension AgentNotificationRegressionTests {
     func noOpDockResumeClearDoesNotAdvanceOrderingWatermark() throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
-        let dock = fixture.source.dockSplit
+        let dock = try #require(fixture.source.dockSplit)
         let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
         let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
         #expect(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)

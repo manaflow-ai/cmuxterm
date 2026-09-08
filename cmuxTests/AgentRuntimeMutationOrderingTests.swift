@@ -1,5 +1,6 @@
 import CmuxControlSocket
 import CmuxCore
+import CmuxSidebar
 import CmuxWorkspaces
 import Darwin
 import Foundation
