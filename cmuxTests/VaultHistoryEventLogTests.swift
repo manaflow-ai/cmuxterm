@@ -29,6 +29,22 @@ import Testing
         #expect(await log.recentEvents().map(\.id) == ["active"])
     }
 
+    @Test func pendingWindowEventsStageDuringLaunchUntilCommitted() async {
+        let store = VaultHistoryEventStore(fileURL: nil)
+        let log = VaultHistoryEventLog(store: store, phase: .launching)
+        let windowId = UUID()
+
+        log.beginWindowCreation(windowId: windowId)
+        log.record(event(id: "launch", windowId: windowId))
+        await log.flushPendingRecords()
+        #expect(await log.recentEvents().isEmpty)
+
+        log.transition(to: .active)
+        log.commitWindowCreation(windowId: windowId)
+        await log.flushPendingRecords()
+        #expect(await log.recentEvents().map(\.id) == ["launch"])
+    }
+
     @Test func revisionChangesOnlyAfterAcceptedPersistence() async {
         let acceptedStore = VaultHistoryEventStore(fileURL: nil)
         let acceptedLog = VaultHistoryEventLog(store: acceptedStore, phase: .active)
@@ -273,7 +289,7 @@ import Testing
         var createdId: UUID?
         try await withWindowHistory(
             configuredActionId: actionId,
-            configuredActionExecutor: { _, context, _, onExecuted, _ in
+            configuredActionExecutor: { _, context, _, onExecuted, _, _ in
                 guard let workspace = context.tabManager.addWorkspaceIfActive(
                     initialSurface: .cloudVMLoading,
                     select: true,
@@ -301,7 +317,7 @@ import Testing
         var complete: ((CloudVMActionLauncher.Completion) -> Void)?
         try await withWindowHistory(
             configuredActionId: "cmux.cloudVM",
-            configuredActionExecutor: { _, _, _, onExecuted, onCompletion in
+            configuredActionExecutor: { _, _, _, onExecuted, onCompletion, _ in
                 complete = onCompletion
                 onExecuted?()
                 return true
@@ -331,7 +347,7 @@ import Testing
     @Test func configuredInWorkspaceActionRecordsItsRetainedInitialWorkspace() async throws {
         try await withWindowHistory(
             configuredActionId: "cmux.newTerminal",
-            configuredActionExecutor: { _, _, _, onExecuted, _ in
+            configuredActionExecutor: { _, _, _, onExecuted, _, _ in
                 onExecuted?()
                 return true
             }
@@ -342,6 +358,31 @@ import Testing
             await log.flushPendingRecords()
             let events = await log.recentEvents()
             #expect(events.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId) == [workspace.id])
+        }
+    }
+
+    @Test func cancelledConfiguredActionRecordsTheWorkspaceThatRemains() async throws {
+        var complete: ((Bool) -> Void)?
+        try await withWindowHistory(
+            configuredActionId: "cmux.newWorkspace",
+            configuredActionExecutor: { _, _, _, _, _, onCompleted in
+                complete = onCompleted
+                return true
+            }
+        ) { app, log in
+            #expect(app.performNewWorkspaceAction())
+            let context = try #require(app.mainWindowContexts.values.first)
+            let initialWorkspace = try #require(context.tabManager.selectedWorkspace)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().isEmpty)
+
+            let completion = try #require(complete)
+            completion(false)
+            await log.flushPendingRecords()
+
+            let events = await log.recentEvents()
+            #expect(events.filter { $0.kind == .windowOpened }.count == 1)
+            #expect(events.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId) == [initialWorkspace.id])
         }
     }
 
@@ -450,12 +491,13 @@ import Testing
         }
     }
 
-    private func event(id: String) -> VaultHistoryEvent {
+    private func event(id: String, windowId: UUID? = nil) -> VaultHistoryEvent {
         VaultHistoryEvent(
             id: id,
             timestamp: Date(timeIntervalSince1970: 1_800_000_000),
             kind: .workspaceCreated,
-            title: id
+            title: id,
+            subject: VaultHistorySubject(windowId: windowId)
         )
     }
 }

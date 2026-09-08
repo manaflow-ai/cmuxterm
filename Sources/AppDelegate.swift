@@ -548,7 +548,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         MainWindowContext,
         NSWindow?,
         (() -> Void)?,
-        ((CloudVMActionLauncher.Completion) -> Void)?
+        ((CloudVMActionLauncher.Completion) -> Void)?,
+        ((Bool) -> Void)?
     ) -> Bool
     typealias StartupSessionRestoreDeferral = @MainActor (
         _ resume: @escaping @MainActor @Sendable () -> Void
@@ -6779,10 +6780,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func discardMainWindowWithoutClosedHistory(windowId: UUID) {
-        defer { vaultHistoryEventLog?.discardWindowCreation(windowId: windowId) }
-        guard let window = mainWindowForClose(windowId: windowId) else { return }
+        guard let window = mainWindowForClose(windowId: windowId) else {
+            vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
+            return
+        }
         closedWindowHistorySuppressedWindowIds.insert(windowId)
-        if !closeMainWindowWithoutInteractiveVeto(window) {
+        if closeMainWindowWithoutInteractiveVeto(window) {
+            vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
+        } else {
             closedWindowHistorySuppressedWindowIds.remove(windowId)
         }
     }
@@ -8648,12 +8653,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             )
 #endif
             let windowId = createMainWindow(initialWorkspaceHistoryContext: .bootstrap)
-            var retainedWindow = false
-            defer {
+            var didFinalizeWindowHistory = false
+            let finalizeWindowHistory: (Bool) -> Void = { [weak self] retainedWindow in
+                guard let self, !didFinalizeWindowHistory else { return }
+                didFinalizeWindowHistory = true
                 if retainedWindow {
-                    vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
+                    self.vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
                 } else {
-                    discardMainWindowWithoutClosedHistory(windowId: windowId)
+                    self.discardMainWindowWithoutClosedHistory(windowId: windowId)
                 }
             }
             if let context = mainWindowContexts.values.first(where: { $0.windowId == windowId }) {
@@ -8663,10 +8670,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     let didExecute = executeConfiguredNewWorkspaceActionIfAvailable(
                         in: context,
                         debugSource: debugSource,
-                        replacingInitialWorkspace: initialWorkspace
+                        replacingInitialWorkspace: initialWorkspace,
+                        onCompleted: { [weak context] succeeded in
+                            guard let context else { return }
+                            if !succeeded,
+                               let initialWorkspace = context.tabManager.tabs.first(where: { $0.id == initialWorkspace?.id }) {
+                                context.tabManager.recordVaultHistoryWorkspaceCreated(initialWorkspace)
+                            }
+                            finalizeWindowHistory(!context.tabManager.isFinalizedForWindowClose)
+                        }
                     )
-                    if !didExecute, let initialWorkspace {
+                    if !didExecute, !didFinalizeWindowHistory, let initialWorkspace {
                         context.tabManager.recordVaultHistoryWorkspaceCreated(initialWorkspace)
+                        finalizeWindowHistory(!context.tabManager.isFinalizedForWindowClose)
+                    } else if !didExecute, !didFinalizeWindowHistory {
+                        finalizeWindowHistory(false)
                     }
                 case .browser:
                     // The fresh window boots with a terminal workspace; add the
@@ -8679,7 +8697,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                         initialBrowserOmnibarVisible: initialBrowserOmnibarVisible,
                         initialBrowserTransparentBackground: initialBrowserTransparentBackground,
                         applyCreationTitleAsCustomTitle: applyCreationTitleAsCustomTitle
-                    ) else { return false }
+                    ) else {
+                        finalizeWindowHistory(false)
+                        return false
+                    }
                     closeInitialWorkspaceIfNeeded(
                         initialWorkspaceId: initialWorkspace?.id,
                         in: context
@@ -8690,6 +8711,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     }
                 case .cloudVMLoading:
                     guard let workspace = context.tabManager.addWorkspaceIfActive(initialSurface: .cloudVMLoading) else {
+                        finalizeWindowHistory(false)
                         return false
                     }
                     closeInitialWorkspaceIfNeeded(
@@ -8698,9 +8720,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     )
                     context.tabManager.setPinned(workspace, pinned: true)
                 }
-                retainedWindow = !context.tabManager.isFinalizedForWindowClose
+                finalizeWindowHistory(!context.tabManager.isFinalizedForWindowClose)
+            } else {
+                finalizeWindowHistory(false)
             }
-            return retainedWindow
+            return mainWindowContexts.values.contains { $0.windowId == windowId }
         }
 
         let context = livePreferredContext
@@ -9297,7 +9321,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         in context: MainWindowContext,
         debugSource: String,
         replacingInitialWorkspace initialWorkspace: Workspace? = nil,
-        workspaceGroupTarget: WorkspaceGroupNewWorkspaceTarget? = nil
+        workspaceGroupTarget: WorkspaceGroupNewWorkspaceTarget? = nil,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         guard let cmuxConfigStore = context.cmuxConfigStore,
               let action = cmuxConfigStore.resolvedNewWorkspaceAction() else {
@@ -9328,16 +9353,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         var didFinishInitialWorkspace = false
         // Inspect the action's actual result instead of maintaining a second list
         // of workspace-producing actions. Cloud VM may complete after onExecuted.
-        let finishInitialWorkspace: (Bool) -> Void = { [weak self, weak context] mayRetainInitial in
+        let finishInitialWorkspace: (Bool) -> Void = { [weak self, weak context] shouldReplaceInitial in
             guard !didFinishInitialWorkspace,
                   let self,
                   let context,
                   let initialWorkspaceId,
                   !context.tabManager.isFinalizedForWindowClose,
                   let initial = context.tabManager.tabs.first(where: { $0.id == initialWorkspaceId }) else { return }
-            guard mayRetainInitial || context.tabManager.tabs.count > 1 else { return }
-            self.closeInitialWorkspaceIfNeeded(initialWorkspaceId: initialWorkspaceId, in: context)
-            if context.tabManager.tabs.contains(where: { $0.id == initialWorkspaceId }) {
+            if shouldReplaceInitial {
+                self.closeInitialWorkspaceIfNeeded(initialWorkspaceId: initialWorkspaceId, in: context)
+            }
+            if !shouldReplaceInitial || context.tabManager.tabs.contains(where: { $0.id == initialWorkspaceId }) {
                 context.tabManager.recordVaultHistoryWorkspaceCreated(initial)
             }
             didFinishInitialWorkspace = true
@@ -9385,7 +9411,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             context: context,
             preferredWindow: window,
             onExecuted: onExecuted,
-            onCloudVMCompletion: onCloudVMCompletion
+            onCloudVMCompletion: onCloudVMCompletion,
+            onCompleted: onCompleted
         )
     }
 
@@ -17631,27 +17658,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         context: MainWindowContext,
         preferredWindow: NSWindow? = nil,
         onExecuted: (() -> Void)? = nil,
-        onCloudVMCompletion: ((CloudVMActionLauncher.Completion) -> Void)? = nil
+        onCloudVMCompletion: ((CloudVMActionLauncher.Completion) -> Void)? = nil,
+        onCompleted: ((Bool) -> Void)? = nil
     ) -> Bool {
         if let configuredActionExecutor {
-            return configuredActionExecutor(action, context, preferredWindow, onExecuted, onCloudVMCompletion)
+            var didComplete = false
+            let complete: (Bool) -> Void = { succeeded in
+                guard !didComplete else { return }
+                didComplete = true
+                onCompleted?(succeeded)
+            }
+            let didRun = configuredActionExecutor(
+                action,
+                context,
+                preferredWindow,
+                {
+                    onExecuted?()
+                    if action.action != .builtIn(.cloudVM) {
+                        complete(true)
+                    }
+                },
+                { completion in
+                    onCloudVMCompletion?(completion)
+                    if action.action == .builtIn(.cloudVM) {
+                        complete(completion.succeeded)
+                    }
+                },
+                complete
+            )
+            if !didRun {
+                complete(false)
+            }
+            return didRun
         }
         switch action.action {
         case .builtIn(let builtIn):
             switch builtIn {
             case .newWorkspace:
-                guard context.tabManager.addWorkspaceIfActive() != nil else { return false }
+                guard context.tabManager.addWorkspaceIfActive() != nil else {
+                    onCompleted?(false)
+                    return false
+                }
                 onExecuted?()
+                onCompleted?(true)
                 return true
-            case .newAgentChat: return performConfiguredNewAgentChatAction(context: context, preferredWindow: preferredWindow, onExecuted: onExecuted)
+            case .newAgentChat:
+                return performConfiguredNewAgentChatAction(
+                    context: context,
+                    preferredWindow: preferredWindow,
+                    onExecuted: onExecuted,
+                    onCompleted: onCompleted
+                )
             case .cloudVM:
                 let didStart = performCloudVMAction(
                     tabManager: context.tabManager,
                     preferredWindow: resolvedWindow(for: context) ?? preferredWindow,
                     debugSource: "configured.cmux.cloudvm",
-                    onCompletion: onCloudVMCompletion
+                    onCompletion: { completion in
+                        onCloudVMCompletion?(completion)
+                        onCompleted?(completion.succeeded)
+                    }
                 )
-                if didStart { onExecuted?() }
+                if didStart {
+                    onExecuted?()
+                } else {
+                    onCompleted?(false)
+                }
                 return didStart
             case .mobileConnect:
                 let workspace = performMobileConnectWorkspaceAction(
@@ -17659,21 +17731,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     preferredWindow: resolvedWindow(for: context),
                     debugSource: "configured.cmux.mobileConnect"
                 )
-                if workspace != nil { onExecuted?() }
+                if workspace != nil {
+                    onExecuted?()
+                    onCompleted?(true)
+                } else {
+                    onCompleted?(false)
+                }
                 return workspace != nil
-            case .newSimulator: return performConfiguredNewSimulatorAction(context: context, onExecuted: onExecuted)
+            case .newSimulator:
+                return performConfiguredNewSimulatorAction(
+                    context: context,
+                    onExecuted: onExecuted,
+                    onCompleted: onCompleted
+                )
             case .newTerminal:
                 context.tabManager.newSurface()
                 onExecuted?()
+                onCompleted?(true)
                 return true
             case .newBrowser:
                 let previousTabManager = tabManager
                 tabManager = context.tabManager
                 defer { tabManager = previousTabManager }
                 guard openBrowserAndFocusAddressBar(insertAtEnd: true) != nil else {
+                    onCompleted?(false)
                     return false
                 }
                 onExecuted?()
+                onCompleted?(true)
                 return true
             case .splitRight:
                 if shouldSuppressSplitShortcutForTransientTerminalFocusState(
@@ -17686,7 +17771,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     direction: .right,
                     preferredWindow: preferredWindow ?? shortcutRoutingActiveWindow
                 )
-                if didSplit { onExecuted?() }
+                if didSplit {
+                    onExecuted?()
+                    onCompleted?(true)
+                } else {
+                    onCompleted?(false)
+                }
                 return didSplit
             case .splitDown:
                 if shouldSuppressSplitShortcutForTransientTerminalFocusState(
@@ -17699,7 +17789,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     direction: .down,
                     preferredWindow: preferredWindow ?? shortcutRoutingActiveWindow
                 )
-                if didSplit { onExecuted?() }
+                if didSplit {
+                    onExecuted?()
+                    onCompleted?(true)
+                } else {
+                    onCompleted?(false)
+                }
                 return didSplit
             }
         case .command, .agent, .workspaceCommand, .workspace:
@@ -17717,9 +17812,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 baseCwd: baseCwd,
                 globalConfigPath: cmuxConfigStore.globalConfigPath,
                 presentingWindow: preferredWindow,
-                onExecuted: onExecuted
+                onExecuted: onExecuted,
+                onCompleted: onCompleted
             )
         case .actionReference:
+            onCompleted?(false)
             return false
         }
     }

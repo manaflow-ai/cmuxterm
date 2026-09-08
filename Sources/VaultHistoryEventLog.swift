@@ -38,11 +38,11 @@ final class VaultHistoryEventLog {
     }
 
     func record(_ event: VaultHistoryEvent) {
-        guard phase == .active else { return }
         if let windowId = event.subject.windowId, pendingWindowEvents[windowId] != nil {
             pendingWindowEvents[windowId, default: []].append(event)
             return
         }
+        guard phase == .active else { return }
         let store = store
         let previous = pendingRecordTask
         pendingRecordCount += 1
