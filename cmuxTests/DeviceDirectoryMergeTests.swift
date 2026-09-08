@@ -1,0 +1,330 @@
+import CMUXMobileCore
+import Foundation
+import Testing
+
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+
+/// The directory merge decides which Macs the Devices tab lists, which routes
+/// it dials, and — the security-relevant part — whether a device is this
+/// account's, since the viewer presents its bearer token only to those.
+@Suite("Devices: directory merge")
+struct DeviceDirectoryMergeTests {
+    private let selfID = "11111111-1111-1111-1111-111111111111"
+    private let studioID = "22222222-2222-2222-2222-222222222222"
+    private let laptopID = "33333333-3333-3333-3333-333333333333"
+
+    private var selfInstance: SurfaceDeviceInstanceID {
+        SurfaceDeviceInstanceID(deviceID: selfID, tag: "default")
+    }
+
+    private func route(_ id: String, port: Int = 51000, priority: Int = 10) throws -> CmxAttachRoute {
+        try CmxAttachRoute(id: id, kind: .tailscale, endpoint: .hostPort(host: "100.64.0.9", port: port), priority: priority)
+    }
+
+    private func registryDevice(
+        _ deviceID: String,
+        name: String?,
+        tags: [String] = ["default"],
+        routes: [CmxAttachRoute] = [],
+        platform: String = "mac",
+        manual: Bool = false,
+        lastSeenAt: Date? = nil
+    ) -> DeviceRegistryDirectoryClient.Device {
+        DeviceRegistryDirectoryClient.Device(
+            deviceID: deviceID, platform: platform, displayName: name, isManual: manual, lastSeenAt: lastSeenAt,
+            instances: tags.map { DeviceRegistryDirectoryClient.Instance(tag: $0, routes: routes, lastSeenAt: lastSeenAt) }
+        )
+    }
+
+    private func presence(
+        _ deviceID: String,
+        tag: String = "default",
+        online: Bool,
+        name: String? = nil,
+        routes: [CmxAttachRoute]? = nil,
+        lastSeenAt: Double = 1_700_000_000_000,
+        platform: String = "mac"
+    ) -> (SurfaceDeviceInstanceID, DevicePresenceInstance) {
+        let instance = DevicePresenceInstance(
+            deviceId: deviceID, tag: tag, platform: platform, displayName: name, bundleId: "com.cmuxterm.app",
+            online: online, lastSeenAt: lastSeenAt, routes: routes
+        )
+        return (instance.instanceID, instance)
+    }
+
+    private func record(
+        _ instance: SurfaceDeviceInstanceID,
+        name: String,
+        online: Bool,
+        paired: Bool = false,
+        routes: [CmxAttachRoute] = [],
+        lastSeenAt: Date? = nil,
+        owner: String? = nil,
+        trust: SurfaceDevicePresence.AccountTrust
+    ) -> DeviceDirectoryRecord {
+        DeviceDirectoryRecord(
+            instance: instance, deviceName: name, platform: "mac", bundleID: nil,
+            presenceState: online ? .online : .offline, isPaired: paired,
+            lastSeenAt: lastSeenAt, routes: routes, ownerUserID: owner, accountTrust: trust
+        )
+    }
+
+    private func paired(
+        _ instance: SurfaceDeviceInstanceID,
+        name: String,
+        routes: [CmxAttachRoute],
+        lastSeenAt: Date? = nil
+    ) -> DevicePairedDevice {
+        DevicePairedDevice(instance: instance, displayName: name, routes: routes, lastSeenAt: lastSeenAt)
+    }
+
+    @Test("Registry and presence union into one record per instance, never listing this Mac")
+    func unionExcludesSelf() throws {
+        let liveRoute = try route("live")
+        let staleRoute = try route("stale", port: 50000)
+        let (studioKey, studio) = presence(studioID, online: true, name: "Studio", routes: [liveRoute])
+        let (selfKey, selfPresence) = presence(selfID, online: true, name: "This Mac")
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            registry: [
+                registryDevice(studioID, name: "Studio (registry)", routes: [staleRoute]),
+                registryDevice(laptopID, name: "Laptop", tags: ["default", "issue-8001"], routes: [staleRoute]),
+                registryDevice(selfID, name: "This Mac"),
+            ],
+            presence: [studioKey: studio, selfKey: selfPresence],
+            presenceLive: true,
+            selfInstance: selfInstance,
+            currentUserID: "user_a",
+            resolvedTeamID: nil
+        ))
+        #expect(records.map(\.instance.wireValue) == [
+            "device:\(studioID)@default",
+            "device:\(laptopID)@default",
+            "device:\(laptopID)@issue-8001",
+        ])
+        let studioRecord = try #require(records.first)
+        #expect(studioRecord.isOnline)
+        #expect(studioRecord.deviceName == "Studio", "the live presence name wins over the registry's")
+        #expect(studioRecord.routes.map(\.id) == ["live"], "an online instance dials its live routes")
+        #expect(studioRecord.bundleID == "com.cmuxterm.app")
+        #expect(studioRecord.presence.isOnline)
+        #expect(records[1].isOnline == false)
+        #expect(records[1].presenceState == .offline, "absent from a live presence snapshot means offline")
+        #expect(records[1].isPaired == false)
+        #expect(records[1].routes.map(\.id) == ["stale"], "an offline instance keeps the registry's durable routes")
+        #expect(records[2].displayName == "Laptop (issue-8001)")
+        #expect(records[2].presence.tag == "issue-8001")
+    }
+
+    @Test("Previous records survive presence forgetting them; manual remotes and phones never appear")
+    func previousRecordsAndFilters() throws {
+        let old = try route("old")
+        let laptop = SurfaceDeviceInstanceID(deviceID: laptopID, tag: "default")
+        let previous = record(laptop, name: "Laptop", online: true, routes: [old], lastSeenAt: Date(timeIntervalSince1970: 1_000), owner: "user_a", trust: .sameAccount)
+        let (phoneKey, phone) = presence("44444444-4444-4444-4444-444444444444", online: true, name: "iPhone", platform: "ios")
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            registry: [
+                registryDevice("manual-1", name: "Manual box", manual: true),
+                registryDevice("55555555-5555-5555-5555-555555555555", name: "Phone", platform: "ios"),
+            ],
+            presence: [phoneKey: phone],
+            presenceLive: true,
+            previous: [previous],
+            selfInstance: selfInstance,
+            currentUserID: "user_a",
+            resolvedTeamID: nil
+        ))
+        #expect(records.count == 1)
+        let remembered = try #require(records.first)
+        #expect(remembered.instance == laptop)
+        #expect(remembered.isOnline == false, "a device presence no longer reports is offline, not gone")
+        #expect(remembered.routes.map(\.id) == ["old"])
+        #expect(remembered.lastSeenAt == previous.lastSeenAt)
+        #expect(remembered.deviceName == "Laptop")
+        #expect(remembered.ownerUserID == "user_a")
+    }
+
+    @Test("Account trust: owner pins decide, a personal team implies this account, a team without pins is unknown")
+    func accountTrust() {
+        let (studioKey, studio) = presence(studioID, online: true)
+        let (laptopKey, laptop) = presence(laptopID, online: true)
+        func trust(
+            owners: [String: String],
+            ownersKnown: Bool,
+            teamID: String?,
+            previous: [DeviceDirectoryRecord] = []
+        ) -> [SurfaceDeviceInstanceID: SurfaceDevicePresence.AccountTrust] {
+            let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+                presence: [studioKey: studio, laptopKey: laptop],
+                owners: owners,
+                ownersKnown: ownersKnown,
+                previous: previous,
+                selfInstance: selfInstance,
+                currentUserID: "user_a",
+                resolvedTeamID: teamID
+            ))
+            return Dictionary(uniqueKeysWithValues: records.map { ($0.instance, $0.accountTrust) })
+        }
+        // Team scope with the owner snapshot delivered: pins decide, a missing pin is unknown.
+        let pinned = trust(owners: [studioID: "user_a", laptopID: "user_b"], ownersKnown: true, teamID: "team_x")
+        #expect(pinned[studioKey] == .sameAccount)
+        #expect(pinned[laptopKey] == .otherAccount)
+        #expect(trust(owners: [:], ownersKnown: true, teamID: "team_x")[studioKey] == .unknown)
+        // Personal scope: every device on the account is this account's.
+        #expect(trust(owners: [:], ownersKnown: false, teamID: nil)[laptopKey] == .sameAccount)
+        #expect(trust(owners: [:], ownersKnown: false, teamID: "user_a")[laptopKey] == .sameAccount)
+        // A pin for another user overrides even the personal scope.
+        #expect(trust(owners: [laptopID: "user_b"], ownersKnown: true, teamID: nil)[laptopKey] == .otherAccount)
+        // Team scope before the owner snapshot lands: keep what the previous merge knew.
+        let remembered = record(laptopKey, name: "Laptop", online: false, owner: "user_b", trust: .otherAccount)
+        #expect(trust(owners: [:], ownersKnown: false, teamID: "team_x", previous: [remembered])[laptopKey] == .otherAccount)
+        #expect(trust(owners: [:], ownersKnown: false, teamID: "team_x")[studioKey] == .unknown)
+    }
+
+    @Test("Dialable means routed, this account's, and paired or reported online")
+    func dialable() throws {
+        let tailscale = try route("ts")
+        let studio = SurfaceDeviceInstanceID(deviceID: studioID, tag: "default")
+        #expect(record(studio, name: "Studio", online: true, routes: [tailscale], trust: .sameAccount).isDialable)
+        #expect(!record(studio, name: "Studio", online: false, routes: [tailscale], trust: .sameAccount).isDialable)
+        #expect(record(studio, name: "Studio", online: false, paired: true, routes: [tailscale], trust: .sameAccount).isDialable, "presence never suppresses a saved pairing")
+        #expect(!record(studio, name: "Studio", online: true, routes: [], trust: .sameAccount).isDialable)
+        #expect(!record(studio, name: "Studio", online: true, paired: true, routes: [], trust: .sameAccount).isDialable)
+        #expect(!record(studio, name: "Studio", online: true, routes: [tailscale], trust: .otherAccount).isDialable)
+        #expect(!record(studio, name: "Studio", online: true, routes: [tailscale], trust: .unknown).isDialable)
+    }
+
+    @Test("A paired Mac is listed local-first: no registry, no presence, still this account's and dialable")
+    func pairedLocalFirst() throws {
+        let saved = try route("saved", port: 52000, priority: 20)
+        let live = try route("live", port: 51000, priority: 1)
+        let studio = SurfaceDeviceInstanceID(deviceID: studioID, tag: "default")
+        let offlineWorld = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            paired: [paired(studio, name: "Studio (paired)", routes: [saved], lastSeenAt: Date(timeIntervalSince1970: 10))],
+            selfInstance: selfInstance,
+            currentUserID: "user_a",
+            resolvedTeamID: "team_x"
+        ))
+        let record = try #require(offlineWorld.first)
+        #expect(offlineWorld.count == 1)
+        #expect(record.instance == studio)
+        #expect(record.isPaired)
+        #expect(record.presenceState == .unknown, "no presence stream yet: unknown, not offline")
+        #expect(record.accountTrust == .sameAccount, "pairing proved the account even without owner pins")
+        #expect(record.routes.map(\.id) == ["saved"])
+        #expect(record.deviceName == "Studio (paired)")
+        #expect(record.lastSeenAt == Date(timeIntervalSince1970: 10))
+        #expect(record.isDialable)
+
+        // Presence live and silent about it: offline label, still dialable.
+        let (otherKey, other) = presence(laptopID, online: true, name: "Laptop")
+        let quiet = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            presence: [otherKey: other], presenceLive: true,
+            paired: [paired(studio, name: "Studio", routes: [saved])],
+            selfInstance: selfInstance, currentUserID: "user_a", resolvedTeamID: nil
+        ))
+        let quietStudio = try #require(quiet.first { $0.instance == studio })
+        #expect(quietStudio.presenceState == .offline)
+        #expect(quietStudio.isDialable)
+        #expect(quiet.map(\.deviceName) == ["Laptop", "Studio"], "online rows sort before offline ones")
+
+        // Presence online with a live route: the saved route still leads.
+        let (studioKey, studioPresence) = presence(studioID, online: true, name: "Studio", routes: [live])
+        let online = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            presence: [studioKey: studioPresence], presenceLive: true,
+            paired: [paired(studio, name: "Studio", routes: [saved])],
+            selfInstance: selfInstance, currentUserID: "user_a", resolvedTeamID: nil
+        ))
+        #expect(online.first?.routes.map(\.id) == ["saved", "live"])
+        #expect(online.first?.presenceState == .online)
+    }
+
+    @Test("Sorting ranks online, then unknown, then offline")
+    func presenceRank() {
+        let studio = SurfaceDeviceInstanceID(deviceID: studioID, tag: "default")
+        let (laptopKey, laptop) = presence(laptopID, online: false, name: "Laptop")
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            presence: [laptopKey: laptop],
+            paired: [paired(studio, name: "Zed", routes: [])],
+            selfInstance: selfInstance, currentUserID: "user_a", resolvedTeamID: nil
+        ))
+        #expect(records.map(\.presenceState) == [.unknown, .offline])
+        #expect(records.map(\.deviceName) == ["Zed", "Laptop"])
+    }
+
+    @Test("Online devices sort first, then by name, so presence flips never shuffle the offline rows")
+    func ordering() {
+        let (alphaKey, alpha) = presence(studioID, online: false, name: "Alpha")
+        let (zuluKey, zulu) = presence(laptopID, online: true, name: "Zulu")
+        let (bravoKey, bravo) = presence("55555555-5555-5555-5555-555555555555", online: false, name: "bravo")
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            presence: [alphaKey: alpha, zuluKey: zulu, bravoKey: bravo],
+            selfInstance: selfInstance,
+            currentUserID: "user_a",
+            resolvedTeamID: nil
+        ))
+        #expect(records.map(\.deviceName) == ["Zulu", "Alpha", "bravo"])
+    }
+
+    @Test("lastSeenAt is the freshest source, with presence milliseconds converted to seconds")
+    func lastSeen() {
+        let (key, live) = presence(studioID, online: false, lastSeenAt: 1_700_000_000_000)
+        let older = Date(timeIntervalSince1970: 1_600_000_000)
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            registry: [registryDevice(studioID, name: "Studio", lastSeenAt: older)],
+            presence: [key: live],
+            selfInstance: selfInstance,
+            currentUserID: "user_a",
+            resolvedTeamID: nil
+        ))
+        #expect(records.first?.lastSeenAt == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(records.first?.deviceName == "Studio", "a presence row without a name falls back to the registry")
+    }
+
+    @Test("The row's link state ranks presence, account, pairing, then the reconnect phase")
+    @MainActor
+    func providerLinkState() throws {
+        let tailscale = try route("ts")
+        let studio = SurfaceDeviceInstanceID(deviceID: studioID, tag: "default")
+        func state(
+            online: Bool = true,
+            trust: SurfaceDevicePresence.AccountTrust = .sameAccount,
+            routes: [CmxAttachRoute]? = nil,
+            phase: DeviceLinkReconnectPolicy.Phase = .idle,
+            lastFailure: String? = nil,
+            needsAuthorization: Bool = false
+        ) -> (linkState: SurfaceLinkState, linkError: String?) {
+            DeviceSurfaceProvider.linkState(
+                record: record(studio, name: "Studio", online: online, routes: routes ?? [tailscale], trust: trust),
+                phase: phase, lastFailure: lastFailure, needsAuthorization: needsAuthorization
+            )
+        }
+        #expect(state(online: false, phase: .connected).linkState == .connected, "a live link outranks stale presence")
+        #expect(state(online: false, phase: .connecting(attempt: 2)).linkState == .offline, "a paired Mac presence reports offline keeps dialing quietly")
+        #expect(state(trust: .otherAccount, phase: .connected).linkState == .unavailable)
+        #expect(state(phase: .connected).linkState == .connected)
+        #expect(state(phase: .connecting(attempt: 1)).linkState == .connecting)
+        #expect(state(phase: .waiting(attempt: 1, delay: .seconds(1))).linkState == .connecting)
+        let blocked = state(phase: .blocked(reason: "nope"))
+        #expect(blocked.linkState == .error)
+        #expect(blocked.linkError == "nope")
+        #expect(state(routes: []).linkError == "This Mac has not published a route yet.")
+        #expect(state(trust: .unknown).linkState == .unavailable)
+        let unpaired = state(needsAuthorization: true)
+        #expect(unpaired.linkState == .unavailable)
+        #expect(unpaired.linkError == "Pair this Mac in Settings \u{203A} Computers to connect.")
+        #expect(state(lastFailure: "boom").linkError == "boom")
+    }
+
+    @Test("A device nobody names shows its UUID prefix")
+    func unnamedDevice() {
+        let (key, live) = presence(studioID, online: true)
+        let records = DeviceDirectoryMerge.merge(DeviceDirectoryMerge.Input(
+            presence: [key: live], selfInstance: selfInstance, currentUserID: "user_a", resolvedTeamID: nil
+        ))
+        #expect(records.first?.deviceName == "22222222")
+    }
+}

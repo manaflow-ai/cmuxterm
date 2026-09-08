@@ -63,7 +63,7 @@ struct CloudTreeRowContentView: View {
     /// draw the ledger hairline.
     private var showsSeparator: Bool {
         switch kind {
-        case .machine, .pendingMachine, .localMachine, .placeholder: return false
+        case .machine, .pendingMachine, .localMachine, .placeholder, .device: return false
         default: return true
         }
     }
@@ -77,6 +77,10 @@ struct CloudTreeRowContentView: View {
             CloudTreePendingMachineRowContent(operation: operation, style: style)
         case .localMachine(let row):
             CloudTreeLocalMachineRowContent(row: row, style: style)
+        case .device(let row):
+            CloudTreeDeviceRowContent(row: row, style: style)
+        case .devicesSection(let count):
+            groupRow(title: String(localized: "cloudTree.group.devices", defaultValue: "Devices"), count: count)
         case .terminalsPool(_, let count):
             groupRow(title: String(localized: "cloudTree.group.terminals", defaultValue: "Terminals"), count: count)
         case .displaysPool(_, let count):
@@ -848,6 +852,14 @@ struct CloudTreeRowHoverButtons: View {
             plus(String(localized: "cloudTree.menu.newTerminal", defaultValue: "New Terminal")) {
                 nodeActions.newTerminal(.local, nil)
             }
+        case .device(let row):
+            // A device's "+" is the same New Terminal verb as its pool; an
+            // offline device has nowhere to start one, so the button stays away.
+            if row.isOnline {
+                plus(String(localized: "cloudTree.menu.newTerminal", defaultValue: "New Terminal")) {
+                    nodeActions.newTerminal(row.machine, nil)
+                }
+            }
         case .terminalsPool(let machine, _):
             plus(String(localized: "cloudTree.menu.newTerminal", defaultValue: "New Terminal")) {
                 nodeActions.newTerminal(machine, nil)
@@ -891,6 +903,8 @@ struct CloudTreeRowHoverButtons: View {
             return true
         case .pendingMachine:
             return true
+        case .device(let row):
+            return row.isOnline
         case .terminal(let row):
             return !row.resource.machine.isLocal
         default:

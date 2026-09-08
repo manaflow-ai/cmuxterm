@@ -1192,6 +1192,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         .switchRightSidebarToFeed,
         .switchRightSidebarToDock,
         .switchRightSidebarToMachines,
+        .switchRightSidebarToDevices,
     ]
     /// The digit defaults are positional over the visible tabs, so the
     /// expectations below pin every mode gate on and clear any tab
@@ -1201,6 +1202,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         RightSidebarBetaFeatureSettings.feedEnabledKey,
         RightSidebarBetaFeatureSettings.dockEnabledKey,
         RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey,
+        RightSidebarBetaFeatureSettings.devicesEnabledKey,
         RightSidebarTabPreferences.orderKey,
         RightSidebarTabPreferences.hiddenKey,
     ]
@@ -1225,6 +1227,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         UserDefaults.standard.set(true, forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
         UserDefaults.standard.set(true, forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
         UserDefaults.standard.set(true, forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
+        UserDefaults.standard.set(true, forKey: RightSidebarBetaFeatureSettings.devicesEnabledKey)
         UserDefaults.standard.removeObject(forKey: RightSidebarTabPreferences.orderKey)
         UserDefaults.standard.removeObject(forKey: RightSidebarTabPreferences.hiddenKey)
 
@@ -1273,6 +1276,7 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
         XCTAssertEqual(RightSidebarMode.feed.shortcutAction, .switchRightSidebarToFeed)
         XCTAssertEqual(RightSidebarMode.dock.shortcutAction, .switchRightSidebarToDock)
         XCTAssertEqual(RightSidebarMode.machines.shortcutAction, .switchRightSidebarToMachines)
+        XCTAssertEqual(RightSidebarMode.devices.shortcutAction, .switchRightSidebarToDevices)
     }
 
     func testModeShortcutsUsePrivateControlDigitDefaults() {
@@ -1300,6 +1304,10 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22)),
             .machines
         )
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "7", modifiers: [.control], keyCode: 26)),
+            .devices
+        )
     }
 
     /// The reported bug: Feed and Dock hidden leaves Cloud as the 4th visible
@@ -1313,8 +1321,14 @@ final class RightSidebarModeShortcutHintTests: XCTestCase {
             RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "4", modifiers: [.control], keyCode: 21)),
             .machines
         )
+        // Devices sits right after Cloud, so it takes the next digit and the
+        // one past the last visible tab stays unbound.
+        XCTAssertEqual(
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23)),
+            .devices
+        )
         XCTAssertNil(
-            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "5", modifiers: [.control], keyCode: 23))
+            RightSidebarMode.modeShortcut(for: makeKeyDownEvent(key: "6", modifiers: [.control], keyCode: 22))
         )
     }
 

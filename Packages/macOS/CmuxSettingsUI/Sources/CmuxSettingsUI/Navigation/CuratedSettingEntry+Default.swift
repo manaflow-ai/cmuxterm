@@ -346,6 +346,17 @@ extension Array where Element == CuratedSettingEntry {
                 paths: ["cloud.beta.machines.enabled"],
                 synonyms: "cloud machines vm virtual machine right sidebar persistent computer beta unstable"
             ),
+            .init(
+                section: .betaFeatures,
+                id: "devices",
+                title: String(localized: "settings.betaFeatures.devices", defaultValue: "Devices"),
+                detailText: [
+                    String(localized: "settings.betaFeatures.devices.subtitleOn", defaultValue: "Shows Devices in the right sidebar: your account\u{2019}s other Macs and their live workspaces. This Mac also publishes itself so your other Macs can see it."),
+                    String(localized: "settings.betaFeatures.devices.subtitleOff", defaultValue: "Hides the Devices tab and stops publishing this Mac to your other Macs unless iOS pairing is on."),
+                ].joined(separator: " "),
+                paths: ["devices.beta.enabled"],
+                synonyms: "devices macs other mac computers presence hive right sidebar remote beta unstable"
+            ),
             .init(section: .betaFeatures, id: "customSidebars", title: "Custom Sidebars", synonyms: "custom sidebars swift json interpreted vibe beta unstable"),
             .init(section: .betaFeatures, id: "remoteTmux", title: "Remote tmux", synonyms: "remote tmux ssh control mode -CC mirror session window pane sidebar workspace beta unstable"),
             .init(

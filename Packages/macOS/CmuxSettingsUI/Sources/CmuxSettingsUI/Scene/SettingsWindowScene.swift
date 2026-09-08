@@ -441,7 +441,7 @@ public struct SettingsWindowRoot: View {
             accountFlow: accountFlow
         )
         .id(anchorID(for: .account))
-
+        ComputersSection(hostActions: hostActions, defaultsStore: defaultsStore, catalog: catalog).id(anchorID(for: .computers))
         AppSection(
             defaultsStore: defaultsStore,
             catalog: catalog,

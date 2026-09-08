@@ -25,6 +25,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
     case feed
     case dock
     case machines
+    case devices
     case customSidebar = "custom-sidebar"
 
     var label: String {
@@ -35,6 +36,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return String(localized: "rightSidebar.mode.feed", defaultValue: "Feed")
         case .dock: return String(localized: "rightSidebar.mode.dock", defaultValue: "Dock")
         case .machines: return String(localized: "rightSidebar.mode.machines", defaultValue: "Cloud")
+        case .devices: return String(localized: "rightSidebar.mode.devices", defaultValue: "Devices")
         case .customSidebar: return String(localized: "rightSidebar.mode.customSidebar", defaultValue: "Custom")
         }
     }
@@ -48,6 +50,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return "dot.radiowaves.left.and.right"
         case .dock: return "dock.rectangle"
         case .machines: return "cloud"
+        case .devices: return "desktopcomputer"
         case .customSidebar: return "wand.and.stars"
         }
     }
@@ -60,6 +63,7 @@ enum RightSidebarMode: String, CaseIterable, Codable, Sendable {
         case .feed: return .switchRightSidebarToFeed
         case .dock: return .switchRightSidebarToDock
         case .machines: return .switchRightSidebarToMachines
+        case .devices: return .switchRightSidebarToDevices
         case .customSidebar: return nil
         }
     }
@@ -85,7 +89,7 @@ enum FileExplorerRootSyncPolicy {
         switch mode {
         case .files, .find:
             return true
-        case .sessions, .feed, .dock, .machines, .customSidebar:
+        case .sessions, .feed, .dock, .machines, .devices, .customSidebar:
             return false
         }
     }
@@ -153,6 +157,8 @@ struct RightSidebarPanelView: View {
     private var dockEnabled = RightSidebarBetaFeatureSettings.defaultDockEnabled
     @AppStorage(RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
     private var cloudMachinesBetaEnabled = RightSidebarBetaFeatureSettings.defaultCloudMachinesEnabled
+    @AppStorage(RightSidebarBetaFeatureSettings.devicesEnabledKey)
+    private var devicesBetaEnabled = RightSidebarBetaFeatureSettings.defaultDevicesEnabled
     @LiveSetting(\.customSidebars.renderer) private var customSidebarRenderer
     /// The right rail's OWN worker client. Never share the left sidebar's:
     /// the remote host swaps files in place on one client, so a shared client
@@ -172,7 +178,8 @@ struct RightSidebarPanelView: View {
         return RightSidebarMode.availableModes(
             feedEnabled: feedEnabled,
             dockEnabled: dockEnabled,
-            machinesEnabled: CloudMachinesFeature.isEnabled
+            machinesEnabled: CloudMachinesFeature.isEnabled,
+            devicesEnabled: DevicesFeature.isEnabled
         )
     }
 
@@ -512,6 +519,10 @@ struct RightSidebarPanelView: View {
                 dockPanel(windowAppearance: windowAppearance)
             case .machines:
                 MachinesPanelView(
+                    chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor
+                )
+            case .devices:
+                DevicesPanelView(
                     chromeBackgroundColor: windowAppearance.resolvedChromeBackgroundColor
                 )
             case .customSidebar:
