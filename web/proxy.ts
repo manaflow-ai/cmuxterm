@@ -175,6 +175,15 @@ function handlePageRoutes(
   request: NextRequest,
   pathname: string,
 ): NextResponse | undefined {
+  const specialPageResponse = handleSpecialPageRoutes(request, pathname);
+  if (specialPageResponse) return specialPageResponse;
+  return handleBillingAndAssetBypasses(request, pathname);
+}
+
+function handleSpecialPageRoutes(
+  request: NextRequest,
+  pathname: string,
+): NextResponse | undefined {
   if (isAgentPageVariantPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/agent-page-variant";
@@ -247,6 +256,13 @@ function handlePageRoutes(
     });
   }
 
+  return undefined;
+}
+
+function handleBillingAndAssetBypasses(
+  request: NextRequest,
+  pathname: string,
+): NextResponse | undefined {
   // Other post-checkout pages still live outside the [locale] tree, like
   // /app-pricing. Without this bypass next-intl rewrites them into /<locale>/
   // billing/... which has no route and 404s through the pass-through layout.
@@ -280,6 +296,7 @@ function handlePageRoutes(
   if (pathname.includes(".") && !isChangelogVersionPath) {
     return NextResponse.next();
   }
+
   return undefined;
 }
 
