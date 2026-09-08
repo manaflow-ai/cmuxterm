@@ -282,10 +282,10 @@ extension CMUXCLI {
         for resource in resources where (resource["kind"] as? String) == "terminal" {
             guard (resource["lifecycle"] as? String) != "exited",
                   Self.vmDevResourceBelongsToMachine(resource, machine: machine),
-                  let terminalID = Self.vmTerminalID(in: resource, machine: machine),
+                  let terminalID = VMRemoteWorkspaceResolver().vmTerminalID(in: resource, machine: machine),
                   !terminalID.isEmpty else { continue }
             let view: [String: Any]
-            switch Self.resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
+            switch VMRemoteWorkspaceResolver().resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
             case .resolved(let resolved):
                 view = resolved
             case .legacy:
@@ -514,12 +514,12 @@ extension CMUXCLI {
             params: ["id": machine, "refresh": true],
             responseTimeout: 120
         )
-        guard let machinePayload = Self.vmMachinePayload(machine, from: catalog) else {
+        guard let machinePayload = VMRemoteWorkspaceResolver().vmMachinePayload(machine, from: catalog) else {
             throw CLIError(message: "vm dev: workspace state for \(machine) is unavailable; reconnect and retry")
         }
         var remoteWorkspace: String?
         let existing: Bool
-        switch Self.resolveVMRemoteWorkspaceSelector(workspaceName, in: machinePayload) {
+        switch VMRemoteWorkspaceResolver().resolveVMRemoteWorkspaceSelector(workspaceName, in: machinePayload) {
         case .resolved(let id):
             remoteWorkspace = id
             existing = true
@@ -696,7 +696,7 @@ extension CMUXCLI {
             workspaceID: remoteWorkspace
         )
         let hasPanes: Bool
-        switch Self.resolveVMRemoteWorkspaceTerminal(resources, machine: machine, workspaceID: remoteWorkspace) {
+        switch VMRemoteWorkspaceResolver().resolveVMRemoteWorkspaceTerminal(resources, machine: machine, workspaceID: remoteWorkspace) {
         case .resolved, .ambiguous:
             hasPanes = true
         case .none, .unavailable:
