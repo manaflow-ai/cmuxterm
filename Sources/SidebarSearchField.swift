@@ -44,7 +44,7 @@ class SidebarSearchField: NSSearchField {
         if let hoverTrackingArea { removeTrackingArea(hoverTrackingArea) }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.inVisibleRect, .activeAlways, .cursorUpdate, .mouseEnteredAndExited, .mouseMoved],
+            options: [.inVisibleRect, .activeInKeyWindow, .cursorUpdate, .mouseEnteredAndExited, .mouseMoved],
             owner: self,
             userInfo: nil
         )
