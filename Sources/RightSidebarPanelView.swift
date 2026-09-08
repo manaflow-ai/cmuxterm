@@ -31,9 +31,9 @@ enum FileExplorerRootSyncPolicy {
     ) -> Bool {
         guard isRightSidebarVisible else { return false }
         switch registry.descriptor(for: mode)?.behavior {
-        case .fileExplorerOutline, .fileExplorerSearch:
+        case .fileExplorerOutline, .fileExplorerSearch, .sourceControl:
             return true
-        case .some(.sessionIndex), .some(.feed), .some(.dock), .some(.sourceControl), .some(.host), .some(.none), nil:
+        case .some(.sessionIndex), .some(.feed), .some(.dock), .some(.host), .some(.none), nil:
             return false
         }
     }
