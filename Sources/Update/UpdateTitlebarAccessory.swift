@@ -1173,7 +1173,7 @@ struct TitlebarControlsView: View {
             .background(NotificationsAnchorView { viewModel.notificationsAnchorView = $0 })
             .safeHelp(KeyboardShortcutSettings.Action.showNotifications.tooltip(String(localized: "titlebar.notifications.tooltip", defaultValue: "Show notifications")))
 
-            TitlebarNewWorkspaceCloudSplitButton(
+            TitlebarNewWorkspaceSplitButton(
                 config: config,
                 foregroundColor: foregroundColor,
                 onNewTab: {
@@ -1183,6 +1183,7 @@ struct TitlebarControlsView: View {
                     onNewTab()
                 }
             )
+
             TitlebarControlButton(
                 config: config,
                 foregroundColor: foregroundColor,
@@ -1563,10 +1564,10 @@ struct HiddenTitlebarSidebarControlsView: View {
                     onToggleNotifications(anchorView)
                 case .newTab:
                     onNewTab()
-                case .cloudVM:
+                case .newWorkspaceMenu:
                     _ = AppDelegate.shared?.showNewWorkspaceContextMenu(
                         anchorView: anchorView,
-                        debugSource: "titlebar.minimalSidebar.cloudMenu"
+                        debugSource: "titlebar.minimalSidebar.newWorkspaceMenu"
                     )
                 case .focusHistoryBack:
                     let availability = focusHistoryNavigationAvailability(
@@ -2719,7 +2720,7 @@ final class UpdateTitlebarAccessoryController {
     private func prewarmTitlebarSymbols() {
         let iconSizes = TitlebarControlsStyle.allCases.map { $0.config.iconSize }
         let dropdownSizes = TitlebarControlsStyle.allCases.map {
-            TitlebarNewWorkspaceCloudSplitButtonMetrics.dropdownIconSize(config: $0.config)
+            TitlebarNewWorkspaceSplitButtonMetrics.dropdownIconSize(config: $0.config)
         }
         RenderableSystemSymbol.prewarmAppKitImages(
             systemNames: ["bell", "arrow.left", "arrow.right"],
@@ -2727,7 +2728,7 @@ final class UpdateTitlebarAccessoryController {
             weight: .regular
         )
         RenderableSystemSymbol.prewarmAppKitImages(
-            systemNames: ["plus", "cloud"],
+            systemNames: ["plus"],
             pointSizes: iconSizes,
             weight: .medium
         )
