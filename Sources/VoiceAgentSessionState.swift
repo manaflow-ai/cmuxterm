@@ -60,6 +60,10 @@ final class VoiceAgentSessionState {
     var pendingRecapSurfaceID: String??
     /// True while the audio page should be mounted (from start until stop).
     var isSessionRequested = false
+    /// Whether the chat log already had lines when this session was started:
+    /// the microphone was toggled off and on mid-conversation, so the agent
+    /// opens with a short "Hey." instead of the first-session greeting.
+    private(set) var isResumingConversation = false
     @ObservationIgnored weak var audioController: (any VoiceAgentAudioControlling)?
 
     private static let transcriptLimit = 200
@@ -67,7 +71,7 @@ final class VoiceAgentSessionState {
 
     var audioPageURL: URL? {
         guard isSessionRequested else { return nil }
-        return sidecar?.audioPageURL
+        return sidecar?.audioPageURL(resumingConversation: isResumingConversation)
     }
 
     var isLive: Bool {
@@ -88,6 +92,8 @@ final class VoiceAgentSessionState {
     func beginStarting() {
         lastError = nil
         recentActions = []
+        // Decided once per session, before the audio page URL is built.
+        isResumingConversation = !transcript.isEmpty
         phase = .starting
     }
 

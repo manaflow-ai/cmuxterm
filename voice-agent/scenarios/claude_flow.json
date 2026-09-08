@@ -1,10 +1,8 @@
 [
  {"say":"go to alpha","check":"workspace_is","value":"Alpha","wait":9},
  {"say":"go to the voice scratch folder","check":"cwd_endswith","value":"voice-scratch","wait":11},
- {"say":"open claude code and ask it to create a file called hello dot md with one line that says hello from voice","check":"box_contains","value":"hello","wait":18},
- {"say":"enter","check":"in_claude","wait":8},
- {"say":"switch to staff portal","check":"workspace_is","value":"Staff Portal","wait":45},
- {"say":"go to alpha","check":"workspace_is","value":"Alpha","wait":30},
+ {"say":"open claude code and ask it to create a file called hello dot md with one line that says hello from voice","check":"in_claude","wait":50},
+ {"say":"yes","check":"spoken_contains","value":"hello","wait":20},
  {"say":"quit claude code","check":"at_shell","wait":16},
  {"say":"show me hello dot md","check":"screen_contains","value":"hello from voice","wait":12}
 ]

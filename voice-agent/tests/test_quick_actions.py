@@ -204,15 +204,22 @@ def _stop(surface="S-B2", seq=5):
                                        "workspace_id": "WS-B", "surface_id": surface, "payload": {"hook_event_name": "Stop", "phase": "completed"}})
 
 
-async def test_callout_names_workspace_and_tab_and_defers(fake: FakeCmux):
+async def test_callout_names_the_terminal_and_offers_a_summary(fake: FakeCmux):
+    """Workspace "web frontend" has two terminals, so the name combines
+    workspace and tab; workspace "api" has one, so its name alone is used."""
     s = CompletionSummarizer(CmuxClient(fake.path))
     c = _stop("S-B2")
     text = await s.callout_for(c)
-    assert "Claude Code just finished in workspace web frontend, tab npm run dev" in text
-    s.defer(c)
-    assert s.take_pending("S-B1") is None
-    assert s.take_pending("S-B2") is c
-    assert s.take_pending("S-B2") is None
+    assert '"Terminal web frontend npm run dev is done. Would you like a summary?"' in text
+    assert "Interrupt whatever you were saying" in text and "summarize_agent" in text
+    assert list(s.pending) == ["S-B2"]  # remembered until the user asks
+    single = AgentCompletion.from_frame({"type": "event", "category": "agent", "name": "agent.hook.Stop", "seq": 6, "source": "codex",
+                                         "workspace_id": "WS-A", "surface_id": "S-A1", "payload": {"hook_event_name": "Stop", "phase": "completed"}})
+    assert '"Terminal api is done. Would you like a summary?"' in await s.callout_for(single)
+    # "yes" takes the newest; a name picks that one; nothing left afterwards.
+    assert s.take_by_name(None).completion is single
+    assert s.take_by_name("the web frontend one").completion is c
+    assert s.take_by_name(None) is None
 
 
 async def test_ui_events_reach_the_ui_callback_and_agent_events_the_other():
@@ -245,14 +252,16 @@ async def test_switch_misses_name_known_options(tools: VoiceTools):
     assert res["ok"] is False and "Tabs I know" in res["say"]
 
 
-async def test_completion_flow_speaks_now_when_focused_and_defers_when_elsewhere(fake: FakeCmux):
+async def test_completion_flow_calls_out_every_finish_and_summarizes_only_on_request(fake: FakeCmux):
     base = fake.responder
+    reads = []
 
     def responder(m, p):
         if m == "system.identify":
             return {"focused": {"surface_id": "S-B1", "workspace_id": "WS-B"}}
         if m == "surface.read_text":
-            return {"text": "$ claude\n✔ done\n$ "}
+            reads.append(p.get("surface_id"))
+            return {"text": "$ claude\n✔ created three files\n$ "}
         return base(m, p)
 
     fake.responder = responder
@@ -264,16 +273,26 @@ async def test_completion_flow_speaks_now_when_focused_and_defers_when_elsewhere
     async def speak(t): spoken.append(t)
 
     flow = CompletionFlow(tools, CompletionSummarizer(CmuxClient(fake.path)), speak, settle_s=0)
-    await flow.on_agent_completion(_stop("S-B1", seq=1))  # focused -> recap now
-    assert flow.spoken == ["recap"] and spoken[-1].startswith("[Agent turn completed")
-    await flow.on_agent_completion(_stop("S-B2", seq=2))  # elsewhere -> callout + deferred
-    assert flow.spoken == ["recap", "callout"] and "just finished in workspace web frontend, tab npm run dev" in spoken[-1]
-    # User switches there (by voice or click): the recap follows.
+    await flow.on_agent_completion(_stop("S-B1", seq=1))  # the focused terminal: still only a callout
+    assert flow.spoken == ["callout"] and "Terminal web frontend vim is done. Would you like a summary?" in spoken[-1]
+    await flow.on_agent_completion(_stop("S-B2", seq=2))  # another terminal, same treatment
+    assert flow.spoken == ["callout", "callout"] and "Terminal web frontend npm run dev is done" in spoken[-1]
+    assert reads == []  # nothing was read or summarized on its own
+    # Switching there does not play anything.
     await flow.on_ui_event({"name": "surface.focused", "category": "surface", "surface_id": "S-B2", "workspace_id": "WS-B"})
-    assert flow.spoken == ["recap", "callout", "recap"] and flow.focused_surface_id == "S-B2"
-    # Switching again does not repeat it.
-    await flow.on_ui_event({"name": "surface.focused", "category": "surface", "surface_id": "S-B2"})
-    assert flow.spoken == ["recap", "callout", "recap"]
+    assert flow.spoken == ["callout", "callout"] and flow.focused_surface_id == "S-B2"
+    # "Yes" -> the newest finished terminal is read and handed to the model with next-step instructions.
+    res = await flow.summarize(None)
+    assert res["ok"] and res["terminal"] == "web frontend npm run dev" and "created three files" in res["say"]
+    assert "Next, you could tell it to" in res["say"] and "Next, you could tell it to" in res["reply"]
+    assert reads == ["S-B2"] and flow.spoken == ["callout", "callout", "recap"]
+    # The other one is still waiting; asking by name finds it.
+    res = await flow.summarize("vim")
+    assert res["ok"] and reads == ["S-B2", "S-B1"]
+    # Nothing pending: an unnamed request reads the focused terminal; a name that matches nothing says so.
+    res = await flow.summarize(None)
+    assert res["ok"] and res["terminal"] == "this terminal" and reads[-1] is None
+    assert (await flow.summarize("nope"))["ok"] is False
     client.close()
 
 
@@ -325,17 +344,7 @@ async def test_quit_agent_when_none_open(tools: VoiceTools, fake: FakeCmux):
     assert res["ok"] and res["already_closed"]
 
 
-async def test_deferred_recap_plays_on_workspace_switch_without_surface_id(fake: FakeCmux):
-    base = fake.responder
-
-    def responder(m, p):
-        if m == "system.identify":
-            return {"focused": {"surface_id": "S-A1", "workspace_id": "WS-A"}}
-        if m == "surface.read_text":
-            return {"text": "$ claude\ncreated three files\n$ "}
-        return base(m, p)
-
-    fake.responder = responder
+async def test_completion_flow_announces_once_per_turn_and_respects_the_off_switch(fake: FakeCmux):
     from cmux_voice.completion_flow import CompletionFlow
     client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
     tools = VoiceTools(client, ConfirmationPolicy())
@@ -344,9 +353,34 @@ async def test_deferred_recap_plays_on_workspace_switch_without_surface_id(fake:
     async def speak(t): spoken.append(t)
 
     flow = CompletionFlow(tools, CompletionSummarizer(CmuxClient(fake.path)), speak, settle_s=0)
-    await flow.on_agent_completion(_stop("S-B1", seq=9))  # finished in WS-B while the user is in WS-A
+    await flow.on_agent_completion(_stop("S-B1", seq=9))
+    await flow.on_agent_completion(_stop("S-B1", seq=10))  # Stop then SessionEnd within a second: one callout
     assert flow.spoken == ["callout"]
-    # cmux's workspace.selected carries the workspace id but no surface id.
-    await flow.on_ui_event({"name": "workspace.selected", "category": "workspace", "workspace_id": "WS-B", "surface_id": None})
-    assert flow.spoken == ["callout", "recap"] and "created three files" in spoken[-1]
+    off = CompletionFlow(tools, CompletionSummarizer(CmuxClient(fake.path), enabled=False), speak, settle_s=0)
+    await off.on_agent_completion(_stop("S-B2", seq=11))
+    assert off.spoken == []
     client.close()
+
+
+async def test_callouts_interrupt_the_model():
+    """The callout is queued as an urgent user text, which the Ultravox service
+    sends with urgency=immediate so it cuts into whatever is being said."""
+    from cmux_voice.ultravox_service import CmuxUltravoxService, UrgentTextFrame
+
+    class Stub(CmuxUltravoxService):
+        def __init__(self):
+            self._socket = object()
+            self.sent = []
+            self._name = "stub"
+
+        async def _send(self, content):
+            self.sent.append(content)
+
+    svc = Stub()
+    svc._pending_urgency = "immediate"
+    await svc._send_user_text("[Agent finished]")
+    svc._pending_urgency = None
+    await svc._send_user_text("plain")
+    assert svc.sent == [{"type": "user_text_message", "text": "[Agent finished]", "urgency": "immediate"},
+                        {"type": "user_text_message", "text": "plain"}]
+    assert UrgentTextFrame(text="x").urgency == "immediate"

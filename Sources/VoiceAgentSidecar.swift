@@ -19,9 +19,14 @@ struct VoiceAgentSidecarSession: Sendable, Hashable {
     }
 
     /// The hidden audio page the sidebar's WKWebView loads. `autostart=1`
-    /// makes the page open the WebRTC call as soon as it loads.
-    var audioPageURL: URL {
-        URL(string: "http://127.0.0.1:\(port)/\(token)/audio.html?autostart=1")!
+    /// makes the page open the WebRTC call as soon as it loads; `session`
+    /// tells the sidecar whether this call starts a new conversation
+    /// (`fresh`, the chat log is empty) or resumes one (`resume`, the user
+    /// toggled the microphone with the log still on screen), which picks the
+    /// spoken greeting.
+    func audioPageURL(resumingConversation: Bool) -> URL {
+        let session = resumingConversation ? "resume" : "fresh"
+        return URL(string: "http://127.0.0.1:\(port)/\(token)/audio.html?autostart=1&session=\(session)")!
     }
 }
 

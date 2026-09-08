@@ -271,6 +271,7 @@ def test_specs_cover_v1_catalog(tools: VoiceTools):
         "which_pane", "focus_terminal", "dictate", "set_dictation", "choose_option", "menu_navigate", "scroll",
         "shell_context", "go_to_directory", "run_shell", "compose_and_type", "press_enter", "open_agent", "close_pane",
         "create_workspace_group", "rename_workspace_group", "focus_workspace_group", "create_workspace_in_group", "rename_tab", "git_action", "create_worktree", "quit_agent",
+        "summarize_agent",
     }
     confirming = {s.name for s in tools.specs() if "Requires confirmation" in s.description}
     assert confirming == {"close_workspace", "close_tab", "close_pane", "run_command", "run_shell"}
@@ -431,13 +432,25 @@ async def test_run_shell_trusted_skips_confirm_but_not_for_risky(fake: FakeCmux)
     client.close()
 
 
-async def test_compose_then_enter_needs_no_confirmation(tools: VoiceTools, fake: FakeCmux):
+async def test_compose_types_and_sends_without_asking_for_enter(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+    """Prompting an agent is one step: the message is typed and submitted, with
+    no confirmation even though trusted input is off."""
+    import cmux_voice.tools as t
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(t.asyncio, "sleep", no_sleep)
     res = await tools.compose_and_type("Please refactor the login handler to use async/await and add tests.")
-    assert res["ok"] and res["say"] == "Written. Say enter to send it."
-    assert "surface.send_key" not in fake.methods()
+    assert res["ok"] and res["say"] == "Done." and res["sent"] is True
+    assert "enter" not in res["say"].lower()
+    sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
+    assert [x["params"].get("text") or x["params"].get("key") for x in sent] == [
+        "Please refactor the login handler to use async/await and add tests.", "enter"]
+    assert sent[1] == {"method": "surface.send_key", "params": {"surface_id": "S-B1", "key": "enter"}}
+    # Nothing is left "typed but unsent", so a bare enter afterwards is a fresh keypress.
     res = await tools.press_enter()
-    assert res["ok"] and res["say"] == "Sent."
-    assert {"method": "surface.send_key", "params": {"surface_id": "S-B1", "key": "enter"}} in fake.requests
+    assert res["status"] == "needs_confirmation"
 
 
 async def test_press_enter_alone_confirms(tools: VoiceTools, fake: FakeCmux):
@@ -468,12 +481,12 @@ async def test_open_agent_launches_claude_without_confirmation(tools: VoiceTools
 
     fake.responder = responder
     res = await tools.open_agent()
-    assert res["ok"] and res["say"] == "Opened Claude Code." and res["agent"] == "claude"
+    assert res["ok"] and res["say"] == "Done." and res["agent"] == "claude"
     sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
     assert sent[0]["params"]["text"] == "claude" and sent[1]["params"]["key"] == "enter"
 
 
-async def test_open_agent_with_prompt_types_but_does_not_send(tools: VoiceTools, fake: FakeCmux, monkeypatch):
+async def test_open_agent_with_prompt_types_and_sends(tools: VoiceTools, fake: FakeCmux, monkeypatch):
     import cmux_voice.tools as t
 
     async def no_sleep(_):
@@ -495,11 +508,9 @@ async def test_open_agent_with_prompt_types_but_does_not_send(tools: VoiceTools,
     fake.responder = responder
     res = await tools.open_agent("codex", prompt="Add tests for the login handler.")
     assert reads["n"] >= 4  # placeholder frame skipped; bare prompt seen twice
-    assert res["ok"] and "Say enter to send it" in res["say"]
+    assert res["ok"] and res["say"] == "Done." and res["sent"] is True
     sent = [r for r in fake.requests if r["method"].startswith("surface.send_")]
-    assert [x["params"].get("text") or x["params"].get("key") for x in sent] == ["codex", "enter", "Add tests for the login handler."]
-    res = await tools.press_enter()
-    assert res["ok"] and res["say"] == "Sent."
+    assert [x["params"].get("text") or x["params"].get("key") for x in sent] == ["codex", "enter", "Add tests for the login handler.", "enter"]
 
 
 async def test_open_agent_unknown(tools: VoiceTools, fake: FakeCmux):
@@ -604,7 +615,7 @@ async def test_open_agent_accepts_first_run_trust_dialog(tools: VoiceTools, fake
         return base(m, p)
     fake.responder = responder
     res = await tools.open_agent("claude")
-    assert res["ok"] and res["say"] == "Opened Claude Code."
+    assert res["ok"] and res["say"] == "Done."
     keys = [r["params"]["key"] for r in fake.requests if r["method"] == "surface.send_key"]
     assert keys == ["enter", "down", "enter"]  # launch, then move to "Yes" and confirm
 
@@ -618,9 +629,27 @@ async def test_open_agent_is_idempotent_when_already_open(fake: FakeCmux):
     assert res["ok"] and res["already_open"] and "already open" in res["say"]
     assert "surface.send_key" not in fake.methods()  # did not relaunch
     res = await t.open_agent("claude", prompt="Summarize this repo.")
-    assert res["already_open"] and res["typed"] == "Summarize this repo."
+    assert res["already_open"] and res["typed"] == "Summarize this repo." and res["sent"] is True
     sent = [r for r in fake.requests if r["method"] == "surface.send_text"]
     assert sent == [{"method": "surface.send_text", "params": {"surface_id": "S-B1", "text": "Summarize this repo."}}]
+    assert fake.requests[-1]["method"] in {"surface.send_key", "surface.trigger_flash", "system.tree", "pane.list", "workspace.list", "workspace.group.list"}
+    assert {"method": "surface.send_key", "params": {"surface_id": "S-B1", "key": "enter"}} in fake.requests
+    client.close()
+
+
+async def test_summarize_agent_delegates_to_the_completion_flow(fake: FakeCmux):
+    seen = []
+
+    async def on_summarize(target):
+        seen.append(target)
+        return {"ok": True, "say": "screen text", "reply": "Summarize it."}
+
+    client = CmuxClient(fake.path, allowed_methods=ALLOWED_METHODS)
+    t = VoiceTools(client, ConfirmationPolicy(), on_summarize=on_summarize)
+    assert (await t.summarize_agent("alpha"))["reply"] == "Summarize it."
+    assert seen == ["alpha"]
+    bare = VoiceTools(client, ConfirmationPolicy())
+    assert (await bare.summarize_agent())["ok"] is False
     client.close()
 
 

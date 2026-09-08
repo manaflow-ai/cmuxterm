@@ -14,7 +14,8 @@ Routes:
     GET  /healthz
     GET  /<token>/audio.html            hidden audio page loaded by the app's WKWebView
     GET  /<token>/static/<file>         bundled JS
-    POST /<token>/api/offer             SmallWebRTC offer -> answer (starts the Pipecat bot)
+    POST /<token>/api/offer             SmallWebRTC offer -> answer (starts the Pipecat bot);
+                                        request_data.session = "fresh" | "resume" picks the greeting
     PATCH /<token>/api/offer            trickle ICE candidates
     GET  /<token>/api/state             {"ready": bool, "apiKeyConfigured": bool}
 
@@ -152,6 +153,7 @@ def build_app(token: str) -> FastAPI:
         webrtc_request = SmallWebRTCRequest.from_dict(
             {k: body.get(k) for k in ("sdp", "type", "pc_id", "restart_pc", "request_data", "requestData") if k in body}
         )
+        session_kind = session_kind_from_offer(body)
 
         async def on_connection(connection) -> None:
             transport = SmallWebRTCTransport(
@@ -161,7 +163,7 @@ def build_app(token: str) -> FastAPI:
             previous = active.get("task")
             if previous is not None and not previous.done():
                 previous.cancel()
-            active["task"] = asyncio.create_task(_run_bot_logged(transport))
+            active["task"] = asyncio.create_task(_run_bot_logged(transport, session=session_kind))
 
         return await handler.handle_web_request(request=webrtc_request, webrtc_connection_callback=on_connection)
 
@@ -179,9 +181,19 @@ def build_app(token: str) -> FastAPI:
     return app
 
 
-async def _run_bot_logged(transport) -> None:
+def session_kind_from_offer(body: dict[str, Any]) -> Optional[str]:
+    """The audio page says whether this call starts a new chat ("fresh") or
+    resumes one whose log is still on screen ("resume")."""
+    data = body.get("request_data") or body.get("requestData") or {}
+    if not isinstance(data, dict):
+        return None
+    kind = str(data.get("session") or "").strip().lower()
+    return kind if kind in {"fresh", "resume"} else None
+
+
+async def _run_bot_logged(transport, *, session: Optional[str] = None) -> None:
     try:
-        await run_bot(transport)
+        await run_bot(transport, session=session)
     except asyncio.CancelledError:
         raise
     except Exception:  # noqa: BLE001

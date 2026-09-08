@@ -1,9 +1,11 @@
-"""Turn agent completions into speech, with awareness of where the user is.
+"""Turn agent completions into speech.
 
-- Finished in the focused terminal: speak the recap now.
-- Finished elsewhere: speak one notice naming the workspace and tab, remember
-  it, and speak the recap the moment the user switches to that surface (by
-  voice or by clicking). Focus is tracked from cmux's event stream.
+- Any terminal, focused or not: the moment an agent finishes a turn, one
+  sentence is spoken, interrupting the model if it was talking: "Terminal
+  <name> is done. Would you like a summary?" The name is the workspace title,
+  or "<workspace> <tab>" when the workspace has more than one terminal.
+- The summary plays only when the user asks for it (the summarize_agent tool,
+  wired in bot.py), never on its own.
 - UI events (create/rename/close/focus) refresh the tools' name cache, debounced,
   so switching by name never needs a round trip first.
 """
@@ -51,16 +53,35 @@ class CompletionFlow:
         self.focused_workspace_id = f.get("workspace_id") or self.focused_workspace_id
 
     async def on_agent_completion(self, completion: AgentCompletion) -> None:
-        if not self.enabled:
+        if not self.enabled or not self.summarizer.enabled:
             return
-        await self.sync_focus()
-        if completion.surface_id and self.focused_surface_id and completion.surface_id != self.focused_surface_id:
-            self.summarizer.defer(completion)
-            logger.info(f"agent finished elsewhere: {completion.source} on {completion.surface_id}")
-            self.spoken.append("callout")
-            await self.speak(await self.summarizer.callout_for(completion))
+        if not self.summarizer.should_announce(completion):
             return
-        await self._recap(completion)
+        logger.info(f"agent finished: {completion.source} on {completion.surface_id}")
+        self.spoken.append("callout")
+        await self.speak(await self.summarizer.callout_for(completion))
+
+    async def summarize(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """The summarize_agent tool: the announced terminal the user is asking
+        about (newest when unnamed), else the focused terminal."""
+        item = self.summarizer.take_by_name(target)
+        if item is not None:
+            briefing = await self.summarizer.briefing_for_surface(item.completion.surface_id, source=item.completion.source)
+            name = item.terminal_name
+        else:
+            if target and target.strip():
+                return {"ok": False, "say": f"No agent has finished in a terminal called {target}."}
+            briefing = await self.summarizer.briefing_for_surface(None, source="focused")
+            name = "this terminal"
+        if briefing is None:
+            return {"ok": False, "say": "I couldn't read that terminal."}
+        self.spoken.append("recap")
+        return {
+            "ok": True,
+            "say": briefing,
+            "terminal": name,
+            "reply": "Summarize the terminal text in this result aloud in under 100 words, then suggest one next step as 'Next, you could tell it to ...'. Call no other tool.",
+        }
 
     async def on_ui_event(self, frame: Dict[str, Any]) -> None:
         name = frame.get("name") or ""
@@ -70,10 +91,6 @@ class CompletionFlow:
                 self.focused_surface_id = sid
             if frame.get("workspace_id"):
                 self.focused_workspace_id = frame.get("workspace_id")
-            pending = self.summarizer.take_pending(sid, frame.get("workspace_id"))
-            if pending is not None:
-                await asyncio.sleep(self.settle_s)  # let the switch render before reading the screen
-                await self._recap(pending)
         if name in STRUCTURE_EVENTS:
             self._schedule_refresh()
 
@@ -89,11 +106,3 @@ class CompletionFlow:
                 pass
 
         self._refresh_task = asyncio.create_task(_refresh())
-
-    async def _recap(self, completion: AgentCompletion) -> None:
-        briefing = await self.summarizer.briefing_for(completion)
-        if briefing is None:
-            return
-        logger.info(f"completion summary: {completion.source} on {completion.surface_id}")
-        self.spoken.append("recap")
-        await self.speak(briefing)

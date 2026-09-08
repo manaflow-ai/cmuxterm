@@ -20,7 +20,8 @@ struct VoiceAgentSidecarTests {
         #expect(session.pid == 26549)
         #expect(session.token == "tok")
         #expect(session.healthURL.absoluteString == "http://127.0.0.1:53848/healthz")
-        #expect(session.audioPageURL.absoluteString == "http://127.0.0.1:53848/tok/audio.html?autostart=1")
+        #expect(session.audioPageURL(resumingConversation: false).absoluteString == "http://127.0.0.1:53848/tok/audio.html?autostart=1&session=fresh")
+        #expect(session.audioPageURL(resumingConversation: true).absoluteString == "http://127.0.0.1:53848/tok/audio.html?autostart=1&session=resume")
     }
 
     @Test func stateFileRejectsInvalidPortPIDOrLaunchID() throws {
@@ -69,6 +70,38 @@ struct VoiceAgentSidecarTests {
         #expect(a != b)
         #expect(a.count >= 40)
         #expect(a.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+    }
+
+    /// The greeting depends on whether the chat log was empty when the session
+    /// started: a first start says "Hi there, what should we build?"; toggling
+    /// the microphone off and on mid-conversation gets "Hey." The choice is
+    /// made once, when the session starts, and carried in the audio page URL.
+    @Test func sessionResumesWhenTheTranscriptIsNotEmpty() {
+        let state = VoiceAgentSessionState()
+        let sidecar = VoiceAgentSidecarSession(port: 53848, pid: 42, token: "tok")
+
+        state.beginStarting()
+        state.sidecar = sidecar
+        state.isSessionRequested = true
+        #expect(state.isResumingConversation == false)
+        #expect(state.audioPageURL?.query == "autostart=1&session=fresh")
+
+        // A conversation happened; the user turned the mic off and on again.
+        state.handleBridgeMessage(["type": "transcript", "role": "user", "text": "split right", "final": true])
+        state.reset()
+        #expect(state.audioPageURL == nil)
+        state.beginStarting()
+        state.isSessionRequested = true
+        #expect(state.isResumingConversation == true)
+        #expect(state.audioPageURL?.query == "autostart=1&session=resume")
+
+        // Clearing the chat log makes the next start a fresh session again.
+        state.reset()
+        state.clearTranscript()
+        state.beginStarting()
+        state.isSessionRequested = true
+        #expect(state.isResumingConversation == false)
+        #expect(state.audioPageURL?.query == "autostart=1&session=fresh")
     }
 
     @Test func shellQuotingEscapesSingleQuotes() {

@@ -50,8 +50,7 @@ DEFAULT_SCENARIO = [
     {"say": "switch me to the develop branch", "check": "screen_contains", "value": "Switched to branch", "wait": 12},
     {"say": "list the files here", "check": "screen_contains", "value": "README.md", "wait": 12},
     {"say": "open claude code", "check": "in_claude", "wait": 18},
-    {"say": "tell it to read the readme file and say in one line what this project is", "check": "box_contains", "value": "readme", "wait": 12},
-    {"say": "enter", "check": "in_claude", "wait": 45},
+    {"say": "tell it to read the readme file and say in one line what this project is", "check": "in_claude", "wait": 45},
     {"say": "quit claude code", "check": "at_shell", "wait": 16},
 ]
 def _tree():

@@ -74,14 +74,24 @@ def test_tls_configuration_respects_existing_override(monkeypatch):
     assert os.environ["SSL_CERT_FILE"] == "/custom/ca.pem"
 
 
-def test_agent_greets_first_by_default(monkeypatch):
+def test_greeting_depends_on_whether_the_chat_log_was_empty(monkeypatch):
+    """A new conversation opens with the build question; toggling the mic
+    mid-conversation (chat log still on screen) gets a plain "Hey."."""
     import bot
 
     monkeypatch.delenv("CMUX_VOICE_GREETING", raising=False)
-    settings = bot.first_speaker_settings('Workspaces (1): 1 "api" (current)\nCurrent workspace "api" has 1 pane(s): pane 1: [terminal "zsh" (focused)]')
-    assert "agent" in settings
-    assert settings["agent"]["uninterruptible"] is False
-    assert 'workspace called "api"' in settings["agent"]["prompt"]
+    fresh = bot.first_speaker_settings("fresh")
+    assert fresh == {"agent": {"text": "Hi there, what should we build?", "uninterruptible": False}}
+    assert bot.first_speaker_settings(None) == fresh  # unknown -> treat as a new conversation
+    assert bot.first_speaker_settings("resume")["agent"]["text"] == "Hey."
+
+
+def test_offer_request_data_picks_the_session_kind():
+    assert server.session_kind_from_offer({"request_data": {"session": "resume"}}) == "resume"
+    assert server.session_kind_from_offer({"requestData": {"session": "FRESH"}}) == "fresh"
+    assert server.session_kind_from_offer({"request_data": {"session": "bogus"}}) is None
+    assert server.session_kind_from_offer({}) is None
+    assert server.session_kind_from_offer({"request_data": "nope"}) is None
 
 
 def test_greeting_override_and_off(monkeypatch):
@@ -103,8 +113,19 @@ def test_greeting_reaches_ultravox_call_request(monkeypatch):
     monkeypatch.setenv("ULTRAVOX_API_KEY", "test-key")
     monkeypatch.delenv("CMUX_VOICE_GREETING", raising=False)
     tools = VoiceTools(CmuxClient("/nonexistent.sock", allowed_methods=ALLOWED_METHODS), ConfirmationPolicy())
-    llm = bot.build_llm(tools, output_medium="voice", ui_summary="")
-    assert llm._params.extra["firstSpeakerSettings"]["agent"]["prompt"].startswith("Greet the user")
+    llm = bot.build_llm(tools, output_medium="voice", ui_summary="", session="resume")
+    assert llm._params.extra["firstSpeakerSettings"]["agent"]["text"] == "Hey."
+    # Turn-taking buffer: a little longer than Ultravox's 0.384 s default.
+    assert llm._params.extra["vadSettings"]["turnEndpointDelay"] == "0.5s"
+
+
+def test_turn_delay_is_configurable_and_clamped(monkeypatch):
+    import bot
+
+    monkeypatch.setenv("CMUX_VOICE_TURN_DELAY", "0.8")
+    assert bot.vad_settings()["turnEndpointDelay"] == "0.8s"
+    monkeypatch.setenv("CMUX_VOICE_TURN_DELAY", "9")
+    assert bot.vad_settings()["turnEndpointDelay"] == "3s"
 
 
 def test_prompt_guards_composition_and_git_context():
@@ -116,13 +137,22 @@ def test_prompt_guards_composition_and_git_context():
     assert "go_to_directory" in prompt and "run_shell" in prompt and "compose_and_type" in prompt
 
 
-def test_prompt_requires_spoken_replies():
+def test_prompt_is_hands_free():
     from cmux_voice.prompt import build_system_prompt
 
     prompt = build_system_prompt()
-    assert "Every request gets a spoken reply" in prompt
-    assert "ask one short follow-up question" in prompt
-    assert "When you get stuck" in prompt
+    # Actions end with one word; prompts to agents are sent without "enter".
+    assert 'say exactly one word: "Done."' in prompt
+    assert "Never ask the user to say \"enter\"" in prompt
+    assert "never wait for them to confirm the prompt" in prompt
+    # Speak only when spoken to, or when an agent finishes.
+    assert "If the user is not talking to you, stay silent" in prompt
+    assert "Terminal <name> is done. Would you like a summary?" in prompt
+    assert "call summarize_agent" in prompt
+    assert "Next, you could tell it to" in prompt
+    # Act as soon as the request is recognized, but wait out an unfinished sentence.
+    assert "Act the moment you recognize the request" in prompt
+    assert "clearly mid-sentence" in prompt and "keep listening" in prompt
 
 
 def test_reply_hints_cover_every_outcome():
@@ -132,4 +162,9 @@ def test_reply_hints_cover_every_outcome():
     assert "options" in bot.with_reply_hint("go_to_directory", {"ok": True, "status": "ambiguous", "say": "x"})["reply"]
     assert "did not work" in bot.with_reply_hint("split", {"ok": False, "say": "no"})["reply"]
     assert "Answer the user" in bot.with_reply_hint("which_pane", {"ok": True, "say": "pane 1"})["reply"]
-    assert "Confirm out loud" in bot.with_reply_hint("split", {"ok": True, "say": "Split right."})["reply"]
+    # Every successful action: one word, nothing else.
+    for name in ("split", "compose_and_type", "open_agent", "focus_workspace", "press_enter"):
+        assert bot.with_reply_hint(name, {"ok": True, "say": "Done."})["reply"] == "Say only the word: Done. Nothing else."
+    assert "answer it from the output" in bot.with_reply_hint("run_shell", {"ok": True, "say": "Ran ls.", "output": "a.txt"})["reply"]
+    # A handler that already says how to reply (summaries) is left alone.
+    assert bot.with_reply_hint("summarize_agent", {"ok": True, "say": "…", "reply": "Summarize this."})["reply"] == "Summarize this."

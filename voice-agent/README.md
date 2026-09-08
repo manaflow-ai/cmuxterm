@@ -20,7 +20,9 @@ Pipecat dev runner's web client. User docs: `docs/voice-agent.md`.
 | `cmux_voice/state.py` | `system.tree` snapshot → numbered summary; resolves "workspace 2", "the pane on the right" |
 | `cmux_voice/tools.py` | The v1 tool catalog and handlers (`VoiceTools`) |
 | `cmux_voice/policy.py` | Confirmation gate for close/run tools |
-| `cmux_voice/prompt.py` | System prompt |
+| `cmux_voice/prompt.py` | System prompt and the two greetings (first session / resumed session) |
+| `cmux_voice/summary.py`, `cmux_voice/completion_flow.py` | "Terminal X is done" callouts and on-request summaries |
+| `cmux_voice/ultravox_service.py` | Ultravox tweaks: immediate tool results, urgent (interrupting) text, tool timeout |
 | `tests/` | Fake-socket tests for the tool layer |
 
 ## Setup
@@ -47,7 +49,10 @@ CMUX_VOICE_TRUST_TERMINAL=1 .venv/bin/python bot.py -t webrtc   # run commands w
 
 Things to say: "what do I have open", "go to workspace two", "split right",
 "open github dot com in a browser", "go back", "type ls", "run ls", "yes",
-"read the screen", "close this tab", "no", "goodbye".
+"read the screen", "close this tab", "no", "goodbye". Actions come back with a
+single "Done."; "open Claude Code and tell it to …" sends the prompt without
+an "enter"; when an agent finishes anywhere you hear "Terminal X is done.
+Would you like a summary?" and "yes" plays the summary.
 
 Text mode (no microphone, still calls Ultravox):
 
@@ -62,7 +67,7 @@ drives real voice turns and scores each by its effect on the terminal:
 
 ```bash
 CMUX_TAG=voice CMUX_SOCKET_PATH=/tmp/cmux-debug-voice.sock CMUX_VOICE_TRUST_TERMINAL=1 \
-  .venv/bin/python scenario.py            # default: cd, git, open Claude Code, prompt it, quit
+  .venv/bin/python scenario.py            # default: cd, git, open Claude Code, prompt it (auto-sent), quit
 SCENARIO='[{"say":"split right","check":"in_claude"}]' .venv/bin/python scenario.py
 ```
 
@@ -71,7 +76,8 @@ focused terminal at least 60 columns wide.
 
 Ready-made scenarios live in `scenarios/`: `ui_terminal.json` (groups, naming,
 switching, lazy folders, git, worktree), `claude_flow.json` (prompting Claude
-Code, recap), `elsewhere.json` (agent finishes in another workspace).
+Code, "yes" for the summary), `elsewhere.json` (agent finishes in another
+workspace: callout, then the summary on "yes").
 Run one with `SCENARIO="$(cat scenarios/ui_terminal.json)" .venv/bin/python scenario.py`.
 
 ## Tests

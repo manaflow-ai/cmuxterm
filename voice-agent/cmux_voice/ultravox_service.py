@@ -17,12 +17,26 @@ remember the id so the later context-driven send is skipped as a duplicate.
 from __future__ import annotations
 
 import json
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from loguru import logger
-from pipecat.frames.frames import FunctionCallResultFrame
+from pipecat.frames.frames import FunctionCallResultFrame, InputTextRawFrame
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.ultravox.llm import UltravoxRealtimeLLMService
+
+
+@dataclass
+class UrgentTextFrame(InputTextRawFrame):
+    """Injected text that must interrupt the model if it is speaking.
+
+    Ultravox's ``user_text_message`` takes an ``urgency``: "immediate" cuts the
+    current generation off and answers now, "soon" waits for the current turn,
+    "later" is folded into the next natural turn. The stock service always
+    sends the default ("soon"); a completion callout needs "immediate".
+    """
+
+    urgency: str = "immediate"
 
 
 # Ultravox gives a client tool 2.5 s by default and abandons the call's turn when
@@ -33,6 +47,8 @@ TOOL_TIMEOUT = "40s"
 
 
 class CmuxUltravoxService(UltravoxRealtimeLLMService):
+    _pending_urgency: Optional[str] = None
+
     async def _start_one_shot_call(self, params):  # type: ignore[override]
         # Pipecat reports every failure here as "Failed to connect to Ultravox",
         # hiding the real cause (TLS, a bad key, or a billing limit). Re-raise
@@ -49,6 +65,27 @@ class CmuxUltravoxService(UltravoxRealtimeLLMService):
             if isinstance(temp, dict):
                 temp["timeout"] = TOOL_TIMEOUT
         return selected
+
+    async def process_frame(self, frame, direction: FrameDirection):  # type: ignore[override]
+        # The stock handler sends InputTextRawFrame text with the default
+        # urgency. Remember the requested urgency for the duration of this frame
+        # so _send_user_text can attach it.
+        if isinstance(frame, UrgentTextFrame):
+            self._pending_urgency = frame.urgency
+            try:
+                await super().process_frame(frame, direction)
+            finally:
+                self._pending_urgency = None
+            return
+        await super().process_frame(frame, direction)
+
+    async def _send_user_text(self, text: str):  # type: ignore[override]
+        if not self._socket:
+            return
+        message: dict[str, Any] = {"type": "user_text_message", "text": text}
+        if self._pending_urgency:
+            message["urgency"] = self._pending_urgency
+        await self._send(message)
 
     async def push_frame(self, frame, direction: FrameDirection = FrameDirection.DOWNSTREAM):  # type: ignore[override]
         # The result callback broadcasts a FunctionCallResultFrame through this

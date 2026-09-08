@@ -103,12 +103,15 @@ class VoiceTools:
         *,
         on_state: Optional[Callable[[UIState], Awaitable[None]]] = None,
         on_end_session: Optional[Callable[[], Awaitable[None]]] = None,
+        on_summarize: Optional[Callable[[Optional[str]], Awaitable[Dict[str, Any]]]] = None,
     ) -> None:
         self.client = client
         self.policy = policy or ConfirmationPolicy()
         self.state: Optional[UIState] = None
         self._on_state = on_state
         self._on_end_session = on_end_session
+        # Provided by bot.py (CompletionFlow.summarize); reads the finished terminal.
+        self._on_summarize = on_summarize
         # While on, everything the user says is typed into the terminal verbatim.
         self.dictation_active = False
         self._last_typed_surface: Optional[str] = None
@@ -728,8 +731,21 @@ class VoiceTools:
             return await execute()
         return self.policy.stage("run_shell", {"command": cmd}, f"Run {cmd}?", execute)
 
+    # Agent CLIs (Claude Code, Codex) redraw their input box after a paste;
+    # Enter in the same instant can land on the old frame and be dropped.
+    SUBMIT_SETTLE_S = 0.25
+
+    async def _submit(self, surface_id: str, text: str) -> None:
+        """Type `text` into the input and press Enter, as one action."""
+        await self.client.acall("surface.send_text", {"surface_id": surface_id, "text": text})
+        await asyncio.sleep(self.SUBMIT_SETTLE_S)
+        await self.client.acall("surface.send_key", {"surface_id": surface_id, "key": "enter"})
+        self._last_typed_surface = None
+
     async def compose_and_type(self, text: str, target: Optional[str] = None) -> Dict[str, Any]:
-        """Type a message the model has already rewritten into the focused input (terminal or an agent CLI), no Enter."""
+        """Type a message the model has already rewritten into the focused input
+        (an agent CLI or the shell) and send it. Nobody has to say "enter": the
+        user asked for the prompt to go, so it goes."""
         if not text or not text.strip():
             return self._fail("What should I write?")
         s = await self._terminal(target)
@@ -737,11 +753,10 @@ class VoiceTools:
             return s
         body = text.strip()
         try:
-            await self.client.acall("surface.send_text", {"surface_id": s.id, "text": body})
+            await self._submit(s.id, body)
         except CmuxError as e:
-            return self._fail(f"I couldn't type that: {e}")
-        self._last_typed_surface = s.id
-        return await self._done("Written. Say enter to send it.", flash_surface=s.id, typed=body)
+            return self._fail(f"I couldn't send that: {e}")
+        return await self._done("Done.", flash_surface=s.id, typed=body, sent=True)
 
     async def press_enter(self, target: Optional[str] = None) -> Dict[str, Any]:
         """Submit whatever is in the focused input. Trust rule: like pressing Enter."""
@@ -755,7 +770,7 @@ class VoiceTools:
             except CmuxError as e:
                 return self._fail(f"I couldn't press enter: {e}")
             self._last_typed_surface = None
-            return await self._done("Sent.", flash_surface=s.id)
+            return await self._done("Done.", flash_surface=s.id)
 
         if self.policy.trust_terminal_input or self._last_typed_here(s):
             return await execute()
@@ -831,10 +846,10 @@ class VoiceTools:
 
 
     async def open_agent(self, agent: str = "claude", prompt: Optional[str] = None, target: Optional[str] = None) -> Dict[str, Any]:
-        """Launch a coding agent CLI in the terminal, optionally with a first prompt typed (not sent).
+        """Launch a coding agent CLI in the terminal, optionally sending a first prompt.
 
-        Launching is harmless, so it never asks. A first prompt is typed only;
-        the user says enter to send it, so they can hear it first.
+        Launching is harmless, so it never asks. A first prompt is typed and
+        sent in the same call; the user does not have to say "enter".
         """
         name = (agent or "claude").strip().lower()
         binary = {"claude": "claude", "claude code": "claude", "codex": "codex", "opencode": "opencode", "gemini": "gemini", "pi": "pi"}.get(name)
@@ -854,11 +869,10 @@ class VoiceTools:
         if await self._agent_box_visible(s.id):
             if prompt and prompt.strip():
                 try:
-                    await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+                    await self._submit(s.id, prompt.strip())
                 except CmuxError as e:
-                    return self._fail(f"{label} is open, but I couldn't type the prompt: {e}")
-                self._last_typed_surface = s.id
-                return await self._done(f"{label} is already open here; I typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip(), already_open=True)
+                    return self._fail(f"{label} is open, but I couldn't send the prompt: {e}")
+                return await self._done("Done.", flash_surface=s.id, agent=binary, typed=prompt.strip(), sent=True, already_open=True)
             return {"ok": True, "say": f"{label} is already open in this terminal.", "agent": binary, "already_open": True}
         try:
             await self.client.acall("surface.send_text", {"surface_id": s.id, "text": binary})
@@ -873,12 +887,11 @@ class VoiceTools:
             return self._fail(f"I launched {label}, but its input box never appeared. Read the terminal to see what it is showing.")
         if prompt and prompt.strip():
             try:
-                await self.client.acall("surface.send_text", {"surface_id": s.id, "text": prompt.strip()})
+                await self._submit(s.id, prompt.strip())
             except CmuxError as e:
-                return self._fail(f"Opened {label}, but couldn't type the prompt: {e}")
-            self._last_typed_surface = s.id
-            return await self._done(f"Opened {label} and typed your prompt. Say enter to send it.", flash_surface=s.id, agent=binary, typed=prompt.strip())
-        return await self._done(f"Opened {label}.", flash_surface=s.id, agent=binary)
+                return self._fail(f"Opened {label}, but couldn't send the prompt: {e}")
+            return await self._done("Done.", flash_surface=s.id, agent=binary, typed=prompt.strip(), sent=True)
+        return await self._done("Done.", flash_surface=s.id, agent=binary)
 
     # ------------------------------------------------------ tools: workspace groups
 
@@ -1113,6 +1126,13 @@ class VoiceTools:
     async def confirm(self, decision: str) -> Dict[str, Any]:
         return await self.policy.decide(decision)
 
+    async def summarize_agent(self, target: Optional[str] = None) -> Dict[str, Any]:
+        """After "Terminal X is done. Would you like a summary?" and a yes: the
+        finished terminal's text, for the model to summarize aloud."""
+        if self._on_summarize is None:
+            return self._fail("Summaries are turned off for this session.")
+        return await self._on_summarize(target)
+
     async def end_session(self) -> Dict[str, Any]:
         if self._on_end_session is not None:
             await self._on_end_session()
@@ -1157,9 +1177,9 @@ class VoiceTools:
             ToolSpec("shell_context", "Report the terminal's working directory and git branch. Call before composing a shell or git command when the answer depends on where the user is.", {"target": target_prop}, self.shell_context),
             ToolSpec("go_to_directory", "Change the terminal's directory to a folder the user names. Finds it by name (relative to the current directory, then by search) and runs cd. Ask only if several folders share the name.", {"name": {"type": "string", "description": "Folder name or path as spoken, e.g. 'staff portal', 'voice agent', 'src/lib'."}, "parent": {"type": "string", "description": "Optional parent folder name to disambiguate."}, "target": target_prop}, self.go_to_directory, required=["name"]),
             ToolSpec("run_shell", "Run a shell or git command that YOU composed from the user's intent, e.g. 'switch to develop' -> git checkout develop. Compose exact, correct syntax; call shell_context first if it depends on the current branch or directory. Requires confirmation unless trusted input is on.", {"command": {"type": "string", "description": "The exact command line."}, "target": target_prop}, self.run_shell, required=["command"]),
-            ToolSpec("compose_and_type", "Write a message YOU rewrote from the user's rough words into the focused input, such as a Claude Code prompt or a commit message, without sending it. The user then says enter to send.", {"text": {"type": "string", "description": "The polished text to type."}, "target": target_prop}, self.compose_and_type, required=["text"]),
+            ToolSpec("compose_and_type", "Send a message YOU rewrote from the user's rough words to the focused input, such as a Claude Code or Codex prompt: it is typed AND submitted with enter in one step. Use for 'tell it ...', 'ask it ...', 'have it ...', 'write down ...'. Never ask the user to say enter.", {"text": {"type": "string", "description": "The polished text to send."}, "target": target_prop}, self.compose_and_type, required=["text"]),
             ToolSpec("press_enter", "Press enter to submit whatever is in the focused input, terminal or agent CLI. Use when the user says enter, send, submit, or go.", {"target": target_prop}, self.press_enter),
-            ToolSpec("open_agent", "Open a coding agent CLI (Claude Code by default; also Codex, OpenCode, Gemini, Pi) in the terminal. Optionally type a first prompt YOU composed from the user's request; it is typed but not sent until the user says enter. Never asks for confirmation.", {"agent": {"type": "string", "description": "claude (default), codex, opencode, gemini, or pi."}, "prompt": {"type": "string", "description": "Optional first prompt, already rewritten into a clear instruction."}, "target": target_prop}, self.open_agent),
+            ToolSpec("open_agent", "Open a coding agent CLI (Claude Code by default; also Codex, OpenCode, Gemini, Pi) in the terminal. Optionally pass a first prompt YOU composed from the user's request; it is typed and sent in the same call. Never asks for confirmation.", {"agent": {"type": "string", "description": "claude (default), codex, opencode, gemini, or pi."}, "prompt": {"type": "string", "description": "Optional first prompt, already rewritten into a clear instruction."}, "target": target_prop}, self.open_agent),
             ToolSpec("create_workspace_group", "Create a named workspace group in the sidebar, optionally containing existing workspaces.", {"name": {"type": "string"}, "workspaces": {"type": "array", "items": {"type": "string"}, "description": "Existing workspace names to put in the group."}}, self.create_workspace_group, required=["name"]),
             ToolSpec("rename_workspace_group", "Rename a workspace group (default: the group containing the current workspace).", {"name": {"type": "string"}, "target": {"type": "string", "description": "Group name to rename."}}, self.rename_workspace_group, required=["name"]),
             ToolSpec("focus_workspace_group", "Switch to a workspace group by name (its first workspace).", {"target": {"type": "string"}}, self.focus_workspace_group, required=["target"]),
@@ -1171,6 +1191,7 @@ class VoiceTools:
             ToolSpec("browser_navigate", "Open a web address in the browser tab, or in a new browser split if there is none.", {"url": {"type": "string", "description": "The address or domain to open."}, "target": target_prop}, self.browser_navigate, required=["url"]),
             ToolSpec("browser_history", "Go back, go forward, or reload in the browser.", {"action": {"type": "string", "enum": ["back", "forward", "reload"]}, "target": target_prop}, self.browser_history, required=["action"]),
             ToolSpec("confirm", "Pass on the user's answer to a pending confirmation question.", {"decision": {"type": "string", "enum": ["yes", "no"], "description": "The user's answer."}}, self.confirm, required=["decision"]),
+            ToolSpec("summarize_agent", "Read the terminal where a coding agent just finished so you can summarize it aloud. Call when the user answers yes to 'Terminal X is done. Would you like a summary?', or asks what Claude/Codex did. Default: the most recently finished terminal, else the focused one.", {"target": {"type": "string", "description": "Optional terminal, tab, or workspace name the user said."}}, self.summarize_agent),
             ToolSpec("end_session", "End the voice session when the user says stop, goodbye, or that they are done.", {}, self.end_session),
         ]
 

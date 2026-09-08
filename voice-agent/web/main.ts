@@ -36,6 +36,9 @@ const post = (m: Outbound) => {
 // Base path: /<token>/audio.html -> /<token>
 const base = location.pathname.replace(/\/[^/]*$/, "");
 const offerUrl = `${location.origin}${base}/api/offer`;
+// ?session=fresh|resume: whether the chat log was empty when this call started.
+// The sidecar picks the greeting from it ("Hi there, what should we build?" / "Hey.").
+const sessionKind = new URLSearchParams(location.search).get("session") === "resume" ? "resume" : "fresh";
 
 
 /** RTVI errors arrive as { data: { error, fatal } }; pipecat sometimes nests further. */
@@ -179,7 +182,7 @@ async function start(): Promise<void> {
     },
   });
   try {
-    await client.connect({ connection_url: offerUrl } as any);
+    await client.connect({ webrtcRequestParams: { endpoint: offerUrl, requestData: { session: sessionKind } } } as any);
   } catch (e: any) {
     let message = e?.message ?? String(e);
     if (/503/.test(message)) message = "The voice server is not ready (missing Ultravox API key?)";

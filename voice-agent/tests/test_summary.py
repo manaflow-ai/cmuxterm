@@ -87,6 +87,7 @@ async def test_briefing_reads_screen_and_frames_instructions(fake: FakeCmux):
     c = AgentCompletion.from_frame(json.loads(_stop_frame()))
     text = await s.briefing_for(c)
     assert text.startswith(SUMMARY_INSTRUCTIONS)
+    assert "Next, you could tell it to" in SUMMARY_INSTRUCTIONS
     assert "Agent: claude" in text and "Edited src/login.py" in text
     assert {"method": "surface.read_text", "params": {"lines": 120, "surface_id": "S-B1"}} in fake.requests
     assert s.history[-1].seq == 10

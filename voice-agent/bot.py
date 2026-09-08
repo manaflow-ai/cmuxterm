@@ -12,7 +12,11 @@ Environment:
     CMUX_VOICE_TRUST_TERMINAL   "1" to run commands without confirmation
     CMUX_VOICE_MAX_MINUTES      session cap (default 30)
     CMUX_VOICE_GREETING         fixed opening line, or "off" to let the user speak first
-    CMUX_VOICE_SUMMARIES        "0" to disable spoken recaps when a coding agent finishes a turn
+                                (default: "Hi there, what should we build?" for a new chat,
+                                "Hey." when the call resumes an existing chat log)
+    CMUX_VOICE_SUMMARIES        "0" to disable "Terminal X is done" callouts and summaries
+    CMUX_VOICE_TURN_DELAY       seconds Ultravox waits after the user seems done before
+                                answering (default 0.5; a small buffer for thinking pauses)
 """
 
 from __future__ import annotations
@@ -32,9 +36,10 @@ from cmux_voice.completion_flow import CompletionFlow
 from cmux_voice.events import AgentCompletion, AgentEventSubscriber
 from cmux_voice.summary import CompletionSummarizer
 from cmux_voice.policy import ConfirmationPolicy
-from cmux_voice.prompt import build_greeting_prompt, build_system_prompt
+from cmux_voice.prompt import build_system_prompt, greeting_text
 from cmux_voice.state import UIState
 from cmux_voice.tools import ALLOWED_METHODS, ToolSpec, VoiceTools
+from cmux_voice.ultravox_service import UrgentTextFrame
 
 
 def configure_tls_certificates() -> None:
@@ -67,52 +72,68 @@ def load_dotenv_if_present() -> None:
         os.environ.setdefault(key, value)
 
 
-def first_speaker_settings(ui_summary: str = "") -> Dict[str, Any]:
-    """The agent greets the user as soon as the call connects.
+def first_speaker_settings(session: Optional[str] = None) -> Dict[str, Any]:
+    """The agent's opening line, spoken as soon as the call connects.
 
-    `CMUX_VOICE_GREETING` overrides the generated greeting with fixed text
-    (set it to "off" to let the user speak first).
+    `session` is "fresh" (the chat log is empty: a new conversation) or
+    "resume" (the user toggled the microphone with the log still on screen).
+    `CMUX_VOICE_GREETING` overrides both with fixed text (or "off" to let the
+    user speak first).
     """
     override = os.environ.get("CMUX_VOICE_GREETING", "").strip()
     if override.lower() in {"off", "none", "user"}:
         return {"user": {}}
-    if override:
-        return {"agent": {"text": override, "uninterruptible": False}}
-    return {"agent": {"prompt": build_greeting_prompt(ui_summary), "uninterruptible": False}}
+    text = override or greeting_text(session)
+    return {"agent": {"text": text, "uninterruptible": False}}
+
+
+def vad_settings() -> Dict[str, str]:
+    """Turn-taking: a slightly longer endpoint delay than Ultravox's default
+    (0.384 s) so a thinking pause mid-request does not cut the user off, while
+    still answering quickly once they stop."""
+    delay = float(os.environ.get("CMUX_VOICE_TURN_DELAY", "0.5") or 0.5)
+    delay = min(max(delay, 0.2), 3.0)
+    return {"turnEndpointDelay": f"{delay:g}s", "minimumInterruptionDuration": "0.2s"}
+
+
+QUERY_TOOLS = {"get_ui_state", "read_terminal", "which_pane", "shell_context"}
 
 
 def with_reply_hint(tool_name: str, result: Dict[str, Any]) -> Dict[str, Any]:
-    """Attach an instruction for the spoken reply so the model never goes silent.
+    """Attach an instruction for the spoken reply.
 
-    Ultravox sees the tool result as data; without a hint it often stays quiet
-    after acting. The hint states what kind of reply this outcome needs.
+    Ultravox sees the tool result as data; the hint states what kind of reply
+    this outcome needs. Actions get exactly one word ("Done."); questions get
+    an answer; problems get a few words.
     """
     out = dict(result)
+    if out.get("reply"):
+        return out  # the handler already said what to do (summaries)
     status = out.get("status")
     if status == "needs_confirmation":
         out["reply"] = "Ask the user this question aloud, then wait for their yes or no."
     elif status == "ambiguous":
         out["reply"] = "Read the options aloud briefly and ask which one they meant."
     elif status == "nothing_pending":
-        out["reply"] = "Tell the user there was nothing waiting to confirm and ask what they would like to do."
+        out["reply"] = "Say there was nothing waiting to confirm, in a few words."
     elif out.get("ok") is False:
-        out["reply"] = "Tell the user this did not work, say why in a few words, and offer one next step."
-    elif tool_name in {"get_ui_state", "read_terminal", "which_pane", "shell_context"}:
-        out["reply"] = "Answer the user's question from this information in one or two spoken sentences."
+        out["reply"] = "Say in a few words that this did not work and why. No next steps unless asked."
+    elif tool_name in QUERY_TOOLS:
+        out["reply"] = "Answer the user's question from this information in one or two short spoken sentences."
     elif tool_name in {"run_shell", "run_command"} and out.get("output"):
-        out["reply"] = "Tell the user what the command printed, in one or two spoken sentences; read short lists aloud, summarize long output. Do not say only that it ran."
+        out["reply"] = "If the user asked a question, answer it from the output in one short sentence (read short lists, summarize long output). If they asked for an action, say only: Done."
     else:
-        out["reply"] = "Confirm out loud in one natural sentence what you just did."
+        out["reply"] = "Say only the word: Done. Nothing else."
     return out
 
 
-def build_tools(on_state=None, on_end_session=None) -> VoiceTools:
+def build_tools(on_state=None, on_end_session=None, on_summarize=None) -> VoiceTools:
     client = CmuxClient(allowed_methods=ALLOWED_METHODS)
     policy = ConfirmationPolicy(trust_terminal_input=os.environ.get("CMUX_VOICE_TRUST_TERMINAL") == "1")
-    return VoiceTools(client, policy, on_state=on_state, on_end_session=on_end_session)
+    return VoiceTools(client, policy, on_state=on_state, on_end_session=on_end_session, on_summarize=on_summarize)
 
 
-def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summary: str = ""):
+def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summary: str = "", session: Optional[str] = None):
     from pipecat.adapters.schemas.function_schema import FunctionSchema
     from pipecat.adapters.schemas.tools_schema import ToolsSchema
     from pipecat.services.llm_service import FunctionCallParams
@@ -137,7 +158,7 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
             voice=uuid.UUID(voice) if voice else None,
             output_medium=output_medium,
             max_duration=datetime.timedelta(minutes=minutes),
-            extra={"firstSpeakerSettings": first_speaker_settings(ui_summary)},
+            extra={"firstSpeakerSettings": first_speaker_settings(session), "vadSettings": vad_settings()},
         ),
         one_shot_selected_tools=ToolsSchema(standard_tools=schemas),
     )
@@ -165,7 +186,8 @@ def build_llm(tools: VoiceTools, *, output_medium: Optional[str] = None, ui_summ
     return llm
 
 
-async def run_bot(transport) -> None:
+async def run_bot(transport, *, session: Optional[str] = None) -> None:
+    """One voice call. `session` is "fresh" or "resume" (see first_speaker_settings)."""
     from pipecat.audio.vad.silero import SileroVADAnalyzer  # noqa: F401  (validated below)
     from pipecat.frames.frames import EndFrame, InputTextRawFrame
     from pipecat.pipeline.pipeline import Pipeline
@@ -192,7 +214,15 @@ async def run_bot(transport) -> None:
 
             asyncio.create_task(_end())
 
-    tools = build_tools(on_state=on_state, on_end_session=on_end_session)
+    flow_holder: Dict[str, CompletionFlow] = {}
+
+    async def on_summarize(target: Optional[str]) -> Dict[str, Any]:
+        flow = flow_holder.get("flow")
+        if flow is None:
+            return {"ok": False, "say": "Summaries are turned off for this session."}
+        return await flow.summarize(target)
+
+    tools = build_tools(on_state=on_state, on_end_session=on_end_session, on_summarize=on_summarize)
     asyncio.get_running_loop().run_in_executor(None, shell_context.build_directory_index)
 
     ui_summary = ""
@@ -202,10 +232,11 @@ async def run_bot(transport) -> None:
     except CmuxError as e:
         logger.warning(f"cmux not reachable yet: {e}")
 
-    llm = build_llm(tools, output_medium="voice", ui_summary=ui_summary)
+    llm = build_llm(tools, output_medium="voice", ui_summary=ui_summary, session=session)
 
-    # Completion summaries: cmux's event stream tells us when a coding agent
-    # finished a turn; we read that terminal and have the model brief the user.
+    # Completion callouts: cmux's event stream tells us when a coding agent
+    # finished a turn; the model announces it at once (interrupting itself if
+    # it was talking) and summarizes only when the user says yes.
     summaries_enabled = os.environ.get("CMUX_VOICE_SUMMARIES", "1") != "0"
     summarizer = CompletionSummarizer(CmuxClient(allowed_methods=ALLOWED_METHODS), enabled=summaries_enabled)
 
@@ -217,9 +248,10 @@ async def run_bot(transport) -> None:
             await rtvi.send_server_message({"type": "agent_completed"})
         except Exception:  # noqa: BLE001
             pass
-        await task.queue_frames([InputTextRawFrame(text=text)])
+        await task.queue_frames([UrgentTextFrame(text=text, urgency="immediate")])
 
     flow = CompletionFlow(tools, summarizer, speak, enabled=summaries_enabled)
+    flow_holder["flow"] = flow
     on_agent_completion = flow.on_agent_completion
     on_ui_event = flow.on_ui_event
 
