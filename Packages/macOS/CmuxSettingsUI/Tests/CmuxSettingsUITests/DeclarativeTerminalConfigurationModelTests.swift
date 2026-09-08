@@ -28,10 +28,11 @@ import Testing
             errorLog: SettingsErrorLog()
         )
 
-        model.startObserving()
-        await model.waitForInitialSnapshot()
         #expect(await policyIterator.next() == nil)
         #expect(await modeIterator.next() == .login)
+
+        model.startObserving()
+        await model.waitForInitialSnapshot()
 
         model.setWorkingDirectoryPolicy(.fixedPath)
         model.setShellStartupMode(.nonLogin)
