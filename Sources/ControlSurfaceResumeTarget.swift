@@ -69,7 +69,7 @@ enum ControlSurfaceResumeTarget {
     /// agent or a user Vault registration. A matching native snapshot is the
     /// only safe evidence for enabling its provider-specific short option;
     /// otherwise only non-overridable built-ins are unambiguous.
-    fileprivate func builtInAgentKindForBindingSanitization(
+    func builtInAgentKindForBindingSanitization(
         binding: SurfaceResumeBindingSnapshot,
         normalizedKind: String
     ) -> String? {
