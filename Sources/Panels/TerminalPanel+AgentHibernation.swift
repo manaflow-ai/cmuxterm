@@ -117,6 +117,7 @@ extension TerminalPanel {
         return true
     }
 
+    /// Recreates the terminal runtime and clears the old process-generation intent.
     @discardableResult
     func prepareAgentHibernationResume() -> AgentHibernationResumePreparation {
         guard case .hibernated(let state) = agentHibernationPhase else {

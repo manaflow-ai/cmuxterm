@@ -47,6 +47,7 @@ extension AgentHibernationController {
         return true
     }
 
+    /// Moves a pending intent with its panel when workspace ownership changes.
     func transferSessionEndPreservation(
         panelID: UUID,
         from sourceWorkspaceID: UUID,
