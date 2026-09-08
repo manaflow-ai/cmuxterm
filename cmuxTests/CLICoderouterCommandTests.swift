@@ -438,22 +438,28 @@ extension CLINotifyProcessIntegrationRegressionTests {
     }
 
     func testCoderouterUnknownVerbStillPassesThroughToTheInstalledCLI() throws {
-        // With an empty PATH the passthrough cannot find `coderouter`/`cr`; the
-        // point is that the socket is never consulted for a non-cmux verb.
-        let emptyPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-empty-path-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: emptyPath, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: emptyPath) }
+        // No `coderouter`/`cr` on PATH and none bundled beside the CLI: the
+        // passthrough exits 127 before the socket is ever consulted. The CLI is
+        // copied into a bare fake .app so a bundled copy in DerivedData cannot
+        // satisfy the lookup, and no socket path is set, so a socket round trip
+        // would surface as a connection error rather than 127.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-missing-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bin = root.appendingPathComponent("Bare.app/Contents/Resources/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let cli = bin.appendingPathComponent("cmux")
+        try FileManager.default.copyItem(atPath: try bundledCLIPath(), toPath: cli.path)
 
-        let (result, state) = try runCoderouterCLI(
-            ["coderouter", "accounts"],
-            socketName: "coderouter-passthrough",
-            extraEnvironment: ["PATH": emptyPath.path],
-            waitForSocket: false
-        ) { _, _ in nil }
+        let result = runProcess(
+            executablePath: cli.path,
+            arguments: ["coderouter", "accounts"],
+            environment: passthroughEnvironment(path: "/usr/bin:/bin"),
+            timeout: 5
+        )
 
         XCTAssertEqual(result.status, 127, result.stderr)
-        XCTAssertTrue(state.commands.isEmpty, "passthrough verbs must not touch the cmux socket: \(state.commands)")
+        XCTAssertTrue(result.stderr.contains("Required CLI not found"), result.stderr)
     }
 
     /// A stand-in CodeRouter that prints how it was invoked, so a test can tell
