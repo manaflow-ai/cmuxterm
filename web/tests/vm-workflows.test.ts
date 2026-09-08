@@ -5656,8 +5656,9 @@ describe("VM Effect workflows", () => {
     // The shared `sql` client has one connection, which the holder transaction
     // occupies; observe lock state from a second connection.
     const observer = postgres(databaseURL(), { max: 1 });
+    let release: () => void = () => {};
+    let holder: Promise<unknown> | undefined;
     try {
-      let release: () => void = () => {};
       const held = new Promise<void>((resolve) => {
         release = resolve;
       });
@@ -5668,7 +5669,7 @@ describe("VM Effect workflows", () => {
       // Hold the per-owner lock in a transaction of our own: the upsert must
       // queue behind it (this is what keeps two concurrent creates from racing
       // the (provider, provider_network_id) index) and land once it is released.
-      const holder = sql.begin(async (tx) => {
+      holder = sql.begin(async (tx) => {
         await tx`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
         announceLock();
         await held;
@@ -5701,6 +5702,8 @@ describe("VM Effect workflows", () => {
       const row = await upsert;
       expect(row.providerNetworkId).toBe("network-cmux-net-lock");
     } finally {
+      release();
+      await holder?.catch(() => {});
       await observer.end({ timeout: 5 });
     }
   });
