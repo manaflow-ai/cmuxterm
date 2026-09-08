@@ -37361,20 +37361,6 @@ export default CMUXSessionRestore;
                     responseTimeout: cursorShellNeedsApproval ? cursorCriticalTimeout() : nil,
                     deadline: cursorShellDeadline
                 )
-                let statusValue = String.localizedStringWithFormat(
-                    String(localized: "agent.generic.notification.status.error", defaultValue: "%@ error"),
-                    def.displayName
-                )
-                if cursorShellNeedsApproval {
-                    sendCursorCriticalCommand(
-                        "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))"
-                    )
-                } else {
-                    _ = try? sendV1Command(
-                        "set_status \(def.statusKey) \(statusValue) --icon=exclamationmark.triangle.fill --color=#FF453A --priority=100 --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                        client: client
-                    )
-                }
                 let statusValue = agentErrorStatusValue(for: def)
                 if def.name == "cursor" {
                     sendCursorCriticalCommand(
