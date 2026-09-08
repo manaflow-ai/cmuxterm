@@ -487685,6 +487685,295 @@
           }
         }
       }
+    },
+    "cloudTree.error.invalidPreviewURL": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Cloud service returned an unusable preview address. Refresh and retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud サービスから使用できないプレビューアドレスが返されました。更新して再試行してください。"
+          }
+        }
+      }
+    },
+    "cloudTree.port.forwardListenerFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux could not open a local port for the forward: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux は転送用のローカルポートを開けませんでした: %@"
+          }
+        }
+      }
+    },
+    "cloudTree.port.forwardListenerCancelled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local port forward was closed before it started."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルポート転送は開始前に閉じられました。"
+          }
+        }
+      }
+    },
+    "cloudTree.port.noPort": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ has no port to open."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ には開くポートがありません。"
+          }
+        }
+      }
+    },
+    "cloudTree.port.noPrivateAddress": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ has no private network address yet; refresh the machine list and retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ にはまだプライベートネットワークアドレスがありません。マシン一覧を更新して再試行してください。"
+          }
+        }
+      }
+    },
+    "cloudTree.error.hubUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This cmux build has no user-space WireGuard hub, so it cannot reach ports on Cloud machines."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この cmux ビルドにはユーザー空間 WireGuard ハブがないため、クラウドマシンのポートに接続できません。"
+          }
+        }
+      }
+    },
+    "cloudTree.tunnel.connectedPinned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel is on: every app on this Mac can reach your Cloud VM network. `cmux vpn down` turns it off."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux クラウドトンネルはオンです。この Mac のすべてのアプリがクラウド VM ネットワークに到達できます。`cmux vpn down` でオフになります。"
+          }
+        }
+      }
+    },
+    "cloudTree.tunnel.connected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel is on: every app on this Mac can reach your Cloud VM network. It stops on its own when idle."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux クラウドトンネルはオンです。この Mac のすべてのアプリがクラウド VM ネットワークに到達できます。アイドル状態になると自動的に停止します。"
+          }
+        }
+      }
+    },
+    "cloudTree.tunnel.openSystemSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "システム設定を開く"
+          }
+        }
+      }
+    },
+    "cloudTree.tunnel.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The cmux Cloud Tunnel is a macOS network extension that gives every app on this Mac a route to your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux クラウドトンネルは、この Mac のすべてのアプリにクラウド VM ネットワークへの経路を与える macOS のネットワーク機能拡張です。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。"
+          }
+        }
+      }
+    },
+    "cloudTree.operation.copyPortLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing the link…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクを準備しています…"
+          }
+        }
+      }
+    },
+    "cloudTree.menu.copyLink": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクをコピー"
+          }
+        }
+      }
+    },
+    "cloudTree.menu.copyPrivateURL": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Private Address URL"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プライベートアドレスの URL をコピー"
+          }
+        }
+      }
+    },
+    "cli.vpn.appManaged.explain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This installs the cmux Cloud Tunnel network extension and a macOS VPN configuration named “cmux Cloud”, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel. The first time, macOS asks you to allow the extension in System Settings › General › Login Items & Extensions."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これにより、cmux クラウドトンネルのネットワーク機能拡張と「cmux Cloud」という名前の macOS VPN 構成がインストールされ、この Mac のすべてのアプリがクラウド VM ネットワークに到達できるようになります。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。初回は、macOS が「システム設定」›「一般」›「ログイン項目と機能拡張」で機能拡張の許可を求めます。"
+          }
+        }
+      }
+    },
+    "cloudTree.link.tunnelStopping": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The cmux Cloud Tunnel is stopping…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux クラウドトンネルを停止しています…"
+          }
+        }
+      }
+    },
+    "cloudTree.error.localForwardURLUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux could not build a local address for this port forward."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux はこのポート転送用のローカルアドレスを作成できませんでした。"
+          }
+        }
+      }
+    },
+    "cli.vpn.appManaged.explainReconnect": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This turns the cmux Cloud Tunnel back on, so every app on this Mac can reach your Cloud VM network. cmux itself does not need it: terminals, Ports, and Desktop use the built-in user-space tunnel."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これにより cmux クラウドトンネルが再びオンになり、この Mac のすべてのアプリがクラウド VM ネットワークに到達できるようになります。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
