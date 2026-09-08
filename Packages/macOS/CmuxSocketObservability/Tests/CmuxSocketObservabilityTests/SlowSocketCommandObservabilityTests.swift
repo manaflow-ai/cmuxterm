@@ -57,7 +57,7 @@ struct SlowSocketCommandObservabilityTests {
         #expect(record.executedOnMain)
         #expect(record.peerPid == 4242)
         #expect(record.responseByteCount == 12)
-        #expect(abs(record.durationMs - 150) < 0.0001)
+        #expect(record.durationMs == 150)
     }
 
     @Test

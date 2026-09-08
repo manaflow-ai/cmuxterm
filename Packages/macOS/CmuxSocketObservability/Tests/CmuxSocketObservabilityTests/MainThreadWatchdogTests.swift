@@ -166,7 +166,7 @@ struct MainThreadWatchdogTests {
 
         #expect(reporter.hangs.count == 1)
         #expect(reporter.hangs[0].method == "browser.eval")
-        #expect(abs(reporter.hangs[0].elapsedMs - 1000) < 0.0001)
+        #expect(reporter.hangs[0].elapsedMs == 1000)
         #expect(reporter.hangs[0].backtrace == ["watchdog", "dispatch"])
     }
 
@@ -195,7 +195,7 @@ struct MainThreadWatchdogTests {
         #expect(reporter.hangs.count == 1)
         #expect(reporter.recoveries.count == 1)
         #expect(reporter.recoveries[0].method == "browser.eval")
-        #expect(abs(reporter.recoveries[0].elapsedMs - 2500) < 0.0001)
+        #expect(reporter.recoveries[0].elapsedMs == 2500)
     }
 
     @Test
