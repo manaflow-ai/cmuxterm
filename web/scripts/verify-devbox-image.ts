@@ -271,7 +271,32 @@ async function runChecks(label: string, checks: readonly string[], exec: Exec): 
  * Returns the milliseconds from the call until the session answered.
  */
 async function waitForBakedDaemon(provider: string, exec: Exec): Promise<number> {
-  const t0 = Date.now();
+  /**
+ * Waits for the machine's identity to be minted and to stop changing.
+ *
+ * The daemon answering is not the same as its identity being final, which is
+ * what the two fixed 30-second sleeps here used to cover. Poll for the files
+ * instead, and require the digest to repeat once, so a machine mid-mint is
+ * never compared against another.
+ */
+async function waitForMintedIdentity(
+  exec: (command: string, timeoutMs?: number) => Promise<{ exitCode: number; output: string }>,
+  budgetMs = 120_000,
+): Promise<string> {
+  const digest = `cat ${REMOTE_IDENTITY} ${MACHINE_SECRETS} | sha256sum | cut -c1-64`;
+  const deadline = Date.now() + budgetMs;
+  let previous = "";
+  while (Date.now() < deadline) {
+    const read = await exec(`test -s ${REMOTE_IDENTITY} && test -s ${MACHINE_SECRETS} && ${digest}`, 30_000);
+    const value = read.exitCode === 0 ? read.output.trim() : "";
+    if (value.length === 64 && value === previous) return value;
+    previous = value;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("identity was still not minted and stable after waiting");
+}
+
+const t0 = Date.now();
   for (let attempt = 0; attempt < 45; attempt += 1) {
     const status = await exec(`env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION}`, 30_000);
     if (status.exitCode === 0) return Date.now() - t0;
@@ -328,7 +353,7 @@ if (provider === "freestyle") {
     const exec = execFor(vm);
     const daemonMs = await waitForBakedDaemon("freestyle", exec);
     console.log(`baked daemon answered ${daemonMs} ms after the first probe (${Date.now() - t0} ms after create)`);
-    await new Promise((resolve) => setTimeout(resolve, 30_000));
+    await waitForMintedIdentity(exec);
     // The baked binary must be the pin the bake resolved and recorded in
     // /etc/cmux/cmux-tui-pin (that is the image's contract; the manifest entry
     // carries the same commit). The live files.cmux.com pin moves with every
@@ -355,7 +380,7 @@ if (provider === "freestyle") {
     try {
       const exec2 = execFor(second.vm);
       await waitForBakedDaemon("freestyle", exec2);
-      await new Promise((resolve) => setTimeout(resolve, 30_000));
+      await waitForMintedIdentity(exec2);
       const digest = `cat ${REMOTE_IDENTITY} ${MACHINE_SECRETS} | sha256sum | cut -c1-64`;
       const [a, b] = await Promise.all([exec(digest, 30_000), exec2(digest, 30_000)]);
       const digestA = a.output.trim();
