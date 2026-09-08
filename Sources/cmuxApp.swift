@@ -1028,7 +1028,7 @@ struct cmuxApp: App {
         Window(String(localized: "settings.config.windowTitle", defaultValue: "Config"), id: ConfigSettingsView.windowID) {
             ConfigSettingsView()
                 .chromePaletteHost(
-                    initialPalette: appDelegate.chromePalette,
+                    initialPalette: appDelegate.chromePaletteSnapshot(),
                     settingsRuntime: settingsRuntime,
                     updates: ChromePaletteUpdateSource(streamFactory: {
                         chromePaletteRuntimeCoordinator.makeUpdateStream()
