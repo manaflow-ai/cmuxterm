@@ -18,7 +18,7 @@ for (const destination of [
     expect(serverResponse.status()).toBe(307);
     const location = serverResponse.headers().location ?? "";
     expect(location).toContain("/handler/sign-in?");
-    expect(decodeURIComponent(location)).toContain(destination);
+    expect(decodeURIComponent(decodeURIComponent(location))).toContain(destination);
     expect(await serverResponse.text()).not.toContain("dashboard-shell");
 
     await page.goto(destination);
