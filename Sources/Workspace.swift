@@ -5241,8 +5241,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             renderInitialNavigation: false,
             chromeVisibility: browserSnapshot.chromeVisibility ?? .visible,
             transparentBackground: browserSnapshot.transparentBackground ?? false,
-            engine: browserSnapshot.engine ?? .webkit,
             proxyEndpoint: remoteProxyEndpoint,
+            engine: browserSnapshot.engine ?? .webkit,
             isRemoteWorkspace: isRemoteWorkspace,
             remoteWebsiteDataStoreIdentifier: isRemoteWorkspace ? id : nil
         )
