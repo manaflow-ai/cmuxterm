@@ -271,6 +271,7 @@ public actor IrxRelayCredentialAutopilot {
 
     private func finishLifecycleIfCurrent(generation: UInt64) {
         guard loopGeneration == generation else { return }
+        loop?.cancel()
         loopGeneration &+= 1
         loop = nil
         cancelHintRetry()
