@@ -1300,8 +1300,9 @@ jobs:
           set +e
           run_unit_tests | tee "$TEST_OUTPUT"
           EXIT_CODE=${PIPESTATUS[0]}
-          # The streamed log can lag the per-batch capture files; read both.
-          OUTPUT=$(cat "$TEST_OUTPUT" "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null)
+          OUTPUT=$(cat "$TEST_OUTPUT")
+          # The streamed log can lag the per-batch capture files; include them too.
+          OUTPUT="$OUTPUT"$'\n'"$(cat "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null || true)"
           set -e
 
           # SwiftPM binary artifact resolution can occasionally fail on ephemeral
@@ -1316,8 +1317,9 @@ jobs:
             set +e
             run_unit_tests | tee "$TEST_OUTPUT"
             EXIT_CODE=${PIPESTATUS[0]}
-            # The streamed log can lag the per-batch capture files; read both.
-            OUTPUT=$(cat "$TEST_OUTPUT" "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null)
+            OUTPUT=$(cat "$TEST_OUTPUT")
+            # The streamed log can lag the per-batch capture files; include them too.
+            OUTPUT="$OUTPUT"$'\n'"$(cat "$RUNNER_TEMP"/cmux-unit-output-*-of-"${LOGICAL_SHARD_TOTAL}".txt 2>/dev/null || true)"
             set -e
           fi
 
