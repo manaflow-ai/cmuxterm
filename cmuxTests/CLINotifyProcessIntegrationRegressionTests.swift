@@ -8670,7 +8670,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
             from: Date(timeIntervalSince1970: capturedAt - 1)
         )
         try [
-            #"{"type":"session_meta","payload":{"id":"codex-rejected-mapped-permissions-session"}}"#,
+            #"{"type":"session_meta","payload":{"id":"codex-rejected-mapped-permissions-session","source":"cli","originator":"codex-tui"}}"#,
             #"{"timestamp":"__TIMESTAMP__","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
                 .replacingOccurrences(of: "__TIMESTAMP__", with: priorTimestamp),
         ].joined(separator: "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
@@ -8742,7 +8742,7 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
             from: Date(timeIntervalSince1970: capturedAt - 1)
         )
         try [
-            #"{"type":"session_meta","payload":{"id":"codex-rejected-empty-mapped-session"}}"#,
+            #"{"type":"session_meta","payload":{"id":"codex-rejected-empty-mapped-session","source":"cli","originator":"codex-tui"}}"#,
             #"{"timestamp":"__TIMESTAMP__","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
                 .replacingOccurrences(of: "__TIMESTAMP__", with: priorTimestamp),
         ].joined(separator: "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
