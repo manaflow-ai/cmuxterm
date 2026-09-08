@@ -1,19 +1,36 @@
 {
-  "cli.usage.readScreen": {
-    "class": "syntax",
-    "source": "read-screen [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>] [--selection]"
-  },
-  "cli.usage.readSelection": {
-    "class": "syntax",
-    "source": "read-selection [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]"
-  },
   "about.appName": {
     "class": "brand",
     "source": "cmux"
   },
-  "cli.codexMonitor.notification.title": {
-    "class": "syntax",
-    "source": "Codex"
+  "about.commit": {
+    "source": "Commit",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "about.github": {
+    "class": "brand",
+    "source": "GitHub"
+  },
+  "about.version": {
+    "source": "Version",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "agent.codex.error.subtitle.generic": {
+    "source": "Error",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "agent.generic.notification.subtitle.error": {
+    "source": "Error",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "agent.hermes.notification.body.approvalCommand": {
     "class": "format",
@@ -26,6 +43,10 @@
   "agent.ollama.displayName": {
     "class": "brand",
     "source": "Ollama"
+  },
+  "agentSession.panel.title": {
+    "class": "format",
+    "source": "%@ · %@"
   },
   "agentSession.provider.claude": {
     "class": "brand",
@@ -51,21 +72,101 @@
     "class": "brand",
     "source": "Shift + Tab"
   },
+  "agentSession.web.shellLabel": {
+    "class": "technical",
+    "source": "Shell"
+  },
+  "agentSession.web.skillMenuTitle": {
+    "source": "Skills",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "agentSession.web.skillPlan": {
+    "source": "Plan",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "alert.invalidColor.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "alert.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "appearance.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "browser.designMode.copy.shortcut": {
     "class": "format",
     "source": "⌘↩"
+  },
+  "browser.designMode.handoff.contextJSON": {
+    "source": "Details: %1$@",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "browser.dialog.clientCertificate.titleWithSubtitle": {
     "class": "format",
     "source": "%@ (%@)"
   },
+  "browser.downloads.title": {
+    "source": "Downloads",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "browser.focusMode.helpWithShortcut.format": {
     "class": "format",
     "source": "%@ (%@)"
   },
+  "browser.focusMode.shortcutHint": {
+    "class": "format",
+    "source": "Esc Esc"
+  },
+  "browser.import.complete.browser": {
+    "source": "Browser: %@",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "browser.import.complete.profileMapping": {
     "class": "format",
     "source": "%@ -> %@"
+  },
+  "browser.import.destination.cmux": {
+    "source": "Destination",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "browser.import.domain": {
+    "source": "Domains",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "browser.import.source": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "cli.browser.designMode.help": {
     "class": "syntax",
@@ -83,25 +184,154 @@
     "class": "brand",
     "source": "Claude Code"
   },
+  "cli.codexMonitor.notification.title": {
+    "class": "syntax",
+    "source": "Codex"
+  },
+  "cli.error.clearNotificationsUsage": {
+    "class": "syntax",
+    "source": "clear_notifications [--tab=X] [--panel=ID] [--correlation-key=UUID]"
+  },
+  "cli.help.fork": {
+    "class": "syntax",
+    "source": "fork [--surface <id|ref>] <kind> <checkpoint-id> | fork --surface [id|ref]"
+  },
   "cli.help.ios": {
     "class": "syntax",
     "source": "ios <subcommand> [args] [--surface <id|ref|index>]"
+  },
+  "cli.help.restore": {
+    "class": "syntax",
+    "source": "restore [--surface <id|ref>] <kind> <checkpoint-id> | restore --surface [id|ref]"
   },
   "cli.help.simulator": {
     "class": "syntax",
     "source": "simulator <subcommand> [args] [--surface <id|ref|index>]"
   },
+  "cli.readSelection.output.url": {
+    "class": "format",
+    "source": "URL: %@"
+  },
+  "cli.sessions.command": {
+    "class": "syntax",
+    "source": "sessions [list] [options]"
+  },
+  "cli.usage.readScreen": {
+    "class": "syntax",
+    "source": "read-screen [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>] [--selection]"
+  },
+  "cli.usage.readSelection": {
+    "class": "syntax",
+    "source": "read-selection [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]"
+  },
+  "cli.vm.tree.browsers": {
+    "class": "syntax",
+    "source": "browsers/"
+  },
+  "cli.vm.tree.displays": {
+    "class": "syntax",
+    "source": "VNC Displays/"
+  },
+  "cli.vm.tree.ports": {
+    "class": "syntax",
+    "source": "ports/"
+  },
+  "cli.vm.tree.terminals": {
+    "class": "syntax",
+    "source": "terminals/"
+  },
+  "cli.vm.tree.workspaces": {
+    "class": "syntax",
+    "source": "workspaces/"
+  },
   "clipboard.sshError.item": {
     "class": "format",
     "source": "%lld. %@ (%@): %@"
+  },
+  "cloudPane.newTerminalFailed.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "cloudTree.group.ports": {
+    "source": "Ports",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "cloudTree.node.desktop.detail": {
+    "class": "technical",
+    "source": "noVNC"
+  },
+  "cloudTree.node.desktop.detail.screen": {
+    "class": "format",
+    "source": "%1$@ · %2$@"
+  },
+  "cloudTree.stats.cpu": {
+    "class": "format",
+    "source": "CPU %d%%"
   },
   "cloudTree.terminal.badge.views": {
     "class": "format",
     "source": "×%d"
   },
+  "command.applyUpdateIfAvailable.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.attemptUpdate.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.browserAvailability.subtitle": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.browserClearHistory.subtitle": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.checkForUpdates.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.closeTab.subtitle": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.cloudVM.ports.title": {
+    "source": "Ports",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "command.cloudVM.restore.prompt.placeholder": {
     "class": "syntax",
     "source": "snapshot-id"
+  },
+  "command.cloudVM.status.title": {
+    "source": "Status",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "command.cmuxConfig.builtInSubtitle": {
     "class": "brand",
@@ -131,25 +361,175 @@
     "class": "syntax",
     "source": "cmux.json"
   },
+  "command.installCLI.subtitle": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "command.jumpUnread.subtitle": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.makeDefaultTerminal.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "command.mobileConnect.subtitle": {
     "class": "brand",
     "source": "Tailscale"
+  },
+  "command.newBrowserTab.subtitle": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.newTerminalTab.subtitle": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.openSettings.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.reopenClosedBrowserTab.subtitle": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.restartSocketListener.subtitle": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.showNotifications.subtitle": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.toggleSetting.subtitle": {
+    "source": "%@ • %@",
+    "class": "format"
+  },
+  "command.uninstallCLI.subtitle": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "commandPalette.kind.agentSession": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "commandPalette.kind.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "commandPalette.kind.markdown": {
     "class": "technical",
     "source": "Markdown"
   },
+  "commandPalette.kind.terminal": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "commandPalette.subtitle.tabFallback": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "common.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "computerUse.menu.sessionTitle": {
+    "class": "format",
+    "source": "%1$@ · %2$@"
+  },
+  "computerUse.menu.statusWithTarget": {
+    "source": "%1$@ — %2$@",
+    "class": "format"
+  },
+  "computerUse.menu.title": {
+    "class": "brand",
+    "source": "cmux Computer Use"
+  },
+  "computerUse.menu.unknownTarget": {
+    "source": "App",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "contextMenu.notifications": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "contextMenu.workspaceStatus": {
+    "source": "Status",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "debug.bonsplitTabBarDebug.pixelsValue": {
     "class": "format",
     "source": "%@ px"
   },
-  "debug.tabBarBackdropLab.leftSidebar": {
-    "class": "format",
-    "source": "L"
+  "debug.browserProfilePopover.label.horizontal": {
+    "source": "Horizontal",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
-  "debug.tabBarBackdropLab.rightSidebar": {
-    "class": "format",
-    "source": "R"
+  "debug.browserProfilePopover.label.vertical": {
+    "source": "Vertical",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "debug.menu.notification.cli": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "debug.menu.notification.error": {
+    "source": "Error",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "debug.menu.notification.osc": {
+    "class": "technical",
+    "source": "OSC"
+  },
+  "debug.notification.synthetic.option": {
+    "source": "Option %d",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "debug.tabBarBackdropLab.terminal.prompt": {
     "class": "syntax",
@@ -159,9 +539,102 @@
     "class": "syntax",
     "source": "workspace@lab:~"
   },
-  "feed.buttonDebug.style.solid": {
-    "class": "brand",
-    "source": "Solid"
+  "debug.titlebarLayoutDebug.actions": {
+    "source": "Actions",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "detail.mode": {
+    "source": "Mode",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "dialog.saveWorkspaceLayout.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "dialog.sshURL.blocked.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "dialog.textURL.blocked.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "diffViewer.options": {
+    "source": "Options",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "emptyPanel.action.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "emptyPanel.action.terminal": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "example.sidebar.group.local": {
+    "source": "Local",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "featureFlags.column.source": {
+    "source": "Source",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "featureFlags.source.local": {
+    "source": "Local",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "feed.badge.plan": {
+    "source": "Plan",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "feed.buttonDebug.palette.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "feed.buttonDebug.section.base": {
+    "source": "Base",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "feed.exitplan.mode.ultraplan": {
     "class": "brand",
@@ -183,9 +656,25 @@
     "class": "technical",
     "source": "SwiftUI"
   },
+  "ghostty.copy-mode.indicator": {
+    "class": "technical",
+    "source": "vim"
+  },
+  "globalSearch.kind.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "globalSearch.kind.markdown": {
     "class": "technical",
     "source": "Markdown"
+  },
+  "language.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "machines.agent.claude": {
     "class": "brand",
@@ -199,6 +688,42 @@
     "class": "brand",
     "source": "OpenCode"
   },
+  "machines.kind.base": {
+    "source": "Base",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "machines.menu.fork": {
+    "source": "Fork",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "machines.menu.status": {
+    "source": "Status",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "machines.new.name.label": {
+    "source": "Name",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "machines.new.size.gb": {
+    "class": "format",
+    "source": "%d GB"
+  },
+  "machines.new.size.mb": {
+    "class": "format",
+    "source": "%d MB"
+  },
+  "machines.new.size.ram": {
+    "source": "RAM",
+    "class": "technical"
+  },
   "machines.stats.cpu": {
     "class": "technical",
     "source": "CPU"
@@ -206,6 +731,12 @@
   "machines.stats.provisioned": {
     "class": "brand",
     "source": "%@ GB"
+  },
+  "markdown.font.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "markdown.fontSize.unit": {
     "class": "technical",
@@ -219,6 +750,12 @@
     "class": "brand",
     "source": "Claude Code Teams"
   },
+  "menu.help.notifications": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "menu.help.ohMyClaudeCode": {
     "class": "brand",
     "source": "oh-my-claudecode"
@@ -230,6 +767,12 @@
   "menu.help.ohMyOpenCode": {
     "class": "brand",
     "source": "oh-my-opencode"
+  },
+  "menu.help.skills": {
+    "source": "Skills",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "menu.help.ssh": {
     "class": "technical",
@@ -243,17 +786,104 @@
     "class": "format",
     "source": "%1$@, %2$@"
   },
+  "menu.history.recentlyClosed.kind.tab": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "menu.history.recentlyClosed.menuItemFormat": {
     "class": "format",
     "source": "%1$@ (%2$@)"
+  },
+  "menu.history.recentlyClosed.panel.agentSession": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "menu.history.recentlyClosed.panel.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "menu.history.recentlyClosed.panel.markdown": {
     "class": "technical",
     "source": "Markdown"
   },
+  "menu.history.recentlyClosed.panel.terminal": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "menu.notifications.title": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "mobile.pairing.target.appStore": {
     "class": "brand",
     "source": "cmux"
+  },
+  "mobile.pairing.target.beta": {
+    "class": "brand",
+    "source": "cmux BETA"
+  },
+  "mobile.pairing.target.demo": {
+    "class": "brand",
+    "source": "cmux DEMO"
+  },
+  "mobile.pairing.target.dev": {
+    "class": "brand",
+    "source": "cmux DEV %@"
+  },
+  "mobile.pairing.target.internal": {
+    "class": "brand",
+    "source": "cmux INTERNAL"
+  },
+  "mode.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "notification.desktop.defaultTerminalTitle": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "notifications.title": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "paneMemoryGuardrail.banner.detail": {
+    "source": "%1$@ — %2$@",
+    "class": "format"
+  },
+  "paneMemoryGuardrail.banner.unnamedPane": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "panel.displayName.fallback": {
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "pricing.enterprise.f3": {
     "class": "technical",
@@ -311,6 +941,12 @@
     "class": "brand",
     "source": "cmux Pro"
   },
+  "remote.status.error": {
+    "source": "Error",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "remotePTYAttach.error.allocationDiagnostic": {
     "class": "brand",
     "source": "%@"
@@ -347,17 +983,124 @@
     "class": "brand",
     "source": "Rovo Dev"
   },
+  "sessionIndex.checkpoints.forkShort": {
+    "source": "Fork",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.checkpoints.namePlaceholder": {
+    "source": "Name (optional)",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.checkpoints.tab.checkpoints": {
+    "source": "Checkpoints",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.filter.agent": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.filter.status": {
+    "source": "Status",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.filter.status.live": {
+    "source": "Live",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.group.agent": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.preview.role.assistant": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.preview.role.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sessionIndex.status.live": {
+    "source": "Live",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "settings.account.pro.title": {
     "class": "brand",
     "source": "cmux Pro"
+  },
+  "settings.app.markdownFontFamily.placeholder": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.app.sidebarBranchLayout.vertical": {
+    "source": "Vertical",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "settings.browser.defaultZoomLevel.percent": {
     "class": "format",
     "source": "%lld%%"
   },
+  "settings.browser.searchEngine.duckduckgo": {
+    "source": "DuckDuckGo",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.github": {
+    "source": "GitHub",
+    "class": "brand"
+  },
+  "settings.cloudMachines.plan.title": {
+    "source": "Plan",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.common.ok": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "settings.config.source.cmux": {
     "class": "brand",
     "source": "cmux"
+  },
+  "settings.error.alert.dismiss": {
+    "source": "OK",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "settings.fontSize.valuePoints": {
     "class": "format",
@@ -375,13 +1118,85 @@
     "class": "technical",
     "source": "WebSocket"
   },
+  "settings.networking.custom.name": {
+    "source": "Name",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.networking.custom.summary": {
+    "source": "%1$@ · %2$@",
+    "class": "format"
+  },
+  "settings.networking.private.name": {
+    "source": "Name",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.networking.private.port": {
+    "source": "Port",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "settings.notifications.command.placeholder": {
     "class": "syntax",
     "source": "say \"done\""
   },
+  "settings.notifications.sound.option.ping": {
+    "class": "brand",
+    "source": "Ping"
+  },
+  "settings.notifications.sound.option.pop": {
+    "class": "brand",
+    "source": "Pop"
+  },
+  "settings.notifications.sound.option.sosumi": {
+    "class": "brand",
+    "source": "Sosumi"
+  },
+  "settings.notifications.soundOverrides.agent": {
+    "source": "Agent",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.notifications.soundOverrides.global": {
+    "source": "Global",
+    "identityLocales": {
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.section.app": {
+    "source": "App",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.section.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "settings.section.computerUse": {
+    "source": "Computer Use",
+    "class": "brand"
+  },
   "settings.section.settingsJSON": {
     "class": "technical",
     "source": "cmux.json"
+  },
+  "settings.section.terminal": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "settings.sidebar.rightMaxWidth.unit": {
     "class": "technical",
@@ -415,9 +1230,40 @@
     "class": "brand",
     "source": "Pi"
   },
+  "shortcut.key.tab": {
+    "class": "brand",
+    "source": "Tab",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "shortcut.recorder.pendingChord": {
     "class": "format",
     "source": "%@ …"
+  },
+  "shortcutDiscovery.section.app": {
+    "source": "App",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.extension.browserTab": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.extensions.details.status": {
+    "source": "Status",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.extensions.scope.notifications": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "sidebar.help.discord": {
     "class": "brand",
@@ -426,6 +1272,16 @@
   "sidebar.help.feedback.emailPlaceholder": {
     "class": "syntax",
     "source": "you@example.com"
+  },
+  "sidebar.help.feedback.message": {
+    "source": "Message",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.pathMenu.macintoshHD": {
+    "class": "brand",
+    "source": "Macintosh HD"
   },
   "sidebar.port.label": {
     "class": "format",
@@ -447,6 +1303,12 @@
     "class": "brand",
     "source": "Siri"
   },
+  "simulator.action.typeText": {
+    "source": "Type",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "simulator.appearance.voiceOver": {
     "class": "brand",
     "source": "VoiceOver"
@@ -454,6 +1316,19 @@
   "simulator.application.reactNative": {
     "class": "brand",
     "source": "React Native"
+  },
+  "simulator.application.version": {
+    "source": "Version",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "simulator.camera.source": {
+    "source": "Source",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "simulator.dataNetwork.fiveG": {
     "class": "technical",
@@ -511,13 +1386,31 @@
     "class": "brand",
     "source": "HomeKit"
   },
+  "simulator.privacy.notifications": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "simulator.privacy.siri": {
     "class": "brand",
     "source": "Siri"
   },
+  "simulator.status.streaming": {
+    "source": "Live",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "simulator.statusBar.wifiMode": {
     "class": "technical",
     "source": "Wi-Fi"
+  },
+  "simulator.tools.hardware": {
+    "source": "Hardware",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "sleepyMode.glow.cmux": {
     "class": "brand",
@@ -591,6 +1484,12 @@
     "class": "technical",
     "source": "CPU"
   },
+  "taskManager.column.name": {
+    "source": "Name",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "taskManager.killProcess.target.pid": {
     "class": "format",
     "source": "PID %lld"
@@ -598,6 +1497,20 @@
   "taskManager.row.pid": {
     "class": "format",
     "source": "PID %lld"
+  },
+  "taskManager.row.surfaceType.browser": {
+    "source": "Browser",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "taskManager.row.surfaceType.terminal": {
+    "source": "Terminal",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
   },
   "taskManager.row.webview": {
     "class": "technical",
@@ -619,152 +1532,33 @@
     "class": "brand",
     "source": "Pi"
   },
+  "theme.system": {
+    "source": "System",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "titlebar.notifications.accessibilityLabel": {
+    "source": "Notifications",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "update.error.details.code": {
+    "source": "Code",
+    "identityLocales": {
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "update.error.details.message": {
+    "source": "Message",
+    "identityLocales": {
+      "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
   "update.error.details.url": {
     "class": "technical",
     "source": "URL"
-  },
-  "machines.new.size.gb": {
-    "class": "format",
-    "source": "%d GB"
-  },
-  "machines.new.size.mb": {
-    "class": "format",
-    "source": "%d MB"
-  },
-  "cli.readSelection.output.url": {
-    "class": "format",
-    "source": "URL: %@"
-  },
-  "computerUse.menu.sessionTitle": {
-    "class": "format",
-    "source": "%1$@ · %2$@"
-  },
-  "computerUse.menu.title": {
-    "class": "brand",
-    "source": "cmux Computer Use"
-  },
-  "debug.menu.notification.cli": {
-    "class": "technical",
-    "source": "CLI"
-  },
-  "debug.menu.notification.osc": {
-    "class": "technical",
-    "source": "OSC"
-  },
-  "about.github": {
-    "class": "brand",
-    "source": "GitHub"
-  },
-  "agentSession.panel.title": {
-    "class": "format",
-    "source": "%@ · %@"
-  },
-  "agentSession.web.shellLabel": {
-    "class": "technical",
-    "source": "Shell"
-  },
-  "browser.focusMode.shortcutHint": {
-    "class": "format",
-    "source": "Esc Esc"
-  },
-  "cli.error.clearNotificationsUsage": {
-    "class": "syntax",
-    "source": "clear_notifications [--tab=X] [--panel=ID] [--correlation-key=UUID]"
-  },
-  "cli.help.restore": {
-    "class": "syntax",
-    "source": "restore [--surface <id|ref>] <kind> <checkpoint-id> | restore --surface [id|ref]"
-  },
-  "cli.sessions.command": {
-    "class": "syntax",
-    "source": "sessions [list] [options]"
-  },
-  "cli.vm.tree.workspaces": {
-    "class": "syntax",
-    "source": "workspaces/"
-  },
-  "cli.vm.tree.terminals": {
-    "class": "syntax",
-    "source": "terminals/"
-  },
-  "cli.vm.tree.browsers": {
-    "class": "syntax",
-    "source": "browsers/"
-  },
-  "cli.vm.tree.displays": {
-    "class": "syntax",
-    "source": "VNC Displays/"
-  },
-  "cli.vm.tree.ports": {
-    "class": "syntax",
-    "source": "ports/"
-  },
-  "cloudTree.node.desktop.detail": {
-    "class": "technical",
-    "source": "noVNC"
-  },
-  "cloudTree.node.desktop.detail.screen": {
-    "class": "format",
-    "source": "%1$@ · %2$@"
-  },
-  "cloudTree.stats.cpu": {
-    "class": "format",
-    "source": "CPU %d%%"
-  },
-  "command.installCLI.subtitle": {
-    "class": "technical",
-    "source": "CLI"
-  },
-  "command.uninstallCLI.subtitle": {
-    "class": "technical",
-    "source": "CLI"
-  },
-  "ghostty.copy-mode.indicator": {
-    "class": "technical",
-    "source": "vim"
-  },
-  "machines.usage.line": {
-    "class": "format",
-    "source": "%1$@ · %2$@ tokens · %3$@"
-  },
-  "mobile.pairing.target.beta": {
-    "class": "brand",
-    "source": "cmux BETA"
-  },
-  "mobile.pairing.target.demo": {
-    "class": "brand",
-    "source": "cmux DEMO"
-  },
-  "mobile.pairing.target.dev": {
-    "class": "brand",
-    "source": "cmux DEV %@"
-  },
-  "mobile.pairing.target.internal": {
-    "class": "brand",
-    "source": "cmux INTERNAL"
-  },
-  "settings.notifications.sound.option.ping": {
-    "class": "brand",
-    "source": "Ping"
-  },
-  "settings.notifications.sound.option.pop": {
-    "class": "brand",
-    "source": "Pop"
-  },
-  "settings.notifications.sound.option.sosumi": {
-    "class": "brand",
-    "source": "Sosumi"
-  },
-  "shortcut.key.tab": {
-    "class": "brand",
-    "source": "Tab"
-  },
-  "sidebar.pathMenu.macintoshHD": {
-    "class": "brand",
-    "source": "Macintosh HD"
-  },
-  "cli.help.fork": {
-    "class": "syntax",
-    "source": "fork [--surface <id|ref>] <kind> <checkpoint-id> | fork --surface [id|ref]"
   }
 }

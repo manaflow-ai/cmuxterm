@@ -16,7 +16,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCALES = ("en", "de", "fr", "ar", "es", "zh-Hant", "zh-Hans", "ko", "ja")
-CATEGORIES = {"ar": {"zero", "one", "two", "few", "many", "other"}}
+CATEGORIES = {
+    "ar": {"zero", "one", "two", "few", "many", "other"},
+    "fr": {"one", "many", "other"},
+    "es": {"one", "many", "other"},
+}
 OMISSION_CLASSES = {"brand", "technical", "format", "price", "syntax"}
 FORMAT = re.compile(
     r"%%|%(?:\d+\$)?#@[^@]+@|%(?:\d+\$)?[-+ #0']*(?:\d+|\*(?:\d+\$)?)?"
@@ -60,6 +64,9 @@ def catalog_entries(text: str) -> list[Member]:
     parsed = json.loads(text)
     if parsed.get("sourceLanguage") != "en" or not isinstance(parsed.get("strings"), dict):
         raise ValueError("expected an English-source string catalog")
+    unexpected = set(parsed) - {"sourceLanguage", "strings", "version"}
+    if unexpected:
+        raise ValueError(f"records outside the strings object: {', '.join(sorted(unexpected))}")
     strings = next(item for item in members(text, len(text) - len(text.lstrip())) if item.key == "strings")
     return members(text, strings.start)
 
@@ -165,6 +172,14 @@ def omission(key: str, english: str, metadata: dict) -> bool:
     return record.get("source") == english and record.get("class") in OMISSION_CLASSES
 
 
+def identity_allowed(key: str, english: str, locale: str, metadata: dict) -> bool:
+    record = metadata.get(key, {})
+    return omission(key, english, metadata) or (
+        record.get("source") == english
+        and bool(record.get("identityLocales", {}).get(locale))
+    )
+
+
 def validate_localization(english: str, localization: dict, locale: str, allow_identity: bool = False,
                           source_localization: dict | None = None) -> list[str]:
     errors = []
@@ -260,7 +275,7 @@ def check_entry(entry: Member, locale: str, omissions: dict, counts: dict) -> li
     localization = entry.value.get("localizations", {}).get(locale)
     if localization is None:
         return [] if allowed and locale not in {"en", "ja"} else ["missing locale entry"]
-    errors = validate_localization(english, localization, locale, allowed,
+    errors = validate_localization(english, localization, locale, identity_allowed(entry.key, english, locale, omissions),
                                    entry.value.get("localizations", {}).get("en"))
     count = counts.get(entry.key)
     if count:
@@ -325,7 +340,7 @@ def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
                 localization = copy.deepcopy(current)
                 localization.setdefault("stringUnit", {}).update(state="translated", value=row["value"])
             errors = validate_localization(source(entry.value), localization, locale,
-                                           omission(entry.key, source(entry.value), omissions),
+                                           identity_allowed(entry.key, source(entry.value), locale, omissions),
                                            entry.value.get("localizations", {}).get("en"))
             if errors:
                 raise ValueError(f"{entry.key}: {'; '.join(errors)}")
