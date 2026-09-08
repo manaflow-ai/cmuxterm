@@ -1054,11 +1054,15 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// cmux-tui's selectors, so its tab is closed instead. Either way the resource
     /// leaves the catalog now and the next snapshot confirms.
     func closeTerminal(_ id: SurfaceResourceID) async throws {
+        try await closeTerminal(id, fallbackTabID: nil)
+    }
+
+    func closeTerminal(_ id: SurfaceResourceID, fallbackTabID: String?) async throws {
         pendingRemoteCreations.removeValue(forKey: id)
         do {
             _ = try await runCloseCommand { CloudTuiCommandLine.closeTerminalArguments(socketPath: $0, terminalID: id.key) }
         } catch {
-            guard let tabID = tabByTerminal[id.key], Self.isSelectorNotFound(error) else { throw error }
+            guard let tabID = fallbackTabID ?? tabByTerminal[id.key], Self.isSelectorNotFound(error) else { throw error }
             _ = try await runCloseCommand { CloudTuiCommandLine.closeTabArguments(socketPath: $0, tabID: tabID) }
         }
         closeLocalPanes(showing: [id])

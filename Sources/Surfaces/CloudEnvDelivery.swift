@@ -76,10 +76,12 @@ enum CloudEnvDelivery {
     @MainActor
     static func removeReceiverResources(
         terminalIDs: [String],
+        discoverTerminalIDs: @MainActor () async throws -> [String] = { [] },
         closeTerminal: @MainActor (String) async throws -> Void,
         closeWorkspace: @MainActor () async throws -> Void
     ) async throws {
-        for terminalID in terminalIDs { try await closeTerminal(terminalID) }
+        let receiverTerminalIDs = terminalIDs.isEmpty ? try await discoverTerminalIDs() : terminalIDs
+        for terminalID in receiverTerminalIDs { try await closeTerminal(terminalID) }
         try await closeWorkspace()
     }
 

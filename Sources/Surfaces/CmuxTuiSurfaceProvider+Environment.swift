@@ -9,30 +9,52 @@ extension CmuxTuiSurfaceProvider {
     func deliverEnvironment(_ entries: [CloudEnvDelivery.Entry]) async throws -> CloudEnvDelivery.Outcome {
         let payload = try CloudEnvDelivery.payload(entries)
         let wire = CloudEnvDelivery.wire(payload)
+        var receiver: SurfaceResource?
         return try await CloudEnvDelivery.withReceiverWorkspace(
             createWorkspace: { try await self.createEnvironmentReceiverWorkspace() },
-            closeWorkspace: { try await self.removeEnvironmentReceiverWorkspace($0) },
-            operation: { try await self.deliverEnvironmentWire(wire, workspaceID: $0) }
+            closeWorkspace: { try await self.removeEnvironmentReceiverWorkspace($0, receiver: receiver) },
+            operation: { workspaceID in
+                let created = try await self.createTerminal(
+                    command: CloudEnvDelivery.receiverCommand,
+                    cwd: nil,
+                    name: CloudEnvDelivery.receiverTitle,
+                    remoteWorkspaceID: workspaceID,
+                    onExit: "keep"
+                )
+                receiver = created
+                return try await self.deliverEnvironmentWire(wire, terminalID: created.id.key)
+            }
         )
     }
 
-    private func removeEnvironmentReceiverWorkspace(_ workspaceID: String) async throws {
-        guard await refresh(force: true) else {
-            throw CloudEnvDelivery.DeliveryError.workspaceCleanupFailed(workspaceID)
-        }
-        let terminals = catalog.snapshot.resources(on: machine).filter {
-            $0.kind == .terminal && $0.remoteWorkspaces.contains { $0.id == workspaceID }
-        }
+    private func removeEnvironmentReceiverWorkspace(_ workspaceID: String, receiver: SurfaceResource?) async throws {
         try await CloudEnvDelivery.removeReceiverResources(
-            terminalIDs: terminals.map { $0.id.key },
+            terminalIDs: receiver.map { [$0.id.key] } ?? [],
+            discoverTerminalIDs: {
+                guard await self.refresh(force: true) else {
+                    throw CloudEnvDelivery.DeliveryError.workspaceCleanupFailed(workspaceID)
+                }
+                return self.catalog.snapshot.resources(on: self.machine).filter {
+                    $0.kind == .terminal && $0.remoteWorkspaces.contains { $0.id == workspaceID }
+                }.map { $0.id.key }
+            },
             closeTerminal: { terminalID in
                 do {
-                    try await self.closeTerminal(SurfaceResourceID(machine: self.machine, kind: .terminal, key: terminalID))
+                    try await self.closeTerminal(
+                        SurfaceResourceID(machine: self.machine, kind: .terminal, key: terminalID),
+                        fallbackTabID: receiver?.remoteViews?.first?.tabID
+                    )
                 } catch {
                     guard Self.isSelectorNotFound(error) else { throw error }
                 }
             },
-            closeWorkspace: { try await self.closeRemoteWorkspace(id: workspaceID) }
+            closeWorkspace: {
+                do {
+                    try await self.closeRemoteWorkspace(id: workspaceID)
+                } catch {
+                    guard Self.isSelectorNotFound(error) else { throw error }
+                }
+            }
         )
     }
 
@@ -51,38 +73,24 @@ extension CmuxTuiSurfaceProvider {
         return workspaceID
     }
 
-    private func deliverEnvironmentWire(_ wire: Data, workspaceID: String) async throws -> CloudEnvDelivery.Outcome {
-        // A terminal in the machine's session, exactly like `surface new-terminal`: it
-        // shows in the tree as "cmux env" for the second it lives and is closed below.
-        // `--on-exit keep`: the verdict is the receiver's last screen line, which the
-        // daemon's default (`close`) would detach before the sender can read it.
-        let receiver = try await createTerminal(
-            command: CloudEnvDelivery.receiverCommand,
-            cwd: nil,
-            name: CloudEnvDelivery.receiverTitle,
-            remoteWorkspaceID: workspaceID,
-            onExit: "keep"
+    private func deliverEnvironmentWire(_ wire: Data, terminalID: String) async throws -> CloudEnvDelivery.Outcome {
+        let ready = try await waitForScreen(
+            terminalID: terminalID,
+            pattern: CloudEnvDelivery.readyMarker,
+            timeoutMs: CloudEnvDelivery.readyTimeoutMs
         )
-        let terminalID = receiver.id.key
-        do {
-            let ready = try await waitForScreen(
-                terminalID: terminalID,
-                pattern: CloudEnvDelivery.readyMarker,
-                timeoutMs: CloudEnvDelivery.readyTimeoutMs
-            )
-            try CloudEnvDelivery.requireReady(ready, machineID: machineID)
-            // Echo is off on the receiver's PTY from here on; the daemon never journals
-            // input, so the payload exists on the machine only inside the receiver.
-            for chunk in CloudEnvDelivery.chunks(wire) {
-                try await writeBytes(terminalID: terminalID, base64: chunk.base64EncodedString())
-            }
-            let result = try await waitForScreen(
-                terminalID: terminalID,
-                pattern: CloudEnvDelivery.resultPattern,
-                timeoutMs: CloudEnvDelivery.resultTimeoutMs
-            )
-            return try CloudEnvDelivery.requireOutcome(result)
+        try CloudEnvDelivery.requireReady(ready, machineID: machineID)
+        // Echo is off on the receiver's PTY from here on; the daemon never journals
+        // input, so the payload exists on the machine only inside the receiver.
+        for chunk in CloudEnvDelivery.chunks(wire) {
+            try await writeBytes(terminalID: terminalID, base64: chunk.base64EncodedString())
         }
+        let result = try await waitForScreen(
+            terminalID: terminalID,
+            pattern: CloudEnvDelivery.resultPattern,
+            timeoutMs: CloudEnvDelivery.resultTimeoutMs
+        )
+        return try CloudEnvDelivery.requireOutcome(result)
     }
 
     /// Raw bytes to the remote terminal's PTY (`terminal write --bytes-base64`).
