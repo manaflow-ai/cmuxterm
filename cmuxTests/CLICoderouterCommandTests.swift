@@ -455,4 +455,65 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(result.status, 127, result.stderr)
         XCTAssertTrue(state.commands.isEmpty, "passthrough verbs must not touch the cmux socket: \(state.commands)")
     }
+
+    /// A stand-in CodeRouter that prints how it was invoked, so a test can tell
+    /// which copy the passthrough exec'd.
+    private func writeFakeCoderouter(at url: URL, marker: String) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try """
+        #!/bin/sh
+        printf '%s argv=%s\\n' "\(marker)" "$*"
+        """.write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    }
+
+    private func passthroughEnvironment(path: String) -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = path
+        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
+        environment.removeValue(forKey: "CMUX_SOCKET_PATH")
+        return environment
+    }
+
+    func testCoderouterPassthroughPrefersTheUserInstallOnPath() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-path-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writeFakeCoderouter(at: root.appendingPathComponent("bin/cr"), marker: "PATH-CR")
+
+        let result = runProcess(
+            executablePath: try bundledCLIPath(),
+            arguments: ["cr", "add", "codex"],
+            environment: passthroughEnvironment(path: "\(root.path)/bin:/usr/bin:/bin"),
+            timeout: 5
+        )
+
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(result.stdout, "PATH-CR argv=add codex\n")
+    }
+
+    /// The fresh-Mac case: nothing on PATH, so `cmux coderouter <verb>` execs the
+    /// CodeRouter bundled beside the cmux CLI in Contents/Resources/bin.
+    func testCoderouterPassthroughFallsBackToTheBundledCopy() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-coderouter-bundled-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let bin = root.appendingPathComponent("Fresh.app/Contents/Resources/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        // A copy, not a symlink: the CLI resolves its own path with realpath, so
+        // a symlink would point back at the DerivedData bundle.
+        let cli = bin.appendingPathComponent("cmux")
+        try FileManager.default.copyItem(atPath: try bundledCLIPath(), toPath: cli.path)
+        try writeFakeCoderouter(at: bin.appendingPathComponent("coderouter"), marker: "BUNDLED")
+
+        let result = runProcess(
+            executablePath: cli.path,
+            arguments: ["coderouter", "login"],
+            environment: passthroughEnvironment(path: "/usr/bin:/bin"),
+            timeout: 5
+        )
+
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertEqual(result.stdout, "BUNDLED argv=login\n")
+    }
 }
