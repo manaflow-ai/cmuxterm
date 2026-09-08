@@ -585,6 +585,18 @@ enum BrowserEngineSettings {
         return BrowserEngine(rawValue: rawValue)
     }
 
+    static func resolvedEngine(defaults: UserDefaults = .standard) -> BrowserEngine {
+        if let rawEngine = defaults.string(forKey: engineKey),
+           let engine = engine(for: rawEngine) {
+            return engine
+        }
+        if shouldMigrateLegacyEngine(defaults: defaults),
+           let migratedEngine = legacyEngine(defaults: defaults) {
+            return migratedEngine
+        }
+        return defaultEngine
+    }
+
     static func currentEngine(defaults: UserDefaults = .standard) -> BrowserEngine {
         if let rawEngine = defaults.string(forKey: engineKey) {
             if let engine = engine(for: rawEngine) {
@@ -643,7 +655,7 @@ enum BrowserAvailabilitySettings {
         if isManagedByPolicy {
             return true
         }
-        return !BrowserEngineSettings.currentEngine(defaults: defaults).usesEmbeddedBrowser
+        return !BrowserEngineSettings.resolvedEngine(defaults: defaults).usesEmbeddedBrowser
     }
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {

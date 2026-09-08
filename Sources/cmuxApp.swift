@@ -83,7 +83,6 @@ struct cmuxApp: App {
         // is assigned after the saved language override below, because
         // it owns localized search-index text for the process lifetime.
         let settingsCatalog = SettingCatalog()
-        _ = BrowserEngineSettings.currentEngine(defaults: .standard)
         let configFileURL = CmuxConfigLocation().userConfigFile
         // Relocate a pre-existing socket password out of the legacy
         // Application Support directory before any store reads it. The CLI reads
