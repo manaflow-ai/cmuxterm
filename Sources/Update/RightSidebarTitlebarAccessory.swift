@@ -72,6 +72,7 @@ final class RightSidebarTitlebarAccessoryViewController: NSTitlebarAccessoryView
         containerView.wantsLayer = true
         containerView.clipsToBounds = false
         containerView.layer?.masksToBounds = false
+        containerView.setFrameSize(Self.preferredSize)
 
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width, .height]
