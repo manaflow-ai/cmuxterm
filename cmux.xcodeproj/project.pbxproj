@@ -2288,6 +2288,7 @@
 		B3575000000000000000000C /* SessionIndexModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3575000000000000000000B /* SessionIndexModels.swift */; };
 		B35750000000000000000008 /* SessionIndexRegisteredAgents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35750000000000000000007 /* SessionIndexRegisteredAgents.swift */; };
 		D4476F040000000000000001 /* SessionIndexResolvedSystemSymbolImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4476F040000000000000002 /* SessionIndexResolvedSystemSymbolImage.swift */; };
+		D4476F0A0000000000000001 /* SessionIndexRowMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4476F0A0000000000000002 /* SessionIndexRowMetrics.swift */; };
 		469200000000000000000002 /* SessionIndexRowSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469200000000000000000001 /* SessionIndexRowSnapshot.swift */; };
 		850000000000000000000027 /* SessionIndexSnapshotLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850000000000000000000017 /* SessionIndexSnapshotLoader.swift */; };
 		850000000000000000000006 /* SessionIndexSnapshotLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850000000000000000000005 /* SessionIndexSnapshotLoaderTests.swift */; };
@@ -3089,6 +3090,7 @@
 		208BA068DD2B4B4E86D0F213 /* VaultSessionLiveStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C5E90CEF204498AAEC93921 /* VaultSessionLiveStatusTests.swift */; };
 		021B98686B73408892D7C876 /* VaultSessionSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 189ED88E2958436BAE17D5E4 /* VaultSessionSearchQuery.swift */; };
 		62F6C9E77A6A40B982D91040 /* VaultSessionSearchQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3065740FDF6465298A754B6 /* VaultSessionSearchQueryTests.swift */; };
+		D4476F0B0000000000000001 /* VaultSessionViewMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4476F0B0000000000000002 /* VaultSessionViewMenu.swift */; };
 		C5BEA2B0EA914759A8BFD577 /* VaultSocketPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8649C5174544BFFA8674D52 /* VaultSocketPayloadTests.swift */; };
 		F7216001000000000000001 /* VerticalTabsSidebar+EmptyAreasAndFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7216001000000000000002 /* VerticalTabsSidebar+EmptyAreasAndFooter.swift */; };
 		C9A57209C9A57209C9A57209 /* VerticalTabsSidebar+WorkspaceGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A5720AC9A5720AC9A5720A /* VerticalTabsSidebar+WorkspaceGroups.swift */; };
@@ -5615,6 +5617,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		B3575000000000000000000B /* SessionIndexModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexModels.swift; sourceTree = "<group>"; };
 		B35750000000000000000007 /* SessionIndexRegisteredAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexRegisteredAgents.swift; sourceTree = "<group>"; };
 		D4476F040000000000000002 /* SessionIndexResolvedSystemSymbolImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexResolvedSystemSymbolImage.swift; sourceTree = "<group>"; };
+		D4476F0A0000000000000002 /* SessionIndexRowMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexRowMetrics.swift; sourceTree = "<group>"; };
 		469200000000000000000001 /* SessionIndexRowSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexRowSnapshot.swift; sourceTree = "<group>"; };
 		850000000000000000000017 /* SessionIndexSnapshotLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexSnapshotLoader.swift; sourceTree = "<group>"; };
 		850000000000000000000005 /* SessionIndexSnapshotLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIndexSnapshotLoaderTests.swift; sourceTree = "<group>"; };
@@ -6409,6 +6412,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		0C5E90CEF204498AAEC93921 /* VaultSessionLiveStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionLiveStatusTests.swift; sourceTree = "<group>"; };
 		189ED88E2958436BAE17D5E4 /* VaultSessionSearchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionSearchQuery.swift; sourceTree = "<group>"; };
 		B3065740FDF6465298A754B6 /* VaultSessionSearchQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionSearchQueryTests.swift; sourceTree = "<group>"; };
+		D4476F0B0000000000000002 /* VaultSessionViewMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSessionViewMenu.swift; sourceTree = "<group>"; };
 		E8649C5174544BFFA8674D52 /* VaultSocketPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultSocketPayloadTests.swift; sourceTree = "<group>"; };
 		F7216001000000000000002 /* VerticalTabsSidebar+EmptyAreasAndFooter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VerticalTabsSidebar+EmptyAreasAndFooter.swift"; sourceTree = "<group>"; };
 		C9A5720AC9A5720AC9A5720A /* VerticalTabsSidebar+WorkspaceGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VerticalTabsSidebar+WorkspaceGroups.swift"; sourceTree = "<group>"; };
@@ -8946,6 +8950,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				662E8F5E0C3F4FBA8F75450A /* VaultSessionCheckpoint.swift */,
 				5CF53113EACF43C49EFFEF5C /* SessionIndexStore+GlobalSearch.swift */,
 				A2C22D3F893E4B2D8FB3B91F /* VaultAllSessionsBar.swift */,
+				D4476F0B0000000000000002 /* VaultSessionViewMenu.swift */,
 				189ED88E2958436BAE17D5E4 /* VaultSessionSearchQuery.swift */,
 				5B9D1EE40CA94CD8BEDDDD98 /* VaultSessionLiveStatus.swift */,
 				D6F100000000000000000001 /* SessionIndexStatusIndicator.swift */,
@@ -8979,6 +8984,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				FE003006 /* SessionAgentPresentation.swift */,
 				D4476F030000000000000002 /* SessionIndexAgentIconImage.swift */,
 				D4476F020000000000000002 /* SessionIndexIconImage.swift */,
+				D4476F0A0000000000000002 /* SessionIndexRowMetrics.swift */,
 				D4476F040000000000000002 /* SessionIndexResolvedSystemSymbolImage.swift */,
 				FE003007 /* RovoDevTranscriptPreview.swift */,
 				F5320003A1B2C3D4E5F60718 /* SessionTranscriptTypes.swift */,
@@ -12096,6 +12102,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B3575000000000000000000C /* SessionIndexModels.swift in Sources */,
 				B35750000000000000000008 /* SessionIndexRegisteredAgents.swift in Sources */,
 				D4476F040000000000000001 /* SessionIndexResolvedSystemSymbolImage.swift in Sources */,
+				D4476F0A0000000000000001 /* SessionIndexRowMetrics.swift in Sources */,
 				469200000000000000000002 /* SessionIndexRowSnapshot.swift in Sources */,
 				850000000000000000000027 /* SessionIndexSnapshotLoader.swift in Sources */,
 				D6F100000000000000000002 /* SessionIndexStatusIndicator.swift in Sources */,
@@ -12684,6 +12691,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				8FB35FCA714749A9B54B2313 /* VaultSessionCheckpointStore.swift in Sources */,
 				A865E72EE4B14A2A8517A944 /* VaultSessionLiveStatus.swift in Sources */,
 				021B98686B73408892D7C876 /* VaultSessionSearchQuery.swift in Sources */,
+				D4476F0B0000000000000001 /* VaultSessionViewMenu.swift in Sources */,
 				F7216001000000000000001 /* VerticalTabsSidebar+EmptyAreasAndFooter.swift in Sources */,
 				C9A57209C9A57209C9A57209 /* VerticalTabsSidebar+WorkspaceGroups.swift in Sources */,
 				A28B087F0000000000000005 /* ViewerNavigationKeyRouter.swift in Sources */,
