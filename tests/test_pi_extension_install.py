@@ -385,6 +385,10 @@ case "$*" in
     fi
     printf '{}\n'
     ;;
+  *"hooks pi session-start"*)
+    printf '{"resume_binding":{"kind":"pi","checkpoint_id":"pi-session-test","source":"agent-hook","auto_resume":true,"approval_policy":"auto"}}\n' > "$CMUX_TEST_PI_BINDING_FILE"
+    printf '{"workspace_id":"workspace-pi-test","surface_id":"surface-pi-test"}\n'
+    ;;
   *"surface resume get"*)
     if [ -f "$CMUX_TEST_PI_BINDING_FILE" ]; then
       cat "$CMUX_TEST_PI_BINDING_FILE"
@@ -517,8 +521,25 @@ async function waitForFeedEvent(eventName, expectedCount) {
   }
   throw new Error(`timed out waiting for ${expectedCount} ${eventName} Feed events`);
 }
+async function waitForArgument(fragment) {
+    const path = process.env.CMUX_TEST_PI_ARGS_LOG;
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const lines = path && Bun.file(path).size
+        ? (await Bun.file(path).text()).split("\\n")
+        : [];
+      if (lines.some((line) => line.includes(fragment))) return;
+      await Bun.sleep(10);
+    }
+  throw new Error(`timed out waiting for ${fragment}`);
+}
 await handlers.get("session_start")({}, ctx);
 await handlers.get("before_agent_start")({ prompt: "hello pi" }, ctx);
+await waitForArgument("hooks pi prompt-submit");
+const sessionStartBinding = JSON.parse(await Bun.file(process.env.CMUX_TEST_PI_BINDING_FILE).text()).resume_binding;
+if (sessionStartBinding?.auto_resume !== true || sessionStartBinding?.approval_policy !== "auto") {
+  throw new Error(`Pi session-start downgraded its resume binding: ${JSON.stringify(sessionStartBinding)}`);
+}
 await handlers.get("tool_execution_start")({
   id: "tool-event-start-should-not-be-turn-id",
   toolCallId: "tool-call-1",
