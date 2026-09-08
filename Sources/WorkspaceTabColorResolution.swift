@@ -8,7 +8,8 @@ extension WorkspaceTabColorSettings {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return palette.first { name, _ in
-            name.caseInsensitiveCompare(trimmed) == .orderedSame
+            name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(trimmed) == .orderedSame
         }?.value
     }
 

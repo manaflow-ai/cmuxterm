@@ -241,7 +241,7 @@ struct CmuxConfigLayoutEntryTests {
         let data = Data(#"{"commands":[{"name":"layout","color":"  indigo  ","layout":{"pane":{"surfaces":[{"type":"terminal"}]}}}]}"#.utf8)
         let decoded = try CmuxConfigFile.decodeAndValidate(
             sanitizedData: data,
-            workspaceColorPalette: ["Indigo": "#283593"]
+            workspaceColorPalette: ["  Indigo  ": "#283593"]
         )
         #expect(decoded.config.commands.count == 1)
         #expect(decoded.config.commands[0].workspace?.color == "#283593")
