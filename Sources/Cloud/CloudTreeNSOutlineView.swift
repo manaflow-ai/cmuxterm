@@ -180,6 +180,15 @@ final class CloudTreeNSOutlineView: NSOutlineView {
 
     override func frameOfCell(atColumn column: Int, row: Int) -> NSRect {
         var frame = super.frameOfCell(atColumn: column, row: row)
+        if let node = item(atRow: row) as? CloudTreeNode,
+           case .pendingMachine = node.kind {
+            // Pending rows have no children, so their spinner/warning starts
+            // where a machine's disclosure control would normally sit.
+            let trailingEdge = frame.maxX
+            frame.origin.x = Self.leadingMargin
+            frame.size.width = max(0, trailingEdge - frame.minX)
+            return frame
+        }
         let cellShift = Self.cellShift
         frame.origin.x += cellShift
         frame.size.width -= cellShift
