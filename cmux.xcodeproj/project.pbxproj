@@ -931,6 +931,7 @@
 		7A0CE1000000000000000102 /* CMUXCLI+VPNAppManaged.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0CE1000000000000000101 /* CMUXCLI+VPNAppManaged.swift */; };
 		06CC2F6C1340C7424D1C7E0A /* CMUXCLI+WorkspaceTodo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5D35CC62B0F252F9EC2AD1 /* CMUXCLI+WorkspaceTodo.swift */; };
 		ED29D3771DAFD013B8B780B3 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */; };
+		B4EAFBA3ACDE97FEF5DED8C2 /* CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5F02FA4E88CD5F52DBB860 /* CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift */; };
 		C0DE31390000000000000105 /* CMUXCLIErrorOutputRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE31390000000000000106 /* CMUXCLIErrorOutputRegressionTests.swift */; };
 		112950000000000000000012 /* CMUXCLIForkLegacyFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112950000000000000000011 /* CMUXCLIForkLegacyFallbackTests.swift */; };
 		112950000000000000000002 /* CMUXCLIForkVerbRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112950000000000000000001 /* CMUXCLIForkVerbRegressionTests.swift */; };
@@ -1827,6 +1828,7 @@
 		79612FAF56D9AF372317B5B1 /* MobileHostNextTransportRuntime+Readiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0065856681AA19E50FDF2F /* MobileHostNextTransportRuntime+Readiness.swift */; };
 		1E4E1F04672708274B659962 /* MobileHostNextTransportRuntime+Startup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD1047728E8B3B097A2F339 /* MobileHostNextTransportRuntime+Startup.swift */; };
 		1B0B0901000000000000NT02 /* MobileHostNextTransportRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0B0901000000000000NT01 /* MobileHostNextTransportRuntime.swift */; };
+		D0F239C471E84004922B0A82 /* MobileHostNextTransportShutdownTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EBE18E61555449098DCA77C /* MobileHostNextTransportShutdownTests.swift */; };
 		A1B2C3D4E5F60718293A4C03 /* MobileHostOrderedInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4C04 /* MobileHostOrderedInputTests.swift */; };
 		A1B2C3D4E5F60718293A4C01 /* MobileHostOrderedRequestQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4C02 /* MobileHostOrderedRequestQueue.swift */; };
 		9AF9EA2CC0C18B5EB3718870 /* MobileHostRoutableLaneSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F9EF6BF147912B9E33B1CC /* MobileHostRoutableLaneSession.swift */; };
@@ -4390,6 +4392,7 @@
 		7A0CE1000000000000000101 /* CMUXCLI+VPNAppManaged.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+VPNAppManaged.swift"; sourceTree = "<group>"; };
 		7E5D35CC62B0F252F9EC2AD1 /* CMUXCLI+WorkspaceTodo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLI+WorkspaceTodo.swift"; sourceTree = "<group>"; };
 		C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLIErrorOutputRegressionTests+NextTransport.swift"; sourceTree = "<group>"; };
+		7F5F02FA4E88CD5F52DBB860 /* CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift"; sourceTree = "<group>"; };
 		C0DE31390000000000000106 /* CMUXCLIErrorOutputRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIErrorOutputRegressionTests.swift; sourceTree = "<group>"; };
 		112950000000000000000011 /* CMUXCLIForkLegacyFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIForkLegacyFallbackTests.swift; sourceTree = "<group>"; };
 		112950000000000000000001 /* CMUXCLIForkVerbRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXCLIForkVerbRegressionTests.swift; sourceTree = "<group>"; };
@@ -5207,6 +5210,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		2B0065856681AA19E50FDF2F /* MobileHostNextTransportRuntime+Readiness.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "MobileHostNextTransportRuntime+Readiness.swift"; sourceTree = "<group>"; };
 		2DD1047728E8B3B097A2F339 /* MobileHostNextTransportRuntime+Startup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "MobileHostNextTransportRuntime+Startup.swift"; sourceTree = "<group>"; };
 		1B0B0901000000000000NT01 /* MobileHostNextTransportRuntime.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MobileHostNextTransportRuntime.swift; sourceTree = "<group>"; };
+		9EBE18E61555449098DCA77C /* MobileHostNextTransportShutdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileHostNextTransportShutdownTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C04 /* MobileHostOrderedInputTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MobileHostOrderedInputTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C02 /* MobileHostOrderedRequestQueue.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MobileHostOrderedRequestQueue.swift; sourceTree = "<group>"; };
 		F5F9EF6BF147912B9E33B1CC /* MobileHostRoutableLaneSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MobileHostRoutableLaneSession.swift; sourceTree = "<group>"; };
@@ -10217,7 +10221,9 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C0DE73840000000000000002 /* MobileHostWorkspaceTicketAuthorizationTests.swift */,
 				18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */,
 				783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */,
+				9EBE18E61555449098DCA77C /* MobileHostNextTransportShutdownTests.swift */,
 				C3AA03F1CEC731E9B9B3F927 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift */,
+				7F5F02FA4E88CD5F52DBB860 /* CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift */,
 				3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */,
 				05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */,
 				E89538C5E739543A7B9E0E86 /* MobileHostWorkspaceTicketAuthorizationTests+NextTransport.swift */,
@@ -13563,6 +13569,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				947194719471947194719472 /* CmuxBundledBinPathIntegrationTests.swift in Sources */,
 					0CB4E9797AD54D3BB9CF06F9 /* CMUXCLI+AutoNaming.swift in Sources */,
 				ED29D3771DAFD013B8B780B3 /* CMUXCLIErrorOutputRegressionTests+NextTransport.swift in Sources */,
+				B4EAFBA3ACDE97FEF5DED8C2 /* CMUXCLIErrorOutputRegressionTests+RestoreStartup.swift in Sources */,
 					C0DE31390000000000000105 /* CMUXCLIErrorOutputRegressionTests.swift in Sources */,
 					112950000000000000000012 /* CMUXCLIForkLegacyFallbackTests.swift in Sources */,
 					112950000000000000000002 /* CMUXCLIForkVerbRegressionTests.swift in Sources */,
@@ -13785,6 +13792,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C1A071000000000000000001 /* MobileHostIrohAdmissionTests.swift in Sources */,
 				C1B1810000000000000005 /* MobileHostIrxSettingsMappingTests.swift in Sources */,
 				DE71CE000000000000000006 /* MobileHostNetworkPathRefreshTests.swift in Sources */,
+				D0F239C471E84004922B0A82 /* MobileHostNextTransportShutdownTests.swift in Sources */,
 				A1B2C3D4E5F60718293A4C03 /* MobileHostOrderedInputTests.swift in Sources */,
 				C0DE10510000000000000001 /* MobileHostServiceSettingsTests.swift in Sources */,
 				4C1A7E10B2D34F56A8C90013 /* MobileHostStatusVerificationLimiterTests.swift in Sources */,

@@ -11,6 +11,24 @@ import Testing
 @MainActor
 @Suite("Next-transport dial surface")
 struct NextTransportDialSurfaceTests {
+    @Test("pending credential persistence preserves the sticky next route")
+    func pendingPersistencePreservesRouting() async throws {
+        let domain = "cmux.next-transport-routing-tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.set(true, forKey: NextTransportGraduationFacade.routeTrafficDefaultsKey)
+        let facade = NextTransportGraduationFacade(defaults: defaults)
+        let macID = UUID().uuidString
+        facade.setRouting(.next, macID: macID)
+        let write = facade.credentialPersistence.enqueue(key: macID) { true }
+        // No suspension: the queued MainActor completion cannot have drained.
+        #expect(facade.ensureClient(macID: macID) == nil)
+        #expect(facade.routing(macID: macID) == .next)
+        _ = await write.value
+        #expect(facade.ensureClient(macID: macID) == nil)
+        #expect(facade.routing(macID: macID) == .unknown)
+    }
+
     /// Gives each test an isolated defaults domain and Keychain namespace so
     /// identity/credential persistence from another test or app install cannot
     /// influence the assertions.
