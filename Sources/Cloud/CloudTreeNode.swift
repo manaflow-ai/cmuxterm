@@ -589,7 +589,11 @@ enum CloudTreeNodeBuilder {
                     snapshot: snapshot,
                     projectionIndex: projectionIndex,
                     supportsCloudBrowser: supportsCloudBrowser,
-                    supportsPorts: true
+                    // A catalog-only machine has no current VM capability
+                    // snapshot. Fail closed until the fleet list supplies one;
+                    // stale catalog data must not advertise a port action that
+                    // the provider may reject.
+                    supportsPorts: false
                 )
             ))
         }
@@ -780,7 +784,13 @@ enum CloudTreeNodeBuilder {
             return true
         }
         let terminals = resources.filter { $0.kind == .terminal }
-        let displays = CloudMachineSurfacePresentation.displays(resources: resources, info: info)
+        // `displays` can synthesize a desktop from machine metadata. That is
+        // useful only when the signed Network Extension can carry the browser
+        // surface; otherwise synthesis would reintroduce the unsupported row
+        // after the resource filter above.
+        let displays = supportsCloudBrowser
+            ? CloudMachineSurfacePresentation.displays(resources: resources, info: info)
+            : []
 
         switch info.linkState {
         case .asleep:
@@ -813,7 +823,7 @@ enum CloudTreeNodeBuilder {
                 let right = ($1.id.forwardedPort ?? $1.port ?? 0, $1.id.key)
                 return left.0 != right.0 ? left.0 < right.0 : left.1 < right.1
             }
-        do {
+        if supportsCloudBrowser && supportsPorts {
             children.append(CloudTreeNode(
                 id: nodeID(portsGroup: machine),
                 kind: .portsGroup(machine: machine),

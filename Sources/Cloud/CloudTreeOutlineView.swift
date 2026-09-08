@@ -63,6 +63,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         container.appearance = WindowAppearanceSnapshot.appKitAppearance(for: colorScheme)
         context.coordinator.machineActions = machineActions
         context.coordinator.nodeActions = nodeActions
+        context.coordinator.supportsCloudBrowser = supportsCloudBrowser
         context.coordinator.onDragStateChange = onDragStateChange
         context.coordinator.apply(style: style)
         context.coordinator.apply(nodes: CloudTreeNodeBuilder.nodes(
@@ -81,7 +82,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         var machineActions: MachineRowActions
         var nodeActions: CloudTreeNodeActions
         let expansionStore: CloudTreeExpansionStore
-        let supportsCloudBrowser: Bool
+        var supportsCloudBrowser: Bool
         private(set) var style: CloudTreeStyle = CloudTreeStyleStore.current
         private let tabDragTransferRegistry: @MainActor () -> TabDragTransferRegistry?
         weak var outlineView: CloudTreeNSOutlineView?
