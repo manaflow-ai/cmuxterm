@@ -48,9 +48,10 @@ extension AgentNotificationRegressionTests {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = [initialScript.path]
         var environment = ProcessInfo.processInfo.environment
-        ["CMUX_WORKSPACE_ID", "CMUX_TAB_ID", "CMUX_SURFACE_ID", "CMUX_PANEL_ID"].forEach {
+        ["CMUX_WORKSPACE_ID", "CMUX_TAB_ID", "CMUX_PANEL_ID"].forEach {
             environment.removeValue(forKey: $0)
         }
+        environment["CMUX_SURFACE_ID"] = fixture.panelId.uuidString
         process.environment = environment
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -73,7 +74,6 @@ extension AgentNotificationRegressionTests {
         #expect(cachedMiss == nil)
         #expect(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
         #expect(await waitForMarker(at: execMarker))
-
         #expect(
             fixture.appDelegate.liveAgentDeliveryTarget(forAgentPID: process.processIdentifier)
                 == AgentDeliveryTargetCandidate(
