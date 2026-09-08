@@ -149,3 +149,50 @@ import Testing
     #expect(!state.hydrationNeeded)
     #expect(!state.requiresHydration(for: historyGrowth))
 }
+
+/// Verifies an alternate-screen frame cannot satisfy primary scrollback
+/// hydration when the mirror has no retained baseline.
+@Test func alternateScreenFrameKeepsPrimaryHydrationPending() throws {
+    var state = MobileTerminalMirrorState()
+    let alternate = try MobileTerminalRenderGridFrame(
+        surfaceID: "surface",
+        stateSeq: 10,
+        renderEpoch: "epoch-1",
+        renderRevision: 1,
+        columns: 80,
+        rows: 4,
+        full: true,
+        rowSpans: [],
+        activeScreen: .alternate,
+        scrollbackRows: 0,
+        anchor: .screen,
+        historyRows: 20,
+        rowSpaceRevision: 1
+    )
+    state.record(alternate)
+
+    #expect(state.hydrationNeeded)
+}
+
+/// Verifies a viewport-anchored full frame cannot stand in for primary
+/// scrollback hydration when it carries no history rows.
+@Test func viewportFrameKeepsPrimaryHydrationPending() throws {
+    var state = MobileTerminalMirrorState()
+    let viewport = try MobileTerminalRenderGridFrame(
+        surfaceID: "surface",
+        stateSeq: 10,
+        renderEpoch: "epoch-1",
+        renderRevision: 1,
+        columns: 80,
+        rows: 4,
+        full: true,
+        rowSpans: [],
+        scrollbackRows: 0,
+        anchor: .viewport,
+        historyRows: 20,
+        rowSpaceRevision: 1
+    )
+    state.record(viewport)
+
+    #expect(state.hydrationNeeded)
+}

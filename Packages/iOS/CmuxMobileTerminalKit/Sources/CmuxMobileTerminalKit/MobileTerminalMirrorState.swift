@@ -40,7 +40,9 @@ public struct MobileTerminalMirrorState: Sendable {
     }
 
     /// Records producer metadata from a delivered render-grid frame. A full
-    /// frame with no retained history still completes hydration; deltas never do.
+    /// screen-anchored primary frame carrying scrollback (or explicitly
+    /// reporting no history) completes hydration; deltas and frames that do
+    /// not describe primary scrollback never do.
     /// A retained mirror accepts a live full frame only when its producer
     /// identity and history metadata still match the visible mirror. If those
     /// values changed, the visible screen may still be useful, but its
@@ -57,11 +59,11 @@ public struct MobileTerminalMirrorState: Sendable {
                 return
             }
         }
-        let hydrationSatisfied = retainedAcrossReconnect
-            || frame.anchor != .screen
-            || frame.scrollbackRows > 0
-            || frame.historyRows == 0
-            || frame.activeScreen == .alternate
+        let hydrationSatisfied = retainedAcrossReconnect || (
+            frame.anchor == .screen
+                && frame.activeScreen == .primary
+                && (frame.scrollbackRows > 0 || frame.historyRows == 0)
+        )
         if frame.full,
            hasKnownProducerMetadata,
            !matchesRetainedProducer(frame),
