@@ -86,6 +86,13 @@ struct AppDelegateFullScreenFrameRestoreTests {
             windows: [window]
         )
 
-        #expect(window.frame == screen.visibleFrame)
+        let topInset = max(0, screen.frame.maxY - screen.visibleFrame.maxY)
+        let expectedFrame = NSRect(
+            x: screen.frame.minX,
+            y: screen.frame.minY,
+            width: screen.frame.width,
+            height: screen.frame.height - topInset
+        )
+        #expect(window.frame == expectedFrame)
     }
 }
