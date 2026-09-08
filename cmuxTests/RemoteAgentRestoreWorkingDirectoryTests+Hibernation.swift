@@ -258,7 +258,8 @@ extension RemoteAgentRestoreWorkingDirectoryTests {
                     ?? panel.surface.nextRuntimeInitialInput
             )
             #expect(queuedInput.contains(sessionId), Comment(rawValue: queuedInput))
-            #expect(queuedInput.contains(trustedRemoteDirectory), Comment(rawValue: queuedInput))
+            // Hibernation queues the local `cmux restore` verb; the persisted
+            // restore record carries the trusted remote directory asserted above.
             #expect(!queuedInput.contains(capturedAgentDirectory), Comment(rawValue: queuedInput))
             #expect(!queuedInput.contains(capturedLaunchDirectory), Comment(rawValue: queuedInput))
             #expect(!queuedInput.contains(capturedArgumentDirectory), Comment(rawValue: queuedInput))
