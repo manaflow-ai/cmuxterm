@@ -18,7 +18,7 @@ public struct ClaudeTeamTaskListResolver {
     public let teamsRootURL: URL
 
     private let taskStoreIdentity: ClaudeTaskStoreIdentity
-    private let fileManager: FileManager
+    private let fileManager: any ClaudeTaskFileSystem
     private let operationDeadline: ClaudeTaskOperationDeadline
 
     /// Creates a resolver rooted at a specific Claude teams directory.
@@ -32,7 +32,7 @@ public struct ClaudeTeamTaskListResolver {
     public init(
         teamsRootURL: URL,
         taskStoreIdentity: ClaudeTaskStoreIdentity? = nil,
-        fileManager: FileManager = FileManager(),
+        fileManager: any ClaudeTaskFileSystem = FileManager(),
         deadlineUptime: TimeInterval? = nil,
         uptime: @escaping @Sendable () -> TimeInterval = {
             ProcessInfo.processInfo.systemUptime

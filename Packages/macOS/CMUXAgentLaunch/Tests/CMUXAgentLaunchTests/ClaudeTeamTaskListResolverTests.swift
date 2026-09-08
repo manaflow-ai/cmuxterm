@@ -458,22 +458,29 @@ struct ClaudeTeamTaskListResolverTests {
     }
 }
 
-private final class MutatingTeamScanFileManager: FileManager {
+private final class MutatingTeamScanFileManager: ClaudeTaskFileSystem {
+    private let fileManager = FileManager()
     private let mutation: () -> Void
     private var didMutate = false
 
     init(mutation: @escaping () -> Void) {
         self.mutation = mutation
-        super.init()
     }
 
-    override func enumerator(
+    func fileExists(
+        atPath path: String,
+        isDirectory: UnsafeMutablePointer<ObjCBool>?
+    ) -> Bool {
+        fileManager.fileExists(atPath: path, isDirectory: isDirectory)
+    }
+
+    func enumerator(
         at url: URL,
         includingPropertiesForKeys keys: [URLResourceKey]?,
         options mask: FileManager.DirectoryEnumerationOptions = [],
-        errorHandler handler: ((URL, Error) -> Bool)? = nil
+        errorHandler handler: ((URL, any Error) -> Bool)? = nil
     ) -> FileManager.DirectoryEnumerator? {
-        let enumerator = super.enumerator(
+        let enumerator = fileManager.enumerator(
             at: url,
             includingPropertiesForKeys: keys,
             options: mask,
@@ -484,5 +491,12 @@ private final class MutatingTeamScanFileManager: FileManager {
             mutation()
         }
         return enumerator
+    }
+
+    func resourceValues(
+        for url: URL,
+        keys: Set<URLResourceKey>
+    ) throws -> URLResourceValues {
+        try fileManager.resourceValues(for: url, keys: keys)
     }
 }
