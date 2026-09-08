@@ -91,7 +91,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     }
 
     /// The refusal that ended the last scheduled start, until a new start is
-    /// scheduled; `vm.tunnel_up` reports it instead of a bare "off".
+    /// scheduled. Read by `vm.tunnel_up` right after its wait settles, so the
+    /// verb answers with the reason instead of a bare "off"; status does not
+    /// use it, because the cause may have been fixed since.
     func recordedStartRefusal() -> CloudTunnelStartRefusal? {
         lastStartRefusal
     }
