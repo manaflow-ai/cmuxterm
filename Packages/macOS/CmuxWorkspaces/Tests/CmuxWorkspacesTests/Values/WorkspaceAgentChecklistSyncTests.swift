@@ -94,7 +94,20 @@ struct WorkspaceAgentChecklistSyncTests {
 
         #expect(replacements.first?.id == existing.first?.id)
         #expect(replacements.first?.dispatchTarget == existing.first?.dispatchTarget)
+        #expect(replacements.first?.boundWorkspaceID == existing.first?.boundWorkspaceID)
+        #expect(replacements.first?.boundAgent == existing.first?.boundAgent)
         #expect(replacements.first?.agentTaskRef == authoritative.ref)
+
+        var checklist = existing
+        guard case .success = checklist.replaceChecklist(with: replacements) else {
+            Issue.record("expected the identity-preserving replacement to apply")
+            return
+        }
+        #expect(WorkspaceAgentChecklistSync().replacement(
+            existing: checklist,
+            agentTasks: [authoritative],
+            workstreamId: "current"
+        ) == nil)
     }
 
     @Test("dispatch metadata survives Codable round trip")
