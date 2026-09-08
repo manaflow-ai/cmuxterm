@@ -87,12 +87,14 @@ enum SurfacePaneFactory {
               let workspace = appDelegate.workspace(containingSurfaceID: panelID) else { return }
         // A workspace whose only pane is the dead terminal goes with it, which
         // is what a local workspace does when its last shell exits. Closing
-        // just the pane would leave the workspace to open a fresh local shell
-        // in place of the cloud terminal, which reads as the pane never having
-        // closed at all.
+        // only the pane there leaves the workspace to open a fresh local shell
+        // in the cloud pane's place.
         if workspace.panels.count <= 1 {
             let manager = workspace.owningTabManager ?? TerminalController.shared.tabManager
             if manager?.closeWorkspaceNonInteractively(workspace) == true { return }
+            // The workspace refused to close (pinned, or the window's last one
+            // during teardown). Close the pane anyway: a replacement local
+            // shell is still better than a frozen pane that swallows input.
         }
         workspace.markCloseHistoryEligible(panelId: panelID)
         _ = workspace.closePanel(panelID, force: true)

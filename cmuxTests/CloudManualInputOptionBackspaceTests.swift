@@ -63,20 +63,37 @@ struct CloudManualInputOptionBackspaceTests {
         ))
 
         var collected = Data()
-        var iterator = inputs.makeAsyncIterator()
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline {
-            guard let next = await iterator.next() else { break }
-            switch next {
-            case .bytes(let data): collected.append(data)
-            case .namedKey(let name): Issue.record("unexpected named key \(name)")
-            }
-            if !collected.isEmpty { break }
+        switch await Self.firstInput(from: inputs, timeout: .seconds(5)) {
+        case .bytes(let data): collected.append(data)
+        case .namedKey(let name): Issue.record("unexpected named key \(name)")
+        case nil: break
         }
 
         #expect(
             Array(collected) == [0x1B, 0x7F],
             "Option+Backspace must reach a cloud pane as ESC DEL, got \(Array(collected).map { String(format: "0x%02X", $0) })"
         )
+    }
+
+    /// The first manual input, or `nil` once `timeout` passes. A surface that
+    /// never encodes the key must fail this test, not hang it: `next()` on a
+    /// live stream suspends forever, so the wait needs its own deadline.
+    private static func firstInput(
+        from stream: AsyncStream<TerminalManualInput>,
+        timeout: Duration
+    ) async -> TerminalManualInput? {
+        await withTaskGroup(of: TerminalManualInput?.self) { group in
+            group.addTask {
+                for await input in stream { return input }
+                return nil
+            }
+            group.addTask {
+                try? await Task.sleep(for: timeout)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
     }
 }
