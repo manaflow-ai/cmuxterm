@@ -1595,11 +1595,11 @@ extension Workspace {
                     // rendered. Release it immediately on command/script
                     // construction failure so a later restore is not blocked
                     // for the claim TTL.
-                    if let remoteRestoreClaim {
+                    if let claim = remoteRestoreClaim {
                         _ = AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                             kind: retainedRestorableAgent.kind.rawValue,
                             sessionId: retainedRestorableAgent.sessionId,
-                            claim: remoteRestoreClaim
+                            claim: claim
                         )
                         remoteRestoreClaim = nil
                     } else {
