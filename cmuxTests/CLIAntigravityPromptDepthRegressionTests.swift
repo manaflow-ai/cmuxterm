@@ -177,6 +177,71 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertNil(record["activePromptDepth"])
     }
 
+    func testAntigravitySessionEndDoesNotOverwriteASettledRunningState() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-antigravity-session-end-race-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = ClaudeHookSessionStore(
+            processEnv: ["CMUX_AGENT_HOOK_STATE_DIR": root.path],
+            promptDepthPolicy: .authoritative
+        )
+        let sessionId = "antigravity-session-end-race-session"
+        _ = try store.upsert(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            agentLifecycle: .running,
+            runtimeStatus: .running,
+            updateRuntimeStatus: true
+        )
+        _ = try store.recordPromptSubmit(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            pid: nil,
+            launchCommand: nil,
+            agentLifecycle: .running,
+            runtimeStatus: .running,
+            updateRuntimeStatus: true
+        )
+        _ = try store.recordPromptStop(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            pid: nil,
+            launchCommand: nil,
+            agentLifecycle: .running,
+            runtimeStatus: .running,
+            updateRuntimeStatus: true
+        )
+
+        // SessionEnd may have observed an active prompt before a concurrent
+        // Stop settled it to running. Its stale idle decision must be ignored
+        // when the authoritative record is already prompt-free.
+        _ = try store.recordPromptStop(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            pid: nil,
+            launchCommand: nil,
+            agentLifecycle: .idle,
+            runtimeStatus: .idle,
+            updateRuntimeStatus: true,
+            settleOnlyIfPromptActive: true
+        )
+
+        let record = try XCTUnwrap(store.lookup(sessionId: sessionId))
+        XCTAssertEqual(record.agentLifecycle, .running)
+        XCTAssertEqual(record.runtimeStatus, .running)
+        XCTAssertNil(record.activePromptDepth)
+    }
+
     private func readAntigravityHookSession(
         _ sessionId: String,
         context: ClaudeHookContext

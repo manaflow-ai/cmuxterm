@@ -1266,6 +1266,7 @@ final class ClaudeHookSessionStore {
         updateLastNotificationStatus: Bool = false,
         runtimeStatus: AgentHookRuntimeStatus? = nil,
         updateRuntimeStatus: Bool = false,
+        settleOnlyIfPromptActive: Bool = false,
         autoNameMessages: [AutoNamingTranscriptMessage] = []
     ) throws -> Bool {
         let normalized = normalizeSessionId(sessionId)
@@ -1280,18 +1281,23 @@ final class ClaudeHookSessionStore {
                 now: now
             )
             let depthBeforeStop = max(0, record.activePromptDepth ?? 0)
+            let shouldSettleAuthoritativeBoundary = promptDepthPolicy.closesActivePrompt
+                && (!settleOnlyIfPromptActive || depthBeforeStop > 0)
             let depthAfterStop = promptDepthPolicy.closesActivePrompt
                 ? 0
                 : max(0, depthBeforeStop - 1)
-            let lifecycleWhenClosed: AgentHibernationLifecycleState? = agentLifecycle
-                ?? (promptDepthPolicy.closesActivePrompt ? .idle : nil)
-            let runtimeWhenClosed: AgentHookRuntimeStatus? = runtimeStatus
-                ?? (promptDepthPolicy.closesActivePrompt ? .idle : nil)
+            let lifecycleWhenClosed: AgentHibernationLifecycleState? = shouldSettleAuthoritativeBoundary
+                ? (agentLifecycle ?? .idle)
+                : nil
+            let runtimeWhenClosed: AgentHookRuntimeStatus? = shouldSettleAuthoritativeBoundary
+                ? (runtimeStatus ?? .idle)
+                : nil
             // A nested balanced stop must not overwrite a still-running
             // session with its child completion's idle/error status. An
             // authoritative boundary, or an explicit running status from
             // active background work, is safe to persist immediately.
             let shouldUpdateRuntimeStatus = updateRuntimeStatus
+                && (!settleOnlyIfPromptActive || depthBeforeStop > 0)
                 && (depthAfterStop == 0 || runtimeStatus == .running)
             update(
                 &record,
@@ -1313,7 +1319,7 @@ final class ClaudeHookSessionStore {
                 // this OR keeps their idle/running result persisted and is
                 // intentionally load-bearing rather than redundant.
                 updateRuntimeStatus: shouldUpdateRuntimeStatus
-                    || (promptDepthPolicy.closesActivePrompt && depthAfterStop == 0),
+                    || shouldSettleAuthoritativeBoundary,
                 now: now
             )
             appendAutoNameMessages(autoNameMessages, to: &record)
@@ -36938,6 +36944,11 @@ export default CMUXSessionRestore;
                         lastBody: nil,
                         runtimeStatus: sessionEndRuntimeStatus,
                         updateRuntimeStatus: sessionEndRuntimeStatus != nil,
+                        // The lookup above is only a routing snapshot. If a
+                        // Stop settles the prompt after that lookup, preserve
+                        // the newer durable running/needs-input/error state
+                        // instead of replaying the stale idle decision.
+                        settleOnlyIfPromptActive: true,
                         autoNameMessages: autoNamingMessages(
                             for: def,
                             parsedInput: input,
