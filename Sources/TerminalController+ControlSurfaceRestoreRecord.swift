@@ -1,5 +1,6 @@
 import Foundation
 import CMUXAgentLaunch
+import CmuxControlSocket
 
 extension TerminalController {
     func controlSurfaceRestoreRecord(
