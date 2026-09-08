@@ -211,9 +211,24 @@ struct TerminalArtifactChipCountState: Sendable {
 
         if let trailing {
             self.trailing = nil
-            if trailing.localCount != request.localCount,
-               trailing.surfaceGeneration == currentSurfaceGeneration {
-                let nextRequest = makeRequest(trailing)
+            // A queued observation was captured after the completed request,
+            // but the caller's current render-grid snapshot can lag that
+            // observation. Preserve the queued refresh whenever it is still
+            // newer than the completed request, and pin it to the freshest
+            // generation known by either side instead of dropping it on an
+            // exact-generation mismatch.
+            let trailingGenerationIsNewer =
+                trailing.surfaceGeneration > request.surfaceGeneration
+            let trailingCountChanged = trailing.localCount != request.localCount
+            if trailing.surfaceGeneration >= request.surfaceGeneration,
+               trailingGenerationIsNewer || trailingCountChanged {
+                let nextRequest = makeRequest(Pending(
+                    surfaceGeneration: max(
+                        trailing.surfaceGeneration,
+                        currentSurfaceGeneration
+                    ),
+                    localCount: trailing.localCount
+                ))
                 inFlight = nextRequest
                 return Completion(outcome: outcome, nextRequest: nextRequest)
             }
