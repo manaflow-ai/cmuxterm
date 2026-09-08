@@ -17,6 +17,41 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct VaultRestoreCompatibilitySecurityTests {
+    @Test("Open inherits the selected local directory when splitting is rejected")
+    func openFallbackPreservesLocalDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-vault-open-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let manager = TabManager(initialWorkingDirectory: directory.path, autoWelcomeIfNeeded: false)
+        defer { manager.tabs.forEach { $0.teardownAllPanels() } }
+        let workspace = try #require(manager.selectedWorkspace)
+        let originalDelegate = workspace.bonsplitController.delegate
+        let rejectingDelegate = VaultOpenRejectingSplitDelegate()
+        workspace.bonsplitController.delegate = rejectingDelegate
+        defer { workspace.bonsplitController.delegate = originalDelegate }
+        let entry = SessionEntry(
+            id: "claude:local-fallback",
+            agent: .claude,
+            sessionId: "local-fallback",
+            title: "Local fallback",
+            cwd: nil,
+            gitBranch: nil,
+            pullRequest: nil,
+            modified: Date(timeIntervalSince1970: 1_800_000_109),
+            fileURL: nil,
+            specifics: .claude(model: nil, permissionMode: nil, configDirectoryForResume: nil)
+        )
+
+        #expect(SessionEntryResumeCoordinator().open(entry, tabManager: manager))
+        #expect(manager.tabs.count == 2)
+        let openedWorkspace = try #require(manager.selectedWorkspace)
+        #expect(openedWorkspace !== workspace)
+        #expect(openedWorkspace.currentDirectory == directory.path)
+        let panelID = try #require(openedWorkspace.focusedPanelId)
+        #expect(openedWorkspace.restoredAgentSnapshotsByPanelId[panelID]?.sessionId == entry.sessionId)
+    }
+
     @Test("Quoted registration values remain structured through the app adapter")
     func quotedRegistrationValueRemainsAvailable() throws {
         let registration = CmuxVaultAgentRegistration(
@@ -75,5 +110,16 @@ struct VaultRestoreCompatibilitySecurityTests {
         #expect(launch.legacyFallbackReason == .missingStructuredSnapshot)
         #expect(!launch.initialInput.contains("--resume \(unsafeSessionID)"))
         #expect(!launch.initialInput.contains("resume \(unsafeSessionID)"))
+    }
+}
+
+@MainActor
+private final class VaultOpenRejectingSplitDelegate: BonsplitDelegate {
+    func splitTabBar(
+        _ controller: BonsplitController,
+        shouldSplitPane pane: PaneID,
+        orientation: SplitOrientation
+    ) -> Bool {
+        false
     }
 }

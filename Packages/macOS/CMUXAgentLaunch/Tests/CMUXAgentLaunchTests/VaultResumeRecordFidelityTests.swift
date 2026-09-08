@@ -5,6 +5,33 @@ import Testing
 @Suite("Vault restore record fidelity")
 struct VaultResumeRecordFidelityTests {
     @Test(arguments: [
+        "{{executable}} --continue",
+        "{{executable}} --cwd {{cwd}}",
+        "{{executable}} --session hardcoded-session",
+    ])
+    func templatesWithoutSessionPlaceholdersRemainCompatibilityOnly(_ template: String) throws {
+        let registration = VaultResumeLaunchRequest.Registration(
+            id: "custom-agent",
+            defaultExecutable: "custom-agent",
+            resumeCommand: template,
+            workingDirectoryPolicy: .preserve,
+            sessionDirectory: nil,
+            registeredResumeKind: nil
+        )
+        let plan = try #require(VaultResumeLaunchPlanner().plan(for: VaultResumeLaunchRequest(
+            kind: "custom-agent",
+            sessionID: "indexed-session",
+            workingDirectory: "/tmp/project",
+            profile: .registered(registration, launchCommand: nil),
+            legacyCommand: "custom-agent --continue"
+        )))
+
+        #expect(plan.strategy == .legacyCommand)
+        #expect(plan.structuredSnapshot == nil)
+        #expect(plan.legacyFallbackReason == .unavailableStructuredArguments)
+    }
+
+    @Test(arguments: [
         nil,
         [:],
         ["SECRET_TOKEN": "must-not-persist"],
