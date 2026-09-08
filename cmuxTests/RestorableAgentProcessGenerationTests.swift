@@ -147,6 +147,87 @@ struct RestorableAgentProcessGenerationTests {
         #expect(presenceProbeCount == 0)
     }
 
+    @Test("Restored sidebar liveness validates the launch workspace, not its new UI owner", arguments: [false, true])
+    func restoredSidebarLivenessUsesLaunchWorkspace(processUsesRestoredWorkspace: Bool) throws {
+        let fixture = try makeFixture(prefix: "cmux-restored-sidebar-liveness")
+        defer { cleanup(fixture) }
+        let restoredWorkspaceID = UUID()
+        let identity = AgentPIDProcessIdentity(
+            pid: pid_t(fixture.processID),
+            startSeconds: Int64(fixture.updatedAt),
+            startMicroseconds: 0
+        )
+        let startedAt = fixture.updatedAt - 120
+        try writeStoredProcessIdentity(identity, to: fixture)
+        try writeHookTimingState(startedAt: startedAt, lifecycle: .running, to: fixture)
+        let index = loadRunningFixture(
+            fixture,
+            processArguments: codexProcessArguments(for: fixture),
+            processIdentity: identity
+        )
+        let before = try #require(index.sidebarEntry(
+            workspaceId: restoredWorkspaceID,
+            panelId: fixture.panelID
+        ))
+        #expect(before.processLiveness == .running)
+        #expect(before.startedAt == startedAt)
+
+        let processWorkspaceID = processUsesRestoredWorkspace ? restoredWorkspaceID : fixture.workspaceID
+        let processSnapshot = CmuxTopProcessSnapshot(
+            processes: [CmuxTopProcessInfo(
+                pid: fixture.processID,
+                parentPID: 1,
+                name: "codex",
+                path: "/usr/local/bin/codex",
+                ttyDevice: nil,
+                cmuxWorkspaceID: processWorkspaceID,
+                cmuxSurfaceID: fixture.panelID,
+                cmuxAttributionReason: "environment",
+                processGroupID: nil,
+                terminalProcessGroupID: nil,
+                cpuPercent: 0,
+                residentBytes: 1,
+                virtualBytes: 1,
+                threadCount: 1
+            )],
+            sampledAt: Date(timeIntervalSince1970: fixture.updatedAt),
+            includesProcessDetails: true
+        )
+        let revalidated = index.revalidatingCachedProcesses(
+            against: processSnapshot,
+            panelIDs: [fixture.panelID],
+            currentWorkspaceIDByPanelID: [fixture.panelID: restoredWorkspaceID],
+            processArgumentsProvider: { _ in
+                CmuxTopProcessArguments(
+                    arguments: ["/usr/local/bin/codex"],
+                    environment: [
+                        "CMUX_AGENT_LAUNCH_KIND": "codex",
+                        "CMUX_WORKSPACE_ID": processWorkspaceID.uuidString,
+                        "CMUX_SURFACE_ID": fixture.panelID.uuidString,
+                    ]
+                )
+            },
+            processIdentityProvider: { _ in identity }
+        )
+        let after = try #require(revalidated.sidebarEntry(
+            workspaceId: restoredWorkspaceID,
+            panelId: fixture.panelID
+        ))
+        #expect(after.processLiveness == (processUsesRestoredWorkspace ? .exited : .running))
+        #expect(after.agentProcessIDs == (processUsesRestoredWorkspace ? [] : [fixture.processID]))
+        #expect(after.processIDs == (processUsesRestoredWorkspace ? [] : [fixture.processID]))
+        #expect(after.startedAt == startedAt)
+        #expect(after.snapshot.sessionId == fixture.sessionID)
+        let state = SidebarAgentResolvedState(
+            lifecycle: after.lifecycle,
+            processLiveness: after.processLiveness,
+            hasExactProcessIdentity: !after.agentProcessIdentities.isEmpty,
+            hasLiveLifecycleSignal: false,
+            hasDeterministicSignal: true
+        )
+        #expect(state == (processUsesRestoredWorkspace ? .unknown : .running))
+    }
+
     @Test("A later process generation cannot satisfy a stale hook PID")
     func laterProcessGenerationCannotSatisfyStaleHookPID() throws {
         let fixture = try makeFixture(prefix: "cmux-pid-generation")
