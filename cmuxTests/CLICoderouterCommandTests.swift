@@ -57,13 +57,6 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         }
     }
 
-    @Test
-    func diskResizeKeepsItsCanonicalValidation() throws {
-        let result = try runWithoutMutationRequests(["vm", "resize", "test-machine", "--disk", "5"])
-        #expect(result.status != 0, "\(result.text)")
-        #expect(result.text.contains("vm resize: disk must be 4-256 GiB"), "\(result.text)")
-    }
-
     @Test(arguments: [["--json"], ["--sync"], ["--no-open"], ["--machine", "vm-agent-test"]])
     func aliasesAcceptLeadingCanonicalOptions(options: [String]) throws {
         for command in [["vm", "agent"], ["agent"], ["coderouter", "agent"]] {

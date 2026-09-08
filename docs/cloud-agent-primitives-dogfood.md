@@ -135,12 +135,13 @@ In a folder with a `package.json` whose `dev` script starts a server on a known 
 | 8.3 | `cmux vm snapshot <m> --name dogfood` | snapshot id |
 | 8.4 | `cmux vm snapshot ls <m>` then `cmux vm snapshot rm <m> <id>` then `ls` again | the 8.3 snapshot listed with its name, then gone; `cmux vm restore <id>` of the deleted one answers not found |
 | 8.5 | `cmux vm fork <m>` and `cmux vm env ls <fork>` | the fork inherits `~/.config/cmux/env` |
+| 8.6 | `cmux vm resize <m> --disk 64` | `Unknown vm command` (disk growth is not possible today); the machine's sidebar context menu has no "Increase Disk" item |
 
 ## 9. Help and grammar
 
 | # | Command | Pass |
 |---|---|---|
-| 9.1 | `cmux vm help` | every verb above listed once |
+| 9.1 | `cmux vm help` | every verb above listed once; no `resize` |
 | 9.2 | `cmux vm layout --help`, `cmux vm env --help`, `cmux vm terminal --help`, `cmux vm agent --help`, `cmux vm dev --help` | per-verb usage |
 | 9.3 | inside a machine: `cmux --help` | sections THIS MACHINE / WHO AM I / OTHER MACHINES / REACH THE HUMAN / MODELS AND AGENTS / AUTH |
 | 9.4 | `cmux vm <verb> --json` for ls, tree, self, terminal output, layout export | valid JSON on stdout only |
