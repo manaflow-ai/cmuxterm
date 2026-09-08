@@ -22,7 +22,7 @@ struct VaultAllSessionsBar: View {
     }
 
     private var searchBarHeight: CGFloat {
-        max(RightSidebarChromeMetrics.secondaryBarHeight, searchFieldHeight + 8)
+        max(RightSidebarChromeMetrics.secondaryBarHeight, searchFieldHeight + 6)
     }
 
     var body: some View {
@@ -30,10 +30,10 @@ struct VaultAllSessionsBar: View {
             searchField
             overflowMenu
         }
-        // Match Find's field height and leading/top insets.
-        .padding(.leading, 8)
+        // Keep Vault's compact toolbar spacing around the shared field.
+        .padding(.leading, 4)
         .padding(.trailing, 0)
-        .padding(.vertical, 4)
+        .padding(.vertical, 3)
         .frame(height: searchBarHeight)
     }
 

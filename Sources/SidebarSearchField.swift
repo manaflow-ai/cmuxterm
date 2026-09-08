@@ -7,7 +7,7 @@ class SidebarSearchField: NSSearchField {
     var onCommandSubmit: (() -> Void)?
 
     static var visibleHeight: CGFloat {
-        max(24, GlobalFontMagnification.scaled(24))
+        max(22, RightSidebarChromeMetrics.controlHeight + 2)
     }
 
     override init(frame frameRect: NSRect) {
@@ -21,7 +21,15 @@ class SidebarSearchField: NSSearchField {
     }
 
     func applyFontScale() {
-        font = GlobalFontMagnification.systemFont(ofSize: 12, weight: .regular)
+        font = GlobalFontMagnification.systemFont(ofSize: 13, weight: .regular)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        // Match Vault's borderless fill while AppKit retains ownership of
+        // the editor, cursor rectangles, selection, and search buttons.
+        NSColor.labelColor.withAlphaComponent(0.06).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 7, yRadius: 7).fill()
+        super.draw(dirtyRect)
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -41,6 +49,9 @@ class SidebarSearchField: NSSearchField {
     }
 
     private func configure() {
+        isBezeled = false
+        isBordered = false
+        drawsBackground = false
         focusRingType = .none
         cell?.usesSingleLineMode = true
         cell?.isScrollable = true
