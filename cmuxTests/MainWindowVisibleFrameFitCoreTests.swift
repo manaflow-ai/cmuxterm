@@ -327,7 +327,7 @@ struct MainWindowVisibleFrameFitCoreTests {
         #expect(repaired.height == stranded.height)
     }
 
-    @Test func nativeFullscreenReconnectUsesTargetDisplayFrame() throws {
+    @Test func nativeFullscreenReconnectDefersToAppKit() {
         let external = SessionDisplayGeometry(
             displayID: 88,
             stableID: "external-reconnected",
@@ -336,15 +336,15 @@ struct MainWindowVisibleFrameFitCoreTests {
         )
         let staleFullscreenFrame = CGRect(x: 1_512, y: -497, width: 2_560, height: 1_403)
 
-        let repaired = try #require(core.repairedFrame(
+        let repaired = core.repairedFrame(
             for: staleFullscreenFrame,
             displays: [Self.builtInDisplay, external],
             minimumWidth: Self.minimumWidth,
             minimumHeight: Self.minimumHeight,
             mode: .nativeFullscreen
-        ))
+        )
 
-        #expect(repaired == external.frame)
+        #expect(repaired == nil)
     }
 
     @Test func zoomedWindowAppActivationRestoresCurrentVisibleFrame() throws {
