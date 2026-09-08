@@ -21,6 +21,17 @@ struct CodexAppServerSessionTests {
         }
     }
 
+    /// Lets a just-created `Task` reach its first suspension point on the main
+    /// actor before the test continues. `submit` runs on the main actor, so a
+    /// test that calls it right after spawning another submit would otherwise
+    /// run first and steal the single queue slot, then wait forever for a thread
+    /// the test only starts later.
+    private func settleSpawnedTasks() async {
+        for _ in 0..<4 {
+            await Task.yield()
+        }
+    }
+
     @Test
     func testOpenCodeAuthHeaderMatchesServerEnvironment() {
         expectNil(OpenCodeServerAuth(environment: [:]))
@@ -778,6 +789,7 @@ struct CodexAppServerSessionTests {
 
         try await session.start()
         let submitTask = Task { try await session.submit("first prompt") }
+        await settleSpawnedTasks()
         await expectThrowsErrorAsync {
             try await session.submit("second prompt")
         }
