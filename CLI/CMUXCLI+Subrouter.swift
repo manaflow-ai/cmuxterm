@@ -434,13 +434,16 @@ extension CMUXCLI {
             : parts.joined(separator: " ")
     }
 
-    private static func cliText(_ key: String, defaultValue: String) -> String {
+    private static func cliText(
+        _ key: StaticString,
+        defaultValue: String.LocalizationValue
+    ) -> String {
         String(localized: key, defaultValue: defaultValue)
     }
 
     private static func cliFormat(
-        _ key: String,
-        defaultValue: String,
+        _ key: StaticString,
+        defaultValue: String.LocalizationValue,
         _ arguments: CVarArg...
     ) -> String {
         String(
