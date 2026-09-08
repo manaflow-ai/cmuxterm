@@ -2052,6 +2052,12 @@ extension CMUXCLI {
             guard directions.count <= 1 else { throw CLIError(message: Self.surfaceUsage) }
             let direction = directions.first
             let tab = hasFlag(rest3, name: "--tab")
+            if tab && direction != nil {
+                throw CLIError(message: String(
+                    localized: "cli.surface.open.tabAndSide",
+                    defaultValue: "surface open: --tab and a pane side (--left/--right/--up/--down) are two different placements; pass one"
+                ))
+            }
             let new = hasFlag(rest3, name: "--new")
             let known = Set(sides.keys).union(["--tab", "--new", "--json"])
             if let unknown = rest3.first(where: { $0.hasPrefix("-") && !known.contains($0) }) {
