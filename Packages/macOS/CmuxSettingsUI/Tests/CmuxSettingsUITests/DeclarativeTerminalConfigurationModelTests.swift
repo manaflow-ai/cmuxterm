@@ -28,7 +28,12 @@ import Testing
             errorLog: SettingsErrorLog()
         )
 
-        #expect(await policyIterator.next() == nil)
+        let initialPolicy = await policyIterator.next()
+        guard let initialPolicy else {
+            Issue.record("Expected an initial policy stream element")
+            return
+        }
+        #expect(initialPolicy == nil)
         #expect(await modeIterator.next() == .login)
 
         model.startObserving()
