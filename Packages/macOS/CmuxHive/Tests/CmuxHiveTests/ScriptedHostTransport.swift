@@ -14,7 +14,19 @@ actor ScriptedHostTransport: CmxByteTransport {
     private var isClosed = false
     private(set) var sentMethods: [String] = []
     private(set) var sentInputTexts: [String] = []
-    private var methodWaiters: [(method: String, continuation: CheckedContinuation<Void, Never>)] = []
+    private struct MethodWaiter {
+        let method: String
+        let count: Int
+        let continuation: AsyncStream<Void>.Continuation
+    }
+    private struct ResponseEvent {
+        let method: String
+        let occurrence: Int
+        let frame: Data
+    }
+    enum WaitError: Error { case methodNotReceived(String) }
+    private var methodWaiters: [UUID: MethodWaiter] = [:]
+    private var responseEvents: [ResponseEvent] = []
 
     init(handler: @escaping Handler) {
         self.handler = handler
@@ -54,6 +66,10 @@ actor ScriptedHostTransport: CmxByteTransport {
                let framed = try? MobileSyncFrameCodec.encodeFrame(payload) {
                 deliver(framed)
             }
+            let occurrence = sentMethods.filter { $0 == method }.count
+            for event in responseEvents where event.method == method && event.occurrence == occurrence {
+                deliver(event.frame)
+            }
         }
     }
 
@@ -85,19 +101,50 @@ actor ScriptedHostTransport: CmxByteTransport {
     }
 
     /// Suspend until the host has served `count` requests of `method`.
-    func waitForMethod(_ method: String, count: Int = 1) async {
-        while sentMethods.filter({ $0 == method }).count < count {
-            await withCheckedContinuation { continuation in
-                methodWaiters.append((method, continuation))
+    func waitForMethod(_ method: String, count: Int = 1) async throws {
+        guard sentMethods.filter({ $0 == method }).count < count else { return }
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        methodWaiters[id] = MethodWaiter(method: method, count: count, continuation: continuation)
+        defer {
+            methodWaiters.removeValue(forKey: id)?.continuation.finish()
+        }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { for await _ in stream { return } }
+            group.addTask {
+                // A deadline bounds a broken test; it is not used to settle state.
+                try await ContinuousClock().sleep(for: .seconds(5))
+                throw WaitError.methodNotReceived(method)
             }
+            defer { group.cancelAll() }
+            _ = try await group.next()
         }
     }
 
+    /// Deliver an event immediately after a chosen response, before client decoding can finish.
+    func pushEventAfterResponse(
+        to method: String,
+        occurrence: Int,
+        topic: String
+    ) throws {
+        let envelope: [String: Any] = [
+            "kind": "event", "topic": topic, "payload": [:],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: envelope)
+        responseEvents.append(ResponseEvent(
+            method: method,
+            occurrence: occurrence,
+            frame: try MobileSyncFrameCodec.encodeFrame(data)
+        ))
+    }
+
     private func resolveMethodWaiters(method: String) {
-        let matching = methodWaiters.filter { $0.method == method }
-        methodWaiters.removeAll { $0.method == method }
-        for waiter in matching {
-            waiter.continuation.resume()
+        let count = sentMethods.filter { $0 == method }.count
+        let matching = methodWaiters.filter { $0.value.method == method && $0.value.count <= count }
+        for (id, waiter) in matching {
+            methodWaiters.removeValue(forKey: id)
+            waiter.continuation.yield(())
+            waiter.continuation.finish()
         }
     }
 

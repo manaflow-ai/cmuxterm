@@ -107,6 +107,37 @@ private func jsonObject(_ string: String) -> [String: Any] {
     }
 
     @MainActor
+    @Test func workspaceEventDuringInitialRefreshIsNotLost() async throws {
+        let transport = ScriptedHostTransport { method, _ in
+            switch method {
+            case "mobile.workspace.list": return workspaceListResult()
+            case "mobile.events.subscribe": return ["stream_id": "s"]
+            default: return [:]
+            }
+        }
+        try await transport.pushEventAfterResponse(
+            to: "mobile.workspace.list", occurrence: 2, topic: "workspace.updated"
+        )
+        let session = HiveRemoteMacSession(
+            runtime: makeRuntime(transport: transport),
+            macDeviceID: "mac-b", displayName: "Studio",
+            routes: [try tailscaleRoute()], retryDelay: { _ in },
+            legacyTailscaleAuthorizationEvidence: try Self.legacyTailscaleEvidence(),
+            requiresHostIdentity: false
+        )
+        session.connect()
+        do {
+            // The event follows the snapshot response on the same byte stream.
+            // It must trigger a third list request even before snapshot decoding finishes.
+            try await transport.waitForMethod("mobile.workspace.list", count: 3)
+        } catch {
+            await session.disconnect()
+            throw error
+        }
+        await session.disconnect()
+    }
+
+    @MainActor
     @Test func connectFetchesWorkspacesAndTracksUpdates() async throws {
         let transport = ScriptedHostTransport { method, _ in
             switch method {
@@ -128,9 +159,9 @@ private func jsonObject(_ string: String) -> [String: Any] {
             requiresHostIdentity: false
         )
         session.connect()
-        await transport.waitForMethod("mobile.events.subscribe")
+        try await transport.waitForMethod("mobile.events.subscribe")
         // The event loop refreshes once after subscribing.
-        await transport.waitForMethod("mobile.workspace.list", count: 2)
+        try await transport.waitForMethod("mobile.workspace.list", count: 2)
         try await waitUntil { session.phase == .connected && session.workspaces.count == 2 }
 
         #expect(session.workspaces.first?.id == "ws-1")
@@ -139,7 +170,7 @@ private func jsonObject(_ string: String) -> [String: Any] {
 
         // A workspace.updated push triggers a list refresh.
         await transport.pushEvent(topic: "workspace.updated", payload: [:])
-        await transport.waitForMethod("mobile.workspace.list", count: 3)
+        try await transport.waitForMethod("mobile.workspace.list", count: 3)
 
         await session.disconnect()
     }
@@ -180,8 +211,8 @@ private func jsonObject(_ string: String) -> [String: Any] {
         }
 
         #expect(session.reconnectIfNeeded())
-        await transport.waitForMethod("mobile.events.subscribe")
-        await transport.waitForMethod("mobile.workspace.list")
+        try await transport.waitForMethod("mobile.events.subscribe")
+        try await transport.waitForMethod("mobile.workspace.list")
         try await waitUntil { session.phase == .connected && session.workspaces.count == 2 }
         #expect(!session.reconnectIfNeeded())
 
@@ -263,7 +294,7 @@ private func jsonObject(_ string: String) -> [String: Any] {
         terminal.send(text: "a")
         terminal.send(text: "b")
         terminal.send(text: "c")
-        await transport.waitForMethod("mobile.terminal.input", count: 3)
+        try await transport.waitForMethod("mobile.terminal.input", count: 3)
         let inputs = await transport.sentInputTexts
         #expect(inputs == ["a", "b", "c"])
 
@@ -322,7 +353,7 @@ private func jsonObject(_ string: String) -> [String: Any] {
         // tears down, and the attach loop re-subscribes + re-replays over a
         // freshly connected transport.
         await transport.killConnection()
-        await transport.waitForMethod("mobile.terminal.replay", count: replaysBeforeDrop + 1)
+        try await transport.waitForMethod("mobile.terminal.replay", count: replaysBeforeDrop + 1)
         try await waitUntil { terminal.phase == .live }
         await transport.pushEvent(topic: "terminal.render_grid", payload: jsonObject(secondFrame))
         try await waitUntil { terminal.grid.plainRow(0) == "after recovery" }
@@ -377,7 +408,7 @@ private func jsonObject(_ string: String) -> [String: Any] {
         ))
         first.attach()
         second.attach()
-        await transport.waitForMethod("mobile.terminal.replay", count: 2)
+        try await transport.waitForMethod("mobile.terminal.replay", count: 2)
         try await waitUntil { first.phase == .live && second.phase == .live }
 
         let subscribeCount = await transport.sentMethods.filter { $0 == "mobile.events.subscribe" }.count
