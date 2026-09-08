@@ -1680,6 +1680,7 @@ jobs:
             CmuxRemoteWorkspace
             CmuxRemoteSession
             CmuxAgentChat
+            CmuxAgentSessionStore
             CmuxAuthRuntime
             CmuxBrowser
             CmuxIrohTransport
@@ -1697,6 +1698,8 @@ jobs:
             CmuxUpdater
             CMUXAgentLaunch
             CmuxAgentJournal
+            CmuxFilePreviewCore
+            CmuxSyntaxHighlighting
           )
           # SwiftPM emits an error-severity diagnostic while planning the
           # GhosttyKit binaryTarget (the xcframework's static archive is not
@@ -1718,7 +1721,7 @@ jobs:
             fi
             echo "::group::swift test $pkgdir"
             case "$pkg" in
-            CmuxAgentChat|CmuxAuthRuntime|CmuxIrohTransport)
+            CmuxAgentChat|CmuxAuthRuntime|CmuxFoundation|CmuxIrohTransport)
               ./scripts/ci/run-swift-testing-suites.sh "$pkgdir"
               ;;
             CmuxTerminal|CmuxTerminalCore)
