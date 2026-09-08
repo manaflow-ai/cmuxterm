@@ -114,7 +114,11 @@ struct VaultRestoreCompatibilitySecurityTests {
             launchCommand: snapshot.launchCommand,
             workingDirectory: snapshot.workingDirectory,
             observedPermissionMode: snapshot.permissionMode
-        ) == ["codex", "-a", "on-request", "-s", "workspace-write", "resume", sessionID])
+        ) == [
+            "codex", "resume", sessionID,
+            "-c", "check_for_update_on_startup=false",
+            "-a", "on-request", "-s", "workspace-write"
+        ])
     }
 
     @Test(arguments: ["claude", "codex"])
