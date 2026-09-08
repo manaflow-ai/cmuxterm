@@ -5701,6 +5701,8 @@ describe("VM Effect workflows", () => {
       const row = await upsert;
       expect(row.providerNetworkId).toBe("network-cmux-net-lock");
     } finally {
+      release();
+      await holder.catch(() => {});
       await observer.end({ timeout: 5 });
     }
   });
