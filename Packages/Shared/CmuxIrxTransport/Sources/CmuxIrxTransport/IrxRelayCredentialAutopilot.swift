@@ -1,3 +1,4 @@
+public import CMUXMobileCore
 public import Foundation
 
 /// Keeps the endpoint's relay credentials perpetually fresh: mints early
@@ -123,7 +124,12 @@ public actor IrxRelayCredentialAutopilot {
             } catch {
                 if Task.isCancelled || generation != loopGeneration { return }
                 let expiry = credentials.map(\.expiresAt).max() ?? Date()
-                let delay = IrxRelayCredentialPolicy.retryDelay(expiresAt: expiry, now: Date())
+                let delay = IrxRelayCredentialPolicy.retryDelay(
+                    expiresAt: expiry,
+                    now: Date(),
+                    retryAfterSeconds: (error as? any CmxRetryAfterProviding)?
+                        .retryAfterSeconds
+                )
                 journal.record(
                     "credential-autopilot", "mint-failed",
                     [
