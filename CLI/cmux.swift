@@ -1995,22 +1995,31 @@ final class ClaudeHookSessionStore {
             let existingHasArguments = !(record.launchCommand?.arguments.isEmpty ?? true)
             let incomingHasArguments = !launchCommand.arguments.isEmpty
             let incomingHasEnvironment = !(launchCommand.environment?.isEmpty ?? true)
+            let existingLaunchSource = normalizeOptional(record.launchCommand?.source)?.lowercased()
+            let existingHasArgvlessFallback = !existingHasArguments
+                && record.launchCommand?.isRejectedCapture != true
+                && (record.launchCommand?.rejectionReason == .argvUnavailable
+                    || existingLaunchSource == "environment"
+                    || existingLaunchSource == "default")
             let incomingSource = normalizeOptional(launchCommand.source)?.lowercased()
             let incomingRejectedCaptureCanReplaceExisting = incomingSource == "rejected"
-                && (!existingHasArguments
-                    || launchCommand.rejectionReason == nil
-                    || launchCommand.rejectionReason == .sanitizerRejectedArgv)
+                && (launchCommand.rejectionReason == nil
+                    || launchCommand.rejectionReason == .sanitizerRejectedArgv
+                    || (!existingHasArguments && !existingHasArgvlessFallback))
             let incomingDefaultCanFillMissingArgv = incomingSource == "default"
                 && !existingHasArguments
                 && normalizeOptional(record.launchCommand?.environment?["CODEX_HOME"]) == nil
-            let incomingEnvironmentCanFillMissingArgv = incomingHasEnvironment && !existingHasArguments
+            let incomingEnvironmentCanFillMissingArgv = incomingSource != "rejected"
+                && incomingHasEnvironment
+                && !existingHasArguments
             // Persist an argv-bearing record always. Persist an argv-less, env-only record (the
             // CODEX_HOME / CLAUDE_CONFIG_DIR fallback for a plain agent whose launch argv couldn't be
             // captured) only when we don't already hold an argv-bearing one — so the durable store
             // keeps the non-default home for the fork/resume path without ever downgrading a richer
             // earlier capture to an env-only stub. A legacy source-only rejection and the sanitizer's
-            // explicit rejection retain their historical replacement behavior; newly classified
-            // rejection grounds do not erase a richer argv capture.
+            // explicit rejection retain their historical replacement behavior. A classified rejection
+            // may replace only a truly empty argv-less record, never a richer argv capture or an
+            // existing environment/default fallback that still provides durable restore evidence.
             if incomingHasArguments
                 || incomingRejectedCaptureCanReplaceExisting
                 || incomingDefaultCanFillMissingArgv
