@@ -94,6 +94,16 @@ import Testing
         #expect(derived?.approvalIDIsDerived == true)
     }
 
+    @Test(arguments: ["hook", "feed"])
+    func derivedApprovalMetadataAcceptsKnownTransport(source: String) throws {
+        let approvalID = "111111111111111111111111.aaaaaaaaaaaaaaaaaaaaaaaa"
+        let meta = try #require(AgentNotificationMeta(meta: "c=needs-permission;p=0;a=\(approvalID);d=1;o=\(source)"))
+        #expect(meta.approvalID?.rawValue == approvalID)
+        #expect(meta.approvalIDIsDerived)
+        #expect(AgentNotificationMeta(meta: "c=needs-permission;p=0;a=\(approvalID);d=1;o=unknown") == nil)
+        #expect(AgentNotificationMeta(meta: "c=needs-permission;p=0;a=\(approvalID);o=\(source)") == nil)
+    }
+
     @Test func metaUnknownCategoryIsRejected() {
         // Only the three known category literals are wire-valid; anything else
         // (including "c=other") stays part of the legacy notification body.

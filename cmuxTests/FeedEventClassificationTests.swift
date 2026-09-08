@@ -484,6 +484,23 @@ struct FeedEventClassificationTests {
         #expect(firstIdentity != secondIdentity)
     }
 
+    @Test(arguments: ["tool_input", "toolInput"])
+    func codexApprovalIdentityDoesNotTrustToolArguments(container: String) throws {
+        let payload: [String: Any] = [
+            "session_id": "session", "turn_id": "turn", "tool_name": "shell",
+            container: ["request_id": "model-controlled", "item_id": "also-untrusted", "command": "echo ok"],
+        ]
+        let identity = try #require(CodexApprovalNotificationIdentity.make(rawObject: payload, fallbackSessionID: nil))
+        #expect(!identity.isAuthoritative)
+        var missingEnvelope = payload
+        missingEnvelope.removeValue(forKey: "turn_id")
+        missingEnvelope[container] = ["turn_id": "model-turn", "command": "echo ok"]
+        #expect(CodexApprovalNotificationIdentity.make(rawObject: missingEnvelope, fallbackSessionID: nil) == nil)
+        var providerEnvelope = payload
+        providerEnvelope["context"] = ["request_id": "provider-id"]
+        #expect(CodexApprovalNotificationIdentity.make(rawObject: providerEnvelope, fallbackSessionID: nil)?.isAuthoritative == true)
+    }
+
     @Test func codexApprovalIdentityBoundsNestedEnvelopeTraversal() {
         var deeplyWrapped: [String: Any] = ["tool_input": ["command": "git status"]]
         for _ in 0..<8 {

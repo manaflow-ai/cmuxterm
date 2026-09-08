@@ -43,7 +43,7 @@ extension AgentNotificationRegressionTests {
     }
 
     @Test(arguments: ["claude", "codex"])
-    func semanticReplayAfterReadDoesNotRepeatEffects(source: String) throws {
+    func semanticReplayAfterReadDoesNotRepeatEffects(source: String) async throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -58,6 +58,7 @@ extension AgentNotificationRegressionTests {
         #expect(AgentJournalLifecycleCenter.claimNotification(first, decision: decision, store: journal))
         AgentJournalLifecycleCenter.deliverNotification(first, identity: try #require(decision.identity))
         TerminalMutationBus.shared.drainForTesting()
+        await waitForNotification(in: fixture.store)
         #expect(deliveries.count == 1)
         let effects = try #require(deliveries.first)
         #expect(effects.desktop && effects.sound && effects.command)
@@ -74,7 +75,7 @@ extension AgentNotificationRegressionTests {
     }
 
     @Test(arguments: ["claude", "codex"])
-    func semanticNotificationFollowsMovedSurfaceAndRejectsMissingSurface(source: String) throws {
+    func semanticNotificationFollowsMovedSurfaceAndRejectsMissingSurface(source: String) async throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
         let event = semanticEvent(fixture, source: source)
@@ -82,6 +83,7 @@ extension AgentNotificationRegressionTests {
         #expect(AgentJournalLifecycleCenter.notificationTargetIsCurrent(event.draft))
         AgentJournalLifecycleCenter.deliverNotification(event, identity: "semantic-event")
         TerminalMutationBus.shared.drainForTesting()
+        await waitForNotification(in: fixture.store)
         #expect(fixture.store.notifications.map(\.tabId) == [fixture.destination.id])
         #expect(!fixture.store.hasUnreadNotification(forTabId: fixture.source.id, surfaceId: fixture.panelId))
         var stale = event.draft
@@ -90,7 +92,7 @@ extension AgentNotificationRegressionTests {
     }
 
     @Test(arguments: ["claude", "codex"])
-    func continuationCancelsQueuedSemanticEffectsWithoutClearingLaterApproval(source: String) throws {
+    func continuationCancelsQueuedSemanticEffectsWithoutClearingLaterApproval(source: String) async throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
         var reconciler = AgentNotificationReconciler()
@@ -107,8 +109,53 @@ extension AgentNotificationRegressionTests {
         let next = reconciler.apply(later)
         AgentJournalLifecycleCenter.deliverNotification(later, identity: try #require(next.identity))
         TerminalMutationBus.shared.drainForTesting()
+        await waitForNotification(in: fixture.store)
         #expect(fixture.store.notifications.count == 1)
-        #expect(fixture.store.notifications.first?.correlationKey == next.identity)
+        if source == "codex" {
+            #expect(AgentApprovalNotificationCoordinator.isApprovalCorrelationKey(fixture.store.notifications.first?.correlationKey))
+        } else {
+            #expect(fixture.store.notifications.first?.correlationKey == next.identity)
+        }
+    }
+
+    @Test func semanticCodexApprovalSettlesAndResolvesWithoutHidingOtherRequests() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        defer {
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.discardPendingNotifications()
+        }
+        var reconciler = AgentNotificationReconciler()
+        func stage(_ request: String, sequence: Int64) throws -> AgentJournalEvent {
+            let event = semanticEvent(fixture, source: "codex", sequence: sequence, request: request)
+            let decision = reconciler.apply(event)
+            AgentJournalLifecycleCenter.deliverNotification(event, identity: try #require(decision.identity))
+            return event
+        }
+        func resolve(_ request: AgentJournalEvent, sequence: Int64) {
+            var draft = request.draft
+            draft.kind = .attentionResolved
+            draft.occurredAtMs = sequence
+            draft.attention?.notification = nil
+            let event = AgentJournalEvent(sequence: sequence, committedAtMs: sequence, draft: draft)
+            AgentJournalLifecycleCenter.clearInvalidatedNotifications(event, decision: reconciler.apply(event))
+        }
+        let transient = try stage("auto-approved", sequence: 1)
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.isEmpty)
+        resolve(transient, sequence: 2)
+        let blocking = try stage("blocking", sequence: 3)
+        let concurrent = try stage("concurrent", sequence: 4)
+        bus.drainForTesting()
+        await waitForNotification(in: fixture.store)
+        #expect(fixture.store.notifications.count == 1)
+        resolve(blocking, sequence: 5)
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.count == 1)
+        resolve(concurrent, sequence: 6)
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.isEmpty)
     }
     @Test(arguments: ["claude", "codex"])
     func finalDeliveryRejectsReplacedSessionButAcceptsItsResume(source: String) throws {

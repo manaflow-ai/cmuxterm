@@ -105,6 +105,7 @@ def run_feed_hook_capture(
     method_delays: dict[str, float] | None = None,
     settle_seconds: float = 0,
     payload: dict | None = None,
+    environment: dict[str, str] | None = None,
 ) -> tuple[dict, list, float]:
     """Runs `cmux hooks feed --source codex` and returns (stdout JSON,
     ordered received frames, elapsed seconds)."""
@@ -113,6 +114,8 @@ def run_feed_hook_capture(
         env.pop(key, None)
     env["CMUX_SURFACE_ID"] = FAKE_SURFACE_ID
     env["CMUX_WORKSPACE_ID"] = FAKE_WORKSPACE_ID
+    if environment:
+        env.update(environment)
     if socket_password is not None:
         env["CMUX_SOCKET_PASSWORD"] = socket_password
     with FakeCmuxSocket(
@@ -367,6 +370,23 @@ def test_stalled_live_target_probe_does_not_starve_notification(
         )
 
 
+def test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path: str, root: Path) -> None:
+    state_dir = root / "corrupt-hook-state"
+    state_dir.mkdir()
+    state_file = state_dir / "codex-hook-sessions.json"
+    state_file.write_text("{not valid JSON", encoding="utf-8")
+    backup = state_dir / ".codex-hook-sessions.json.quarantined.json"
+    backup.write_text("previous recovery backup", encoding="utf-8")
+    payload = codex_payload("PermissionRequest")
+    payload["approvals_reviewer"] = "auto_review"
+    run_feed_hook_capture(
+        cli_path, root / "cmux-read-only.sock", "PermissionRequest", payload=payload,
+        environment={"CMUX_AGENT_HOOK_STATE_DIR": str(state_dir)},
+    )
+    assert state_file.read_text(encoding="utf-8") == "{not valid JSON"
+    assert backup.read_text(encoding="utf-8") == "previous recovery backup"
+
+
 def main() -> int:
     try:
         cli_path = resolve_cmux_cli()
@@ -387,6 +407,7 @@ def main() -> int:
             test_permission_notification_survives_slow_authentication(cli_path, root)
             test_permission_notification_targets_rehomed_pane(cli_path, root)
             test_stalled_live_target_probe_does_not_starve_notification(cli_path, root)
+            test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path, root)
         except Exception as exc:
             print(f"FAIL: {exc}")
             return 1
