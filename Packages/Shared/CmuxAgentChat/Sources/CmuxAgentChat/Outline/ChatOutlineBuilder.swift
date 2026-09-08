@@ -72,8 +72,10 @@ public struct ChatOutlineBuilder: Sendable {
 
     private func isActionable(_ message: ChatMessage) -> Bool {
         switch message.kind {
-        case .permissionRequest, .question:
-            return true
+        case .permissionRequest(let request):
+            return request.resolution == nil
+        case .question(let question):
+            return question.selectedOptionLabel == nil
         default:
             return false
         }
