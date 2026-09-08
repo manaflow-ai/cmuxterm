@@ -1,6 +1,6 @@
 public import CMUXMobileCore
 public import CmuxMobileRPC
-public import CmuxMobileShellModel
+internal import CmuxMobileShellModel
 import Foundation
 public import Observation
 
@@ -284,6 +284,7 @@ public final class HiveRemoteMacSession {
                 allowsStackAuthFallback: true,
                 legacyTailscaleAuthorizationEvidence: legacyTailscaleAuthorizationEvidence
             )
+            let hostEvents = HiveRemoteHostEvents(client: candidate)
             do {
                 if requiresHostIdentity {
                     try await verifyHostIdentity(client: candidate)
@@ -293,7 +294,7 @@ public final class HiveRemoteMacSession {
                 // `.connected` or handing the shared render router to a
                 // terminal session. Otherwise a replay can race the first
                 // `mobile.events.subscribe` request and lose early deltas.
-                try await subscribeToHostEvents(client: candidate)
+                try await hostEvents.ensureSubscribed()
                 // disconnect() can cancel this task while the RPC is
                 // suspended. Do not resurrect a session after teardown.
                 guard !Task.isCancelled else {
@@ -304,10 +305,10 @@ public final class HiveRemoteMacSession {
                 renderGridRouter = nil
                 if let previous = client { await previous.disconnect() }
                 client = candidate
-                renderGridRouter = HiveRemoteRenderGridRouter(client: candidate)
+                renderGridRouter = HiveRemoteRenderGridRouter(client: candidate, hostEvents: hostEvents)
                 setWorkspaces(workspaces)
                 phase = .connected
-                startEventLoop(client: candidate)
+                startEventLoop(client: candidate, hostEvents: hostEvents)
                 return
             } catch {
                 lastError = error
@@ -365,61 +366,50 @@ public final class HiveRemoteMacSession {
 
     // MARK: - Events
 
-    private func subscribeToHostEvents(client: MobileCoreRPCClient) async throws {
-        let subscribe = try MobileCoreRPCClient.requestData(
-            method: "mobile.events.subscribe",
-            params: ["topics": ["workspace.updated", "terminal.render_grid"]]
-        )
-        _ = try await client.sendRequest(subscribe)
-    }
-
-    private func startEventLoop(client: MobileCoreRPCClient) {
+    private func startEventLoop(client: MobileCoreRPCClient, hostEvents: HiveRemoteHostEvents) {
         eventTask?.cancel()
         eventTask = Task { [weak self] in
-            await self?.runEventLoop(client: client)
+            await self?.runEventLoop(client: client, hostEvents: hostEvents)
         }
     }
 
-    private func runEventLoop(client: MobileCoreRPCClient) async {
+    private func runEventLoop(client: MobileCoreRPCClient, hostEvents: HiveRemoteHostEvents) async {
         var consecutiveFailures = 0
         while !Task.isCancelled {
+            // Install and consume the listener before refreshing the snapshot.
+            // Events arriving during decoding are buffered, never lost in a setup gap.
+            let stream = await client.subscribe(to: ["workspace.updated"])
             do {
-                // Register the subscription host-side; this also reconnects a
-                // torn-down transport, which is the recovery path after a blip.
-                try await subscribeToHostEvents(client: client)
-                consecutiveFailures = 0
-                guard !Task.isCancelled else { return }
-                phase = .connected
-                // Refresh before installing the local listener. If setup or
-                // the refresh fails, no AsyncStream continuation has been
-                // registered and the retry cannot leak an orphan listener.
-                guard await refreshWorkspaces() else {
-                    consecutiveFailures += 1
-                    phase = .reconnecting
-                    await retryDelay(consecutiveFailures)
-                    continue
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { @Sendable @MainActor [weak self] in
+                        for await _ in stream {
+                            guard !Task.isCancelled else { return }
+                            self?.scheduleWorkspaceRefresh()
+                        }
+                    }
+                    // Structured cancellation removes the listener even when setup
+                    // or the initial refresh fails before normal stream iteration.
+                    defer { group.cancelAll() }
+                    try await hostEvents.ensureSubscribed()
+                    guard !Task.isCancelled else { throw CancellationError() }
+                    guard await refreshWorkspaces() else {
+                        throw MobileShellConnectionError.connectionClosed
+                    }
+                    guard !Task.isCancelled else { throw CancellationError() }
+                    consecutiveFailures = 0
+                    phase = .connected
+                    try await group.waitForAll()
                 }
-                guard !Task.isCancelled else { return }
-                let stream = await client.subscribe(to: ["workspace.updated"])
-                // The refresh closes the small handshake/listener race: any
-                // event emitted before the listener was installed is reflected
-                // in the authoritative snapshot above.
-                for await _ in stream {
-                    scheduleWorkspaceRefresh()
-                }
-                if Task.isCancelled { return }
-                phase = .reconnecting
-                consecutiveFailures += 1
-                await retryDelay(consecutiveFailures)
             } catch is CancellationError {
                 return
             } catch {
-                consecutiveFailures += 1
-                if Task.isCancelled { return }
-                phase = .reconnecting
-                await retryDelay(consecutiveFailures)
-                continue
+                // A transient setup failure takes the same recovery path as EOF.
             }
+            guard !Task.isCancelled else { return }
+            hostEvents.invalidate()
+            phase = .reconnecting
+            consecutiveFailures += 1
+            await retryDelay(consecutiveFailures)
         }
     }
 

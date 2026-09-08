@@ -349,9 +349,7 @@ public final class HiveRemoteTerminalSession {
             for await envelope in envelopes {
                 guard !Task.isCancelled,
                       let payload = envelope.payloadJSON else { continue }
-                let frame = await Task.detached(priority: .userInitiated) {
-                    decoder.decodeFrame(payload)
-                }.value
+                let frame = await decoder.decodeFrame(payload)
                 guard let frame, frame.surfaceID == terminalID else { continue }
                 if case .dropped = continuation.yield(frame) {
                     self?.renderGridOverflowed()
@@ -402,9 +400,7 @@ public final class HiveRemoteTerminalSession {
         )
         let data = try await client.sendRequest(request)
         let decoder = renderGridDecoder
-        let response = try await Task.detached(priority: .userInitiated) {
-            try decoder.decodeReplay(data)
-        }.value
+        let response = try await decoder.decodeReplay(data)
         try Task.checkCancellation()
         guard let frame = response.renderGrid else {
             throw HiveRemoteTerminalSessionError.missingFrame

@@ -23,14 +23,21 @@ public final class HiveRemoteRenderGridRouter {
     }
 
     private let client: MobileCoreRPCClient
+    private let hostEvents: HiveRemoteHostEvents
+    private let decoder = HiveRemoteRenderGridDecoder()
     private var listeners: [UUID: Listener] = [:]
     private var sourceTask: Task<Void, Never>?
     private var sourceGeneration = 0
 
     /// Creates a router over one connected (or reconnecting) RPC client.
     /// - Parameter client: The client's shared event transport.
-    public init(client: MobileCoreRPCClient) {
+    public convenience init(client: MobileCoreRPCClient) {
+        self.init(client: client, hostEvents: HiveRemoteHostEvents(client: client))
+    }
+
+    init(client: MobileCoreRPCClient, hostEvents: HiveRemoteHostEvents) {
         self.client = client
+        self.hostEvents = hostEvents
     }
 
     /// Returns a stream containing only frames for `surfaceID`.
@@ -97,28 +104,30 @@ public final class HiveRemoteRenderGridRouter {
         sourceGeneration &+= 1
         let generation = sourceGeneration
         let client = self.client
+        let hostEvents = self.hostEvents
+        let decoder = self.decoder
         sourceTask = Task { [weak self] in
             let source = await client.subscribe(to: ["terminal.render_grid"])
             do {
-                let request = try MobileCoreRPCClient.requestData(
-                    method: "mobile.events.subscribe",
-                    params: ["topics": ["terminal.render_grid"]]
-                )
-                _ = try await client.sendRequest(request)
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { @Sendable @MainActor [weak self] in
+                        for await envelope in source {
+                            guard !Task.isCancelled,
+                                  let payload = envelope.payloadJSON else { continue }
+                            let frame = await decoder.decodeFrame(payload)
+                            guard let frame, !Task.isCancelled else { continue }
+                            self?.yield(frame, generation: generation)
+                        }
+                    }
+                    defer { group.cancelAll() }
+                    try await hostEvents.ensureSubscribed()
+                    try await group.waitForAll()
+                }
             } catch {
-                self?.finishSource(generation: generation)
-                return
-            }
-            for await envelope in source {
-                guard !Task.isCancelled,
-                      let payload = envelope.payloadJSON else { continue }
-                let frame = await Task.detached(priority: .userInitiated) {
-                    HiveRemoteRenderGridDecoder().decodeFrame(payload)
-                }.value
-                guard let frame, !Task.isCancelled else { continue }
-                self?.yield(frame, generation: generation)
+                // The scoped consumer is cancelled even when setup fails.
             }
             guard !Task.isCancelled else { return }
+            hostEvents.invalidate()
             self?.finishSource(generation: generation)
         }
     }
