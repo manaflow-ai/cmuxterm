@@ -32,6 +32,8 @@ pub struct RegistryNotificationProjection {
     pub terminal_id: Option<TerminalPublicId>,
     pub created_at_ms: u64,
     pub unread: bool,
+    /// Client ids that acknowledged this notification, sorted and unique.
+    pub read_by: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,6 +260,7 @@ impl WorkspaceRegistry {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        let mut reads = self.durable_notification_reads()?;
         let mut notifications = Vec::with_capacity(rows.len());
         for (outcome_json, idempotency_key) in rows {
             let outcome: ResourceEffectOutcome = serde_json::from_str(&outcome_json)
@@ -284,6 +287,7 @@ impl WorkspaceRegistry {
                 self.session_id
             );
             let _ = stored.extra;
+            let read_by = reads.remove(stored.id.as_str()).unwrap_or_default();
             notifications.push(RegistryNotificationProjection {
                 id: stored.id,
                 title: stored.title,
@@ -294,10 +298,30 @@ impl WorkspaceRegistry {
                     .filter(|terminal_id| live_terminals.contains(terminal_id)),
                 created_at_ms: stored.created_at_ms.get(),
                 unread: stored.unread,
+                read_by,
             });
         }
         notifications.reverse();
         Ok(notifications)
+    }
+
+    /// Per-client read marks keyed by notification id, each list sorted and
+    /// unique. Rows for notifications the ledger evicted are pruned at the
+    /// next acknowledgement, so this stays bounded.
+    fn durable_notification_reads(&self) -> anyhow::Result<HashMap<String, Vec<String>>> {
+        let mut statement = self.connection.prepare(
+            "SELECT notification_id, client_id
+             FROM resource_notification_reads
+             ORDER BY notification_id ASC, client_id ASC",
+        )?;
+        let rows = statement
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut reads: HashMap<String, Vec<String>> = HashMap::new();
+        for (notification_id, client_id) in rows {
+            reads.entry(notification_id).or_default().push(client_id);
+        }
+        Ok(reads)
     }
 
     fn durable_agents(

@@ -1332,6 +1332,33 @@ fn parse_notification(words: &[String], flags: &mut Flags) -> Result<CommandPlan
             }
             request(ResourceOperation::NotificationCreate, &selectors, flags, params)
         }
+        ["ack", ids @ ..] => {
+            let mut params = Map::new();
+            let client_id = flags.required("client")?;
+            if client_id.is_empty()
+                || client_id.len() > 128
+                || !client_id.bytes().all(|byte| byte.is_ascii_graphic())
+            {
+                return Err(UsageError::new(
+                    "--client must be 1 to 128 printable ASCII bytes without spaces",
+                ));
+            }
+            params.insert("client_id".into(), Value::String(client_id));
+            if ids.is_empty() {
+                return Err(UsageError::new("notification ack needs at least one notification ID"));
+            }
+            if ids.len() > 256 {
+                return Err(UsageError::new("notification ack accepts at most 256 notification IDs"));
+            }
+            for id in ids {
+                validate_prefixed_id("notification", "notification", id)?;
+            }
+            params.insert(
+                "notifications".into(),
+                Value::Array(ids.iter().map(|id| Value::String((*id).to_string())).collect()),
+            );
+            request(ResourceOperation::NotificationAck, &selectors, flags, params)
+        }
         _ => usage("notification action"),
     }
 }
@@ -4520,11 +4547,21 @@ mod tests {
                 "sidebar_view.resize",
             ),
             (vec!["sidebar", "view", "reload", "--view", VIEW], "sidebar_view.reload"),
+            (
+                vec![
+                    "notification",
+                    "ack",
+                    "notification_00000000000000000000000000000041",
+                    "--client",
+                    "mac-1",
+                ],
+                "notification.ack",
+            ),
         ];
 
-        assert_eq!(cases.len(), 118);
+        assert_eq!(cases.len(), 119);
         let catalog = operation_catalog();
-        assert_eq!(catalog["operations"].as_object().unwrap().len(), 125);
+        assert_eq!(catalog["operations"].as_object().unwrap().len(), 126);
         let mut seen = std::collections::BTreeSet::new();
         let mut covered_fields = BTreeMap::<&str, std::collections::BTreeSet<String>>::new();
         for (args, expected) in &cases {
