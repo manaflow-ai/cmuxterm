@@ -952,6 +952,7 @@
 		C0DE34020000000000000002 /* CmuxHelpResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE34020000000000000004 /* CmuxHelpResource.swift */; };
 		A11C00010000000000000001 /* CmuxHostedSystemSymbolImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00010000000000000002 /* CmuxHostedSystemSymbolImage.swift */; };
 		A11C00040000000000000001 /* CmuxHostedSystemSymbolImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */; };
+		A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */; };
 		C0DE46010000000000000001 /* CMUXInstalledExtensionSidebarHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE46010000000000000002 /* CMUXInstalledExtensionSidebarHostView.swift */; };
 		1A0B0C0D0E0F101112132013 /* CmuxIrohTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0B0C0D0E0F101112132012 /* CmuxIrohTransport */; };
 		1A0B0C0D0E0F101112132014 /* CmuxIrohTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0B0C0D0E0F101112132012 /* CmuxIrohTransport */; };
@@ -4286,6 +4287,7 @@
 		C0DE34020000000000000004 /* CmuxHelpResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CmuxHelpResource.swift; sourceTree = "<group>"; };
 		A11C00010000000000000002 /* CmuxHostedSystemSymbolImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxHostedSystemSymbolImage.swift; sourceTree = "<group>"; };
 		A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxHostedSystemSymbolImageTests.swift; sourceTree = "<group>"; };
+		A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarViewTests.swift; sourceTree = "<group>"; };
 		C0DE46010000000000000002 /* CMUXInstalledExtensionSidebarHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXInstalledExtensionSidebarHostView.swift; sourceTree = "<group>"; };
 		E7E00000000000000000000C /* CmuxLifecycleEventPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxLifecycleEventPublishing.swift; sourceTree = "<group>"; };
 		2F0C07000000000000000001 /* CmuxMainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CmuxMainWindow.swift; sourceTree = "<group>"; };
@@ -9245,6 +9247,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D36A00050000000000000002 /* RendererRealizationPlannerTests.swift */,
 				C58410010000000000000002 /* RenderableSystemSymbolTests.swift */,
 				A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */,
+				A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */,
 				A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */,
 				DCDC0000000000000000B002 /* DockControlDefinitionDecodingTests.swift */,
 				859100000000000000000002 /* TerminalLinkOpenCoordinatorTests.swift */,
@@ -13173,6 +13176,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C54860040000000000000001 /* CmuxDurableDeepLinkRestoreTests.swift in Sources */,
 				E7E000000000000000000003 /* CmuxEventBusTests.swift in Sources */,
 				A11C00040000000000000001 /* CmuxHostedSystemSymbolImageTests.swift in Sources */,
+				A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */,
 				D36090010000000000000005 /* CmuxMainWindowConstrainFrameTests.swift in Sources */,
 					D36090020000000000000005 /* CmuxMainWindowFullScreenCapabilityTests.swift in Sources */,
 					C54860030000000000000001 /* CmuxNavigationTargetResolverTests.swift in Sources */,
