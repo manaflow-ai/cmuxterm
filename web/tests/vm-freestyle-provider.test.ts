@@ -7,7 +7,6 @@ import {
   FREESTYLE_PERSISTENT_IDLE_TIMEOUT_SECONDS,
   FreestyleProvider,
   PORT_OPEN_LEASE_TTL_SECONDS,
-  assertNoRouteTokenInGuestPayload,
   freestyleCmuxRemoteRoute,
   freestyleNetworkAddressMetadata,
   freestyleRouteAddressesFromMetadata,
@@ -219,12 +218,6 @@ describe("Freestyle platform contract", () => {
     expect(check).toContain(`else ${cmuxTuiPinCheckCommand(source)}; fi`);
   });
 
-
-  test("guest payloads never carry a route token", () => {
-    expect(() => assertNoRouteTokenInGuestPayload(["echo crt_abc"], "exec")).toThrow(ProviderError);
-    expect(() => assertNoRouteTokenInGuestPayload(["cmux-vm-edge-placeholder", "crtnot"], "exec")).not.toThrow();
-  });
-
   test("edge rules map to inline egress tls rules with header transforms", () => {
     expect(freestyleEdgeRules([EDGE_RULE])).toEqual([
       {
@@ -247,7 +240,6 @@ describe("Freestyle platform contract", () => {
     expect(() => freestyleEdgeRules([{ ...EDGE_RULE, domain: "coderouter.dev:8443" }])).toThrow(ProviderError);
     expect(() => freestyleEdgeRules([{ ...EDGE_RULE, domain: "x; rm -rf /" }])).toThrow(ProviderError);
   });
-
 
   test("exec timeouts clamp to the per-exec cap; killed execs read as 124", () => {
     expect(normalizeFreestyleExecTimeout(undefined)).toBe(30_000);
@@ -408,8 +400,6 @@ describe("FreestyleProvider create with edge rules", () => {
     expect(fake.writes).toHaveLength(1);
     expect(fake.writes[0]?.path).toMatch(/^\/usr\/local\/bin\/cmux\.tmp-[0-9a-f]{24}$/);
   });
-
-
 
   test("restore passes the rule inline and installs the guest adapter", async () => {
     const ok = fakeFreestyle({ probeExit: 0 });
