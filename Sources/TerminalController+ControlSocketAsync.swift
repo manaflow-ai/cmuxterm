@@ -197,6 +197,13 @@ extension TerminalController {
             return Self.v2Encoder.response(id: request.id, result)
         }
 
+        if request.method == "agent.restore.admit" {
+            return await agentRestoreAdmissionResponse(request)
+        }
+        if request.method == "agent.restore.release" {
+            return await agentRestoreAdmissionReleaseResponse(request)
+        }
+
         let hasLocalViewportOverride = if let localViewportSession,
                                             request.method == "surface.read_text" {
             await !localViewportSession.isEmpty
