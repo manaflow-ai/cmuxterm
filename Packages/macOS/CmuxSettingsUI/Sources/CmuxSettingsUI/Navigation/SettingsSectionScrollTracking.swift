@@ -10,8 +10,12 @@ struct SettingsSectionScrollTracker: Sendable {
     static let coordinateSpace = "settings-detail-scroll"
     let activationLine: CGFloat
 
-    init(activationLine: CGFloat) {
+    init(activationLine: CGFloat = 20) {
         self.activationLine = activationLine
+    }
+
+    func bottomPadding(viewportHeight: CGFloat, lastSectionHeight: CGFloat) -> CGFloat {
+        max(20, viewportHeight - max(0, lastSectionHeight) - activationLine).rounded(.up)
     }
 
     func activeSection(
@@ -34,29 +38,22 @@ struct SettingsSectionScrollTracker: Sendable {
     }
 }
 
-private struct SettingsSectionScrollPositionKey: PreferenceKey {
-    static let defaultValue: [SettingsSectionScrollPosition] = []
-
-    static func reduce(
-        value: inout [SettingsSectionScrollPosition],
-        nextValue: () -> [SettingsSectionScrollPosition]
-    ) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
 extension View {
+    func settingsSectionScrollAnchor(_ section: SettingsSectionID, id: String) -> some View {
+        self.id(id).settingsSectionScrollPosition(section, coordinateSpace: SettingsSectionScrollTracker.coordinateSpace)
+    }
+
     func settingsSectionScrollPosition(_ section: SettingsSectionID, coordinateSpace: String) -> some View {
         background(
             GeometryReader { proxy in
                 Color.clear.preference(
-                    key: SettingsSectionScrollPositionKey.self,
-                    value: [
+                    key: SettingsSectionScrollGeometryKey.self,
+                    value: SettingsSectionScrollGeometry(positions: [
                         SettingsSectionScrollPosition(
                             section: section,
                             minY: proxy.frame(in: .named(coordinateSpace)).minY
                         )
-                    ]
+                    ])
                 )
             }
         )
@@ -86,9 +83,9 @@ private struct SettingsSectionScrollTrackingModifier: ViewModifier {
     let visibleSections: Set<SettingsSectionID>
 
     func body(content: Content) -> some View {
-        content.onPreferenceChange(SettingsSectionScrollPositionKey.self) { positions in
-            let tracker = SettingsSectionScrollTracker(activationLine: 20)
-            guard let section = tracker.activeSection(from: positions, visibleSections: visibleSections) else { return }
+        content.onPreferenceChange(SettingsSectionScrollGeometryKey.self) { geometry in
+            let tracker = SettingsSectionScrollTracker()
+            guard let section = tracker.activeSection(from: geometry.positions, visibleSections: visibleSections) else { return }
             if selectedSectionRaw != section.rawValue {
                 selectedSectionRaw = section.rawValue
             }

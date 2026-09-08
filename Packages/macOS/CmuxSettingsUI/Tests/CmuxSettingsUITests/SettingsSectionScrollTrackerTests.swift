@@ -4,6 +4,24 @@ import Testing
 
 @Suite("SettingsSectionScrollTracker")
 struct SettingsSectionScrollTrackerTests {
+    @Test(arguments: [(700.0, 80.0, 600.0), (900.0, 80.0, 800.0), (700.0, 800.0, 20.0)])
+    func reservesOnlyTheSpaceNeededToReachTheLastHeader(viewport: Double, tail: Double, expected: Double) {
+        let tracker = SettingsSectionScrollTracker()
+        #expect(tracker.bottomPadding(viewportHeight: viewport, lastSectionHeight: tail) == expected)
+    }
+
+    @Test(arguments: [900.0, -90.0])
+    func lastSectionHeightDoesNotDependOnScrollOffset(headerY: Double) {
+        let geometry = SettingsSectionScrollGeometry(
+            positions: [
+                SettingsSectionScrollPosition(section: .settingsJSON, minY: headerY - 200),
+                SettingsSectionScrollPosition(section: .reset, minY: headerY),
+            ],
+            contentBottomY: headerY + 80
+        )
+        #expect(geometry.lastSectionHeight == 80)
+    }
+
     @Test
     func selectsTheLastSectionAtOrAboveTheActivationLine() {
         let tracker = SettingsSectionScrollTracker(activationLine: 20)
