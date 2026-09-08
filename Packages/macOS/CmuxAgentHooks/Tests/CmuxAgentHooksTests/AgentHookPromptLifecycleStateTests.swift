@@ -53,6 +53,18 @@ struct AgentHookPromptLifecycleStateTests {
         #expect(state.lastTurnID == "turn-completed")
     }
 
+    @Test
+    func authoritativePromptStartWithoutTurnIDRetainsCompletedTurnMarker() {
+        var state = AgentHookPromptLifecycleState(lastTurnID: "turn-completed")
+
+        state.beginAuthoritativePrompt(turnID: nil)
+
+        #expect(state.depth == 1)
+        #expect(state.activeTurnID == nil)
+        #expect(state.activeTurnIDs == nil)
+        #expect(state.lastTurnID == "turn-completed")
+    }
+
     @Test(arguments: [
         AgentHookPromptDepthPolicy.balanced,
         AgentHookPromptDepthPolicy.authoritative,
