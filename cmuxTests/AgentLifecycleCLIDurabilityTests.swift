@@ -77,7 +77,12 @@ struct AgentLifecycleCLIDurabilityTests {
             "cursor-test-\(processIdentity.pid)-1.log",
             isDirectory: false
         )
-        let startTime = ISO8601DateFormatter().string(from: Date())
+        let startTimeFormatter = ISO8601DateFormatter()
+        startTimeFormatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds,
+        ]
+        let startTime = startTimeFormatter.string(from: Date())
         var header = try JSONSerialization.data(
             withJSONObject: [
                 "event": "debug-session-start",

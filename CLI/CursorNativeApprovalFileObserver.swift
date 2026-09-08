@@ -211,9 +211,7 @@ final class CursorNativeApprovalFileObserver {
                   let pid = (object["pid"] as? NSNumber)?.int64Value,
                   pid == Int64(processIdentity.pid),
                   let startTime = object["startTime"] as? String,
-                  let logStart = try? Date.ISO8601FormatStyle().parse(
-                      startTime
-                  ) else {
+                  let logStart = Self.parseISO8601Date(startTime) else {
                 continue
             }
             let expectedStart = Date(
@@ -225,6 +223,16 @@ final class CursorNativeApprovalFileObserver {
             return logStart >= expectedStart
         }
         return false
+    }
+
+    private static func parseISO8601Date(_ rawValue: String) -> Date? {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds,
+        ]
+        return fractionalFormatter.date(from: rawValue)
+            ?? ISO8601DateFormatter().date(from: rawValue)
     }
 
     /// Waits for Cursor to create the exact-generation log without polling.
