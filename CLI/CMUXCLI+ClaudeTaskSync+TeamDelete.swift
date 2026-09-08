@@ -149,12 +149,13 @@ extension CMUXCLI {
             if cleanupTaskStoreIdentities.isEmpty {
                 cleanupTaskStoreIdentities.insert(taskStoreIdentity)
             }
+            var clearTaskStoreIdentities = cleanupTaskStoreIdentities
             if cleanupTaskStoreIdentities.contains(nil) {
                 // A legacy team proof has no namespace, but the deleting hook
                 // still knows the active Claude store. Clear that namespace's
                 // session fallback too so a pre-namespace binding cannot leave
                 // a modern session record pointing at the deleted list.
-                cleanupTaskStoreIdentities.insert(taskStoreIdentity)
+                clearTaskStoreIdentities.insert(taskStoreIdentity)
             }
             // Legacy proofs have no namespace of their own. Keep
             // their historical cleanup path unchanged, but always
@@ -241,7 +242,7 @@ extension CMUXCLI {
                 }
             }
             if allDestinationsCleared {
-                for cleanupTaskStoreIdentity in cleanupTaskStoreIdentities {
+                for cleanupTaskStoreIdentity in clearTaskStoreIdentities {
                     try sessionStore.clearClaudeTaskDirectoryBindings(
                         directoryName: cleanupTaskDirectoryName,
                         taskStoreIdentity: cleanupTaskStoreIdentity
