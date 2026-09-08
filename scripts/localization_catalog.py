@@ -236,7 +236,10 @@ def validate_localization(english: str, localization: dict, locale: str, allow_i
             if actual != expected:
                 errors.append(f"{location}: placeholders {actual!r} != {expected!r}")
             for category in ("zero", "one", "two", "few", "many", "other"):
-                check_identity(location, expand_text(value, substitutions, category))
+                expanded = expand_text(value, substitutions, category)
+                check_identity(location, expanded)
+                if expanded.count("\n") != english.count("\n"):
+                    errors.append(f"{location}: line breaks do not match source")
         except ValueError as error:
             errors.append(f"{location}: {error}")
     for name, substitution in substitutions.items():
@@ -318,6 +321,18 @@ def atomic_write(path: Path, text: str) -> None:
             os.unlink(temporary)
 
 
+def apply_changes(text: str, changes: list[tuple[int, int, str]]) -> str:
+    pieces = []
+    position = 0
+    for start, end, replacement in sorted(changes, key=lambda change: (change[0], change[1])):
+        if start < position:
+            raise ValueError("overlapping catalog edits")
+        pieces.extend((text[position:start], replacement))
+        position = end
+    pieces.append(text[position:])
+    return "".join(pieces)
+
+
 def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
     text = path.read_text(encoding="utf-8")
     indexed = {}
@@ -346,8 +361,7 @@ def merge(path: Path, locale: str, rows: list[dict], omissions: dict) -> int:
                 raise ValueError(f"{entry.key}: {'; '.join(errors)}")
             if localization != current:
                 changes.append(replace_locale(text, entry, locale, localization))
-    for start, end, replacement in sorted(changes, reverse=True):
-        text = text[:start] + replacement + text[end:]
+    text = apply_changes(text, changes)
     catalog_entries(text)
     if changes:
         atomic_write(path, text)
