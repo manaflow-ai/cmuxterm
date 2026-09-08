@@ -1,4 +1,5 @@
 import CmuxCLISocketAuth
+import Foundation
 import os
 import Testing
 
@@ -17,6 +18,34 @@ private final class CLITestCounter: @unchecked Sendable {
 /// App-host smoke coverage for the package credential boundary.
 @Suite(.serialized)
 struct CLISocketCredentialResolverTests {
+    @Test(arguments: [true, false])
+    func nextOperationCanResolveAfterPriorProviderDeadline(returnsPassword: Bool) {
+        let instant = Date(timeIntervalSince1970: 1_000)
+        let clock = OSAllocatedUnfairLock(initialState: instant)
+        var attempt = SocketCredentialResolutionAttempt(now: { clock.withLock { $0 } })
+        var providerCalls = 0
+        let expiredResult = attempt.resolve(
+            provider: { _ in
+                providerCalls += 1
+                clock.withLock { $0.addTimeInterval(2) }
+                return returnsPassword ? "cached-password" : nil
+            },
+            deadline: instant.addingTimeInterval(1)
+        )
+        #expect(expiredResult == nil)
+        #expect(!attempt.isCompleted)
+        let nextResult = attempt.resolve(
+            provider: { _ in
+                providerCalls += 1
+                return "cached-password"
+            },
+            deadline: instant.addingTimeInterval(3)
+        )
+        #expect(nextResult == "cached-password")
+        #expect(attempt.isCompleted)
+        #expect(providerCalls == 2)
+    }
+
     @Test
     func initialConnectionDemandDoesNotReadDeferredSources() {
         let fileReads = CLITestCounter()
