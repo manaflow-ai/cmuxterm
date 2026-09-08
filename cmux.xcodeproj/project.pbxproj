@@ -1348,6 +1348,7 @@
 		D6212D0C0000000000000001 /* DockSocketLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6212D0C0000000000000002 /* DockSocketLifecycleTests.swift */; };
 		904090409040904090409043 /* DockSplitContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904090409040904090409044 /* DockSplitContentView.swift */; };
 		904090409040904090409047 /* DockSplitPanelContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904090409040904090409048 /* DockSplitPanelContentView.swift */; };
+		C1A2B3C4D5E6F70123456789 /* DockSplitStore+AgentRuntimeLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F70123456790 /* DockSplitStore+AgentRuntimeLifecycle.swift */; };
 		DCDC1000000000000000B011 /* DockSplitStore+Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDC1000000000000000B012 /* DockSplitStore+Appearance.swift */; };
 		8777D0038777D0038777D003 /* DockSplitStore+AttentionRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8777D0048777D0048777D004 /* DockSplitStore+AttentionRouting.swift */; };
 		986900040000000000000001 /* DockSplitStore+BrowserActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986900040000000000000002 /* DockSplitStore+BrowserActions.swift */; };
@@ -1394,6 +1395,7 @@
 		FEED0000000000000000F00D /* FeedButtonStyleDebugWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000F00C /* FeedButtonStyleDebugWindowController.swift */; };
 		8672D0018672D0018672D001 /* FeedCoordinator+DeliveryTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8672D0028672D0028672D002 /* FeedCoordinator+DeliveryTarget.swift */; };
 		B7F100090000000000000001 /* FeedCoordinator+NotificationDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F100090000000000000002 /* FeedCoordinator+NotificationDelivery.swift */; };
+		C1A2B3C4D5E6F70123456791 /* FeedCoordinator+ObservedAgentAttention.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F70123456792 /* FeedCoordinator+ObservedAgentAttention.swift */; };
 		25AD1E9B29A2E96636895FDC /* FeedCoordinator+SemanticNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C54381EB5D369AD95F4A8E6 /* FeedCoordinator+SemanticNotifications.swift */; };
 		FEED0000000000000000F002 /* FeedCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000F001 /* FeedCoordinator.swift */; };
 		8672E0048672E0048672E004 /* FeedCoordinatorIngressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8672E0038672E0038672E003 /* FeedCoordinatorIngressTests.swift */; };
@@ -4772,6 +4774,7 @@
 		D6212D0C0000000000000002 /* DockSocketLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSocketLifecycleTests.swift; sourceTree = "<group>"; };
 		904090409040904090409044 /* DockSplitContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSplitContentView.swift; sourceTree = "<group>"; };
 		904090409040904090409048 /* DockSplitPanelContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockSplitPanelContentView.swift; sourceTree = "<group>"; };
+		C1A2B3C4D5E6F70123456790 /* DockSplitStore+AgentRuntimeLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockSplitStore+AgentRuntimeLifecycle.swift"; sourceTree = "<group>"; };
 		DCDC1000000000000000B012 /* DockSplitStore+Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockSplitStore+Appearance.swift"; sourceTree = "<group>"; };
 		8777D0048777D0048777D004 /* DockSplitStore+AttentionRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockSplitStore+AttentionRouting.swift"; sourceTree = "<group>"; };
 		986900040000000000000002 /* DockSplitStore+BrowserActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DockSplitStore+BrowserActions.swift"; sourceTree = "<group>"; };
@@ -9224,6 +9227,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D86840000000000000000008 /* SessionSplitContainerLayoutCodec.swift */,
 				D8684000000000000000000A /* SessionSplitContainerSnapshot.swift */,
 				D8684000000000000000000C /* DockSplitStore+RestoredAgentLifecycle.swift */,
+				C1A2B3C4D5E6F70123456790 /* DockSplitStore+AgentRuntimeLifecycle.swift */,
 				D8684000000000000000000E /* DockSplitStore+SurfaceResume.swift */,
 				D86840000000000000000010 /* ControlSurfaceResumeTarget.swift */,
 				D86840000000000000000012 /* DockSplitStore+Reset.swift */,
@@ -10347,6 +10351,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B7F100090000000000000002 /* FeedCoordinator+NotificationDelivery.swift */,
 				B29BA503AF85868C6325335B /* FeedWaiterRegistry.swift */,
 				3C54381EB5D369AD95F4A8E6 /* FeedCoordinator+SemanticNotifications.swift */,
+				C1A2B3C4D5E6F70123456792 /* FeedCoordinator+ObservedAgentAttention.swift */,
 				B7F1000A0000000000000002 /* FeedJumpResolver.swift */,
 				9466A07A0000000000000002 /* FeedAttentionTarget.swift */,
 				8672E00B8672E00B8672E00B /* FeedIngressDeliveryImportance.swift */,
@@ -11697,6 +11702,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				9518D0C20000000000000001 /* DockShortcutRoutingDisposition.swift in Sources */,
 				904090409040904090409043 /* DockSplitContentView.swift in Sources */,
 				904090409040904090409047 /* DockSplitPanelContentView.swift in Sources */,
+				C1A2B3C4D5E6F70123456789 /* DockSplitStore+AgentRuntimeLifecycle.swift in Sources */,
 				DCDC1000000000000000B011 /* DockSplitStore+Appearance.swift in Sources */,
 				8777D0038777D0038777D003 /* DockSplitStore+AttentionRouting.swift in Sources */,
 				986900040000000000000001 /* DockSplitStore+BrowserActions.swift in Sources */,
@@ -11737,6 +11743,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				FEED0000000000000000F00D /* FeedButtonStyleDebugWindowController.swift in Sources */,
 				8672D0018672D0018672D001 /* FeedCoordinator+DeliveryTarget.swift in Sources */,
 				B7F100090000000000000001 /* FeedCoordinator+NotificationDelivery.swift in Sources */,
+				C1A2B3C4D5E6F70123456791 /* FeedCoordinator+ObservedAgentAttention.swift in Sources */,
 				25AD1E9B29A2E96636895FDC /* FeedCoordinator+SemanticNotifications.swift in Sources */,
 				FEED0000000000000000F002 /* FeedCoordinator.swift in Sources */,
 				8672E00C8672E00C8672E00C /* FeedIngressDeliveryImportance.swift in Sources */,

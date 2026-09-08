@@ -61,7 +61,10 @@ enum ControlSidebarPanelOwner {
     ) -> AgentHibernationLifecycleState? {
         switch self {
         case .workspace(let workspace):
-            workspace.agentLifecycleStatesByPanelId[panelId]?[key]
+            guard let states = workspace.agentLifecycleStatesByPanelId[panelId] else {
+                return nil
+            }
+            return states[key]
         case .dock(let dock):
             dock.agentRuntimeLifecycleState(key: key, panelId: panelId)
         }

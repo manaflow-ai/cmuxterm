@@ -12,7 +12,6 @@ private enum FeedEventAcceptance: Sendable {
     case notFound
     case unavailable
 }
-
 /// App-level coordinator that owns the shared `WorkstreamStore` and
 /// mediates between the socket thread (which processes `feed.*` V2
 /// commands) and the main-actor store.
@@ -53,7 +52,6 @@ final class FeedCoordinator: @unchecked Sendable {
     private let pidWatcherQueue = DispatchQueue(
         label: "cmux.feed.pidWatcher", qos: .utility
     )
-
     /// Every accepted Feed path crosses this lane before insertion and `received` publication.
     private let feedIngressDeliveryLane = FeedIngressDeliveryLane()
 
@@ -68,7 +66,10 @@ final class FeedCoordinator: @unchecked Sendable {
     /// the panel is temporarily absent from every live container registry.
     /// Main-actor isolated: read/written only from the `@MainActor` attention
     /// methods.
-    @MainActor private var pendingAttentionStates: [FeedAttentionTarget: AttentionOverlayState] = [:]
+    @MainActor var pendingAttentionStates: [FeedAttentionTarget: AttentionOverlayState] = [:]
+    @MainActor var observedAttentionRegistry = AgentObservedAttentionRegistry<ObservedFeedAttentionSurface>()
+    @MainActor var observedAttentionConclusions = AgentObservedAttentionConclusionLedger()
+    @MainActor let attentionExitMonitor = AgentProcessExitMonitor()
 
     /// Tail of the serialized `CMUXFeedQuestion.` category mutation chain.
     /// `UNUserNotificationCenter` has no atomic category merge, so every
@@ -80,7 +81,6 @@ final class FeedCoordinator: @unchecked Sendable {
     @MainActor private var questionCategoryUpdates: Task<Void, Never>?
 
     private init() {}
-
     /// Must be called once at app launch to install the store.
     @MainActor
     func install(
@@ -893,7 +893,7 @@ extension FeedCoordinator {
 }
 
 @MainActor
-private final class AttentionOverlayState {
+final class AttentionOverlayState {
     var count: Int
     var fallbackOwner: ControlSidebarPanelOwner
 
