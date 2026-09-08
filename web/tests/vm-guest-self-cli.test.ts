@@ -113,7 +113,7 @@ describe("guest cmux self-discovery shim", () => {
         env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, CMUX_TUI_BIN: path.join(root, "absent-daemon") },
       });
       expect(result.status).toBe(0);
-      expect(JSON.parse(result.stdout)).toEqual(SELF_BODY);
+      expect(JSON.parse(result.stdout)).toEqual(args[0] === "self" ? SELF_BODY : { machines: SELF_BODY.machines });
     }
   });
 
