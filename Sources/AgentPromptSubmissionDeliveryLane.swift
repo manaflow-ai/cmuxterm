@@ -227,7 +227,7 @@ actor AgentPromptSubmissionDeliveryLane {
     ) async -> PromptSubmissionSendResult {
         let clock = self.clock
         let timeout = timeout ?? deliveryTimeout
-        await withTaskGroup(of: PromptSubmissionSendResult.self) { group in
+        return await withTaskGroup(of: PromptSubmissionSendResult.self) { group in
             group.addTask {
                 await receipt.wait()
             }
