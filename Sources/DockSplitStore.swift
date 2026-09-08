@@ -7,6 +7,7 @@ import CmuxBrowser
 import CmuxCore
 import CmuxFoundation
 import CmuxNotifications
+import CmuxPanes
 import CmuxSettings
 import CmuxTerminal
 import CmuxTerminalCore
@@ -594,33 +595,28 @@ final class DockSplitStore: BonsplitDelegate, FilePreviewTabMetadataHost {
 
     // MARK: - In-app creation
 
-    /// Applies the shared pane-zoom preference to a focused Dock tab request.
-    private func applyNewTabZoomPolicy(inPane paneId: PaneID) {
-        let zoomedPaneId = bonsplitController.zoomedPaneId
-        let keepExpanded = settings.value(for: settingsCatalog.app.keepExpandedOnNewTab)
-        guard zoomedPaneId != nil,
-              !(keepExpanded && zoomedPaneId == paneId) else { return }
-        _ = bonsplitController.clearPaneZoom()
-        applyVisibilityToAllPanels()
-    }
-
     /// Runs a Dock tab creation transactionally with the shared pane-zoom policy.
     func withNewTabZoomPolicy<Result>(
         inPane paneId: PaneID,
         applyPolicy: Bool = true,
         _ operation: () -> Result?
     ) -> Result? {
-        guard applyPolicy else { return operation() }
-        let previousZoomedPaneId = bonsplitController.zoomedPaneId
-        applyNewTabZoomPolicy(inPane: paneId)
-        let result = operation()
-        if result == nil,
-           let previousZoomedPaneId,
-           bonsplitController.zoomedPaneId == nil,
-           bonsplitController.allPaneIds.contains(previousZoomedPaneId) {
-            _ = toggleDockPaneZoom(inPane: previousZoomedPaneId)
-        }
-        return result
+        NewTabPaneZoomPolicy(
+            keepExpanded: settings.value(for: settingsCatalog.app.keepExpandedOnNewTab)
+        ).perform(
+            inPane: paneId,
+            controller: bonsplitController,
+            applyPolicy: applyPolicy,
+            succeeded: { $0 != nil },
+            onZoomChange: { [self] change in
+                if case .restored(let restoredPaneId) = change {
+                    bonsplitController.focusPane(restoredPaneId)
+                }
+                applyVisibilityToAllPanels()
+                scheduleDockPortalReconcile(reason: "dock.newTabZoomPolicy")
+            },
+            operation: operation
+        )
     }
 
     /// Creates a new surface (tab) in an existing Dock pane. Used by the tab-bar

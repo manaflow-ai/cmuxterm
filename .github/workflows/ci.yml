@@ -1723,6 +1723,7 @@ jobs:
             CmuxMobileTerminalKit
             CmuxMobileWorkspace
             CmuxNotifications
+            CmuxPanes
             CmuxSettings
             CmuxSettingsUI
             CmuxTerminal

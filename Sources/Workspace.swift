@@ -11417,23 +11417,6 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         return outcome
     }
 
-    /// Applies the configured pane-zoom behavior before a user-created tab.
-    ///
-    /// Internal restore, layout, and placeholder paths intentionally call their
-    /// lower-level creation methods directly. Interactive tab entry points call
-    /// this method first so
-    /// the legacy unzoom behavior and the opt-in inheritance behavior share one
-    /// policy.
-    func applyNewTabZoomPolicy(inPane paneId: PaneID) {
-        let zoomedPaneId = bonsplitController.zoomedPaneId
-        let keepExpanded = settings.value(for: SettingCatalog().app.keepExpandedOnNewTab)
-        let shouldKeepExpanded = keepExpanded && zoomedPaneId == paneId
-
-        if zoomedPaneId != nil && !shouldKeepExpanded {
-            clearSplitZoom()
-        }
-    }
-
     /// Runs a user-created tab operation transactionally with the pane-zoom policy.
     /// If the operation returns `nil`, any zoom cleared for the attempt is restored.
     @discardableResult
@@ -11442,18 +11425,15 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         applyPolicy: Bool = true,
         _ operation: () -> Result?
     ) -> Result? {
-        guard applyPolicy else { return operation() }
-        let previousZoomedPaneId = bonsplitController.zoomedPaneId
-        applyNewTabZoomPolicy(inPane: paneId)
-        let result = operation()
-
-        if result == nil,
-           let previousZoomedPaneId,
-           bonsplitController.zoomedPaneId == nil,
-           bonsplitController.allPaneIds.contains(previousZoomedPaneId) {
-            _ = bonsplitController.togglePaneZoom(inPane: previousZoomedPaneId)
-        }
-        return result
+        NewTabPaneZoomPolicy(
+            keepExpanded: settings.value(for: SettingCatalog().app.keepExpandedOnNewTab)
+        ).perform(
+            inPane: paneId,
+            controller: bonsplitController,
+            applyPolicy: applyPolicy,
+            succeeded: { $0 != nil },
+            operation: operation
+        )
     }
 
     /// Runs a terminal-tab operation while preserving remote routing outcomes.
@@ -11465,18 +11445,18 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         applyPolicy: Bool = true,
         _ operation: () -> TerminalPanelCreationOutcome
     ) -> TerminalPanelCreationOutcome {
-        guard applyPolicy else { return operation() }
-        let previousZoomedPaneId = bonsplitController.zoomedPaneId
-        applyNewTabZoomPolicy(inPane: paneId)
-        let outcome = operation()
-
-        if case .failed = outcome,
-           let previousZoomedPaneId,
-           bonsplitController.zoomedPaneId == nil,
-           bonsplitController.allPaneIds.contains(previousZoomedPaneId) {
-            _ = bonsplitController.togglePaneZoom(inPane: previousZoomedPaneId)
-        }
-        return outcome
+        NewTabPaneZoomPolicy(
+            keepExpanded: settings.value(for: SettingCatalog().app.keepExpandedOnNewTab)
+        ).perform(
+            inPane: paneId,
+            controller: bonsplitController,
+            applyPolicy: applyPolicy,
+            succeeded: {
+                if case .failed = $0 { return false }
+                return true
+            },
+            operation: operation
+        )
     }
 
     @discardableResult
