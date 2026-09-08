@@ -2,7 +2,6 @@
 
 import { useTranslations } from "next-intl";
 import { Suspense, useState } from "react";
-import { ThemeToggle } from "@/app/[locale]/theme";
 import { Link, usePathname } from "@/i18n/navigation";
 import { DashboardAccountMenu } from "./dashboard-account-menu";
 
@@ -141,7 +140,6 @@ export function DashboardShell({
               <Suspense fallback={<DashboardAccountMenuFallback />}>
                 <DashboardAccountMenu />
               </Suspense>
-              <ThemeToggle />
             </div>
           </div>
           <DashboardNav
