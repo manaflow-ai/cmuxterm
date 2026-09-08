@@ -246,9 +246,12 @@ struct SessionEntryResumeLaunchTests {
 
         let encoded = try JSONEncoder().encode(persisted)
         let decoded = try JSONDecoder().decode(SessionWorkspaceSnapshot.self, from: encoded)
+        source.teardownAllPanels()
+        resumeIntents.removeAll()
         let restored = Workspace(
             agentSessionAutoResumeDefaults: defaults,
-            agentChatResumeIntentRecorder: resumeIntentRecorder
+            agentChatResumeIntentRecorder: resumeIntentRecorder,
+            restorableAgentIndexProvider: { .empty }
         )
         defer { restored.teardownAllPanels() }
         let restoredPanelIDs = restored.restoreSessionSnapshot(decoded)
@@ -265,6 +268,7 @@ struct SessionEntryResumeLaunchTests {
                 .panels.first { $0.id == restoredPanelID }?.terminal?.agent?.sessionId
                 == sessionID
         )
+        #expect(resumeIntents.count == 1)
         let restoredIntent = try #require(resumeIntents.last)
         #expect(restoredIntent.sessionID == sessionID)
         #expect(restoredIntent.surfaceID == restoredPanelID.uuidString)
