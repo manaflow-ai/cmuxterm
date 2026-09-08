@@ -20,6 +20,7 @@ public struct SettingsWindowRoot: View {
         self.searchIndex = runtime.searchIndex
     }
 
+    @State private var cloudDisabledByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
     @State private var searchText: String = ""
     // Legacy SettingsRootView persists two distinct pieces of state:
     // `selectedSettingsSection` (the top-level section pane shown in
@@ -117,6 +118,16 @@ public struct SettingsWindowRoot: View {
         // so the package window can shrink to the same lower bound.
         .frame(minWidth: 820, minHeight: 540)
         .settingsErrorAlert(log: runtime.errorLog)
+        .task {
+            let signals = ManagedDevicePolicy.changeSignals()
+            cloudDisabledByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
+            for await _ in signals {
+                cloudDisabledByPolicy = ManagedDevicePolicy().isEnforced(.disableCloud)
+                if cloudDisabledByPolicy && selectedSection == .cloudMachines {
+                    navigate(to: .account)
+                }
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: Self.navigationRequestName)) { notification in
             applyNavigationRequest(notification)
         }
@@ -169,10 +180,12 @@ public struct SettingsWindowRoot: View {
     /// remote rollout flag or the Beta Features opt-in makes its surfaces
     /// real; its pane already renders nothing while unavailable. The
     /// `DisableCloud` managed policy wins over the opt-in.
+    private var isCloudAvailable: Bool {
+        !cloudDisabledByPolicy && (hostActions.isCloudMachinesAvailable || cloudMachinesBetaEnabled)
+    }
+
     private func isEntryVisible(_ entry: SettingsSearchIndex.Entry) -> Bool {
-        let cloudAvailable = hostActions.isCloudMachinesAvailable
-            || (cloudMachinesBetaEnabled && !ManagedDevicePolicy().isEnforced(.disableCloud))
-        guard !cloudAvailable else { return true }
+        guard !isCloudAvailable else { return true }
         switch entry.kind {
         case .section:
             return entry.id != "section:\(SettingsSectionID.cloudMachines.rawValue)"
@@ -468,8 +481,10 @@ public struct SettingsWindowRoot: View {
         MobileSection(defaultsStore: defaultsStore, catalog: catalog, hostActions: hostActions)
             .id(anchorID(for: .mobile))
 
-        CloudMachinesSection(hostActions: hostActions)
-            .id(anchorID(for: .cloudMachines))
+        if isCloudAvailable {
+            CloudMachinesSection(hostActions: hostActions)
+                .id(anchorID(for: .cloudMachines))
+        }
 
         IrohNetworkingSection(hostActions: hostActions)
             .id(anchorID(for: .networking))

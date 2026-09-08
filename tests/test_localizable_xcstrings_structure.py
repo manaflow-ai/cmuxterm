@@ -27,7 +27,7 @@ EXPECTED_TOP_LEVEL_KEYS = ["sourceLanguage", "strings", "version"]
 def load_catalog(path: pathlib.Path) -> tuple[dict, list[str]]:
     duplicates: list[str] = []
 
-    def pairs_hook(pairs):
+    def pairs_hook(pairs: list[tuple[str, object]]) -> dict[str, object]:
         counts = collections.Counter(key for key, _ in pairs)
         duplicates.extend(key for key, count in counts.items() if count > 1)
         return dict(pairs)
@@ -59,7 +59,7 @@ class LocalizableXCStringsStructureTests(unittest.TestCase):
             key
             for key, entry in catalog["strings"].items()
             if not isinstance(entry, dict)
-            or not isinstance(entry.get("localizations", {}), dict)
+            or not isinstance(entry.get("localizations"), dict)
         ]
         self.assertEqual(malformed, [])
 

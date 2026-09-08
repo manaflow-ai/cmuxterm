@@ -55,6 +55,9 @@ extension AppDelegate {
                 return
             }
             self.endCloudVMAccess(reason: .managedPolicy)
+            // endCloudVMAccess starts VPN removal too. Discovery cannot be
+            // re-armed until that part of the same transition has drained.
+            await self.cloudTunnelTeardownTask?.value
         }
     }
 

@@ -200,12 +200,6 @@ final class CmuxTuiSurfaceProviderRegistry {
         await accessDidEnd()
     }
 
-    /// Whether a teardown queued at `epoch` still applies. Exposed for tests.
-    func isCurrentAccessEpoch(_ epoch: UInt64) -> Bool { epoch == accessEpoch }
-
-    /// The current registry generation. Exposed for tests.
-    var currentAccessEpoch: UInt64 { accessEpoch }
-
     func accessDidEnd() async {
         for provider in providers.values { provider.stop() }
         for id in providers.keys { catalog?.unregister(machine: .cloud(id)) }

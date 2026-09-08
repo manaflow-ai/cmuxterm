@@ -33,6 +33,8 @@ final class ManagedPolicyEnforcementObserver {
     private let browserURLAllowlistPolicy: () -> BrowserURLAllowlistPolicy
     private let isRemoteControlDisabledByPolicy: () -> Bool
     private let isCloudDisabledByPolicy: () -> Bool
+    private let isIrohDisabledByPolicy: () -> Bool
+    private let capabilityPolicy: ManagedDevicePolicy
     private let enforceBrowserPolicy: () -> Void
     private let enforceBrowserURLAllowlistPolicy: () -> Void
     private let enforceRemoteControlPolicy: () -> Void
@@ -41,6 +43,9 @@ final class ManagedPolicyEnforcementObserver {
     private var observedBrowserURLAllowlistPolicy: BrowserURLAllowlistPolicy
     private var remoteControlPolicyActive: Bool
     private var cloudPolicyActive: Bool
+    private var irohPolicyActive: Bool
+    private var remoteConnectionsPolicyActive: Bool
+    private var fileTransferPolicyActive: Bool
     private var observationTasks: [Task<Void, Never>] = []
 
     init(
@@ -57,6 +62,8 @@ final class ManagedPolicyEnforcementObserver {
         isCloudDisabledByPolicy: @escaping () -> Bool = {
             ManagedDevicePolicy().isEnforced(.disableCloud)
         },
+        isIrohDisabledByPolicy: @escaping () -> Bool = { ManagedIrohNetworkingPolicy.isDisabled },
+        capabilityPolicy: ManagedDevicePolicy = ManagedDevicePolicy(),
         enforceBrowserPolicy: @escaping () -> Void,
         enforceBrowserURLAllowlistPolicy: @escaping () -> Void,
         enforceRemoteControlPolicy: @escaping () -> Void,
@@ -67,6 +74,8 @@ final class ManagedPolicyEnforcementObserver {
         self.browserURLAllowlistPolicy = browserURLAllowlistPolicy
         self.isRemoteControlDisabledByPolicy = isRemoteControlDisabledByPolicy
         self.isCloudDisabledByPolicy = isCloudDisabledByPolicy
+        self.isIrohDisabledByPolicy = isIrohDisabledByPolicy
+        self.capabilityPolicy = capabilityPolicy
         self.enforceBrowserPolicy = enforceBrowserPolicy
         self.enforceBrowserURLAllowlistPolicy = enforceBrowserURLAllowlistPolicy
         self.enforceRemoteControlPolicy = enforceRemoteControlPolicy
@@ -75,6 +84,10 @@ final class ManagedPolicyEnforcementObserver {
         observedBrowserURLAllowlistPolicy = browserURLAllowlistPolicy()
         remoteControlPolicyActive = isRemoteControlDisabledByPolicy()
         cloudPolicyActive = isCloudDisabledByPolicy()
+        irohPolicyActive = isIrohDisabledByPolicy()
+        remoteConnectionsPolicyActive = capabilityPolicy.isEnforced(.disableRemoteConnections)
+        fileTransferPolicyActive = capabilityPolicy.isEnforced(.disableFileTransfer)
+        if irohPolicyActive { enforceRemoteControlPolicy() }
         if cloudPolicyActive {
             // A profile may already be installed before launch. Enforce it at
             // startup so restored Cloud workspaces and providers are removed.
@@ -145,6 +158,19 @@ final class ManagedPolicyEnforcementObserver {
             cloudPolicyActive = cloudNow
             anyTransition = true
             enforceCloudPolicy()
+        }
+        let irohNow = isIrohDisabledByPolicy()
+        if irohNow != irohPolicyActive {
+            irohPolicyActive = irohNow
+            anyTransition = true
+            enforceRemoteControlPolicy()
+        }
+        let remoteConnectionsNow = capabilityPolicy.isEnforced(.disableRemoteConnections)
+        let fileTransferNow = capabilityPolicy.isEnforced(.disableFileTransfer)
+        if remoteConnectionsNow != remoteConnectionsPolicyActive || fileTransferNow != fileTransferPolicyActive {
+            remoteConnectionsPolicyActive = remoteConnectionsNow
+            fileTransferPolicyActive = fileTransferNow
+            anyTransition = true
         }
         if anyTransition {
             // Settings UI re-reads the resolver on this signal.

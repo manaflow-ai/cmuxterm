@@ -11,7 +11,6 @@ import CmuxNotifications
 import CmuxPanes
 import CmuxRemoteSession
 import CmuxSettings
-import CmuxSettings
 import CmuxSidebar
 import CmuxSidebarGit
 import CmuxWorkspaces
@@ -531,6 +530,8 @@ class TabManager: ObservableObject {
     /// The fallback initializer is retained for isolated `TabManager` tests.
     let pullRequestProbeService: PullRequestProbeService
 
+    private let managedDevicePolicy: ManagedDevicePolicy
+
     init(
         initialWorkspaceTitle: String? = nil,
         initialWorkingDirectory: String? = nil,
@@ -559,9 +560,11 @@ class TabManager: ObservableObject {
         workspaceCustomizationStore: WorkspaceCustomizationStore? = nil,
         nativeSSHConnectionBroker: NativeSSHConnectionBroker = NativeSSHConnectionBroker(),
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
-        closeTabWarningDefaults: UserDefaults = .standard
+        closeTabWarningDefaults: UserDefaults = .standard,
+        managedDevicePolicy: ManagedDevicePolicy = ManagedDevicePolicy()
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
+        self.managedDevicePolicy = managedDevicePolicy
         self.settings = settings
         self.defaultWorkspaceWorkingDirectoryProvider = defaultWorkspaceWorkingDirectoryProvider
         self.workspaceCustomizationStore = workspaceCustomizationStore ?? WorkspaceCustomizationStore()
@@ -4732,6 +4735,10 @@ class TabManager: ObservableObject {
         excludingStableIdentities callerExcludedStableIdentities: Set<UUID> = [],
         excludingWorkspaceIds callerExcludedWorkspaceIds: Set<UUID> = []
     ) -> Bool {
+        guard !managedDevicePolicy.isEnforced(.disableCloud)
+                || !Self.isCloudVMWorkspaceSnapshotForManagedPolicy(entry.snapshot) else {
+            return false
+        }
         let promptBatch = SurfaceResumeRunPromptBatch.shared
         promptBatch.beginRestorePass()
         defer { promptBatch.endRestorePass() }
@@ -6625,7 +6632,8 @@ extension TabManager {
         var restoredPanelIdsByWorkspaceIndex: [[UUID: UUID]] = []
         let (normalizedWorkspaceSnapshots, selectedWorkspaceIndex) = Self.normalizedCloudVMSessionRestoreWorkspaces(
             snapshot.workspaces.prefix(SessionPersistencePolicy.maxWorkspacesPerWindow),
-            selectedWorkspaceIndex: snapshot.selectedWorkspaceIndex
+            selectedWorkspaceIndex: snapshot.selectedWorkspaceIndex,
+            cloudDisabledByPolicy: managedDevicePolicy.isEnforced(.disableCloud)
         )
         let workspaceSnapshots = normalizedWorkspaceSnapshots
             .prefix(SessionPersistencePolicy.maxWorkspacesPerWindow)

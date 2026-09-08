@@ -18,8 +18,6 @@ import Testing
 /// revocation reachable for cleanup.
 @MainActor
 struct ManagedPolicyCloudGateTests {
-    private static let notificationTimeout: Duration = .seconds(3)
-
     // MARK: - Transition observer
 
     @Test func aProfileForcedBeforeLaunchIsEnforcedAtConstruction() {
@@ -137,7 +135,8 @@ struct ManagedPolicyCloudGateTests {
 
         // Revocation is the one call allowed through: it ends this Mac's
         // access. It reaches the session check and, with a session, the wire.
-        try #require(await waitUntil(timeout: Self.notificationTimeout) { coordinator.isAuthenticated })
+        await coordinator.awaitBootstrapped()
+        try #require(coordinator.isAuthenticated)
         do {
             try await client.revokeCloudAccess(deviceID: "device-1")
             let recorded = RecordingCloudURLProtocol.recorder.requests
@@ -166,19 +165,6 @@ struct ManagedPolicyCloudGateTests {
             enforceRemoteControlPolicy: { recorder.recordRemoteControl() },
             enforceCloudPolicy: { recorder.recordCloud() }
         )
-    }
-
-    private func waitUntil(
-        timeout: Duration,
-        _ predicate: @MainActor () -> Bool
-    ) async -> Bool {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while clock.now < deadline {
-            if predicate() { return true }
-            try? await clock.sleep(for: .milliseconds(20))
-        }
-        return predicate()
     }
 
     private func makeRestoredSessionCoordinator(defaults: UserDefaults) -> AuthCoordinator {

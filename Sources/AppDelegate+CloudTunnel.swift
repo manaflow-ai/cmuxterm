@@ -21,8 +21,9 @@ extension AppDelegate {
         VMTunnelManager(purpose: .browser).removeLocalCredentials()
         VMTunnelManager(purpose: .terminal).removeLocalCredentials()
         guard let coordinator = cloudTunnelCoordinator else { return }
-        cloudTunnelTeardownTask?.cancel()
+        let previous = cloudTunnelTeardownTask
         cloudTunnelTeardownTask = Task {
+            await previous?.value
             try? await coordinator.revoke()
         }
     }

@@ -45,6 +45,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// Bumped per start so a cancelled start that resumes late (activation
     /// approval is not cancellable) cannot clobber a newer start's state.
     private var startGeneration = 0
+    /// A cancelled install may still be waiting for macOS approval. Its
+    /// cleanup must finish before a replacement writes a new configuration.
+    private var retiredStartTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var failureBackoffTask: Task<Void, Never>?
     /// True from a failed start until ``CloudTunnelTiming/failureBackoff`` elapses (or an explicit up/down).
@@ -257,12 +260,14 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         // between asking for the start and the start beginning.
         setState(.starting)
         observeLinkIfNeeded()
-        let task = Task { try await self.performStart(generation: generation) }
+        let previousStart = retiredStartTask
+        let task = Task { try await self.performStart(generation: generation, previousStart: previousStart) }
         startTask = task
         return task
     }
 
-    private func performStart(generation: Int) async throws {
+    private func performStart(generation: Int, previousStart: Task<Void, Never>?) async throws {
+        var attemptedInstall = false
         // Runs to completion on its own task, so clearing here (not in the
         // callers, which may be cancelled by their deadlines) is what keeps
         // "one start at a time" true. A superseded start owns nothing.
@@ -276,7 +281,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             if let stopTask {
                 await stopTask.value
             }
+            await previousStart?.value
             try Task.checkCancellation()
+            if isDisabledByPolicy() { throw CloudTunnelError.disabledByPolicy }
             let enrollment = try await enroller.enroll()
             try Task.checkCancellation()
             let configuration = CloudTunnelProviderConfiguration(
@@ -284,6 +291,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 serverAddress: enrollment.serverAddress,
                 localizedDescription: String(localized: "cloudTunnel.vpnConfiguration.name", defaultValue: "cmux Cloud")
             )
+            attemptedInstall = true
             try await controller.install(configuration) { [weak self] in
                 Task { await self?.noteAwaitingApproval(generation: generation) }
             }
@@ -294,6 +302,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // session posts no status change to wait for. Read the current
             // status and adopt a running tunnel instead of restarting it.
             let current = await controller.currentStatus()
+            try Task.checkCancellation()
             linkStatus = current
             switch current {
             case .connected:
@@ -304,13 +313,24 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 try await controller.start()
                 try await withDeadline(timing.connectTimeout) { try await self.waitForLink(.connected) }
             }
+            try Task.checkCancellation()
             setState(.up, generation: generation)
             restartIdleTimer()
             logger.notice("tunnel up")
         } catch is CancellationError {
+            if attemptedInstall {
+                // install() can save after revoke() already removed the old
+                // configuration. Replacement starts await this task's cleanup.
+                try? await controller.remove()
+            }
             setState(.off, generation: generation)
             throw CancellationError()
         } catch {
+            if Task.isCancelled {
+                if attemptedInstall { try? await controller.remove() }
+                setState(.off, generation: generation)
+                throw CancellationError()
+            }
             let message = Self.userMessage(for: error)
             setState(.failed(message), generation: generation)
             logger.error("tunnel start failed: \(message, privacy: .public)")
@@ -375,6 +395,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // cannot be interrupted, and the generation guard keeps its late
             // resumption from touching the state this stop sets.
             startTask.cancel()
+            retiredStartTask = Task { _ = try? await startTask.value }
             self.startTask = nil
             startGeneration += 1
         }

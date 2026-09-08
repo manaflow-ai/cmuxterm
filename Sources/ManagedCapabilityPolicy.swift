@@ -9,19 +9,13 @@ import Foundation
 /// resolver lookup. All of them default to *allowed*: an unmanaged Mac, and a
 /// managed Mac whose profile does not force the key, behave exactly as before.
 ///
-/// The shape mirrors ``MobileRemoteControlPolicy``: a process-wide resolver
-/// plus a test-only override, because profile-forced values cannot be
-/// simulated without installing a real configuration profile.
+/// Decisions read only the forced-preference resolver. Tests inject a resolver
+/// into the resource owner instead of replacing process-wide policy state.
 enum ManagedRemoteConnectionsPolicy {
     private static let policy = ManagedDevicePolicy()
 
-    /// Test-only override. nonisolated(unsafe): written only by `.serialized`
-    /// test suites; the app never mutates it.
-    nonisolated(unsafe) static var overrideForTesting: Bool?
-
     /// Whether a profile forces `DisableRemoteConnections`.
     static var isDisabled: Bool {
-        if let overrideForTesting { return overrideForTesting }
         return policy.isEnforced(.disableRemoteConnections)
     }
 
@@ -40,12 +34,8 @@ enum ManagedRemoteConnectionsPolicy {
 enum ManagedFileTransferPolicy {
     private static let policy = ManagedDevicePolicy()
 
-    /// Test-only override; see ``ManagedRemoteConnectionsPolicy``.
-    nonisolated(unsafe) static var overrideForTesting: Bool?
-
     /// Whether a profile forces `DisableFileTransfer`.
     static var isDisabled: Bool {
-        if let overrideForTesting { return overrideForTesting }
         return policy.isEnforced(.disableFileTransfer)
     }
 
@@ -74,12 +64,8 @@ enum ManagedFileTransferPolicy {
 enum ManagedIrohNetworkingPolicy {
     private static let policy = ManagedDevicePolicy()
 
-    /// Test-only override; see ``ManagedRemoteConnectionsPolicy``.
-    nonisolated(unsafe) static var overrideForTesting: Bool?
-
     /// Whether a profile forces `DisableIrohNetworking`.
     static var isDisabled: Bool {
-        if let overrideForTesting { return overrideForTesting }
         return policy.isEnforced(.disableIrohNetworking)
     }
 

@@ -3837,6 +3837,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
     }
 
+    private let managedDevicePolicy: ManagedDevicePolicy
+
     init(
         id: UUID? = nil,
         title: String = "Terminal",
@@ -3856,6 +3858,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         allowTextBoxFocusDefault: Bool = true,
         tabDragTransferRegistry: TabDragTransferRegistry? = nil,
         settings: any SettingsReading = UserDefaultsSettingsClient(defaults: .standard),
+        managedDevicePolicy: ManagedDevicePolicy = ManagedDevicePolicy(),
         closeTabWarningDefaults: UserDefaults = .standard,
         agentSessionAutoResumeDefaults: UserDefaults = .standard,
         initialDetachedSurface: DetachedSurfaceTransfer? = nil,
@@ -3877,6 +3880,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         self.sidebarProcessTitleObservation = sidebarProcessTitleObservation ?? WorkspaceSidebarProcessTitleObservationModel()
         self.nativeSSHConnectionBroker = nativeSSHConnectionBroker
         self.settings = settings
+        self.managedDevicePolicy = managedDevicePolicy
         self.closeTabWarningDefaults = closeTabWarningDefaults
         self.agentSessionAutoResumeDefaults = agentSessionAutoResumeDefaults
         self.agentChatResumeIntentRecorder = agentChatResumeIntentRecorder
@@ -6686,7 +6690,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     ) {
         // `DisableFileTransfer` (MDM): refuse before the coordinator opens a
         // transfer channel. Local drops into local terminals do not reach here.
-        guard ManagedFileTransferPolicy.isEnabled else {
+        guard !managedDevicePolicy.isEnforced(.disableFileTransfer) else {
             completion(.failure(ManagedFileTransferPolicy.refusalError()))
             return
         }
@@ -6887,7 +6891,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         // a workspace into a remote one, so refusing here covers the CLI,
         // command palette, menus, forks, session restore, and automation at
         // once. Nothing is retained or dialed before the refusal.
-        guard ManagedRemoteConnectionsPolicy.isEnabled else { return false }
+        guard !managedDevicePolicy.isEnforced(.disableRemoteConnections) else { return false }
         var configuration = configuration.scopedToOwnerWorkspace(id)
         let foregroundAuthToken =
             Self.normalizedForegroundAuthToken(

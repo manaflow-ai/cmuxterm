@@ -708,6 +708,10 @@ extension CMUXCLI {
             memoryMb = parsed
         }
 
+        if sync || pullPath != nil {
+            try throwIfFileTransferIsManagedOff()
+        }
+
         let started = Date()
         let selection = try selectVMForRun(
             machineOverride: machineOverride,
