@@ -248,6 +248,7 @@ final class SurfaceCatalog {
     }
     private struct PendingCloudWorkspaceRename {
         let token: CloudWorkspaceRenameToken
+        var inFlightTokens: Set<UUID>
         var previousName: String
         var baselineCursor: CloudVMCursor?
         var receipt: CloudVMCursor?
@@ -573,6 +574,7 @@ final class SurfaceCatalog {
         let token = CloudWorkspaceRenameToken(id: UUID(), machine: machine, workspaceID: workspaceID, name: name, startedCursor: startedCursor)
         compatibilityCloudRenames[key] = PendingCloudWorkspaceRename(
             token: token,
+            inFlightTokens: (superseded?.inFlightTokens ?? []).union([token.id]),
             previousName: superseded?.receipt == nil ? (superseded?.previousName ?? previous.name) : previous.name,
             baselineCursor: superseded?.receipt ?? superseded?.baselineCursor ?? startedCursor,
             receipt: nil
@@ -582,17 +584,15 @@ final class SurfaceCatalog {
     }
 
     func commitCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken, receipt: CloudVMCursor) {
+        guard var pending = compatibilityCloudRenames[token.key],
+              pending.inFlightTokens.remove(token.id) != nil else { return }
+        compatibilityCloudRenames[token.key] = pending
         if let current = compatibilityCloudCursors[token.machine] {
-            if current.generation == receipt.generation {
-                if receipt.revision > current.revision { compatibilityCloudCursors[token.machine] = receipt }
-            } else {
-                guard token.startedCursor?.generation == current.generation else { return }
-                compatibilityCloudCursors[token.machine] = receipt
-            }
+            guard current.generation == receipt.generation else { return }
+            if receipt.revision > current.revision { compatibilityCloudCursors[token.machine] = receipt }
         } else {
             compatibilityCloudCursors[token.machine] = receipt
         }
-        guard var pending = compatibilityCloudRenames[token.key] else { return }
         if pending.token == token {
             pending.receipt = receipt
         } else if pending.receipt == nil,
@@ -604,7 +604,10 @@ final class SurfaceCatalog {
     }
 
     func rollbackCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken) {
-        guard let pending = compatibilityCloudRenames[token.key], pending.token == token, pending.receipt == nil else { return }
+        guard var pending = compatibilityCloudRenames[token.key] else { return }
+        pending.inFlightTokens.remove(token.id)
+        compatibilityCloudRenames[token.key] = pending
+        guard pending.token == token, pending.receipt == nil else { return }
         compatibilityCloudRenames[token.key] = nil
         applyCloudWorkspaceRename(machine: token.machine, workspaceID: token.workspaceID, name: pending.previousName)
     }
