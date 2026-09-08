@@ -317,12 +317,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 "claude-hook-sessions.json",
                 isDirectory: false
             )
-            let object = try #require(
+            let object = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: Data(contentsOf: storeURL))
                     as? [String: Any]
             )
-            let sessions = try #require(object["sessions"] as? [String: Any])
-            return try #require(sessions[surfaceID] as? [String: Any])
+            let sessions = try XCTUnwrap(object["sessions"] as? [String: Any])
+            return try XCTUnwrap(sessions[surfaceID] as? [String: Any])
         }
 
         let currentStart = runSessionStart(pid: Int(currentAgent.processIdentifier))
