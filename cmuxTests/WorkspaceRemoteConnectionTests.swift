@@ -429,6 +429,104 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
         XCTAssertEqual(captured, initialWorkingDirectory.path)
     }
 
+    func testGeneratedBashBootstrapDoesNotReuseAnotherPaneWorkingDirectory() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "cmux-shared-remote-cwd-\(UUID().uuidString)"
+        )
+        let home = root.appendingPathComponent("home")
+        let bin = root.appendingPathComponent("bin")
+        let firstWorkingDirectory = root.appendingPathComponent("first")
+        let secondWorkingDirectory = root.appendingPathComponent("second")
+        let capturedPWD = root.appendingPathComponent("pwd.txt")
+        let secondBootstrap = root.appendingPathComponent("second-bootstrap.sh")
+        let helperMarker = root.appendingPathComponent("helper-ran")
+        try fileManager.createDirectory(at: home, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bin, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: firstWorkingDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: secondWorkingDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        try writeExecutableShellFile(
+            at: bin.appendingPathComponent("bash"),
+            body: """
+            #!/bin/sh
+            rcfile=
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --rcfile)
+                  shift
+                  rcfile="${1:-}"
+                  ;;
+              esac
+              shift || true
+            done
+            if [ -n "$rcfile" ]; then
+              . "$rcfile"
+            fi
+            printf '%s\\n' "$PWD" >> "$CMUX_CAPTURE_PWD"
+            """
+        )
+        try writeExecutableShellFile(
+            at: bin.appendingPathComponent("persistent-pty-exec-helper"),
+            body: """
+            #!/bin/sh
+            [ "${1:-}" = "--internal-persistent-pty-exec" ] || exit 2
+            shift
+            executable="${1:-}"
+            [ -n "$executable" ] || exit 2
+            shift
+            [ "${1:-}" = "$executable" ] || exit 2
+            shift
+            if [ ! -e "$CMUX_HELPER_MARKER" ]; then
+              : > "$CMUX_HELPER_MARKER"
+              /bin/sh "$CMUX_SECOND_BOOTSTRAP"
+            fi
+            exec "$executable" "$@"
+            """
+        )
+
+        func bootstrap(for directory: URL) -> String {
+            let encodedDirectory = Data(directory.path.utf8).base64EncodedString()
+            return RemoteInteractiveShellBootstrapBuilder.script(
+                remoteRelayPort: 0,
+                shellFeatures: ""
+            ).replacingOccurrences(
+                of: "__CMUX_REMOTE_INITIAL_CWD_B64__",
+                with: encodedDirectory
+            )
+        }
+
+        try writeExecutableShellFile(at: secondBootstrap, body: bootstrap(for: secondWorkingDirectory))
+        let firstScript = bootstrap(for: firstWorkingDirectory)
+        let persistentPTYExecHelper = bin.appendingPathComponent("persistent-pty-exec-helper")
+        let result = runProcess(
+            executablePath: "/usr/bin/env",
+            arguments: [
+                "HOME=\(home.path)",
+                "SHELL=\(bin.appendingPathComponent("bash").path)",
+                "PATH=\(bin.path):/usr/bin:/bin",
+                "TERM=xterm-256color",
+                "USER=\(NSUserName())",
+                "CMUX_CAPTURE_PWD=\(capturedPWD.path)",
+                "CMUX_HELPER_MARKER=\(helperMarker.path)",
+                "CMUX_SECOND_BOOTSTRAP=\(secondBootstrap.path)",
+                "CMUX_PERSISTENT_PTY_EXEC_HELPER=\(persistentPTYExecHelper.path)",
+                "/bin/sh",
+                "-c",
+                firstScript,
+            ],
+            timeout: 5
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        let captured = try String(contentsOf: capturedPWD, encoding: .utf8)
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+        XCTAssertEqual(captured, [secondWorkingDirectory.path, firstWorkingDirectory.path])
+    }
+
     func testGeneratedFallbackShellBootstrapPrependsCmuxBinOnce() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
@@ -2490,6 +2588,56 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
         XCTAssertEqual(
             splitPanel.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"),
             selectedPanelDirectory
+        )
+    }
+
+    @MainActor
+    func testRemoteTerminalSplitInheritsStartupWorkingDirectoryBeforeCwdReport() throws {
+        let workspace = Workspace()
+        let config = WorkspaceRemoteConfiguration(
+            destination: "cmux-macmini",
+            port: nil,
+            identityFile: nil,
+            sshOptions: [],
+            localProxyPort: nil,
+            relayPort: 64019,
+            relayID: String(repeating: "a", count: 16),
+            relayToken: String(repeating: "b", count: 64),
+            localSocketPath: "/tmp/cmux-debug-test.sock",
+            terminalStartupCommand: "ssh-pty-attach",
+            preserveAfterTerminalExit: true
+        )
+        workspace.configureRemoteConnection(config, autoConnect: false)
+
+        let paneID = try XCTUnwrap(workspace.bonsplitController.allPaneIds.first)
+        let sourceDirectory = "/srv/cmux/startup-before-report"
+        let sourcePanel = try XCTUnwrap(
+            workspace.newTerminalSurface(
+                inPane: paneID,
+                focus: true,
+                initialCommand: "cmux ssh-pty-attach",
+                startupEnvironment: [
+                    Workspace.remoteInitialWorkingDirectoryEnvironmentKey: sourceDirectory
+                ],
+                remotePTYSessionID: "startup-cwd-source-session"
+            )
+        )
+
+        XCTAssertTrue(workspace.isRemoteTerminalSurface(sourcePanel.id))
+        XCTAssertNil(workspace.panelDirectories[sourcePanel.id])
+
+        let splitPanel = try XCTUnwrap(
+            workspace.newTerminalSplit(
+                from: sourcePanel.id,
+                orientation: .vertical,
+                focus: false
+            )
+        )
+
+        XCTAssertNil(splitPanel.requestedWorkingDirectory)
+        XCTAssertEqual(
+            splitPanel.surface.startupEnvironmentValue("CMUX_REMOTE_INITIAL_CWD"),
+            sourceDirectory
         )
     }
 
