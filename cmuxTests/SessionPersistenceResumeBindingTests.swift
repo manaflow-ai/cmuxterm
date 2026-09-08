@@ -316,7 +316,7 @@ import Testing
         )
         let terminal = try #require(snapshot.panels.first?.terminal)
         #expect(terminal.resumeBinding == nil)
-        #expect(terminal.wasAgentRunning == false)
+        #expect(terminal.wasAgentRunning == nil)
         #expect(workspace.unresolvedResumeBindingGapCount == 1)
     }
 
