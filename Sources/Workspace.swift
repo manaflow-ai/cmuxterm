@@ -3878,8 +3878,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             globalFontMagnificationPercent: GlobalFontMagnification.storedPercent
         )
         let appearance = Self.bonsplitAppearance(
-            from: GhosttyApp.shared.defaultBackgroundColor,
-            backgroundOpacity: GhosttyApp.shared.defaultBackgroundOpacity,
+            from: initialGhosttyConfig.backgroundColor,
+            backgroundOpacity: initialGhosttyConfig.backgroundOpacity,
             splitDividerColor: initialGhosttyConfig.splitDividerColor,
             tabTitleFontSize: initialGhosttyConfig.surfaceTabBarFontSize
         )
