@@ -933,7 +933,6 @@ final class MachinesPanelModelTests: XCTestCase {
     }
 }
 
-
 /// The Cloud tab shows this Mac by default (cloud-only stays one flip away), and the
 /// outline updates rows in place unless the tree's structure changed.
 @MainActor
@@ -1125,9 +1124,8 @@ struct MachinesPanelListProblemTests {
         )
     }
 
-    /// No "detached" pill anywhere (austin, 2026-08-31): a pool terminal with no
-    /// view is just a row, one view is the normal state, and only several views
-    /// earn a badge (a multiplier).
+    /// No "detached" pill: pool terminals with no view are rows; one view is normal;
+    /// multiple views show a multiplier.
     func testPoolRowBadgeOnlyReadsAsMultiplier() {
         XCTAssertNil(CloudTreeTerminalRowContent.multiplierBadge(nil), "pointer rows and local terminals carry no badge")
         XCTAssertNil(CloudTreeTerminalRowContent.multiplierBadge(0), "zero views is not called out")
