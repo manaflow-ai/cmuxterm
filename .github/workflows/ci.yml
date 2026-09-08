@@ -1244,7 +1244,7 @@ jobs:
                   # app host (main actor blocked, a WebKit load that never
                   # finishes). Sample it before it dies so the log names the
                   # stuck frames instead of only the tests that were in flight.
-                  for hang_pid in $(pgrep -f 'Contents/MacOS/cmux DEV$' 2>/dev/null | head -2); do
+                  for hang_pid in $(pgrep -f 'Contents/MacOS/cmux DEV( |$)' 2>/dev/null | head -2); do
                     hang_sample="$RUNNER_TEMP/app-host-hang-sample-${logical_shard}-${hang_pid}.txt"
                     if sample "$hang_pid" 3 -mayDie -file "$hang_sample" >/dev/null 2>&1; then
                       echo "::group::app-host hang sample (pid ${hang_pid}, first threads)"
