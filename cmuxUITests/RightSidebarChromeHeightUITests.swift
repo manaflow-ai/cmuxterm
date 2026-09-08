@@ -5,6 +5,7 @@ import ImageIO
 
 final class RightSidebarChromeHeightUITests: XCTestCase {
     func testVaultTabsGroupingAndPopoutStayInteractive() throws {
+        continueAfterFailure = false
         let app = XCUIApplication.cmuxTestApplication()
         let dataPath = "/tmp/cmux-ui-test-vault-interaction-\(UUID()).json"
         defer { try? FileManager.default.removeItem(atPath: dataPath) }
@@ -13,7 +14,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH"] = dataPath
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_SHOW_RIGHT_SIDEBAR"] = "1"
         app.launchArguments += [
-            "-workspacePresentationMode", "minimal", "-vaultPane.tab", "sessions",
+            "-workspacePresentationMode", "minimal",
             "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
         ]
         app.launch()
@@ -31,6 +32,9 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         let history = app.buttons["History"].firstMatch
         XCTAssertTrue(sessions.waitForExistence(timeout: 10))
         XCTAssertTrue(history.waitForExistence(timeout: 10))
+        // A launch-argument override would pin this AppStorage value even
+        // after History is clicked. Establish the starting tab through the UI.
+        sessions.click()
         XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 10))
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
