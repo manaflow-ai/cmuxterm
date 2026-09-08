@@ -19,29 +19,31 @@ actor CloudHubPortForwarder {
     }
 
     /// The forward for `target.port` on `machineID`, started on first use.
-    /// Concurrent first uses share one start; a changed private address
-    /// retargets the existing listener so open panes keep their URL.
+    /// Concurrent first uses share one start and the same bookkeeping; a
+    /// changed private address retargets the existing listener so open panes
+    /// keep their URL; a listener that died is torn down before it is replaced.
     func forward(machineID: String, to target: CloudPortForwardTarget) async throws -> CloudLoopbackPortForward {
         let key = Key(machineID: machineID, port: target.port)
         if let existing = forwards[key] {
             if await existing.isListening {
-                if await existing.target != target {
-                    await existing.retarget(target)
-                }
+                await Self.retargetIfNeeded(existing, to: target)
                 return existing
             }
             forwards[key] = nil
+            await existing.stop()
         }
+        let task: Task<CloudLoopbackPortForward, any Error>
         if let inFlight = starting[key] {
-            return try await inFlight.value
+            task = inFlight
+        } else {
+            let dialer = self.dialer
+            task = Task { () throws -> CloudLoopbackPortForward in
+                let forward = try CloudLoopbackPortForward(target: target, dialer: dialer)
+                try await forward.start()
+                return forward
+            }
+            starting[key] = task
         }
-        let dialer = self.dialer
-        let task = Task { () throws -> CloudLoopbackPortForward in
-            let forward = try CloudLoopbackPortForward(target: target, dialer: dialer)
-            try await forward.start()
-            return forward
-        }
-        starting[key] = task
         let forward: CloudLoopbackPortForward
         do {
             forward = try await task.value
@@ -49,15 +51,27 @@ actor CloudHubPortForwarder {
             if starting[key] == task { starting[key] = nil }
             throw error
         }
+        if let stored = forwards[key], stored === forward {
+            // Another waiter on the same start finished the bookkeeping first.
+            await Self.retargetIfNeeded(stored, to: target)
+            return stored
+        }
         guard starting[key] == task else {
             // Closed while starting: nothing may keep a listener for a machine
-            // that left the fleet.
+            // that left the fleet, and no waiter may receive a stopped one.
             await forward.stop()
             throw CancellationError()
         }
         starting[key] = nil
         forwards[key] = forward
+        await Self.retargetIfNeeded(forward, to: target)
         return forward
+    }
+
+    private static func retargetIfNeeded(_ forward: CloudLoopbackPortForward, to target: CloudPortForwardTarget) async {
+        if await forward.target != target {
+            await forward.retarget(target)
+        }
     }
 
     /// The local port already forwarding to `port` on `machineID`, if any.

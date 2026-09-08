@@ -42,7 +42,7 @@ struct MachinesTunnelBanner: View {
     @ViewBuilder
     private var icon: some View {
         switch banner.kind {
-        case .starting:
+        case .starting, .stopping:
             ProgressView().controlSize(.mini)
         case .awaitingApproval:
             Image(systemName: "lock.shield").font(.system(size: 10, weight: .semibold))
@@ -56,7 +56,7 @@ struct MachinesTunnelBanner: View {
     private var tint: Color {
         switch banner.kind {
         case .awaitingApproval, .failed: return .orange.opacity(0.9)
-        case .starting, .connected: return .secondary
+        case .starting, .stopping, .connected: return .secondary
         }
     }
 

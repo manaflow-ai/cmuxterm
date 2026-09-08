@@ -33,6 +33,8 @@ struct CloudTunnelBannerTests {
     func otherStates() throws {
         let starting = try #require(CloudTunnelBanner(status: CloudTunnelStatus(backend: networkExtension, state: .starting, isPinned: true)))
         #expect(starting.kind == .starting && !starting.opensSystemSettings)
+        let stopping = try #require(CloudTunnelBanner(status: CloudTunnelStatus(backend: networkExtension, state: .stopping, isPinned: false)))
+        #expect(stopping.kind == .stopping && stopping.text.contains("stopping"))
         let failed = try #require(CloudTunnelBanner(status: CloudTunnelStatus(backend: networkExtension, state: .failed("no route"), isPinned: false)))
         #expect(failed.kind == .failed && failed.text.contains("no route"))
         let pinned = try #require(CloudTunnelBanner(status: CloudTunnelStatus(backend: networkExtension, state: .up, isPinned: true)))

@@ -155,8 +155,10 @@ actor CloudLoopbackPortForward {
         connections[id] = nil
     }
 
+    /// A listener that fails after it was ready is dead for good: tear it and
+    /// its connections down so the forwarder replaces it on the next use.
     private func listenerDidFail(_ error: NWError) {
         logger.error("loopback listener on port \(self.localPort, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-        isListening = false
+        stop()
     }
 }

@@ -263,6 +263,48 @@ struct CloudLoopbackPortForwardTests {
         await forward.stop()
     }
 
+    @Test("concurrent first uses share one start and every waiter gets the same bookkept forward")
+    func concurrentFirstUses() async throws {
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        let forwarder = CloudHubPortForwarder(dialer: FakeHubDialer(endpoint: hub.endpoint))
+        let results = await withTaskGroup(of: CloudLoopbackPortForward?.self) { group in
+            for _ in 0..<4 {
+                group.addTask { try? await forwarder.forward(machineID: "vm-1", to: CloudPortForwardTarget(host: "10.0.0.7", port: 3000)) }
+            }
+            var collected: [CloudLoopbackPortForward] = []
+            for await forward in group {
+                if let forward { collected.append(forward) }
+            }
+            return collected
+        }
+        #expect(results.count == 4)
+        #expect(results.allSatisfy { $0 === results.first })
+        #expect(await forwarder.count == 1)
+        #expect(await forwarder.localPort(machineID: "vm-1", port: 3000) == results.first?.localPort)
+        await forwarder.closeAll()
+    }
+
+    @Test("a forward whose listener died is torn down and replaced on the next use")
+    func deadForwardIsReplaced() async throws {
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        let forwarder = CloudHubPortForwarder(dialer: FakeHubDialer(endpoint: hub.endpoint))
+        let target = CloudPortForwardTarget(host: "10.0.0.7", port: 3000)
+        let first = try await forwarder.forward(machineID: "vm-1", to: target)
+        let deadPort = await first.localPort
+        await first.stop()
+        #expect(await first.isListening == false)
+        let replacement = try await forwarder.forward(machineID: "vm-1", to: target)
+        #expect(replacement !== first)
+        #expect(await replacement.isListening)
+        #expect(await replacement.localPort != deadPort)
+        #expect(await forwarder.count == 1)
+        await forwarder.closeAll()
+    }
+
     @Test("one machine port keeps one local port; a new address retargets it; closing frees it")
     func forwarderKeepsStablePorts() async throws {
         let hub = try FakeSocksHub()

@@ -10,6 +10,7 @@ import Foundation
 struct CloudTunnelBanner: Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         case starting
+        case stopping
         /// macOS is waiting for the user to allow the extension; the banner
         /// offers the System Settings pane.
         case awaitingApproval
@@ -28,8 +29,11 @@ struct CloudTunnelBanner: Equatable, Sendable {
         switch status.state {
         case .off:
             return nil
-        case .starting, .stopping:
+        case .starting:
             kind = .starting
+            text = status.privateRouteBlocker ?? ""
+        case .stopping:
+            kind = .stopping
             text = status.privateRouteBlocker ?? ""
         case .awaitingApproval:
             kind = .awaitingApproval

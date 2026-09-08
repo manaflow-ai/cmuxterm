@@ -16,10 +16,15 @@ struct CloudTunnelStatus: Sendable, Equatable {
         switch state {
         case .up, .off:
             return nil
-        case .starting, .stopping:
+        case .starting:
             return String(
                 localized: "cloudTree.link.tunnelStarting",
                 defaultValue: "The cmux Cloud Tunnel is starting…"
+            )
+        case .stopping:
+            return String(
+                localized: "cloudTree.link.tunnelStopping",
+                defaultValue: "The cmux Cloud Tunnel is stopping…"
             )
         case .awaitingApproval:
             return String(
