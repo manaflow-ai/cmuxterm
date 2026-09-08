@@ -149,6 +149,7 @@ Environment:
 | `read-selection` | Read the active selection from a terminal, file preview, Markdown, or browser surface. Plain output includes available source context; `--json` returns the complete socket response. |
 | `read-screen` | Read terminal text from a surface. `--selection` is a text-only compatibility alias for `read-selection`. |
 | `send` | Send text to a terminal surface. |
+| `agent-submit` | Submit one complete prompt to a workspace's agent terminal through the app's serialized main-queue transaction boundary (a global FIFO, and therefore FIFO per workspace). The call either accepts the whole paste-and-submit transaction or fails without changing input. `rejected_composer_busy` means uncertain terminal-TUI input was preserved and returns `retry_after: "human_prompt_submit_or_agent_restart"`; native TextBox drafts remain separate future submissions. `agent_scope_unavailable` means the agent terminal is not ready for automation and returns `retry_after: "agent_terminal_ready"`. Both errors also return `retryable: true`. Use `--surface` when a workspace has multiple agent terminals. |
 | `send-key` | Send one key to a terminal surface. |
 | `send-panel` | Send text to a panel/surface. |
 | `send-key-panel` | Send one key to a panel/surface. |
@@ -798,6 +799,7 @@ the expected text without connecting to a cmux socket.
 - `cmux display-message --help` -> `Usage: cmux display-message`
 - `cmux read-screen --help` -> `Usage: cmux read-screen`
 - `cmux send --help` -> `Usage: cmux send`
+- `cmux agent-submit --help` -> `Usage: cmux agent-submit`
 - `cmux send-key --help` -> `Usage: cmux send-key`
 - `cmux send-panel --help` -> `Usage: cmux send-panel`
 - `cmux send-key-panel --help` -> `Usage: cmux send-key-panel`

@@ -162,10 +162,12 @@ extension TerminalController {
     private nonisolated func socketWorkerV2ResponseAsync(
         _ request: ControlRequest
     ) async -> String? {
+        if request.method == "workspace.agent_submit" {
+            return await v2WorkspaceAgentSubmitAsync(request: request)
+        }
         if request.method == "surface.read_selection" {
             return await socketSurfaceSelectionResponseAsync(request)
         }
-
         if request.method == "feed.jump" {
             guard let result = await controlCommandCoordinator
                 .handleSocketWorkerFeedAsync(request, context: self) else {
@@ -609,7 +611,7 @@ extension TerminalController {
         )
     }
 
-    private nonisolated static func controlCallResult(
+    nonisolated static func controlCallResult(
         fromLegacy result: V2CallResult
     ) -> ControlCallResult {
         switch result {

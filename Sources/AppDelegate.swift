@@ -10414,11 +10414,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     func sendWelcomeCommandWhenReady(to workspace: Workspace, markShownOnSend: Bool = false) {
-        sendTextWhenReady("cmux welcome\n", to: workspace, beforeSend: {
-            if markShownOnSend {
-                UserDefaults.standard.set(true, forKey: AccountCatalogSection().welcomeShown.userDefaultsKey)
+        sendTextWhenReady(
+            "cmux welcome\n",
+            to: workspace,
+            appOwned: true,
+            beforeSend: {
+                if markShownOnSend {
+                    UserDefaults.standard.set(
+                        true,
+                        forKey: AccountCatalogSection()
+                            .welcomeShown.userDefaultsKey
+                    )
+                }
             }
-        })
+        )
     }
 
     @objc func applyUpdateIfAvailable(_ sender: Any?) {
@@ -11024,6 +11033,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         _ text: String,
         to tab: Tab,
         preferredPanelId: UUID? = nil,
+        appOwned: Bool = false,
         beforeSend: (() -> Void)? = nil,
         onFailure: (() -> Void)? = nil
     ) {
@@ -11051,7 +11061,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         ),
            terminalPanel.isAgentHibernated {
             beforeSend?()
-            if !terminalPanel.sendText(text) {
+            let didSend = appOwned
+                ? terminalPanel.sendAppOwnedInputResult(text).accepted
+                : terminalPanel.sendText(text)
+            if !didSend {
                 onFailure?()
             }
             return
@@ -11072,7 +11085,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
 #endif
             beforeSend?()
-            let didSend = terminalPanel.sendText(text)
+            let didSend = appOwned
+                ? terminalPanel.sendAppOwnedInputResult(text).accepted
+                : terminalPanel.sendText(text)
 #if DEBUG
             if isReactGrabPasteback, didSend {
                 cmuxDebugLog(
@@ -11131,7 +11146,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             resolved = true
             cleanupObservers()
             beforeSend?()
-            let didSend = terminalPanel.sendText(text)
+            let didSend = appOwned
+                ? terminalPanel.sendAppOwnedInputResult(text).accepted
+                : terminalPanel.sendText(text)
 #if DEBUG
             if isReactGrabPasteback, didSend {
                 cmuxDebugLog(
