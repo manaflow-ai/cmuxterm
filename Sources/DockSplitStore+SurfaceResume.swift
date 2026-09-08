@@ -86,8 +86,59 @@ extension DockSplitStore {
                 preserveCompletedTombstone: false
             )
         }
-        if binding.hasCompleteManagedSessionIdentity {
-            managedAgentResumeBindingsByPanelId[panelId] = binding
+        let constrainedBinding: SurfaceResumeBindingSnapshot = {
+            // A persistent-SSH selection is authenticated remote authority. Carry
+            // it through the Dock binding itself so the retained snapshot and
+            // every later Dock restore path use the same cwd-safe launch recipe
+            // as workspace restores.
+            if binding.isAgentHookBinding,
+               binding.launchFlavor.remoteContext != nil,
+               let selection = binding.restoreWorkingDirectorySelection,
+               selection.discardsRecordedCwdOptions,
+               let previousRestorableAgent,
+               Workspace.restorableAgentForSessionRestore(
+                   previousRestorableAgent,
+                   resumeBinding: binding
+               ) != nil {
+                return binding.applyingAuthoritativeRemoteRestoreWorkingDirectorySelection(
+                    selection,
+                    from: previousRestorableAgent
+                )
+            }
+
+            // Same-session refreshes can omit the cwd policy. Preserve the
+            // retained, already-constrained snapshot while the execution
+            // location remains the same; local refreshes must never inherit a
+            // remote-only cwd policy.
+            if binding.isAgentHookBinding,
+               effectivePreviousBinding?.launchFlavor.representsSameExecutionLocation(
+                   as: binding.launchFlavor
+               ) == true,
+               let previousRestorableAgent,
+               let selection = previousRestorableAgent.restoreWorkingDirectorySelection,
+               Workspace.restorableAgentForSessionRestore(
+                   previousRestorableAgent,
+                   resumeBinding: binding
+               ) != nil {
+                return binding.applyingRestoreWorkingDirectorySelection(
+                    selection,
+                    from: previousRestorableAgent
+                )
+            }
+
+            if let effectivePreviousBinding,
+               effectivePreviousBinding.isSameManagedSession(as: binding),
+               effectivePreviousBinding.launchFlavor.representsSameExecutionLocation(
+                   as: binding.launchFlavor
+               ) {
+                return binding.inheritingRestoreWorkingDirectorySelection(
+                    from: effectivePreviousBinding
+                )
+            }
+            return binding
+        }()
+        if constrainedBinding.hasCompleteManagedSessionIdentity {
+            managedAgentResumeBindingsByPanelId[panelId] = constrainedBinding
         } else if binding.isAgentHookBinding {
             managedAgentResumeBindingsByPanelId.removeValue(forKey: panelId)
         }
@@ -95,22 +146,22 @@ extension DockSplitStore {
         // same-session hook refresh keep its cwd rescue, but never let it
         // override a replacement session's structured restore record.
         if let previous = effectivePreviousBinding,
-           previous.kind != binding.kind
-            || previous.checkpointId != binding.checkpointId
-            || previous.cwd != binding.cwd
-            || previous.launchCommand?.workingDirectory != binding.launchCommand?.workingDirectory
-            || (previous.launchCommand == nil && binding.launchCommand == nil
-                && previous.command != binding.command) {
+           previous.kind != constrainedBinding.kind
+            || previous.checkpointId != constrainedBinding.checkpointId
+            || previous.cwd != constrainedBinding.cwd
+            || previous.launchCommand?.workingDirectory != constrainedBinding.launchCommand?.workingDirectory
+            || (previous.launchCommand == nil && constrainedBinding.launchCommand == nil
+                && previous.command != constrainedBinding.command) {
             restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
         }
-        if let restorableAgent = binding.managedRestorableAgentSnapshot(
+        if let restorableAgent = constrainedBinding.managedRestorableAgentSnapshot(
             replacing: previousRestorableAgent,
             previousBinding: effectivePreviousBinding
         ) {
             restoredAgentLifecycle.setSnapshot(restorableAgent, panelId: panelId)
             restoredAgentLifecycle.invalidatedFingerprintsByPanelId.removeValue(forKey: panelId)
         }
-        surfaceResumeBindingsByPanelId[panelId] = binding
+        surfaceResumeBindingsByPanelId[panelId] = constrainedBinding
         return true
     }
 

@@ -179,6 +179,67 @@ struct SurfaceResumeRestoreClaimTests {
     }
 
     @Test
+    func dockBindingAppliesAuthoritativeRemoteSelectionToRetainedSnapshot() throws {
+        let store = DockSplitStore(
+            workspaceId: UUID(),
+            baseDirectoryProvider: { nil }
+        )
+        defer { store.closeAllPanels() }
+        let panel = TerminalPanel(workspaceId: store.workspaceId)
+        store.panels[panel.id] = panel
+
+        let capturedDirectory = "/Users/austin/local-codex-project"
+        let trustedRemoteDirectory = "/home/remote/codex-project"
+        let sessionID = "dock-remote-cwd-session"
+        let launchCommand = AgentLaunchCommandSnapshot(
+            launcher: "codex",
+            executablePath: "codex",
+            arguments: ["codex", "resume", sessionID, "-C", capturedDirectory],
+            workingDirectory: capturedDirectory
+        )
+        store.restoredAgentLifecycle.setSnapshot(
+            SessionRestorableAgentSnapshot(
+                kind: .codex,
+                sessionId: sessionID,
+                workingDirectory: capturedDirectory,
+                launchCommand: launchCommand
+            ),
+            panelId: panel.id
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID) -C '\(capturedDirectory)'",
+            cwd: capturedDirectory,
+            checkpointId: sessionID,
+            source: "agent-hook",
+            launchCommand: launchCommand,
+            restoreWorkingDirectorySelection: .exact(trustedRemoteDirectory),
+            autoResume: true,
+            resumeEvidenceProvenance: "tui",
+            launchFlavor: .persistentSSH(SurfaceResumeRemoteContext(
+                workspaceID: store.workspaceId,
+                surfaceID: panel.id,
+                persistentPTYSessionID: "dock-remote-pty"
+            ))
+        )
+
+        #expect(store.setSurfaceResumeBinding(binding, panelId: panel.id))
+        let storedBinding = try #require(store.surfaceResumeBinding(panelId: panel.id))
+        let retainedSnapshot = try #require(
+            store.restoredAgentLifecycle.snapshotsByPanelId[panel.id]
+        )
+        #expect(storedBinding.cwd == trustedRemoteDirectory)
+        #expect(storedBinding.launchCommand?.workingDirectory == nil)
+        #expect(storedBinding.launchCommand?.arguments.contains(capturedDirectory) == false)
+        #expect(retainedSnapshot.workingDirectory == trustedRemoteDirectory)
+        #expect(retainedSnapshot.launchCommand?.workingDirectory == nil)
+        #expect(retainedSnapshot.launchCommand?.arguments.contains(capturedDirectory) == false)
+        #expect(
+            retainedSnapshot.restoreWorkingDirectorySelection == .exact(trustedRemoteDirectory)
+        )
+    }
+
+    @Test
     func restoreClaimRequiresExactBindingGeneration() throws {
         let workspace = Workspace()
         defer { workspace.teardownAllPanels() }
