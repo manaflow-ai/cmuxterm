@@ -146,7 +146,9 @@ struct MobileTerminalLaneCoordinatorTests {
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
-        try await Task.sleep(for: .milliseconds(10))
+        // Let the coordinator task reach its provider-selection guard without
+        // introducing a wall-clock synchronization dependency.
+        await Task.yield()
 
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
