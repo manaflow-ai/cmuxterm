@@ -8,8 +8,6 @@ struct SidebarFontSettingsRows: View {
     @Binding var fontSaveFailed: Bool
     let sidebarFontFamily: DefaultsValueModel<String>
     let hostActions: SettingsHostActions
-    @State private var familyDraft = ""
-    @State private var familyDraftLoaded = false
     @State private var tasks = MainActorTaskStore<String>()
 
     var body: some View {
@@ -22,7 +20,10 @@ struct SidebarFontSettingsRows: View {
             ) {
                 TextField(
                     String(localized: "settings.sidebarAppearance.fontFamily.placeholder", defaultValue: "System font"),
-                    text: $familyDraft,
+                    text: Binding(
+                        get: { sidebarFontFamily.current },
+                        set: { sidebarFontFamily.set($0) }
+                    ),
                     onCommit: saveFamily
                 )
                 .textFieldStyle(.roundedBorder)
@@ -75,19 +76,11 @@ struct SidebarFontSettingsRows: View {
         }
         .task {
             sidebarFontFamily.startObserving()
-            if !familyDraftLoaded {
-                familyDraft = sidebarFontFamily.current
-                familyDraftLoaded = true
-            }
-        }
-        .onChange(of: sidebarFontFamily.current) { _, newValue in
-            if familyDraft != newValue { familyDraft = newValue }
         }
     }
 
     private func saveFamily() {
-        familyDraft = familyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        sidebarFontFamily.set(familyDraft)
+        sidebarFontFamily.set(sidebarFontFamily.current.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private func saveSidebarFontSize(_ points: Double) {

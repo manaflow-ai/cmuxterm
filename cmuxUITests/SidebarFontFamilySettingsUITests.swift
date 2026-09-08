@@ -31,10 +31,10 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         let window = openSettings(app)
         let field = familyField(in: window)
         field.click()
-        field.typeText(" Georgia ")
+        field.typeText("Courier New")
         closeSettings(app, window)
 
-        assertPersistedFamily("Georgia", afterRelaunching: app)
+        assertPersistedFamily("Courier New", afterRelaunching: app)
     }
 
     private func launchIsolatedApp() throws -> XCUIApplication {
