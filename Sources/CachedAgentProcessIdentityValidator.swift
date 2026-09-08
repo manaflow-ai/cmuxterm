@@ -2,6 +2,9 @@ import CMUXAgentLaunch
 import Foundation
 
 struct CachedAgentProcessIdentityValidator: Sendable {
+    /// Which evidence backs the snapshot's session id when the live process
+    /// cannot state its own (a bare Hermes argv, or an argv-keyed
+    /// registration launched without its identity option).
     enum HermesSessionValidation: Sendable {
         /// A cached snapshot can outlive a conversation switch in the same process.
         case cachedSnapshot
@@ -67,7 +70,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         return currentProcessSession(
             process,
             matches: snapshot,
-            sessionValidation: hermesSessionValidation
+            hermesSessionValidation: hermesSessionValidation
         )
     }
 
@@ -114,7 +117,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
     private func currentProcessSession(
         _ process: CmuxTopProcessArguments,
         matches snapshot: SessionRestorableAgentSnapshot,
-        sessionValidation: HermesSessionValidation
+        hermesSessionValidation: HermesSessionValidation
     ) -> Bool {
         let arguments = process.arguments
         let authoritativeEnvironmentSessionID = normalizedProcessValue(
@@ -124,12 +127,20 @@ struct CachedAgentProcessIdentityValidator: Sendable {
             let observedSessionID: String?
             switch registration.sessionIdSource {
             case .argvOption(let option):
-                guard let observedSessionID = nonOptionValue(after: option, in: arguments) else {
-                    // An argv-keyed registration cannot prove ownership when
-                    // its identity option is absent. Preserve the historical
-                    // fail-closed behavior instead of treating any matching
-                    // executable as this session.
-                    return false
+                guard let observedSessionID = nonOptionValue(after: option, in: arguments)
+                    ?? authoritativeEnvironmentSessionID else {
+                    // The identity option only appears on explicit resumes. A
+                    // fresh launch has none: Antigravity mints its conversation
+                    // id in-process and reports it through its hooks. When the
+                    // current hook record is the evidence, it was written by
+                    // the very process generation that already matched on pid
+                    // identity, cmux scope, and executable above, so a bare
+                    // argv cannot contradict it; failing closed there marked
+                    // every fresh Antigravity session exited and retired its
+                    // binding on the next autosave (#5473). A cached snapshot
+                    // cannot rule out an in-process conversation switch, so it
+                    // keeps failing closed, as for Hermes.
+                    return hermesSessionValidation == .currentHookRecord
                 }
                 return ManagedAgentSessionIdentity.sessionIDsMatch(
                     kind: snapshot.kind.rawValue,
@@ -164,7 +175,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                 // CMUX_AGENT_SESSION_ID for it, so a fresh Pi never shows its
                 // session. Its own hook record (or the pane's foreground
                 // process for that pane's binding) vouches instead (#12084).
-                return sessionValidation.vouchesForMissingSessionIdentity
+                return hermesSessionValidation.vouchesForMissingSessionIdentity
             }
             return ManagedAgentSessionIdentity.sessionIDsMatch(
                 kind: snapshot.kind.rawValue,
@@ -196,7 +207,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
             observedSessionID = authoritativeEnvironmentSessionID
         }
         guard let observedSessionID else {
-            return sessionValidation.vouchesForMissingSessionIdentity
+            return hermesSessionValidation.vouchesForMissingSessionIdentity
         }
         return ManagedAgentSessionIdentity.sessionIDsMatch(
             kind: snapshot.kind.rawValue,
