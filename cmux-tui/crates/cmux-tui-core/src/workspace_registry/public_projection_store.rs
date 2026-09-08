@@ -266,6 +266,28 @@ impl WorkspaceRegistry {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         let mut reads = self.durable_notification_reads()?;
+        {
+            // Marks for notifications outside the retained window are dead
+            // weight after a restart (the in-memory prune queue did not
+            // survive). Drop them here so the table stays bounded.
+            let retained_ids = rows
+                .iter()
+                .filter_map(|(outcome_json, _)| {
+                    serde_json::from_str::<Value>(outcome_json)
+                        .ok()
+                        .and_then(|value| value["value"]["id"].as_str().map(str::to_string))
+                })
+                .collect::<HashSet<String>>();
+            let stale =
+                reads.keys().filter(|id| !retained_ids.contains(*id)).cloned().collect::<Vec<_>>();
+            for id in &stale {
+                self.connection.execute(
+                    "DELETE FROM resource_notification_reads WHERE notification_id = ?1",
+                    [id.as_str()],
+                )?;
+                reads.remove(id);
+            }
+        }
         let mut notifications = Vec::with_capacity(rows.len());
         for (outcome_json, idempotency_key) in rows {
             let outcome: ResourceEffectOutcome = serde_json::from_str(&outcome_json)

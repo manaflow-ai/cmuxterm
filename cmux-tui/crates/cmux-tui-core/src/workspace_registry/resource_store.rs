@@ -1000,9 +1000,8 @@ impl WorkspaceRegistry {
 
     /// Record that `client_id` has read `acknowledged` notifications and
     /// publish the refreshed notification rows as one resource revision.
-    /// Rows whose notification the bounded ledger no longer retains are
-    /// pruned in the same transaction, so per-client read state stays bounded
-    /// by the ledger capacity times the number of clients.
+    /// Only the requested marks are written; eviction pruning is a separate
+    /// exact step (`prune_notification_reads`) driven by committed creates.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn commit_notification_ack(
         &mut self,
@@ -1011,7 +1010,6 @@ impl WorkspaceRegistry {
         expected_revision: Option<u64>,
         client_id: &str,
         acknowledged: &[NotificationPublicId],
-        retained: &[NotificationPublicId],
         read_at_ms: u64,
         result: &Value,
         deltas: &Value,
@@ -1049,22 +1047,6 @@ impl WorkspaceRegistry {
                 params![notification_id.as_str(), client_id, sqlite_read_at, sqlite_revision],
             )?;
         }
-        {
-            let mut statement =
-                tx.prepare("SELECT DISTINCT notification_id FROM resource_notification_reads")?;
-            let stored = statement
-                .query_map([], |row| row.get::<_, String>(0))?
-                .collect::<Result<Vec<_>, _>>()?;
-            drop(statement);
-            for notification_id in stored {
-                if !retained.iter().any(|retained| retained.as_str() == notification_id) {
-                    tx.execute(
-                        "DELETE FROM resource_notification_reads WHERE notification_id = ?1",
-                        [notification_id.as_str()],
-                    )?;
-                }
-            }
-        }
         tx.execute(
             "UPDATE meta SET value = ?1 WHERE key = 'resource_revision'",
             [revision.to_string()],
@@ -1096,6 +1078,45 @@ impl WorkspaceRegistry {
         prune_resource_mutations(&tx)?;
         tx.commit()?;
         Ok(ResourcePatchCommit { revision, result: result.clone(), replayed: false })
+    }
+
+    /// Delete read marks for `candidates` that the committed notification
+    /// receipts no longer retain. Returns the candidates still retained, so
+    /// the caller keeps them queued. Retention here is the same query the
+    /// projection rebuild uses, so memory and disk agree after a restart.
+    pub(crate) fn prune_notification_reads(
+        &mut self,
+        candidates: &[NotificationPublicId],
+    ) -> anyhow::Result<Vec<NotificationPublicId>> {
+        let tx = self.connection.transaction()?;
+        let mut remaining = Vec::new();
+        for candidate in candidates {
+            let retained: bool = tx.query_row(
+                "SELECT EXISTS(
+                       SELECT 1 FROM (
+                         SELECT json_extract(outcome_json, '$.value.id') AS id
+                         FROM resource_effect_receipts
+                         WHERE operation = 'notification.create'
+                           AND state = 'committed'
+                           AND json_extract(outcome_json, '$.kind') = 'success'
+                         ORDER BY committed_revision DESC, idempotency_key DESC
+                         LIMIT 256
+                       ) WHERE id = ?1
+                     )",
+                [candidate.as_str()],
+                |row| row.get(0),
+            )?;
+            if retained {
+                remaining.push(candidate.clone());
+            } else {
+                tx.execute(
+                    "DELETE FROM resource_notification_reads WHERE notification_id = ?1",
+                    [candidate.as_str()],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(remaining)
     }
 
     pub fn terminal_resource_id(

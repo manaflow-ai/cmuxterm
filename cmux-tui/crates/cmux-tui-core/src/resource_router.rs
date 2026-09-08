@@ -1391,6 +1391,7 @@ fn execute_notification_effect(
             return Err(indeterminate_error(idempotency_key, "notification.create"));
         }
     };
+    mux.prune_evicted_notification_reads();
     mutation_result(mux, value, revision, false)
 }
 

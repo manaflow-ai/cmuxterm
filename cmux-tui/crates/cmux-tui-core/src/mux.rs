@@ -2311,6 +2311,11 @@ pub struct Mux {
     /// "has this client install seen this notification", so several remote
     /// clients of one session keep independent unread state.
     notification_reads: Mutex<HashMap<NotificationPublicId, BTreeSet<String>>>,
+    /// Notification ids the in-memory ledger evicted whose durable read marks
+    /// are still to be pruned. Pruning happens only after a create commits,
+    /// and only for ids the committed receipts no longer retain, so a failed
+    /// create cannot orphan marks the next restart would rebuild.
+    notification_read_prunes: Mutex<Vec<NotificationPublicId>>,
     resource_machine_service: OnceLock<Arc<dyn crate::ResourceMachineService>>,
     journal_kernel: Arc<crate::journal_kernel::JournalKernel>,
     journal_ingress: crate::journal_ingress::JournalIngressSender,
@@ -2701,6 +2706,7 @@ impl Mux {
             terminal_notifications: Mutex::new(terminal_notifications),
             notification_ledger: Mutex::new(notification_ledger),
             notification_reads: Mutex::new(notification_reads),
+            notification_read_prunes: Mutex::new(Vec::new()),
             resource_machine_service: OnceLock::new(),
             journal_kernel,
             journal_ingress,
@@ -9172,9 +9178,10 @@ impl Mux {
             }
             if !evicted.is_empty() {
                 let mut reads = self.notification_reads.lock().unwrap();
-                for id in evicted {
-                    reads.remove(&id);
+                for id in &evicted {
+                    reads.remove(id);
                 }
+                self.notification_read_prunes.lock().unwrap().extend(evicted);
             }
         }
         // Shared topology focus is only a default projection. A frontend must
@@ -9341,7 +9348,12 @@ impl Mux {
                 return committed(outcome);
             }
             ResourceEffectPreparation::Indeterminate => {
-                anyhow::bail!("notification effect {idempotency_key:?} is indeterminate")
+                // The post may or may not have happened before a crash. A
+                // notification is advisory, so the caller proceeds without it
+                // rather than retrying the same key forever; the agent-hook
+                // fold in particular must still commit its report and fence.
+                self.report_internal_diagnostic("notification effect indeterminate, skipped");
+                return Ok(None);
             }
             ResourceEffectPreparation::Execute { .. } => {
                 self.mark_resource_effect_executing(idempotency_key, OPERATION, &fingerprint)?
@@ -9395,7 +9407,29 @@ impl Mux {
             let _ = self.mark_resource_effect_indeterminate(idempotency_key);
             return Err(error.context("notification effect commit failed"));
         }
+        self.prune_evicted_notification_reads();
         Ok(Some(numeric_id))
+    }
+
+    /// Delete durable read marks for evicted notifications that the committed
+    /// receipts no longer retain. Called after a notification create commits;
+    /// ids still retained durably stay queued for a later create.
+    pub(crate) fn prune_evicted_notification_reads(&self) {
+        let candidates = std::mem::take(&mut *self.notification_read_prunes.lock().unwrap());
+        if candidates.is_empty() {
+            return;
+        }
+        let remaining =
+            match self.workspace_registry.lock().unwrap().prune_notification_reads(&candidates) {
+                Ok(remaining) => remaining,
+                Err(_) => {
+                    self.report_internal_diagnostic("notification read-mark prune deferred");
+                    candidates
+                }
+            };
+        if !remaining.is_empty() {
+            self.notification_read_prunes.lock().unwrap().extend(remaining);
+        }
     }
 
     /// Record that `client_id` read `notifications`. Unknown ids are reported,
@@ -9422,14 +9456,12 @@ impl Mux {
             return Ok(replay);
         }
         let session_id = registry.session_id().clone();
-        let retained: Vec<NotificationPublicId>;
         let mut acknowledged: Vec<NotificationPublicId> = Vec::new();
         let mut unknown: Vec<NotificationPublicId> = Vec::new();
         let mut deltas = Vec::new();
         {
             let ledger = self.notification_ledger.lock().unwrap();
             let reads = self.notification_reads.lock().unwrap();
-            retained = ledger.iter().map(|entry| entry.id.clone()).collect();
             for id in notifications {
                 if acknowledged.contains(id) || unknown.contains(id) {
                     continue;
@@ -9464,7 +9496,6 @@ impl Mux {
             expected_revision,
             client_id,
             &acknowledged,
-            &retained,
             now_ms(),
             &result,
             &Value::Array(deltas),
@@ -23155,8 +23186,10 @@ mod tests {
         }
         assert!(mux.resource_notifications(256).iter().all(|entry| entry.id != kept));
         assert!(mux.notification_read_by(&kept).is_empty());
+        // The prune rides the committed create that evicted `kept`, not an
+        // acknowledgement, and only once the receipts no longer retain it.
         let newest = mux.resource_notifications(1)[0].id.clone();
-        let prune = WorkspaceMutation::new("ack-prune", "test").unwrap();
+        let prune = WorkspaceMutation::new("ack-newest", "test").unwrap();
         mux.ack_notifications(&prune, None, "mac-a", std::slice::from_ref(&newest)).unwrap();
         let stale_rows = mux
             .workspace_registry
