@@ -228,8 +228,20 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        // Since #11976 the hook no longer clears notifications itself: the app
+        // reconciles from the pane-scoped `agent.turn.started` journal event, so
+        // that event must name the moved pane, and nothing may clear the whole
+        // workspace (which would wipe the sibling pane's notifications).
+        let turnStarted = AgentJournalAppendCapture.first(
+            in: commands,
+            kind: "agent.turn.started",
+            agentKey: "claude_code",
+            sessionId: sessionId
+        )
+        #expect(turnStarted?.workspaceId == newWorkspaceId, "turn.started must follow the moved pane; saw \(commands)")
+        #expect(turnStarted?.surfaceId == Self.liveSurfaceId, "turn.started must be pane-scoped; saw \(commands)")
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        #expect(!commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") }, "sibling pane must be untouched; saw \(commands)")
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,7 +299,16 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        // Since #11976 clearing is the app's job (journal reconciliation), so the
+        // pane-scoped `agent.state.changed` event is the re-homing signal here.
+        let stateChanged = AgentJournalAppendCapture.first(
+            in: commands,
+            kind: "agent.state.changed",
+            agentKey: "claude_code",
+            sessionId: sessionId
+        )
+        #expect(stateChanged?.workspaceId == newWorkspaceId, "state.changed must follow the moved pane; saw \(commands)")
+        #expect(stateChanged?.surfaceId == Self.liveSurfaceId, "state.changed must be pane-scoped; saw \(commands)")
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
