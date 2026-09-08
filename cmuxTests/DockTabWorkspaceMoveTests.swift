@@ -111,14 +111,17 @@ struct DockTabWorkspaceMoveTests {
                 let expectedTitle = try #require(dock.panels[panelID]?.displayTitle)
                 #expect(!expectedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                #expect(app.moveDockSurfaceToNewWorkspace(
+                let result = app.moveDockSurfaceToNewWorkspaceResult(
                     sourceDock: dock,
                     panelId: panelID,
                     title: "   ",
                     focus: false,
                     focusWindow: false
-                ))
-                let destination = try #require(manager.tabs.first)
+                )
+                let moved = try #require(result)
+                let destination = try #require(
+                    manager.tabs.first(where: { $0.id == moved.destinationWorkspaceId })
+                )
                 #expect(destination.title == expectedTitle)
             }
         }
