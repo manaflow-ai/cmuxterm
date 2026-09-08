@@ -39,6 +39,20 @@ struct SidebarJSRuntimeTests {
         #expect(node.double("font") == 13)
     }
 
+    @Test func reactiveScalarFontClearsCustomFamily() throws {
+        let runtime = SidebarJSRuntime()
+        #expect(runtime.start(source: """
+        sidebar(() => Text("Hello").font(() => data.fontStyle() ?? { family: "Menlo", size: 13 }))
+        """))
+        let rootId = try #require(runtime.store.rootId)
+        #expect(runtime.store.node(rootId)?.string("family") == "Menlo")
+
+        runtime.updateData(key: "fontStyle", value: .string("headline"))
+
+        #expect(runtime.store.node(rootId)?.string("family") == nil)
+        #expect(runtime.store.node(rootId)?.string("font") == "headline")
+    }
+
     @Test func reactivePropUpdatesOnlyOnDataChange() {
         let runtime = SidebarJSRuntime()
         runtime.start(source: """

@@ -1,4 +1,5 @@
 public import AppKit
+import CoreText
 public import SwiftUI
 
 /// A normalized, optional font-family override shared by AppKit and SwiftUI.
@@ -20,13 +21,27 @@ public struct CmuxFontFamily: Equatable, Hashable, Sendable {
     }
 }
 
-/// Resolves one family override consistently for native and SwiftUI sidebar
-/// renderers. Invalid names deliberately return the platform fallback.
-private final class CmuxFontResolverCache: @unchecked Sendable {
-    let familyAvailability = NSCache<NSString, NSNumber>()
-    let familyFonts = NSCache<NSString, NSFont>()
+private final class CmuxCachedFont {
+    let font: NSFont?
+
+    init(_ font: NSFont?) {
+        self.font = font
+    }
 }
 
+/// NSCache synchronizes access internally; its references and cached font entries are immutable.
+private final class CmuxFontResolverCache: @unchecked Sendable {
+    let familyAvailability = NSCache<NSString, NSNumber>()
+    let familyFonts = NSCache<NSString, CmuxCachedFont>()
+
+    init() {
+        familyAvailability.countLimit = 128
+        familyFonts.countLimit = 512
+    }
+}
+
+/// Resolves one family override consistently for native and SwiftUI sidebar
+/// renderers. Invalid names deliberately return the platform fallback.
 public enum CmuxFontResolver {
     private static let cache = CmuxFontResolverCache()
 
@@ -47,7 +62,7 @@ public enum CmuxFontResolver {
                   family,
                   size: size,
                   weight: weight,
-                  traits: monospacedDigits ? .fixedPitchFontMask : []
+                  monospacedDigits: monospacedDigits
               ) else {
             return fallback
         }
@@ -78,7 +93,7 @@ public enum CmuxFontResolver {
         _ family: CmuxFontFamily?,
         size: CGFloat,
         weight: NSFont.Weight,
-        traits: NSFontTraitMask = []
+        monospacedDigits: Bool = false
     ) -> NSFont? {
         guard let family else { return nil }
         let familyKey = family.name.lowercased() as NSString
@@ -92,19 +107,37 @@ public enum CmuxFontResolver {
             guard available else { return nil }
         }
 
-        let fontKey = "\(familyKey)|\(size)|\(weight.rawValue)|\(traits.rawValue)" as NSString
+        let fontKey = "\(familyKey)|\(size)|\(weight.rawValue)|\(monospacedDigits)" as NSString
         if let cached = cache.familyFonts.object(forKey: fontKey) {
-            return cached
+            return cached.font
         }
         let source = NSFont.systemFont(ofSize: size, weight: weight)
         let familyResolved = NSFontManager.shared.convert(source, toFamily: family.name)
-        let resolved = traits.isEmpty
-            ? familyResolved
-            : NSFontManager.shared.convert(familyResolved, toHaveTrait: traits)
-        guard resolved.familyName?.caseInsensitiveCompare(family.name) == .orderedSame else {
-            return nil
+        let resolved: NSFont?
+        if familyResolved.familyName?.caseInsensitiveCompare(family.name) != .orderedSame {
+            resolved = nil
+        } else if monospacedDigits {
+            resolved = fontWithMonospacedDigits(familyResolved, size: size)
+        } else {
+            resolved = familyResolved
         }
-        cache.familyFonts.setObject(resolved, forKey: fontKey)
+        cache.familyFonts.setObject(CmuxCachedFont(resolved), forKey: fontKey)
+        return resolved
+    }
+
+    private static func fontWithMonospacedDigits(_ font: NSFont, size: CGFloat) -> NSFont? {
+        let descriptor = font.fontDescriptor.addingAttributes([
+            .featureSettings: [[
+                NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
+                NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector,
+            ]],
+        ])
+        guard let resolved = NSFont(descriptor: descriptor, size: size) else { return nil }
+        let zeroWidth = ("0" as NSString).size(withAttributes: [.font: resolved]).width
+        guard "123456789".allSatisfy({ digit in
+            let width = (String(digit) as NSString).size(withAttributes: [.font: resolved]).width
+            return abs(width - zeroWidth) < 0.01
+        }) else { return nil }
         return resolved
     }
 }

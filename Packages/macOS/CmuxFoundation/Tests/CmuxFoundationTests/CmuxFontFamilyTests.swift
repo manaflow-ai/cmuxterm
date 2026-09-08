@@ -39,4 +39,11 @@ struct CmuxFontFamilyTests {
         #expect(font.pointSize == 13)
         #expect(font.familyName?.caseInsensitiveCompare("cmux-font-family-that-is-not-installed") != .orderedSame)
     }
+
+    @Test("An explicit family overrides the default metadata font design")
+    func explicitFamilyOverridesDefaultMonospaceDesign() {
+        let font = CmuxFontResolver.appKitFont(family: "Georgia", size: 13, monospaced: true)
+
+        #expect(font.familyName == "Georgia")
+    }
 }
