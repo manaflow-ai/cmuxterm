@@ -4977,7 +4977,7 @@ struct CMUXCLI {
         return parts.joined(separator: " · ")
     }
 
-    private static let claudeCodeStatusKey = "claude_code"
+    static let claudeCodeStatusKey = "claude_code"
 
     private static func agentNotificationMeta(
         category: AgentHookNotifyCategory,
@@ -28339,6 +28339,8 @@ struct CMUXCLI {
                     surfaceId: nil,
                     unattributedReason: "target-unresolved",
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionStart",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28420,6 +28422,8 @@ struct CMUXCLI {
                     isSubagent: suppressVisibleMutations,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionStart",
                     detail: isClearSessionStart ? "clear-session-start" : nil,
+                    attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                    occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28501,6 +28505,8 @@ struct CMUXCLI {
                         surfaceId: nil,
                         unattributedReason: "target-unresolved",
                         nativeEvent: reportedHookEventName(from: parsedInput) ?? "Stop",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                         store: sessionStore,
                         telemetry: telemetry
                     )
@@ -28559,6 +28565,8 @@ struct CMUXCLI {
                         surfaceId: surfaceId,
                         nativeEvent: reportedHookEventName(from: parsedInput) ?? "Stop",
                         detail: "superseded-stale",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                         store: sessionStore,
                         telemetry: telemetry
                     )
@@ -28579,6 +28587,8 @@ struct CMUXCLI {
                         isSubagent: true,
                         pendingWork: hasActiveClaudeBackgroundWork(parsedInput),
                         nativeEvent: reportedHookEventName(from: parsedInput) ?? "Stop",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                         store: sessionStore,
                         telemetry: telemetry
                     )
@@ -28591,6 +28601,8 @@ struct CMUXCLI {
                 // the ~60s-later idle_prompt Notification can consult it, and forwarded
                 // to the app so it can suppress the done-ping until work truly drains.
                 let hasPendingBackgroundWork = hasActiveClaudeBackgroundWork(parsedInput)
+                let hasUnsettledWork = hasPendingBackgroundWork
+                    || parsedInput.rawObject?["stop_hook_active"] as? Bool == true
 
                 // Update session with transcript summary and send completion notification.
                 let completion = summarizeClaudeHookStop(
@@ -28608,7 +28620,7 @@ struct CMUXCLI {
                         // Pending background work keeps the pane out of the
                         // hibernatable .idle state so the planner cannot SIGTERM
                         // a live task (mirrors the antigravity fullyIdle flip).
-                        agentLifecycle: hasPendingBackgroundWork ? .running : .idle,
+                        agentLifecycle: hasUnsettledWork ? .running : .idle,
                         hookEventName: reportedHookEventName(from: parsedInput) ?? "Stop",
                         lastSubtitle: completion?.subtitle,
                         lastBody: completion?.body,
@@ -28640,12 +28652,14 @@ struct CMUXCLI {
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
                     isSubagent: isNestedAgentSession,
-                    pendingWork: hasPendingBackgroundWork,
+                    pendingWork: hasUnsettledWork,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "Stop",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
-                if hasPendingBackgroundWork {
+                if hasUnsettledWork {
                     // The turn ended but a background task or scheduled wakeup is
                     // still live, so the pane is not idle — show it as still
                     // running rather than the misleading "Idle". Reuse the shared
@@ -28678,12 +28692,15 @@ struct CMUXCLI {
                         subtitle: completion.subtitle,
                         body: completion.body,
                         meta: AgentHookNotifyCategory.turnComplete.metaSegment(
-                            pending: hasPendingBackgroundWork,
+                            pending: hasUnsettledWork,
                             agentID: "claude",
                             isSubagent: isNestedAgentSession
                         )
                     )
-                    _ = try? sendV1Command("notify_target_async \(workspaceId) \(surfaceId) \(payload)", client: client)
+                    _ = try? sendV1Command(try semanticNotificationCommand(source: "claude", agentKey: Self.claudeCodeStatusKey,
+                        sessionId: parsedInput.sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
+                        kind: .turnCompleted, rawObject: parsedInput.rawObject, payload: payload,
+                        pendingWork: hasUnsettledWork), client: client)
                 }
                 printClaudeHookAck()
             } catch {
@@ -28715,6 +28732,8 @@ struct CMUXCLI {
                     surfaceId: nil,
                     unattributedReason: "target-unresolved",
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "UserPromptSubmit",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28757,6 +28776,8 @@ struct CMUXCLI {
                     surfaceId: surfaceId,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "UserPromptSubmit",
                     detail: "superseded-stale",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28775,6 +28796,8 @@ struct CMUXCLI {
                     surfaceId: surfaceId,
                     isSubagent: true,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "UserPromptSubmit",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28822,7 +28845,6 @@ struct CMUXCLI {
                         ?? mappedSession?.lastPermissionMode
                 )
             }
-            _ = try sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
             emitAgentJournalEvent(
                 client: client,
                 kind: .turnStarted,
@@ -28832,6 +28854,8 @@ struct CMUXCLI {
                 workspaceId: workspaceId,
                 surfaceId: surfaceId,
                 nativeEvent: reportedHookEventName(from: parsedInput) ?? "UserPromptSubmit",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                 store: sessionStore,
                 telemetry: telemetry
             )
@@ -28913,6 +28937,8 @@ struct CMUXCLI {
                     surfaceId: nil,
                     unattributedReason: "target-unresolved",
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "Notification",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28953,6 +28979,8 @@ struct CMUXCLI {
                     surfaceId: surfaceId,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "Notification",
                     detail: "superseded-stale",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -28971,6 +28999,8 @@ struct CMUXCLI {
                     surfaceId: surfaceId,
                     isSubagent: true,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "Notification",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -29051,7 +29081,7 @@ struct CMUXCLI {
             // `errorStalled` context and silently lose the sound override.
             let payload = notificationPayload(
                 title: title,
-                subtitle: summary.subtitle,
+                subtitle: localizedClaudeNotificationSubtitle(summary.subtitle),
                 body: summary.body,
                 meta: Self.agentNotificationMeta(
                     category: notifyCategory,
@@ -29071,7 +29101,7 @@ struct CMUXCLI {
             case "permission_prompt":
                 journalKind = .approvalRequested
             case "idle_prompt":
-                journalKind = suppressNeedsInputState ? .stateChanged : .questionRequested
+                journalKind = .idleObserved
             default:
                 switch classifiedSubtitle {
                 case "Permission":
@@ -29083,7 +29113,7 @@ struct CMUXCLI {
                 case "Error":
                     journalKind = .errorReported
                 default:
-                    journalKind = summary.body.isEmpty ? .stateChanged : .questionRequested
+                    journalKind = .stateChanged
                 }
             }
             emitAgentJournalEvent(
@@ -29097,6 +29127,8 @@ struct CMUXCLI {
                 isSubagent: isNestedAgentSession,
                 pendingWork: notifyPending,
                 nativeEvent: reportedHookEventName(from: parsedInput) ?? "Notification",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                 store: sessionStore,
                 telemetry: telemetry
             )
@@ -29129,7 +29161,7 @@ struct CMUXCLI {
                     client: client,
                     workspaceId: workspaceId,
                     surfaceId: surfaceId,
-                    value: "Needs input",
+                    value: String(localized: "feed.status.needsInput", defaultValue: "Needs input"),
                     icon: "bell.fill",
                     color: "#4C8DFF", pid: claudePid
                 )
@@ -29137,7 +29169,10 @@ struct CMUXCLI {
             // A notification with nothing to show is state signal only: the
             // journal recorded it; no banner is fabricated for it.
             if !summary.body.isEmpty {
-                _ = try sendV1Command("notify_target_async \(workspaceId) \(surfaceId) \(payload)", client: client)
+                _ = try sendV1Command(try semanticNotificationCommand(source: "claude", agentKey: Self.claudeCodeStatusKey,
+                    sessionId: parsedInput.sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
+                    kind: journalKind, rawObject: parsedInput.rawObject, payload: payload,
+                    pendingWork: notifyPending), client: client)
             }
             printClaudeHookAck()
         case "push-notification": try runClaudePushNotificationHook(client: client, telemetry: telemetry, parsedInput: parsedInput, sessionStore: sessionStore, routing: hookRouting, markFeedTelemetryHandled: { didSendFeedTelemetry = true }, sendFeedTelemetry: sendClaudeFeedTelemetry)
@@ -29223,6 +29258,8 @@ struct CMUXCLI {
                     surfaceId: nil,
                     unattributedReason: "target-unresolved",
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionEnd",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -29261,6 +29298,8 @@ struct CMUXCLI {
                     workspaceId: workspaceId,
                     surfaceId: cleanupSurfaceId,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "SessionEnd",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -29458,6 +29497,8 @@ struct CMUXCLI {
                     surfaceId: existingSurfaceId,
                     isSubagent: isNestedAgentSession,
                     nativeEvent: reportedHookEventName(from: parsedInput) ?? "PreToolUse",
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                     store: sessionStore,
                     telemetry: telemetry
                 )
@@ -29504,7 +29545,10 @@ struct CMUXCLI {
                         )
                     )
                     _ = try? sendV1Command(
-                        "notify_target_async \(workspaceId) \(existingSurfaceId) \(payload)",
+                        try semanticNotificationCommand(source: "claude", agentKey: Self.claudeCodeStatusKey,
+                            sessionId: sessionId, workspaceId: workspaceId, surfaceId: existingSurfaceId,
+                            kind: toolName == "AskUserQuestion" ? .questionRequested : .planReviewRequested,
+                            rawObject: parsedInput.rawObject, payload: payload),
                         client: client
                     )
                 }
@@ -29524,10 +29568,9 @@ struct CMUXCLI {
                     updateLastSummary: true
                 )
             }
-            _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
             emitAgentJournalEvent(
                 client: client,
-                kind: .turnStarted,
+                kind: .stateChanged,
                 source: "claude",
                 agentKey: Self.claudeCodeStatusKey,
                 sessionId: parsedInput.sessionId,
@@ -29535,6 +29578,9 @@ struct CMUXCLI {
                 surfaceId: surfaceId,
                 isSubagent: isNestedAgentSession,
                 nativeEvent: reportedHookEventName(from: parsedInput) ?? "PreToolUse",
+                declaredPhase: .running,
+                        attention: Self.semanticAttentionContext(parsedInput.rawObject),
+                        occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                 store: sessionStore,
                 telemetry: telemetry
             )
@@ -31660,36 +31706,6 @@ struct CMUXCLI {
             return joined.isEmpty ? nil : joined
         }
         return nil
-    }
-
-    private func summarizeClaudeHookNotification(parsedInput: ClaudeHookParsedInput) -> (subtitle: String, body: String) {
-        guard let object = parsedInput.object else {
-            if let fallback = parsedInput.rawFallback, !fallback.isEmpty {
-                return classifyClaudeNotification(signal: fallback, message: fallback)
-            }
-            // No payload at all: nothing to say. An empty body tells the
-            // caller to reuse the stored session summary or skip the banner —
-            // never to fabricate a needs-attention message.
-            return ("Waiting", "")
-        }
-
-        let nested = (object["notification"] as? [String: Any]) ?? (object["data"] as? [String: Any]) ?? [:]
-        let signalParts = [
-            firstString(in: object, keys: ["event", "event_name", "hook_event_name", "type", "kind"]),
-            firstString(in: object, keys: ["notification_type", "matcher", "reason"]),
-            firstString(in: nested, keys: ["type", "kind", "reason"])
-        ]
-        let messageCandidates = [
-            firstString(in: object, keys: ["message", "body", "text", "prompt", "error", "description"]),
-            firstString(in: nested, keys: ["message", "body", "text", "prompt", "error", "description"])
-        ]
-        let message = messageCandidates.compactMap { $0 }.first ?? ""
-        let normalizedMessage = normalizedSingleLine(message)
-        let signal = signalParts.compactMap { $0 }.joined(separator: " ")
-        var classified = classifyClaudeNotification(signal: signal, message: normalizedMessage)
-
-        classified.body = truncate(classified.body, maxLength: 180)
-        return classified
     }
 
     private func summarizeAgentHookNotification(
@@ -35245,6 +35261,8 @@ export default CMUXSessionRestore;
                 nativeEvent: reportedHookEventName(from: input) ?? subcommand,
                 declaredPhase: declaredPhase,
                 detail: detail,
+                attention: Self.semanticAttentionContext(input.rawObject),
+                occurredAtMs: Self.semanticOccurredAtMs(input.rawObject),
                 responseTimeout: responseTimeout,
                 deadline: deadline ?? cursorShellDeadline,
                 store: store,
@@ -35969,9 +35987,15 @@ export default CMUXSessionRestore;
                         meta: pendingMeta,
                         agentMutationGuardEnvelope: shellMutationGuard.socketEnvelope
                     )
-                    sendCursorCriticalCommand(
-                        "notify_target_async \(workspaceId) \(surfaceId) \(pendingPayload)"
-                    )
+                    let remaining = mapped?.pendingCursorShellApprovals?.first {
+                        $0.notificationCorrelationKey == resolution.remainingNotificationCorrelationKey
+                    }
+                    let evidence = remaining?.toolUseId.map { ["tool_use_id": $0] }
+                    if let command = try? semanticNotificationCommand(source: def.name, agentKey: def.statusKey,
+                        sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId,
+                        kind: .approvalRequested, rawObject: evidence, payload: pendingPayload) {
+                        sendCursorCriticalCommand(command)
+                    }
                     return
                 }
 
@@ -37939,10 +37963,12 @@ export default CMUXSessionRestore;
             // An approval response resumes the blocked turn: journal it as the
             // turn running again.
             emitJournal(
-                .turnStarted,
+                .attentionResolved,
                 workspaceId: workspaceId,
                 surfaceId: surfaceId,
                 isSubagent: suppressVisibleMutations,
+                pendingWork: true,
+                declaredPhase: .running,
                 detail: "approval-response"
             )
             if !suppressVisibleMutations {
@@ -40812,11 +40838,34 @@ export default CMUXSessionRestore;
             agentID: source,
             includeAgentContext: true
         ) else { return }
-        _ = try? activeClient.send(
-            command: attentionLine,
-            responseTimeout: remainingBudget(),
-            deadline: deadline
-        )
+        let evidence = Self.semanticAttentionContext(eventDict)
+        if classification.clearsNativeApprovalPrompt {
+            guard evidence.requestIdentity != nil,
+                  let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
+                  let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }
+            emitAgentJournalEvent(client: activeClient, kind: .attentionResolved,
+                source: source, agentKey: Self.agentDef(named: source)?.statusKey ?? source,
+                sessionId: FeedWorkstreamIdentifier(rawValue: eventDict["session_id"] as? String ?? "")?.sessionID,
+                workspaceId: workspaceID, surfaceId: surfaceID,
+                nativeEvent: eventDict["hook_event_name"] as? String, declaredPhase: .running,
+                attention: evidence, occurredAtMs: Self.semanticOccurredAtMs(eventDict),
+                responseTimeout: remainingBudget(), deadline: deadline)
+            return
+        }
+        let command: String
+        if classification.notifiesNativeApprovalPrompt {
+            let fields = attentionLine.split(separator: " ", maxSplits: 3).map(String.init)
+            guard fields.count == 4,
+                  let candidate = try? semanticNotificationCommand(source: source,
+                    agentKey: Self.agentDef(named: source)?.statusKey ?? source,
+                    sessionId: FeedWorkstreamIdentifier(rawValue: eventDict["session_id"] as? String ?? "")?.sessionID,
+                    workspaceId: fields[1], surfaceId: fields[2], kind: .approvalRequested,
+                    rawObject: eventDict, payload: fields[3]) else { return }
+            command = candidate
+        } else {
+            command = attentionLine
+        }
+        _ = try? activeClient.send(command: command, responseTimeout: remainingBudget(), deadline: deadline)
     }
 
     /// The `{surface_id}` live-pane probe backing
@@ -41230,10 +41279,16 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
+        let causalEvidence = Self.semanticAttentionContext(stdinObj)
         let requestId = stdinObj["_opencode_request_id"] as? String
-            ?? firstString(in: stdinObj, keys: ["request_id", "tool_use_id", "toolUseID"])
-            ?? "\(source)-\(sessionId)-\(rawEvent)-\(toolName)-\(Int(Date().timeIntervalSince1970 * 1000))"
+            ?? causalEvidence.requestIdentity.map { "\(workstreamID):\(Data($0.utf8).base64EncodedString())" }
+            ?? UUID().uuidString
         eventDict["_opencode_request_id"] = requestId
+        if let value = causalEvidence.eventIdentity { eventDict["event_id"] = value }
+        if let value = causalEvidence.turnIdentity { eventDict["turn_id"] = value }
+        if let value = causalEvidence.requestIdentity { eventDict["request_id"] = value }
+        if let value = Self.semanticOccurredAtMs(stdinObj) { eventDict["occurred_at_ms"] = value }
+        if let value = firstString(in: stdinObj, keys: ["agent_id", "agentId"]) { eventDict["agent_id"] = value }
 
         // Sync. For actionable events we wait for the user's Feed click;
         // the hook's stdout is then a
