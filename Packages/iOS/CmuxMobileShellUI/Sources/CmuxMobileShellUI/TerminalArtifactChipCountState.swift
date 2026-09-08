@@ -140,12 +140,6 @@ struct TerminalArtifactChipCountState: Sendable {
             return .stale
         }
         inFlight = nil
-        if !scanSucceeded, trailing == nil {
-            // A failed request must not permanently claim this visible count.
-            // Transient relay or RPC errors commonly leave the viewport
-            // unchanged, so the next observation needs to be allowed to retry.
-            lastRequestedLocalCount = nil
-        }
         if let sessionID, sessionID != lastAuthoritativeSessionID {
             // Session identity is generation-independent: any response naming
             // a different session proves the binding changed, even when its
@@ -201,6 +195,14 @@ struct TerminalArtifactChipCountState: Sendable {
                 inFlight = nextRequest
                 return Completion(outcome: outcome, nextRequest: nextRequest)
             }
+        }
+
+        if !scanSucceeded {
+            // A failed request must not permanently claim this visible count.
+            // Transient relay or RPC errors commonly leave the viewport
+            // unchanged, including after a queued count briefly changed and
+            // returned to the original value.
+            lastRequestedLocalCount = nil
         }
 
         guard outcome == .droppedForSurfaceGenerationMismatch,
