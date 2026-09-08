@@ -136,10 +136,11 @@ public final class AgentPromptSubmissionService {
 
         if deliveryInProgressWorkspaces.contains(workspaceID)
             || pendingByWorkspace[workspaceID]?.isEmpty == false {
-            let fifoSurfaceID = request.surfaceID
-                ?? pendingByWorkspace[workspaceID]?.first?.surfaceID
-                ?? inFlightByWorkspace[workspaceID]?.surfaceID
-            guard enqueue(request, surfaceID: fifoSurfaceID) else {
+            // Preserve nil for auto-resolve requests. The target must be
+            // resolved when this request reaches the head of the FIFO; using
+            // an earlier request's surface would pin it to a terminal that
+            // may be removed or replaced before drain runs.
+            guard enqueue(request) else {
                 return Receipt(
                     messageID: messageID,
                     result: .submissionQueueFull(
@@ -152,7 +153,7 @@ public final class AgentPromptSubmissionService {
                 messageID: messageID,
                 result: .queued(
                     workspaceID: workspaceID,
-                    surfaceID: fifoSurfaceID,
+                    surfaceID: request.surfaceID,
                     reason: "workspace_fifo"
                 )
             )
@@ -332,9 +333,7 @@ public final class AgentPromptSubmissionService {
             switch result {
             case .rejectedComposerBusy,
                  .agentBusy,
-                 .agentScopeUnavailable,
-                 .agentNotFound,
-                 .ambiguousAgent:
+                 .agentScopeUnavailable:
                 discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
                 // Target resolution can briefly lose an agent while a cold
                 // or hibernated surface is rebinding. Retain the request;
@@ -399,8 +398,9 @@ public final class AgentPromptSubmissionService {
                 return completed
             default:
                 discardInFlight(messageID: first.messageID, workspaceID: workspaceID)
-                // A permanently missing workspace or surface is terminal for
-                // the retained request; do not retry it forever.
+                // A permanently missing workspace, surface, or agent target
+                // is terminal for the retained request; do not retry it
+                // forever or consume the global pending budget.
                 guard var pending = pendingByWorkspace[workspaceID],
                       pending.first?.messageID == first.messageID else {
                     return completed

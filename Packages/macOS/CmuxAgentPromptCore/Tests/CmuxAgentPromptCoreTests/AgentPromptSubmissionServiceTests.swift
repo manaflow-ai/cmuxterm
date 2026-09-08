@@ -172,6 +172,64 @@ struct AgentPromptSubmissionServiceTests {
     }
 
     @MainActor
+    @Test func workspaceFIFOKeepsAutoResolveRequestsUnpinned() {
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 8)
+        let workspaceID = UUID()
+        let firstSurfaceID = UUID()
+        let secondSurfaceID = UUID()
+        var deliveryAttempts = 0
+        let delivery: AgentPromptSubmissionService.Delivery = { _ in
+            deliveryAttempts += 1
+            if deliveryAttempts == 1 {
+                return .rejectedComposerBusy(
+                    workspaceID: workspaceID,
+                    surfaceID: firstSurfaceID
+                )
+            }
+            return .submitted(
+                workspaceID: workspaceID,
+                surfaceID: secondSurfaceID,
+                queued: false
+            )
+        }
+
+        let first = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: firstSurfaceID,
+            text: "first",
+            delivery: delivery
+        )
+        let second = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: nil,
+            text: "auto-resolve",
+            delivery: delivery
+        )
+
+        #expect(first.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: firstSurfaceID,
+            reason: "human_composer_busy"
+        ))
+        #expect(second.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: nil,
+            reason: "workspace_fifo"
+        ))
+
+        #expect(service.remove(surfaceID: firstSurfaceID).map(\.messageID) == [
+            first.messageID,
+        ])
+        let drained = service.drain(workspaceID: workspaceID)
+        #expect(drained.map(\.messageID) == [second.messageID])
+        #expect(drained.first?.result == .submitted(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            queued: false
+        ))
+    }
+
+    @MainActor
     @Test func zeroConfirmationWindowNeverWedgesLaterSubmissions() {
         let service = AgentPromptSubmissionService(
             maximumPendingRequests: 8,
@@ -340,6 +398,136 @@ struct AgentPromptSubmissionServiceTests {
             workspaceID: workspaceID,
             surfaceID: surfaceID,
             queued: true
+        ))
+        #expect(service.pendingCount == 0)
+    }
+
+    @MainActor
+    @Test func drainDropsAgentNotFoundAndContinuesTheWorkspaceFIFO() {
+        let workspaceID = UUID()
+        let firstSurfaceID = UUID()
+        let secondSurfaceID = UUID()
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 8)
+        var deliveryAttempts = 0
+        let delivery: AgentPromptSubmissionService.Delivery = { _ in
+            deliveryAttempts += 1
+            if deliveryAttempts == 1 {
+                return .agentBusy(
+                    workspaceID: workspaceID,
+                    surfaceID: firstSurfaceID
+                )
+            }
+            if deliveryAttempts == 2 {
+                return .agentNotFound(
+                    workspaceID: workspaceID,
+                    requestedSurfaceID: firstSurfaceID
+                )
+            }
+            return .submitted(
+                workspaceID: workspaceID,
+                surfaceID: secondSurfaceID,
+                queued: false
+            )
+        }
+
+        let first = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: firstSurfaceID,
+            text: "first",
+            delivery: delivery
+        )
+        let second = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: secondSurfaceID,
+            text: "second",
+            delivery: delivery
+        )
+        #expect(first.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: firstSurfaceID,
+            reason: "agent_busy"
+        ))
+        #expect(second.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            reason: "workspace_fifo"
+        ))
+
+        let drained = service.drain(workspaceID: workspaceID)
+        #expect(drained.map(\.messageID) == [first.messageID, second.messageID])
+        #expect(drained.first?.result == .agentNotFound(
+            workspaceID: workspaceID,
+            requestedSurfaceID: firstSurfaceID
+        ))
+        #expect(drained.last?.result == .submitted(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            queued: false
+        ))
+        #expect(service.pendingCount == 0)
+    }
+
+    @MainActor
+    @Test func drainDropsAmbiguousAgentAndReleasesItsQueueEntry() {
+        let workspaceID = UUID()
+        let firstSurfaceID = UUID()
+        let secondSurfaceID = UUID()
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 8)
+        var deliveryAttempts = 0
+        let delivery: AgentPromptSubmissionService.Delivery = { _ in
+            deliveryAttempts += 1
+            if deliveryAttempts == 1 {
+                return .agentBusy(
+                    workspaceID: workspaceID,
+                    surfaceID: firstSurfaceID
+                )
+            }
+            if deliveryAttempts == 2 {
+                return .ambiguousAgent(
+                    workspaceID: workspaceID,
+                    surfaceIDs: [firstSurfaceID, secondSurfaceID]
+                )
+            }
+            return .submitted(
+                workspaceID: workspaceID,
+                surfaceID: secondSurfaceID,
+                queued: false
+            )
+        }
+
+        let first = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: nil,
+            text: "first",
+            delivery: delivery
+        )
+        let second = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: secondSurfaceID,
+            text: "second",
+            delivery: delivery
+        )
+        #expect(first.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: nil,
+            reason: "agent_busy"
+        ))
+        #expect(second.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            reason: "workspace_fifo"
+        ))
+
+        let drained = service.drain(workspaceID: workspaceID)
+        #expect(drained.map(\.messageID) == [first.messageID, second.messageID])
+        #expect(drained.first?.result == .ambiguousAgent(
+            workspaceID: workspaceID,
+            surfaceIDs: [firstSurfaceID, secondSurfaceID]
+        ))
+        #expect(drained.last?.result == .submitted(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            queued: false
         ))
         #expect(service.pendingCount == 0)
     }
