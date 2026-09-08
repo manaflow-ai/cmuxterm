@@ -227,7 +227,8 @@ import Testing
             fileURL: fileURL,
             retention: VaultHistoryRetentionPolicy(
                 maxStoredEvents: 1_000,
-                maxFileBytes: 64 * 1_024 * 1_024,
+                // An externally oversized log still uses a bounded tail read.
+                maxFileBytes: 4_096,
                 maxLoadBytes: 4_096
             )
         )

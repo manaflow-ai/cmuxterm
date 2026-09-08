@@ -10251,7 +10251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         defer {
             if tabManagerFor(windowId: windowId) == nil {
                 vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
-            } else if initialWorkspaceHistoryContext != .bootstrap || sessionWindowSnapshot != nil {
+            } else if initialWorkspaceHistoryContext != .bootstrap {
                 vaultHistoryEventLog?.commitWindowCreation(windowId: windowId)
             }
         }
