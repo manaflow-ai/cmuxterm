@@ -51,9 +51,11 @@ The sanitizer preserves model, sandbox, config, and cwd-related flags. It drops 
 
 ### Claude Code hook writes
 
-The Claude wrapper does not install a catch-all `PreToolUse` hook. Ordinary tool calls therefore stay inside Claude Code and do not launch a cmux hook process or append Feed telemetry. A tool call that produces a `PermissionRequest` still runs the targeted `hooks feed --source claude` bridge and may append one permission event. Other targeted hooks remain for lifecycle changes, `AskUserQuestion`, `ExitPlanMode`, `CronCreate`, and `PushNotification`.
+The Claude wrapper runs a `PreToolUse` hook for each tool call, but cmux does not treat every observation as a new lifecycle transition. When the mapped session is already running and verbose tool status is disabled, an ordinary tool observation is acknowledged without changing status, notifications, Feed, or the session mapping file. A changed permission mode is still persisted for session restore; unchanged permission modes do not rewrite the file.
 
-Legacy wrappers may still invoke `hooks claude pre-tool-use` for ordinary tools. When the session is already running and verbose tool status is disabled, cmux acknowledges that observation without changing status, notifications, Feed, or the session mapping file. Session mappings are rewritten only when their stored state changes.
+The catch-all hook remains necessary: the first ordinary tool after `AskUserQuestion`, `ExitPlanMode`, or a native permission prompt restores Running and clears the attention notification. Lifecycle transitions, blocking prompts, permission requests, `CronCreate`, and `PushNotification` retain their existing behavior. `PermissionRequest` still runs `hooks feed --source claude` and may append a permission event. Opting into verbose tool status also retains per-tool updates and their writes.
+
+This reduces redundant writes, not hook process creation. It does not establish that hook writes caused any endpoint-security detection or guarantee that an EDR product will stop flagging Claude Code.
 
 If endpoint-security policy requires no wrapper-injected Claude hooks, turn off **Settings > Automation > Claude Code Integration** or set:
 

@@ -28853,10 +28853,9 @@ struct CMUXCLI {
 
         case "pre-tool-use":
             telemetry.breadcrumb("claude-hook.pre-tool-use")
-            // Older wrappers installed this command for every tool call. Keep that
-            // compatibility path transition-driven: an ordinary tool observed while
-            // the session is already running has no durable or visible work to do.
-            // Current wrappers invoke this command only for the two blocking tools.
+            // Keep the catch-all transition-driven: the first ordinary tool after
+            // a blocking prompt restores Running; an already-running observation
+            // has no durable or visible work unless verbose status is enabled.
             let toolName = parsedInput.object?["tool_name"] as? String
             let isBlockingNeedsInputTool = toolName == "AskUserQuestion" || toolName == "ExitPlanMode"
             let usesVerboseToolStatus = UserDefaults.standard.bool(forKey: "claudeCodeVerboseStatus")
