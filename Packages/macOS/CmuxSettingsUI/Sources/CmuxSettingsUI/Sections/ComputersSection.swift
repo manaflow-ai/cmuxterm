@@ -88,7 +88,7 @@ public struct ComputersSection: View {
             while !Task.isCancelled {
                 do {
                     try await ContinuousClock().sleep(for: .seconds(30))
-                } catch is CancellationError {
+                } catch {
                     break
                 }
                 guard !Task.isCancelled else { break }
