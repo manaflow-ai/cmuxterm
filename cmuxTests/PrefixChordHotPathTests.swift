@@ -61,7 +61,7 @@ struct PrefixChordHotPathTests {
             allowingAction: { _ in true },
             matching: { action, shortcut, event in
                 guard action == .switchRightSidebarToFiles,
-                      let suffix = shortcut.second else {
+                      let suffix = shortcut.secondStroke else {
                     return false
                 }
                 return suffix.matches(event: event, layoutCharacterProvider: { _, _ in nil })
