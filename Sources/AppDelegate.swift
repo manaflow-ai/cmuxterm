@@ -18656,6 +18656,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let snapshot = browserCaptureShortcutMatcherSnapshot(
             for: preferredMainWindowContextForShortcutRouting(event: event)
         )
+
+        // Configured actions run before built-in actions in the app router.
+        // Preserve that priority here, including collisions with browser
+        // bindings: custom/application actions belong to cmux unless the
+        // separate opt-in capture path has already claimed the event.
+        for entry in snapshot.configuredActions {
+            guard browserCaptureConfiguredEntryMatches(
+                entry,
+                event: event,
+                focusContext: focusContext
+            ) else { continue }
+            guard let action = browserCaptureKeyboardAction(for: entry.action) else {
+                return false
+            }
+            return action.shortcutContext == .browserPanel
+                || action.shortcutContext == .browserOrFilePreviewTextEditor
+        }
+
         for entry in snapshot.actions {
             guard entry.action.shortcutContext == .browserPanel
                     || entry.action.shortcutContext == .browserOrFilePreviewTextEditor,
@@ -18667,15 +18685,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                   ) else {
                 continue
             }
-            return true
-        }
-
-        for entry in snapshot.configuredActions {
-            guard browserCaptureConfiguredEntryMatches(
-                entry,
-                event: event,
-                focusContext: focusContext
-            ) else { continue }
             return true
         }
 
