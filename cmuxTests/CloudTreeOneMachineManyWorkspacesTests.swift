@@ -409,7 +409,7 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         )
         let legacyRow = try #require(rows(legacy).first { $0.id == "machine:brave-otter/ws/ws_main" })
         #expect(legacyRow.children.compactMap(terminalKey) == ["term_1", "term_2"])
-        #expect(legacyRow.children.allSatisfy(\.children.isEmpty))
+        #expect(legacyRow.children.allSatisfy { $0.children.isEmpty })
     }
 
     @Test("The CLI shows a pane's hidden tabs indented beneath the tab the pane shows")
