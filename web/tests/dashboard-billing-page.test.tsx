@@ -267,6 +267,7 @@ describe("dashboard billing page", () => {
       [],
       [],
       [],
+      [], // Personal Founder backing is queried independently of the override.
       [
         stripeSubscriptionRow({
           cancelAtPeriodEnd: false,

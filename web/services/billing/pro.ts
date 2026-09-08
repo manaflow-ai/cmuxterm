@@ -85,9 +85,10 @@ export type ProMetadataCustomer = {
 };
 
 /**
- * Writes `cmuxPlan: "pro"` into the user's clientReadOnlyMetadata when Pro is
- * active, and removes it when Pro lapsed. Returns the normalized metadata
- * snapshot that was written or observed.
+ * Mirrors billing-backed Pro access (recurring or durable Founder rows) in
+ * `cmuxPlan`, and removes stale paid mirrors when that backing lapses. Operator
+ * grants live independently in `cmuxVmPlan`, which is never changed here.
+ * Returns the normalized metadata snapshot that was written or observed.
  */
 export async function syncProPlanMetadata(
   user: ProMetadataCustomer,
@@ -100,11 +101,6 @@ export async function syncProPlanMetadata(
       ? { ...(raw as Record<string, unknown>) }
       : {};
   if (metadata.cmuxAccountDeleting === true) {
-    return metadata as ProMetadataJson;
-  }
-  // A Founder entitlement is permanent. Keep its marker intact when Stripe
-  // lifecycle events reconcile the ordinary `cmuxPlan` key.
-  if (hasFounderEditionEntitlement(metadata)) {
     return metadata as ProMetadataJson;
   }
   const current = metadata.cmuxPlan;
@@ -239,7 +235,7 @@ export function hasManualVmPlanOverride(raw: unknown): boolean {
 /**
  * Read-time reconciliation: compares the `cmuxPlan` metadata against the
  * actual Stripe Pro subscription state and syncs it in either direction.
- * Skipped when a manual `cmuxVmPlan` override or Founder marker is set.
+ * Independent operator grants are preserved, but cannot back the billing mirror.
  */
 export async function reconcileProPlanMetadata(
   user: ProReconcileUser,
@@ -254,10 +250,6 @@ export async function reconcileProPlanMetadata(
     raw && typeof raw === "object" && !Array.isArray(raw)
       ? (raw as Record<string, unknown>)
       : {};
-  if (hasManualVmOverride(metadata) || hasFounderEditionEntitlement(metadata)) {
-    return false;
-  }
-
   if (!user.id) return false;
   let isPro = false;
   let hasFounderSubscription = false;
@@ -343,7 +335,7 @@ export async function resolveProPlanStatus(
       )
     : null;
   let hasActiveStripeSubscription = false;
-  let hasActiveFounderSubscription = metadataFounderEntitlement;
+  let hasActiveFounderSubscription = false;
   if (user.id) {
     if (options.hasActiveStripeSubscription) {
       hasActiveStripeSubscription = await options.hasActiveStripeSubscription(user.id);
@@ -399,7 +391,6 @@ export async function resolveProPlanStatus(
 
   if (
     user.id &&
-    !hasManualVmPlanOverride &&
     proMirrorNeedsReconcile(metadataEntitlementPro, metadataPlanId)
   ) {
     metadataChanged = await reconcileProMetadataIfAvailable(
@@ -481,8 +472,6 @@ async function reconcileFreshProMetadata(
   const metadata = proMetadataRecord(user.clientReadOnlyMetadata);
   if (
     metadata.cmuxAccountDeleting === true ||
-    hasManualVmOverride(metadata) ||
-    hasFounderEditionEntitlement(metadata) ||
     !proMirrorNeedsReconcile(isPro, planIdFromMetadata(metadata))
   ) {
     return false;

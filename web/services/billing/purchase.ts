@@ -2152,21 +2152,24 @@ export async function applySubscriptionUpdate(
     stackApp: dependencies.stackApp ?? getStackServerApp(),
     sync: async (freshUser, mutationLease) => {
       // A recurring Pro cancellation must not clear the shared metadata marker
-      // while a separate paid Founder row still grants permanent access.
+      // while a separate paid Founder row still backs it. An operator grant
+      // protects effective access independently, not this billing mirror.
+      const founderSubscriptionActive = !isActive &&
+        await hasActiveFounderSubscription(db, lockedResult.stackUserId);
       const founderEntitlementActive = !isActive &&
         hasEffectiveFounderEntitlement(
           freshUser.clientReadOnlyMetadata,
-          await hasActiveFounderSubscription(db, lockedResult.stackUserId),
+          founderSubscriptionActive,
         );
       effectiveIsActive = isActive || founderEntitlementActive;
       const currentMetadata = await syncProPlanMetadata(
         freshUser,
-        effectiveIsActive,
+        isActive || founderSubscriptionActive,
         mutationLease,
       );
       // An independent paid operator grant keeps TestFlight access, but must
       // not keep the lapsed Stripe mirror alive after that grant is removed.
-      if (!normalizePersonalPlan(currentMetadata, effectiveIsActive).isPro) {
+      if (!normalizePersonalPlan(currentMetadata, isActive, founderSubscriptionActive).isPro) {
         await removeUserFromTestflightOnLapse(
           freshUser,
           lockedResult.stackUserId,
