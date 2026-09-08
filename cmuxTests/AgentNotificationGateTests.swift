@@ -546,6 +546,35 @@ import Testing
         #expect(fixture.clears.count == (repeatSource ? 1 : 0))
     }
 
+    @Test(arguments: [false, true])
+    func completionFallbackOnlyResolvesUnambiguousDerivedRequests(ambiguous: Bool) {
+        let fixture = Fixture()
+        for _ in 0..<(ambiguous ? 2 : 1) {
+            fixture.coordinator.stage(workspaceID: Self.workspaceID, surfaceID: Self.surfaceID,
+                title: "Codex", subtitle: "Permission", body: "derived request", approvalID: Self.firstApprovalID,
+                isDerived: true)
+        }
+        fixture.coordinator.resolve(surfaceID: Self.surfaceID, approvalID: Self.secondApprovalID,
+            fallbackApprovalID: Self.firstApprovalID)
+        fixture.scheduler.advance(by: 0.2)
+        #expect(fixture.deliveries.count == (ambiguous ? 1 : 0))
+    }
+
+    @Test func nativeCompletionDoesNotClearAnotherDerivedCandidate() {
+        let fixture = Fixture()
+        fixture.coordinator.stage(workspaceID: Self.workspaceID, surfaceID: Self.surfaceID,
+            title: "Codex", subtitle: "Permission", body: "derived request", approvalID: Self.firstApprovalID,
+            isDerived: true)
+        fixture.coordinator.stage(workspaceID: Self.workspaceID, surfaceID: Self.surfaceID,
+            title: "Codex", subtitle: "Permission", body: "native request", approvalID: Self.secondApprovalID)
+        fixture.coordinator.resolve(surfaceID: Self.surfaceID, approvalID: Self.secondApprovalID,
+            fallbackApprovalID: Self.firstApprovalID)
+        fixture.coordinator.resolve(surfaceID: Self.surfaceID, approvalID: Self.secondApprovalID,
+            fallbackApprovalID: Self.firstApprovalID)
+        fixture.scheduler.advance(by: 0.2)
+        #expect(fixture.deliveries.map(\.body) == ["derived request"])
+    }
+
     @Test func duplicateApprovalSignalsRequireScopeResolution() {
         let fixture = Fixture()
 

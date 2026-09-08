@@ -480,7 +480,7 @@ struct FeedEventClassifier {
         }
         if classification.clearsNativeApprovalPrompt {
             if let approvalIdentity {
-                return "clear_notifications --tab=\(workspaceUUID.uuidString) --panel=\(surfaceUUID.uuidString) --approval-id=\(approvalIdentity.approvalID)"
+                return "clear_notifications --tab=\(workspaceUUID.uuidString) --panel=\(surfaceUUID.uuidString) \(approvalIdentity.resolutionOptions)"
             }
             // Legacy non-Codex producers have no exact approval identity and
             // historically clear their own pane-scoped prompt.

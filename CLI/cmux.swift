@@ -34331,7 +34331,7 @@ export default CMUXSessionRestore;
                 nativeEvent: reportedHookEventName(from: input) ?? subcommand,
                 declaredPhase: declaredPhase,
                 detail: detail,
-                attention: Self.semanticAttentionContext(input.rawObject),
+                attention: Self.semanticAttentionContext(input.rawObject, source: def.name),
                 occurredAtMs: Self.semanticOccurredAtMs(input.rawObject),
                 responseTimeout: responseTimeout,
                 deadline: deadline ?? cursorShellDeadline,
@@ -37096,7 +37096,7 @@ export default CMUXSessionRestore;
                     // blocked child processes. The synchronous feed lane has
                     // its own longer acknowledgement budget.
                     _ = try? client.send(
-                        command: "clear_notifications --tab=\(target.workspaceId)\(socketPanelOption(target.surfaceId)) --approval-id=\(approvalIdentity.approvalID)",
+                        command: "clear_notifications --tab=\(target.workspaceId)\(socketPanelOption(target.surfaceId)) \(approvalIdentity.resolutionOptions)",
                         responseTimeout: Self.codexApprovalResolutionResponseTimeoutSeconds
                     )
                 }
@@ -39283,7 +39283,7 @@ export default CMUXSessionRestore;
             source: source,
             approvalIdentity: approvalIdentity
         ) else { return }
-        let evidence = Self.semanticAttentionContext(eventDict)
+        let evidence = Self.semanticAttentionContext(eventDict, source: source)
         if classification.clearsNativeApprovalPrompt {
             if source == "codex", approvalIdentity != nil {
                 _ = try? activeClient.send(command: attentionLine,
@@ -39776,7 +39776,7 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
-        let causalEvidence = Self.semanticAttentionContext(stdinObj)
+        let causalEvidence = Self.semanticAttentionContext(stdinObj, source: source)
         let requestId = stdinObj["_opencode_request_id"] as? String
             ?? causalEvidence.requestIdentity.map { "\(workstreamID):\(Data($0.utf8).base64EncodedString())" }
             ?? UUID().uuidString

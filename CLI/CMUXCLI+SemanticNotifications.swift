@@ -13,9 +13,9 @@ extension CMUXCLI {
         guard fields.count >= 3 else { throw CLIError(message: String(localized: "cli.notification.invalidPayload", defaultValue: "Invalid notification payload")) }
         let meta = fields.count > 3 ? fields[3].split(separator: ";").map(String.init) : []
         if source == "codex", kind == .approvalRequested,
-           Self.semanticAttentionContext(rawObject).requestIdentity == nil,
-           let approval = CodexApprovalNotificationIdentity.make(rawObject: rawObject, fallbackSessionID: sessionId),
-           meta.contains("a=\(approval.approvalID)") {
+           Self.semanticAttentionContext(rawObject, source: source).requestIdentity == nil,
+           let approval = meta.first(where: { $0.hasPrefix("a=") }),
+           approval.range(of: "^a=[0-9a-f]{24}\\.[0-9a-f]{24}$", options: .regularExpression) != nil {
             return "notify_target_async \(workspaceId) \(surfaceId) \(payload)"
         }
         let category = meta.first { $0.hasPrefix("c=") }.map { String($0.dropFirst(2)) }
@@ -32,7 +32,7 @@ extension CMUXCLI {
         kind: AgentJournalEventKind, rawObject: [String: Any]?, notification: AgentJournalNotification,
         pendingWork: Bool = false, isSubagent: Bool = false
     ) throws -> String {
-        var context = Self.semanticAttentionContext(rawObject)
+        var context = Self.semanticAttentionContext(rawObject, source: source)
         var notification = notification
         switch kind {
         case .errorReported, .messagePublished: notification.category = "other"
@@ -53,7 +53,7 @@ extension CMUXCLI {
         return "agent_journal_append \(String(decoding: data, as: UTF8.self))"
     }
 
-    static func semanticAttentionContext(_ object: [String: Any]?) -> AgentAttentionContext {
+    static func semanticAttentionContext(_ object: [String: Any]?, source: String? = nil) -> AgentAttentionContext {
         func identifier(_ keys: [String]) -> String? {
             for key in keys {
                 if let value = object?[key] as? String, !value.isEmpty { return value }
@@ -65,7 +65,8 @@ extension CMUXCLI {
         return AgentAttentionContext(
             eventIdentity: identifier(["event_id", "eventId", "message_id", "uuid"]),
             turnIdentity: identifier(["turn_id", "turnId"]),
-            requestIdentity: identifier(["tool_use_id", "toolUseId", "toolUseID", "tool_call_id", "toolCallId", "request_id", "requestId"]))
+            requestIdentity: (source == "codex" ? CodexApprovalNotificationIdentity.nativeRequestID(in: object) : nil)
+                ?? identifier(["tool_use_id", "toolUseId", "toolUseID", "tool_call_id", "toolCallId", "request_id", "requestId"]))
     }
 
     static func semanticOccurredAtMs(_ object: [String: Any]?) -> Int64? {

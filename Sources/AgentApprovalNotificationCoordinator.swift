@@ -219,13 +219,22 @@ final class AgentApprovalNotificationCoordinator {
         scheduleNextFlush(surfaceID: surfaceID, timestamp: timestamp)
     }
 
-    func resolve(surfaceID: UUID, approvalID: AgentApprovalCorrelationID) {
+    func resolve(surfaceID: UUID, approvalID: AgentApprovalCorrelationID, fallbackApprovalID: AgentApprovalCorrelationID? = nil) {
         let timestamp = now()
         pruneTombstones(at: timestamp)
         prunePanes(at: timestamp)
+        let exactKey = ResolutionKey(surfaceID: surfaceID, value: approvalID.rawValue)
+        let alreadyResolved = exactResolutionTombstones[exactKey] != nil
         exactResolutionTombstones[
-            ResolutionKey(surfaceID: surfaceID, value: approvalID.rawValue)
+            exactKey
         ] = timestamp + tombstoneLifetime
+        if !alreadyResolved, panes[surfaceID]?.candidates[approvalID.rawValue] == nil,
+           let fallbackApprovalID, fallbackApprovalID != approvalID,
+           fallbackApprovalID.scope == approvalID.scope,
+           panes[surfaceID]?.candidates[fallbackApprovalID.rawValue]?.isDerived != false {
+            resolve(surfaceID: surfaceID, approvalID: fallbackApprovalID)
+            return
+        }
         guard var state = panes[surfaceID] else { return }
         if state.ambiguousApprovalIDs.contains(approvalID.rawValue) {
             // The provider did not give us enough information to know which

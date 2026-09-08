@@ -180,11 +180,25 @@ struct CodexApprovalNotificationIdentity: Equatable, Sendable {
     /// false, repeated identical tuples are treated as ambiguous by the app
     /// coordinator and require a scope-level resolution.
     let isAuthoritative: Bool
+    let fallbackApprovalID: String?
 
-    init(scope: String, approvalID: String, isAuthoritative: Bool = true) {
+    init(scope: String, approvalID: String, isAuthoritative: Bool = true, fallbackApprovalID: String? = nil) {
         self.scope = scope
         self.approvalID = approvalID
         self.isAuthoritative = isAuthoritative
+        self.fallbackApprovalID = fallbackApprovalID
+    }
+
+    var resolutionOptions: String {
+        "--approval-id=\(approvalID)" + (fallbackApprovalID.map { " --approval-fallback-id=\($0)" } ?? "")
+    }
+
+    static func nativeRequestID(in object: [String: Any]?) -> String? {
+        guard let object else { return nil }
+        return firstNonemptyStringDeep(in: object, keys: [
+            "approval_id", "approvalId", "tool_call_id", "toolCallId", "call_id", "callId",
+            "request_id", "requestId", "item_id", "itemId",
+        ])
     }
 
     /// Derives the session/turn scope even when a lifecycle payload has no
@@ -225,23 +239,7 @@ struct CodexApprovalNotificationIdentity: Equatable, Sendable {
         // particular, do not let a canonical input value silently override a
         // `call_id`/`tool_call_id` supplied by the provider: those ids are the
         // only stable discriminator when two calls have identical arguments.
-        let explicitCallID = firstNonemptyStringDeep(
-            in: object,
-            keys: [
-                "approval_id", "approvalId", "tool_call_id", "toolCallId",
-                "call_id", "callId", "request_id", "requestId",
-                "item_id", "itemId", "_opencode_request_id",
-            ]
-        ) ?? toolCall.flatMap {
-            firstNonemptyString(
-                in: $0,
-                keys: [
-                    "approval_id", "approvalId", "tool_call_id", "toolCallId",
-                    "call_id", "callId", "request_id", "requestId",
-                    "item_id", "itemId", "_opencode_request_id",
-                ]
-            )
-        }
+        let explicitCallID = nativeRequestID(in: object)
         let toolInput = firstNestedValue(in: object, keys: ["tool_input", "toolInput"])
             ?? toolCall?["args"]
         // Prefer an explicit provider call id, then the canonical request
@@ -261,7 +259,10 @@ struct CodexApprovalNotificationIdentity: Equatable, Sendable {
         return Self(
             scope: scope,
             approvalID: "\(scope).\(request)",
-            isAuthoritative: explicitCallID != nil
+            isAuthoritative: explicitCallID != nil,
+            fallbackApprovalID: explicitCallID == nil ? nil : canonicalToolInput.map {
+                "\(scope).\(digestPrefix("\(scopeSeed)\ntool=\(toolName)\ninput=\($0)"))"
+            }
         )
     }
 
@@ -440,13 +441,6 @@ struct CodexApprovalNotificationPolicy: Sendable {
         let toolName = firstToolName(in: rawObject)
         if toolName?.lowercased().hasPrefix("mcp__") == true {
             return nil
-        }
-
-        for key in ["thread_settings", "threadSettings", "context"] {
-            if let nested = rawObject[key] as? [String: Any],
-               let route = reviewRoute(in: nested) {
-                return route
-            }
         }
 
         let requestedTurnID = firstStringDeep(

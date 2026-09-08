@@ -1653,6 +1653,10 @@ final class TerminalNotificationStore: ObservableObject {
         var supersededApprovalKeys: [String] = []
         updated.removeAll { existing in
             guard existing.tabId == notification.tabId, existing.surfaceId == notification.surfaceId else { return false }
+            if AgentApprovalNotificationCoordinator.isApprovalCorrelationKey(existing.correlationKey),
+               !AgentApprovalNotificationCoordinator.isApprovalCorrelationKey(notification.correlationKey) {
+                return false
+            }
             if let correlationKey = notification.correlationKey {
                 // Correlated producers (Cursor approvals and other
                 // identity-scoped events) replace only their own prior entry.
@@ -1662,7 +1666,8 @@ final class TerminalNotificationStore: ObservableObject {
             }
             idsToClear.append(existing.id.uuidString)
             if let correlationKey = existing.correlationKey,
-               AgentApprovalNotificationCoordinator.isApprovalCorrelationKey(correlationKey) {
+               AgentApprovalNotificationCoordinator.isApprovalCorrelationKey(correlationKey),
+               correlationKey != notification.correlationKey {
                 supersededApprovalKeys.append(correlationKey)
             }
             return true

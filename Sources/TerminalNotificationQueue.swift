@@ -53,7 +53,7 @@ fileprivate enum TerminalSocketMutation {
     case clearNotificationsForCorrelation(UUID, UUID, String, through: UInt64)
     case clearNotificationCorrelation(QueuedTerminalNotificationKey, String)
     case stageAgentApproval(QueuedAgentApprovalStage, AgentApprovalMutationToken)
-    case resolveAgentApproval(UUID, AgentApprovalCorrelationID, AgentApprovalMutationToken)
+    case resolveAgentApproval(UUID, AgentApprovalCorrelationID, AgentApprovalCorrelationID?, AgentApprovalMutationToken)
     case resolveAgentApprovalScope(UUID, AgentApprovalCorrelationID.Scope, AgentApprovalMutationToken)
     case perform(@MainActor () -> Void)
 }
@@ -285,7 +285,6 @@ final class TerminalMutationBus: @unchecked Sendable {
         // arrives with the new workspace id.
         if let previousWorkspaceID = approvalWorkspaceBySurface[surfaceId],
            previousWorkspaceID != tabId {
-            approvalSurfaceGenerations[surfaceId, default: 0] &+= 1
             approvalWorkspaceGenerations[previousWorkspaceID, default: 0] &+= 1
         }
         approvalWorkspaceBySurface[surfaceId] = tabId
@@ -308,14 +307,15 @@ final class TerminalMutationBus: @unchecked Sendable {
 
     nonisolated func enqueueAgentApprovalResolution(
         surfaceId: UUID,
-        approvalID: AgentApprovalCorrelationID
+        approvalID: AgentApprovalCorrelationID,
+        fallbackApprovalID: AgentApprovalCorrelationID? = nil
     ) {
         lock.lock()
         let token = approvalMutationToken(
             workspaceID: nil,
             surfaceID: surfaceId
         )
-        let shouldScheduleDrain = enqueueApprovalMutationLocked(.resolveAgentApproval(surfaceId, approvalID, token))
+        let shouldScheduleDrain = enqueueApprovalMutationLocked(.resolveAgentApproval(surfaceId, approvalID, fallbackApprovalID, token))
         lock.unlock()
         if shouldScheduleDrain { scheduleDrain() }
     }
@@ -789,11 +789,11 @@ final class TerminalMutationBus: @unchecked Sendable {
                     && !stage.approvalIDIsDerived
             }
             pendingApprovalMutationCount -= beforeCount - pending.count
-        case .resolveAgentApproval(let surfaceID, let approvalID, _):
+        case .resolveAgentApproval(let surfaceID, let approvalID, let fallbackID, _):
             let beforeCount = pending.count
             pending.removeAll { entry in
-                guard case .resolveAgentApproval(let existingSurfaceID, let existingID, _) = entry.mutation else { return false }
-                return existingSurfaceID == surfaceID && existingID == approvalID
+                guard case .resolveAgentApproval(let existingSurfaceID, let existingID, let existingFallbackID, _) = entry.mutation else { return false }
+                return existingSurfaceID == surfaceID && existingID == approvalID && existingFallbackID == fallbackID
             }
             pendingApprovalMutationCount -= beforeCount - pending.count
         case .resolveAgentApprovalScope(let surfaceID, let scope, _):
@@ -1069,14 +1069,6 @@ final class TerminalMutationBus: @unchecked Sendable {
                             surfaceID: notification.key.surfaceId
                         )
                     }
-                } else if delivered {
-                    // Retire ordinary agent state only after the replacement
-                    // was accepted by the live-owner resolver.
-                    if let surfaceID = notification.key.surfaceId {
-                        cancelAgentApproval(surfaceID: surfaceID)
-                    } else {
-                        cancelAgentApprovals(workspaceID: notification.key.tabId)
-                    }
                 }
             case .clearAllNotifications(let boundary):
                 agentApprovalNotifications.cancelAll(clearDelivered: false)
@@ -1152,9 +1144,9 @@ final class TerminalMutationBus: @unchecked Sendable {
                     agent: stage.agent,
                     producerCorrelationKey: stage.producerCorrelationKey
                 )
-            case .resolveAgentApproval(let surfaceID, let approvalID, let token):
+            case .resolveAgentApproval(let surfaceID, let approvalID, let fallbackID, let token):
                 guard approvalTokenIsCurrent(token, workspaceID: nil, surfaceID: surfaceID) else { continue }
-                agentApprovalNotifications.resolve(surfaceID: surfaceID, approvalID: approvalID)
+                agentApprovalNotifications.resolve(surfaceID: surfaceID, approvalID: approvalID, fallbackApprovalID: fallbackID)
                 if !agentApprovalNotifications.hasEpisode(surfaceID: surfaceID) {
                     removeApprovalCorrelationAliases(surfaceID: surfaceID, episodeCorrelationKey: nil)
                 }

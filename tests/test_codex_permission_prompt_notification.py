@@ -106,6 +106,7 @@ def run_feed_hook_capture(
     settle_seconds: float = 0,
     payload: dict | None = None,
     environment: dict[str, str] | None = None,
+    generic_subcommand: str | None = None,
 ) -> tuple[dict, list, float]:
     """Runs `cmux hooks feed --source codex` and returns (stdout JSON,
     ordered received frames, elapsed seconds)."""
@@ -126,18 +127,11 @@ def run_feed_hook_capture(
         method_delays=method_delays,
     ) as fake:
         started = time.monotonic()
+        hook_arguments = ["feed", "--source", "codex", "--event", event]
+        if generic_subcommand is not None:
+            hook_arguments = ["codex", generic_subcommand]
         result = subprocess.run(
-            [
-                cli_path,
-                "--socket",
-                str(socket_path),
-                "hooks",
-                "feed",
-                "--source",
-                "codex",
-                "--event",
-                event,
-            ],
+            [cli_path, "--socket", str(socket_path), "hooks", *hook_arguments],
             input=json.dumps(payload if payload is not None else codex_payload(event)),
             capture_output=True,
             text=True,
@@ -401,6 +395,34 @@ def test_completion_only_tool_use_id_preserves_legacy_settling(cli_path: str, ro
     assert EXPECTED_CLEAR_COMMAND in raw_commands(completion_frames), completion_frames
 
 
+def test_completion_only_call_id_includes_derived_fallback(cli_path: str, root: Path) -> None:
+    payload = codex_payload("PostToolUse")
+    payload["call_id"] = "only-on-completion"
+    _, frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-call-fallback.sock", "PostToolUse", payload=payload,
+    )
+    assert any(f"--approval-fallback-id={EXPECTED_APPROVAL_ID}" in command for command in raw_commands(frames)), frames
+
+
+def test_native_hook_and_feed_share_journal_identity(cli_path: str, root: Path) -> None:
+    state_dir = root / "native-hook-state"
+    state_dir.mkdir()
+    payload = codex_payload("PermissionRequest")
+    payload.pop("tool_use_id")
+    payload["tool_call_id"] = "shared-native-call"
+    _, hook_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-native-hook.sock", "PermissionRequest", payload=payload,
+        generic_subcommand="notification", environment={"CMUX_AGENT_HOOK_STATE_DIR": str(state_dir)},
+    )
+    _, feed_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-native-feed.sock", "PermissionRequest", payload=payload,
+    )
+    for frames in (hook_frames, feed_frames):
+        views = notification_views(frames)
+        assert len(views) == 1 and views[0]["request_identity"] == "shared-native-call", frames
+        assert not any(command.startswith("notify_target_async ") for command in raw_commands(frames)), frames
+
+
 def main() -> int:
     try:
         cli_path = resolve_cmux_cli()
@@ -423,6 +445,8 @@ def main() -> int:
             test_stalled_live_target_probe_does_not_starve_notification(cli_path, root)
             test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path, root)
             test_completion_only_tool_use_id_preserves_legacy_settling(cli_path, root)
+            test_completion_only_call_id_includes_derived_fallback(cli_path, root)
+            test_native_hook_and_feed_share_journal_identity(cli_path, root)
         except Exception as exc:
             print(f"FAIL: {exc}")
             return 1

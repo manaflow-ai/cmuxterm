@@ -13598,6 +13598,17 @@ class TerminalController {
         } else {
             approvalID = nil
         }
+        let fallbackApprovalID: AgentApprovalCorrelationID?
+        if let rawFallbackID = parsed.options["approval-fallback-id"] {
+            guard let approvalID,
+                  let parsedID = AgentApprovalCorrelationID(rawValue: rawFallbackID),
+                  parsedID.scope == approvalID.scope else {
+                return "ERROR: Usage: \(usage)"
+            }
+            fallbackApprovalID = parsedID
+        } else {
+            fallbackApprovalID = nil
+        }
         let approvalScope: AgentApprovalCorrelationID.Scope?
         if let rawApprovalScope = parsed.options["approval-scope"] {
             guard let parsedScope = AgentApprovalCorrelationID.Scope(rawValue: rawApprovalScope) else {
@@ -13631,7 +13642,8 @@ class TerminalController {
                 if let approvalID {
                     TerminalMutationBus.shared.enqueueAgentApprovalResolution(
                         surfaceId: panelId,
-                        approvalID: approvalID
+                        approvalID: approvalID,
+                        fallbackApprovalID: fallbackApprovalID
                     )
                 } else if let approvalScope {
                     TerminalMutationBus.shared.enqueueAgentApprovalResolution(
@@ -13659,7 +13671,8 @@ class TerminalController {
                     if let approvalID {
                         TerminalMutationBus.shared.enqueueAgentApprovalResolution(
                             surfaceId: panelId,
-                            approvalID: approvalID
+                            approvalID: approvalID,
+                            fallbackApprovalID: fallbackApprovalID
                         )
                     } else if let approvalScope {
                         TerminalMutationBus.shared.enqueueAgentApprovalResolution(
