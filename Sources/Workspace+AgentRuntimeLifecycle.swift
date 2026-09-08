@@ -75,6 +75,176 @@ extension Workspace {
     }
 
     @discardableResult
+    func setAgentLifecycle(
+        key: String,
+        panelId: UUID?,
+        lifecycle: AgentHibernationLifecycleState,
+        processGeneration: AgentPIDProcessIdentity? = nil
+    ) -> Bool {
+        let targetPanelId = panelId ?? focusedPanelId
+        guard let targetPanelId, panels[targetPanelId] != nil else { return false }
+        let accepted = sidebarAgentRuntimeObservation.setAgentHookLifecycle(
+            key: key,
+            panelId: targetPanelId,
+            lifecycle: lifecycle,
+            isBuiltIn: AgentHibernationLifecycleStatusKeys(rawValue: key).isAllowed,
+            processGeneration: processGeneration
+        )
+        if accepted,
+           !AgentHibernationLifecycleStatusKeys(rawValue: key).isManual {
+            AgentHibernationController.shared.recordAgentLifecycleChange(
+                workspaceId: id,
+                panelId: targetPanelId
+            )
+        }
+        return accepted
+    }
+
+    func beginAgentFeedAttention(
+        key: String,
+        panelId: UUID,
+        processGeneration: AgentPIDProcessIdentity? = nil
+    ) -> AgentFeedAttentionToken? {
+        guard panels[panelId] != nil else { return nil }
+        let token = sidebarAgentRuntimeObservation.beginAgentFeedAttention(
+            key: key,
+            panelId: panelId,
+            isBuiltIn: AgentHibernationLifecycleStatusKeys(rawValue: key).isAllowed,
+            processGeneration: processGeneration
+        )
+        if token != nil {
+            AgentHibernationController.shared.recordAgentLifecycleChange(
+                workspaceId: id,
+                panelId: panelId
+            )
+        }
+        return token
+    }
+
+    @discardableResult
+    func endAgentFeedAttention(
+        key: String,
+        panelId: UUID,
+        token: AgentFeedAttentionToken
+    ) -> Bool {
+        let ended = sidebarAgentRuntimeObservation.endAgentFeedAttention(
+            key: key,
+            panelId: panelId,
+            token: token
+        )
+        if ended {
+            AgentHibernationController.shared.recordAgentLifecycleChange(
+                workspaceId: id,
+                panelId: panelId
+            )
+        }
+        return ended
+    }
+
+    @discardableResult
+    func recordUnidentifiedAgentProcessExit(
+        key: String,
+        panelId: UUID?
+    ) -> Bool {
+        let targetPanelId = panelId ?? focusedPanelId
+        guard let targetPanelId, panels[targetPanelId] != nil else {
+            return false
+        }
+        let recorded = sidebarAgentRuntimeObservation
+            .recordUnidentifiedAgentProcessExit(
+                key: key,
+                panelId: targetPanelId,
+                isBuiltIn: AgentHibernationLifecycleStatusKeys(rawValue: key).isAllowed
+            )
+        if recorded {
+            AgentHibernationController.shared.recordAgentLifecycleChange(
+                workspaceId: id,
+                panelId: targetPanelId
+            )
+        }
+        return recorded
+    }
+
+    @discardableResult
+    func clearAgentLifecycle(key: String, panelId: UUID? = nil) -> Bool {
+        var didClear = false
+        let recordsHibernationActivity = !AgentHibernationLifecycleStatusKeys(rawValue: key).isManual
+        let panelIds = panelId.map { [$0] } ?? Array(
+            Set(agentLifecycleStatesByPanelId.keys)
+                .union(sidebarAgentRuntimeObservation.agentLifecycleEvidencePanelIds)
+        )
+        for panelId in panelIds {
+            guard sidebarAgentRuntimeObservation.removeAgentHookLifecycle(
+                key: key,
+                panelId: panelId
+            ) else { continue }
+            didClear = true
+            if recordsHibernationActivity {
+                AgentHibernationController.shared.recordAgentLifecycleChange(
+                    workspaceId: id,
+                    panelId: panelId
+                )
+            }
+        }
+        return didClear
+    }
+
+    func hasRunningAgentLifecycle(key: String, panelId: UUID? = nil) -> Bool {
+        if let panelId {
+            return agentLifecycleStatesByPanelId[panelId]?[key] == .running
+        }
+        return agentLifecycleStatesByPanelId.values.contains { $0[key] == .running }
+    }
+
+    func clearAgentLifecycleStates(panelId: UUID) {
+        let removed = agentLifecycleStatesByPanelId[panelId] ?? [:]
+        guard sidebarAgentRuntimeObservation.removeAgentLifecyclePanel(panelId) else {
+            return
+        }
+        let manualStates = removed.filter {
+            AgentHibernationLifecycleStatusKeys(rawValue: $0.key).isManual
+        }
+        if !manualStates.isEmpty {
+            let host: UUID? = if panels[panelId] != nil {
+                panelId
+            } else if let focused = focusedPanelId, focused != panelId, panels[focused] != nil {
+                focused
+            } else {
+                panels.keys.first(where: { $0 != panelId })
+            }
+            if let host {
+                for (key, lifecycle) in manualStates {
+                    _ = sidebarAgentRuntimeObservation.setAgentHookLifecycle(
+                        key: key,
+                        panelId: host,
+                        lifecycle: lifecycle,
+                        isBuiltIn: false
+                    )
+                }
+            }
+        }
+        AgentHibernationController.shared.recordAgentLifecycleChange(
+            workspaceId: id,
+            panelId: panelId
+        )
+    }
+
+    func clearAllAgentLifecycleStates() {
+        let panelIds = Array(
+            Set(agentLifecycleStatesByPanelId.keys)
+                .union(sidebarAgentRuntimeObservation.agentLifecycleEvidencePanelIds)
+        )
+        sidebarAgentRuntimeObservation.removeAllAgentLifecycle()
+        guard !panelIds.isEmpty else { return }
+        for panelId in panelIds {
+            AgentHibernationController.shared.recordAgentLifecycleChange(
+                workspaceId: id,
+                panelId: panelId
+            )
+        }
+    }
+
+    @discardableResult
     func clearAgentPID(
         key: String,
         panelId: UUID? = nil,
