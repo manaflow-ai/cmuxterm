@@ -78,6 +78,33 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         return resource
     }
 
+    /// A terminal shown by one tab of pane `paneID` in `workspace`: `index` is the tab's
+    /// position in that pane, `focused` whether the pane currently shows it.
+    private func tabbedTerminal(
+        _ key: String,
+        title: String = "bash",
+        in workspace: SurfaceRemoteWorkspace,
+        screen screenID: String = "screen_1",
+        pane paneID: String,
+        index: Int,
+        focused: Bool
+    ) -> SurfaceResource {
+        var resource = SurfaceResource(
+            id: SurfaceResourceID(machine: machine, kind: .terminal, key: key), title: title, detail: "/root",
+            lifecycle: .running, agent: nil, remoteWorkspace: workspace, port: nil, url: nil
+        )
+        resource.remoteViews = [SurfaceRemoteView(
+            tabID: "tab_\(key)", workspace: workspace, screenID: screenID, paneID: paneID,
+            name: nil, index: index, focused: focused
+        )]
+        return resource
+    }
+
+    private func terminalKey(_ node: CloudTreeNode) -> String? {
+        if case .terminal(let row) = node.kind { return row.resource.id.key }
+        return nil
+    }
+
     private func display(in workspaces: [SurfaceRemoteWorkspace]) -> SurfaceResource {
         var resource = SurfaceResource(
             id: SurfaceResourceID(machine: machine, kind: .display, key: SurfaceResourceID.desktopDisplayKey), title: "Desktop", detail: nil,
@@ -299,6 +326,39 @@ struct CloudTreeOneMachineManyWorkspacesTests {
             "resource:brave-otter/terminal/term_1",
             "resource:brave-otter/terminal/term_2",
         ], "Terminals lists every terminal once, whatever workspace shows it")
+    }
+
+    /// Regression (https://github.com/manaflow-ai/cmux/issues/12044 follow-up): a pane
+    /// holding several tabs listed every tab as a peer row, so a workspace read
+    /// "3 terminals" while its layout showed one pane. A workspace's rows are its layout:
+    /// one row per pane (the tab the pane shows), the pane's other tabs nested beneath it
+    /// in tab order.
+    @Test("A pane with several tabs is one row: the tab it shows, with its other tabs nested beneath")
+    func hiddenTabsNestUnderTheirPaneRow() throws {
+        let main = workspace("ws_main", "main", index: 0, focused: true)
+        // One pane, three tabs; the daemon shows the middle one.
+        let snapshot = SurfaceCatalogSnapshot(
+            machines: [info(workspaces: [main])],
+            resources: [
+                tabbedTerminal("term_a", in: main, pane: "pane_1", index: 0, focused: false),
+                tabbedTerminal("term_b", in: main, pane: "pane_1", index: 1, focused: true),
+                tabbedTerminal("term_c", in: main, pane: "pane_1", index: 2, focused: false),
+            ],
+            projections: []
+        )
+        let tree = rows(snapshot)
+        let byID = Dictionary(tree.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let workspaceRow = try #require(byID["machine:brave-otter/ws/ws_main"])
+        #expect(workspaceRow.children.compactMap(terminalKey) == ["term_b"], "one pane in the layout, one row: the tab the pane shows")
+        let paneRow = try #require(workspaceRow.children.first)
+        #expect(paneRow.children.compactMap(terminalKey) == ["term_a", "term_c"], "the pane's other tabs nest beneath it, in tab order")
+        guard case .workspace(_, _, let count, _) = workspaceRow.kind else {
+            Issue.record("expected the workspace row"); return
+        }
+        #expect(count == 1, "the count is what the layout shows")
+        // Every terminal keeps its one pool row, whatever pane or tab shows it.
+        let pool = try #require(tree.first { $0.structureTag == "terminalsPool" })
+        #expect(pool.children.compactMap(terminalKey) == ["term_a", "term_b", "term_c"])
     }
 
     @Test("A terminal that left a workspace's layout leaves its folder; Terminals still lists it, greyed as detached")
