@@ -141,6 +141,16 @@ Agents started with `vm agent` authenticate inside the machine the way they woul
 
 ## Guest auth and CodeRouter
 
+Run `cmux self` first. The guest `cmux` command answers only two questions, through
+the machine's TLS edge (no account token lives in the VM):
+
+```bash
+cmux self [--json]     # this machine: name, id, status, team, machine count
+cmux vm ls [--json]    # the team's live machines, this one marked *
+```
+
+`--json` returns `{schema, machine: {id, vmId, name, displayName, slug, status, createdAt, self}, team: {id}, machines: [...]}`. `id` is the machine id every Mac `cmux vm …` verb takes. Every other verb (`vm new`, `vm exec`, `notify`, …) exits 2 and names the Mac CLI; run those there.
+
 Inside a Cloud machine, the guest `cmux` adapter can report route health and run
 an agent through the shared CodeRouter without exposing the Mac's Stack session:
 
