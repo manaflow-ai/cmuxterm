@@ -91,12 +91,9 @@ public enum ChromiumBrowserDiagnostic: Error, Equatable, Sendable {
         case .noPageTarget:
             return Self.localized("browser.chromium.cdp.noPageTarget", "Chromium has no page target")
         case .endpointUnavailable:
-            return Self.localized("browser.chromium.cdp.endpointUnavailable", "CDP endpoint is unavailable")
-        case .rendererExited(let status):
-            return String.localizedStringWithFormat(
-                Self.localized("browser.chromium.cdp.rendererExited", "Chromium renderer exited (%lld)"),
-                Int64(status)
-            )
+            return Self.localized("browser.chromium.cdp.endpointUnavailable", "Browser connection is unavailable")
+        case .rendererExited:
+            return Self.localized("browser.chromium.cdp.rendererExited", "Browser stopped unexpectedly")
         case .navigationStreamEnded:
             return Self.localized("browser.chromium.cdp.navigationStreamEnded", "Chromium navigation stream ended")
         case .malformedNavigationHistory:

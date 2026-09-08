@@ -1278,6 +1278,129 @@ final class KeyboardShortcutSettingsFileStoreStartupTests: XCTestCase {
         }
     }
 
+    func testSettingsFileStoreContinuesBrowserParsingAfterInvalidDefaultEngine() throws {
+        let defaults = UserDefaults.standard
+        try preservingDefaults(keys: [
+            BrowserEngineSettingsStore.defaultEngineKey,
+            BrowserSearchSettingsStore.searchEngineKey,
+            BrowserThemeSettings.modeKey,
+            settingsFileBackupsDefaultsKey,
+            importedManagedDefaultsKey,
+        ]) {
+            defaults.removeObject(forKey: BrowserEngineSettingsStore.defaultEngineKey)
+            defaults.removeObject(forKey: BrowserSearchSettingsStore.searchEngineKey)
+            defaults.removeObject(forKey: BrowserThemeSettings.modeKey)
+            defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
+            defaults.removeObject(forKey: importedManagedDefaultsKey)
+
+            let directoryURL = try makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directoryURL) }
+            let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
+            try writeSettingsFile(
+                """
+                {
+                  "browser": {
+                    "defaultEngine": "not-an-engine",
+                    "defaultSearchEngine": "google",
+                    "theme": "dark"
+                  }
+                }
+                """,
+                to: settingsFileURL
+            )
+
+            _ = KeyboardShortcutSettingsFileStore(
+                primaryPath: settingsFileURL.path,
+                fallbackPath: nil,
+                additionalFallbackPaths: [],
+                startWatching: false
+            )
+
+            XCTAssertNil(defaults.string(forKey: BrowserEngineSettingsStore.defaultEngineKey))
+            XCTAssertEqual(defaults.string(forKey: BrowserSearchSettingsStore.searchEngineKey), BrowserSearchEngine.google.rawValue)
+            XCTAssertEqual(defaults.string(forKey: BrowserThemeSettings.modeKey), BrowserThemeMode.dark.rawValue)
+        }
+    }
+
+    func testSettingsFileStoreContinuesBrowserParsingAfterInvalidRemoteDebuggingPort() throws {
+        let defaults = UserDefaults.standard
+        try preservingDefaults(keys: [
+            BrowserEngineSettingsStore.remoteDebuggingPortKey,
+            BrowserSearchSettingsStore.searchEngineKey,
+            BrowserThemeSettings.modeKey,
+            settingsFileBackupsDefaultsKey,
+            importedManagedDefaultsKey,
+        ]) {
+            defaults.removeObject(forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey)
+            defaults.removeObject(forKey: BrowserSearchSettingsStore.searchEngineKey)
+            defaults.removeObject(forKey: BrowserThemeSettings.modeKey)
+            defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
+            defaults.removeObject(forKey: importedManagedDefaultsKey)
+
+            let directoryURL = try makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directoryURL) }
+            let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
+            try writeSettingsFile(
+                """
+                {
+                  "browser": {
+                    "remoteDebuggingPort": 1.5,
+                    "defaultSearchEngine": "duckduckgo",
+                    "theme": "light"
+                  }
+                }
+                """,
+                to: settingsFileURL
+            )
+
+            _ = KeyboardShortcutSettingsFileStore(
+                primaryPath: settingsFileURL.path,
+                fallbackPath: nil,
+                additionalFallbackPaths: [],
+                startWatching: false
+            )
+
+            XCTAssertNil(defaults.object(forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey))
+            XCTAssertEqual(defaults.string(forKey: BrowserSearchSettingsStore.searchEngineKey), BrowserSearchEngine.duckduckgo.rawValue)
+            XCTAssertEqual(defaults.string(forKey: BrowserThemeSettings.modeKey), BrowserThemeMode.light.rawValue)
+        }
+    }
+
+    func testSettingsFileStoreRejectsMoreThan32ChromiumExtensionDirectories() throws {
+        let defaults = UserDefaults.standard
+        let key = "browser.extensionDirectories"
+        try preservingDefaults(keys: [key, settingsFileBackupsDefaultsKey, importedManagedDefaultsKey]) {
+            defaults.removeObject(forKey: key)
+            defaults.removeObject(forKey: settingsFileBackupsDefaultsKey)
+            defaults.removeObject(forKey: importedManagedDefaultsKey)
+
+            let directoryURL = try makeTemporaryDirectory()
+            defer { try? FileManager.default.removeItem(at: directoryURL) }
+            let settingsFileURL = directoryURL.appendingPathComponent("cmux.json", isDirectory: false)
+            let paths = (0..<33).map { "/tmp/extension-\($0)" }
+            let encoded = paths.map { "\"\($0)\"" }.joined(separator: ",")
+            try writeSettingsFile(
+                """
+                {
+                  "browser": {
+                    "extensionDirectories": [\(encoded)]
+                  }
+                }
+                """,
+                to: settingsFileURL
+            )
+
+            _ = KeyboardShortcutSettingsFileStore(
+                primaryPath: settingsFileURL.path,
+                fallbackPath: nil,
+                additionalFallbackPaths: [],
+                startWatching: false
+            )
+
+            XCTAssertNil(defaults.object(forKey: key))
+        }
+    }
+
     func testSettingsFileStoreAppliesBrowserDefaultZoomLevel() throws {
         let defaults = UserDefaults.standard
         let key = "browserDefaultZoomLevel"

@@ -101,14 +101,14 @@ extension TerminalController {
         case .success(.value(let value)):
             let foundationValue = value.anyValue
             guard let envelope = foundationValue as? [String: Any],
-                  let type = envelope["__cmux_t"] as? String else {
+                  let type = envelope[TerminalController.v2BrowserEvalEnvelopeTypeKey] as? String else {
                 return .success(foundationValue)
             }
             switch type {
-            case "undefined":
+            case TerminalController.v2BrowserEvalEnvelopeTypeUndefined:
                 return .success(V2BrowserUndefinedSentinel())
-            case "value":
-                return .success(envelope["__cmux_v"] ?? NSNull())
+            case TerminalController.v2BrowserEvalEnvelopeTypeValue:
+                return .success(envelope[TerminalController.v2BrowserEvalEnvelopeValueKey] ?? NSNull())
             default:
                 return .success(foundationValue)
             }

@@ -31,11 +31,37 @@ final class ChromiumInputEventQueue {
             windowsVirtualKeyCode: Int
         )
 
-        var isCoalescable: Bool {
-            if case .mouse(let type, _, _, _, _, _, _) = self {
-                return type == "mouseMoved" || type == "mouseWheel"
+        fileprivate enum CoalescingKey: Hashable {
+            case mouse(type: String)
+        }
+
+        fileprivate var coalescingKey: CoalescingKey? {
+            guard case .mouse(let type, _, _, _, _, _, _) = self,
+                  type == "mouseMoved" || type == "mouseWheel" else {
+                return nil
             }
-            return false
+            return .mouse(type: type)
+        }
+
+        fileprivate func coalesced(with newer: Event) -> Event? {
+            guard case .mouse(let type, _, _, let button, let clickCount, let deltaX, let deltaY) = self,
+                  case .mouse(_, let newerX, let newerY, let newerButton, let newerClickCount, let newerDeltaX, let newerDeltaY) = newer,
+                  coalescingKey == newer.coalescingKey else {
+                return nil
+            }
+            return .mouse(
+                type: type,
+                x: newerX,
+                y: newerY,
+                button: newerButton.isEmpty ? button : newerButton,
+                clickCount: newerClickCount == 0 ? clickCount : newerClickCount,
+                deltaX: deltaX + newerDeltaX,
+                deltaY: deltaY + newerDeltaY
+            )
+        }
+
+        var isCoalescable: Bool {
+            coalescingKey != nil
         }
 
         var releaseIdentity: ReleaseIdentity? {
@@ -75,6 +101,13 @@ final class ChromiumInputEventQueue {
 
     func enqueue(_ event: Event) {
         guard !didFailClosedForOverflow else { return }
+        if let key = event.coalescingKey,
+           let existingIndex = pending.indices.last,
+           pending[existingIndex].coalescingKey == key,
+           let merged = pending[existingIndex].coalesced(with: event) {
+            pending[existingIndex] = merged
+            return
+        }
         if pending.count >= maximumPendingEvents {
             if let motionIndex = pending.firstIndex(where: { $0.isCoalescable }) {
                 pending.remove(at: motionIndex)

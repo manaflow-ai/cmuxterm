@@ -40,10 +40,13 @@ enum CmuxMain {
         Bonsplit.DebugEventLog.setExternalSink { cmuxDebugLog($0) }
 #endif
         CmuxWorkerEntrypoint(arguments: CommandLine.arguments).runIfRequested()
-        // Chromium's allocator shim must own the malloc zone before the app
-        // allocates in earnest; a lazy dlopen minutes into the session
-        // corrupts the heap. See CEFRuntime.preloadFramework.
-        CEFRuntime.preloadFramework()
+        // CEF and the OWL Content Shell both install Chromium's process-wide
+        // allocator. Preloading CEF while the explicit OWL dogfood path is
+        // selected makes the two runtimes share incompatible globals, so leave
+        // CEF unloaded for OWL and let each engine own its process contract.
+        if ProcessInfo.processInfo.environment["CMUX_USE_OWL"] != "1" {
+            CEFRuntime.preloadFramework()
+        }
         SurfaceResumeApprovalStore.preloadSigningSecret()
         cmuxApp.main()
     }

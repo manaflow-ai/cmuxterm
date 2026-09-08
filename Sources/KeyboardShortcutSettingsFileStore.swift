@@ -933,11 +933,11 @@ final class CmuxSettingsFileStore {
         let browserSearchSettings = BrowserSearchSettingsStore()
 
         if let raw = jsonString(section["defaultEngine"] ?? section["engine"]) {
-            guard let engine = BrowserEngineOption(rawValue: raw) else {
+            if let engine = BrowserEngineOption(rawValue: raw) {
+                snapshot.managedUserDefaults[SettingCatalog().browser.defaultEngine.userDefaultsKey] = .string(engine.rawValue)
+            } else {
                 logInvalid("browser.defaultEngine", sourcePath: sourcePath)
-                return
             }
-            snapshot.managedUserDefaults[SettingCatalog().browser.defaultEngine.userDefaultsKey] = .string(engine.rawValue)
         }
 
         if section.keys.contains("chromiumExtensionDirectories") {
@@ -959,12 +959,12 @@ final class CmuxSettingsFileStore {
         }
 
         if section.keys.contains("remoteDebuggingPort") {
-            guard let port = jsonInt(section["remoteDebuggingPort"]),
-                  ChromiumRemoteDebuggingPort(rawValue: port) != nil else {
+            if let port = jsonInt(section["remoteDebuggingPort"]),
+               ChromiumRemoteDebuggingPort(rawValue: port) != nil {
+                snapshot.managedUserDefaults["browser.remoteDebuggingPort"] = .int(port)
+            } else {
                 logInvalid("browser.remoteDebuggingPort", sourcePath: sourcePath)
-                return
             }
-            snapshot.managedUserDefaults["browser.remoteDebuggingPort"] = .int(port)
         }
 
         if section.keys.contains("defaultZoomLevel") {
@@ -978,15 +978,15 @@ final class CmuxSettingsFileStore {
         }
 
         if let raw = jsonString(section["defaultEngine"] ?? section["engine"]) {
-            guard let engine = BrowserEngineOption(rawValue: raw) else {
+            if let engine = BrowserEngineOption(rawValue: raw) {
+                snapshot.managedUserDefaults[SettingCatalog().browser.defaultEngine.userDefaultsKey] = .string(engine.rawValue)
+            } else {
                 logInvalid("browser.defaultEngine", sourcePath: sourcePath)
-                return
             }
-            snapshot.managedUserDefaults[SettingCatalog().browser.defaultEngine.userDefaultsKey] = .string(engine.rawValue)
         }
 
         if section.keys.contains("extensionDirectories") {
-            if let paths = jsonStringArray(section["extensionDirectories"]) {
+            if let paths = jsonStringArray(section["extensionDirectories"]), paths.count <= 32 {
                 snapshot.managedUserDefaults["browser.extensionDirectories"] = .stringArray(paths)
             } else {
                 logInvalid("browser.extensionDirectories", sourcePath: sourcePath)
@@ -994,11 +994,11 @@ final class CmuxSettingsFileStore {
         }
 
         if section.keys.contains("remoteDebuggingPort") {
-            guard let port = jsonInt(section["remoteDebuggingPort"]), (0...65_535).contains(port) else {
+            if let port = jsonInt(section["remoteDebuggingPort"]), (0...65_535).contains(port) {
+                snapshot.managedUserDefaults["browser.remoteDebuggingPort"] = .int(port)
+            } else {
                 logInvalid("browser.remoteDebuggingPort", sourcePath: sourcePath)
-                return
             }
-            snapshot.managedUserDefaults["browser.remoteDebuggingPort"] = .int(port)
         }
 
         if let raw = jsonString(section["defaultSearchEngine"]) {

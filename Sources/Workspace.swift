@@ -5238,6 +5238,8 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             profileID: browserSnapshot.profileID,
             initialURL: nil,
             renderInitialNavigation: false,
+            engine: browserSnapshot.engine ?? .webkit,
+            chromiumStorageID: browserSnapshot.chromiumStorageID,
             chromeVisibility: browserSnapshot.chromeVisibility ?? .visible,
             transparentBackground: browserSnapshot.transparentBackground ?? false,
             proxyEndpoint: remoteProxyEndpoint,

@@ -256,15 +256,15 @@
     "browser.chromium.cdp.endpointUnavailable": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "CDP endpoint is unavailable" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "CDPエンドポイントを利用できません" } }
+        "en": { "stringUnit": { "state": "translated", "value": "Browser connection is unavailable" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ブラウザ接続を利用できません" } }
       }
     },
     "browser.chromium.cdp.rendererExited": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Chromium renderer exited (%lld)" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "Chromiumレンダラーが終了しました（%lld）" } }
+        "en": { "stringUnit": { "state": "translated", "value": "Browser stopped unexpectedly" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ブラウザが予期せず停止しました" } }
       }
     },
     "browser.chromium.cdp.navigationStreamEnded": {
@@ -968,13 +968,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "CDP endpoint is unavailable"
+            "value": "Browser connection is unavailable"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "CDPエンドポイントを利用できません"
+            "value": "ブラウザ接続を利用できません"
           }
         }
       }
@@ -985,13 +985,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chromium renderer exited (%lld)"
+            "value": "Browser stopped unexpectedly"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chromiumレンダラーが終了しました（%lld）"
+            "value": "ブラウザが予期せず停止しました"
           }
         }
       }
@@ -1138,13 +1138,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Could not load extension at %@: %@. Fix browser.extensionDirectories and reopen the pane."
+            "value": "Could not load extension at %@: %@. Fix the extension directories and reopen the pane."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@の拡張機能を読み込めませんでした: %@。browser.extensionDirectoriesを修正し、ペインを開き直してください。"
+            "value": "%@の拡張機能を読み込めませんでした: %@。拡張機能ディレクトリを修正し、ペインを開き直してください。"
           }
         }
       }
@@ -1179,6 +1179,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chromiumから不正なドキュメントスクリプト登録が返されました"
+          }
+        }
+      }
+    },
+    "browser.chromium.extensions.prepare": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not prepare the extension. Check the directory and try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拡張機能を準備できませんでした。ディレクトリを確認して再試行してください。"
           }
         }
       }

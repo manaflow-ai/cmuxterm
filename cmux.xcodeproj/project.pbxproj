@@ -581,6 +581,7 @@
 		081696D3A66545C50AD0598E /* ChecklistInputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3E449BD36EA0670CC7D75C /* ChecklistInputField.swift */; };
 		D78129DCAE6C4D919AE20FF9 /* ChecklistPopoverPointerTracking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9890AFCF5E5F4F3DA9F00CCC /* ChecklistPopoverPointerTracking.swift */; };
 		ED226C59A21547BB962DB2A5 /* ChecklistSummaryPopoverModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 319C469164C74F2F8E41D2C3 /* ChecklistSummaryPopoverModifier.swift */; };
+		D9C100000000000000000001 /* ChromiumBrowserPanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C100000000000000000002 /* ChromiumBrowserPanelTests.swift */; };
 		F3000000A1B2C3D4E5F60718 /* CJKIMEInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3000001A1B2C3D4E5F60718 /* CJKIMEInputTests.swift */; };
 		D3571002A1B2C3D4E5F60718 /* CJKIMEMarkedSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3571003A1B2C3D4E5F60718 /* CJKIMEMarkedSelectionTests.swift */; };
 		A5D41232A1B2C3D4E5F60718 /* ClaudeBackgroundWorkNotifyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D41233A1B2C3D4E5F60718 /* ClaudeBackgroundWorkNotifyTests.swift */; };
@@ -974,7 +975,6 @@
 		C0DE34020000000000000002 /* CmuxHelpResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE34020000000000000004 /* CmuxHelpResource.swift */; };
 		A11C00010000000000000001 /* CmuxHostedSystemSymbolImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00010000000000000002 /* CmuxHostedSystemSymbolImage.swift */; };
 		A11C00040000000000000001 /* CmuxHostedSystemSymbolImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */; };
-		A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */; };
 		C0DE46010000000000000001 /* CMUXInstalledExtensionSidebarHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE46010000000000000002 /* CMUXInstalledExtensionSidebarHostView.swift */; };
 		1A0B0C0D0E0F101112132013 /* CmuxIrohTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0B0C0D0E0F101112132012 /* CmuxIrohTransport */; };
 		1A0B0C0D0E0F101112132014 /* CmuxIrohTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 1A0B0C0D0E0F101112132012 /* CmuxIrohTransport */; };
@@ -2636,6 +2636,7 @@
 		A11C00020000000000000001 /* StackAccountAvatarImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00020000000000000002 /* StackAccountAvatarImageLoader.swift */; };
 		A11C00030000000000000001 /* StackAccountAvatarImageLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */; };
 		A5C017000000000000000005 /* StackAccountAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C017000000000000000006 /* StackAccountAvatarView.swift */; };
+		A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */; };
 		F20F85FC5900550685FA33AD /* StackAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A8BD195031FC4B82B4354297 /* StackAuth */; };
 		C0DE70500000000000000002 /* start-cmux-profiling in Copy CLI */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000001 /* start-cmux-profiling */; };
 		D35B71010000000000000001 /* StartupBreadcrumbLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35B71010000000000000002 /* StartupBreadcrumbLog.swift */; };
@@ -4014,6 +4015,7 @@
 		3E3E449BD36EA0670CC7D75C /* ChecklistInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistInputField.swift; sourceTree = "<group>"; };
 		9890AFCF5E5F4F3DA9F00CCC /* ChecklistPopoverPointerTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChecklistPopoverPointerTracking.swift"; sourceTree = "<group>"; };
 		319C469164C74F2F8E41D2C3 /* ChecklistSummaryPopoverModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ChecklistSummaryPopoverModifier.swift"; sourceTree = "<group>"; };
+		D9C100000000000000000002 /* ChromiumBrowserPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromiumBrowserPanelTests.swift; sourceTree = "<group>"; };
 		F3000001A1B2C3D4E5F60718 /* CJKIMEInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKIMEInputTests.swift; sourceTree = "<group>"; };
 		D3571003A1B2C3D4E5F60718 /* CJKIMEMarkedSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CJKIMEMarkedSelectionTests.swift; sourceTree = "<group>"; };
 		A5D41233A1B2C3D4E5F60718 /* ClaudeBackgroundWorkNotifyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBackgroundWorkNotifyTests.swift; sourceTree = "<group>"; };
@@ -4366,7 +4368,6 @@
 		C0DE34020000000000000004 /* CmuxHelpResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CmuxHelpResource.swift; sourceTree = "<group>"; };
 		A11C00010000000000000002 /* CmuxHostedSystemSymbolImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxHostedSystemSymbolImage.swift; sourceTree = "<group>"; };
 		A11C00040000000000000002 /* CmuxHostedSystemSymbolImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxHostedSystemSymbolImageTests.swift; sourceTree = "<group>"; };
-		A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarViewTests.swift; sourceTree = "<group>"; };
 		C0DE46010000000000000002 /* CMUXInstalledExtensionSidebarHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMUXInstalledExtensionSidebarHostView.swift; sourceTree = "<group>"; };
 		E7E00000000000000000000C /* CmuxLifecycleEventPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CmuxLifecycleEventPublishing.swift; sourceTree = "<group>"; };
 		2F0C07000000000000000001 /* CmuxMainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/CmuxMainWindow.swift; sourceTree = "<group>"; };
@@ -5958,6 +5959,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		A11C00020000000000000002 /* StackAccountAvatarImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarImageLoader.swift; sourceTree = "<group>"; };
 		A11C00030000000000000002 /* StackAccountAvatarImageLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarImageLoaderTests.swift; sourceTree = "<group>"; };
 		A5C017000000000000000006 /* StackAccountAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarView.swift; sourceTree = "<group>"; };
+		A11C00050000000000000002 /* StackAccountAvatarViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackAccountAvatarViewTests.swift; sourceTree = "<group>"; };
 		C0DE70500000000000000001 /* start-cmux-profiling */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/start-cmux-profiling"; sourceTree = SOURCE_ROOT; };
 		D35B71010000000000000002 /* StartupBreadcrumbLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/StartupBreadcrumbLog.swift; sourceTree = "<group>"; };
 		C0DE70530000000000000001 /* submit-cmux-profile */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "Resources/bin/submit-cmux-profile"; sourceTree = SOURCE_ROOT; };
@@ -9557,6 +9559,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				B75040040000000000000002 /* BrowserInsecureHTTPAlertTestSupport.swift */,
 				B6585002B6585002B658PW02 /* BrowserPrewarmedWebViewPoolTests.swift */,
 				58C7B1B978620BE162CC057E /* BrowserPanelTests.swift */,
+				D9C100000000000000000002 /* ChromiumBrowserPanelTests.swift */,
 				905200000000000000000002 /* BrowserUserAgentPolicyWebKitTests.swift */,
 				C42660040000000000000002 /* BrowserPDFPreviewActionRegressionTests.swift */,
 					C42660050000000000000002 /* BrowserPDFPreviewActionUnitTests.swift */,
@@ -13282,6 +13285,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				0A0F00580000000000000003 /* CampfireSupportTestSupport.swift in Sources */,
 				852600010000000000000002 /* CanvasPaneContentMountTests.swift in Sources */,
 				C4A570030000000000000001 /* CanvasShortcutContextTests.swift in Sources */,
+				D9C100000000000000000001 /* ChromiumBrowserPanelTests.swift in Sources */,
 				F3000000A1B2C3D4E5F60718 /* CJKIMEInputTests.swift in Sources */,
 				D3571002A1B2C3D4E5F60718 /* CJKIMEMarkedSelectionTests.swift in Sources */,
 				A5D41232A1B2C3D4E5F60718 /* ClaudeBackgroundWorkNotifyTests.swift in Sources */,
@@ -13391,7 +13395,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				C54860040000000000000001 /* CmuxDurableDeepLinkRestoreTests.swift in Sources */,
 				E7E000000000000000000003 /* CmuxEventBusTests.swift in Sources */,
 				A11C00040000000000000001 /* CmuxHostedSystemSymbolImageTests.swift in Sources */,
-				A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */,
 				D36090010000000000000005 /* CmuxMainWindowConstrainFrameTests.swift in Sources */,
 					D36090020000000000000005 /* CmuxMainWindowFullScreenCapabilityTests.swift in Sources */,
 					C54860030000000000000001 /* CmuxNavigationTargetResolverTests.swift in Sources */,
@@ -13828,6 +13831,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				EF70B7123200D1FB6F03DB26 /* SSHStartupManualReconnectTests.swift in Sources */,
 				F6355600A1B2C3D4E5F60718 /* SSHStartupSignalLifecycleTests.swift in Sources */,
 				A11C00030000000000000001 /* StackAccountAvatarImageLoaderTests.swift in Sources */,
+				A11C00050000000000000001 /* StackAccountAvatarViewTests.swift in Sources */,
 				5873A6BE37C34CC1082864E2 /* SurfaceCatalogTests.swift in Sources */,
 				560A57B0605EC30E23A20456 /* SurfacePaneFactoryFocusTests.swift in Sources */,
 				842300000000000000000007 /* SurfaceResumeAgentBindingGenerationTests.swift in Sources */,

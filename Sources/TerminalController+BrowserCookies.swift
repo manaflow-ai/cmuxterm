@@ -95,7 +95,8 @@ extension TerminalController {
 
     nonisolated func v2BrowserCookiesGet(params: [String: Any]) -> V2CallResult {
         return v2BrowserWithPanelContext(params: params) { ctx in
-            if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
+            let isChromiumBacked = v2MainSync { ctx.browserPanel.isChromiumBacked }
+            if isChromiumBacked {
                 switch v2GetChromiumCookies(
                     browserPanel: ctx.browserPanel,
                     name: v2String(params, "name"),
@@ -144,6 +145,7 @@ extension TerminalController {
 
     nonisolated func v2BrowserCookiesSet(params: [String: Any]) -> V2CallResult {
         return v2BrowserWithPanelContext(params: params) { ctx in
+            let isChromiumBacked = v2MainSync { ctx.browserPanel.isChromiumBacked }
             var cookieObjects: [[String: Any]] = []
             if let rows = params["cookies"] as? [[String: Any]] {
                 cookieObjects = rows
@@ -163,7 +165,7 @@ extension TerminalController {
             guard !cookieObjects.isEmpty else {
                 return .err(code: "invalid_params", message: "Missing cookies payload", data: nil)
             }
-            if v2MainSync({ ctx.browserPanel.isChromiumBacked }) {
+            if isChromiumBacked {
                 let fallbackURL = v2MainSync { ctx.browserPanel.currentURL }
                 switch v2SetChromiumCookies(
                     browserPanel: ctx.browserPanel,
@@ -361,6 +363,8 @@ extension TerminalController {
             for cookie in targets {
                 if v2BrowserCookieStoreDelete(store, cookie: cookie) {
                     removed += 1
+                } else {
+                    return .err(code: "timeout", message: "Timed out deleting cookie", data: nil)
                 }
             }
 

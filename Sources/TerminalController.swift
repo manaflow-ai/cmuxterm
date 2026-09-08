@@ -392,10 +392,10 @@ class TerminalController {
 
     private final class V2BrowserUndefinedSentinel: Sendable {}
 
-    private nonisolated static let v2BrowserEvalEnvelopeTypeKey = "__cmux_t"
-    private nonisolated static let v2BrowserEvalEnvelopeValueKey = "__cmux_v"
-    private nonisolated static let v2BrowserEvalEnvelopeTypeUndefined = "undefined"
-    private nonisolated static let v2BrowserEvalEnvelopeTypeValue = "value"
+    internal nonisolated static let v2BrowserEvalEnvelopeTypeKey = "__cmux_t"
+    internal nonisolated static let v2BrowserEvalEnvelopeValueKey = "__cmux_v"
+    internal nonisolated static let v2BrowserEvalEnvelopeTypeUndefined = "undefined"
+    internal nonisolated static let v2BrowserEvalEnvelopeTypeValue = "value"
 
     private var v2BrowserNextElementOrdinal: Int = 1
     private var v2BrowserElementRefs: [String: V2BrowserElementRefEntry] = [:]

@@ -73,6 +73,9 @@ actor ChromiumCDPConnection {
     private var eventWaiter: CheckedContinuation<CDPEvent?, Never>?
     private var eventResyncQueued = false
     private var frameContinuations: [UUID: FrameContinuation] = [:]
+    /// Serializes screencast acknowledgements without making the receiver wait
+    /// for a command response before publishing the decoded frame.
+    private var screencastAckTask: Task<Void, Never>?
     private var activeTargetSessionID: String?
     private var isClosed = false
     private var transportCloseRequested = false
@@ -276,6 +279,8 @@ actor ChromiumCDPConnection {
                 continuation.finish()
             }
             frameContinuations.removeAll()
+            screencastAckTask?.cancel()
+            screencastAckTask = nil
         }
         // A peer-ended message stream marks the connection closed before the
         // owner calls shutdown. Always forward the idempotent close so the
@@ -413,22 +418,31 @@ actor ChromiumCDPConnection {
         } else {
             ackSessionID = nil
         }
-        if let ackSessionID {
-            Task { [weak self] in
-                _ = try? await self?.send(
-                    method: "Page.screencastFrameAck",
-                    parameters: .object(["sessionId": ackSessionID])
-                )
+        // Publish first so a CDP round trip cannot stall frame delivery or
+        // queue navigation/input work behind the acknowledgement. The task
+        // chain preserves the protocol's per-session acknowledgement order.
+        if let encoded = params["data"] as? String,
+           let frame = Data(base64Encoded: encoded) {
+            for continuation in frameContinuations.values {
+                continuation.yield(frame)
             }
         }
-        guard let encoded = params["data"] as? String,
-              let frame = Data(base64Encoded: encoded) else {
-            return true
-        }
-        for continuation in frameContinuations.values {
-            continuation.yield(frame)
+        if let ackSessionID {
+            scheduleScreencastAck(ackSessionID)
         }
         return true
+    }
+
+    private func scheduleScreencastAck(_ sessionID: CDPValue) {
+        let previous = screencastAckTask
+        screencastAckTask = Task { [weak self] in
+            await previous?.value
+            guard !Task.isCancelled, let self else { return }
+            _ = try? await self.send(
+                method: "Page.screencastFrameAck",
+                parameters: .object(["sessionId": sessionID])
+            )
+        }
     }
 
     private func cancelPending(id: Int) {
@@ -509,6 +523,8 @@ actor ChromiumCDPConnection {
             continuation.finish()
         }
         frameContinuations.removeAll()
+        screencastAckTask?.cancel()
+        screencastAckTask = nil
         await closeTransportIfNeeded()
     }
 
@@ -524,8 +540,8 @@ actor ChromiumCDPConnection {
         // `CDPValue` Codable path is the difference between a fluid pane and a
         // slideshow, so they take a dedicated `JSONSerialization` fast path.
         // Chromium also withholds the next frame until the previous one is
-        // acknowledged, so the ack is issued here — before base64 decode and
-        // before any consumer runs — to keep capture and delivery pipelined.
+        // acknowledged, so acknowledgements are serialized after frame
+        // delivery without blocking the receiver on their command response.
         if data.range(of: Self.screencastFrameToken) != nil, handleScreencastFrame(data) {
             return
         }

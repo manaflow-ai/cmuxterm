@@ -118,7 +118,12 @@ public struct BrowserEngineSettingsStore: Sendable {
     ///
     /// - Returns: The persisted port, or disabled when the stored value is invalid.
     public func remoteDebuggingPort() -> ChromiumRemoteDebuggingPort {
-        guard let number = defaults.object(forKey: Self.remoteDebuggingPortKey) as? NSNumber else {
+        guard let number = defaults.object(forKey: Self.remoteDebuggingPortKey) as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite,
+              number.doubleValue.rounded() == number.doubleValue,
+              number.doubleValue >= Double(Int.min),
+              number.doubleValue <= Double(Int.max) else {
             return Self.defaultRemoteDebuggingPort
         }
         return ChromiumRemoteDebuggingPort(rawValue: number.intValue) ?? Self.defaultRemoteDebuggingPort

@@ -1,3 +1,4 @@
+import CmuxBrowser
 import CmuxSettings
 import CmuxSidebar
 import CmuxSidebarGit
@@ -368,7 +369,7 @@ enum BrowserSettingsFileMapping {
     ]
 
     static let stringSettings: [SettingsFileStringMapping] = [
-        .init(jsonKey: "defaultEngine", defaultsKey: "browser.defaultEngine"),
+        .init(jsonKey: "defaultEngine", defaultsKey: BrowserEngineSettingsStore.defaultEngineKey),
         .init(jsonKey: "chromiumExtensionDirectories", defaultsKey: "browser.chromiumExtensionDirectories"),
         .init(jsonKey: "reactGrabVersion", defaultsKey: ReactGrabSettings.versionKey),
     ]

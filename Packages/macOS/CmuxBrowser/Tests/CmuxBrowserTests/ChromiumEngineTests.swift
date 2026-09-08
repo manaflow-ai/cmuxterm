@@ -20,6 +20,22 @@ struct ChromiumEngineTests {
         #expect(store.defaultEngineValue(systemDefaultBrowserIsChromium: true) == .webkit)
     }
 
+    @Test("Invalid remote debugging defaults fail closed")
+    func remoteDebuggingPortRejectsCoercedNumbers() {
+        let suiteName = "ChromiumEngineTests.remoteDebuggingPort"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = BrowserEngineSettingsStore(defaults: defaults)
+
+        defaults.set(true, forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey)
+        #expect(store.remoteDebuggingPort() == .disabled)
+        defaults.set(9222.5, forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey)
+        #expect(store.remoteDebuggingPort() == .disabled)
+        defaults.set(9222, forKey: BrowserEngineSettingsStore.remoteDebuggingPortKey)
+        #expect(store.remoteDebuggingPort().rawValue == 9222)
+    }
+
     @Test("Legacy engine preference is migrated into the current key")
     func legacyEnginePreferenceMigrates() {
         let suiteName = "ChromiumEngineTests.legacyEngine"

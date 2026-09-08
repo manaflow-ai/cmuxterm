@@ -496,7 +496,8 @@ struct BrowserPanelView: View {
 
     private var shouldRenderOmnibarSuggestionsInPortal: Bool {
         hasVisibleOmnibarSuggestions &&
-            panel.shouldRenderWebView
+            panel.shouldRenderWebView &&
+            !panel.isChromiumBacked
     }
 
     private var shouldRenderOmnibarSuggestionsInSwiftUI: Bool {
@@ -991,7 +992,7 @@ struct BrowserPanelView: View {
         // Keep browser find usable when the browser is still in the empty new-tab
         // state (no WKWebView mounted yet). WebView-backed cases are hosted
         // in AppKit by WindowBrowserPortal to avoid layering/clipping issues.
-        if !panel.shouldRenderWebView, let searchState = panel.searchState {
+        if (!panel.shouldRenderWebView || panel.isChromiumBacked), let searchState = panel.searchState {
             BrowserSearchOverlay(
                 panelId: panel.id,
                 searchState: searchState,
@@ -1080,7 +1081,7 @@ struct BrowserPanelView: View {
             // (WindowBrowserSlotView.setDesignComposer) so it layers above the
             // portal-hosted WKWebView. This SwiftUI mount only covers the empty
             // new-tab state, e.g. surfacing the "open a page first" error.
-            if !panel.shouldRenderWebView {
+            if (!panel.shouldRenderWebView || panel.isChromiumBacked) {
                 BrowserDesignModePopoverHost(controller: panel.designModeController)
             }
         }
