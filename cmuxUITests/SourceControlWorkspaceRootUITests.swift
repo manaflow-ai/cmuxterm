@@ -35,6 +35,12 @@ final class SourceControlWorkspaceRootUITests: BrowserFixtureSocketTestCase {
         XCTAssertTrue(firstChange.waitForExistence(timeout: 20), "Source Control must retain the selected workspace's Git root")
         XCTAssertFalse(app.staticTexts["No workspace selected"].exists)
 
+        let firstBranch = app.staticTexts["Current branch: main"]
+        XCTAssertTrue(firstBranch.waitForExistence(timeout: 20))
+        firstChange.click()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 20))
+        XCTAssertTrue(firstBranch.exists, "Focusing a file diff must not replace the repository's branch with focused-panel metadata")
+
         filesButton.click()
         sourceControlButton.click()
         XCTAssertTrue(firstChange.waitForExistence(timeout: 20))
@@ -50,17 +56,19 @@ final class SourceControlWorkspaceRootUITests: BrowserFixtureSocketTestCase {
         let refreshedChange = app.buttons["refreshed-change.txt, U"]
         XCTAssertTrue(refreshedChange.waitForExistence(timeout: 20))
 
-        try createRepositoryWorkspace(directory: secondRepository, title: "Source Control second repository")
+        try createRepositoryWorkspace(directory: secondRepository, title: "Source Control second repository", branch: "second-repository")
         XCTAssertTrue(app.buttons["second-change.txt, U"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Current branch: second-repository"].waitForExistence(timeout: 20))
+        XCTAssertFalse(firstBranch.exists, "The previous repository's branch must not leak into a new workspace")
         XCTAssertFalse(firstChange.exists, "The previous workspace's changes must not leak into the selected repository")
         XCTAssertFalse(refreshedChange.exists)
     }
 
-    private func createRepositoryWorkspace(directory: URL, title: String) throws {
+    private func createRepositoryWorkspace(directory: URL, title: String, branch: String = "main") throws {
         _ = try socketResult(method: "workspace.create", params: [
             "title": title,
             "working_directory": directory.path,
-            "initial_command": "/usr/bin/git init --quiet --initial-branch=main && exec /bin/zsh -f",
+            "initial_command": "/usr/bin/git init --quiet --initial-branch=\(branch) && exec /bin/zsh -f",
             "focus": true,
         ])
         let repositoryHead = directory.appendingPathComponent(".git/HEAD")
