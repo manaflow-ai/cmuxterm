@@ -170,7 +170,7 @@ user session accepts a VM.
 who it is and what it can use, from inside, with no credential in the guest:
 
 ```
-curl -s https://coderouter.cmux.internal/api/vm/reflection/     # or https://reflection.cmux.internal/
+curl -s https://coderouter.cmux.internal/api/vm/reflection      # or https://reflection.cmux.internal/
 {"name":"brave-otter","vm_id":"…","owner":{"email":"…"},"plan_id":"pro","paths":[
   {"path":"/owner"},{"path":"/machine"},{"path":"/peers"},{"path":"/integrations"}]}
 ```

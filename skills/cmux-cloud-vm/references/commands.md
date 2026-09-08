@@ -54,7 +54,7 @@ cmux whoami [--json]                   # this machine's identity from reflection
 cmux reflect [<path>] [--json]         # raw reflection JSON: / (index), owner, machine, peers, integrations
 ```
 
-Reflection (`https://coderouter.cmux.internal/api/vm/reflection/`, also `https://reflection.cmux.internal/` on new machines) is how a machine identifies itself: the edge asserts the identity (the VM-bound route token), the guest holds no credential, and `/peers` lists the owner's other machines with their private routes so `cmux vm exec <peer>` works without any Mac step.
+Reflection (`https://coderouter.cmux.internal/api/vm/reflection`, also `https://reflection.cmux.internal/` on new machines) is how a machine identifies itself: the edge asserts the identity (the VM-bound route token), the guest holds no credential, and `/peers` lists the owner's other machines with their private routes so `cmux vm exec <peer>` works without any Mac step.
 
 Tree line shapes:
 
