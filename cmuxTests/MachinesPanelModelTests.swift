@@ -1137,6 +1137,11 @@ struct MachinesPanelListProblemTests {
         )
     }
 
+    @Test(arguments: ["pause", "resume"])
+    func unsupportedLifecycleDoesNotRequestReauthOrPayment(action: String) {
+        #expect(MachinesPanelViewModel.classifyListFailure(.lifecycleUnsupported(action: action)) == .unreachable)
+    }
+
     @Test("Transient-shaped failures keep the retry-first unreachable state")
     func transientFailuresStayUnreachable() {
         #expect(
