@@ -35,7 +35,11 @@ final class DevicesPanelViewModel {
     private var catalogReadSuppressedByDrag = false
     private var refreshTask: Task<Void, Never>?
 
-    init(registry: DeviceSurfaceProviderRegistry = .shared) {
+    convenience init() {
+        self.init(registry: .shared)
+    }
+
+    init(registry: DeviceSurfaceProviderRegistry) {
         self.registry = registry
         catalogObserver = NotificationCenter.default.addObserver(
             forName: SurfaceCatalog.didChangeNotification,
