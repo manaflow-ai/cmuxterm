@@ -2099,10 +2099,13 @@ public struct SSHForegroundAuthenticationRetryPolicy: Sendable {
                 cmux_ssh_auth_resume_file "$cmux_ssh_auth_pending"
                 cmux_ssh_auth_resume_file "$cmux_ssh_auth_owned"
               fi
-              if [ "$cmux_ssh_auth_cleanup_needs_root_abort" = 1 ] &&
-                 [ "$cmux_ssh_auth_cleanup_complete" != 1 ]; then
-                cmux_ssh_auth_force_root_termination
-              fi
+            fi
+            # Root termination is an independent identity-fenced cleanup
+            # obligation. The journal backstop above may mark the owned
+            # process cleanup complete, but it must not suppress termination
+            # of a root that was recorded separately before an EAGAIN abort.
+            if [ "$cmux_ssh_auth_cleanup_needs_root_abort" = 1 ]; then
+              cmux_ssh_auth_force_root_termination
             fi
             if [ "$cmux_ssh_auth_force_backstop_used" = 1 ]; then
               # KILL freed the owned processes, but the shell may still be at
