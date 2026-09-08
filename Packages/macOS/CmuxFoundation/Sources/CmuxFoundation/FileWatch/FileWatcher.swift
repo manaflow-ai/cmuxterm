@@ -191,12 +191,12 @@ public actor FileWatcher {
     /// keeping filesystem setup away from the caller's actor.
     public func start() {
         guard !hasStarted, !isStopped else { return }
-        hasStarted = true
         let directory = pathResolver.nearestExistingDirectory(
             forPath: path,
             allowsFilesystemRootAncestor: allowsFilesystemRootAncestor
         )
         guard !isStopped, !Task.isCancelled else { return }
+        hasStarted = true
         watchedDirectory = directory
         directorySource = directory.flatMap {
             Self.makeSource(

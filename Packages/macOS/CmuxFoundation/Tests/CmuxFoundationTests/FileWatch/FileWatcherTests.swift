@@ -101,6 +101,29 @@ import Testing
         #expect(await firstEvent(watcher, within: 5))
     }
 
+    @Test func cancelledStartCanBeRetried() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-file-watcher-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("created-after-cancel.txt")
+
+        let watcher = FileWatcher(path: file.path, startsAsynchronously: true)
+        defer { Task { await watcher.stop() } }
+
+        let cancelledStart = Task {
+            try? await Task.sleep(for: .seconds(1))
+            await watcher.start()
+        }
+        cancelledStart.cancel()
+        await cancelledStart.value
+
+        await watcher.start()
+        try "created".write(to: file, atomically: true, encoding: .utf8)
+
+        #expect(await firstEvent(watcher, within: 5))
+    }
+
     @Test func fileCreatedAfterStartYieldsEvent() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-file-watcher-\(UUID().uuidString)", isDirectory: true)
