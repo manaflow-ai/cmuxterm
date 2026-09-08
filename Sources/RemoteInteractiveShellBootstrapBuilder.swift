@@ -75,6 +75,7 @@ enum RemoteInteractiveShellBootstrapBuilder {
             ]
         }
         outerLines.append(contentsOf: commonShellExportLines)
+        outerLines.append(contentsOf: remoteInitialWorkingDirectoryLines())
         outerLines += [
             "CMUX_LOGIN_SHELL=\"${SHELL:-/bin/zsh}\"",
             "if [ -z \"${CMUX_PERSISTENT_PTY_EXEC_HELPER:-}\" ] || [ ! -x \"$CMUX_PERSISTENT_PTY_EXEC_HELPER\" ]; then exit 126; fi",
@@ -269,7 +270,6 @@ enum RemoteInteractiveShellBootstrapBuilder {
             "case \"$cmux_ssh_attempt_id\" in \"\"|'__CMUX_''SSH_ATTEMPT_ID__') ;; *) export CMUX_SSH_ATTEMPT_ID=\"$cmux_ssh_attempt_id\" ;; esac",
             "unset cmux_workspace_id cmux_surface_id cmux_terminal_lifecycle_id cmux_ssh_attempt_id",
         ])
-        lines.append(contentsOf: remoteInitialWorkingDirectoryLines())
         lines.append(contentsOf: [
             "hash -r >/dev/null 2>&1 || true",
             "rehash >/dev/null 2>&1 || true",

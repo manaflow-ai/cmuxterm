@@ -8206,6 +8206,13 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
             sourcePanelId.flatMap { panelDirectories[$0] },
             sourcePanelId.flatMap { terminalPanel(for: $0)?.requestedWorkingDirectory },
         ]
+        if preserveExact,
+           let sourcePanelId,
+           isRemoteTerminalSurface(sourcePanelId),
+           let remoteInitialWorkingDirectory = terminalPanel(for: sourcePanelId)?.surface
+               .startupEnvironmentValue(Self.remoteInitialWorkingDirectoryEnvironmentKey) {
+            candidates.append(remoteInitialWorkingDirectory)
+        }
         if !preserveExact {
             candidates.append(currentDirectory)
         }
