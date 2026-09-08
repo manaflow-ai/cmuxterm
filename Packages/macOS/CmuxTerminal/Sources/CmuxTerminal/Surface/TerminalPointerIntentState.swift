@@ -149,11 +149,15 @@ public struct TerminalPointerIntentState: @unchecked Sendable {
                hasPendingGhosttyLinkPointer,
                !persistentPointerBaseConfirmed {
                 // Ghostty emits the temporary pointer before the positive
-                // link action. Preserve the prior base for link exit.
-                ghosttyShape = lastNonPointerShape
+                // link action. Preserve a known prior base for link exit; if
+                // no base exists, the pointer may be the explicit OSC 22
+                // request and must remain authoritative.
+                if lastNonPointerShape != nil {
+                    ghosttyShape = lastNonPointerShape
+                }
             }
             if !active, pendingUnsupportedBaseAfterPointer {
-                if hadGhosttyLinkHoverSignal {
+                if hadGhosttyLinkHoverSignal || lastNonPointerShape != nil {
                     ghosttyShape = lastNonPointerShape
                 }
                 pendingUnsupportedBaseAfterPointer = false
