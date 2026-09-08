@@ -71,6 +71,37 @@ extension CMUXCLI {
         return cmuxOwnedCoderouterVerbs.contains(first)
     }
 
+    /// Where `cmux coderouter <passthrough verb>` and `cmux cr ...` find CodeRouter,
+    /// in order: a user-installed `coderouter` or `cr` on PATH wins (an explicit
+    /// install may be newer than ours), then the copy bundled beside this CLI
+    /// (`Contents/Resources/bin/coderouter`, installed by
+    /// scripts/install-coderouter-cli.sh) so a fresh Mac needs no separate install,
+    /// no Node, and no PATH setup for `cmux coderouter login` or `cmux cr add codex`.
+    func coderouterExecutableCandidates(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
+        var candidates: [String] = []
+        for dir in (environment["PATH"] ?? "").split(separator: ":") where !dir.isEmpty {
+            let base = URL(fileURLWithPath: String(dir), isDirectory: true)
+            candidates.append(base.appendingPathComponent("coderouter", isDirectory: false).path)
+            candidates.append(base.appendingPathComponent("cr", isDirectory: false).path)
+        }
+        if let bundled = resolvedExecutableURL()?.deletingLastPathComponent().appendingPathComponent("coderouter", isDirectory: false).path {
+            candidates.append(bundled)
+        }
+        return candidates
+    }
+
+    func locateCoderouterExecutable(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        let fm = FileManager.default
+        return coderouterExecutableCandidates(environment: environment).first { candidate in
+            // `isExecutableFile(atPath:)` is true for directories, so a directory named
+            // like the binary would otherwise shadow the real executable (#8743).
+            var isDirectory: ObjCBool = false
+            return fm.fileExists(atPath: candidate, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
+                && fm.isExecutableFile(atPath: candidate)
+        }
+    }
+
     func runCoderouterCommand(commandArgs: [String], client: SocketClient, jsonOutput: Bool) throws {
         let sub = commandArgs.first?.lowercased() ?? "help"
         let rest = Array(commandArgs.dropFirst())

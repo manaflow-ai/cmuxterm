@@ -5044,17 +5044,15 @@ struct CMUXCLI {
         return explicitValue == defaultValue ? catalogValue : explicitValue
     }
 
-    /// Run the separately installed CodeRouter CLI without routing through the
-    /// cmux socket. Replace this process after resolving the executable so
+    /// Run the CodeRouter CLI (a user install on PATH, else the copy bundled in
+    /// Contents/Resources/bin) without routing through the cmux socket.
+    /// Replace this process after resolving the executable so
     /// stdin/stdout/stderr, signals, and the child exit status retain their
     /// normal terminal semantics. The argv is built directly; arguments such
     /// as prompts, paths, and shell metacharacters are never interpreted by a
     /// shell.
     private func runCoderouterAlias(commandArgs: [String]) throws {
-        let candidates = ["coderouter", "cr"]
-        guard let executablePath = candidates.lazy
-            .compactMap({ resolveExecutableInPath($0) })
-            .first else {
+        guard let executablePath = locateCoderouterExecutable() else {
             throw CLIError(
                 message: localizedCoderouterNotFound(),
                 exitCode: 127
