@@ -27,6 +27,17 @@ before symbolication on arm64. The sampler refuses to suspend its own thread.
 The app supplies unified-log and Sentry adapters. Tests exercise the state machine
 without an app host and sample a real worker to verify capture and resumption.
 
+## Tagged runtime verification
+
+DEBUG builds provide bounded fault-injection probes through the authenticated
+socket. `debug.socket_command_probe` deliberately parks the main thread for
+`delay_ms` (default 1200, clamped to 0...2000) to verify hang, backtrace, recovery,
+and slow-command records. `debug.socket_command_sync_probe` runs the legacy
+synchronous dispatcher inside the async socket path; `protocol: "v1"` selects
+`debug_socket_command_probe`, otherwise it selects the v2 probe. These probes do
+not exist in Release builds, mutate no UI, and never activate or focus the app.
+The blocking delay is the test stimulus, not a production synchronization path.
+
 ## Topics
 
 ### Slow commands

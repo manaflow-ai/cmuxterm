@@ -2675,6 +2675,9 @@ class TerminalController {
             return readScreenText(args)
 
 #if DEBUG
+        case "debug_socket_command_probe":
+            Thread.sleep(forTimeInterval: Double(min(2000, max(0, Int(args) ?? 1200))) / 1000)
+            return "OK"
         case "send_workspace":
             return sendInputToWorkspace(args)
 
@@ -2980,6 +2983,18 @@ class TerminalController {
             return v2Result(id: id, self.v2NotificationCreateForCaller(params: params))
         case "agent.resolve_delivery_target": return v2Result(id: id, self.v2AgentResolveDeliveryTarget(params: params))
         #if DEBUG
+        case "debug.socket_command_probe":
+            let delayMs = min(2000, max(0, params["delay_ms"] as? Int ?? 1200))
+            Thread.sleep(forTimeInterval: Double(delayMs) / 1000)
+            return v2Ok(id: id, result: ["delay_ms": delayMs])
+        case "debug.socket_command_sync_probe":
+            let response: String
+            if params["protocol"] as? String == "v1" {
+                response = handleSocketLine("debug_socket_command_probe 1200")
+            } else {
+                response = handleSocketLine("{\"id\":1,\"method\":\"debug.socket_command_probe\",\"params\":{\"delay_ms\":1200}}")
+            }
+            return v2Ok(id: id, result: ["response": response])
         case "debug.notification.status":
             return v2Ok(id: id, result: notificationDebugStatus())
         case "debug.notification.mode":

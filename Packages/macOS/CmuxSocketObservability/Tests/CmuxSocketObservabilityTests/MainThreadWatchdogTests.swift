@@ -22,6 +22,8 @@ private final class RecordingWatchdogReporter: MainThreadSocketCommandWatchdogRe
     private let lock = NSLock()
     private var _hangs: [Hang] = []
     private var _recoveries: [Recovery] = []
+    let hangSignal = DispatchSemaphore(value: 0)
+    let recoverySignal = DispatchSemaphore(value: 0)
 
     var hangs: [Hang] {
         lock.lock()
@@ -43,6 +45,7 @@ private final class RecordingWatchdogReporter: MainThreadSocketCommandWatchdogRe
             backtrace: observation.backtrace
         ))
         lock.unlock()
+        hangSignal.signal()
     }
 
     func reportRecovery(_ observation: MainThreadSocketCommandWatchdogObservation) {
@@ -52,6 +55,7 @@ private final class RecordingWatchdogReporter: MainThreadSocketCommandWatchdogRe
             method: observation.descriptor.method
         ))
         lock.unlock()
+        recoverySignal.signal()
     }
 }
 
@@ -78,6 +82,45 @@ private final class BlockingBacktraceCapturer: SocketCommandBacktraceCapturing, 
 
 @Suite
 struct MainThreadWatchdogTests {
+    @Test
+    func realDeadlineReportsHangAndRecoveryWithoutCooperativeExecutor() {
+        let reporter = RecordingWatchdogReporter()
+        let watchdog = MainThreadSocketCommandWatchdog(
+            thresholdMs: 10,
+            reporter: reporter,
+            backtraceCapturer: FixedBacktraceCapturer(frames: ["real-deadline"])
+        )
+        let response = watchdog.monitor(
+            descriptor: descriptor(),
+            startNs: DispatchTime.now().uptimeNanoseconds
+        ) {
+            #expect(reporter.hangSignal.wait(timeout: .now() + 5) == .success)
+            return "response"
+        }
+        #expect(response == "response")
+        #expect(reporter.recoverySignal.wait(timeout: .now() + 5) == .success)
+        #expect(reporter.hangs.count == 1)
+        #expect(reporter.recoveries.count == 1)
+        #expect(reporter.hangs.first?.backtrace == ["real-deadline"])
+    }
+
+    @Test
+    func workerLaneDoesNotArmWatchdog() {
+        let reporter = RecordingWatchdogReporter()
+        let watchdog = MainThreadSocketCommandWatchdog(
+            thresholdMs: 1,
+            reporter: reporter,
+            backtraceCapturer: FixedBacktraceCapturer(frames: [])
+        )
+        let response = watchdog.monitor(
+            descriptor: SocketCommandDescriptor(protocolName: "v2", method: "browser.eval", executedOnMain: false, peerPid: nil),
+            startNs: 0
+        ) { "response" }
+        #expect(response == "response")
+        #expect(reporter.hangs.isEmpty)
+        #expect(reporter.recoveries.isEmpty)
+    }
+
     private let ms: UInt64 = 1_000_000
 
     private func descriptor(method: String = "browser.eval") -> SocketCommandDescriptor {
