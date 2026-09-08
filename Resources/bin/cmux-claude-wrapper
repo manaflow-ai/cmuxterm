@@ -1180,13 +1180,59 @@ normalize_node_options_for_restore() {
     fi
 }
 
+cmux_claude_wrapper_node_options_is_only_managed_restore_modules() {
+    local existing="$1"
+    local -a tokens=()
+    local token
+    local require_path
+    local index=0
+    local found_restore_module=0
+
+    [[ -n "$existing" ]] || return 1
+    cmux_claude_wrapper_tokenize_node_options "$existing" || return 1
+    tokens=("${CMUX_CLAUDE_WRAPPER_NODE_OPTIONS_TOKENS[@]}")
+    (( ${#tokens[@]} > 0 )) || return 1
+
+    while (( index < ${#tokens[@]} )); do
+        token="${tokens[$index]}"
+        case "$token" in
+            --require|-r)
+                (( index + 1 < ${#tokens[@]} )) || return 1
+                require_path="$(cmux_claude_wrapper_unquote_node_options_path "${tokens[$((index + 1))]}")"
+                cmux_claude_wrapper_is_node_options_restore_path "$require_path" || return 1
+                found_restore_module=1
+                index=$((index + 2))
+                ;;
+            --require=*|-r=*)
+                require_path="$(cmux_claude_wrapper_unquote_node_options_path "${token#*=}")"
+                cmux_claude_wrapper_is_node_options_restore_path "$require_path" || return 1
+                found_restore_module=1
+                index=$((index + 1))
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+    done
+
+    (( found_restore_module == 1 ))
+}
+
 install_cmux_node_options() {
     local guard_path
     if guard_path="$(ensure_node_options_restore_module)"; then
         if [[ ! ${CMUX_ORIGINAL_NODE_OPTIONS_PRESENT+x} ]]; then
             if [[ ${NODE_OPTIONS+x} ]]; then
-                export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=1
-                export CMUX_ORIGINAL_NODE_OPTIONS="$(normalize_node_options_for_restore "$NODE_OPTIONS")"
+                local normalized_original
+                normalized_original="$(normalize_node_options_for_restore "$NODE_OPTIONS")"
+                if [[ -n "$normalized_original" ]] ||
+                   ! cmux_claude_wrapper_node_options_is_only_managed_restore_modules "$NODE_OPTIONS"; then
+                    export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=1
+                    export CMUX_ORIGINAL_NODE_OPTIONS="$normalized_original"
+                else
+                    export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=0
+                    unset CMUX_ORIGINAL_NODE_OPTIONS
+                fi
             else
                 export CMUX_ORIGINAL_NODE_OPTIONS_PRESENT=0
                 unset CMUX_ORIGINAL_NODE_OPTIONS
