@@ -583,10 +583,10 @@ final class MachinesPanelViewModel: ObservableObject {
         refreshTree(force: forceTree)
     }
 
-    /// Samples every desktop machine's CPU/memory/disk. Sleeping machines report
+    /// Samples machines advertising stats support. Sleeping machines report
     /// `asleep` without being woken, so polling never costs the user anything.
-    /// Shell-only (`base`) machines serve no stats endpoint (501 on every poll),
-    /// so they are left out rather than asked every cycle.
+    /// Older servers omitting the flag retain the desktop-only polling policy
+    /// through capability decoding; explicit support overrides that fallback.
     func refreshStats() {
         statsTask?.cancel()
         let ids = machines.filter { $0.capabilities.stats }.map(\.id)

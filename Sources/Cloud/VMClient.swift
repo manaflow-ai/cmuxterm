@@ -441,19 +441,19 @@ struct VMCapabilities: Equatable, Sendable {
         self.attachTransports = attachTransports
     }
 
-    /// `{snapshot, restore, fork, ports}`; a missing object or flag reads as supported.
-    init(json: Any?) {
+    /// Missing flags preserve legacy support; stats can use the historical kind fallback.
+    init(json: Any?, legacyStatsSupported: Bool = true) {
         let dict = json as? [String: Any]
-        func flag(_ key: String) -> Bool {
+        func flag(_ key: String, fallback: Bool = true) -> Bool {
             if let value = dict?[key] as? Bool { return value }
             if let number = dict?[key] as? NSNumber { return number.boolValue }
-            return true
+            return fallback
         }
         let transports = (dict?["attachTransports"] as? [Any] ?? dict?["attach_transports"] as? [Any])?
             .compactMap { $0 as? String }
         self.init(
             snapshot: flag("snapshot"), restore: flag("restore"), fork: flag("fork"),
-            exec: flag("exec"), stats: flag("stats"), ports: flag("ports"),
+            exec: flag("exec"), stats: flag("stats", fallback: legacyStatsSupported), ports: flag("ports"),
             desktop: flag("desktop"), sizing: flag("sizing"),
             persistentHome: flag("persistentHome"), attachTransports: transports)
     }
@@ -469,7 +469,8 @@ struct VMCapabilities: Equatable, Sendable {
     }
 
     init(vmResponse: [String: Any]) {
-        self.init(json: vmResponse["capabilities"])
+        let kind = VMMachineKind.resolved(kind: vmResponse["kind"], image: vmResponse["image"])
+        self.init(json: vmResponse["capabilities"], legacyStatsSupported: kind.hasDesktop)
     }
 }
 
