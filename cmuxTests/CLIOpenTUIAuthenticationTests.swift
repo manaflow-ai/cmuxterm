@@ -129,12 +129,20 @@ struct CLIOpenTUIAuthenticationTests {
         environment["CMUX_FEED_TUI_BUN_PATH"] = root.appendingPathComponent("bun").path
         environment["CMUX_TEST_OPEN_TUI_LAUNCH_PATH"] = launchMarker(root).path
         if explicitPassword { environment["CMUX_SOCKET_PASSWORD"] = "opentui-test-password" }
-        return support.runProcess(
+        let transcript = root.appendingPathComponent("terminal-output")
+        let result = support.runProcess(
             executablePath: "/usr/bin/script",
-            arguments: ["-q", "/dev/null", cliPath, "--socket", socketPath, "feed", "tui"]
+            arguments: ["-q", transcript.path, cliPath, "--socket", socketPath, "feed", "tui"]
                 + (automatic ? [] : ["--opentui"]),
             environment: environment,
             timeout: 10
+        )
+        return .init(
+            status: result.status,
+            stdout: (try? String(contentsOf: transcript, encoding: .utf8)) ?? "",
+            stderr: result.stderr,
+            timedOut: result.timedOut,
+            terminationReason: result.terminationReason
         )
     }
 }

@@ -171,7 +171,7 @@ struct CLISSHPTYResizeInputTests {
         #expect(bridgeHandled.wait(timeout: .now() + 5) == .success)
 
         let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 0, "\(stderr); methods: \(state.snapshot().compactMap { jsonObject($0)?["method"] })")
+        #expect(process.terminationStatus == 0, "\(stderr); isolated mock requests: \(state.snapshot())")
         let resizeParams = capturedResizeParams.snapshot()
         #expect(resizeParams?["attachment_token"] as? String == "attach-token")
         #expect(resizeParams?["cols"] as? Int == 120)
