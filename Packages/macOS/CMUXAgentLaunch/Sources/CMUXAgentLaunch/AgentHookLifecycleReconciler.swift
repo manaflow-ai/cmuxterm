@@ -4,8 +4,9 @@ import Foundation
 /// Converts an agent's authoritative lifecycle signal into an existing generic
 /// hook action. The adapter is provider-neutral; protocol extensions only need
 /// to publish the canonical `agent_state` and optional `turn_outcome` fields.
-struct AgentHookLifecycleReconciler {
-    enum Route: Equatable {
+public struct AgentHookLifecycleReconciler: Sendable {
+    /// The generic action selected for an agent lifecycle event.
+    public enum Route: Equatable, Sendable {
         case running
         case notification
         case terminalNotification
@@ -14,7 +15,10 @@ struct AgentHookLifecycleReconciler {
         case rejectStaleProcess
     }
 
-    func route(
+    public init() {}
+
+    /// Returns the generic action for a lifecycle payload, if it is a lifecycle event.
+    public func route(
         subcommand: String,
         payload: [String: Any]?,
         processID: Int?,

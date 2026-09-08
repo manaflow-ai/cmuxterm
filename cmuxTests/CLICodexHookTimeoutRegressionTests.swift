@@ -64,13 +64,13 @@ struct CLICodexHookTimeoutRegressionTests {
         ]
         let persistentOnlyFeedHooks = hooks.filter { hook in
             hook.body.contains("hooks feed --source codex")
-                && persistentOnlyFeedEvents.contains(hook.eventName)
+                && expectedFeedEvents.contains(hook.eventName)
         }
         let installedFeedEvents = Set(persistentOnlyFeedHooks.compactMap { hook in
-            persistentOnlyFeedEvents.first { hook.body.contains("--event \($0)") }
+            expectedFeedEvents.first { hook.body.contains("--event \($0)") }
         })
-        #expect(persistentOnlyFeedHooks.count == persistentOnlyFeedEvents.count)
-        #expect(installedFeedEvents == persistentOnlyFeedEvents)
+        #expect(persistentOnlyFeedHooks.count == expectedFeedEvents.count)
+        #expect(installedFeedEvents == expectedFeedEvents)
         #expect(persistentOnlyFeedHooks.allSatisfy {
             !$0.body.contains("nohup sh -c") && !$0.body.contains(">/dev/null 2>&1 &")
         })
