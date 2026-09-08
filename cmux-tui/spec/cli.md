@@ -314,6 +314,7 @@ browser <selector> key|text|attach|close
 browser <selector> mouse|wheel --pointer-frame-seq <decimal>
 
 notification list|create
+notification ack --client <id> <notification-id>...
 agent list|report
 pairing request list
 pairing request <selector> respond <accept|reject>
@@ -325,6 +326,16 @@ sidebar plugin list|install|use|update|remove
 provider authority install
 
 ```
+
+`notification ack --client <id> <notification-id>...` records that one client
+install has read the listed notifications. `--client` is the durable client
+id (1 to 128 printable ASCII bytes) that the client also reports through
+`client-focus`. Read state is per client: every notification row carries
+`read_by`, the sorted client ids that acknowledged it, and a second client
+keeps its own unread state. The shared `unread` marker on the console tree is
+unchanged by an acknowledgement. Ids the bounded ledger no longer retains are
+returned under `unknown`, not rejected, so a late acknowledgement after
+eviction is complete.
 
 `terminal <selector> output read` returns a bounded plain-text window of the
 terminal's journaled output stream: `{text, start_offset, next_offset,
