@@ -78,6 +78,42 @@ import Testing
         #expect(!model.values.fixedPathIsUsable)
     }
 
+    @Test func externalSnapshotSupersedesCompletedPendingWrite() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("declarative-terminal-model-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let suiteName = "DeclarativeTerminalConfigurationModelTests.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let catalog = SettingCatalog()
+        let store = JSONConfigStore(fileURL: directory.appendingPathComponent("cmux.json"))
+        let model = DeclarativeTerminalConfigurationModel(
+            jsonStore: store,
+            userDefaultsStore: makeTestUserDefaultsStore(suiteName: suiteName),
+            catalog: catalog,
+            errorLog: SettingsErrorLog()
+        )
+
+        model.startObserving()
+        await model.waitForInitialSnapshot()
+
+        let shellStartupModeKey = catalog.terminal.shellStartupMode
+        let externalEdit = Task.detached {
+            var iterator = store.snapshots().makeAsyncIterator()
+            _ = await iterator.next()
+            _ = await iterator.next()
+            try? await store.set(.login, for: shellStartupModeKey)
+        }
+
+        model.setShellStartupMode(.nonLogin)
+        await externalEdit.value
+        await waitUntil { model.values.shellStartupMode == .login }
+
+        #expect(model.values.shellStartupMode == .login)
+    }
+
     private func waitUntil(_ condition: () -> Bool) async {
         var spins = 0
         while !condition(), spins < 100_000 {
