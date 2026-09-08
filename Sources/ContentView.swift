@@ -16885,7 +16885,10 @@ private struct SidebarMetadataEntryRow: View {
     private func rowContent(underlined: Bool) -> some View {
         HStack(alignment: .center, spacing: 4) {
             if let icon = iconView {
+                // `emoji:` / `text:` icons are SwiftUI text and take the row
+                // color from here; the SF Symbol branch bakes it as `tint`.
                 icon
+                    .foregroundColor(foregroundColor.opacity(0.95))
             }
             metadataText(underlined: underlined)
                 .lineLimit(1)

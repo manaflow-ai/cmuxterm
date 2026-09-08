@@ -800,8 +800,14 @@ struct EmptyPanelView: View {
         let button = Button(action: action) {
             HStack(spacing: 10) {
                 HStack(spacing: 6) {
-                    // `.borderedProminent` paints its label white on the accent fill.
-                    CmuxSystemSymbolImage(systemName: systemImage, pointSize: 13, tint: .white)
+                    // `.borderedProminent` paints its label in the system's
+                    // on-accent text color, so bake that semantic color rather
+                    // than a literal white.
+                    CmuxSystemSymbolImage(
+                        systemName: systemImage,
+                        pointSize: 13,
+                        tint: Color(nsColor: .alternateSelectedControlTextColor)
+                    )
                     Text(title)
                 }
                 ShortcutHint(text: shortcut.displayString)
