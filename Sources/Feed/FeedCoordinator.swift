@@ -28,7 +28,7 @@ final class FeedCoordinator: @unchecked Sendable {
 
     // The store runs on the main actor. The coordinator is not isolated,
     // so it hops to main explicitly when touching the store.
-    @MainActor private(set) var store: WorkstreamStore!
+    @MainActor var store: WorkstreamStore!
     @MainActor var notificationJournal: AgentJournalLifecycleCenter = .shared
     @MainActor private let maxTrackedTodoWorkstreams = 128
     @MainActor private var todoRecoveryEpochByWorkstream: [String: UInt64] = [:]
@@ -56,7 +56,7 @@ final class FeedCoordinator: @unchecked Sendable {
     @MainActor private var dispatchedTaskOwnerRecency: [UUID] = []
     @MainActor private var dispatchTargetRecoveryScans: Set<UUID> = []
     @MainActor private let maxTrackedDispatchTargets = 128
-    @MainActor private var userNotificationCenter: (any UserNotificationCenterServing)?
+    @MainActor var userNotificationCenter: (any UserNotificationCenterServing)?
 
     /// The bounded notification-center boundary. `install(store:)` injects it;
     /// the shared store's service covers the pre-install window.
