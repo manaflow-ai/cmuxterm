@@ -300,6 +300,21 @@ cmux_cua_skill_remove_legacy_links() {
     fi
 }
 
+cmux_cua_skill_retarget_managed_link() {
+    local link="$1"
+    local source_dir="$2"
+    [[ "$source_dir" = /* && -f "$source_dir/SKILL.md" ]] || return 1
+    local skills_root="${link%/*}"
+    # User-provided root mirrors can point into a checkout. Only migrate a
+    # direct global installation; never edit a project through a parent link.
+    [[ ! -L "$skills_root" && ! -L "${skills_root%/*}" ]] || return 1
+    cmux_cua_skill_link_is_managed "$link" || return 1
+    # The link target was validated before mutation. ln -sfn operates on the
+    # link itself and never follows it into a user-owned directory.
+    /bin/ln -sfn "$source_dir" "$link" 2>/dev/null || return 1
+    return 0
+}
+
 cmux_cua_skill_reconcile() {
     local provider="$1"
     local source_dir="$2"
@@ -316,6 +331,22 @@ cmux_cua_skill_reconcile() {
         project_collision=1
     fi
     cmux_cua_skill_remove_legacy_links "$home" "$provider"
+
+    # A user can have one app-managed projection in each agent's global root
+    # from older cmux builds. When they explicitly keep global discovery, bring
+    # an existing projection in the other root to this bundle too. Do not create
+    # a missing projection there, and never touch a user-owned directory or
+    # unrelated symlink; this is migration of verified cmux links only.
+    local other_provider_root other_provider_link
+    if [[ "$provider" == codex ]]; then
+        other_provider_root="$home/.claude/skills"
+    else
+        other_provider_root="$home/.agents/skills"
+    fi
+    other_provider_link="$other_provider_root/cmux-cua"
+    if [[ "$install_requested" == 1 ]]; then
+        cmux_cua_skill_retarget_managed_link "$other_provider_link" "$source_dir" || true
+    fi
 
     local skills_root destination state legacy_root legacy_state
     if [[ "$provider" == codex ]]; then
