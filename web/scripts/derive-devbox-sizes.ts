@@ -11,6 +11,12 @@
  * Usage:
  *   FREESTYLE_API_KEY=... bun scripts/derive-devbox-sizes.ts <master-snapshot-id> <slug-prefix>
  *       [--sizes sm,md,lg,lgx,xl,2xl] [--out <json>] [--replace-slug]
+ *       [--concurrency <n>]
+ *
+ * Sizes are independent (each is "boot the master, resize, snapshot, boot the
+ * result"), and every one spends most of its time waiting for a guest to
+ * settle, so they run concurrently. `--concurrency` caps how many are in
+ * flight; 1 restores the old serial behaviour.
  *
  * Prints one line per size and a final JSON `{ sizes: { <name>: { imageId, slug, size } } }`
  * (also written to --out). Every derived VM is booted once more from its own
@@ -61,6 +67,12 @@ if (!/^[a-z0-9](?:[a-z0-9-]{0,57}[a-z0-9])?$/.test(slugPrefix) || slugPrefix.inc
 }
 const sizes = requested as VmImageSizeName[];
 const replaceSlug = hasFlag("--replace-slug");
+
+const concurrencyRaw = argValue("--concurrency");
+const concurrency = concurrencyRaw === undefined ? 6 : Number.parseInt(concurrencyRaw, 10);
+if (!Number.isInteger(concurrency) || concurrency < 1) {
+  throw new Error(`--concurrency: expected a positive integer, got ${concurrencyRaw}`);
+}
 
 const FIREWALL: FirewallSpec = { rules: [{ action: "allow", source: {}, destination: { public: true } }] };
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -134,7 +146,8 @@ console.log(`master ${master}: ${masterShape.cpu} vCPU, ${masterShape.memoryMb} 
 // would otherwise try to take it).
 const masterSlug = (await fs.vms.snapshots.list()).snapshots.find((candidate) => candidate.id === master)?.slug ?? null;
 
-for (const name of sizes) {
+/** Derive one size: boot the master, resize, snapshot, then boot the result. */
+async function deriveSize(name: VmImageSizeName): Promise<void> {
   const size = vmImageSize(name);
   const slug = name === "md" && slugPrefix !== masterSlug ? slugPrefix : `${slugPrefix}-${name}`;
   const t0 = Date.now();
@@ -207,7 +220,22 @@ for (const name of sizes) {
   console.log(`${name}: ${imageId} (${measured.cpu} vCPU, ${measured.memoryMb} MiB, root ${measured.rootMb} MiB, units ${measured.units}, host ${measured.host}) ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 }
 
-const out = { master, sizes: result };
+// One failed size must not leave the others' VMs running, so every size is
+// awaited before the first rejection is rethrown.
+const queue = [...sizes];
+const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    await deriveSize(next);
+  }
+});
+const outcomes = await Promise.allSettled(workers);
+const failed = outcomes.find((outcome) => outcome.status === "rejected");
+if (failed && failed.status === "rejected") throw failed.reason;
+
+// Completion order is not ladder order once sizes run concurrently.
+const ordered: typeof result = {};
+for (const name of sizes) ordered[name] = result[name];
+const out = { master, sizes: ordered };
 console.log(JSON.stringify(out, null, 2));
 const outPath = argValue("--out");
 if (outPath) writeFileSync(outPath, `${JSON.stringify(out, null, 2)}\n`);
