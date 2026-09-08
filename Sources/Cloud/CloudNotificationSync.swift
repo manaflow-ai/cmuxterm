@@ -194,9 +194,9 @@ enum CloudNotificationCorrelation {
     }
 }
 
-/// Durable JSON state in `UserDefaults`, one key per machine.
-@MainActor
-struct CloudNotificationSyncStore {
+/// Durable JSON state in `UserDefaults`, one key per machine. Not actor-bound:
+/// `UserDefaults` is thread-safe and the sync calls it from the main actor.
+struct CloudNotificationSyncStore: Sendable {
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
