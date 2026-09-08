@@ -3,6 +3,7 @@ import CmuxControlSocket
 import AppKit
 import Bonsplit
 import Testing
+import XCTest
 
 #if canImport(cmux_DEV)
 @testable import cmux_DEV
