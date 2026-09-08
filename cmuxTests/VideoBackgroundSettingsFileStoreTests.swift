@@ -11,6 +11,40 @@ import Testing
 @Suite("Video background settings file", .serialized)
 struct VideoBackgroundSettingsFileStoreTests {
     @Test
+    @MainActor
+    func configurationPreparationImportsTheNewQueueBeforePlaybackSelection() throws {
+        let suiteName = "VideoBackgroundReloadOrder.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("cmux.json")
+        let editor = VideoBackgroundConfigEditor(fileURL: url)
+        _ = try editor.update(.init(source: "/tmp/first.mp4", queue: ["/tmp/first.mp4", "/tmp/second.mp4"]))
+        let store = KeyboardShortcutSettingsFileStore(
+            primaryPath: url.path, fallbackPath: nil, additionalFallbackPaths: [],
+            userDefaults: defaults, startWatching: false
+        )
+        let policy = VideoBackgroundSettings()
+        let coordinator = VideoBackgroundPlaybackCoordinator()
+        _ = coordinator.configure(sourceTexts: policy.effectiveSourceTexts(defaults: defaults), quality: "1080p")
+        _ = try editor.update(.init(source: "/tmp/second.mp4", queue: ["/tmp/second.mp4", "/tmp/first.mp4"]))
+        #expect(policy.effectiveSourceTexts(defaults: defaults).first == "/tmp/first.mp4")
+
+        _ = TerminalFontConfigurationReloadTransaction.prepare(
+            appliedMagnificationPercent: 100,
+            reloadSettings: { _ = store.reload() },
+            storedMagnificationPercent: { 100 }
+        )
+        let selected = coordinator.configure(
+            sourceTexts: policy.effectiveSourceTexts(defaults: defaults), quality: "1080p", restart: true
+        )
+        #expect(policy.effectiveSourceTexts(defaults: defaults).first == "/tmp/second.mp4")
+        #expect(selected.index == 0)
+        #expect(selected.currentSource == .localFile(url: URL(fileURLWithPath: "/tmp/second.mp4")))
+    }
+
+    @Test
     func settingsFileStoreAppliesVideoBackgroundSection() throws {
         try loadVideoBackgroundSection(
             """

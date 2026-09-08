@@ -59,6 +59,28 @@ struct VideoBackgroundAudioArbiterTests {
     }
 
     @Test
+    func closingOwnerFallsBackToTheMostRecentlyFocusedRegisteredWindow() {
+        let arbiter = VideoBackgroundAudioArbiter()
+        let first = makeWindow()
+        let second = makeWindow()
+        let third = makeWindow()
+        let auxiliary = makeWindow()
+        defer { [first, second, third, auxiliary].forEach { $0.close() } }
+        [first, second, third].forEach { arbiter.registerWindow($0) }
+        arbiter.windowDidBecomeKey(second)
+        arbiter.windowDidBecomeKey(third)
+
+        arbiter.windowWillClose(third, fallback: third)
+        #expect(arbiter.ownerWindow === second)
+        #expect(!arbiter.mayPlayAudio(in: third))
+        arbiter.windowWillClose(second, fallback: auxiliary)
+        #expect(arbiter.ownerWindow === first)
+        #expect(!arbiter.mayPlayAudio(in: auxiliary))
+        arbiter.windowWillClose(first, fallback: nil)
+        #expect(arbiter.ownerWindow == nil)
+    }
+
+    @Test
     func controllersStaySilentUnlessTheyOwnAudioAndTheSettingOptsIn() throws {
         let arbiter = VideoBackgroundAudioArbiter()
         let audible = try makeDefaults(muted: false)
