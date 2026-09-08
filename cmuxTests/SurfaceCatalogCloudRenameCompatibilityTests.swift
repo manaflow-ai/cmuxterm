@@ -58,10 +58,26 @@ struct SurfaceCatalogCloudRenameCompatibilityTests {
         ]
         let state = try #require(CmuxTuiSnapshotParser.state(fromSnapshot: snapshot, machine: machine))
         var info = provider.info
+        let workspace = SurfaceRemoteWorkspace(id: "ws", name: "old", index: 0, focused: true)
         info.remoteWorkspaces = [
-            SurfaceRemoteWorkspace(id: "ws", name: "old", index: 0, focused: true),
+            workspace,
         ]
-        catalog.replaceCloudState(state, resources: [], info: info)
+        var resource = SurfaceResource(
+            id: SurfaceResourceID(machine: machine, kind: .terminal, key: "term"),
+            title: "term",
+            detail: "/root",
+            lifecycle: .running,
+            agent: nil,
+            remoteWorkspace: workspace,
+            port: nil,
+            url: nil
+        )
+        resource.remoteViews = [SurfaceRemoteView(tabID: "tab", workspace: workspace)]
+        catalog.replaceCloudState(state, resources: [resource], info: info)
+
+        let initialResource = try #require(catalog.snapshot.resources(on: machine).first)
+        #expect(initialResource.remoteWorkspace?.name == "old")
+        #expect(initialResource.remoteViews?.map { $0.workspace.name } == ["old"])
 
         let token = try catalog.beginCloudWorkspaceRename(
             machine: machine,
@@ -70,8 +86,31 @@ struct SurfaceCatalogCloudRenameCompatibilityTests {
         )
         #expect(catalog.machines[machine]?.remoteWorkspaces?.first?.name == "new")
 
+        let renamedResource = try #require(catalog.snapshot.resources(on: machine).first)
+        #expect(renamedResource.remoteWorkspace?.name == "new")
+        #expect(renamedResource.remoteViews?.map { $0.workspace.name } == ["new"])
+
+        catalog.replaceCloudState(state, resources: [resource], info: info)
+        let republishedResource = try #require(catalog.snapshot.resources(on: machine).first)
+        #expect(republishedResource.remoteWorkspace?.name == "new")
+        #expect(republishedResource.remoteViews?.map { $0.workspace.name } == ["new"])
+
+        _ = catalog.applyCloudStateResourcePatch(
+            state,
+            resources: [resource],
+            affectedResourceIDs: [resource.id],
+            info: info
+        )
+        let patchedResource = try #require(catalog.snapshot.resources(on: machine).first)
+        #expect(patchedResource.remoteWorkspace?.name == "new")
+        #expect(patchedResource.remoteViews?.map { $0.workspace.name } == ["new"])
+
         catalog.rollbackCloudWorkspaceRename(token)
         #expect(catalog.machines[machine]?.remoteWorkspaces?.first?.name == "old")
+
+        let restoredResource = try #require(catalog.snapshot.resources(on: machine).first)
+        #expect(restoredResource.remoteWorkspace?.name == "old")
+        #expect(restoredResource.remoteViews?.map { $0.workspace.name } == ["old"])
     }
 
     @Test("Typed cloud state retires a committed workspace rename overlay")
@@ -163,5 +202,6 @@ struct SurfaceCatalogCloudRenameCompatibilityTests {
 
         #expect(catalog.machines[machine]?.remoteWorkspaces?.map(\.name) == ["canonical", "renamed pending"])
         catalog.rollbackCloudWorkspaceRename(token)
+        #expect(catalog.machines[machine]?.remoteWorkspaces?.map(\.name) == ["canonical", "pending"])
     }
 }
