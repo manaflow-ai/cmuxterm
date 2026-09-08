@@ -195,7 +195,7 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
-    @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
+    @Test func promptSubmitJournalFollowsMovedPaneWithoutClearingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
@@ -228,8 +228,13 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        try assertJournalTarget(
+            commands, kind: "agent.turn.started", nativeEvent: "UserPromptSubmit",
+            sessionID: sessionId, workspaceID: newWorkspaceId
+        )
+        // The journal reconciler clears only invalidated notification identities.
+        // Hook-side blanket clears would erase unrelated attention on this pane.
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,8 +292,11 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        try assertJournalTarget(
+            commands, kind: "agent.state.changed", nativeEvent: "PreToolUse",
+            sessionID: sessionId, workspaceID: newWorkspaceId
+        )
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)
@@ -432,6 +440,24 @@ struct ClaudeHookLifecycleCleanupTests {
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
         #expect(!commands.contains { $0.hasPrefix("set_status ") || $0.hasPrefix("clear_notifications ") })
+    }
+
+    private func assertJournalTarget(
+        _ commands: [String], kind: String, nativeEvent: String,
+        sessionID: String, workspaceID: String
+    ) throws {
+        let prefix = "agent_journal_append "
+        let journalCommands = commands.filter { $0.hasPrefix(prefix) }
+        #expect(journalCommands.count == 1)
+        let command = try #require(journalCommands.first)
+        let event = try #require(
+            JSONSerialization.jsonObject(with: Data(command.dropFirst(prefix.count).utf8)) as? [String: Any]
+        )
+        #expect(event["kind"] as? String == kind)
+        #expect(event["native_event"] as? String == nativeEvent)
+        #expect(event["session_id"] as? String == sessionID)
+        #expect(event["workspace_id"] as? String == workspaceID)
+        #expect(event["surface_id"] as? String == Self.liveSurfaceId)
     }
 
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {
