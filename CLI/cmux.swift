@@ -8,6 +8,9 @@ import CmuxSimulator
 import CoreFoundation
 import CryptoKit
 import Darwin
+#if canImport(Security)
+import Security
+#endif
 
 struct WindowInfo {
     let index: Int
