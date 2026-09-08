@@ -20,8 +20,17 @@ extension MobileHostNextTransportRuntime {
     func awaitEndpointClose(generation gen: UInt64) async -> Bool {
         let previousEndpointClosed = await endpointCloseTask?.value
         guard generation == gen, !Task.isCancelled else { return false }
-        guard previousEndpointClosed != false else { return false }
+        if previousEndpointClosed == false {
+            // One retry per explicit start, on the same retained endpoint.
+            // Do not loop or permit a replacement bind after another failure.
+            guard let operation = endpointCloseOperation else { return false }
+            let retry = endpointCloseAttempt(operation)
+            endpointCloseTask = retry
+            let closed = await retry.value
+            guard generation == gen, !Task.isCancelled, closed else { return false }
+        }
         endpointCloseTask = nil
+        endpointCloseOperation = nil
         return true
     }
 

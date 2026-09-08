@@ -84,7 +84,12 @@ final class MobileHostNextTransportRuntime {
     nonisolated static let identityDeviceIDDefaultsKey = "dev.cmux.nextTransport.identity.deviceID"
 
     /// Dev diagnostic string for the Debug menu, derived from readiness.
-    var state: String = "off"
+    var state: String {
+        get { endpointCloseFailed ? "shutdown-failed" : runtimeState }
+        set { runtimeState = newValue }
+    }
+    private var runtimeState = "off"
+    private var endpointCloseFailed = false
     /// Startup gate, observable so the Debug menu renders it live. Only
     /// meaningful while the host runs; reset to `.starting` on stop.
     var readiness: NextTransportReadiness = .starting
@@ -273,11 +278,33 @@ final class MobileHostNextTransportRuntime {
     /// Owns the asynchronous close operation independently of a startup caller.
     func beginEndpointClose(_ operation: @escaping @MainActor @Sendable () async -> Bool) {
         let previousClose = endpointCloseTask
-        endpointCloseOperation = operation
-        endpointCloseTask = Task {
-            let previousSucceeded = await previousClose?.value
+        let previousOperation = endpointCloseOperation
+        // Normally there is only one endpoint: startup drains this barrier
+        // before binding. Retain both operations if teardown is ever chained.
+        var previousCleared = previousClose == nil
+        let close: @MainActor @Sendable () async -> Bool = {
+            if !previousCleared {
+                previousCleared = await previousClose?.value != false
+                if !previousCleared, let previousOperation {
+                    previousCleared = await previousOperation()
+                }
+                guard previousCleared else { return false }
+            }
+            return await operation()
+        }
+        endpointCloseOperation = close
+        endpointCloseTask = endpointCloseAttempt(close)
+    }
+
+    /// Failure stays observable even across another stop. Only a confirmed
+    /// close clears it; cancellation of a start does not cancel resource cleanup.
+    func endpointCloseAttempt(
+        _ operation: @escaping @MainActor @Sendable () async -> Bool
+    ) -> Task<Bool, Never> {
+        Task { [weak self] in
             let succeeded = await operation()
-            return succeeded && previousSucceeded != false
+            self?.endpointCloseFailed = !succeeded
+            return succeeded
         }
     }
 

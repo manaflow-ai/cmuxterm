@@ -17,7 +17,7 @@ extension TerminalController {
             case .failure(let failure):
                 return "ERROR: " + String(
                     localized: "cli.nextTransport.ticketUnavailable",
-                    defaultValue: "Next-transport ticket unavailable: \(failure). Enable it in Debug > Next Transport."
+                    defaultValue: "Next-transport ticket unavailable: \(failure.description). Enable it in Debug > Next Transport."
                 )
             }
         }
@@ -48,7 +48,7 @@ extension TerminalController {
             case .failure(let failure):
                 return "ERROR: " + String(
                     localized: "cli.nextTransport.grantUnavailable",
-                    defaultValue: "Next-transport grant unavailable: \(failure). Enable it in Debug > Next Transport."
+                    defaultValue: "Next-transport grant unavailable: \(failure.description). Enable it in Debug > Next Transport."
                 )
             }
         }

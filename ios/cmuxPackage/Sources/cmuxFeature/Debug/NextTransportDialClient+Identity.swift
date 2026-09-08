@@ -14,13 +14,9 @@ extension NextTransportDialClient {
         loadOrCreateIdentity(defaults: defaults, keychainService: keychainService)
     }
 
-    /// Resolves the durable identity on the generic executor for probe and
-    /// composition paths that must not perform Keychain/defaults work on the
-    /// MainActor.
-    #if compiler(>=6.2)
-    @concurrent
-    #endif
-    nonisolated static func currentIdentityOffMain(
+    /// Boxes preferences on the main actor before resolving the durable identity
+    /// on the generic executor, so Keychain/defaults work stays off MainActor.
+    static func currentIdentityOffMain(
         defaults: UserDefaults = .standard,
         keychainService: String = "dev.cmux.nextTransport.ios.identity.v1"
     ) async -> PeerIdentity {

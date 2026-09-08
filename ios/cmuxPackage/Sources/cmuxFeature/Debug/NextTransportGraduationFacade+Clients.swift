@@ -15,6 +15,9 @@ extension NextTransportGraduationFacade {
     @discardableResult
     func ensureClient(macID: String) -> NextTransportDialClient? {
         if let existing = clients[macID] { return existing }
+        // Pending storage is not missing storage. Preserve the sticky route
+        // while refusing to construct a client from a stale credential read.
+        guard !credentialPersistence.hasPending(key: macID) else { return nil }
         guard let bootstrap = storedBootstrap(macID: macID) else {
             Self.logger.notice(
                 """
