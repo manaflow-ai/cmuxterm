@@ -232,6 +232,59 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
     }
 
+    @Test func preToolUsePreservesProviderErrorNotification() throws {
+        let context = try Harness.makeContext(name: "pre-tool-use-preserve-error")
+        defer { context.cleanup() }
+        let sessionId = "pre-tool-use-preserve-error-session"
+        let now = Date().timeIntervalSince1970
+        let record: [String: Any] = [
+            "sessionId": sessionId,
+            "workspaceId": Self.liveWorkspaceId,
+            "surfaceId": Self.liveSurfaceId,
+            "cwd": context.root.path,
+            "isRestorable": true,
+            "lastNotificationStatus": "error",
+            "runtimeStatus": "error",
+            "agentLifecycle": "needsInput",
+            "activePromptDepth": 1,
+            "activePromptTurnId": "turn-1",
+            "activePromptTurnIds": ["turn-1"],
+            "startedAt": now,
+            "updatedAt": now,
+        ]
+        let store: [String: Any] = [
+            "version": 1,
+            "sessions": [sessionId: record],
+        ]
+        try JSONSerialization.data(withJSONObject: store, options: [.prettyPrinted, .sortedKeys])
+            .write(to: context.storeURL)
+
+        let serverHandled = Harness.startDeliveryTargetServer(
+            context: context,
+            surfacesByWorkspace: [Self.liveWorkspaceId: [Self.liveSurfaceId]],
+            pidTarget: (workspaceId: Self.liveWorkspaceId, surfaceId: Self.liveSurfaceId)
+        )
+        var environment = Harness.hookEnvironment(context: context)
+        environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
+        environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
+        environment["CMUX_CLAUDE_PID"] = "43307"
+
+        let result = Harness.runHookProcess(
+            context: context,
+            arguments: ["hooks", "claude", "pre-tool-use"],
+            environment: environment,
+            standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"\#(context.root.path)"}"#
+        )
+
+        #expect(serverHandled.wait(timeout: .now() + 5) == .success)
+        assertSuccessfulHook(result)
+        let commands = context.state.snapshot()
+        #expect(
+            !commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId) --panel=\(Self.liveSurfaceId)"),
+            "PreToolUse must not dismiss a provider-error notification from the same turn; saw \(commands)"
+        )
+    }
+
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
     /// scan for frequency) must still re-home via the cheap `{surface_id}`
     /// probe instead of mutating — and re-recording via upsert — the old

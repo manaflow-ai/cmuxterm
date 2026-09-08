@@ -28895,10 +28895,12 @@ struct CMUXCLI {
             } else {
                 statusValue = "Running"
             }
-            _ = try? sendV1Command(
-                "clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
-                client: client
-            )
+            if mappedSession?.lastNotificationStatus != .error {
+                _ = try? sendV1Command(
+                    "clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))",
+                    client: client
+                )
+            }
             try setClaudeStatus(
                 client: client,
                 workspaceId: workspaceId,
