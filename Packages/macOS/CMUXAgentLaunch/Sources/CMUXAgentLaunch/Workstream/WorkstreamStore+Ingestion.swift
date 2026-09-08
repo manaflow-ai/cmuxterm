@@ -20,7 +20,7 @@ extension WorkstreamStore {
                   existing.payload == item.payload else { return nil }
             return existing
         }
-        ingestPrepared(item)
+        ingestPrepared(item, isTransient: event.isTransient)
         return item
     }
 }

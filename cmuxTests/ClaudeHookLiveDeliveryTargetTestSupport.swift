@@ -16,7 +16,7 @@ enum ClaudeHookLiveDeliveryHarness {
         let storeURL: URL
 
         func cleanup() {
-            Darwin.close(listenerFD)
+            state.stopServer()
             unlink(socketPath)
             try? FileManager.default.removeItem(at: root)
         }
@@ -31,6 +31,12 @@ enum ClaudeHookLiveDeliveryHarness {
         let timedOut: Bool
     }
 
+    struct TaskSyncDeliverySignals {
+        let feed = DispatchSemaphore(value: 0)
+        let reconciliation = DispatchSemaphore(value: 0)
+        let validation = DispatchSemaphore(value: 0)
+    }
+
     static func makeContext(name: String) throws -> Context {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-\(name)-\(UUID().uuidString)", isDirectory: true)
@@ -39,11 +45,12 @@ enum ClaudeHookLiveDeliveryHarness {
         let socketPath = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("cli-\(name.prefix(6))-\(shortID).sock")
             .path
+        let listenerFD = try bindUnixSocket(at: socketPath)
         return Context(
             cliPath: try BundledCLITestSupport.bundledCLIPath(for: BundledCLILinkageTests.self),
             socketPath: socketPath,
-            listenerFD: try bindUnixSocket(at: socketPath),
-            state: ServerState(),
+            listenerFD: listenerFD,
+            state: ServerState(listenerFD: listenerFD),
             root: root,
             storeURL: root.appendingPathComponent("claude-hook-sessions.json")
         )
@@ -149,211 +156,139 @@ enum ClaudeHookLiveDeliveryHarness {
         }
     }
 
-    static func resumeBindingParams(in context: Context) -> [[String: Any]] {
-        context.state.snapshot().compactMap { command -> [String: Any]? in
-            guard let payload = jsonObject(command),
-                  payload["method"] as? String == "surface.resume.set" else {
-                return nil
-            }
-            return payload["params"] as? [String: Any]
-        }
-    }
-
-    static func writeSessionStore(
-        to storeURL: URL,
-        sessionId: String,
+    /// Mock server for the task-sync hook's routing, Feed, and checklist calls.
+    static func startTaskSyncServer(
+        context: Context,
         workspaceId: String,
         surfaceId: String,
-        cwd: String,
-        pid: Int? = nil
-    ) throws {
-        let now = Date().timeIntervalSince1970
-        var record: [String: Any] = [
-            "sessionId": sessionId,
-            "workspaceId": workspaceId,
-            "surfaceId": surfaceId,
-            "cwd": cwd,
-            "isRestorable": true,
-            "startedAt": now,
-            "updatedAt": now,
-        ]
-        if let pid { record["pid"] = pid }
-        let store: [String: Any] = [
-            "version": 1,
-            "sessions": [sessionId: record],
-        ]
-        let data = try JSONSerialization.data(withJSONObject: store, options: [.prettyPrinted, .sortedKeys])
-        try data.write(to: storeURL)
-    }
-
-    static func sessionRecord(in storeURL: URL, sessionId: String) throws -> [String: Any]? {
-        // A hook that fails closed before its first accepted upsert never
-        // creates the store file; that is the strongest form of "no record".
-        guard FileManager.default.fileExists(atPath: storeURL.path) else { return nil }
-        let saved = try JSONSerialization.jsonObject(with: Data(contentsOf: storeURL)) as? [String: Any]
-        let sessions = saved?["sessions"] as? [String: Any]
-        return sessions?[sessionId] as? [String: Any]
-    }
-
-    static func runHookProcess(
-        context: Context,
-        arguments: [String],
-        environment: [String: String],
-        standardInput: String
-    ) -> ProcessRunResult {
-        let process = Process()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        let stdinPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: context.cliPath)
-        process.arguments = arguments
-        process.environment = environment
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        do {
-            try process.run()
-        } catch {
-            return ProcessRunResult(status: -1, stdout: "", stderr: String(describing: error), timedOut: false)
-        }
-        stdinPipe.fileHandleForWriting.write(Data(standardInput.utf8))
-        try? stdinPipe.fileHandleForWriting.close()
-
-        let exitSignal = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            process.waitUntilExit()
-            exitSignal.signal()
-        }
-        let timedOut = exitSignal.wait(timeout: .now() + 10) == .timedOut
-        if timedOut {
-            process.terminate()
-            if exitSignal.wait(timeout: .now() + 1) == .timedOut {
-                kill(process.processIdentifier, SIGKILL)
-                _ = exitSignal.wait(timeout: .now() + 1)
+        workspaceIDsBySurface: [String: String] = [:],
+        missingWorkspaceIDs: Set<String> = [],
+        feedPushSucceeds: Bool = true,
+        rejectsEmptyFeedSnapshots: Bool = false
+    ) -> TaskSyncDeliverySignals {
+        let deliveries = TaskSyncDeliverySignals()
+        _ = startMockServer(listenerFD: context.listenerFD, state: context.state) { line in
+            guard let payload = jsonObject(line),
+                  let method = payload["method"] as? String else {
+                return "OK"
             }
-        }
-
-        let stdout = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let stderr = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return ProcessRunResult(
-            status: process.isRunning ? SIGKILL : process.terminationStatus,
-            stdout: stdout,
-            stderr: stderr,
-            timedOut: timedOut
-        )
-    }
-
-    private static func bindUnixSocket(at path: String) throws -> Int32 {
-        unlink(path)
-        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            throw NSError(domain: "cmux.tests", code: Int(errno))
-        }
-
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let maxPathLength = MemoryLayout.size(ofValue: addr.sun_path)
-        let utf8 = Array(path.utf8)
-        guard utf8.count < maxPathLength else {
-            Darwin.close(fd)
-            throw NSError(domain: "cmux.tests", code: Int(ENAMETOOLONG))
-        }
-        _ = withUnsafeMutablePointer(to: &addr.sun_path) { pointer in
-            pointer.withMemoryRebound(to: CChar.self, capacity: maxPathLength) { buffer in
-                for index in 0..<utf8.count {
-                    buffer[index] = CChar(bitPattern: utf8[index])
-                }
-                buffer[utf8.count] = 0
-            }
-        }
-
-        let bindResult = withUnsafePointer(to: &addr) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                Darwin.bind(fd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard bindResult == 0, Darwin.listen(fd, 8) == 0 else {
-            let code = errno
-            Darwin.close(fd)
-            throw NSError(domain: "cmux.tests", code: Int(code))
-        }
-        return fd
-    }
-
-    private static func startMockServer(
-        listenerFD: Int32,
-        state: ServerState,
-        handler: @escaping @Sendable (String) -> String
-    ) -> DispatchSemaphore {
-        let handled = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .userInitiated).async {
-            while true {
-                var clientAddr = sockaddr_un()
-                var clientAddrLen = socklen_t(MemoryLayout<sockaddr_un>.size)
-                let clientFD = withUnsafeMutablePointer(to: &clientAddr) { ptr in
-                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-                        Darwin.accept(listenerFD, sockaddrPtr, &clientAddrLen)
+            if method == "feed.push" {
+                deliveries.feed.signal()
+                let params = payload["params"] as? [String: Any]
+                let event = params?["event"] as? [String: Any]
+                let toolInput = event?["tool_input"] as? [String: Any]
+                let todos = toolInput?["todos"] as? [[String: Any]]
+                let rejectsSnapshot = rejectsEmptyFeedSnapshots && todos?.isEmpty == true
+                guard feedPushSucceeds, !rejectsSnapshot else {
+                    guard let id = payload["id"] as? String else {
+                        return "ERROR: injected Feed rejection"
                     }
+                    return v2Response(
+                        id: id,
+                        ok: false,
+                        error: ["code": "delivery_failed", "message": "injected Feed rejection"]
+                    )
                 }
-                guard clientFD >= 0 else {
-                    if errno == EINTR { continue }
-                    return
+                if let id = payload["id"] as? String {
+                    return v2Response(id: id, ok: true, result: [:])
                 }
-
-                DispatchQueue.global(qos: .userInitiated).async {
-                    defer {
-                        Darwin.close(clientFD)
-                        handled.signal()
-                    }
-
-                    func writeResponse(_ response: String) {
-                        let line = response + "\n"
-                        _ = line.withCString { ptr in
-                            Darwin.write(clientFD, ptr, strlen(ptr))
+                return "OK"
+            }
+            guard let id = payload["id"] as? String else {
+                return "OK"
+            }
+            let params = payload["params"] as? [String: Any] ?? [:]
+            switch method {
+            case "agent.resolve_delivery_target":
+                if params["pid"] != nil {
+                    return v2Response(id: id, ok: true, result: [
+                        "workspace_id": workspaceId,
+                        "surface_id": surfaceId,
+                        "source": "pid",
+                    ])
+                }
+                let requestedSurfaceID = params["surface_id"] as? String
+                let resolvedWorkspaceID = requestedSurfaceID.flatMap {
+                    workspaceIDsBySurface[$0]
+                } ?? workspaceId
+                return v2Response(id: id, ok: true, result: [
+                    "workspace_id": resolvedWorkspaceID,
+                    "surface_id": requestedSurfaceID ?? surfaceId,
+                    "source": "surface",
+                ])
+            case "surface.list":
+                let requestedWorkspaceID = params["workspace_id"] as? String
+                let resolvedSurfaceID = workspaceIDsBySurface.first {
+                    $0.value == requestedWorkspaceID
+                }?.key ?? surfaceId
+                return v2Response(id: id, ok: true, result: [
+                    "surfaces": [["id": resolvedSurfaceID, "ref": "surface:1", "focused": true]],
+                ])
+            case "workspace.todo.reconcile":
+                let items = params["items"] as? [[String: Any]] ?? []
+                let validateOnly = params["validate_only"] as? Bool == true
+                if items.count > 50 {
+                    let destinationCount = (params["workspace_ids"] as? [String])?.count ?? 1
+                    for _ in 0..<destinationCount {
+                        if validateOnly {
+                            deliveries.validation.signal()
+                        } else {
+                            deliveries.reconciliation.signal()
                         }
                     }
-
-                    var pending = Data()
-                    var buffer = [UInt8](repeating: 0, count: 4096)
-                    while true {
-                        let count = Darwin.read(clientFD, &buffer, buffer.count)
-                        if count < 0 {
-                            if errno == EINTR { continue }
-                            return
-                        }
-                        if count == 0 { return }
-                        pending.append(buffer, count: count)
-
-                        while let newlineRange = pending.firstRange(of: Data([0x0A])) {
-                            let lineData = pending.subdata(in: 0..<newlineRange.lowerBound)
-                            pending.removeSubrange(0...newlineRange.lowerBound)
-                            guard let line = String(data: lineData, encoding: .utf8) else { continue }
-                            state.append(line)
-                            writeResponse(handler(line))
-                        }
-                    }
+                    return v2Response(
+                        id: id,
+                        ok: false,
+                        error: ["code": "invalid_params", "message": "checklist cap exceeded"]
+                    )
                 }
+                if let destinationWorkspaceIDs = params["workspace_ids"] as? [String] {
+                    let results: [[String: Any]] = destinationWorkspaceIDs.map { workspaceID in
+                        if validateOnly {
+                            deliveries.validation.signal()
+                        } else {
+                            deliveries.reconciliation.signal()
+                        }
+                        if missingWorkspaceIDs.contains(workspaceID) {
+                            if validateOnly {
+                                return ["workspace_id": workspaceID, "ok": true]
+                            }
+                            return [
+                                "workspace_id": workspaceID,
+                                "ok": false,
+                                "error": ["code": "not_found", "message": "workspace closed"],
+                            ]
+                        }
+                        return ["workspace_id": workspaceID, "ok": true]
+                    }
+                    return v2Response(id: id, ok: true, result: ["results": results])
+                }
+                if validateOnly {
+                    deliveries.validation.signal()
+                } else {
+                    deliveries.reconciliation.signal()
+                }
+                if let destinationWorkspaceID = params["workspace_id"] as? String,
+                   missingWorkspaceIDs.contains(destinationWorkspaceID) {
+                    if validateOnly {
+                        return v2Response(id: id, ok: true, result: [:])
+                    }
+                    return v2Response(
+                        id: id,
+                        ok: false,
+                        error: ["code": "not_found", "message": "workspace closed"]
+                    )
+                }
+                return v2Response(id: id, ok: true, result: [:])
+            default:
+                return v2Response(
+                    id: id,
+                    ok: false,
+                    error: ["code": "unrecognized_method", "message": "unexpected method: \(method)"]
+                )
             }
         }
-        return handled
+        return deliveries
     }
 
-    private static func v2Response(
-        id: String,
-        ok: Bool,
-        result: [String: Any]? = nil,
-        error: [String: Any]? = nil
-    ) -> String {
-        var payload: [String: Any] = ["id": id, "ok": ok]
-        if let result { payload["result"] = result }
-        if let error { payload["error"] = error }
-        let data = try? JSONSerialization.data(withJSONObject: payload, options: [])
-        return String(data: data ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
-    }
-
-    private static func jsonObject(_ line: String) -> [String: Any]? {
-        guard let data = line.data(using: .utf8) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
-    }
 }

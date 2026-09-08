@@ -142,10 +142,10 @@ public final class WorkstreamStore {
     /// Applies an inbound wire frame. Creates or updates a
     /// `WorkstreamItem`, enforces the ring-buffer cap, and appends to
     /// the JSONL log.
-    func ingestPrepared(_ item: WorkstreamItem) {
+    func ingestPrepared(_ item: WorkstreamItem, isTransient: Bool = false) {
         insert(item)
         updateContextIndex(with: item)
-        if let persistence {
+        if let persistence, !isTransient {
             Task { [persistence, item] in
                 try? await persistence.append(item)
             }
@@ -469,7 +469,6 @@ public final class WorkstreamStore {
         }
         return nil
     }
-
     private static func todos(from json: String?) -> [WorkstreamTaskTodo] {
         let rawTodos: [Any]
         if let dict = jsonObject(from: json) as? [String: Any] {
@@ -499,6 +498,7 @@ public final class WorkstreamStore {
             return WorkstreamTaskTodo(
                 id: (dict["id"] as? String) ?? "todo\(idx)",
                 content: content,
+                activeForm: dict["activeForm"] as? String,
                 state: state
             )
         }
