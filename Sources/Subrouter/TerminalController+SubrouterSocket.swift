@@ -1,4 +1,5 @@
 import Foundation
+import CmuxControlSocket
 import CmuxSubrouter
 
 /// Handles `subrouter.*` socket methods backing `cmux subrouter`.
