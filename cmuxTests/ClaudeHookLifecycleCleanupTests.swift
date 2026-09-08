@@ -195,7 +195,9 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
-    @Test func promptSubmitFollowsMovedPaneWithoutClearingSiblings() throws {
+    /// Since #11976, the CLI records the new turn in the journal for the resolved pane
+    /// instead of sending `clear_notifications`; the app reconciles attention from that event.
+    @Test func promptSubmitTurnStartFollowsMovedPaneWithoutTouchingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
@@ -236,6 +238,7 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(journalEvent?.workspaceId == newWorkspaceId)
         #expect(journalEvent?.surfaceId == Self.liveSurfaceId)
+        #expect(!commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") })
         #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
     }
 
@@ -302,6 +305,7 @@ struct ClaudeHookLifecycleCleanupTests {
         )
         #expect(journalEvent?.workspaceId == newWorkspaceId)
         #expect(journalEvent?.surfaceId == Self.liveSurfaceId)
+        #expect(!commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") })
         #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
