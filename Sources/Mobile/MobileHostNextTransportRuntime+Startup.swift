@@ -75,7 +75,7 @@ extension MobileHostNextTransportRuntime {
             // must never reuse the previous endpoint's token and publish a
             // relay route that the fleet will silently reject.
             let identityBoundCached = cached.filter {
-                IrohSubstrate.tokenEndpointId($0.token) == identity.publicKeyData
+                IrohSubstrate().tokenEndpointId($0.token) == identity.publicKeyData
             }
             let usable = relayCachePolicy.usable(
                 identityBoundCached, now: Int64(Date().timeIntervalSince1970))
@@ -94,12 +94,12 @@ extension MobileHostNextTransportRuntime {
             let endpoint: Endpoint
             switch plan {
             case .directOnlyDeliberate:
-                endpoint = try await IrohSubstrate.endpoint(
+                endpoint = try await IrohSubstrate().endpoint(
                     identity: identity, minimalLoopback: false)
             case .cachedCredential, .awaitFirstMint:
                 // awaitFirstMint binds NOW with an empty custom relay map;
                 // the first mint inserts into it make-before-break.
-                endpoint = try await IrohSubstrate.endpoint(identity: identity, relays: relays)
+                endpoint = try await IrohSubstrate().endpoint(identity: identity, relays: relays)
             }
             guard generation == gen, !Task.isCancelled else {
                 try? await endpoint.close()

@@ -5,8 +5,11 @@ public import IrohLib
 /// via stock upstream iroh (cmux-lite IrohLib branch), plugged into the same
 /// `PeerConnection` seam the loopback implements. Lanes map one-to-one onto
 /// bidirectional QUIC streams, so cross-lane independence (5.2) is physical.
-public enum IrohSubstrate {
-    public static var alpn: Data { Data(CmuxPeerProtocol.identifier.utf8) }
+public struct IrohSubstrate: Sendable {
+    /// Creates the stateless IrohSubstrate operation value.
+    public init() {}
+
+    public var alpn: Data { Data(Frame.protocolIdentifier.utf8) }
 
     /// Build and bind an endpoint whose network identity IS the peer identity
     /// (contract 1.1): the Ed25519 key seeds iroh's secret key, so the remote
@@ -16,7 +19,7 @@ public enum IrohSubstrate {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func endpoint(
+    public func endpoint(
         identity: PeerIdentity, minimalLoopback: Bool
     ) async throws -> Endpoint {
         let builder = EndpointBuilder()
@@ -62,7 +65,7 @@ public enum IrohSubstrate {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func endpoint(
+    public func endpoint(
         identity: PeerIdentity, relays: [RelayAccess]
     ) async throws -> Endpoint {
         let builder = EndpointBuilder()
@@ -95,7 +98,7 @@ public enum IrohSubstrate {
     /// The relay refuses a wrong-key token with NO client-visible error (the
     /// route just looks dead), so callers must compare this against their own
     /// `identity.publicKeyData` BEFORE dialing and say so loudly on mismatch.
-    public static func tokenEndpointId(_ token: String) -> Data? {
+    public func tokenEndpointId(_ token: String) -> Data? {
         guard let hex = tokenClaims(token)?["endpoint_id"]?.stringValue,
             hex.count % 2 == 0
         else { return nil }
@@ -114,11 +117,11 @@ public enum IrohSubstrate {
     /// seconds), or nil if it doesn't parse. Tokens live 300s; dialing with
     /// an expired one makes the relay route silently dead, so callers should
     /// name it (the 08-21 "chat died at +5min" field bite).
-    public static func tokenExpiry(_ token: String) -> Int64? {
+    public func tokenExpiry(_ token: String) -> Int64? {
         tokenClaims(token)?["exp"]?.intValue
     }
 
-    private static func tokenClaims(_ token: String) -> [String: JSONValue]? {
+    private func tokenClaims(_ token: String) -> [String: JSONValue]? {
         let parts = token.split(separator: ".")
         guard parts.count == 3 else { return nil }
         var payload = parts[1]
@@ -131,12 +134,12 @@ public enum IrohSubstrate {
 
     /// A relay-only address: no direct candidates at all, so the connection
     /// can only be established through the relay (harness spec 2.2).
-    public static func relayAddr(id: Data, relayUrl: String) throws -> EndpointAddr {
+    public func relayAddr(id: Data, relayUrl: String) throws -> EndpointAddr {
         EndpointAddr(id: try EndpointId.fromBytes(bytes: id), relayUrl: relayUrl, addresses: [])
     }
 
     /// The dialable address of a bound endpoint, for tests and LAN dials.
-    public static func directAddr(of endpoint: Endpoint) -> EndpointAddr {
+    public func directAddr(of endpoint: Endpoint) -> EndpointAddr {
         let addresses = endpoint.boundSockets().map {
             $0.replacingOccurrences(of: "0.0.0.0", with: "127.0.0.1")
         }
@@ -146,7 +149,7 @@ public enum IrohSubstrate {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func dial(
+    public func dial(
         endpoint: Endpoint, to addr: EndpointAddr
     ) async throws -> IrohPeerConnection {
         let dialStart = ContinuousClock.now
@@ -202,7 +205,7 @@ public enum IrohSubstrate {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func acceptOne(endpoint: Endpoint) async throws -> IrohPeerConnection? {
+    public func acceptOne(endpoint: Endpoint) async throws -> IrohPeerConnection? {
         guard let incoming = await endpoint.acceptNext() else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.notice("substrate acceptOne: endpoint closed (nil incoming)")

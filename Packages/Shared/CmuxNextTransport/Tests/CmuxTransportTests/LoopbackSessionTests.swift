@@ -36,7 +36,7 @@ struct LoopbackSessionTests {
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
 
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -44,7 +44,7 @@ struct LoopbackSessionTests {
         let echo = await client.lane(TransportHost.echoLaneName)
         var validator = TrafficValidator()
         for seq in Int64(0)..<100 {
-            try await echo.send(TerminalTraffic.chunk(seq: seq, size: 512, seed: 42))
+            try await echo.send(TerminalTraffic().chunk(seq: seq, size: 512, seed: 42))
             if let reply = await echo.receive() {
                 validator.ingest(reply)
             }
@@ -61,7 +61,7 @@ struct LoopbackSessionTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -90,7 +90,7 @@ struct LoopbackSessionTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        _ = try await TransportClient.connect(
+        _ = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         await serving
         #expect(await host.reapClosedSessions() == 0)  // live: untouched
@@ -120,7 +120,7 @@ struct LoopbackSessionTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: imposter.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .denied(.keyMismatch))
         await serving
@@ -138,7 +138,7 @@ struct LoopbackSessionTests {
         }
 
         await #expect(throws: TransportError.self) {
-            _ = try await TransportClient.connect(
+            _ = try await TransportClient().connect(
                 connection: client, identity: identity, grant: grant)
         }
         try await fakeHost.value
@@ -154,7 +154,7 @@ struct LoopbackSessionTests {
         async let serving: Void = host.serve(connection: hostEnd, now: now)
         // The host denies and then closes the wire; the client must still read
         // the denial, never see a silent hang or a bare EOF.
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .denied(.revoked))
         await serving
@@ -171,7 +171,7 @@ struct LoopbackSessionTests {
         // anything, exactly like an iOS app kill.
         let (firstClient, firstHostEnd) = LoopbackWire().makeEnds()
         async let firstServe: Void = host.serve(connection: firstHostEnd, now: now)
-        let first = try await TransportClient.connect(
+        let first = try await TransportClient().connect(
             connection: firstClient, identity: identity, grant: grant)
         #expect(first == .admitted(sessionID: "s1"))
         await firstServe
@@ -181,7 +181,7 @@ struct LoopbackSessionTests {
         // not left blocking re-admission (the ~85s field lockout).
         let (secondClient, secondHostEnd) = LoopbackWire().makeEnds()
         async let secondServe: Void = host.serve(connection: secondHostEnd, now: now)
-        let second = try await TransportClient.connect(
+        let second = try await TransportClient().connect(
             connection: secondClient, identity: identity, grant: grant)
         #expect(second == .admitted(sessionID: "s2"))
         await secondServe
@@ -206,14 +206,14 @@ struct LoopbackSessionTests {
 
         let (betaClient, betaHostEnd) = LoopbackWire().makeEnds()
         async let betaServe: Void = host.serve(connection: betaHostEnd, now: now)
-        let betaOutcome = try await TransportClient.connect(
+        let betaOutcome = try await TransportClient().connect(
             connection: betaClient, identity: beta, grant: betaGrant)
         #expect(betaOutcome == .admitted(sessionID: "s1"))
         await betaServe
 
         let (internalClient, internalHostEnd) = LoopbackWire().makeEnds()
         async let internalServe: Void = host.serve(connection: internalHostEnd, now: now)
-        let internalOutcome = try await TransportClient.connect(
+        let internalOutcome = try await TransportClient().connect(
             connection: internalClient, identity: internalApp, grant: internalGrant)
         #expect(internalOutcome == .admitted(sessionID: "s2"))
         await internalServe
@@ -229,7 +229,7 @@ struct LoopbackSessionTests {
         let crossIdentity = try PeerIdentity(
             appIdentity: "dev.cmux.beta", deviceID: "phone-1",
             privateKeyData: internalApp.privateKeyData)
-        let cross = try await TransportClient.connect(
+        let cross = try await TransportClient().connect(
             connection: crossClient, identity: crossIdentity, grant: internalGrant)
         #expect(cross == .denied(.appMismatch))
         await crossServe

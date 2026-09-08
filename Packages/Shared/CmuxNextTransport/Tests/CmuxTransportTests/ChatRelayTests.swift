@@ -26,7 +26,7 @@ struct ChatRelayTests {
             let (client, hostEnd) = LoopbackWire().makeEnds(
                 authenticatedClientKey: identity.publicKeyData)
             async let serving: Void = host.serve(connection: hostEnd, now: now)
-            let outcome = try await TransportClient.connect(
+            let outcome = try await TransportClient().connect(
                 connection: client, identity: identity, grant: grant)
             guard case .admitted = outcome else {
                 Issue.record("expected admitted connection, got \(outcome)")
@@ -72,8 +72,8 @@ struct ChatRelayTests {
         try await bobChat.send(Frame.chatMessage(from: "bob", seq: 1, text: "yo"))
         let first = await aliceChat.receive()
         let second = await aliceChat.receive()
-        #expect(first?.type == FrameTypes.chatTyping)
-        #expect(second?.type == FrameTypes.chatMessage)
+        #expect(first?.type == FrameTypePolicy.chatTyping)
+        #expect(second?.type == FrameTypePolicy.chatMessage)
         #expect(second?.payload["from"]?.stringValue == "bob")
     }
 }

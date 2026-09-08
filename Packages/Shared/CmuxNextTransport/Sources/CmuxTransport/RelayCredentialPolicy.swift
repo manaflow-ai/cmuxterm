@@ -32,7 +32,10 @@ public enum RelayCredentialMode: String, Sendable, Codable {
 /// caller-supplied jitter so a fleet of clients does not re-mint in
 /// lockstep. Credentials without a parseable expiry contribute the legacy
 /// fallback deadline even when other credentials expose a later expiry.
-public enum RelayCredentialSchedule {
+public struct RelayCredentialSchedule: Sendable {
+    /// Creates the stateless RelayCredentialSchedule operation value.
+    public init() {}
+
     /// Seconds of validity we insist on having left when the refresh fires.
     public static let defaultLeadSeconds: Int64 = 60
     /// Cadence for credentials that carry no expiry (matches the deployed
@@ -53,16 +56,16 @@ public enum RelayCredentialSchedule {
     ///   - jitterSeconds: non-negative offset the caller draws at random;
     ///     it is applied *earlier* than the lead so jitter can never push a
     ///     refresh past expiry.
-    public static func nextRefresh(
+    public func nextRefresh(
         expiries: [Int64?],
         now: Int64,
-        leadSeconds: Int64 = defaultLeadSeconds,
+        leadSeconds: Int64 = RelayCredentialSchedule.defaultLeadSeconds,
         jitterSeconds: Int64 = 0
     ) -> Int64? {
         guard !expiries.isEmpty else { return nil }
         let earliest = expiries.compactMap { $0 }.min()
         let jitter = max(0, jitterSeconds)
-        let fallbackTarget = now + fallbackIntervalSeconds - jitter
+        let fallbackTarget = now + RelayCredentialSchedule.fallbackIntervalSeconds - jitter
         let expiryTarget = earliest.map { $0 - leadSeconds - jitter }
         // A mixed set is only as safe as its least observable credential. Use
         // the fallback deadline when (and only when) at least one credential
@@ -75,14 +78,14 @@ public enum RelayCredentialSchedule {
         } else {
             target = expiryTarget ?? fallbackTarget
         }
-        return max(target, now + minimumDelaySeconds)
+        return max(target, now + RelayCredentialSchedule.minimumDelaySeconds)
     }
 
     /// Convenience over broker credentials.
-    public static func nextRefresh(
+    public func nextRefresh(
         credentials: [BrokerCredentialClient.Credential],
         now: Int64,
-        leadSeconds: Int64 = defaultLeadSeconds,
+        leadSeconds: Int64 = RelayCredentialSchedule.defaultLeadSeconds,
         jitterSeconds: Int64 = 0
     ) -> Int64? {
         nextRefresh(

@@ -6,12 +6,15 @@ import Foundation
 /// Opens legacy-shaped lanes over one admitted next-transport connection.
 /// The mirror of `BridgeLaneAcceptor`: the dialing side of every bridged
 /// stream writes the descriptor preamble, then owns the bytes.
-public enum BridgeLaneDialer {
+public struct BridgeLaneDialer: Sendable {
+    /// Creates the stateless BridgeLaneDialer operation value.
+    public init() {}
+
     /// One legacy application lane (terminal, artifact, simulator stream).
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func openLane(
+    public func openLane(
         on connection: IrohPeerConnection,
         lane: CmxIrohLane,
         priority: Int32
@@ -22,7 +25,7 @@ public enum BridgeLaneDialer {
         case .control, .serverEvents:
             throw CmxIrohClientSessionError.invalidOutgoingLane
         }
-        let preamble = try BridgeLaneDescriptor.preamble(for: lane)
+        let preamble = try BridgeLaneDescriptor().preamble(for: lane)
         let openStart = ContinuousClock.now
         do {
             let raw = try await connection.openRawStream(preamble: preamble)
@@ -62,13 +65,13 @@ public enum BridgeLaneDialer {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func openControlTransport(
+    public func openControlTransport(
         on connection: IrohPeerConnection
     ) async throws -> BridgeByteTransport {
         let openStart = ContinuousClock.now
         do {
             let raw = try await connection.openRawStream(
-                preamble: BridgeLaneDescriptor.preamble(for: .control))
+                preamble: BridgeLaneDescriptor().preamble(for: .control))
             if BridgeDebugLog.enabled {
                 BridgeDebugLog.lanes.notice(
                     """
@@ -96,14 +99,14 @@ public enum BridgeLaneDialer {
     #if compiler(>=6.2)
     @concurrent
     #endif
-    public static func openServerEventSendStream(
+    public func openServerEventSendStream(
         on connection: IrohPeerConnection,
         priority: Int32
     ) async throws -> any CmxIrohSendStream {
         let openStart = ContinuousClock.now
         do {
             let raw = try await connection.openRawStream(
-                preamble: BridgeLaneDescriptor.preamble(for: .serverEvents(cursor: nil)))
+                preamble: BridgeLaneDescriptor().preamble(for: .serverEvents(cursor: nil)))
             do {
                 try await raw.setSendPriority(priority)
             } catch {

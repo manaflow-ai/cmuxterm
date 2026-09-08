@@ -36,7 +36,7 @@ struct GrantLifecycleTests {
         var validator = TrafficValidator()
         for offset in 0..<count {
             try await echo.send(
-                TerminalTraffic.chunk(seq: seq + Int64(offset), size: 256, seed: 9))
+                TerminalTraffic().chunk(seq: seq + Int64(offset), size: 256, seed: 9))
             if let reply = await echo.receive() {
                 validator.ingest(reply)
             }
@@ -55,7 +55,7 @@ struct GrantLifecycleTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -75,14 +75,14 @@ struct GrantLifecycleTests {
         // The client hears exactly one warning on the control lane (3.6c).
         let control = await client.lane("ctl")
         let warning = await control.receive()
-        #expect(warning?.type == FrameTypes.grantExpiring)
+        #expect(warning?.type == FrameTypePolicy.grantExpiring)
         #expect(warning?.payload["exp"]?.intValue == now + 500)
 
         // In-session renewal over the live control lane: no disconnect.
         let renewed = try mint(for: identity, grantID: "g-2", expiresAt: now + 100_000)
         try await control.send(Frame.grantUpdate(renewed))
         let ack = await control.receive()
-        #expect(ack?.type == FrameTypes.grantAck)
+        #expect(ack?.type == FrameTypePolicy.grantAck)
         #expect(ack?.payload["ok"]?.boolValue == true)
 
         // Long past the OLD grant's expiry + grace: the renewed session lives.
@@ -107,7 +107,7 @@ struct GrantLifecycleTests {
 
         let (client, hostEnd) = LoopbackWire().makeEnds()
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -129,14 +129,14 @@ struct GrantLifecycleTests {
         // end of stream, with the attributed reason in the termination
         // itself (v7). One close, no storm.
         let control = await client.lane("ctl")
-        #expect(await control.receive()?.type == FrameTypes.grantExpiring)
+        #expect(await control.receive()?.type == FrameTypePolicy.grantExpiring)
         #expect(await control.receive() == nil)
         #expect(await client.termination() == ConnectionTermination(code: "grant-expired"))
 
         // Reconnecting with the same expired grant: explicit denial (3.6a).
         let (retryClient, retryHostEnd) = LoopbackWire().makeEnds()
         async let retryServe: Void = host.serve(connection: retryHostEnd, now: now + 2_000)
-        let retry = try await TransportClient.connect(
+        let retry = try await TransportClient().connect(
             connection: retryClient, identity: identity, grant: grant)
         #expect(retry == .denied(.expired))
         await retryServe
@@ -145,7 +145,7 @@ struct GrantLifecycleTests {
         let renewed = try mint(for: identity, grantID: "g-2", expiresAt: now + 100_000)
         let (freshClient, freshHostEnd) = LoopbackWire().makeEnds()
         async let freshServe: Void = host.serve(connection: freshHostEnd, now: now + 2_000)
-        let fresh = try await TransportClient.connect(
+        let fresh = try await TransportClient().connect(
             connection: freshClient, identity: identity, grant: renewed)
         #expect(fresh == .admitted(sessionID: "s2"))
         await freshServe
@@ -159,7 +159,7 @@ struct GrantLifecycleTests {
 
         let (client, hostEnd) = LoopbackWire().makeEnds()
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        _ = try await TransportClient.connect(connection: client, identity: identity, grant: grant)
+        _ = try await TransportClient().connect(connection: client, identity: identity, grant: grant)
         await serving
 
         // A renewal minted for a DIFFERENT device is rejected with a readable

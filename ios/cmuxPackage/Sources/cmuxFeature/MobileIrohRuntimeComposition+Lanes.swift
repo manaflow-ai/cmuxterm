@@ -74,7 +74,7 @@ extension MobileIrohRuntimeComposition {
     ) async throws -> any CmxByteTransport {
         #if DEBUG
         if let connection = try await nextTransportConnection(for: request, kind: "control") {
-            return try await BridgeLaneDialer.openControlTransport(on: connection)
+            return try await BridgeLaneDialer().openControlTransport(on: connection)
         }
         #endif
         let runtime = try await preparedRuntimeForConnection()
@@ -97,7 +97,7 @@ extension MobileIrohRuntimeComposition {
         if let connection = try await nextTransportConnection(
             for: request, kind: Self.nextTransportLaneKindName(lane))
         {
-            return try await BridgeLaneDialer.openLane(
+            return try await BridgeLaneDialer().openLane(
                 on: connection, lane: lane, priority: priority)
         }
         #endif

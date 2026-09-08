@@ -137,7 +137,7 @@ extension BrokerCredentialClient {
         for credential in credentials {
             let knownExpiries = [
                 credential.expiresAt,
-                IrohSubstrate.tokenExpiry(credential.token),
+                IrohSubstrate().tokenExpiry(credential.token),
             ].compactMap { $0 }
             guard let url = URL(string: credential.relayUrl),
                 let scheme = url.scheme?.lowercased(),
@@ -149,7 +149,7 @@ extension BrokerCredentialClient {
                 url.fragment == nil,
                 !credential.token.isEmpty,
                 credential.token.utf8.count <= 16 * 1024,
-                IrohSubstrate.tokenEndpointId(credential.token) == identity.publicKeyData,
+                IrohSubstrate().tokenEndpointId(credential.token) == identity.publicKeyData,
                 knownExpiries.allSatisfy({ $0 > now }),
                 seenURLs.insert(credential.relayUrl).inserted
             else {
@@ -214,7 +214,7 @@ extension BrokerCredentialClient {
     ) -> Credential {
         Credential(
             relayUrl: relayUrl, token: token,
-            expiresAt: serverExpiresAt ?? IrohSubstrate.tokenExpiry(token))
+            expiresAt: serverExpiresAt ?? IrohSubstrate().tokenExpiry(token))
     }
 
     /// Epoch seconds from the broker's ISO-8601 timestamps

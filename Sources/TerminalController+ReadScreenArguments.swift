@@ -1,6 +1,10 @@
 import Foundation
 
 extension TerminalController {
+    func readTerminalText(_ args: String) -> String {
+        readTerminalTextBase64(surfaceArg: args)
+    }
+
     struct ReadScreenOptions {
         let surfaceArg: String
         let includeScrollback: Bool

@@ -57,7 +57,7 @@ extension TransportHost {
                     reason: ConnectionTermination(code: DenialCode.protocolMismatch.rawValue))
                 return
             }
-            guard frame.type == FrameTypes.grantUpdate else {
+            guard frame.type == FrameTypePolicy.grantUpdate else {
                 if TransportDebugLog.enabled {
                     TransportDebugLog.host.notice(
                         """
@@ -171,7 +171,7 @@ extension TransportHost {
                     reason: ConnectionTermination(code: DenialCode.protocolMismatch.rawValue))
                 return
             }
-            guard frame.type == FrameTypes.chatMessage || frame.type == FrameTypes.chatTyping
+            guard frame.type == FrameTypePolicy.chatMessage || frame.type == FrameTypePolicy.chatTyping
             else { continue }
             for (otherKey, endpoint) in chatEndpoints where otherKey != key {
                 try? await endpoint.lane.send(frame)
@@ -205,7 +205,7 @@ extension TransportHost {
                     reason: ConnectionTermination(code: DenialCode.protocolMismatch.rawValue))
                 return
             }
-            guard frame.type == FrameTypes.dataChunk else { continue }
+            guard frame.type == FrameTypePolicy.dataChunk else { continue }
             do {
                 try await echo.send(frame)
             } catch {

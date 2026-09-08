@@ -22,7 +22,7 @@ extension TransportHost {
         }
         let control = await connection.lane(Self.controlLaneName)
         guard let hello = await receiveHello(
-            from: control, connection: connection), hello.type == FrameTypes.hello else {
+            from: control, connection: connection), hello.type == FrameTypePolicy.hello else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.host.error(
                     """
@@ -48,13 +48,13 @@ extension TransportHost {
                 deviceID: hello.payload["deviceId"]?.stringValue)
             return
         }
-        guard hello.payload["protocol"]?.stringValue == CmuxPeerProtocol.identifier else {
+        guard hello.payload["protocol"]?.stringValue == Frame.protocolIdentifier else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.host.error(
                     """
                     host protocol mismatch conn=\(TransportDebugLog.id(connection), privacy: .public) \
                     presented=\(hello.payload["protocol"]?.stringValue ?? "nil", privacy: .public) \
-                    expected=\(CmuxPeerProtocol.identifier, privacy: .public)
+                    expected=\(Frame.protocolIdentifier, privacy: .public)
                     """)
             }
             await deny(
@@ -206,7 +206,7 @@ extension TransportHost {
                         session=\(session.id, privacy: .public) \
                         device=\(TransportDebugLog.prefix(deviceID), privacy: .public) \
                         url=\(credential.url, privacy: .public) \
-                        tokenExp=\(IrohSubstrate.tokenExpiry(credential.token).map(String.init) ?? "unparsed", privacy: .public) \
+                        tokenExp=\(IrohSubstrate().tokenExpiry(credential.token).map(String.init) ?? "unparsed", privacy: .public) \
                         now=\(now, privacy: .public)
                         """)
                 }

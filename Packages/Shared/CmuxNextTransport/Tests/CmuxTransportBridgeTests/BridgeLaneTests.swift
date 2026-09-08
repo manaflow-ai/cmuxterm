@@ -22,8 +22,8 @@ struct BridgeLaneDescriptorTests {
             .simulatorStream(resourceID: simID),
         ]
         for lane in lanes {
-            let preamble = try BridgeLaneDescriptor.preamble(for: lane)
-            let decoded = try BridgeLaneDescriptor.lane(fromPreamble: preamble)
+            let preamble = try BridgeLaneDescriptor().preamble(for: lane)
+            let decoded = try BridgeLaneDescriptor().lane(fromPreamble: preamble)
             #expect(decoded == lane)
         }
     }
@@ -40,7 +40,7 @@ struct BridgeLaneDescriptorTests {
         ]
         for preamble in bad {
             #expect(throws: BridgeLaneDescriptorError.invalidDescriptor) {
-                _ = try BridgeLaneDescriptor.lane(fromPreamble: preamble)
+                _ = try BridgeLaneDescriptor().lane(fromPreamble: preamble)
             }
         }
     }
@@ -71,14 +71,14 @@ struct BridgeLaneLiveTests {
                 devicePublicKey: phone.publicKeyData, appIdentity: phone.appIdentity,
                 grantID: "g-1", issuedAt: now)
 
-            let server = try await IrohSubstrate.endpoint(identity: mac, minimalLoopback: true)
-            let client = try await IrohSubstrate.endpoint(identity: phone, minimalLoopback: true)
+            let server = try await IrohSubstrate().endpoint(identity: mac, minimalLoopback: true)
+            let client = try await IrohSubstrate().endpoint(identity: phone, minimalLoopback: true)
             var clientConn: IrohPeerConnection?
             var serverConn: IrohPeerConnection?
             do {
-                async let accepted = IrohSubstrate.acceptOne(endpoint: server)
-                let connectedClient = try await IrohSubstrate.dial(
-                    endpoint: client, to: IrohSubstrate.directAddr(of: server))
+                async let accepted = IrohSubstrate().acceptOne(endpoint: server)
+                let connectedClient = try await IrohSubstrate().dial(
+                    endpoint: client, to: IrohSubstrate().directAddr(of: server))
                 clientConn = connectedClient
                 guard let acceptedConnection = try await accepted else {
                     throw TransportError.pipeClosed
@@ -86,7 +86,7 @@ struct BridgeLaneLiveTests {
                 serverConn = acceptedConnection
                 async let serving: Void = host.serve(
                     connection: acceptedConnection, now: now)
-                let outcome = try await TransportClient.connect(
+                let outcome = try await TransportClient().connect(
                     connection: connectedClient, identity: phone, grant: grant)
                 guard case .admitted = outcome else { throw TransportError.pipeClosed }
                 await serving
@@ -136,7 +136,7 @@ struct BridgeLaneLiveTests {
         try await withRig { rig in
             let resourceID = try CmxIrohResourceID("terminal:abc123")
 
-            let stream = try await BridgeLaneDialer.openLane(
+            let stream = try await BridgeLaneDialer().openLane(
                 on: rig.clientConn,
                 lane: .terminal(resourceID: resourceID, cursor: 9), priority: 10)
             let (lane, hostStream) = try await rig.acceptor.acceptBidirectionalLane()
@@ -164,7 +164,7 @@ struct BridgeLaneLiveTests {
     @Test("Control transport: request and response bytes")
     func controlTransport() async throws {
         try await withRig { rig in
-            let phoneControl = try await BridgeLaneDialer.openControlTransport(on: rig.clientConn)
+            let phoneControl = try await BridgeLaneDialer().openControlTransport(on: rig.clientConn)
             try await phoneControl.send(Data("rpc-request".utf8))
             let macRaw = try await rig.acceptor.nextControlStream()
             let macControl = BridgeByteTransport(stream: macRaw)
@@ -192,7 +192,7 @@ struct BridgeLaneLiveTests {
             }
 
             let resourceID = try CmxIrohResourceID("terminal:after-reject")
-            _ = try await BridgeLaneDialer.openLane(
+            _ = try await BridgeLaneDialer().openLane(
                 on: rig.clientConn,
                 lane: .terminal(resourceID: resourceID, cursor: nil), priority: 0)
             let (lane, _) = try await rig.acceptor.acceptBidirectionalLane()
@@ -204,7 +204,7 @@ struct BridgeLaneLiveTests {
     func peerServerEventsRejected() async throws {
         try await withRig { rig in
             _ = try await rig.clientConn.openRawStream(
-                preamble: BridgeLaneDescriptor.preamble(for: .serverEvents(cursor: nil)))
+                preamble: BridgeLaneDescriptor().preamble(for: .serverEvents(cursor: nil)))
             await #expect(throws: CmxIrohServerSessionError.applicationLaneRejected) {
                 _ = try await rig.acceptor.acceptBidirectionalLane()
             }
@@ -216,7 +216,7 @@ struct BridgeLaneLiveTests {
         try await withRig { rig in
             let phoneAcceptor = await BridgeLaneAcceptor.attached(
                 to: rig.clientConn, acceptsServerEvents: true)
-            let sender = try await BridgeLaneDialer.openServerEventSendStream(
+            let sender = try await BridgeLaneDialer().openServerEventSendStream(
                 on: rig.serverConn, priority: 50)
             try await sender.send(Data("event-1".utf8))
             try await sender.finish()
@@ -238,7 +238,7 @@ struct BridgeLaneLiveTests {
         try await withRig { rig in
             for lane in [CmxIrohLane.control, .serverEvents(cursor: nil)] {
                 await #expect(throws: CmxIrohClientSessionError.invalidOutgoingLane) {
-                    _ = try await BridgeLaneDialer.openLane(
+                    _ = try await BridgeLaneDialer().openLane(
                         on: rig.clientConn, lane: lane, priority: 0)
                 }
             }
@@ -248,7 +248,7 @@ struct BridgeLaneLiveTests {
     @Test("Closed bridge byte transport rejects every later operation")
     func closedByteTransportRejectsUse() async throws {
         try await withRig { rig in
-            let phoneControl = try await BridgeLaneDialer.openControlTransport(on: rig.clientConn)
+            let phoneControl = try await BridgeLaneDialer().openControlTransport(on: rig.clientConn)
             _ = try await rig.acceptor.nextControlStream()
             await phoneControl.close()
 

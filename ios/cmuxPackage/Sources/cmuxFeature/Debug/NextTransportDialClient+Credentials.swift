@@ -15,14 +15,14 @@ extension NextTransportDialClient {
     /// live endpoint (make-before-break) and persists, so neither a quiet
     /// session nor a relaunch waits for the next dial to use it.
     func storePushedCredential(url: String, token: String) async {
-        guard IrohSubstrate.tokenEndpointId(token) == identity.publicKeyData else {
+        guard IrohSubstrate().tokenEndpointId(token) == identity.publicKeyData else {
             log("pushed credential bound to a DIFFERENT device; ignoring")
             return
         }
         pendingRelay = (url, token)
         let payload: [String: String] = ["url": url, "token": token]
         if let data = try? JSONEncoder().encode(payload),
-            IdentityKeychain.write(
+            NextTransportIdentityKeychain(logger: Self.logger).write(
                 data, service: pushedRelayKeychainService,
                 account: Self.pushedRelayKeychainAccount)
         {
@@ -56,7 +56,7 @@ extension NextTransportDialClient {
     static func persistedPushedCredential(
         defaults: UserDefaults, keychainService: String
     ) -> (url: String, token: String)? {
-        let storedData = IdentityKeychain.read(
+        let storedData = NextTransportIdentityKeychain(logger: Self.logger).read(
             service: keychainService, account: pushedRelayKeychainAccount)
         let stored: [String: String]?
         if let storedData {
@@ -67,7 +67,7 @@ extension NextTransportDialClient {
             // Migrate the legacy value only after a protected write succeeds.
             let candidate = ["url": url, "token": token]
             let migrated = if let data = try? JSONEncoder().encode(candidate),
-                IdentityKeychain.write(
+                NextTransportIdentityKeychain(logger: Self.logger).write(
                     data, service: keychainService, account: pushedRelayKeychainAccount)
             { true } else { false }
             // Remove the legacy plaintext slot even if the protected store is
@@ -79,7 +79,7 @@ extension NextTransportDialClient {
             stored = nil
         }
         guard let stored, let url = stored["url"], let token = stored["token"],
-            let expiry = IrohSubstrate.tokenExpiry(token),
+            let expiry = IrohSubstrate().tokenExpiry(token),
             expiry > Int64(Date().timeIntervalSince1970)
         else { return nil }
         return (url, token)
@@ -120,7 +120,7 @@ extension NextTransportDialClient {
         let now = Int64(Date().timeIntervalSince1970)
         let jitter = Int64.random(in: 0...30)
         guard
-            let target = RelayCredentialSchedule.nextRefresh(
+            let target = RelayCredentialSchedule().nextRefresh(
                 credentials: mintedCredentials, now: now, jitterSeconds: jitter)
         else {
             // Nothing minted yet (LAN-only boot): retry on the fallback

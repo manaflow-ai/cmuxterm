@@ -74,7 +74,7 @@ struct RelayE2ETests {
 
         let clock = ContinuousClock()
         let bootStart = clock.now
-        let server = try await IrohSubstrate.endpoint(
+        let server = try await IrohSubstrate().endpoint(
             identity: mac,
             relays: [IrohSubstrate.RelayAccess(url: config.relayUrl, authToken: config.server.token)])
         // The host must be registered with its home relay before a
@@ -83,14 +83,14 @@ struct RelayE2ETests {
         let serverOnline = clock.now
         print("[relay-e2e] server online via \(config.relayUrl) in \(serverOnline - bootStart)")
 
-        let client = try await IrohSubstrate.endpoint(
+        let client = try await IrohSubstrate().endpoint(
             identity: phone,
             relays: [IrohSubstrate.RelayAccess(url: config.relayUrl, authToken: config.client.token)])
         await client.online()
         print("[relay-e2e] client online in \(clock.now - serverOnline)")
 
         let serveLoop = Task {
-            while let conn = try? await IrohSubstrate.acceptOne(endpoint: server) {
+            while let conn = try? await IrohSubstrate().acceptOne(endpoint: server) {
                 await host.serve(connection: conn, now: now)
             }
         }
@@ -99,10 +99,10 @@ struct RelayE2ETests {
         // may hole-punch a direct path AFTERWARDS; that migration is the
         // production behavior and is fine.)
         let dialStart = clock.now
-        let conn = try await IrohSubstrate.dial(
+        let conn = try await IrohSubstrate().dial(
             endpoint: client,
-            to: try IrohSubstrate.relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl))
-        let outcome = try await TransportClient.connect(
+            to: try IrohSubstrate().relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl))
+        let outcome = try await TransportClient().connect(
             connection: conn, identity: phone, grant: grant)
         let ready = clock.now
         #expect(outcome == .admitted(sessionID: "s1"))
@@ -112,7 +112,7 @@ struct RelayE2ETests {
         var validator = TrafficValidator()
         let echoStart = clock.now
         for seq in Int64(0)..<50 {
-            try await echo.send(TerminalTraffic.chunk(seq: seq, size: 4_096, seed: 55))
+            try await echo.send(TerminalTraffic().chunk(seq: seq, size: 4_096, seed: 55))
             if let reply = await echo.receive() {
                 validator.ingest(reply)
             }
@@ -127,10 +127,10 @@ struct RelayE2ETests {
         let strangerGrant = try signer.mint(
             accountID: "acct-relay", deviceID: "x", devicePublicKey: stranger.publicKeyData,
             appIdentity: stranger.appIdentity, grantID: "g-x", issuedAt: now)
-        let conn2 = try await IrohSubstrate.dial(
+        let conn2 = try await IrohSubstrate().dial(
             endpoint: client,
-            to: try IrohSubstrate.relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl))
-        let denied = try await TransportClient.connect(
+            to: try IrohSubstrate().relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl))
+        let denied = try await TransportClient().connect(
             connection: conn2, identity: phone, grant: strangerGrant)
         #expect(denied == .denied(.keyMismatch))  // phone's key, stranger's grant
 
@@ -155,27 +155,27 @@ struct RelayE2ETests {
         let mac = try PeerIdentity(
             appIdentity: "dev.cmux.lite.mac", deviceID: "relay-mac-1",
             privateKeyData: try Self.data(fromHex: config.server.secretHex))
-        let server = try await IrohSubstrate.endpoint(
+        let server = try await IrohSubstrate().endpoint(
             identity: mac,
             relays: [IrohSubstrate.RelayAccess(url: config.relayUrl, authToken: config.server.token)])
         await server.online()
         let serveLoop = Task {
-            while let conn = try? await IrohSubstrate.acceptOne(endpoint: server) {
+            while let conn = try? await IrohSubstrate().acceptOne(endpoint: server) {
                 await host.serve(connection: conn, now: now)
             }
         }
 
         let imposter = PeerIdentity.generate(
             appIdentity: "dev.cmux.lite", deviceID: "imposter-phone")
-        let client = try await IrohSubstrate.endpoint(
+        let client = try await IrohSubstrate().endpoint(
             identity: imposter,
             relays: [IrohSubstrate.RelayAccess(url: config.relayUrl, authToken: config.client.token)])
 
-        let addr = try IrohSubstrate.relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl)
+        let addr = try IrohSubstrate().relayAddr(id: mac.publicKeyData, relayUrl: config.relayUrl)
         let outcome = await withTaskGroup(of: WrongKeyDialOutcome.self) { group in
             group.addTask {
                 do {
-                    _ = try await IrohSubstrate.dial(endpoint: client, to: addr)
+                    _ = try await IrohSubstrate().dial(endpoint: client, to: addr)
                     return .connected
                 } catch { return .failed }
             }

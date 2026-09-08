@@ -37,8 +37,8 @@ struct BrokerCredentialTests {
         #expect(credentials.first?.relayUrl == "https://usc1.relay.cmux.dev/")
         for credential in credentials {
             #expect(
-                IrohSubstrate.tokenEndpointId(credential.token) == identity.publicKeyData)
-            guard let exp = IrohSubstrate.tokenExpiry(credential.token) else {
+                IrohSubstrate().tokenEndpointId(credential.token) == identity.publicKeyData)
+            guard let exp = IrohSubstrate().tokenExpiry(credential.token) else {
                 Issue.record("minted credential has no expiry")
                 return
             }

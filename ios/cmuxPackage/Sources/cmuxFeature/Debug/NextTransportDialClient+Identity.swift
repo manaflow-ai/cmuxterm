@@ -7,65 +7,6 @@ import OSLog
 import Security
 
 extension NextTransportDialClient {
-    /// Identity private-key storage: the device-only Keychain (query shape
-    /// matches `CmxIrohKeychainIdentityStore`), with a one-time migration
-    /// from the UserDefaults slot early dev builds used. Secret material
-    /// never returns to defaults; if the Keychain refuses the write the
-    /// identity stays ephemeral for this launch.
-    enum IdentityKeychain {
-        static let account = "identity-private-key"
-
-        static func read(service: String, account: String) -> Data? {
-            var query = baseQuery(service: service, account: account)
-            query[kSecReturnData as String] = true
-            query[kSecMatchLimit as String] = kSecMatchLimitOne
-            var result: CFTypeRef?
-            let status = SecItemCopyMatching(query as CFDictionary, &result)
-            guard status == errSecSuccess, let data = result as? Data else {
-                if status != errSecItemNotFound {
-                    Self.logger.error(
-                        "identity keychain read failed status=\(status, privacy: .public)")
-                }
-                return nil
-            }
-            return data
-        }
-
-        static func write(_ data: Data, service: String, account: String) -> Bool {
-            let query = baseQuery(service: service, account: account)
-            let update = SecItemUpdate(
-                query as CFDictionary,
-                [kSecValueData as String: data] as CFDictionary)
-            if update == errSecSuccess { return true }
-            guard update == errSecItemNotFound else {
-                Self.logger.error(
-                    "identity keychain update failed status=\(update, privacy: .public)")
-                return false
-            }
-            var insert = query
-            insert[kSecValueData as String] = data
-            insert[kSecAttrAccessible as String] =
-                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            let add = SecItemAdd(insert as CFDictionary, nil)
-            guard add == errSecSuccess else {
-                Self.logger.error(
-                    "identity keychain add failed status=\(add, privacy: .public)")
-                return false
-            }
-            return true
-        }
-
-        private static func baseQuery(service: String, account: String) -> [String: Any] {
-            [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: account,
-                kSecAttrSynchronizable as String: false,
-                kSecUseDataProtectionKeychain as String: true,
-            ]
-        }
-    }
-
     static func currentIdentity(
         defaults: UserDefaults = .standard,
         keychainService: String = "dev.cmux.nextTransport.ios.identity.v1"
@@ -97,7 +38,7 @@ extension NextTransportDialClient {
         loadOrCreateIdentity(defaults: defaults.value, keychainService: keychainService)
     }
 
-    static func loadOrCreateIdentity(
+    nonisolated static func loadOrCreateIdentity(
         defaults: UserDefaults, keychainService: String
     ) -> PeerIdentity {
         let legacyKeyKey = "dev.cmux.nextTransport.ios.identity.key"
@@ -109,7 +50,7 @@ extension NextTransportDialClient {
             deviceID = UUID().uuidString.lowercased()
             defaults.set(deviceID, forKey: idKey)
         }
-        if let key = IdentityKeychain.read(service: keychainService, account: IdentityKeychain.account) {
+        if let key = NextTransportIdentityKeychain(logger: Self.logger).read(service: keychainService, account: NextTransportIdentityKeychain.account) {
             if let identity = try? PeerIdentity(
                 appIdentity: "dev.cmux.next.ios", deviceID: deviceID, privateKeyData: key)
             {
@@ -124,8 +65,8 @@ extension NextTransportDialClient {
         if let keyB64 = defaults.string(forKey: legacyKeyKey),
             let key = Data(base64Encoded: keyB64)
         {
-            if IdentityKeychain.write(
-                key, service: keychainService, account: IdentityKeychain.account)
+            if NextTransportIdentityKeychain(logger: Self.logger).write(
+                key, service: keychainService, account: NextTransportIdentityKeychain.account)
             {
                 defaults.removeObject(forKey: legacyKeyKey)
                 Self.logger.notice("identity key migrated defaults -> keychain")
@@ -141,8 +82,8 @@ extension NextTransportDialClient {
         }
         let fresh = PeerIdentity.generate(
             appIdentity: "dev.cmux.next.ios", deviceID: deviceID)
-        if !IdentityKeychain.write(
-            fresh.privateKeyData, service: keychainService, account: IdentityKeychain.account)
+        if !NextTransportIdentityKeychain(logger: Self.logger).write(
+            fresh.privateKeyData, service: keychainService, account: NextTransportIdentityKeychain.account)
         {
             Self.logger.error(
                 "identity keychain write failed; identity is ephemeral this launch")

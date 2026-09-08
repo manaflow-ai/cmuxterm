@@ -90,7 +90,7 @@ extension NextTransportGraduationFacade {
             cause=\(cause, privacy: .public); dial client discarded, routing -> unknown, \
             legacy will re-credential
             """)
-        Self.BootstrapKeychain.delete(
+        bootstrapKeychain.delete(
             macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
         let client = clients.removeValue(forKey: macID)
         clientStartupTasks[macID]?.task.cancel()

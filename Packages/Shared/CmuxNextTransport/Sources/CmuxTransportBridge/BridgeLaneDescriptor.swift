@@ -15,7 +15,10 @@ public enum BridgeLaneDescriptorError: Error, Equatable, Sendable {
 /// object standing in for the legacy `CMUXIRH1` binary stream header. The
 /// preamble names the lane; every byte after the handshake frame is the
 /// legacy in-lane payload, verbatim.
-public enum BridgeLaneDescriptor {
+public struct BridgeLaneDescriptor: Sendable {
+    /// Creates the stateless BridgeLaneDescriptor operation value.
+    public init() {}
+
     private struct Descriptor: Codable {
         var lane: String
         var resourceID: String?
@@ -30,13 +33,13 @@ public enum BridgeLaneDescriptor {
         }
     }
 
-    private static let control = "control"
-    private static let serverEvents = "server_events"
-    private static let terminal = "terminal"
-    private static let artifact = "artifact"
-    private static let simulatorStream = "simulator_stream"
+    private let control = "control"
+    private let serverEvents = "server_events"
+    private let terminal = "terminal"
+    private let artifact = "artifact"
+    private let simulatorStream = "simulator_stream"
 
-    public static func preamble(for lane: CmxIrohLane) throws -> String {
+    public func preamble(for lane: CmxIrohLane) throws -> String {
         let descriptor: Descriptor
         switch lane {
         case .control:
@@ -61,7 +64,7 @@ public enum BridgeLaneDescriptor {
         return text
     }
 
-    public static func lane(fromPreamble preamble: String) throws -> CmxIrohLane {
+    public func lane(fromPreamble preamble: String) throws -> CmxIrohLane {
         guard let data = preamble.data(using: .utf8),
             let descriptor = try? JSONDecoder().decode(Descriptor.self, from: data)
         else { throw BridgeLaneDescriptorError.invalidDescriptor }

@@ -258,7 +258,7 @@ public actor TransportHost {
 
     /// Whether a stored credential is provably stale at `now`.
     static func credentialExpired(token: String, now: Int64) -> Bool {
-        guard let expiry = IrohSubstrate.tokenExpiry(token) else { return false }
+        guard let expiry = IrohSubstrate().tokenExpiry(token) else { return false }
         return expiry <= now
     }
 
@@ -285,7 +285,7 @@ public actor TransportHost {
                     host relay credential REFUSED (already expired) \
                     device=\(TransportDebugLog.prefix(deviceID), privacy: .public) \
                     url=\(url, privacy: .public) \
-                    tokenExp=\(IrohSubstrate.tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public) \
+                    tokenExp=\(IrohSubstrate().tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public) \
                     now=\(now, privacy: .public)
                     """)
             }
@@ -300,7 +300,7 @@ public actor TransportHost {
                     device=\(TransportDebugLog.prefix(deviceID), privacy: .public) \
                     app=\(appIdentity, privacy: .public) \
                     url=\(url, privacy: .public) \
-                    tokenExp=\(IrohSubstrate.tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public)
+                    tokenExp=\(IrohSubstrate().tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public)
                     """)
             }
             return false
@@ -319,7 +319,7 @@ public actor TransportHost {
                     host relay credential PUSHED session=\(session.id, privacy: .public) \
                     device=\(TransportDebugLog.prefix(deviceID), privacy: .public) \
                     url=\(url, privacy: .public) \
-                    tokenExp=\(IrohSubstrate.tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public)
+                    tokenExp=\(IrohSubstrate().tokenExpiry(token).map(String.init) ?? "unparsed", privacy: .public)
                     """)
             }
             return true

@@ -3,11 +3,11 @@ import CryptoKit
 
 /// Protocol identity (decision D1). "lite" deliberately stays out of the wire
 /// because real cmux adopts this package unchanged.
-public enum CmuxPeerProtocol {
+extension Frame {
     /// Wire protocol string, negotiated at connection open (contract 6.1).
-    public static let identifier = "cmux/peer/1"
+    public static let protocolIdentifier = "cmux/peer/1"
     /// Envelope version number carried on every frame.
-    public static let version: Int64 = 1
+    public static let protocolVersion: Int64 = 1
     /// Frames larger than this are a protocol error. Bulk data is chunked by
     /// the sender, which is also what makes per-lane backpressure (5.3) real.
     public static let maxFrameLength = 8 * 1024 * 1024
@@ -30,7 +30,7 @@ public struct Frame: Sendable, Equatable {
 /// reasons travel in the connection termination itself (contract 3.3 v7), the
 /// substrate's own close mechanism, as the single source of truth. Richer
 /// denial detail, if ever needed, rides an additive `opt.*` frame.
-public enum FrameTypes {
+extension FrameTypePolicy {
     public static let hello = "ctl.hello"
     public static let admit = "ctl.admit"
     /// In-session grant renewal (contract 3.6): no disconnect, no flurry.
@@ -72,7 +72,7 @@ public struct FrameTypePolicy: Sendable {
     /// which is how the protocol grows without breaking old peers.
     public static let optionalPrefix = "opt."
 
-    public init(knownTypes: Set<String> = FrameTypes.allKnown) {
+    public init(knownTypes: Set<String> = FrameTypePolicy.allKnown) {
         self.knownTypes = knownTypes
     }
 
@@ -97,9 +97,9 @@ public struct FrameEncoder: Sendable {
 
     public func encode(_ frame: Frame) throws -> Data {
         let envelope = FrameEnvelope(
-            v: CmuxPeerProtocol.version, t: frame.type, p: .object(frame.payload))
+            v: Frame.protocolVersion, t: frame.type, p: .object(frame.payload))
         let body = try JSONEncoder().encode(envelope)
-        guard body.count <= CmuxPeerProtocol.maxFrameLength else {
+        guard body.count <= Frame.maxFrameLength else {
             throw FrameCodecError.frameTooLarge(length: body.count)
         }
         var data = Data(capacity: 4 + body.count)
@@ -150,7 +150,7 @@ public struct FrameDecoder: Sendable {
         var frames: [Frame] = []
         while buffer.count >= 4 {
             let length = buffer.prefix(4).reduce(0) { ($0 << 8) | Int($1) }
-            guard length <= CmuxPeerProtocol.maxFrameLength else {
+            guard length <= Frame.maxFrameLength else {
                 throw FrameCodecError.frameTooLarge(length: length)
             }
             guard buffer.count >= 4 + length else { break }
@@ -163,7 +163,7 @@ public struct FrameDecoder: Sendable {
             } catch {
                 throw FrameCodecError.malformedJSON
             }
-            guard envelope.v == CmuxPeerProtocol.version else {
+            guard envelope.v == Frame.protocolVersion else {
                 throw FrameCodecError.unsupportedVersion(envelope.v)
             }
             frames.append(Frame(type: envelope.t, payload: envelope.p?.objectValue ?? [:]))
@@ -186,7 +186,7 @@ public struct FrameDecoder: Sendable {
         buffer.append(chunk)
         guard buffer.count >= 4 else { return nil }
         let length = buffer.prefix(4).reduce(0) { ($0 << 8) | Int($1) }
-        guard length <= CmuxPeerProtocol.maxFrameLength else {
+        guard length <= Frame.maxFrameLength else {
             throw FrameCodecError.frameTooLarge(length: length)
         }
         guard buffer.count >= 4 + length else { return nil }
@@ -200,7 +200,7 @@ public struct FrameDecoder: Sendable {
         } catch {
             throw FrameCodecError.malformedJSON
         }
-        guard envelope.v == CmuxPeerProtocol.version else {
+        guard envelope.v == Frame.protocolVersion else {
             throw FrameCodecError.unsupportedVersion(envelope.v)
         }
         if capturesEncodedFrames {
@@ -219,9 +219,9 @@ struct FrameEnvelope: Codable {
 extension Frame {
     public static func hello(identity: PeerIdentity, grant: PairingGrant) -> Frame {
         Frame(
-            type: FrameTypes.hello,
+            type: FrameTypePolicy.hello,
             payload: [
-                "protocol": .string(CmuxPeerProtocol.identifier),
+                "protocol": .string(Frame.protocolIdentifier),
                 "app": .string(identity.appIdentity),
                 "deviceId": .string(identity.deviceID),
                 "key": .data(identity.publicKeyData),
@@ -230,28 +230,28 @@ extension Frame {
     }
 
     public static func admit(sessionID: String) -> Frame {
-        Frame(type: FrameTypes.admit, payload: ["session": .string(sessionID)])
+        Frame(type: FrameTypePolicy.admit, payload: ["session": .string(sessionID)])
     }
 
     /// In-session renewal (contract 3.6): the client ships a fresh grant over
     /// the live control lane; no lane is interrupted.
     public static func grantUpdate(_ grant: PairingGrant) -> Frame {
-        Frame(type: FrameTypes.grantUpdate, payload: ["grant": grant.payloadValue])
+        Frame(type: FrameTypePolicy.grantUpdate, payload: ["grant": grant.payloadValue])
     }
 
     public static func grantAck(accepted: Bool, code: DenialCode? = nil) -> Frame {
         var payload: [String: JSONValue] = ["ok": .bool(accepted)]
         if let code { payload["code"] = .string(code.rawValue) }
-        return Frame(type: FrameTypes.grantAck, payload: payload)
+        return Frame(type: FrameTypePolicy.grantAck, payload: payload)
     }
 
     public static func grantExpiring(expiresAt: Int64) -> Frame {
-        Frame(type: FrameTypes.grantExpiring, payload: ["exp": .int(expiresAt)])
+        Frame(type: FrameTypePolicy.grantExpiring, payload: ["exp": .int(expiresAt)])
     }
 
     public static func relayCredential(url: String, token: String) -> Frame {
         Frame(
-            type: FrameTypes.relayCredential,
+            type: FrameTypePolicy.relayCredential,
             payload: ["url": .string(url), "token": .string(token)])
     }
 
@@ -259,13 +259,13 @@ extension Frame {
     /// reordered frame self-heals on the next keystroke.
     public static func chatTyping(from: String, text: String) -> Frame {
         Frame(
-            type: FrameTypes.chatTyping,
+            type: FrameTypePolicy.chatTyping,
             payload: ["from": .string(from), "text": .string(text)])
     }
 
     public static func chatMessage(from: String, seq: Int64, text: String) -> Frame {
         Frame(
-            type: FrameTypes.chatMessage,
+            type: FrameTypePolicy.chatMessage,
             payload: ["from": .string(from), "seq": .int(seq), "text": .string(text)])
     }
 
@@ -273,7 +273,7 @@ extension Frame {
     public static func dataChunk(seq: Int64, data: Data) -> Frame {
         let digest = HexEncoding().lowercase(SHA256.hash(data: data))
         return Frame(
-            type: FrameTypes.dataChunk,
+            type: FrameTypePolicy.dataChunk,
             payload: [
                 "seq": .int(seq),
                 "data": .data(data),

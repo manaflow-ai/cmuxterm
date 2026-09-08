@@ -35,7 +35,7 @@ struct NextTransportEnvironmentTests {
     }
 
     /// An unsigned JWT whose payload carries only `exp`, for the offline
-    /// expiry-fallback paths (IrohSubstrate.tokenExpiry only base64-decodes
+    /// expiry-fallback paths (IrohSubstrate().tokenExpiry only base64-decodes
     /// the middle segment).
     private static func fakeJWT(exp: Int64, endpointHex: String) throws -> String {
         let payload = try JSONEncoder().encode(

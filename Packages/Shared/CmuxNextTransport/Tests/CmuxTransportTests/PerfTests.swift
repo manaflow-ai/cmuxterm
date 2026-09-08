@@ -17,7 +17,7 @@ struct OverheadTests {
         // The documented D5 cost; a binary cmux/peer/2 would be ~1.0x.
         let bounds = [256: 1.9, 1_024: 1.55, 4_096: 1.42, 16_384: 1.40]
         for (size, bound) in bounds.sorted(by: { $0.key < $1.key }) {
-            let frame = TerminalTraffic.chunk(seq: 1, size: size, seed: 3)
+            let frame = TerminalTraffic().chunk(seq: 1, size: size, seed: 3)
             let encoded = try encoder.encode(frame)
             let ratio = Double(encoded.count) / Double(size)
             print("[overhead] payload \(size)B -> wire \(encoded.count)B, ratio \(String(format: "%.3f", ratio))")
@@ -45,16 +45,16 @@ struct PerfTests {
             accountID: "a", deviceID: "p", devicePublicKey: phone.publicKeyData,
             appIdentity: phone.appIdentity, grantID: "g", issuedAt: now)
 
-        let server = try await IrohSubstrate.endpoint(identity: mac, minimalLoopback: true)
-        let client = try await IrohSubstrate.endpoint(identity: phone, minimalLoopback: true)
+        let server = try await IrohSubstrate().endpoint(identity: mac, minimalLoopback: true)
+        let client = try await IrohSubstrate().endpoint(identity: phone, minimalLoopback: true)
         let serveLoop = Task {
-            while let conn = try? await IrohSubstrate.acceptOne(endpoint: server) {
+            while let conn = try? await IrohSubstrate().acceptOne(endpoint: server) {
                 await host.serve(connection: conn, now: now)
             }
         }
-        let conn = try await IrohSubstrate.dial(
-            endpoint: client, to: IrohSubstrate.directAddr(of: server))
-        _ = try await TransportClient.connect(connection: conn, identity: phone, grant: grant)
+        let conn = try await IrohSubstrate().dial(
+            endpoint: client, to: IrohSubstrate().directAddr(of: server))
+        _ = try await TransportClient().connect(connection: conn, identity: phone, grant: grant)
 
         let echo = await conn.lane(TransportHost.echoLaneName)
         let chunkSize = 16_384
@@ -63,7 +63,7 @@ struct PerfTests {
         var validator = TrafficValidator()
         let start = clock.now
         for seq in Int64(0)..<Int64(count) {
-            try await echo.send(TerminalTraffic.chunk(seq: seq, size: chunkSize, seed: 77))
+            try await echo.send(TerminalTraffic().chunk(seq: seq, size: chunkSize, seed: 77))
             if let reply = await echo.receive() {
                 validator.ingest(reply)
             }

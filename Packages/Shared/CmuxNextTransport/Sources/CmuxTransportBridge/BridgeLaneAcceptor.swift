@@ -100,7 +100,7 @@ public actor BridgeLaneAcceptor {
             await stream.stopReceiving(errorCode: 1)
             return
         }
-        guard let lane = try? BridgeLaneDescriptor.lane(fromPreamble: preamble) else {
+        guard let lane = try? BridgeLaneDescriptor().lane(fromPreamble: preamble) else {
             if BridgeDebugLog.enabled {
                 BridgeDebugLog.lanes.error(
                     """

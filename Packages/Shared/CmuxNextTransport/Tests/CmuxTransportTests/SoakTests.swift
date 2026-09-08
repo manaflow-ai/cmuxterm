@@ -35,7 +35,7 @@ struct SoakTests {
         // (foreground, push, timers happen in real life while connected; none
         // may cause a dial).
         for seq in Int64(0)..<trafficEventCount {
-            try await echo.send(TerminalTraffic.chunk(seq: seq, size: 1_024, seed: 91))
+            try await echo.send(TerminalTraffic().chunk(seq: seq, size: 1_024, seed: 91))
             if let reply = await echo.receive() {
                 validator.ingest(reply)
             }

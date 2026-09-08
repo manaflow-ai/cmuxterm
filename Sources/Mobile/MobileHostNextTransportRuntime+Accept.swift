@@ -18,7 +18,7 @@ extension MobileHostNextTransportRuntime {
             var retry = NextTransportAcceptRetryPolicy()
             while !Task.isCancelled {
                 do {
-                    guard let connection = try await IrohSubstrate.acceptOne(endpoint: endpoint)
+                    guard let connection = try await IrohSubstrate().acceptOne(endpoint: endpoint)
                     else { break }
                     guard let self, self.generation == gen, !Task.isCancelled else {
                         await connection.closeAll(reason: nil)

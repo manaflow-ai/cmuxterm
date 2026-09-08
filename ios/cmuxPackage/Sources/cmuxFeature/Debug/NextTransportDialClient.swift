@@ -289,7 +289,7 @@ public final class NextTransportDialClient {
         var validator = TrafficValidator()
         do {
             for seq in Int64(0)..<50 {
-                try await echo.send(TerminalTraffic.chunk(seq: seq, size: 1_024, seed: 77))
+                try await echo.send(TerminalTraffic().chunk(seq: seq, size: 1_024, seed: 77))
                 if let reply = await echo.receive() { validator.ingest(reply) }
             }
             return EchoResult(

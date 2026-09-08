@@ -88,7 +88,7 @@ extension MobileHostNextTransportRuntime {
             if !mintImmediately {
                 let now = Int64(Date().timeIntervalSince1970)
                 guard
-                    let target = RelayCredentialSchedule.nextRefresh(
+                    let target = RelayCredentialSchedule().nextRefresh(
                         expiries: entries.map(\.expiresAt),
                         now: now,
                         jitterSeconds: Int64.random(

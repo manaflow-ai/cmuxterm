@@ -80,9 +80,9 @@ struct FramingTests {
     func oversizeRejected() throws {
         var decoder = FrameDecoder()
         var prefix = Data()
-        let huge = UInt32(CmuxPeerProtocol.maxFrameLength + 1).bigEndian
+        let huge = UInt32(Frame.maxFrameLength + 1).bigEndian
         withUnsafeBytes(of: huge) { prefix.append(contentsOf: $0) }
-        #expect(throws: FrameCodecError.frameTooLarge(length: CmuxPeerProtocol.maxFrameLength + 1)) {
+        #expect(throws: FrameCodecError.frameTooLarge(length: Frame.maxFrameLength + 1)) {
             try decoder.feed(prefix)
         }
     }
@@ -116,10 +116,10 @@ struct FramingTests {
     @Test("Unknown types: opt.* is ignorable, everything else is fatal (6.3)")
     func typePolicy() {
         let policy = FrameTypePolicy()
-        #expect(policy.classify(FrameTypes.hello) == .known)
-        #expect(policy.classify(FrameTypes.grantExpiring) == .known)
-        #expect(policy.classify(FrameTypes.relayCredential) == .known)
-        #expect(policy.classify(FrameTypes.chatTyping) == .known)
+        #expect(policy.classify(FrameTypePolicy.hello) == .known)
+        #expect(policy.classify(FrameTypePolicy.grantExpiring) == .known)
+        #expect(policy.classify(FrameTypePolicy.relayCredential) == .known)
+        #expect(policy.classify(FrameTypePolicy.chatTyping) == .known)
         #expect(policy.classify("opt.telemetry") == .ignorableUnknown)
         #expect(policy.classify("ctl.future-feature") == .fatalUnknown)
     }

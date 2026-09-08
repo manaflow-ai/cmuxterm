@@ -28,7 +28,7 @@ struct TokenBindingTests {
     func boundKeyMatches() {
         let identity = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "d1")
         let hex = identity.publicKeyData.map { String(format: "%02x", $0) }.joined()
-        #expect(IrohSubstrate.tokenEndpointId(token(endpointIdHex: hex)) == identity.publicKeyData)
+        #expect(IrohSubstrate().tokenEndpointId(token(endpointIdHex: hex)) == identity.publicKeyData)
     }
 
     @Test("A token for another device is detected as a mismatch, not a parse failure")
@@ -36,7 +36,7 @@ struct TokenBindingTests {
         let mine = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "d1")
         let other = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "d2")
         let hex = other.publicKeyData.map { String(format: "%02x", $0) }.joined()
-        let bound = IrohSubstrate.tokenEndpointId(token(endpointIdHex: hex))
+        let bound = IrohSubstrate().tokenEndpointId(token(endpointIdHex: hex))
         #expect(bound != nil)
         #expect(bound != mine.publicKeyData)
         #expect(bound == other.publicKeyData)
@@ -44,17 +44,17 @@ struct TokenBindingTests {
 
     @Test("Garbage tokens return nil instead of a false verdict")
     func garbageIsNil() {
-        #expect(IrohSubstrate.tokenEndpointId("not-a-jwt") == nil)
-        #expect(IrohSubstrate.tokenEndpointId("a.b") == nil)
-        #expect(IrohSubstrate.tokenEndpointId("a.!!!.c") == nil)
-        #expect(IrohSubstrate.tokenExpiry("not-a-jwt") == nil)
+        #expect(IrohSubstrate().tokenEndpointId("not-a-jwt") == nil)
+        #expect(IrohSubstrate().tokenEndpointId("a.b") == nil)
+        #expect(IrohSubstrate().tokenEndpointId("a.!!!.c") == nil)
+        #expect(IrohSubstrate().tokenExpiry("not-a-jwt") == nil)
     }
 
     @Test("Expiry claim is readable so a dead credential can be named")
     func expiryReadable() {
         let identity = PeerIdentity.generate(appIdentity: "dev.cmux.lite", deviceID: "d1")
         let hex = identity.publicKeyData.map { String(format: "%02x", $0) }.joined()
-        #expect(IrohSubstrate.tokenExpiry(token(endpointIdHex: hex)) == 1)
+        #expect(IrohSubstrate().tokenExpiry(token(endpointIdHex: hex)) == 1)
     }
 
     /// The renewal push (contract 9.7 in miniature): after admission, the
@@ -76,7 +76,7 @@ struct TokenBindingTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -88,7 +88,7 @@ struct TokenBindingTests {
 
         let control = await client.lane("ctl")
         let frame = await control.receive()
-        #expect(frame?.type == FrameTypes.relayCredential)
+        #expect(frame?.type == FrameTypePolicy.relayCredential)
         #expect(frame?.payload["url"]?.stringValue == "https://usc1.relay.cmux.dev/")
         #expect(frame?.payload["token"]?.stringValue == "tok-fresh")
 
@@ -123,14 +123,14 @@ struct TokenBindingTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
 
         let control = await client.lane("ctl")
         let frame = await control.receive()
-        #expect(frame?.type == FrameTypes.relayCredential)
+        #expect(frame?.type == FrameTypePolicy.relayCredential)
         #expect(frame?.payload["token"]?.stringValue == "tok-queued")
     }
 
@@ -158,7 +158,7 @@ struct TokenBindingTests {
                 let (client, hostEnd) = LoopbackWire().makeEnds(
                     authenticatedClientKey: identity.publicKeyData)
                 Task { await host.serve(connection: hostEnd, now: now) }
-                switch try await TransportClient.connect(
+                switch try await TransportClient().connect(
                     connection: client, identity: identity, grant: grant)
                 {
                 case .admitted(let sessionID):
@@ -168,7 +168,7 @@ struct TokenBindingTests {
                 }
             },
             onControlFrame: { frame in
-                if frame.type == FrameTypes.relayCredential,
+                if frame.type == FrameTypePolicy.relayCredential,
                     let token = frame.payload["token"]?.stringValue
                 {
                     tokenCont.yield(token)

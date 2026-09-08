@@ -4,9 +4,12 @@ import CryptoKit
 /// Terminal-shaped synthetic traffic (harness spec 1.4): deterministic,
 /// sequence-numbered, checksummed. Determinism matters so any run can be
 /// reproduced exactly; no randomness APIs are used.
-public enum TerminalTraffic {
+public struct TerminalTraffic: Sendable {
+    /// Creates the stateless TerminalTraffic operation value.
+    public init() {}
+
     /// Deterministic pseudo-random chunk derived from (seed, seq).
-    public static func chunk(seq: Int64, size: Int, seed: UInt64) -> Frame {
+    public func chunk(seq: Int64, size: Int, seed: UInt64) -> Frame {
         var bytes = Data(capacity: size)
         var state = seed &+ UInt64(bitPattern: seq) &* 0x9E37_79B9_7F4A_7C15
         for _ in 0..<size {
@@ -34,7 +37,7 @@ public struct TrafficValidator: Sendable {
     }
 
     public mutating func ingest(_ frame: Frame) {
-        guard frame.type == FrameTypes.dataChunk,
+        guard frame.type == FrameTypePolicy.dataChunk,
             let seq = frame.payload["seq"]?.intValue,
             let data = frame.payload["data"]?.dataValue,
             let declaredDigest = frame.payload["sha256"]?.stringValue

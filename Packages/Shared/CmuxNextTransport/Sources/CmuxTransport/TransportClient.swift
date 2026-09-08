@@ -2,6 +2,9 @@ import Foundation
 
 /// Client-side connect helper: sends hello, awaits the single-phase verdict.
 public struct TransportClient: Sendable {
+    /// Creates the stateless TransportClient operation value.
+    public init() {}
+
     public enum ConnectOutcome: Sendable, Equatable {
         case admitted(sessionID: String)
         case denied(DenialCode)
@@ -11,7 +14,7 @@ public struct TransportClient: Sendable {
     /// cancelled FFI lane read is explicitly woken by closing the connection;
     /// this keeps caller deadlines effective even when the underlying future
     /// does not observe Swift task cancellation on its own.
-    public static func connect(
+    public func connect(
         connection: any PeerConnection, identity: PeerIdentity, grant: PairingGrant
     ) async throws -> ConnectOutcome {
         try await withTaskCancellationHandler(operation: {
@@ -26,7 +29,7 @@ public struct TransportClient: Sendable {
         })
     }
 
-    private static func connectUncancelled(
+    private func connectUncancelled(
         connection: any PeerConnection, identity: PeerIdentity, grant: PairingGrant
     ) async throws -> ConnectOutcome {
         let connectStart = ContinuousClock.now
@@ -70,7 +73,7 @@ public struct TransportClient: Sendable {
             }
             throw TransportError.connectionClosedBeforeReply
         }
-        guard reply.type == FrameTypes.admit else {
+        guard reply.type == FrameTypePolicy.admit else {
             if TransportDebugLog.enabled {
                 TransportDebugLog.core.error(
                     """

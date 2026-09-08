@@ -12846,10 +12846,6 @@ class TerminalController {
         return result
     }
 
-    func readTerminalText(_ args: String) -> String {
-        readTerminalTextBase64(surfaceArg: args)
-    }
-
     private struct RenderStatsResponse: Codable {
         let panelId: String
         let drawCount: Int

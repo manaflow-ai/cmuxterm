@@ -340,8 +340,8 @@ public struct BrokerCredentialClient: Sendable {
                 relays=\(credentials.count, privacy: .public) \
                 first=\(first.relayUrl, privacy: .public) \
                 expiresAt=\(first.expiresAt.map(String.init) ?? "unset", privacy: .public) \
-                tokenExp=\(IrohSubstrate.tokenExpiry(first.token).map(String.init) ?? "unparsed", privacy: .public) \
-                tokenBoundToUs=\(IrohSubstrate.tokenEndpointId(first.token) == self.identity.publicKeyData, privacy: .public) \
+                tokenExp=\(IrohSubstrate().tokenExpiry(first.token).map(String.init) ?? "unparsed", privacy: .public) \
+                tokenBoundToUs=\(IrohSubstrate().tokenEndpointId(first.token) == self.identity.publicKeyData, privacy: .public) \
                 elapsedMs=\(TransportDebugLog.ms(since: mintStart), privacy: .public)
                 """)
         }

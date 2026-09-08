@@ -75,7 +75,7 @@ enum MobileHostNextTransportBridge {
         let routable = NextTransportRoutableSession(peer: peer, acceptor: acceptor)
         let eventWriter = MobileHostIrohServerEventWriter(
             openStream: {
-                try await BridgeLaneDialer.openServerEventSendStream(
+                try await BridgeLaneDialer().openServerEventSendStream(
                     on: connection, priority: 50)
             },
             clock: CmxIrohSystemRelayClock(),

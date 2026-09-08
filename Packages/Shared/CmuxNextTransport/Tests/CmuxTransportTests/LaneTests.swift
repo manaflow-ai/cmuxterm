@@ -13,7 +13,7 @@ struct LaneTests {
 
         let production = Task {
             for seq in Int64(0)..<500 {
-                try await sender.send(TerminalTraffic.chunk(seq: seq, size: 256, seed: 7))
+                try await sender.send(TerminalTraffic().chunk(seq: seq, size: 256, seed: 7))
             }
         }
         var validator = TrafficValidator()
@@ -38,13 +38,13 @@ struct LaneTests {
 
         // Fill the wedged lane to capacity; none of these suspend.
         for seq in Int64(0)..<Int64(capacity) {
-            try await wedgedSender.send(TerminalTraffic.chunk(seq: seq, size: 64, seed: 1))
+            try await wedgedSender.send(TerminalTraffic().chunk(seq: seq, size: 64, seed: 1))
         }
         // The next send MUST suspend (real backpressure), not fail, not drop,
         // and must not close anything (5.3).
         let overflowSend = Task {
             try await wedgedSender.send(
-                TerminalTraffic.chunk(seq: Int64(capacity), size: 64, seed: 1))
+                TerminalTraffic().chunk(seq: Int64(capacity), size: 64, seed: 1))
         }
 
         // Meanwhile the healthy lane round-trips 200 chunks untouched (5.2).
@@ -52,7 +52,7 @@ struct LaneTests {
         let healthyReceiver = await hostEnd.lane("healthy")
         var validator = TrafficValidator()
         for seq in Int64(0)..<200 {
-            try await healthySender.send(TerminalTraffic.chunk(seq: seq, size: 128, seed: 2))
+            try await healthySender.send(TerminalTraffic().chunk(seq: seq, size: 128, seed: 2))
             if let frame = await healthyReceiver.receive() {
                 validator.ingest(frame)
             }
@@ -87,7 +87,7 @@ struct LaneTests {
         let sender = await client.lane("d")
         let receiver = await hostEnd.lane("d")
         for seq in Int64(0)..<10 {
-            try await sender.send(TerminalTraffic.chunk(seq: seq, size: 16, seed: 5))
+            try await sender.send(TerminalTraffic().chunk(seq: seq, size: 16, seed: 5))
         }
         await client.closeAll()
 
@@ -118,10 +118,10 @@ struct LaneTests {
         let (client, hostEnd) = LoopbackWire(laneCapacity: 1).makeEnds()
         _ = await hostEnd.lane("x")  // reader exists but never reads
         let lane = await client.lane("x")
-        try await lane.send(TerminalTraffic.chunk(seq: 0, size: 16, seed: 4))
+        try await lane.send(TerminalTraffic().chunk(seq: 0, size: 16, seed: 4))
 
         let sender = Task {
-            try await lane.send(TerminalTraffic.chunk(seq: 1, size: 16, seed: 4))
+            try await lane.send(TerminalTraffic().chunk(seq: 1, size: 16, seed: 4))
         }
         var stalls = await lane.backpressureStalls
         var spins = 0
@@ -142,7 +142,7 @@ struct LaneTests {
         let (client, hostEnd) = LoopbackWire().makeEnds()
         let sender = await client.lane("data")
         let receiver = await hostEnd.lane("data")
-        try await sender.send(TerminalTraffic.chunk(seq: 0, size: 32, seed: 3))
+        try await sender.send(TerminalTraffic().chunk(seq: 0, size: 32, seed: 3))
         await client.closeAll()
 
         // Buffered frame drains, then EOF: nil, not a hang.
@@ -151,7 +151,7 @@ struct LaneTests {
 
         // Sending into a dead session fails fast (7.2), never queues offline.
         await #expect(throws: TransportError.pipeClosed) {
-            try await sender.send(TerminalTraffic.chunk(seq: 1, size: 32, seed: 3))
+            try await sender.send(TerminalTraffic().chunk(seq: 1, size: 32, seed: 3))
         }
 
         // A stale task asking for a lane that did not exist before close must
@@ -159,7 +159,7 @@ struct LaneTests {
         let lateLane = await client.lane("created-after-close")
         #expect(await lateLane.receive() == nil)
         await #expect(throws: TransportError.pipeClosed) {
-            try await lateLane.send(TerminalTraffic.chunk(seq: 2, size: 32, seed: 3))
+            try await lateLane.send(TerminalTraffic().chunk(seq: 2, size: 32, seed: 3))
         }
     }
 }

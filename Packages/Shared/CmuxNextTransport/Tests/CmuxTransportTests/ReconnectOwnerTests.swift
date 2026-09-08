@@ -33,7 +33,7 @@ struct ReconnectOwnerTests {
             let (client, hostEnd) = LoopbackWire().makeEnds(
                 authenticatedClientKey: identity.publicKeyData)
             async let serving: Void = host.serve(connection: hostEnd, now: now)
-            let outcome = try await TransportClient.connect(
+            let outcome = try await TransportClient().connect(
                 connection: client, identity: identity, grant: grant)
             await serving
             switch outcome {
@@ -340,7 +340,7 @@ extension ReconnectOwnerShutdownTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: rig.identity.publicKeyData)
         async let serving: Void = rig.host.serve(connection: hostEnd, now: rig.now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: rig.identity, grant: rig.grant)
         await serving
         switch outcome {

@@ -56,8 +56,8 @@ extension NextTransportDialClient {
             }
             do {
                 let newEndpoint = try await (relays.isEmpty
-                    ? IrohSubstrate.endpoint(identity: identity, minimalLoopback: false)
-                    : IrohSubstrate.endpoint(identity: identity, relays: relays))
+                    ? IrohSubstrate().endpoint(identity: identity, minimalLoopback: false)
+                    : IrohSubstrate().endpoint(identity: identity, relays: relays))
                 guard gen == lifecycleGeneration, !Task.isCancelled else {
                     try? await newEndpoint.close()
                     return
@@ -100,12 +100,12 @@ extension NextTransportDialClient {
                     of: ConnectAttemptResult.self
                 ) { group in
                     group.addTask {
-                        let conn = try await IrohSubstrate.dial(endpoint: endpoint, to: addr)
+                        let conn = try await IrohSubstrate().dial(endpoint: endpoint, to: addr)
                         let outcome: TransportClient.ConnectOutcome
                         do {
                             outcome = try await withTaskCancellationHandler(operation: {
                                 try Task.checkCancellation()
-                                return try await TransportClient.connect(
+                                return try await TransportClient().connect(
                                     connection: conn, identity: identity, grant: grant)
                             }, onCancel: {
                                 // A lane read in the admission exchange is an
@@ -156,7 +156,7 @@ extension NextTransportDialClient {
             }
         }
         let owner = ReconnectOwner(connectOnce: dial) { [weak self] frame in
-            guard frame.type == FrameTypes.relayCredential,
+            guard frame.type == FrameTypePolicy.relayCredential,
                 let url = frame.payload["url"]?.stringValue,
                 let token = frame.payload["token"]?.stringValue
             else { return }

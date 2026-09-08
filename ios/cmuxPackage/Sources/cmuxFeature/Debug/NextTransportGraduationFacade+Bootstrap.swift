@@ -91,7 +91,7 @@ extension NextTransportGraduationFacade {
             // os.log only; nothing user-visible interpolates it.
             if probeErrorClassifier.isMethodNotFound(error) {
                 probedThisRun.insert(macID)
-                Self.BootstrapKeychain.delete(
+                bootstrapKeychain.delete(
                     macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
                 clientStartupTasks[macID]?.task.cancel()
                 clientStartupTasks.removeValue(forKey: macID)
@@ -228,7 +228,7 @@ extension NextTransportGraduationFacade {
                 """)
             return false
         }
-        guard Self.BootstrapKeychain.write(
+        guard bootstrapKeychain.write(
             data, macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
         else { return false }
         Self.logger.notice(
@@ -241,7 +241,7 @@ extension NextTransportGraduationFacade {
     }
 
     func storedBootstrap(macID: String) -> Bootstrap? {
-        guard let data = Self.BootstrapKeychain.read(
+        guard let data = bootstrapKeychain.read(
             macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
         else { return nil }
         return try? JSONDecoder().decode(Bootstrap.self, from: data)

@@ -29,4 +29,5 @@ public enum NextTransportDialState: Equatable, Sendable {
         case .closed(let code, _): return "closed (\(code))"
         }
     }
+}
 #endif

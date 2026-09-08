@@ -39,7 +39,7 @@ struct TransportHostLifecycleTests {
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(
             connection: HalfOpenConnection(hostRaw), now: now)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome != .denied(.malformedHello))
         await serving
@@ -81,7 +81,7 @@ struct TransportHostLifecycleTests {
 
         // The old session's echo service is live.
         let echo = await oldClient.lane(TransportHost.echoLaneName)
-        try await echo.send(TerminalTraffic.chunk(seq: 0, size: 64, seed: 7))
+        try await echo.send(TerminalTraffic().chunk(seq: 0, size: 64, seed: 7))
         #expect(await receiveOrTimeout(echo) != nil)
 
         // The same device reconnects: supersession. The old host end is
@@ -90,7 +90,7 @@ struct TransportHostLifecycleTests {
         let (newClient, newHostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: newHostEnd, now: now)
-        _ = try await TransportClient.connect(
+        _ = try await TransportClient().connect(
             connection: newClient, identity: identity, grant: grant)
         await serving
         #expect(await host.sessionCount == 1)
@@ -107,7 +107,7 @@ struct TransportHostLifecycleTests {
         for seq in Int64(1)...10 {
             guard
                 (try? await echo.send(
-                    TerminalTraffic.chunk(seq: seq, size: 64, seed: seed))) != nil
+                    TerminalTraffic().chunk(seq: seq, size: 64, seed: seed))) != nil
             else { return true }  // send failed: the lane itself is dead
             if await receiveOrTimeout(echo, milliseconds: 150) == nil { return true }
         }
@@ -122,7 +122,7 @@ extension TransportHostLifecycleTests {
         let (identity, grant) = try mintedIdentity()
         let client = try await admitHalfOpen(host: host, identity: identity, grant: grant)
         let echo = await client.lane(TransportHost.echoLaneName)
-        try await echo.send(TerminalTraffic.chunk(seq: 0, size: 64, seed: 3))
+        try await echo.send(TerminalTraffic().chunk(seq: 0, size: 64, seed: 3))
         #expect(await receiveOrTimeout(echo) != nil)
 
         #expect(
@@ -149,7 +149,7 @@ extension TransportHostLifecycleTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: admissionNow)
-        let outcome = try await TransportClient.connect(
+        let outcome = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         #expect(outcome == .admitted(sessionID: "s1"))
         await serving
@@ -167,7 +167,7 @@ extension TransportHostLifecycleTests {
         let (client, hostEnd) = LoopbackWire().makeEnds(
             authenticatedClientKey: identity.publicKeyData)
         async let serving: Void = host.serve(connection: hostEnd, now: now)
-        _ = try await TransportClient.connect(
+        _ = try await TransportClient().connect(
             connection: client, identity: identity, grant: grant)
         await serving
 
@@ -183,6 +183,6 @@ extension TransportHostLifecycleTests {
             deviceID: identity.deviceID, appIdentity: identity.appIdentity,
             url: "https://usc1.relay.cmux.dev/", token: expiringToken(exp: now + 300))
         #expect(fresh)
-        #expect(await receiveOrTimeout(control)?.type == FrameTypes.relayCredential)
+        #expect(await receiveOrTimeout(control)?.type == FrameTypePolicy.relayCredential)
     }
 }
