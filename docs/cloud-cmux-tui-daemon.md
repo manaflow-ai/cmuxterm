@@ -540,6 +540,70 @@ orthogonal: it routes model credentials, not compute, and is configured inside
 the machine the same way as locally. The `skills/cmux-cloud-vm` skill teaches
 this policy to Claude Code, Codex, OpenCode, and Pi.
 
+## Notifications: the VM is the source of truth
+
+A Cloud machine's notifications live in its cmux-tui daemon, and every client
+(the Mac app, a second Mac, an iPhone, the in-VM TUI) derives its unread state
+from that one ledger. The Mac never runs a listener and the VM never dials the
+Mac; the existing Mac-to-VM state feed carries notifications like any other
+resource.
+
+Sources. An agent hook transition that deserves attention posts a durable
+`notification.create` effect from inside the journal fold: `turn.completed`
+(info, "Claude finished"), `approval.requested`, `question.requested`,
+`plan_review.requested` (warning), and `error.reported` (error). The key is
+derived from the journal sequence, so a crash between the notification commit
+and the agent-report commit replays the notification on retry instead of
+posting it twice, and the hook fence still advances once. Prompt and message
+text is redacted before the journal accepts it, so the body carries only the
+tool name an approval waits on. The legacy `notify` verb and `cmux-tui
+notification create` use the same durable path. All three survive a daemon
+restart and are rebuilt from committed effect receipts.
+
+Delivery. Every notification is a row in the `notifications` collection of
+the public session snapshot and an `upsert` delta on the `session current
+events` feed. The Mac's per-machine link already resumes that feed from its
+`(generation, revision)` cursor with bounded recovery, so a notification posted
+while the link was down arrives on reconnect through the same catch-up path
+as a renamed tab. No journal subscription and no second stream are involved.
+
+Read state is per client. Each row carries `read_by`, the sorted client ids
+that acknowledged it. `notification.ack {client_id, notifications[]}` records
+the marks in `resource_notification_reads`, publishes the refreshed rows as one
+revision, and replays under its idempotency key. Ids the 256-entry ledger no
+longer retains come back under `unknown` rather than as an error, and their
+read rows are pruned in the same transaction. The shared `unread` marker on
+the console tree (the TUI's own tab dot) is unchanged by an acknowledgement:
+it answers "does this terminal need attention on the shared console", while
+`read_by` answers "has this client install seen it". Two Macs attached to one
+machine therefore keep independent dots, and a Mac reattaching after a
+reinstall with a new client id starts unread, which is the safe direction.
+
+Client ids are the durable per-install identity already used for focus
+memory (`client-focus`), 1 to 128 printable ASCII bytes. The Mac app derives
+one from its `vm-tui-devices.json` record for the machine.
+
+CLI. Inside a machine the daemon binary also answers to `cmux`, and `cmux
+notify` takes the flags of the macOS `cmux notify` (`--title`, `--subtitle`,
+`--body`, `--clear`, `--surface`, `--workspace`, `--json`), so a script or an
+agent hook written for a local terminal works unchanged. The target defaults
+to the caller's own terminal through `CMUX_TUI_TERMINAL_ID`, which the daemon
+injects into every PTY; `--clear` removes the retained rows on the machine
+(`notification.clear`), so every attached client drops them. Rows carry an
+optional `subtitle`. `cmux-tui notification list` prints rows with `read_by`;
+`cmux-tui notification ack --client <id> <notification-id>...` acknowledges.
+
+Security. The daemon's notification ledger is reachable only over the trusted
+local Unix socket inside the machine and over the authenticated device link,
+so a process in the machine can post only to its own session and only name
+terminals of that session; it cannot address a Mac workspace, and the Mac
+attributes rows to local panes by the terminal id it already projects. Title,
+subtitle, and body are bounded (512, 512, and 4096 characters) because every
+retained row is pushed to every attached client, and the ledger keeps 256
+rows. `--reply` is refused inside a machine: an inline reply types into a
+terminal, and that channel does not cross the link. Notification text is data
+everywhere it is shown; nothing evaluates it.
+
 ## Surface catalog
 
 Terminals, VNC screens and browsers are *resources*; panes and workspaces are

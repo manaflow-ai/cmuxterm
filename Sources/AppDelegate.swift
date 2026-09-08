@@ -1763,14 +1763,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 guard let self else { return }
-                if NSApp.windows.isEmpty {
+                // The SwiftUI WindowGroup's hidden bootstrap window may still
+                // be present while the registered cmux.main window is being
+                // created. Never treat that transient window as the UI-test
+                // target: doing so can move/close the bootstrap window and
+                // leave the real terminal window absent.
+                if self.mainWindowsForVisibilityController().isEmpty {
                     self.openNewMainWindow(nil)
                 }
                 self.moveUITestWindowToTargetDisplayIfNeeded()
                 NSRunningApplication.current.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
                 // On headless CI runners, activate() silently fails (no GUI session).
                 // Force windows visible so the terminal surface starts rendering.
-                for window in NSApp.windows {
+                for window in self.mainWindowsForVisibilityController() {
                     window.orderFrontRegardless()
                 }
                 self.writeUITestDiagnosticsIfNeeded(stage: "afterForceWindow")
@@ -1999,7 +2004,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return
         }
 
-        guard let window = NSApp.windows.first else {
+        guard let window = mainWindowsForVisibilityController().first else {
             if attempt < 20 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                     self?.moveUITestWindowToTargetDisplayIfNeeded(attempt: attempt + 1)
@@ -2473,28 +2478,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         PresenceHeartbeatClient.shared.configure(auth: auth.coordinator)
         PhoneReplyInboxClient.shared.configure(auth: auth.coordinator)
         PhoneReplyInboxCoordinator.shared.configure(client: PhoneReplyInboxClient.shared)
-        // Relayed phone replies type through the SAME paste-and-submit
-        // entrypoint as the phone's direct RPC sends, so both lanes share claim
-        // resolution and key-event submission semantics.
+        // Relayed phone replies share the direct RPC paste-and-submit path,
+        // including named Return-key submission and partial-success semantics.
         PhoneReplyInboxCoordinator.shared.injectTerminalInput = { [weak self] params, retargetsToLiveSurfaceOwner in
             guard let self else { return .permanentlyUndeliverable }
-            let routedParams: [String: Any]
-            if retargetsToLiveSurfaceOwner {
-                guard let surfaceID = TerminalController.shared.v2UUID(params, "surface_id"),
-                      let target = self.agentNotificationDeliveryTarget(
-                          claimedTabId: TerminalController.shared.v2UUID(params, "workspace_id"),
-                          surfaceId: surfaceID
-                      ) else {
-                    return .retryable
+            let controller = TerminalController.shared
+            // The inbox payload always carries a stable surface id. Resolve it
+            // before entering the generic mobile RPC so a launch-time workspace
+            // claim cannot route the reply to a stale manager.
+            guard let routedParams = self.phoneReplyTerminalInputParams(
+                params,
+                retargetsToLiveSurfaceOwner: retargetsToLiveSurfaceOwner
+            ) else {
+                // A valid surface can be temporarily absent while a window,
+                // Dock, or remote-tmux projection is being rebuilt. The inbox
+                // has a server-side TTL, so keep that bounded retry alive;
+                // malformed payloads are the only immediate permanent case.
+                let hasValidSurfaceID = controller.v2UUID(params, "surface_id") != nil
+                let hasWorkspaceID = controller.v2HasNonNullParam(params, "workspace_id")
+                let hasValidWorkspaceID = controller.v2UUID(params, "workspace_id") != nil
+                if !retargetsToLiveSurfaceOwner, !hasWorkspaceID {
+                    return .permanentlyUndeliverable
                 }
-                var resolved = params
-                resolved["workspace_id"] = target.tabId.uuidString
-                resolved["surface_id"] = (target.surfaceId ?? surfaceID).uuidString
-                routedParams = resolved
-            } else {
-                routedParams = params
+                guard hasValidSurfaceID,
+                      (!hasWorkspaceID || hasValidWorkspaceID) else {
+                    return .permanentlyUndeliverable
+                }
+                return .retryable
             }
-            switch TerminalController.shared.v2MobileTerminalPaste(params: routedParams) {
+            switch controller.v2MobileTerminalPaste(params: routedParams) {
             case .ok:
                 // `terminal.paste` applies the text before it attempts the
                 // named key. A false `submitted` flag is therefore a partial
@@ -2504,16 +2516,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 // can press Return manually if the key was rejected.
                 return .delivered
             case .err(let code, _, _):
-                // `not_found` is transient here, not proof the target is gone:
-                // the sweep can run while session restore is still loading the
-                // claimed workspace. Retrying is bounded by the reply's
-                // server-side TTL, so a truly-deleted surface ages out instead
-                // of silently discarding the user's reply on first sight.
-                return code == "input_queue_full"
-                    || code == "surface_unavailable"
-                    || code == "not_found"
-                    ? .retryable
-                    : .permanentlyUndeliverable
+                if code == "input_queue_full" || code == "surface_unavailable" {
+                    return .retryable
+                }
+                guard code == "not_found" else {
+                    return .permanentlyUndeliverable
+                }
+                // A surface can be absent while startup/session restoration is
+                // still rebuilding its workspace. Once that pass has finished,
+                // a stable-surface lookup miss is authoritative and the parked
+                // reply must be acknowledged instead of retrying until TTL.
+                let restorationPending = !self.didAttemptStartupSessionRestore
+                    || self.isApplyingSessionRestore
+                return restorationPending ? .retryable : .permanentlyUndeliverable
             }
         }
         connectivityInvalidationSubscriberCoordinator.configure(auth: auth.coordinator)
@@ -6624,69 +6639,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return nil
     }
 
-    func refreshTerminalSurfacesAfterGhosttyConfigReload(
-        source: String,
-        preferredColorScheme: GhosttyConfig.ColorSchemePreference
-    ) {
-        var refreshedCount = 0
-        forEachTerminalPanel { terminalPanel in
-            let liveSurface = terminalPanel.surface.liveSurfaceForGhosttyAccess(
-                reason: "appDelegate.refreshAfterGhosttyConfigReload"
-            )
-            GhosttySurfaceConfigurationRefresh.applyAfterAppConfigReload(
-                to: liveSurface,
-                source: source,
-                reloadSurfaceConfiguration: { surface, soft, source in
-                    GhosttyApp.shared.reloadSurfaceConfiguration(
-                        surface,
-                        soft: soft,
-                        source: source,
-                        preferredColorScheme: preferredColorScheme
-                    )
-                },
-                applySurfaceColorScheme: {
-                    terminalPanel.hostedView.reapplySurfaceColorSchemeAfterGhosttyConfigReload(
-                        preferredColorScheme: preferredColorScheme
-                    )
-                },
-                refreshHostBackground: {
-                    terminalPanel.hostedView.refreshHostBackgroundAfterGhosttyConfigReload()
-                },
-                forceRefresh: { reason in
-                    terminalPanel.surface.forceRefresh(reason: reason)
-                }
-            )
-            refreshedCount += 1
-        }
-#if DEBUG
-        cmuxDebugLog("reload.config.surfaceRefresh source=\(source) count=\(refreshedCount)")
-#endif
-    }
-
-    private func forEachTerminalPanel(_ body: (TerminalPanel) -> Void) {
-        var seenManagers: Set<ObjectIdentifier> = []
-        var seenTerminalIDs: Set<UUID> = []
-
-        func visitManager(_ manager: TabManager?) {
-            guard let manager else { return }
-            let managerId = ObjectIdentifier(manager)
-            guard seenManagers.insert(managerId).inserted else { return }
-            for workspace in manager.tabs {
-                for panelID in workspace.panels.keys {
-                    for terminalPanel in workspace.terminalPanels(projectedFromPanelID: panelID)
-                    where seenTerminalIDs.insert(terminalPanel.id).inserted {
-                        body(terminalPanel)
-                    }
-                }
-            }
-        }
-
-        visitManager(tabManager)
-        for context in mainWindowContexts.values {
-            visitManager(context.tabManager)
-        }
-    }
-
     func focusMainWindow(windowId: UUID) -> Bool {
         guard let window = mainWindowRouteSnapshot(windowId: windowId)?.window else { return false }
         let didFocus = mainWindowVisibilityController.focus(window, reason: .focusMainWindow)
@@ -10142,7 +10094,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             pullRequestProbeService: pullRequestProbeService,
             workspaceCustomizationStore: self.tabManager?.workspaceCustomizationStore
                 ?? WorkspaceCustomizationStore(defaults: .standard),
-            nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker,
+            fileContentChangeCoordinator: self.tabManager?.fileContentChangeCoordinator
         )
         tabManager.windowId = windowId
         if let sessionWindowSnapshot {
@@ -10850,11 +10803,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 windows.append(window)
             }
         }
-        for window in NSApp.windows where isMainTerminalWindow(window) {
-            if !windows.contains(where: { $0 === window }) {
-                windows.append(window)
-            }
-        }
+        // AppKit's SwiftUI WindowGroup briefly exposes an unregistered
+        // bootstrap window with the bare `cmux.main` identifier. It is
+        // intentionally absent from this context-owned list so UI-test
+        // recovery can create the real terminal window.
         return windows
     }
 
@@ -14319,7 +14271,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         reloadSettingsFromFile: Bool = true,
         preferredColorScheme: GhosttyConfig.ColorSchemePreference? = nil,
         completion:
-            GhosttyApp.ConfigurationReloadCompletion? = nil
+            GhosttyApp.ConfigurationReloadCompletion? = nil,
+        commitCompletion:
+            GhosttyApp.ConfigurationReloadCommitCompletion? = nil
     ) -> Bool {
 #if DEBUG
         cmuxDebugLog("reload.config.request source=\(source) soft=\(soft)")
@@ -14329,7 +14283,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             source: source,
             reloadSettingsFromFile: reloadSettingsFromFile,
             preferredColorScheme: preferredColorScheme,
-            completion: completion
+            completion: completion,
+            commitCompletion: commitCompletion
         )
     }
 
