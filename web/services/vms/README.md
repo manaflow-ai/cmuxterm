@@ -446,15 +446,13 @@ double for provider-contract tests.
 
 ## TLS edge: port previews and credential injection
 
-Freestyle's TLS rules (`freestyle.tls.rules`, docs at freestyle.sh/docs) carry two cmux
-features:
+The current port-preview and model-plane paths have different trust boundaries:
 
-- **Port previews (`openPort`, capability `ports: true`)** — `{ public } → { vmId, port }`
-  on an unguessable free `style.dev` subdomain (certificate-ready, no verification). The
-  subdomain's 96-bit random suffix is the preview token: possession of the URL is the
-  grant, the same trust model as the old tokened proxy URLs. Rules are reused per
-  (vm, port), cascade-delete with the VM, and are deleted on sign-out by
-  `revokeEndpointLeases` (the next openPort mints a fresh subdomain).
+- **Port previews (`openPort`, capability `ports: true`)** use the machine's private
+  network address over the owner's WireGuard tunnel. Opening a port does not mint
+  a public bearer URL or TLS rule. `revokeEndpointLeases` only cleans up legacy,
+  driver-owned preview rules; separately published services have their own lifecycle.
+  Revoking network access is not a promise to erase content already cached by a browser.
 - **Model-plane edge injection** — an egress rule `{ vmId } → { public }` on the
   CodeRouter origin with a headers transform. The edge overwrites the guest's
   placeholder `authorization` and injects the explicit `x-coderouter-route-token`
@@ -469,10 +467,18 @@ The devbox bake installs `/usr/local/bin/cmux` (`services/vms/guestCli.ts`) and 
 reinstalls it atomically at create/attach heal: a POSIX shim over the machine's own cmux-tui
 binary. Local verbs use cmux-tui's grammar against
 the machine's daemon session; `cmux vm …` verbs talk to peer machines through cmux-remote
-links granted from the Mac with `cmux vm link <src> <dst>` (route + single-use enrollment
-invitation pushed into `~/.cmux/peers/<dst>.json` on `<src>`, enrollment approved by the Mac
-through the control plane). No control-plane credential enters a VM; a machine reaches only
-the peers the user linked.
+existing grants in `~/.cmux/peers/<dst>.json`. Main replaced the enrollment-based Mac
+attach flow with a trusted private-network listener; this branch no longer provides the
+old Mac `vm link` broker. New peer-grant creation is not shipped here and must not be
+advertised as verified. No control-plane credential enters a VM.
+
+The guest consumes connection-ready events through private FIFOs and keeps a cancellable
+30-second readiness deadline using Bash's blocking `read -t` (Bash is installed in the
+machine image). It no longer rescans output files or sleeps between probes. Messages and
+help come from `guestCLI` in both web catalogs and select `LC_ALL`, `LC_MESSAGES`, then
+`LANG`; unknown locales use English.
+
+日本語: この PR で追加した契約の説明は [README.ja.md](README.ja.md) を参照してください。
 
 The shim keeps the shared CLI contract for the operations that are safe to run from inside a
 machine: `cmux auth status [--json]` reports the local daemon, TLS reachability, and whether

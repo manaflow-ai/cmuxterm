@@ -18,6 +18,13 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Default name for the first workspace created on a machine.
     nonisolated static let firstWorkspaceName = "main"
 
+    nonisolated static func availableWorkspaceName(takenNames: Set<String>) -> String {
+        guard !takenNames.isEmpty else { return firstWorkspaceName }
+        var suffix = max(takenNames.count + 1, 2)
+        while takenNames.contains("workspace-\(suffix)") { suffix += 1 }
+        return "workspace-\(suffix)"
+    }
+
     enum ProviderError: Error, LocalizedError {
         case notSignedIn
         case machineAsleep(String)
@@ -39,7 +46,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             case .terminalNotCreated(let detail):
                 return "cmux-tui did not report the new terminal: \(detail)"
             case .invalidSnapshot(let id):
-                return "cmux-tui returned an unversioned or malformed session snapshot for \(id)."
+                return String(format: String(
+                    localized: "cloud.provider.snapshotUnreadable",
+                    defaultValue: "The workspace state for %@ could not be read; retry in a moment."
+                ), id)
             case .snapshotOnly(let id):
                 return String(
                     format: String(
@@ -1172,11 +1182,12 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func createRemoteWorkspace(name: String?) async throws -> SurfaceRemoteWorkspace {
         let connected = try await links.connected(machineID: machineID)
         guard let link = await links.link(machineID: machineID) else { throw ProviderError.machineAsleep(machineID) }
-        let existingCount = info.remoteWorkspaces?.count
-            ?? Set(catalog.snapshot.resources(on: machine).flatMap { $0.remoteWorkspaces.map(\.id) }).count
+        let existing = info.remoteWorkspaces
+            ?? catalog.snapshot.resources(on: machine).flatMap(\.remoteWorkspaces)
+        let takenNames = Set(existing.map(\.name))
         let workspaceName = name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? name!.trimmingCharacters(in: .whitespacesAndNewlines)
-            : (existingCount == 0 ? "main" : "workspace-\(existingCount + 1)")
+            : Self.availableWorkspaceName(takenNames: takenNames)
         let created = try await link.run(arguments: CloudTuiCommandLine.createWorkspaceArguments(socketPath: connected.socketPath, name: workspaceName))
         guard let object = try JSONSerialization.jsonObject(with: created) as? [String: Any],
               let id = CmuxTuiSnapshotParser.createdWorkspace(fromResult: object) else {

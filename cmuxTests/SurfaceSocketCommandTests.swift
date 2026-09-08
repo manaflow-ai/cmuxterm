@@ -14,6 +14,21 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct SurfaceSocketCommandTests {
+    @Test func vmFailureDoesNotExposeBackendCredentialsOrResponseBodies() async throws {
+        let response = await Task.detached {
+            TerminalController.shared.v2VmCall(id: "private-error", timeoutSeconds: 5) {
+                throw VMClientError.httpStatus(502, "https://private.invalid?token=secret response-body-private")
+            }
+        }.value
+        let object = try #require(JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any])
+        let error = try Self.error(object)
+        #expect(error["code"] as? String == "vm_error")
+        #expect((error["data"] as? [String: Any])?["http_status"] as? Int == 502)
+        #expect(!response.contains("secret"))
+        #expect(!response.contains("private.invalid"))
+        #expect(!response.contains("response-body-private"))
+    }
+
     /// A cloud provider whose daemon is a notebook: every verb records what it was asked.
     private final class FakeCloudProvider: SurfaceProvider {
         let machine: SurfaceMachineID

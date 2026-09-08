@@ -4130,7 +4130,10 @@ class TerminalController {
             return v2Error(
                 id: id,
                 code: "vm_error",
-                message: String(describing: error),
+                message: String(
+                    localized: "socket.cloudVM.requestFailed",
+                    defaultValue: "The Cloud VM request failed. Retry, or check the machine's status with `cmux vm ls`."
+                ),
                 data: Self.cloudVMBackendErrorData(error)
             )
         case nil:

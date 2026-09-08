@@ -253,7 +253,7 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
     providerEffect(provider, "openCmuxRemote", () => {
       const impl = getProvider(provider);
       if (!impl.openCmuxRemote) {
-        throw new Error(`provider ${provider} does not run the cmux-tui remote daemon yet`);
+        throw new VmOperationUnsupportedError({ provider, operation: "openCmuxRemote" });
       }
       return impl.openCmuxRemote(vmId, options);
     }),
@@ -261,7 +261,7 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
     providerEffect(provider, "approveCmuxRemoteEnrollment", () => {
       const impl = getProvider(provider);
       if (!impl.approveCmuxRemoteEnrollment) {
-        throw new Error(`provider ${provider} does not run the cmux-tui remote daemon yet`);
+        throw new VmOperationUnsupportedError({ provider, operation: "approveCmuxRemoteEnrollment" });
       }
       return impl.approveCmuxRemoteEnrollment(vmId, invitationId, options);
     }),

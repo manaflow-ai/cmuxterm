@@ -810,17 +810,35 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
         #expect(CmuxTuiSurfaceProvider.firstWorkspaceName == "main")
     }
 
-    @Test @MainActor func snapshotRereadsCoalesceWithoutTimersAndAreNeverStarved() async {
+    @Test func defaultWorkspaceNamesDoNotReuseSurvivingNames() {
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: []) == "main")
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: ["workspace-2"]) == "workspace-3")
+        #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: ["main", "workspace-3"]) == "workspace-4")
+    }
+
+    @Test(.timeLimit(.minutes(1))) @MainActor func snapshotRereadsCoalesceWithoutTimersAndAreNeverStarved() async {
         // One pass in flight, at most one queued behind it, no delay anywhere: a burst
         // of deltas costs two passes, and a burst that arrives DURING a pass still gets
         // exactly one follow-up (the tree is never starved by a restarted window).
-        final class Gate: @unchecked Sendable {
-            let lock = NSLock()
+        @MainActor final class Gate {
             var waiters: [CheckedContinuation<Void, Never>] = []
             var entered = 0
-            func enter() async { await withCheckedContinuation { c in lock.withLock { entered += 1; waiters.append(c) } } }
-            func release() { let w = lock.withLock { let w = waiters; waiters.removeAll(); return w }; w.forEach { $0.resume() } }
-            func enteredCount() -> Int { lock.withLock { entered } }
+            var active = 0
+            var maximumActive = 0
+            deinit {}
+            func enter() async {
+                entered += 1
+                active += 1
+                maximumActive = max(maximumActive, active)
+                defer { active -= 1 }
+                await withCheckedContinuation { waiters.append($0) }
+            }
+            func release() {
+                let pending = waiters
+                waiters.removeAll()
+                pending.forEach { $0.resume() }
+            }
+            func enteredCount() -> Int { entered }
         }
         let gate = Gate()
         let coalescer = SurfaceRefreshCoalescer { await gate.enter() }
@@ -829,31 +847,33 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
         coalescer.request()
         // Let the loop start its first pass.
         while gate.enteredCount() < 1 { await Task.yield() }
-        #expect(coalescer.passes == 1, "a burst before the first pass starts is one pass")
+        #expect(gate.enteredCount() == 1, "a burst before the first pass starts is one pass")
         #expect(coalescer.isRunning)
         // Deltas during the pass queue exactly one follow-up.
         coalescer.request()
         coalescer.request()
         gate.release()
         while gate.enteredCount() < 2 { await Task.yield() }
-        #expect(coalescer.passes == 2)
+        #expect(gate.enteredCount() == 2)
         gate.release()
         while coalescer.isRunning { await Task.yield() }
-        #expect(coalescer.passes == 2, "a quiet coalescer stops; nothing runs on a timer")
+        #expect(gate.enteredCount() == 2, "a quiet coalescer stops; nothing runs on a timer")
         // A cancelled coalescer drops its queued follow-up.
         coalescer.request()
         while gate.enteredCount() < 3 { await Task.yield() }
         coalescer.request()
         coalescer.cancel()
-        // A request that lands before the cancelled pass unwinds owns a fresh loop; the
-        // old pass unwinding must not clear it (that would let two passes overlap later).
         coalescer.request()
+        #expect(gate.enteredCount() == 3)
+        gate.release()
         while gate.enteredCount() < 4 { await Task.yield() }
-        #expect(coalescer.passes == 4)
+        #expect(gate.enteredCount() == 4)
+        #expect(gate.maximumActive == 1)
         #expect(coalescer.isRunning)
         gate.release()
         while coalescer.isRunning { await Task.yield() }
-        #expect(coalescer.passes == 4)
+        #expect(gate.enteredCount() == 4)
+        #expect(gate.maximumActive == 1)
     }
 
     @Test(.timeLimit(.minutes(1))) @MainActor

@@ -263,7 +263,7 @@ extension CMUXCLI {
         if let windowRaw, !windowRaw.isEmpty {
             params["window_id"] = windowRaw
         }
-        guard let current = try? client.sendV2(method: "workspace.current", params: params) else { return false }
+        guard let current = try? client.sendV2(method: "workspace.current", params: params, responseTimeout: 0.25) else { return false }
         let candidates = [current["workspace_id"] as? String, current["workspace_ref"] as? String].compactMap { $0 }
         return candidates.contains { $0.caseInsensitiveCompare(workspaceRaw) == .orderedSame }
     }
@@ -503,7 +503,7 @@ extension CMUXCLI {
             if let windowId, !windowId.isEmpty {
                 selectParams["window_id"] = windowId
             }
-            _ = try? client.sendV2(method: "workspace.select", params: selectParams)
+            _ = try client.sendV2(method: "workspace.select", params: selectParams)
         }
         logVMTiming(
             "complete",
@@ -2048,7 +2048,9 @@ extension CMUXCLI {
             let (paneOpt, rest2) = parseOption(rest1, name: "--pane")
             let (focusOpt, rest3) = parseOption(rest2, name: "--focus")
             let sides: [String: String] = ["--left": "left", "--right": "right", "--up": "up", "--down": "down"]
-            let direction = rest3.compactMap { sides[$0] }.first
+            let directions = rest3.compactMap { sides[$0] }
+            guard directions.count <= 1 else { throw CLIError(message: Self.surfaceUsage) }
+            let direction = directions.first
             let tab = hasFlag(rest3, name: "--tab")
             let new = hasFlag(rest3, name: "--new")
             let known = Set(sides.keys).union(["--tab", "--new", "--json"])

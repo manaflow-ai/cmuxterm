@@ -1071,6 +1071,23 @@ final class CloudTreeScopeAndSignatureTests: XCTestCase {
 /// CPU/Mem/Disk reading (when the style shows stats), else nothing.
 @Suite("Cloud tree machine inline fact")
 struct CloudTreeMachineInlineFactTests {
+    @Test("Refresh drops retained statistics when the provider withdraws support")
+    func capabilityWithdrawalDropsPreviousStats() {
+        let stats = VMStats(
+            state: .awake, sampledAt: Date(timeIntervalSince1970: 0), cpus: 2, cpuPercent: 9.4,
+            loadAverage1m: nil, memoryTotalMb: 3891, memoryUsedMb: 3481, diskTotalMb: 3174, diskUsedMb: 2867
+        )
+        var summary = VMSummary(
+            id: "machine", provider: "freestyle", status: "running", image: "base", createdAt: 0, base: nil
+        )
+        let supported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: stats)
+        #expect(supported.stats == stats)
+        summary.capabilities = VMCapabilities(json: ["stats": false])
+        let unsupported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: supported.stats)
+        #expect(unsupported.stats == nil)
+        #expect(CloudTreeMachineRowContent.inlineFact(unsupported, style: .compact) == nil)
+    }
+
     private func snapshot(stats: VMStats?) -> MachineSnapshot {
         var machine = MachineSnapshotBuilder.snapshot(from: VMSummary(
             id: "troll", provider: "freestyle", status: "running", image: "cmux-devbox:devbox-20260828b", createdAt: 0, base: nil
