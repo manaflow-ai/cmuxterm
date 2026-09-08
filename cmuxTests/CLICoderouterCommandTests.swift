@@ -111,7 +111,7 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
                 let received = buffer.withUnsafeMutableBytes { bytes in
                     Darwin.recv(connection, bytes.baseAddress, bytes.count, MSG_DONTWAIT)
                 }
-                #expect(received <= 0, "Unexpected socket request: \(String(decoding: buffer.prefix(max(received, 0)), as: UTF8.self))")
+                #expect(received == 0, "Unexpected socket request: \(String(decoding: buffer.prefix(max(received, 0)), as: UTF8.self))")
             }
             return (process.terminationStatus, text)
         }
