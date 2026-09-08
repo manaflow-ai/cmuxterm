@@ -353,5 +353,4 @@ struct RemoteAgentRestoreWorkingDirectoryTests {
         #expect(workspace.reportedPanelDirectory(panelId: panelId) == nil)
     }
 
-    @MainActor
 }

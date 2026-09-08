@@ -410,5 +410,4 @@ extension RemoteAgentRestoreWorkingDirectoryTests {
         #expect(!secondStartupInput.contains(untrustedRecordedDirectory), Comment(rawValue: secondStartupInput))
     }
 
-    @MainActor
 }
