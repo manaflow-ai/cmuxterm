@@ -12,7 +12,10 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_SETUP"] = "1"
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_TAB_DRAG_PATH"] = dataPath
         app.launchEnvironment["CMUX_UI_TEST_BONSPLIT_SHOW_RIGHT_SIDEBAR"] = "1"
-        app.launchArguments += ["-workspacePresentationMode", "minimal", "-vaultPane.tab", "sessions"]
+        app.launchArguments += [
+            "-workspacePresentationMode", "minimal", "-vaultPane.tab", "sessions",
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+        ]
         app.launch()
         defer { app.terminate() }
         app.activate()
@@ -22,15 +25,19 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         let vault = app.buttons["RightSidebarModeButton.sessions"]
         XCTAssertTrue(vault.waitForExistence(timeout: 10))
         vault.click()
-        let sessions = app.buttons["VaultPaneTabButton.sessions"].firstMatch
-        let history = app.buttons["VaultPaneTabButton.history"].firstMatch
+        // SwiftUI propagates the sidebar container's accessibility identifier
+        // over these children; their localized labels remain exposed in AX.
+        let sessions = app.buttons["Sessions"].firstMatch
+        let history = app.buttons["History"].firstMatch
         XCTAssertTrue(sessions.waitForExistence(timeout: 10))
         XCTAssertTrue(history.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["SessionGroupingButton.directory"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 10))
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
-        let picker = app.descendants(matching: .any)["VaultHistoryGroupPicker"].firstMatch
+        let picker = app.menuButtons.matching(
+            NSPredicate(format: "label IN %@", ["Date", "Workspace", "Window", "Agent", "Type"])
+        ).firstMatch
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
@@ -48,7 +55,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-history-after-menu-interaction")
 
         sessions.click()
-        XCTAssertTrue(app.buttons["SessionGroupingButton.directory"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 5))
         history.click()
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
 
@@ -57,7 +64,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         popout.click()
         let mountedTwice = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
-                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 2
+                app.buttons.matching(NSPredicate(format: "label == %@", "History")).count == 2
             },
             object: nil
         )
@@ -68,15 +75,15 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         closeSidebar.click()
         let paneOnly = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
-                app.buttons.matching(identifier: "VaultPaneTabButton.history").count == 1
+                app.buttons.matching(NSPredicate(format: "label == %@", "History")).count == 1
                     && !closeSidebar.exists
             },
             object: nil
         )
         XCTAssertEqual(XCTWaiter.wait(for: [paneOnly], timeout: 10), .completed)
-        app.buttons["VaultPaneTabButton.sessions"].click()
-        XCTAssertTrue(app.buttons["SessionGroupingButton.directory"].waitForExistence(timeout: 5))
-        app.buttons["VaultPaneTabButton.history"].click()
+        app.buttons["Sessions"].click()
+        XCTAssertTrue(app.buttons["Folder"].waitForExistence(timeout: 5))
+        app.buttons["History"].click()
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-history-standalone-pane")
     }
