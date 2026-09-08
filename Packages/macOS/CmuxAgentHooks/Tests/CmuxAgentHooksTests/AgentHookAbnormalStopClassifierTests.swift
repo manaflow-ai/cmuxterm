@@ -89,6 +89,9 @@ struct AgentHookAbnormalStopClassifierTests {
 
     @Test func recognizesStructuredProviderReasonsWithoutMessage() {
         #expect(classifier.abnormalStopClass(signal: "Stop rate_limit", message: "") == .rateLimit)
+        #expect(classifier.abnormalStopClass(signal: "Stop capacity", message: "") == .capacity)
+        #expect(classifier.abnormalStopClass(signal: "Stop overload", message: "") == .capacity)
+        #expect(classifier.abnormalStopClass(signal: "Stop timeout", message: "") == .timeout)
         #expect(classifier.abnormalStopClass(signal: "Stop unauthorized", message: "") == .authentication)
         #expect(classifier.abnormalStopClass(signal: "Stop connection refused", message: "") == .network)
     }

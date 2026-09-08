@@ -42,6 +42,15 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             return nil
         }
 
+        let normalizedMessageTrimmed = normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reasonOnlyMessage = normalizedMessageTrimmed.hasPrefix("stop ")
+            ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
+            : normalizedMessageTrimmed
+        let normalizedSignalTrimmed = normalizedSignal.trimmingCharacters(in: .whitespacesAndNewlines)
+        let signalReasonOnly = normalizedSignalTrimmed.hasPrefix("stop ")
+            ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
+            : normalizedSignalTrimmed
+
         let overloadCue = (normalized.contains("overloaded") || normalized.contains("overload"))
             && (
                 normalized.contains("server")
@@ -69,6 +78,10 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("server overloaded")
             || normalized.contains("overloaded error")
             || status529Cue
+            || signalReasonOnly == "capacity"
+            || signalReasonOnly == "overload"
+            || signalReasonOnly == "overloaded"
+            || signalReasonOnly == "529"
         let messageTokens = Self.notificationCueTokens(normalizedMessage)
         let providerCapacityQualifiers: Set<Substring> = [
             "model", "server", "provider", "service", "api", "error", "llm", "endpoint",
@@ -80,19 +93,11 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             "capacity", "at capacity", "overload", "overloaded", "529",
             "stop capacity", "stop at capacity", "stop overload", "stop overloaded", "stop 529",
         ].contains {
-            normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == $0
+            reasonOnlyMessage == $0 || signalReasonOnly == $0
         }
         if capacityCue && (providerCapacityQualifier || explicitCapacityReason) {
             return .capacity
         }
-        let normalizedMessageTrimmed = normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        let reasonOnlyMessage = normalizedMessageTrimmed.hasPrefix("stop ")
-            ? String(normalizedMessageTrimmed.dropFirst("stop ".count))
-            : normalizedMessageTrimmed
-        let normalizedSignalTrimmed = normalizedSignal.trimmingCharacters(in: .whitespacesAndNewlines)
-        let signalReasonOnly = normalizedSignalTrimmed.hasPrefix("stop ")
-            ? String(normalizedSignalTrimmed.dropFirst("stop ".count))
-            : normalizedSignalTrimmed
         let quotaCue = normalized.contains("usage limit")
             || normalized.contains("hit your limit")
             || normalized.contains("limit reached")
@@ -179,6 +184,8 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
             || normalized.contains("gateway timeout")
             || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == "timeout"
             || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines) == "etimedout"
+            || signalReasonOnly == "timeout"
+            || signalReasonOnly == "etimedout"
             || (normalized.contains("timeout") && (
                 normalized.contains("error")
                     || normalized.contains("failed")
