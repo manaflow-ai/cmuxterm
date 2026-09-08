@@ -8,16 +8,16 @@
 # compares CFBundleVersion (CURRENT_PROJECT_VERSION) against <sparkle:version>
 # — the marketing string is informational only.
 #
-# If the published appcast cannot be fetched (e.g. offline CI runner), the
-# test soft-passes with a warning so it never blocks unrelated work.
-#
 # Modes (CMUX_SPARKLE_MONOTONIC_MODE):
-#   enforce (default) - a stale build number fails. Tag pushes and the local
-#                       pre-tag guard use this: they are about to publish.
-#   warn              - a stale build number is reported but does not fail.
-#                       release.yml selects this for a non-tag workflow_dispatch
-#                       dry run, which publishes nothing and is expected to run
-#                       from a branch whose build number has not been bumped yet.
+#   enforce (default) - a stale build number fails, and so does an appcast that
+#                       cannot be fetched: a tag push is about to publish, and a
+#                       missing signal must fail closed rather than let a stale
+#                       build number reach users. Tag pushes and the local
+#                       pre-tag guard use this.
+#   warn              - a stale or unknown published build is reported but does
+#                       not fail. release.yml selects this for a non-tag
+#                       workflow_dispatch dry run, which publishes nothing and is
+#                       expected to run from a branch that has not been bumped.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -53,15 +53,29 @@ if [[ "$MISMATCHED" != "1" ]]; then
   exit 1
 fi
 
+# Retry transient fetch failures so enforce mode does not fail a real release
+# on a blip; the retry knobs exist so tests can exercise the unreachable path fast.
 PUBLISHED_BUILD=$(curl -fsSL --max-time 15 \
+  --retry "${CMUX_SPARKLE_APPCAST_RETRIES:-3}" --retry-delay "${CMUX_SPARKLE_APPCAST_RETRY_DELAY:-2}" --retry-all-errors \
   "$APPCAST_URL" 2>/dev/null \
   | sed -n 's#.*<sparkle:version>\([0-9][0-9]*\)</sparkle:version>.*#\1#p' \
   | head -n1 || true)
 
 if ! [[ "$PUBLISHED_BUILD" =~ ^[0-9]+$ ]]; then
-  echo "WARN: could not fetch latest published Sparkle build; skipping monotonic check"
-  echo "PASS (soft): local CURRENT_PROJECT_VERSION=$LOCAL_BUILD"
-  exit 0
+  if [[ "$MODE" == "warn" ]]; then
+    echo "WARN: could not fetch latest published Sparkle build; skipping monotonic check"
+    echo "PASS (soft): local CURRENT_PROJECT_VERSION=$LOCAL_BUILD"
+    exit 0
+  fi
+  cat >&2 <<EOF
+FAIL: could not fetch the latest published Sparkle build from
+      $APPCAST_URL
+      so enforce mode cannot prove CURRENT_PROJECT_VERSION ($LOCAL_BUILD) is newer
+      than what users already run. A tag push must not publish on a missing
+      signal. Check connectivity and that the latest GitHub release carries
+      appcast.xml; a non-publishing check can use CMUX_SPARKLE_MONOTONIC_MODE=warn.
+EOF
+  exit 1
 fi
 
 if (( LOCAL_BUILD <= PUBLISHED_BUILD )); then

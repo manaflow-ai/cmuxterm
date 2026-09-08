@@ -44,6 +44,8 @@ run_guard() {
   CMUX_SPARKLE_MONOTONIC_MODE="$mode" \
   CMUX_SPARKLE_PROJECT_FILE="$project" \
   CMUX_SPARKLE_APPCAST_URL="$appcast" \
+  CMUX_SPARKLE_APPCAST_RETRIES=0 \
+  CMUX_SPARKLE_APPCAST_RETRY_DELAY=0 \
     "$GUARD"
 }
 
@@ -92,13 +94,28 @@ for mode in enforce warn; do
   fi
 done
 
-# An unreachable appcast still soft-passes so offline runners never block unrelated work.
-if ! output="$(run_guard enforce "$STALE" "file://$TMP_DIR/missing-appcast.xml" 2>&1)"; then
-  echo "FAIL: unreachable appcast must soft-pass: $output" >&2
+# An unreachable appcast is a missing signal. A tag push (enforce, also the
+# default) must fail closed rather than publish a build number it cannot compare;
+# only an explicit warn-mode dry run tolerates it.
+if output="$(run_guard enforce "$FRESH" "file://$TMP_DIR/missing-appcast.xml" 2>&1)"; then
+  echo "FAIL: enforce mode must fail when the published appcast cannot be fetched: $output" >&2
+  exit 1
+fi
+if ! grep -q "^FAIL: could not fetch the latest published Sparkle build" <<<"$output"; then
+  echo "FAIL: enforce mode did not explain the unreachable appcast: $output" >&2
+  exit 1
+fi
+if CMUX_SPARKLE_PROJECT_FILE="$FRESH" CMUX_SPARKLE_APPCAST_URL="file://$TMP_DIR/missing-appcast.xml" \
+   CMUX_SPARKLE_APPCAST_RETRIES=0 CMUX_SPARKLE_APPCAST_RETRY_DELAY=0 "$GUARD" >/dev/null 2>&1; then
+  echo "FAIL: the default mode must fail closed on an unreachable appcast" >&2
+  exit 1
+fi
+if ! output="$(run_guard warn "$STALE" "file://$TMP_DIR/missing-appcast.xml" 2>&1)"; then
+  echo "FAIL: warn mode must soft-pass an unreachable appcast: $output" >&2
   exit 1
 fi
 if ! grep -q "PASS (soft)" <<<"$output"; then
-  echo "FAIL: unreachable appcast did not soft-pass: $output" >&2
+  echo "FAIL: warn mode did not soft-pass the unreachable appcast: $output" >&2
   exit 1
 fi
 
@@ -115,4 +132,4 @@ if ! grep -Fq "CMUX_SPARKLE_MONOTONIC_MODE: \${{ startsWith(github.ref, 'refs/ta
   exit 1
 fi
 
-echo "PASS: Sparkle monotonic guard enforces for tag pushes and warns for dry runs"
+echo "PASS: Sparkle monotonic guard enforces (and fails closed) for tag pushes and warns for dry runs"
