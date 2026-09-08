@@ -423,7 +423,7 @@ struct CloudTunnelLaunchGateTests {
         #expect(enroller.discardCount == 0)
     }
 
-    @Test("a newer start that inherits a superseded start's refused configuration discards it when it ends without installing")
+    @Test("a newer start inherits a superseded start's saved configuration regardless of the policy at hand-off, and discards it if refused before installing")
     @MainActor
     func inheritedConfigurationIsDiscardedByAStartThatDoesNotInstall() async throws {
         let controller = FakeTunnelController()
@@ -439,9 +439,10 @@ struct CloudTunnelLaunchGateTests {
         await coordinator.requestDown()
         gate.refusal = nil
         // While the second start is enrolling, the first start's late
-        // approval resolves and the policy refuses again: the second start
-        // inherits the first start's saved configuration and, refused before
-        // it installs anything, must discard it.
+        // approval resolves with Cloud Machines back ON (so no refusal at
+        // hand-off time), then the policy refuses again: the second start
+        // inherited the first start's saved configuration and, refused
+        // before it installs anything, must discard it.
         enroller.onEnroll = {
             controller.approve()
             _ = try? await first.value

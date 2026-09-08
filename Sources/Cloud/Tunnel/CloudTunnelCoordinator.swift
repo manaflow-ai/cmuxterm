@@ -427,21 +427,23 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         }
     }
 
-    /// A start is ending without owning a running tunnel. If the policy now
-    /// refuses and a saved configuration is on the line (this start's own,
-    /// or one a superseded start handed over), take it back out: the VPN
-    /// configuration and this Mac's enrollment. Not while a newer start is
-    /// in flight, whose install overwrites the configuration; that start
-    /// inherits the obligation instead, so it is discharged by whichever
-    /// start ends without installing.
+    /// A start is ending without owning a running tunnel, with a saved
+    /// configuration on the line: this start's own, or one a superseded
+    /// start handed over. While a newer start is in flight the obligation
+    /// passes to it, whatever the policy says right now: its install
+    /// overwrites the configuration, and if it ends without installing it
+    /// settles here in turn. Otherwise the policy decides: refused, the VPN
+    /// configuration and this Mac's enrollment are taken back out; admitted,
+    /// the configuration stays for the next use, as before this gate.
     private func settleRefusedInstall(installedByThisStart: Bool, generation: Int) async {
-        guard installedByThisStart || orphanedInstall, admission.knownRefusal() != nil else { return }
+        guard installedByThisStart || orphanedInstall else { return }
         let newerStartInFlight = startTask != nil && startGeneration != generation
         if newerStartInFlight {
             orphanedInstall = true
             return
         }
         orphanedInstall = false
+        guard admission.knownRefusal() != nil else { return }
         let discard = Task { await self.discardInstalled() }
         pendingDiscard = discard
         await discard.value
