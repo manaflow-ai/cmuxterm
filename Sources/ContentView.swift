@@ -5996,7 +5996,7 @@ struct ContentView: View {
         // Keep workspace rows coarse and stable for predictable workspace switching queries.
         let directories = [workspace.presentedCurrentDirectory].compactMap { $0 }
         let branches = [workspace.presentedGitBranch?.branch].compactMap { $0 }
-        let ports = workspace.listeningPorts
+        let ports = workspace.sidebarVisibleListeningPorts
         return CommandPaletteSwitcherSearchMetadata(
             directories: directories,
             branches: branches,
@@ -6010,7 +6010,7 @@ struct ContentView: View {
     ) -> CommandPaletteSwitcherSearchMetadata {
         let directories = [workspace.reportedPanelDirectory(panelId: panelId)].compactMap { $0 }
         let branches = [workspace.reportedPanelGitBranch(panelId: panelId)?.branch].compactMap { $0 }
-        let ports = workspace.surfaceListeningPorts[panelId] ?? []
+        let ports = workspace.sidebarVisiblePorts(for: panelId)
         return CommandPaletteSwitcherSearchMetadata(
             directories: directories,
             branches: branches,
@@ -13301,7 +13301,7 @@ struct VerticalTabsSidebar: View, Equatable {
             latestNotificationText: unreadSnapshot.latestNotificationText(forWorkspaceId: workspace.id),
             latestSubmittedMessage: workspace.latestSubmittedMessage,
             latestSubmittedAt: workspace.latestSubmittedAt,
-            listeningPorts: workspace.listeningPorts,
+            listeningPorts: workspace.sidebarVisibleListeningPorts,
             pullRequestURLs: workspace.sidebarPullRequestsInDisplayOrder().map { $0.url.absoluteString },
             panelDirectories: workspace.sidebarFilesystemDirectoriesInDisplayOrder(),
             gitBranches: workspace.sidebarGitBranchesInDisplayOrder().map {

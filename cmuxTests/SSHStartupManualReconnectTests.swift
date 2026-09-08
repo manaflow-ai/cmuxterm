@@ -852,7 +852,10 @@ struct SSHStartupManualReconnectTests {
         )
         let configureParams = try #require(configureRequest["params"] as? [String: Any])
         let startupCommand = try #require(configureParams["terminal_startup_command"] as? String)
-        return try rewritingSystemSSH(in: startupCommand, with: fakeSSH)
+        return try SSHStartupCommandTestSupport.replacingSystemSSH(
+            in: startupCommand,
+            with: fakeSSH.path
+        )
     }
 
     private static func generatedVMSSHInitialStartupCommand(
@@ -945,57 +948,10 @@ struct SSHStartupManualReconnectTests {
         )
         let createParams = try #require(createRequest["params"] as? [String: Any])
         let startupCommand = try #require(createParams["initial_command"] as? String)
-        return try rewritingSystemSSH(in: startupCommand, with: fakeSSH)
-    }
-
-    private static func rewritingSystemSSH(
-        in startupCommand: String,
-        with fakeSSH: URL
-    ) throws -> String {
-        let systemSSHPath = "/usr/bin/ssh"
-        let commandURL = URL(
-            fileURLWithPath: startupCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try SSHStartupCommandTestSupport.replacingSystemSSH(
+            in: startupCommand,
+            with: fakeSSH.path
         )
-        var isDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: commandURL.path, isDirectory: &isDirectory),
-           !isDirectory.boolValue {
-            let script = try String(contentsOf: commandURL, encoding: .utf8)
-            try #require(script.contains(systemSSHPath))
-            try script
-                .replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-                .write(to: commandURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o700],
-                ofItemAtPath: commandURL.path
-            )
-            return startupCommand
-        }
-
-        if startupCommand.contains(systemSSHPath) {
-            return startupCommand.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-        }
-
-        let encodedPrefix = "(printf %s "
-        let encodedSuffix = " | base64"
-        let prefixRange = try #require(startupCommand.range(of: encodedPrefix))
-        let suffixRange = try #require(
-            startupCommand.range(
-                of: encodedSuffix,
-                range: prefixRange.upperBound..<startupCommand.endIndex
-            )
-        )
-        let encodedRange = prefixRange.upperBound..<suffixRange.lowerBound
-        let encodedScript = String(startupCommand[encodedRange])
-        let scriptData = try #require(Data(base64Encoded: encodedScript))
-        let script = try #require(String(data: scriptData, encoding: .utf8))
-        try #require(script.contains(systemSSHPath))
-        let rewrittenScript = script.replacingOccurrences(of: systemSSHPath, with: fakeSSH.path)
-        var rewrittenCommand = startupCommand
-        rewrittenCommand.replaceSubrange(
-            encodedRange,
-            with: Data(rewrittenScript.utf8).base64EncodedString()
-        )
-        return rewrittenCommand
     }
 
     private static func makeTerminalExitPromptFixture() throws -> TerminalExitPromptFixture {

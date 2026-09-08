@@ -712,7 +712,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let surfaceID = "33333333-3333-3333-3333-333333333333"
         let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("cmux-fake-ssh-\(UUID().uuidString)", isDirectory: true)
-        let fakeExpectPath = tempDirectory.appendingPathComponent("expect").path
+        let fakeSSHPath = tempDirectory.appendingPathComponent("ssh").path
         let capturedArgsPath = tempDirectory.appendingPathComponent("ssh-args").path
 
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
@@ -723,8 +723,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
           printf '%s\\n' "$arg" >> "$CMUX_FAKE_SSH_ARGS"
         done
         exit 0
-        """.write(toFile: fakeExpectPath, atomically: true, encoding: .utf8)
-        chmod(fakeExpectPath, 0o755)
+        """.write(toFile: fakeSSHPath, atomically: true, encoding: .utf8)
+        chmod(fakeSSHPath, 0o755)
 
         defer {
             Darwin.close(listenerFD)
@@ -778,6 +778,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         environment["CMUX_FAKE_SSH_ARGS"] = capturedArgsPath
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
         environment["CMUX_CLAUDE_HOOK_SENTRY_DISABLED"] = "1"
+        environment["CMUX_TEST_SSH_TOOL_PATH"] = fakeSSHPath
         environment["PATH"] = "\(tempDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"
 
         let result = runProcess(
@@ -892,6 +893,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         environment["CMUX_CLOUD_TMUX_SESSION"] = "cmux-cloud"
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
         environment["CMUX_CLAUDE_HOOK_SENTRY_DISABLED"] = "1"
+        environment["CMUX_TEST_SSH_TOOL_PATH"] = fakeSSHPath
         environment["PATH"] = "\(tempDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"
 
         let result = runProcess(
@@ -978,6 +980,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         environment["CMUX_CLOUD_TMUX_SESSION"] = "cmux-cloud"
         environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
         environment["CMUX_CLAUDE_HOOK_SENTRY_DISABLED"] = "1"
+        environment["CMUX_TEST_SSH_TOOL_PATH"] = fakeSSHPath
         environment["PATH"] = "\(tempDirectory.path):/usr/bin:/bin:/usr/sbin:/sbin"
 
         let result = runProcess(
