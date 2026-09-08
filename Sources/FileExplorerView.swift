@@ -1459,7 +1459,7 @@ final class FileExplorerContainerView: NSView {
 
     private func updateSearchLayout(hasContent: Bool? = nil, isLoading: Bool? = nil) {
         let effectiveHasContent = hasContent ?? !currentRootPath.isEmpty
-        let effectiveIsLoading = isLoading ?? false
+        let effectiveIsLoading = isLoading ?? coordinator.store.isLoading
         let showSearchResults = isSearchVisible && effectiveHasContent && !effectiveIsLoading
         let nextSearchBarHeight = isSearchVisible ? searchBarVisibleHeight : 0
 
