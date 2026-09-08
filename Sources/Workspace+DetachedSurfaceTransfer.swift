@@ -111,6 +111,7 @@ extension Workspace {
                 shellActivityState: shellActivityState,
                 restoredPanelTitleBoundary: restoredPanelTitleBoundary,
                 restoredResumeSessionWorkingDirectory: restoredResumeSessionWorkingDirectory,
+                restoredStartupInput: restoredStartupInput,
                 resumeBinding: resumeBinding,
                 deferredAgentResumeRestore: deferredAgentResumeRestore,
                 managedAgentResumeBinding: managedAgentResumeBinding,

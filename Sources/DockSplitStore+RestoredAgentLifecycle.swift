@@ -141,6 +141,12 @@ extension DockSplitStore {
             resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory,
             startupInput: detached.restoredStartupInput
         )
+        // Dock twin of `Workspace.rearmTransferredStartupInputResend(from:)`:
+        // the idle prompt was reported to the previous owner and never repeats
+        // here, so arm the replay for a launch still awaiting its selector.
+        if detached.shellActivityState == .promptIdle {
+            scheduleRestoredStartupInputResend(panelId: detached.panelId)
+        }
         managedAgentResumeBindingsByPanelId.removeValue(forKey: detached.panelId)
         if let resumeBinding = detached.resumeBinding {
             if surfaceResumeBindingMutationAllowed(resumeBinding, panelId: detached.panelId) {
