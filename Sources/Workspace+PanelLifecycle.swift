@@ -132,7 +132,7 @@ extension Workspace {
         return String(key[..<dotIndex])
     }
 
-    private func hasAgentRuntime(forStatusKey statusKey: String) -> Bool {
+    func hasAgentRuntime(forStatusKey statusKey: String) -> Bool {
         for key in agentPIDs.keys where agentStatusKey(forAgentPIDKey: key) == statusKey {
             return true
         }
@@ -147,7 +147,7 @@ extension Workspace {
         return false
     }
 
-    private func removeAgentPIDOwnership(key: String) {
+    func removeAgentPIDOwnership(key: String) {
         if let previousPanelId = agentPIDPanelIdsByKey[key] {
             agentPIDKeysByPanelId[previousPanelId]?.remove(key)
             if agentPIDKeysByPanelId[previousPanelId]?.isEmpty == true {
