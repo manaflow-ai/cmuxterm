@@ -756,6 +756,80 @@ import Testing
 }
 
 @MainActor
+@Test func terminalViewportAcknowledgementCompletesDeferredColdAttachReplay() async throws {
+    let router = LivenessHostRouter()
+    let box = TransportBox()
+    let clock = TestClock()
+    let store = try await makeConnectedStore(router: router, box: box, clock: clock)
+    let surfaceID = "live-terminal"
+
+    // Establish the shared grid before a sink is mounted. The raced
+    // acknowledgement below will therefore report the same effective grid,
+    // which is the path where the deferred cold replay must be fulfilled.
+    let baselineGrid = await store.updateTerminalViewport(
+        surfaceID: surfaceID,
+        columns: 80,
+        rows: 48
+    )
+    #expect(baselineGrid?.columns == 80)
+    #expect(baselineGrid?.rows == 48)
+
+    await router.holdViewportRequest(number: 2)
+    await router.enqueueReplayTexts(["deferred-cold-replay"])
+    let preparation = try #require(store.prepareTerminalViewport(
+        surfaceID: surfaceID,
+        columns: 80,
+        rows: 48
+    ))
+    let viewportTask = Task {
+        await store.updatePreparedTerminalViewport(preparation)
+    }
+    let viewportRequested = await router.waitForCount(
+        of: "mobile.terminal.viewport",
+        atLeast: 2
+    )
+    #expect(viewportRequested)
+    guard viewportRequested else {
+        await router.releaseAllHeld()
+        _ = await viewportTask.value
+        return
+    }
+
+    // The output sink can mount while its first viewport acknowledgement is
+    // in flight. Registration defers the cold replay to that acknowledgement,
+    // but the successful response still has to fulfill the deferred request.
+    var iterator = store.terminalOutputStream(surfaceID: surfaceID).makeAsyncIterator()
+    let replayBeforeAcknowledgement = await router.waitForCount(
+        of: "mobile.terminal.replay",
+        atLeast: 1,
+        timeoutNanoseconds: 200_000_000,
+        recordIssueOnTimeout: false
+    )
+    #expect(
+        !replayBeforeAcknowledgement,
+        "mounting during viewport preparation must defer the cold replay until the acknowledgement"
+    )
+
+    await router.releaseAllHeld()
+    let acknowledgedGrid = await viewportTask.value
+    #expect(acknowledgedGrid?.columns == 80)
+    #expect(acknowledgedGrid?.rows == 48)
+
+    let replayRequested = await router.waitForCount(
+        of: "mobile.terminal.replay",
+        atLeast: 1
+    )
+    #expect(
+        replayRequested,
+        "a successful viewport acknowledgement must fulfill a deferred cold replay"
+    )
+    guard replayRequested else { return }
+    let replayChunk = try #require(await iterator.next())
+    #expect(String(data: replayChunk.data, encoding: .utf8) == "deferred-cold-replay")
+    store.terminalOutputDidProcess(surfaceID: surfaceID, streamToken: replayChunk.streamToken)
+}
+
+@MainActor
 @Test func terminalPipelineResetDuringViewportAckDefersToAckReplay() async throws {
     let router = LivenessHostRouter()
     let box = TransportBox()
