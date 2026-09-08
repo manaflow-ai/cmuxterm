@@ -50,6 +50,21 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
         )
     }
 
+    func testLiveFilePreviewRoutesBrowserPortalMouseUpToPaneDropTarget() {
+        XCTAssertTrue(
+            BrowserWindowPortal.shouldRoutePointerUpToPaneDropTarget(
+                hasActiveDropDrag: false,
+                hasLiveFileDropPayload: true
+            )
+        )
+        XCTAssertFalse(
+            BrowserWindowPortal.shouldRoutePointerUpToPaneDropTarget(
+                hasActiveDropDrag: false,
+                hasLiveFileDropPayload: false
+            )
+        )
+    }
+
     func testNativeDragEndObserverResetsRegisteredTargets() throws {
         let registry = TabDragTransferRegistry()
         let coordinator = NativeDragCoordinator(tabDragTransferRegistry: registry)
