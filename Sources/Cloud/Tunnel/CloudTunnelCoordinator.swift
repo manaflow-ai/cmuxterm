@@ -64,6 +64,11 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// callers waiting on the state stream report that refusal rather than a
     /// generic cancellation. Cleared when the next start is scheduled.
     private var lastStartRefusal: CloudTunnelStartRefusal?
+    /// A superseded start's cleanup of the configuration it saved
+    /// (``discardInstalled()``), still in flight. A newer start waits for it
+    /// before enrolling, so the cleanup can never delete the newer start's
+    /// configuration.
+    private var pendingDiscard: Task<Void, Never>?
 
     init(
         backend: CloudTunnelBackend,
@@ -329,6 +334,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             if let stopTask {
                 await stopTask.value
             }
+            if let pendingDiscard {
+                await pendingDiscard.value
+            }
             try Task.checkCancellation()
             // A start coalesced behind a stop re-asks local state: the opt-in
             // may have been turned off while the stop drained. The fleet was
@@ -386,8 +394,14 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // The production opt-out cancels the start before the policy is
             // re-read here (the observer's `requestDown`), so a late install
             // that saved the configuration is cleaned up on this path too.
-            if installed, admission.knownRefusal() != nil {
-                await discardInstalled()
+            // Not when a newer start already owns the tunnel: its own install
+            // overwrites the configuration, and deleting it out from under it
+            // would leave the next launch unable to adopt or stop the tunnel.
+            if installed, admission.knownRefusal() != nil, startTask == nil {
+                let discard = Task { await self.discardInstalled() }
+                pendingDiscard = discard
+                await discard.value
+                if pendingDiscard == discard { pendingDiscard = nil }
             }
             setState(.off, generation: generation)
             throw CancellationError()

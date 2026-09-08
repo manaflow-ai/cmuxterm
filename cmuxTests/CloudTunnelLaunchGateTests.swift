@@ -389,6 +389,40 @@ struct CloudTunnelLaunchGateTests {
         #expect(onEnroller.discardCount == 0)
     }
 
+    @Test("a superseded start's late cleanup never deletes the configuration a newer admitted start owns")
+    @MainActor
+    func lateCleanupDoesNotRaceANewerStart() async throws {
+        let controller = FakeTunnelController()
+        controller.holdInstallForApproval = true
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
+        let first = Task { try await coordinator.requestUp(pin: false) }
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+
+        // Opt-out: down (cancels the first start), then refuse.
+        gate.refusal = .cloudMachinesOff
+        await coordinator.requestDown()
+        #expect(await coordinator.state == .off)
+
+        // Opt back in before the first install has resolved: a newer start
+        // is admitted and owns the tunnel from now on.
+        gate.refusal = nil
+        let second = Task { try await coordinator.requestUp(pin: false) }
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+        // Both held installs resolve together; the first start's cleanup
+        // must step aside because the second start already owns the tunnel.
+        controller.approve()
+        await #expect(throws: CloudTunnelError.self) {
+            try await first.value
+        }
+        try await second.value
+        #expect(await coordinator.state == .up)
+        #expect(controller.calls == ["install", "stop", "install", "start"])
+        #expect(controller.installedConfigurations.count == 2)
+        #expect(enroller.discardCount == 0)
+    }
+
     @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
     func refusalAfterSchedulingEndsOff() async {
         let controller = FakeTunnelController()
