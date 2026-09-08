@@ -569,28 +569,31 @@ struct WorkspaceShellView: View {
                     rootToolbarContent
                 }
             }
-            .navigationDestination(for: MobileWorkspacePreview.ID.self) { workspaceID in
-                workspaceDestination(
-                    for: workspaceID,
-                    createWorkspace: createWorkspaceInCompactStack,
-                    canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
-                )
-                .toolbarVisibility(.hidden, for: .tabBar)
-                .onDisappear {
-                    guard restoreNotificationSearchOnPop else { return }
-                    restoreNotificationSearchOnPop = false
-                    guard selectedPrimaryTab == .search,
-                          notificationSearchNavigationPath.isEmpty else { return }
-                    primarySearchCoordinator.setPresentation(true)
-                }
+                .navigationDestination(for: MobileWorkspacePreview.ID.self) { workspaceID in
+                    workspaceDestination(
+                        for: workspaceID,
+                        createWorkspace: createWorkspaceInCompactStack,
+                        canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
+                    )
+                    .toolbarVisibility(.hidden, for: .tabBar)
             }
-            // Make the tab bar available before the popped destination
-            // disappears. This gives the restored search field its normal
-            // bottom placement.
+            // Keep the tab bar hidden only while the detail route is active so
+            // the restored search control returns to its bottom placement.
             .toolbarVisibility(
                 notificationSearchNavigationPath.isEmpty ? .automatic : .hidden,
                 for: .tabBar
             )
+            .onChange(of: notificationSearchNavigationPath) { oldPath, newPath in
+                guard !oldPath.isEmpty,
+                      newPath.isEmpty,
+                      restoreNotificationSearchOnPop else { return }
+                restoreNotificationSearchOnPop = false
+                guard selectedPrimaryTab == .search else { return }
+                // Back is the authoritative transition out of the detail
+                // route. Restore the native search session from that state
+                // change instead of relying on a destination lifecycle callback.
+                primarySearchCoordinator.setPresentation(true)
+            }
         }
     }
 

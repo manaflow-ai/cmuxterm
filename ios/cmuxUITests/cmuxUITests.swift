@@ -3951,7 +3951,7 @@ final class cmuxUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Release"].waitForExistence(timeout: 3))
 
         let systemBack = app.navigationBars.buttons.firstMatch
-        XCTAssertTrue(systemBack.waitForHittable(timeout: 3))
+        XCTAssertTrue(waitForHittable(systemBack, timeout: 3))
         systemBack.tap()
         XCTAssertTrue(searchField.waitForHittable(timeout: 3))
         XCTAssertEqual(searchField.value as? String, "Tests passed")
