@@ -26,6 +26,7 @@ struct CloudNotificationSyncTests {
         CloudVMNotificationRow(
             id: "notification_\(String(repeating: "0", count: max(0, 32 - id.count)))\(id)",
             title: "title \(id)",
+            subtitle: nil,
             body: "",
             level: "info",
             createdAtMs: createdAt,
@@ -110,6 +111,18 @@ struct CloudNotificationSyncTests {
         let evicted = CloudNotificationSyncReducer.plan(rows: [c, d], clientID: Self.me, state: state)
         #expect(evicted.deliver.map(\.id) == [d.id])
         #expect(Set(evicted.state.delivered) == [c.id, d.id])
+        #expect(evicted.removed == [a.id], "a delivered row the machine dropped is withdrawn locally")
+    }
+
+    @Test func subtitleDecodesWhenTheMachineSentOne() throws {
+        let object: [String: Any] = [
+            "id": "notification_0000000000000000000000000000abce", "title": "Build done",
+            "subtitle": "api tests", "body": "", "level": "info", "created_at_ms": "1", "unread": true, "read_by": [],
+        ]
+        #expect(try #require(CloudVMNotificationRow.row(fromObject: object)).subtitle == "api tests")
+        var bare = object
+        bare["subtitle"] = ""
+        #expect(try #require(CloudVMNotificationRow.row(fromObject: bare)).subtitle == nil)
     }
 
     @Test func readsBecomeOneStableBatchThatSurvivesFailedSends() {
@@ -309,6 +322,7 @@ struct CloudNotificationSyncTests {
             var sendFails = false
             var hasPlacement = true
             var declineDelivery = false
+            var withdrawn: [String] = []
             var unread: Set<String> = []
         }
         let effects = Effects()
@@ -332,7 +346,8 @@ struct CloudNotificationSyncTests {
                     if effects.sendFails { throw CancellationError() }
                     effects.acked[batch.key, default: []] += batch.ids
                 },
-                unreadChanged: { effects.unread = $0 }
+                unreadChanged: { effects.unread = $0 },
+                withdraw: { ids in effects.withdrawn.append(contentsOf: ids) }
             )
         }
 
@@ -406,6 +421,11 @@ struct CloudNotificationSyncTests {
             for id in locallyRead where rows.contains(where: { $0.id == id }) {
                 #expect(pending.contains(id) || ackedIDs.contains(id) || readByMe.contains(id), "step \(step): read \(id) was lost")
             }
+            // Invariant 4: every delivered row the machine dropped was withdrawn exactly once.
+            let retainedIDs = Set(rows.map(\.id))
+            let withdrawnCounts = Dictionary(effects.withdrawn.map { ($0, 1) }, uniquingKeysWith: +)
+            #expect(withdrawnCounts.values.allSatisfy { $0 == 1 }, "step \(step): a row was withdrawn twice")
+            for id in effects.withdrawn { #expect(!retainedIDs.contains(id), "step \(step): withdrew a retained row") }
             // Invariant 3: the unread set is exactly what the reducer computes from the durable state.
             let expected = CloudNotificationSyncReducer.unreadTerminalIDs(rows: rows, clientID: Self.me, state: sync.state)
             #expect(sync.unreadTerminalIDs == expected, "step \(step): unread set diverged")

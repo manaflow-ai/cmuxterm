@@ -16,6 +16,8 @@ import Foundation
 struct CloudVMNotificationRow: Hashable, Sendable {
     var id: String
     var title: String
+    /// `cmux notify --subtitle` inside the machine; nil when the producer gave none.
+    var subtitle: String?
     var body: String
     var level: String
     var createdAtMs: UInt64
@@ -59,6 +61,7 @@ struct CloudVMNotificationRow: Hashable, Sendable {
         return CloudVMNotificationRow(
             id: id,
             title: title,
+            subtitle: (object["subtitle"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             body: object["body"] as? String ?? "",
             level: object["level"] as? String ?? "info",
             createdAtMs: createdAtMs,
@@ -96,6 +99,11 @@ struct CloudNotificationSyncState: Codable, Equatable, Sendable {
 enum CloudNotificationSyncReducer {
     struct Plan: Equatable {
         var deliver: [CloudVMNotificationRow]
+        /// Ids this Mac delivered that the daemon no longer retains, whether a
+        /// `notification.clear` removed them or the ledger evicted them. The
+        /// local banner is withdrawn in both cases: the machine is the source
+        /// of truth and it no longer has the row.
+        var removed: [String]
         var state: CloudNotificationSyncState
     }
 
@@ -109,6 +117,7 @@ enum CloudNotificationSyncReducer {
     ) -> Plan {
         let retained = Set(rows.map(\.id))
         var next = state
+        let removed = next.delivered.filter { !retained.contains($0) }
         next.delivered.removeAll { !retained.contains($0) }
         // Pending acks are never pruned here: the daemon answers an evicted
         // id with `unknown`, which completes the batch, and dropping a batch
@@ -123,7 +132,7 @@ enum CloudNotificationSyncReducer {
         if next.delivered.count > CloudNotificationSyncState.deliveredLimit {
             next.delivered.removeFirst(next.delivered.count - CloudNotificationSyncState.deliveredLimit)
         }
-        return Plan(deliver: deliver, state: next)
+        return Plan(deliver: deliver, removed: removed, state: next)
     }
 
     /// Record local reads. Ids already pending, or whose row is known to be
@@ -265,6 +274,8 @@ final class CloudNotificationSync {
     typealias TargetResolver = @MainActor (CloudVMNotificationRow) -> CloudNotificationDeliveryTarget?
     typealias AckSender = @MainActor (CloudNotificationSyncState.PendingAck) async throws -> Void
     typealias UnreadObserver = @MainActor (Set<String>) -> Void
+    /// Withdraw local banners for rows the machine no longer retains.
+    typealias Withdrawer = @MainActor ([String]) -> Void
 
     let machineID: String
     let clientID: String
@@ -273,6 +284,7 @@ final class CloudNotificationSync {
     private let resolveTarget: TargetResolver
     private let send: AckSender
     private let unreadChanged: UnreadObserver
+    private let withdraw: Withdrawer
     private let newKey: () -> String
 
     private(set) var state: CloudNotificationSyncState
@@ -295,7 +307,8 @@ final class CloudNotificationSync {
         resolveTarget: @escaping TargetResolver,
         deliver: @escaping Deliverer,
         send: @escaping AckSender,
-        unreadChanged: @escaping UnreadObserver = { _ in }
+        unreadChanged: @escaping UnreadObserver = { _ in },
+        withdraw: @escaping Withdrawer = { _ in }
     ) {
         self.machineID = machineID
         self.clientID = clientID
@@ -305,6 +318,7 @@ final class CloudNotificationSync {
         self.deliver = deliver
         self.send = send
         self.unreadChanged = unreadChanged
+        self.withdraw = withdraw
         state = store.load(machineID: machineID)
     }
 
@@ -328,6 +342,9 @@ final class CloudNotificationSync {
         // that re-entrant commit must build on the state that already counts
         // these rows as delivered.
         commit(next)
+        if !plan.removed.isEmpty {
+            withdraw(plan.removed)
+        }
         var undelivered: [String] = []
         for (row, target) in placed where !deliver(row, target) {
             undelivered.append(row.id)

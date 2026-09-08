@@ -1805,6 +1805,15 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             },
             unreadChanged: { terminalIDs in
                 CloudNotificationSyncHub.shared.setUnread(terminalIDs, machineID: machineID)
+            },
+            withdraw: { ids in
+                // `cmux notify --clear` on the machine, or ledger eviction:
+                // the local banners for those rows go with them.
+                guard let store = AppDelegate.shared?.notificationStore else { return }
+                let keys = Set(ids.map { CloudNotificationCorrelation.key(machineID: machineID, notificationID: $0) })
+                for notification in store.notifications where notification.correlationKey.map(keys.contains) == true {
+                    store.remove(id: notification.id)
+                }
             }
         )
         notificationSync = sync
@@ -1866,7 +1875,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         let terminalTitle = row.terminalID.flatMap { cloudState?.lookupIndex.terminal(id: $0)?.title } ?? ""
         let machineName = summary.preferredName
         let subtitle: String
-        if terminalTitle.isEmpty {
+        if let explicit = row.subtitle {
+            // The producer's own subtitle wins, as `cmux notify --subtitle` does locally.
+            subtitle = explicit
+        } else if terminalTitle.isEmpty {
             subtitle = machineName
         } else {
             subtitle = String(
