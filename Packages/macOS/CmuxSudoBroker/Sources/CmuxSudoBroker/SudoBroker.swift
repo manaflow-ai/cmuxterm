@@ -339,7 +339,30 @@ public actor SudoBroker {
     /// Approves the exact captured script after the PAM preflight succeeds.
     ///
     /// - Parameter id: The request identifier selected by the user.
-    public func approve(id: String) async {
+    /// - Returns: Whether the request left the pending phase. A request that is
+    ///   still pending (for example because its result could not be persisted)
+    ///   remains decidable and the approval window re-enables its actions.
+    @discardableResult
+    public func approve(id: String) async -> SudoDecisionOutcome {
+        await performApproval(id: id)
+        return decisionOutcome(id: id)
+    }
+
+    /// Denies a request without executing its script.
+    ///
+    /// - Parameter id: The request identifier selected by the user.
+    /// - Returns: Whether the request left the pending phase.
+    @discardableResult
+    public func deny(id: String) async -> SudoDecisionOutcome {
+        await performDenial(id: id)
+        return decisionOutcome(id: id)
+    }
+
+    private func decisionOutcome(id: String) -> SudoDecisionOutcome {
+        records[id]?.phase == .pendingApproval ? .stillPending : .decided
+    }
+
+    private func performApproval(id: String) async {
         guard let pending = records[id], pending.phase == .pendingApproval else { return }
         let now = await dependencies.clock.now()
         guard requesterIsAvailable(pending.request) else {
@@ -460,10 +483,7 @@ public actor SudoBroker {
         }
     }
 
-    /// Denies a request without executing its script.
-    ///
-    /// - Parameter id: The request identifier selected by the user.
-    public func deny(id: String) async {
+    private func performDenial(id: String) async {
         guard records[id]?.phase == .pendingApproval else { return }
         let now = await dependencies.clock.now()
         settleIfPossible(

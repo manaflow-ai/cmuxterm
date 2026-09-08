@@ -570,6 +570,58 @@ struct SudoBrokerRegressionTests {
         #expect(fixture.store.cleanupFailureStates().map(\.id) == [stale.id])
         await broker.stop()
     }
+
+    @Test(
+        "Deny reports a still-pending request when its result cannot be persisted",
+        .enabled(if: geteuid() != 0)
+    )
+    func denyReportsStillPendingWhenSettlementFails() async throws {
+        let fixture = try SudoTestFixture()
+        defer { fixture.remove() }
+        let now = Date(timeIntervalSince1970: 1_786_000_000)
+        let request = try fixture.enqueue(id: "deny-retry", createdAt: now)
+        let broker = SudoBroker(
+            paths: fixture.paths,
+            dependencies: SudoBrokerDependencies(
+                clock: TestSudoClock(date: now),
+                pam: TestPAMChecker(enabled: true),
+                runner: TestRunnerLauncher(),
+                recovery: TestExecutionRecovery(),
+                watcher: nil,
+                requesterInspector: TestSudoProcessInspector()
+            ),
+            messages: messages
+        )
+        _ = try await broker.start()
+        let resultsPath = fixture.paths.results.path
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500],
+            ofItemAtPath: resultsPath
+        )
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: resultsPath
+            )
+        }
+
+        let blocked = await broker.deny(id: request.id)
+
+        #expect(blocked == .stillPending)
+        #expect(await broker.pendingRequests().map(\.request.id) == [request.id])
+        #expect(fixture.store.result(id: request.id) == nil)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: resultsPath
+        )
+        let denied = await broker.deny(id: request.id)
+
+        #expect(denied == .decided)
+        #expect(await broker.pendingRequests().isEmpty)
+        #expect(fixture.store.result(id: request.id)?.status == .denied)
+        await broker.stop()
+    }
 }
 
 private struct ImmediateRequesterExitObserver: SudoProcessExitObserving {

@@ -160,6 +160,33 @@ struct SudoApprovalCoordinatorTests {
             script: "echo reviewed\n"
         )
     }
+
+    @Test("A decision the broker leaves pending re-enables the actions")
+    func stillPendingDecisionReenablesActions() async throws {
+        let snapshot = Self.snapshot(id: "request-retry")
+        let broker = RecordingSudoBroker(initialSnapshots: [snapshot])
+        await broker.setDecisionOutcome(.stillPending)
+        let presenter = RecordingSudoApprovalPresenter()
+        let coordinator = SudoApprovalCoordinator(broker: broker, presenter: presenter)
+
+        try await coordinator.start()
+        let presentation = try #require(presenter.presentations["request-retry"])
+
+        await coordinator.approve(id: "request-retry")
+
+        #expect(await broker.approvedRequestIDs == ["request-retry"])
+        #expect(presentation.phase == .pendingApproval)
+        #expect(presentation.canDecide)
+        #expect(!presentation.showsProgress)
+
+        await broker.setDecisionOutcome(.decided)
+        await coordinator.deny(id: "request-retry")
+
+        #expect(await broker.deniedRequestIDs == ["request-retry"])
+        #expect(!presentation.canDecide)
+        #expect(presentation.showsProgress)
+        await coordinator.stop()
+    }
 }
 
 private actor RecordingSudoBroker: SudoBrokerServing {
@@ -168,6 +195,7 @@ private actor RecordingSudoBroker: SudoBrokerServing {
     private var approvedIDs: [String] = []
     private var deniedIDs: [String] = []
     private var stops = 0
+    private var decisionOutcome = SudoDecisionOutcome.decided
     private let eventContinuation: AsyncStream<SudoBrokerEvent>.Continuation
 
     init(initialSnapshots: [SudoPendingRequest]) {
@@ -184,12 +212,18 @@ private actor RecordingSudoBroker: SudoBrokerServing {
     func events() -> AsyncStream<SudoBrokerEvent> { eventStream }
     func start() -> [SudoPendingRequest] { initialSnapshots }
 
-    func approve(id: String) {
+    func approve(id: String) -> SudoDecisionOutcome {
         approvedIDs.append(id)
+        return decisionOutcome
     }
 
-    func deny(id: String) {
+    func deny(id: String) -> SudoDecisionOutcome {
         deniedIDs.append(id)
+        return decisionOutcome
+    }
+
+    func setDecisionOutcome(_ outcome: SudoDecisionOutcome) {
+        decisionOutcome = outcome
     }
 
     func send(_ event: SudoBrokerEvent) {
@@ -230,8 +264,8 @@ private actor BlockingStartSudoBroker: SudoBrokerServing {
         return [snapshot]
     }
 
-    func approve(id: String) {}
-    func deny(id: String) {}
+    func approve(id: String) -> SudoDecisionOutcome { .decided }
+    func deny(id: String) -> SudoDecisionOutcome { .decided }
 
     func stop() {
         stops += 1
@@ -272,8 +306,8 @@ private actor BlockingStopSudoBroker: SudoBrokerServing {
         return []
     }
 
-    func approve(id: String) {}
-    func deny(id: String) {}
+    func approve(id: String) -> SudoDecisionOutcome { .decided }
+    func deny(id: String) -> SudoDecisionOutcome { .decided }
 
     func stop() async {
         stops += 1

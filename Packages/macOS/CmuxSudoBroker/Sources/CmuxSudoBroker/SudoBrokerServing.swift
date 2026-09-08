@@ -14,12 +14,16 @@ public protocol SudoBrokerServing: Sendable {
     /// Approves the exact script captured for `id`.
     ///
     /// - Parameter id: The request identifier selected by the user.
-    func approve(id: String) async
+    /// - Returns: Whether the request left the pending phase.
+    @discardableResult
+    func approve(id: String) async -> SudoDecisionOutcome
 
     /// Denies the request identified by `id`.
     ///
     /// - Parameter id: The request identifier selected by the user.
-    func deny(id: String) async
+    /// - Returns: Whether the request left the pending phase.
+    @discardableResult
+    func deny(id: String) async -> SudoDecisionOutcome
 
     /// Stops request observation without abandoning independent runners.
     func stop() async

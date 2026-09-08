@@ -78,4 +78,14 @@ public final class SudoApprovalPresentation {
         self.phase = phase
         decisionIsPending = phase == .pendingApproval && decisionIsPending
     }
+
+    /// Applies the broker's answer to the decision started by ``beginDecision()``.
+    ///
+    /// A decided request keeps showing progress until the authoritative snapshot
+    /// advances or dismisses it. A request the broker left pending (for example
+    /// because its result could not be persisted) becomes decidable again.
+    func finishDecision(_ outcome: SudoDecisionOutcome) {
+        guard outcome == .stillPending else { return }
+        decisionIsPending = false
+    }
 }

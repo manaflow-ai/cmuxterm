@@ -140,7 +140,8 @@ public final class SudoApprovalCoordinator {
     public func approve(id: String) async {
         guard let presentation = presentations[id], presentation.canDecide else { return }
         presentation.beginDecision()
-        await broker.approve(id: id)
+        let outcome = await broker.approve(id: id)
+        presentation.finishDecision(outcome)
     }
 
     /// Applies the user's denial through the shared broker mutation path.
@@ -149,7 +150,8 @@ public final class SudoApprovalCoordinator {
     public func deny(id: String) async {
         guard let presentation = presentations[id], presentation.canDecide else { return }
         presentation.beginDecision()
-        await broker.deny(id: id)
+        let outcome = await broker.deny(id: id)
+        presentation.finishDecision(outcome)
     }
 
     private func receive(_ event: SudoBrokerEvent) {
