@@ -1034,7 +1034,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertFalse(log.methods.contains("vm.terminal_close"), log.methods.description)
         let waits = log.params(of: "vm.terminal_wait_exit")
         XCTAssertFalse(waits.isEmpty)
-        XCTAssertTrue(waits.allSatisfy { (($0["timeout_ms"] as? Int) ?? 0) <= 1_000 }, "a 1 s budget never asks the daemon to wait longer: \(waits)")
+        let requestedBudgets = waits.compactMap { $0["timeout_ms"] as? Int }
+        XCTAssertEqual(requestedBudgets.count, waits.count, "Every daemon wait must declare a budget")
+        XCTAssertTrue(requestedBudgets.allSatisfy { (0...1_000).contains($0) }, "Daemon request budgets must fit the configured 1 s budget: \(waits)")
     }
 
     func testVMSelfRendersTheReflectionIndexAndPassesPathsThrough() throws {
