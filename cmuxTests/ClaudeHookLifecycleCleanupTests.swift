@@ -228,8 +228,14 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let started = try #require(AgentJournalAppendCapture.first(
+            in: commands, kind: "agent.turn.started", agentKey: "claude_code", sessionId: sessionId
+        ))
+        #expect(started.workspaceId == newWorkspaceId)
+        #expect(started.surfaceId == Self.liveSurfaceId)
+        #expect((started.draft["attention"] as? [String: Any])?["turnIdentity"] as? String == "turn-1")
+        // The journal owns correlated clearing; a legacy clear would also erase unrelated requests.
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
@@ -287,8 +293,14 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let running = try #require(AgentJournalAppendCapture.first(
+            in: commands, kind: "agent.state.changed", agentKey: "claude_code", sessionId: sessionId
+        ))
+        #expect(running.workspaceId == newWorkspaceId)
+        #expect(running.surfaceId == Self.liveSurfaceId)
+        #expect(running.draft["declared_phase"] as? String == "running")
+        // Observing a tool run does not resolve a still-pending attention request.
+        #expect(!commands.contains { $0.hasPrefix("clear_notifications ") })
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)

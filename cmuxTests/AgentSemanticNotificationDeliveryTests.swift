@@ -110,6 +110,39 @@ extension AgentNotificationRegressionTests {
         #expect(fixture.store.notifications.count == 1)
         #expect(fixture.store.notifications.first?.correlationKey == next.identity)
     }
+
+    @Test(arguments: [true, false])
+    func semanticContinuationAfterMovePreservesSiblingNotifications(startsNewTurn: Bool) throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let sibling = try #require(fixture.destination.focusedPanelId)
+        let first = semanticEvent(fixture, source: "claude")
+        try movePanel(fixture)
+        var reconciler = AgentNotificationReconciler()
+        let decision = reconciler.apply(first)
+        AgentJournalLifecycleCenter.deliverNotification(first, identity: try #require(decision.identity))
+        TerminalMutationBus.shared.drainForTesting()
+        fixture.store.addNotification(tabId: fixture.destination.id, surfaceId: sibling,
+            title: "Sibling", subtitle: "", body: "Unrelated notification")
+        #expect(fixture.store.hasUnreadNotification(forTabId: fixture.destination.id, surfaceId: fixture.panelId))
+        #expect(fixture.store.hasUnreadNotification(forTabId: fixture.destination.id, surfaceId: sibling))
+
+        var continuation = first.draft
+        continuation.workspaceId = fixture.destination.id.uuidString
+        continuation.kind = startsNewTurn ? .turnStarted : .stateChanged
+        continuation.declaredPhase = startsNewTurn ? nil : .running
+        continuation.occurredAtMs = 2
+        continuation.attention = AgentAttentionContext(turnIdentity: startsNewTurn ? "next-turn" : nil)
+        let event = AgentJournalEvent(sequence: 2, committedAtMs: 2, draft: continuation)
+        AgentJournalLifecycleCenter.clearInvalidatedNotifications(event, decision: reconciler.apply(event))
+        TerminalMutationBus.shared.drainForTesting()
+
+        #expect(fixture.store.hasUnreadNotification(forTabId: fixture.destination.id,
+            surfaceId: fixture.panelId) == !startsNewTurn)
+        #expect(fixture.store.hasUnreadNotification(forTabId: fixture.destination.id, surfaceId: sibling))
+        #expect(!fixture.store.hasUnreadNotification(forTabId: fixture.source.id, surfaceId: fixture.panelId))
+    }
+
     @Test(arguments: ["claude", "codex"])
     func finalDeliveryRejectsReplacedSessionButAcceptsItsResume(source: String) throws {
         let fixture = try makeFixture()
