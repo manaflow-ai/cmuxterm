@@ -1,5 +1,7 @@
 {
   "guestCLI": {
+    "workspaceCreateFailed": "Could not create a workspace on the peer. No command was started.",
+    "workspaceMissingID": "The peer did not return a workspace ID. No command was started.",
     "missingDaemon": "cmux-tui daemon binary not found at %s",
     "routeToken": "refusing a coderouter route token in the VM; use the Freestyle TLS edge",
     "missingCodeRouter": "CodeRouter is not configured in this VM (CMUX_CODEROUTER_URL is missing)",

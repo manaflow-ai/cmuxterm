@@ -467,9 +467,11 @@ case "\${1:-}" in
         sock="\$(ensure_link "\$peer")"
         # A fresh session has no current workspace; create one and run in it by id.
         target=current
-        if ! "\$CMUX_TUI_BIN" --socket "\$sock" workspace current get >/dev/null 2>&1; then
-          created="\$("\$CMUX_TUI_BIN" --socket "\$sock" --json workspace create --name main 2>/dev/null | jq -r '.id // .workspace_id // .workspace.id // empty' | head -n 1)"
-          [ -n "\$created" ] && target="\$created"
+        if ! "\$CMUX_TUI_BIN" --socket "\$sock" workspace current show >/dev/null 2>&1; then
+          creation="\$("\$CMUX_TUI_BIN" --socket "\$sock" --json workspace create --name main 2>/dev/null)" || die 3 workspaceCreateFailed
+          created="\$(printf '%s' "\$creation" | jq -r '(.value // .) | .workspace_id // .id // .workspace.id // empty')" || die 3 workspaceMissingID
+          [ -n "\$created" ] || die 3 workspaceMissingID
+          target="\$created"
         fi
         exec "\$CMUX_TUI_BIN" --socket "\$sock" workspace "\$target" run --on-exit close -- "\$@"
         ;;

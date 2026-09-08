@@ -11,6 +11,10 @@ cmux_message() {
   esac
   cmux_message_key="$1"; shift
   case "$cmux_message_locale/$cmux_message_key" in
+    en/workspaceCreateFailed) printf 'Could not create a workspace on the peer. No command was started.
+' "$@" ;;
+    en/workspaceMissingID) printf 'The peer did not return a workspace ID. No command was started.
+' "$@" ;;
     en/missingDaemon) printf 'cmux-tui daemon binary not found at %s
 ' "$@" ;;
     en/routeToken) printf 'refusing a coderouter route token in the VM; use the Freestyle TLS edge
@@ -126,6 +130,10 @@ Peer commands use existing grants. This build cannot create new peer grants.
 Local verbs need no prefix: cmux workspace…, cmux terminal…, cmux session….
 ' "$@" ;;
     en/thisMachine) printf '(this machine)
+' "$@" ;;
+    ja/workspaceCreateFailed) printf 'ピアにワークスペースを作成できませんでした。コマンドは開始されていません。
+' "$@" ;;
+    ja/workspaceMissingID) printf 'ピアからワークスペース ID が返されませんでした。コマンドは開始されていません。
 ' "$@" ;;
     ja/missingDaemon) printf 'マシンの接続プログラムが %s に見つかりません
 ' "$@" ;;
@@ -681,9 +689,11 @@ case "${1:-}" in
         sock="$(ensure_link "$peer")"
         # A fresh session has no current workspace; create one and run in it by id.
         target=current
-        if ! "$CMUX_TUI_BIN" --socket "$sock" workspace current get >/dev/null 2>&1; then
-          created="$("$CMUX_TUI_BIN" --socket "$sock" --json workspace create --name main 2>/dev/null | jq -r '.id // .workspace_id // .workspace.id // empty' | head -n 1)"
-          [ -n "$created" ] && target="$created"
+        if ! "$CMUX_TUI_BIN" --socket "$sock" workspace current show >/dev/null 2>&1; then
+          creation="$("$CMUX_TUI_BIN" --socket "$sock" --json workspace create --name main 2>/dev/null)" || die 3 workspaceCreateFailed
+          created="$(printf '%s' "$creation" | jq -r '(.value // .) | .workspace_id // .id // .workspace.id // empty')" || die 3 workspaceMissingID
+          [ -n "$created" ] || die 3 workspaceMissingID
+          target="$created"
         fi
         exec "$CMUX_TUI_BIN" --socket "$sock" workspace "$target" run --on-exit close -- "$@"
         ;;

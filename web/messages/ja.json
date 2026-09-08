@@ -1,5 +1,7 @@
 {
   "guestCLI": {
+    "workspaceCreateFailed": "ピアにワークスペースを作成できませんでした。コマンドは開始されていません。",
+    "workspaceMissingID": "ピアからワークスペース ID が返されませんでした。コマンドは開始されていません。",
     "missingDaemon": "マシンの接続プログラムが %s に見つかりません",
     "routeToken": "マシン内の CodeRouter ルートトークンは使用できません。ホストが管理する認証ルートを使用してください",
     "missingCodeRouter": "このマシンでは CodeRouter が設定されていません（CMUX_CODEROUTER_URL がありません）",
