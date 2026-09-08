@@ -3801,7 +3801,9 @@ final class cmuxUITests: XCTestCase {
         let mainRow = app.descendants(matching: .any)["MobileWorkspaceRow-workspace-main"]
         XCTAssertTrue(waitForHittable(docsRow, timeout: 3))
         XCTAssertTrue(waitForNotHittable(mainRow, timeout: 3))
-        tap(docsRow, in: app)
+        // Tap the result with search still active. The generic tap helper
+        // submits the keyboard's Search action first, which changes tabs.
+        docsRow.tap()
 
         let workspaceDetail = app.descendants(matching: .any)["FixtureWorkspaceDetail"]
         XCTAssertTrue(workspaceDetail.waitForExistence(timeout: 3))
@@ -3906,13 +3908,13 @@ final class cmuxUITests: XCTestCase {
         XCTAssertTrue(feed.waitForExistence(timeout: 8))
 
         let matchingRow = app.descendants(matching: .any)[
-            "MobileNotificationFeedRow-macbook-tests-passed"
+            "MobileNotificationFeedRow-macbook-legacy-tests-passed"
         ]
         let nonmatchingRow = app.descendants(matching: .any)[
-            "MobileNotificationFeedRow-studio-codex-approval"
+            "MobileNotificationFeedRow-studio-legacy-codex-approval"
         ]
         let readRow = app.descendants(matching: .any)[
-            "MobileNotificationFeedRow-studio-localization-complete"
+            "MobileNotificationFeedRow-studio-legacy-localization-complete"
         ]
         XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
         XCTAssertTrue(waitForHittable(nonmatchingRow, timeout: 3))
@@ -3953,6 +3955,9 @@ final class cmuxUITests: XCTestCase {
         let systemBack = app.navigationBars.buttons.firstMatch
         XCTAssertTrue(waitForHittable(systemBack, timeout: 3))
         systemBack.tap()
+        XCTAssertTrue(waitForHittable(searchButton, timeout: 3))
+        XCTAssertGreaterThan(searchButton.frame.midY, app.frame.midY)
+        tap(searchButton, in: app)
         XCTAssertTrue(waitForHittable(searchField, timeout: 3))
         XCTAssertEqual(searchField.value as? String, "Tests passed")
         XCTAssertTrue(waitForNotHittable(matchingRow, timeout: 3))
@@ -3962,6 +3967,16 @@ final class cmuxUITests: XCTestCase {
 
     @MainActor
     func testNotificationSearchStaysAtBottomAfterOpeningWorkspaceAndReturningTwice() throws {
+        try verifyNotificationSearchReturn(switchFromWorkspaceSearch: false)
+    }
+
+    @MainActor
+    func testNotificationSearchStaysAtBottomAfterSwitchingFromWorkspaceSearch() throws {
+        try verifyNotificationSearchReturn(switchFromWorkspaceSearch: true)
+    }
+
+    @MainActor
+    private func verifyNotificationSearchReturn(switchFromWorkspaceSearch: Bool) throws {
         guard #available(iOS 26.0, *) else {
             throw XCTSkip("The bottom search control requires iOS 26.")
         }
@@ -3973,11 +3988,20 @@ final class cmuxUITests: XCTestCase {
         XCTAssertTrue(feed.waitForExistence(timeout: 8))
         let searchButton = app.tabBars.buttons["Search"]
         XCTAssertTrue(waitForHittable(searchButton, timeout: 3))
+        if switchFromWorkspaceSearch {
+            tap(app.tabBars.buttons["Workspaces"], in: app)
+            tap(searchButton, in: app)
+            let workspaceField = app.searchFields["Search workspaces"]
+            XCTAssertTrue(waitForHittable(workspaceField, timeout: 3))
+            XCTAssertGreaterThan(workspaceField.frame.midY, app.frame.midY)
+            app.buttons["Close"].tap()
+            tap(app.tabBars.buttons["Notifications"], in: app)
+        }
         tap(searchButton, in: app)
         let searchField = app.searchFields["Search notifications"]
         XCTAssertTrue(waitForHittable(searchField, timeout: 3))
         searchField.typeText("Tests passed")
-        let matchingRow = app.descendants(matching: .any)["MobileNotificationFeedRow-macbook-tests-passed"]
+        let matchingRow = app.descendants(matching: .any)["MobileNotificationFeedRow-macbook-legacy-tests-passed"]
         XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
         let initialFrame = searchField.frame
         XCTAssertGreaterThan(initialFrame.midY, app.frame.midY)
@@ -4001,10 +4025,19 @@ final class cmuxUITests: XCTestCase {
             let back = app.navigationBars.buttons.firstMatch
             XCTAssertTrue(waitForHittable(back, timeout: 3))
             back.tap()
-            XCTAssertTrue(waitForHittable(searchField, timeout: 5))
+            XCTAssertTrue(waitForHittable(searchButton, timeout: 5))
             capture("notification-search-after-back-\(cycle)")
-            XCTAssertEqual(searchField.value as? String, "Tests passed")
+            XCTAssertGreaterThan(searchButton.frame.midY, app.frame.midY)
+            XCTAssertFalse(app.navigationBars.buttons["Search"].exists,
+                "Returning must not add a second Search control to the top toolbar")
+            if searchField.exists && searchField.isHittable {
+                XCTAssertGreaterThan(searchField.frame.midY, app.frame.midY)
+            }
             XCTAssertTrue(waitForHittable(matchingRow, timeout: 3))
+            tap(searchButton, in: app)
+            XCTAssertTrue(waitForHittable(searchField, timeout: 5))
+            capture("notification-search-reopened-\(cycle)")
+            XCTAssertEqual(searchField.value as? String, "Tests passed")
             XCTAssertGreaterThan(searchField.frame.midY, app.frame.midY)
             XCTAssertEqual(searchField.frame.minY, initialFrame.minY, accuracy: 4)
             XCTAssertEqual(searchField.frame.height, initialFrame.height, accuracy: 4)
