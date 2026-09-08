@@ -185,9 +185,12 @@ public actor CmuxPluginDirectoryLoader {
                 // the root-wide scan budget. The full reload still enforces
                 // the cap below; a partial reload retains only requested
                 // plugin directories and validates them with the same rules.
+                let isSymlink = isSymbolicLink(at: entry)
+                let isDirectory = (try? entry.resourceValues(
+                    forKeys: [.isDirectoryKey]
+                ))?.isDirectory == true
                 guard pluginIDs.contains(entry.lastPathComponent),
-                      let values = try? entry.resourceValues(forKeys: [.isDirectoryKey]),
-                      values.isDirectory == true else {
+                      isDirectory || isSymlink else {
                     continue
                 }
                 entries.append(entry)
@@ -228,16 +231,18 @@ public actor CmuxPluginDirectoryLoader {
         var ids = Set<String>()
 
         for directory in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard let resourceValues = try? directory.resourceValues(
+            let resourceValues = try? directory.resourceValues(
                 forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
-            ),
-            resourceValues.isDirectory == true else {
+            )
+            let isSymlink = resourceValues?.isSymbolicLink == true
+                || isSymbolicLink(at: directory)
+            guard isSymlink || resourceValues?.isDirectory == true else {
                 continue
             }
             if let pluginIDs, !pluginIDs.contains(directory.lastPathComponent) {
                 continue
             }
-            if resourceValues.isSymbolicLink == true {
+            if isSymlink {
                 failures.append(CmuxPluginLoadFailure(
                     directoryURL: directory,
                     code: .invalidManifest,
@@ -448,5 +453,11 @@ public actor CmuxPluginDirectoryLoader {
         default:
             return .invalidManifest
         }
+    }
+
+    private func isSymbolicLink(at url: URL) -> Bool {
+        var metadata = Darwin.stat()
+        guard Darwin.lstat(url.path, &metadata) == 0 else { return false }
+        return (metadata.st_mode & mode_t(S_IFMT)) == mode_t(S_IFLNK)
     }
 }
