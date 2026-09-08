@@ -889,10 +889,12 @@ private struct TitlebarControlButtonStyleBody: View {
     var body: some View {
         configuration.label
             .frame(width: config.buttonSize, height: config.buttonSize)
-            // Hosted symbols bake `foregroundColor` into their bitmap; the
-            // hover/pressed dimming applies as view opacity instead.
-            .foregroundStyle(foregroundColor)
-            .opacity(foregroundOpacity)
+            .foregroundStyle(foregroundColor.opacity(foregroundOpacity))
+            // Hosted symbols bake their tint into the bitmap, so they read the
+            // same dimming from the environment (`TitlebarControlSymbol`)
+            // while other label content (the notification badge) keeps its
+            // own colors.
+            .environment(\.titlebarControlForegroundOpacity, foregroundOpacity)
             .background {
                 if backgroundOpacity > 0 {
                     RoundedRectangle(cornerRadius: config.buttonCornerRadius, style: .continuous)
@@ -1353,11 +1355,10 @@ struct TitlebarControlsView: View {
         iconGeometryKeyPrefix: String? = nil
     ) -> some View {
         titlebarIconChrome(config: config, iconGeometryKeyPrefix: iconGeometryKeyPrefix) {
-            CmuxSystemSymbolImage(
+            TitlebarControlSymbol(
                 systemName: systemName,
-                pointSize: config.iconSize,
-                weight: TitlebarControlIconStyle.weight,
-                tint: foregroundColor
+                config: config,
+                foregroundColor: foregroundColor
             )
         }
     }
@@ -1384,6 +1385,39 @@ struct TitlebarControlsView: View {
                 height: TitlebarControlIconStyle.iconFrameSize(for: config)
             )
             .background(TitlebarChromeGeometryReporter(keyPrefix: iconGeometryKeyPrefix ?? ""))
+    }
+}
+
+/// Hover/pressed dimming for hosted symbols inside `TitlebarControlButtonStyle`.
+///
+/// The style fades its label with `.foregroundStyle(color.opacity(...))`,
+/// which SwiftUI text and shapes pick up but a hosted AppKit bitmap cannot.
+/// The style publishes the same opacity here so the symbol bakes it into its
+/// tint, and non-symbol label content (the notification badge) is untouched.
+private struct TitlebarControlForegroundOpacityKey: EnvironmentKey {
+    static let defaultValue: Double = 1
+}
+
+extension EnvironmentValues {
+    fileprivate var titlebarControlForegroundOpacity: Double {
+        get { self[TitlebarControlForegroundOpacityKey.self] }
+        set { self[TitlebarControlForegroundOpacityKey.self] = newValue }
+    }
+}
+
+private struct TitlebarControlSymbol: View {
+    let systemName: String
+    let config: TitlebarControlsStyleConfig
+    let foregroundColor: Color
+    @Environment(\.titlebarControlForegroundOpacity) private var foregroundOpacity
+
+    var body: some View {
+        CmuxSystemSymbolImage(
+            systemName: systemName,
+            pointSize: config.iconSize,
+            weight: TitlebarControlIconStyle.weight,
+            tint: foregroundColor.opacity(foregroundOpacity)
+        )
     }
 }
 
