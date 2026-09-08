@@ -499,6 +499,9 @@ class TabManager: ObservableObject {
     private var closeConfirmationInFlight = false
     let closeTabWarningDefaults: UserDefaults
     let tabDragTransferRegistry: TabDragTransferRegistry
+    /// File-backed panels in every workspace and Dock owned by this window
+    /// share this injected invalidation pipeline.
+    let fileContentChangeCoordinator: FileContentChangeCoordinator
     var confirmCloseHandler: ((String, String, Bool) -> Bool)?
     private var agentPIDSweepTimer: DispatchSourceTimer?
 #if DEBUG
@@ -567,7 +570,8 @@ class TabManager: ObservableObject {
         agentChatResumeIntentRecorder: any AgentChatResumeIntentRecording = AgentChatTranscriptResumeIntentRecorder(),
         closeTabWarningDefaults: UserDefaults = .standard,
         declarativeTerminalConfigurationSource: (any DeclarativeTerminalConfigurationProviding)? = nil,
-        initialWorkspaceReadiness: (@MainActor @Sendable () async -> Void)? = nil
+        initialWorkspaceReadiness: (@MainActor @Sendable () async -> Void)? = nil,
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -597,6 +601,8 @@ class TabManager: ObservableObject {
         self.windowTitleWriter = windowTitleWriter ?? WindowTitleWriter()
         self.closeTabWarningDefaults = closeTabWarningDefaults
         self.tabDragTransferRegistry = tabDragTransferRegistry
+        self.fileContentChangeCoordinator =
+            fileContentChangeCoordinator ?? FileContentChangeCoordinator()
         workspaceReordering = WorkspaceReorderCoordinator(model: workspaces)
         workspaceGrouping = WorkspaceGroupCoordinator(model: workspaces)
 #if DEBUG
@@ -926,6 +932,11 @@ class TabManager: ObservableObject {
         return tabs.first(where: { $0.id == selectedTabId })
     }
 
+    @MainActor
+    func waitForInitialWorkspace() async {
+        await initialWorkspaceReadinessTask?.value
+    }
+
     // Keep selectedTab as convenience alias
     var selectedTab: Workspace? { selectedWorkspace }
 
@@ -1175,6 +1186,7 @@ class TabManager: ObservableObject {
             declarativeTerminalConfigurationSource: declarativeTerminalConfigurationSource,
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1198,6 +1210,7 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1212,7 +1225,8 @@ class TabManager: ObservableObject {
             settings: settings,
             declarativeTerminalConfigurationFileURL: declarativeTerminalConfigurationFileURL,
             declarativeTerminalConfigurationSource: declarativeTerminalConfigurationSource,
-            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder
+            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator
         )
         windowDockTitleRoutingStores.setObject(
             store,
@@ -6768,6 +6782,7 @@ extension TabManager {
                 declarativeTerminalConfigurationSource: declarativeTerminalConfigurationSource,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             workspace.owningTabManager = self
@@ -6807,6 +6822,7 @@ extension TabManager {
                 declarativeTerminalConfigurationSource: declarativeTerminalConfigurationSource,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             fallback.owningTabManager = self
