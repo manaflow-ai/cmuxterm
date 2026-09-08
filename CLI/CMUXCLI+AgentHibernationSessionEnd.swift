@@ -52,14 +52,18 @@ extension ClaudeHookSessionRecord {
     /// recent prior generation retained across same-session resumes.
     func processIdentity(for pid: Int) -> AgentPIDProcessIdentity? {
         let generations = priorProcessGenerations ?? []
-        let generation = generations.first { $0.pid == pid }
-            ?? (self.pid == pid
-                ? ClaudeHookProcessGeneration(
-                    pid: pid,
-                    startSeconds: pidStartSeconds ?? 0,
-                    startMicroseconds: pidStartMicroseconds ?? 0
-                )
-                : nil)
+        let currentGeneration: ClaudeHookProcessGeneration? = if self.pid == pid,
+            let pidStartSeconds,
+            let pidStartMicroseconds {
+            ClaudeHookProcessGeneration(
+                pid: pid,
+                startSeconds: pidStartSeconds,
+                startMicroseconds: pidStartMicroseconds
+            )
+        } else {
+            nil
+        }
+        let generation = currentGeneration ?? generations.first { $0.pid == pid }
         guard let generation,
               generation.startSeconds != 0 || generation.startMicroseconds != 0,
               let processID = pid_t(exactly: generation.pid) else {
