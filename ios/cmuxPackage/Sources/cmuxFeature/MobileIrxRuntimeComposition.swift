@@ -489,6 +489,7 @@ public actor MobileIrxRuntimeComposition {
                 revoked: entry.revoked,
                 isFresh: fresh,
                 appVersion: entry.appVersion,
+                releaseTrack: entry.releaseTrack ?? entry.tag,
                 minimumSupportedVersion: snapshot.minimumSupportedMacVersion
             )
             byEndpoint[endpointIDHex] = projected

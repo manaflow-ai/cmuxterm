@@ -59,6 +59,47 @@ struct MobileMacListAuthStateTests {
     }
 
     @Test
+    func nightlyRowsUseNightlyCounterInsteadOfStableFloor() {
+        let current = MobileMacListAuthState.Entry(
+            status: "active",
+            revoked: false,
+            isFresh: true,
+            appVersion: "0.64.22-nightly.3345650013202+202609081234",
+            minimumSupportedVersion: "0.64.23",
+            releaseTrack: "nightly",
+            minimumSupportedNightlyVersion: "0.64.22-nightly.3345650013202"
+        )
+        #expect(!current.isOutdated)
+        #expect(current.requiredVersionDisplay == nil)
+
+        let older = MobileMacListAuthState.Entry(
+            status: "active",
+            revoked: false,
+            isFresh: true,
+            appVersion: "0.64.22-nightly.3345650013201+202609081233",
+            minimumSupportedVersion: "0.64.23",
+            releaseTrack: "nightly",
+            minimumSupportedNightlyVersion: "0.64.22-nightly.3345650013202"
+        )
+        #expect(older.isOutdated)
+        #expect(older.requiredVersionDisplay == "0.64.22-nightly.3345650013202")
+    }
+
+    @Test
+    func nightlyBaseAboveFloorIsAdmitted() {
+        let newerBase = MobileMacListAuthState.Entry(
+            status: "active",
+            revoked: false,
+            isFresh: true,
+            appVersion: "0.64.23-nightly.1+202609081235",
+            minimumSupportedVersion: "0.64.23",
+            releaseTrack: "nightly",
+            minimumSupportedNightlyVersion: "0.64.22-nightly.3345650013202"
+        )
+        #expect(!newerBase.isOutdated)
+    }
+
+    @Test
     func policyFloorOverridesDirectoryFloorAndSurvivesLaterSnapshots() {
         let state = MobileMacListAuthState()
         let entry = MobileMacListAuthState.Entry(
