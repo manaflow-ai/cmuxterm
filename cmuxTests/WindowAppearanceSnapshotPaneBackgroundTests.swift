@@ -230,18 +230,18 @@ struct WindowAppearanceSnapshotPaneBackgroundTests {
             excludesSharedRootBackdrop: true
         )
 
+        let panePoint = anchor.convert(
+            NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY),
+            to: nil
+        )
         weak var weakPortal: WindowTerminalPortal?
         do {
             let portal = WindowTerminalPortal(window: window)
             weakPortal = portal
             portal.bind(hostedView: hosted, to: anchor, visibleInUI: true)
+            #expect(!(try rootMaskShowsBackdrop(atWindowPoint: panePoint, in: root)))
         }
 
-        let panePoint = anchor.convert(
-            NSPoint(x: anchor.bounds.midX, y: anchor.bounds.midY),
-            to: nil
-        )
-        #expect(!(try rootMaskShowsBackdrop(atWindowPoint: panePoint, in: root)))
         #expect(weakPortal == nil)
         #expect(try rootMaskShowsBackdrop(atWindowPoint: panePoint, in: root))
     }
