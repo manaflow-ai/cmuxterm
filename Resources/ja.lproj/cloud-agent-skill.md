@@ -115,10 +115,12 @@ cmux vm rm <id>
 
 ## マシン内の操作
 
+`cmux self [--json]` はこのマシンを識別し、`cmux vm ls [--json]` はチームの稼働中のマシンを一覧表示します。どちらもローカルデーモンを必要とせず、エッジが付与するマシン認証で `GET /api/vm/self` を読み取ります。リンク済みの接続先は `cmux vm peers` で確認できます。
+
 ```bash
 cmux workspace current run -- bun test
 cmux session current snapshot --json
-cmux vm ls
+cmux vm peers
 cmux vm exec <peer> -- <command>
 cmux vm tree <peer>
 ```

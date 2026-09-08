@@ -157,7 +157,7 @@ extension CMUXCLI {
     /// implementation so machine selection, sync, detached terminals, and
     /// reattach output have one owner.
     private func runCoderouterAgentCommand(commandArgs: [String], client: SocketClient, jsonOutput: Bool) throws {
-        if commandArgs.contains("--help") || commandArgs.contains("-h") {
+        if CmuxTuiRemoteRouting.vmAgentRequestsHelp(commandArgs) {
             print(Self.vmAgentUsage.replacingOccurrences(of: "cmux vm agent", with: "cmux coderouter agent"))
             return
         }

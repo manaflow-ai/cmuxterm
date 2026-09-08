@@ -128,6 +128,8 @@ cmux vm rm <id>          # irreversible and unprompted
 
 Every machine has its own in-VM `cmux` CLI (a shim over the machine's cmux-tui daemon). Local verbs use cmux-tui's grammar (`cmux <resource> <action>`) against the machine's own session — workspaces, terminals, panes:
 
+`cmux self [--json]` identifies this machine and `cmux vm ls [--json]` lists the team's live machines through `GET /api/vm/self`. Both work without a local daemon and use the edge-injected machine identity, never an account token copied into the VM. Linked peer status is available separately as `cmux vm peers`.
+
 ```bash
 cmux workspace current run -- bun test        # run a command in a durable terminal here
 cmux session current snapshot --json          # this machine's workspace/terminal tree
@@ -148,7 +150,7 @@ cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
 `cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux reflect peers` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
 
 ```bash
-cmux vm ls                          # this machine, linked peers, and reachable peers from reflection
+cmux vm peers                       # this machine, linked peers, and reachable peers from reflection
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
 cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>
