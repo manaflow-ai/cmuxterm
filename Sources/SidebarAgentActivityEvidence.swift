@@ -51,11 +51,18 @@ struct SidebarAgentActivityEvidence: Equatable, Sendable {
             || isExactProcessBinding
     }
 
+    /// A retained PID key proves presence, not that its process is still live.
+    var hasLiveRuntimeSignal: Bool {
+        !isHeuristicProcessDetection
+            && (hasLiveLifecycleSignal
+                || (isRuntimeBound && processLiveness == .running && hasExactProcessIdentity))
+    }
+
     /// Combines observations for one exact session/process generation while
     /// giving a live cmux runtime signal authority over cached lifecycle state.
     func merged(with other: Self) -> Self {
-        let hasLiveWorkspaceSignal = isRuntimeBound || hasLiveLifecycleSignal
-        let otherHasLiveWorkspaceSignal = other.isRuntimeBound || other.hasLiveLifecycleSignal
+        let hasLiveWorkspaceSignal = hasLiveRuntimeSignal
+        let otherHasLiveWorkspaceSignal = other.hasLiveRuntimeSignal
         if hasLiveWorkspaceSignal || otherHasLiveWorkspaceSignal {
             let runtime: Self
             let cached: Self
@@ -118,7 +125,7 @@ struct SidebarAgentActivityEvidence: Equatable, Sendable {
             updatedAt: max(updatedAt ?? 0, other.updatedAt ?? 0),
             processLiveness: newer.processLiveness,
             hasExactProcessIdentity: hasExactProcessIdentity || other.hasExactProcessIdentity,
-            isRuntimeBound: false,
+            isRuntimeBound: isRuntimeBound || other.isRuntimeBound,
             hasLiveLifecycleSignal: false,
             isHookBacked: isHookBacked || other.isHookBacked,
             isExactProcessBinding: isExactProcessBinding || other.isExactProcessBinding,

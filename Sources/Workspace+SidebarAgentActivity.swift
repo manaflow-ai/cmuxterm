@@ -151,6 +151,17 @@ extension Workspace {
                 } else {
                     .unknown
                 }
+                if suppressStaleLifecycle,
+                   let runtimeIndexEntry,
+                   runtimeIndexEntry.processLiveness == .running,
+                   !runtimeIndexEntry.isHeuristicProcessDetection,
+                   runtimeIndexEntry.hasHookRecord || runtimeIndexEntry.hasExactProcessBinding {
+                    // This key no longer names the live indexed process. It
+                    // must neither override a same-session respawn nor hide a
+                    // different live session of this kind. Keep the index's
+                    // own lifecycle and timing, not the stale runtime maps.
+                    continue
+                }
                 let generation: SidebarAgentActivityEvidence.Generation
                 if let runtimeSessionID {
                     generation = .session(runtimeSessionID)
@@ -222,7 +233,7 @@ extension Workspace {
             }
             let currentRuntimeForDifferentKind = runtimeEvidence.contains { evidence in
                 SidebarWorkspaceAgentActivity.canonicalStatusKey(evidence.statusKey) != canonicalStatusKey
-                    && (evidence.hasLiveLifecycleSignal || evidence.hasExactProcessIdentity)
+                    && evidence.hasLiveRuntimeSignal
             }
             // Another kind's leftover PID/lifecycle maps cannot invalidate a
             // live indexed generation or hide its SessionStart anchor. Live
