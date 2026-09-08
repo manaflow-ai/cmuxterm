@@ -193,7 +193,7 @@ extension AppDelegate {
                     "to={\(nsRectLogDescription(corrected))}"
             )
 #endif
-            window.setFrame(corrected, display: true)
+            window.setFrameForManagedPlacement(corrected, display: true)
         }
         MainWindowFrameReconciler().repair(
             displays: displays.available,
@@ -237,7 +237,7 @@ extension AppDelegate {
                     "applied={\(nsRectLogDescription(restored))}"
             )
 #endif
-            window.setFrame(restored, display: true)
+            window.setFrameForManagedPlacement(restored, display: true)
         }
     }
 

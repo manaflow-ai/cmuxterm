@@ -97,17 +97,28 @@ func configureCmuxMainWindowDragBehavior(_ window: NSWindow) {
 final class CmuxMainWindow: NSWindow {
     private let workspaceSwitchSignposts = WorkspaceSwitchSignposts()
 
-    private enum WindowZoomIntent {
-        case userSized
-        case zoomed
-    }
-
-    private var zoomIntent = WindowZoomIntent.userSized
+    private var zoomIntent = MainWindowZoomIntentState()
 
     /// Preserves the user's zoom intent even if AppKit temporarily applies a
     /// smaller frame while the app is inactive or displays are reconnecting.
     var cmuxWantsZoomedFrame: Bool {
-        zoomIntent == .zoomed || isZoomed
+        zoomIntent.wantsZoomedFrame || isZoomed
+    }
+
+    override func performDrag(with event: NSEvent) {
+        zoomIntent.recordUserPlacement()
+        super.performDrag(with: event)
+    }
+
+    override func setFrameOrigin(_ newOrigin: NSPoint) {
+        zoomIntent.recordUserPlacement()
+        super.setFrameOrigin(newOrigin)
+    }
+
+    func setFrameForManagedPlacement(_ frameRect: NSRect, display flag: Bool) {
+        zoomIntent.beginManagedPlacement()
+        defer { zoomIntent.endManagedPlacement() }
+        setFrame(frameRect, display: flag)
     }
 
     override func becomeKey() {
@@ -129,7 +140,7 @@ final class CmuxMainWindow: NSWindow {
     /// pass). The user sizes this window; layout does not.
     override func setFrame(_ frameRect: NSRect, display flag: Bool) {
         if inLiveResize {
-            zoomIntent = .userSized
+            zoomIntent.recordUserPlacement()
         }
         guard !styleMask.contains(.fullScreen) else {
             super.setFrame(frameRect, display: flag)
@@ -154,7 +165,7 @@ final class CmuxMainWindow: NSWindow {
 
     override func zoom(_ sender: Any?) {
         super.zoom(sender)
-        zoomIntent = isZoomed ? .zoomed : .userSized
+        zoomIntent.recordZoom(isZoomed: isZoomed)
     }
 
     /// Caps runaway content-derived dimensions to the display union while

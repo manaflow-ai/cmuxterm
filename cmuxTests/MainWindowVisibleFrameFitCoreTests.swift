@@ -361,3 +361,26 @@ struct MainWindowVisibleFrameFitCoreTests {
         #expect(repaired == Self.rightDisplay.visibleFrame)
     }
 }
+
+@Suite("Main window zoom intent")
+struct MainWindowZoomIntentTests {
+    @Test func userPlacementClearsZoomIntent() {
+        var state = MainWindowZoomIntentState()
+        state.recordZoom(isZoomed: true)
+
+        state.recordUserPlacement()
+
+        #expect(!state.wantsZoomedFrame)
+    }
+
+    @Test func managedPlacementPreservesZoomIntent() {
+        var state = MainWindowZoomIntentState()
+        state.recordZoom(isZoomed: true)
+
+        state.beginManagedPlacement()
+        state.recordUserPlacement()
+        state.endManagedPlacement()
+
+        #expect(state.wantsZoomedFrame)
+    }
+}

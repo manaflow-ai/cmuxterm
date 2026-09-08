@@ -78,7 +78,7 @@ final class MainWindowFrameReconciler {
                     "to": Self.rectDescription(targetFrame),
                 ]
             )
-            window.setFrame(targetFrame, display: true)
+            window.setFrameForManagedPlacement(targetFrame, display: true)
         }
     }
 
