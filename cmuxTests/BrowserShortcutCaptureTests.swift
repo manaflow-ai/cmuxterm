@@ -649,6 +649,97 @@ final class BrowserShortcutCaptureTests {
         #expect(webKitEvents.count == events.count)
     }
 
+    @Test(arguments: ["popup-app-action", "newTab"])
+    func standalonePopupKeepsConfiguredApplicationShortcutWithAppWhenCaptureDisabled(actionID: String) throws {
+        let appDelegate = try #require(AppDelegate.shared)
+        let harness = try makeHarness()
+        defer { closeWindow(withId: harness.windowId) }
+
+        let manager = try #require(appDelegate.tabManagerFor(windowId: harness.windowId))
+        let context = try #require(appDelegate.mainWindowContext(for: manager))
+        let previousConfigStore = context.cmuxConfigStore
+        defer { context.cmuxConfigStore = previousConfigStore }
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "browser-popup-shortcuts-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let configURL = root.appendingPathComponent("cmux.json")
+        try """
+        {
+          "actions": {
+            "\(actionID)": {
+              "type": "command",
+              "command": "echo popup-app-action",
+              "shortcut": "cmd+shift+9"
+            }
+          }
+        }
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        let configStore = CmuxConfigStore(globalConfigPath: configURL.path)
+        configStore.loadAll()
+        context.cmuxConfigStore = configStore
+        #expect(configStore.shortcutActions().contains { $0.id == actionID })
+
+        let popupWebView = try #require(
+            harness.panel.createFloatingPopup(
+                configuration: WKWebViewConfiguration(),
+                windowFeatures: WKWindowFeatures()
+            ) as? CmuxWebView
+        )
+        let popupWindow = try #require(popupWebView.window as? BrowserPopupPanel)
+        defer {
+            popupWindow.orderOut(nil)
+            popupWindow.close()
+        }
+        popupWindow.makeKeyAndOrderFront(nil)
+        #expect(popupWindow.makeFirstResponder(popupWebView))
+
+        let settingKey = KeyboardShortcutSettings.browserKeyboardShortcutCaptureSetting.userDefaultsKey
+        let previousSetting = UserDefaults.standard.object(forKey: settingKey)
+        defer {
+            if let previousSetting {
+                UserDefaults.standard.set(previousSetting, forKey: settingKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: settingKey)
+            }
+        }
+        UserDefaults.standard.set(false, forKey: settingKey)
+
+        let event = try #require(makeKeyDownEvent(
+            key: "9",
+            modifiers: [.command, .shift],
+            keyCode: UInt16(kVK_ANSI_9),
+            windowNumber: popupWindow.windowNumber
+        ))
+        #expect(appDelegate.preferredMainWindowContextForShortcutRouting(event: event) === context)
+        #expect(appDelegate.shortcutEventFocusContext(event).browserPopupWebViewFocused)
+        #expect(
+            !appDelegate.shouldYieldPanelLessBrowserShortcut(event),
+            "A configured application action must remain available to the app router when capture is off"
+        )
+
+        withTemporaryShortcut(
+            action: .browserReload,
+            shortcut: BrowserCaptureStoredShortcut(
+                key: "9", command: true, shift: true, option: false, control: false
+            )
+        ) {
+            #expect(
+                !appDelegate.shouldYieldPanelLessBrowserShortcut(event),
+                "Configured application actions must keep their priority over colliding browser shortcuts"
+            )
+        }
+
+        UserDefaults.standard.set(true, forKey: settingKey)
+        #expect(
+            appDelegate.shouldCaptureBrowserKeyboardShortcuts(for: event, webView: popupWebView),
+            "Opt-in capture must still include eligible configured application actions"
+        )
+    }
+
     private func withCaptureEnabled(
         _ body: (BrowserCaptureHarness) throws -> Void
     ) throws {
