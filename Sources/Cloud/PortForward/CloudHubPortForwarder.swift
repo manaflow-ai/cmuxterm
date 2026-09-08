@@ -87,6 +87,12 @@ actor CloudHubPortForwarder {
                         await Self.retargetIfNeeded(stored, to: target)
                         return stored
                     }
+                    if let current = starting[key], current.id == entry.id {
+                        // This waiter was cancelled; another waiter on the same
+                        // start still owns the bookkeeping and will store it.
+                        throw CancellationError()
+                    }
+                    // Nobody else will keep this listener.
                     await forward.stop()
                     throw CancellationError()
                 }
