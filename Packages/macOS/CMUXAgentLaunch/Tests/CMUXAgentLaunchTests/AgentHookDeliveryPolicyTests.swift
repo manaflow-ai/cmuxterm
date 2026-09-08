@@ -10,6 +10,7 @@ struct AgentHookDeliveryPolicyTests {
         for agent in ["claude", "codex", "future-agent"] {
             #expect(policy.supportsQueuedDelivery(agent: agent, subcommand: "prompt-submit"))
             #expect(policy.supportsQueuedDelivery(agent: agent, subcommand: "session-end"))
+            #expect(policy.supportsQueuedDelivery(agent: agent, subcommand: "shell-failed"))
         }
     }
 

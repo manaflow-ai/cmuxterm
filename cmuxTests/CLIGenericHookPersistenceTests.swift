@@ -3864,7 +3864,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         )
     }
 
-    func testGrokCompletionResetsStatusWhenSiblingRunningRecordHasDeadPID() throws {
+    func testGrokCompletionResetsStatusWhenSnapshotReplaySiblingRunningRecordHasDeadPID() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("grok-stale-sibling-status")
         let listenerFD = try bindUnixSocket(at: socketPath)
@@ -3914,6 +3914,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             "CMUX_CLI_SENTRY_DISABLED": "1",
             "CMUX_WORKSPACE_ID": workspaceId,
             "CMUX_SURFACE_ID": completingSurfaceId,
+            "CMUX_AGENT_HOOK_ROUTE_SNAPSHOT": "1",
         ]
 
         let serverHandled = startMockServer(listenerFD: listenerFD, state: state) { line in

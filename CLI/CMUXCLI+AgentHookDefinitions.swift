@@ -429,7 +429,13 @@ extension CMUXCLI {
 
     /// Dispatches through the launching terminal's own cmux build and socket.
     static func pinnedHookAmbientInvocation(routedArguments: String) -> String {
-        "\"$CMUX_BUNDLED_CLI_PATH\" --socket \"$CMUX_SOCKET_PATH\" \(routedArguments)"
+        "\(pinnedHookEnvironmentPrefix(routedArguments: routedArguments))\"$CMUX_BUNDLED_CLI_PATH\" --socket \"$CMUX_SOCKET_PATH\" \(routedArguments)"
+    }
+
+    private static func pinnedHookEnvironmentPrefix(routedArguments: String) -> String {
+        routedArguments.hasPrefix("hooks enqueue ")
+            ? "CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC=\(agentHookAdmissionResponseTimeoutSeconds) "
+            : ""
     }
 
     private static func pinnedHookInvocation(
@@ -437,9 +443,7 @@ extension CMUXCLI {
         routedArguments: String,
         socketPath: String?
     ) -> String {
-        let environmentPrefix = routedArguments.hasPrefix("hooks enqueue ")
-            ? "CMUXTERM_CLI_RESPONSE_TIMEOUT_SEC=\(agentHookAdmissionResponseTimeoutSeconds) "
-            : ""
+        let environmentPrefix = pinnedHookEnvironmentPrefix(routedArguments: routedArguments)
         if let socketPath {
             return "\(environmentPrefix)\(executable) --socket \(shellSingleQuote(socketPath)) \(routedArguments)"
         }

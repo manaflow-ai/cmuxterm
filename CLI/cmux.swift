@@ -34048,6 +34048,7 @@ export default CMUXSessionRestore;
         // A queued route snapshot can outlive the process that supplied it.
         // Never promote or persist that stale PID during asynchronous replay.
         let liveProcessIdentityAllowed = !relayOrigin && !routeWasSnapshotted
+        let requireLiveProcessForSessionChecks = !relayOrigin
         let inferredPID = liveProcessIdentityAllowed
             ? (agentPIDFromHookEnvironment(agentName: def.name, env: env) ?? inferredAgentPID())
             : nil
@@ -34580,7 +34581,7 @@ export default CMUXSessionRestore;
                 surfaceId: surfaceId,
                 excludingSessionId: sessionId,
                 onlyNewerThanExcludedSession: true,
-                requireLiveProcess: liveProcessIdentityAllowed
+                requireLiveProcess: requireLiveProcessForSessionChecks
             )) == true
         }
         func hasOtherRunningSession(workspaceId: String) -> Bool {
@@ -34588,7 +34589,7 @@ export default CMUXSessionRestore;
                 workspaceId: workspaceId,
                 surfaceId: nil,
                 excludingSessionId: sessionId,
-                requireLiveProcess: liveProcessIdentityAllowed
+                requireLiveProcess: requireLiveProcessForSessionChecks
             )) == true
         }
         func setIdleStatusUnlessAnotherSessionIsRunning(workspaceId: String, surfaceId: String) {

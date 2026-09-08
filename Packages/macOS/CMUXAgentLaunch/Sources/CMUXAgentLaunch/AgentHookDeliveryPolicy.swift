@@ -42,6 +42,7 @@ public struct AgentHookDeliveryPolicy: Sendable {
         "approval-response",
         "shell-exec",
         "shell-done",
+        "shell-failed",
         "session-end",
         "session-finalize",
     ]
