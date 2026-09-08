@@ -1459,5 +1459,13 @@ struct SurfaceCatalogTests {
         catalog.rollbackCloudWorkspaceRename(pending)
         #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "committed")
         #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 3)))
+        let older = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "older")
+        let sameName = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "committed")
+        #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 3)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == "committed")
+        catalog.commitCloudWorkspaceRename(older, receipt: CloudVMCursor(generation: "g", revision: 4))
+        catalog.commitCloudWorkspaceRename(sameName, receipt: CloudVMCursor(generation: "g", revision: 5))
+        #expect(catalog.replaceCloudResources([resource], on: machine, info: committedInfo, cursor: CloudVMCursor(generation: "g", revision: 5)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == nil)
     }
 }
