@@ -614,6 +614,7 @@ private struct GroupingButton: View {
                     pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
                     weight: RightSidebarChromeControlStyle.iconWeight
                 )
+                .frame(width: RightSidebarChromeMetrics.contentIconFrameSize)
                 Text(mode.label)
                     .cmuxFont(
                         size: RightSidebarChromeControlStyle.labelSize,

@@ -45,6 +45,11 @@ enum RightSidebarChromeMetrics {
         return max(baseHeight, scaledContentHeight)
     }
     static let controlHorizontalPadding: CGFloat = 8
+    static let contentIconLeadingPadding: CGFloat = 12
+    static let contentIconFrameSize: CGFloat = 14
+    static var contentIconCenter: CGFloat {
+        contentIconLeadingPadding + contentIconFrameSize / 2
+    }
     static var controlCornerRadius: CGFloat {
         min(10, max(5, controlHeight * 0.25))
     }

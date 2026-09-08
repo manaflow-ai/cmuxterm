@@ -1,9 +1,16 @@
 import AppKit
 import SwiftUI
 
-/// Replace only the bezel drawing; native search and editor geometry stay intact.
+/// Shared bezel and icon alignment; AppKit owns text editing and button handling.
 @MainActor
 final class SidebarSearchFieldCell: NSSearchFieldCell {
+    override func searchButtonRect(forBounds rect: NSRect) -> NSRect {
+        var buttonRect = super.searchButtonRect(forBounds: rect)
+        let center = RightSidebarChromeMetrics.contentIconCenter - SidebarSearchField.leadingPadding
+        buttonRect.origin.x = rect.minX + center - buttonRect.width / 2
+        return buttonRect
+    }
+
     override func draw(withFrame frame: NSRect, in controlView: NSView) {
         if let context = NSGraphicsContext.current?.cgContext {
             context.saveGState()
