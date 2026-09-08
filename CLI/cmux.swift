@@ -4505,7 +4505,7 @@ struct CMUXCLI {
         return parts.joined(separator: " · ")
     }
 
-    private static let claudeCodeStatusKey = "claude_code"
+    static let claudeCodeStatusKey = "claude_code"
 
     private static func agentNotificationMeta(
         category: AgentHookNotifyCategory,
@@ -16283,7 +16283,7 @@ struct CMUXCLI {
         SSHAgentSocketResolver().optionValue(named: key, in: options)
     }
 
-    private func cliDebugLog(_ message: @autoclosure () -> String) {
+    func cliDebugLog(_ message: @autoclosure () -> String) {
 #if DEBUG
         let trimmedExplicit = ProcessInfo.processInfo.environment["CMUX_DEBUG_LOG"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25700,7 +25700,7 @@ struct CMUXCLI {
     private static let legacyOmoPluginName = "oh-my-opencode"
     private static let openCodeSessionPluginConfigSpec = "./plugins/cmux-session.js"
 
-    private func resolveExecutableInPath(_ name: String, searchPath: String? = nil) -> String? {
+    func resolveExecutableInPath(_ name: String, searchPath: String? = nil) -> String? {
         let entries = (searchPath ?? ProcessInfo.processInfo.environment["PATH"])?
             .split(separator: ":")
             .map(String.init) ?? []
