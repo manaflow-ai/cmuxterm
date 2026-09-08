@@ -4807,7 +4807,7 @@
 		C4160A020000000000000002 /* HistoryMenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuCoordinator.swift; sourceTree = "<group>"; };
 		A10348030000000000000002 /* HistoryMenuCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuCoordinatorTests.swift; sourceTree = "<group>"; };
 		A10348020000000000000002 /* HistoryMenuState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuState.swift; sourceTree = "<group>"; };
-		C41FE00000000000000000EA /* HiveComputerMirrorController+Reconciliation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputerMirrorController+Reconciliation.swift; sourceTree = "<group>"; };
+		C41FE00000000000000000EA /* HiveComputerMirrorController+Reconciliation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "HiveComputerMirrorController+Reconciliation.swift"; sourceTree = "<group>"; };
 		C41FE00000000000000000D9 /* HiveComputerMirrorController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputerMirrorController.swift; sourceTree = "<group>"; };
 		C41FE00000000000000000D2 /* HiveComputersService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputersService.swift; sourceTree = "<group>"; };
 		C41FE00000000000000000E9 /* HiveDeviceMirror.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveDeviceMirror.swift; sourceTree = "<group>"; };
@@ -6950,6 +6950,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			);
 			name = Hive;
 			path = Hive;
+			sourceTree = "<group>";
+		};
 		90813BBC44D79A5D2D0A2F09 /* Surfaces */ = {
 			isa = PBXGroup;
 			children = (
