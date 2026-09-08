@@ -96,9 +96,9 @@ import {
 // loopback nor the public NIC.
 //
 // Creates take NO ports field, NO create-time env, and NO systemd injection;
-// `firewall` is mandatory. Model-plane env is delivered by writing the
-// persisted /root/.config/cmux/model-plane.env file (0600) that
-// /etc/cmux/agent-config.sh already sources when the boot env is absent.
+// `firewall` is mandatory. Model-plane env is delivered by the image: the bake
+// writes /etc/cmux/model-plane.env, which /etc/cmux/agent-config.sh sources in
+// every shell when no boot env is present, whatever user that shell runs as.
 //
 // Create runs no guest bootstrap. The devbox snapshot carries the pinned
 // cmux-tui build and the cmux-tui-daemon systemd unit, and its supervisor
