@@ -16163,7 +16163,7 @@ class TerminalController {
         ])
     }
 
-    private func applyMobileViewportReport(
+    func applyMobileViewportReport(
         params: [String: Any],
         terminalTarget: ControlTerminalSocketTarget,
         sticky: Bool = false,
