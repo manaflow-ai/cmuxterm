@@ -4937,11 +4937,11 @@ struct CMUXCLI {
     }
 
     private func localizedCoderouterAliases() -> String {
-        let defaultValue = "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)"
+        let defaultValue = "coderouter|cr [coderouter-args...]                 (aliases for the CodeRouter CLI; offers to install it when missing)"
         let bundle = CLIExecutableLocator.enclosingAppBundle() ?? .main
         let catalogValue = String(
             localized: "cli.coderouter.aliases",
-            defaultValue: "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)",
+            defaultValue: "coderouter|cr [coderouter-args...]                 (aliases for the CodeRouter CLI; offers to install it when missing)",
             bundle: bundle
         )
         let explicitValue = CMUXDiffViewerLocalization.string(
@@ -4964,93 +4964,6 @@ struct CMUXCLI {
             defaultValue: defaultValue
         )
         return explicitValue == defaultValue ? catalogValue : explicitValue
-    }
-
-    private func localizedCoderouterNotFound() -> String {
-        let defaultValue = "Required CLI not found. Install the command and retry."
-        let bundle = CLIExecutableLocator.enclosingAppBundle() ?? .main
-        let catalogValue = String(
-            localized: "cli.coderouter.error.notFound",
-            defaultValue: "Required CLI not found. Install the command and retry.",
-            bundle: bundle
-        )
-        let explicitValue = CMUXDiffViewerLocalization.string(
-            "cli.coderouter.error.notFound",
-            defaultValue: defaultValue
-        )
-        return explicitValue == defaultValue ? catalogValue : explicitValue
-    }
-
-    private func localizedCoderouterLaunchFailed() -> String {
-        let defaultValue = "Could not start the required CLI. Check the installation and try again."
-        let bundle = CLIExecutableLocator.enclosingAppBundle() ?? .main
-        let catalogValue = String(
-            localized: "cli.coderouter.error.launchFailed",
-            defaultValue: "Could not start the required CLI. Check the installation and try again.",
-            bundle: bundle
-        )
-        let explicitValue = CMUXDiffViewerLocalization.string(
-            "cli.coderouter.error.launchFailed",
-            defaultValue: defaultValue
-        )
-        return explicitValue == defaultValue ? catalogValue : explicitValue
-    }
-
-    /// Run the separately installed CodeRouter CLI without routing through the
-    /// cmux socket. Replace this process after resolving the executable so
-    /// stdin/stdout/stderr, signals, and the child exit status retain their
-    /// normal terminal semantics. The argv is built directly; arguments such
-    /// as prompts, paths, and shell metacharacters are never interpreted by a
-    /// shell.
-    private func runCoderouterAlias(commandArgs: [String]) throws {
-        let candidates = ["coderouter", "cr"]
-        guard let executablePath = candidates.lazy
-            .compactMap({ resolveExecutableInPath($0) })
-            .first else {
-            throw CLIError(
-                message: localizedCoderouterNotFound(),
-                exitCode: 127
-            )
-        }
-
-        // CodeRouter is an independent executable. Do not hand it cmux's ambient
-        // terminal/control-plane context: CMUX_* and CMUXD_* may carry socket
-        // paths, capabilities, passwords, auth state, or internal paths. There is
-        // intentionally no auth handoff here; a future handoff must be explicit
-        // and narrowly allowlisted.
-        let childEnvironment = ProcessInfo.processInfo.environment.filter { key, _ in
-            !key.hasPrefix("CMUX_") && !key.hasPrefix("CMUXD_")
-        }
-        var argv = ([executablePath] + commandArgs).map { strdup($0) }
-        let environmentStrings = childEnvironment.keys.sorted().map { key in
-            "\(key)=\(childEnvironment[key] ?? "")"
-        }
-        var environment = environmentStrings.map { strdup($0) }
-        defer {
-            for item in argv {
-                free(item)
-            }
-            for item in environment {
-                free(item)
-            }
-        }
-        argv.append(nil)
-        environment.append(nil)
-
-        let executionError = cliExecFailureErrno {
-            executablePath.withCString { executable in
-                _ = execve(executable, &argv, &environment)
-            }
-        }
-        let errorText = String(cString: strerror(executionError))
-        cliDebugLog(
-            "cli.coderouter.exec_failed executable=\(executablePath) "
-                + "errno=\(executionError) error=\(errorText)"
-        )
-        throw CLIError(
-            message: localizedCoderouterLaunchFailed(),
-            exitCode: 127
-        )
     }
 
     func run() async throws {
@@ -5126,10 +5039,11 @@ struct CMUXCLI {
             let status = try CodexTeamsAppServerSupervisor(arguments: rawCommandArgs).run()
             exit(status)
         }
-        // `cmux cr ...` is always the installed CodeRouter CLI. `cmux coderouter`
-        // keeps that passthrough except for the verbs cmux owns (`status`,
-        // `machines`, `claude`, help), which manage the team's model plane
-        // through the app socket (CMUXCLI+Coderouter.swift).
+        // `cmux cr ...` is always the CodeRouter CLI, bootstrapped on first use
+        // when this machine has none (CMUXCLI+CoderouterPassthrough.swift).
+        // `cmux coderouter` keeps that passthrough except for the verbs cmux
+        // owns (`status`, `machines`, `claude`, help), which manage the team's
+        // model plane through the app socket (CMUXCLI+Coderouter.swift).
         if command == "cr" || (command == "coderouter" && !Self.isCmuxOwnedCoderouterInvocation(rawCommandArgs)) {
             try runCoderouterAlias(commandArgs: rawCommandArgs)
             return
@@ -16223,7 +16137,7 @@ struct CMUXCLI {
         SSHAgentSocketResolver().optionValue(named: key, in: options)
     }
 
-    private func cliDebugLog(_ message: @autoclosure () -> String) {
+    func cliDebugLog(_ message: @autoclosure () -> String) {
 #if DEBUG
         let trimmedExplicit = ProcessInfo.processInfo.environment["CMUX_DEBUG_LOG"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25668,7 +25582,7 @@ struct CMUXCLI {
     private static let legacyOmoPluginName = "oh-my-opencode"
     private static let openCodeSessionPluginConfigSpec = "./plugins/cmux-session.js"
 
-    private func resolveExecutableInPath(_ name: String, searchPath: String? = nil) -> String? {
+    func resolveExecutableInPath(_ name: String, searchPath: String? = nil) -> String? {
         let entries = (searchPath ?? ProcessInfo.processInfo.environment["PATH"])?
             .split(separator: ":")
             .map(String.init) ?? []
