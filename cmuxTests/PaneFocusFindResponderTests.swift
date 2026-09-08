@@ -304,6 +304,7 @@ struct PaneFocusFindResponderTests {
         // explicit destination, AppKit may choose the preview WebView as the
         // next key view before the direct focus attempt below.
         window.resignationDestination = foreignEditor
+        window.resetRejectedFocusAttempts()
 
         panel.hideFind()
         #expect(window.rejectedFocusAttempts == 1)

@@ -11,6 +11,10 @@ final class PaneFocusTestWindow: NSWindow {
     weak var resignationDestination: NSResponder?
     private(set) var rejectedFocusAttempts = 0
 
+    func resetRejectedFocusAttempts() {
+        rejectedFocusAttempts = 0
+    }
+
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         if responder == nil, let resignationDestination {
             return super.makeFirstResponder(resignationDestination)
