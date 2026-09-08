@@ -2509,7 +2509,7 @@ class TabManager: ObservableObject {
 
     /// Finalizes every workspace owned by a closing window without creating a
     /// replacement workspace or recording per-workspace closed-item history.
-    func finalizeAllWorkspacesForWindowClose() {
+    func finalizeAllWorkspacesForWindowClose(recordVaultHistory: Bool = true) {
         guard !isFinalizedForWindowClose else { return }
         isFinalizedForWindowClose = true
         let closingWorkspaces = Array(tabs)
@@ -2517,7 +2517,9 @@ class TabManager: ObservableObject {
         sidebarGitMetadataService.resetAllWorkspaceGitProbeTracking()
 
         for workspace in closingWorkspaces {
-            recordVaultHistoryWorkspaceClosed(workspace)
+            if recordVaultHistory {
+                recordVaultHistoryWorkspaceClosed(workspace)
+            }
             finalizeWorkspaceForRemoval(workspace, clearsWorkspaceGitProbes: false)
         }
 

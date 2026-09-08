@@ -5494,7 +5494,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     private func finalizeRejectedMainWindowRegistrationIfUnowned(_ tabManager: TabManager) {
         guard !ownsMainWindowTabManager(tabManager) else { return }
-        tabManager.finalizeAllWorkspacesForWindowClose()
+        tabManager.finalizeAllWorkspacesForWindowClose(recordVaultHistory: false)
     }
 
     /// Register a terminal window with the AppDelegate so menu commands and socket control
@@ -18531,6 +18531,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             closingWindowIsCrashDiagnostic = false
         }
 
+        // Capture the same suppression decision before closed-window History
+        // consumes its marker, and apply it to the contained workspace events.
+        let recordWorkspaceHistory = !closingWindowIsCrashDiagnostic
+            && !closedWindowHistorySuppressedWindowIds.contains(windowId)
+            && !isTerminatingApp
+            && !isApplyingSessionRestore
         if !closingWindowIsCrashDiagnostic {
             if let context {
                 recordClosedWindowHistoryIfNeeded(for: context)
@@ -18582,7 +18588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
         remoteTmuxController.handleWindowWorkspacesClosed(workspaceIds: closingWorkspaceIds)
-        closingTabManager.finalizeAllWorkspacesForWindowClose()
+        closingTabManager.finalizeAllWorkspacesForWindowClose(recordVaultHistory: recordWorkspaceHistory)
         closingTabManager.window = nil
         windowConfigFrames.removeValue(forKey: windowId)
         publishCmuxWindowLifecycle(name: "window.closed", windowId: windowId, origin: "appkit_close")
