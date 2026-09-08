@@ -95,21 +95,4 @@ describe("dashboard shell", () => {
     expect(linkPrefetch.get("/dashboard/coderouter")).toBeUndefined();
     expect(linkPrefetch.get("/dashboard/testflight")).toBeUndefined();
   });
-
-  test("renders the admin slot at the end of both navigations", () => {
-    const html = renderToStaticMarkup(
-      <DashboardShell
-        vaultEnabled={false}
-        account={accountControl}
-        adminNav={<span data-testid="admin-nav" />}
-      >
-        <p>Dashboard content</p>
-      </DashboardShell>,
-    );
-
-    expect(html.match(/data-testid="admin-nav"/g)).toHaveLength(2);
-    expect(html.lastIndexOf('data-testid="admin-nav"')).toBeGreaterThan(
-      html.lastIndexOf('href="/dashboard/team"'),
-    );
-  });
 });

@@ -88,11 +88,6 @@ mock.module("../app/lib/vault-auth", () => ({
   vaultSignInHref: (returnPath: string) => `/sign-in?after=${returnPath}`,
 }));
 
-mock.module("@/services/admin/access", () => ({
-  isAdminUser: (user: DashboardUser | null) =>
-    user?.primaryEmail === "admin@example.com",
-}));
-
 mock.module(
   "../app/[locale]/dashboard/components/query-provider",
   () => ({
@@ -108,21 +103,15 @@ mock.module("../app/[locale]/dashboard/dashboard-account-menu", () => ({
   DashboardAccountMenuFallback: () => <span data-testid="account-fallback" />,
 }));
 
-mock.module("../app/[locale]/dashboard/dashboard-admin-nav", () => ({
-  DashboardAdminNavGroup: () => <span data-testid="admin-nav" />,
-}));
-
 mock.module("../app/[locale]/dashboard/dashboard-shell", () => ({
   DashboardShell: ({
     children,
     account,
-    adminNav,
-  }: React.PropsWithChildren<{ account: React.ReactNode; adminNav: React.ReactNode }>) => {
+  }: React.PropsWithChildren<{ account: React.ReactNode }>) => {
     dashboardShellRenderCount += 1;
     return (
       <div data-testid="dashboard-shell">
         <header>{account}</header>
-        <nav>{adminNav}</nav>
         <main>{children}</main>
       </div>
     );
@@ -181,7 +170,6 @@ test("streams the identity row from one session read shared by every slot", asyn
   const html = await renderSettled(await layout());
 
   expect(html).toContain('data-user="yes"');
-  expect(html).not.toContain('data-testid="admin-nav"');
   // React's per-render `cache` only dedupes under the server-components
   // runtime, so the count is not observable here; the call itself is.
   expect(verifyBrowserSessionRequest).toHaveBeenCalled();
@@ -194,19 +182,6 @@ test("streams the identity row from one session read shared by every slot", asyn
     selectedTeamId: null,
     isAnonymous: false,
   });
-});
-
-test("adds the admin group only for admin users", async () => {
-  currentUser = {
-    id: "admin-1",
-    isAnonymous: false,
-    primaryEmail: "admin@example.com",
-    primaryEmailVerified: true,
-  };
-
-  const html = await renderSettled(await layout());
-
-  expect(html).toContain('data-testid="admin-nav"');
 });
 
 for (const unauthenticatedUser of [

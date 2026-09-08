@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
 
 type DashboardNavGroup = {
@@ -13,30 +13,15 @@ type DashboardNavGroup = {
   }>;
 };
 
-type DashboardNavContextValue = {
-  /** Closes the mobile navigation after a link is chosen. */
-  onNavigate?: () => void;
-};
-
-const DashboardNavContext = createContext<DashboardNavContextValue>({});
-
-/** Navigation context for groups rendered by server slots inside the nav. */
-export function useDashboardNav(): DashboardNavContextValue {
-  return useContext(DashboardNavContext);
-}
-
 export function DashboardShell({
   children,
   vaultEnabled,
   account,
-  adminNav,
 }: {
   children: React.ReactNode;
   vaultEnabled: boolean;
   /** The identity row, streamed by the layout once the session resolves. */
   account?: React.ReactNode;
-  /** Admin-only navigation, rendered by the layout for admin users. */
-  adminNav?: React.ReactNode;
 }) {
   const t = useTranslations("dashboard.nav");
   const common = useTranslations("common");
@@ -124,7 +109,6 @@ export function DashboardShell({
         </div>
         <DashboardNav
           groups={groups}
-          trailing={adminNav}
           className="flex-1 overflow-y-auto px-2 py-3 pb-28"
         />
       </aside>
@@ -155,7 +139,6 @@ export function DashboardShell({
           <DashboardNav
             id="dashboard-mobile-nav"
             groups={groups}
-            trailing={adminNav}
             hidden={!mobileNavOpen}
             onNavigate={() => setMobileNavOpen(false)}
             className="max-h-[calc(100vh-6rem)] overflow-y-auto border-t border-border px-2 py-3 sm:hidden"
@@ -169,31 +152,25 @@ export function DashboardShell({
 
 function DashboardNav({
   groups,
-  trailing,
   className,
   hidden,
   id,
   onNavigate,
 }: {
   groups: DashboardNavGroup[];
-  /** Groups whose visibility depends on the signed-in user, rendered last. */
-  trailing?: React.ReactNode;
   className?: string;
   hidden?: boolean;
   id?: string;
   onNavigate?: () => void;
 }) {
   return (
-    <DashboardNavContext.Provider value={{ onNavigate }}>
-      <nav id={id} className={className} hidden={hidden}>
-        <div className="space-y-4">
-          {groups.map((group) => (
-            <DashboardNavGroupView key={group.label} group={group} onNavigate={onNavigate} />
-          ))}
-          {trailing}
-        </div>
-      </nav>
-    </DashboardNavContext.Provider>
+    <nav id={id} className={className} hidden={hidden}>
+      <div className="space-y-4">
+        {groups.map((group) => (
+          <DashboardNavGroupView key={group.label} group={group} onNavigate={onNavigate} />
+        ))}
+      </div>
+    </nav>
   );
 }
 

@@ -8,10 +8,8 @@ import {
   requireDashboardUser,
 } from "@/app/lib/dashboard-auth";
 import { getStackServerApp, isStackConfigured } from "@/app/lib/stack";
-import { isAdminUser } from "@/services/admin/access";
 import { isVaultEnabled } from "@/services/vault/config";
 import { DashboardQueryProvider } from "./components/query-provider";
-import { DashboardAdminNavGroup } from "./dashboard-admin-nav";
 import {
   DashboardAccountMenu,
   DashboardAccountMenuFallback,
@@ -44,11 +42,6 @@ export default async function DashboardLayout({
                 <DashboardAccountSlot />
               </Suspense>
             }
-            adminNav={
-              <Suspense fallback={null}>
-                <DashboardAdminNavSlot />
-              </Suspense>
-            }
           >
             <Suspense fallback={null}>
               <DashboardSessionGuard locale={locale} />
@@ -62,18 +55,11 @@ export default async function DashboardLayout({
 }
 
 // Streams the identity row once the session resolves; signed-out visitors
-// get the sign-in control while the middleware redirect completes.
+// get the sign-in control while the middleware redirect completes. Every
+// other server read in this render shares the same cached session.
 async function DashboardAccountSlot() {
   const user = await optionalDashboardUser();
   return <DashboardAccountMenu user={user} />;
-}
-
-// The admin link is a convenience only; /dashboard/admin and /api/admin/*
-// re-check admin membership on the server.
-async function DashboardAdminNavSlot() {
-  const user = await optionalDashboardUser();
-  if (!isAdminUser(user)) return null;
-  return <DashboardAdminNavGroup />;
 }
 
 // Middleware already turns away requests with no session cookie. This covers
