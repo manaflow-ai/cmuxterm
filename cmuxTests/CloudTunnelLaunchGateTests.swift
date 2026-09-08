@@ -440,12 +440,16 @@ struct CloudTunnelLaunchGateTests {
         gate.refusal = nil
         // While the second start is enrolling, the first start's late
         // approval resolves with Cloud Machines back ON (so no refusal at
-        // hand-off time), then the policy refuses again: the second start
-        // inherited the first start's saved configuration and, refused
-        // before it installs anything, must discard it.
+        // hand-off time), then the policy refuses again. Whether the first
+        // start's resumption runs before the second start's refusal (the
+        // hand-off: the second start inherits and discards) or after it (the
+        // first start discards on its own), exactly one discard happens and
+        // nothing is left behind. The yields let the first start's
+        // continuation run on the actor while the second is suspended here.
         enroller.onEnroll = {
             controller.approve()
             _ = try? await first.value
+            for _ in 0..<64 { await Task.yield() }
             gate.refusal = .cloudMachinesOff
         }
         await #expect(throws: CloudTunnelError.cloudMachinesOff) {

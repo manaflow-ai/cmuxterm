@@ -372,10 +372,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             try Task.checkCancellation()
             // The install can wait minutes for the user's extension approval.
             // A refusal that landed meanwhile takes the saved configuration
-            // and the enrollment back out with it: a refused Mac keeps no
-            // VPN configuration and is not "configured" at the next launch.
+            // and the enrollment back out with it (the refusal handler below
+            // settles it): a refused Mac keeps no VPN configuration and is
+            // not "configured" at the next launch.
             if let refusal = admission.knownRefusal() {
-                await settleRefusedInstall(installedByThisStart: true, generation: generation)
                 throw refusal.error
             }
             if state == .awaitingApproval { setState(.starting, generation: generation) }
