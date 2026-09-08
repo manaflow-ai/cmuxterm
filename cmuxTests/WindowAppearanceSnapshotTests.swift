@@ -450,7 +450,7 @@ import Testing
     /// color composited over the ambient window base. The resolved chrome
     /// scheme must follow that rendered result, or icons keyed off it become
     /// white-on-white in a light window (issue #10477).
-    func testTranslucentTerminalChromeSchemeFollowsRenderedBackdrop() {
+    @Test func translucentTerminalChromeSchemeFollowsRenderedBackdrop() {
         let resolver = WindowAppearanceResolver(
             terminalAppearance: WindowTerminalAppearanceSnapshot(
                 backgroundColor: NSColor(hex: "#101820") ?? .black,
@@ -462,21 +462,18 @@ import Testing
         )
 
         let lightWindow = resolver.current(settings: makeUserSettings(colorScheme: .light))
-        XCTAssertEqual(
-            lightWindow.resolvedColorScheme,
-            .light,
+        #expect(
+            lightWindow.resolvedColorScheme == .light,
             "Translucent dark theme over a light window renders a light backdrop; chrome icons must resolve dark"
         )
-        XCTAssertEqual(
-            cmuxReadableColorScheme(for: lightWindow.resolvedChromeBackgroundColor),
-            .light,
+        #expect(
+            cmuxReadableColorScheme(for: lightWindow.resolvedChromeBackgroundColor) == .light,
             "Chrome background must composite over the light window base the user actually sees"
         )
 
         let darkWindow = resolver.current(settings: makeUserSettings(colorScheme: .dark))
-        XCTAssertEqual(
-            darkWindow.resolvedColorScheme,
-            .dark,
+        #expect(
+            darkWindow.resolvedColorScheme == .dark,
             "Translucent dark theme over a dark window keeps dark chrome"
         )
     }
@@ -484,7 +481,7 @@ import Testing
     /// Opaque themes own their rendered pixels, so the terminal theme stays
     /// the light/dark authority even when the window appearance disagrees
     /// (issue #10146 contract).
-    func testOpaqueTerminalChromeSchemeKeepsTerminalThemeAuthority() {
+    @Test func opaqueTerminalChromeSchemeKeepsTerminalThemeAuthority() {
         for (backgroundHex, terminalScheme) in [("#101820", ColorScheme.dark), ("#F8F8F2", .light)] {
             for ambientScheme in [ColorScheme.light, .dark] {
                 let resolver = WindowAppearanceResolver(
@@ -497,9 +494,8 @@ import Testing
                     )
                 )
                 let snapshot = resolver.current(settings: makeUserSettings(colorScheme: ambientScheme))
-                XCTAssertEqual(
-                    snapshot.resolvedColorScheme,
-                    terminalScheme,
+                #expect(
+                    snapshot.resolvedColorScheme == terminalScheme,
                     "Opaque \(backgroundHex) theme must keep terminal authority under \(ambientScheme) ambient"
                 )
             }
@@ -510,16 +506,15 @@ import Testing
     /// the workspace hands it, so that hex must match the rendered backdrop:
     /// composited over the ambient base for translucent themes, the theme
     /// color itself for opaque ones (issue #10477).
-    func testBonsplitChromeBackgroundColorMatchesRenderedBackdrop() {
+    @Test func bonsplitChromeBackgroundColorMatchesRenderedBackdrop() {
         let translucentDarkOverLight = Workspace.resolvedTerminalChromeBackgroundColor(
             backgroundColor: NSColor(hex: "#101820") ?? .black,
             backgroundOpacity: 0.3,
             terminalColorScheme: .dark,
             ambientColorScheme: .light
         )
-        XCTAssertEqual(
-            cmuxReadableColorScheme(for: translucentDarkOverLight),
-            .light,
+        #expect(
+            cmuxReadableColorScheme(for: translucentDarkOverLight) == .light,
             "Translucent dark theme in a light window must hand Bonsplit a light hex so tab glyphs resolve dark"
         )
 
@@ -529,7 +524,7 @@ import Testing
             terminalColorScheme: .dark,
             ambientColorScheme: .dark
         )
-        XCTAssertEqual(cmuxReadableColorScheme(for: translucentDarkOverDark), .dark)
+        #expect(cmuxReadableColorScheme(for: translucentDarkOverDark) == .dark)
 
         let opaqueDarkOverLight = Workspace.resolvedTerminalChromeBackgroundColor(
             backgroundColor: NSColor(hex: "#101820") ?? .black,
@@ -537,13 +532,13 @@ import Testing
             terminalColorScheme: .dark,
             ambientColorScheme: .light
         )
-        XCTAssertEqual(cmuxReadableColorScheme(for: opaqueDarkOverLight), .dark)
+        #expect(cmuxReadableColorScheme(for: opaqueDarkOverLight) == .dark)
     }
 
     /// Callers that omit the ambient scheme (`currentFromUserDefaults`) must
     /// not have translucent chrome resolved against a guessed light window:
     /// the resolver fails closed to the terminal authority instead.
-    func testOmittedAmbientSchemeFailsClosedToTerminalAuthority() {
+    @Test func omittedAmbientSchemeFailsClosedToTerminalAuthority() {
         let resolver = WindowAppearanceResolver(
             terminalAppearance: WindowTerminalAppearanceSnapshot(
                 backgroundColor: NSColor(hex: "#101820") ?? .black,
@@ -557,9 +552,8 @@ import Testing
             defaults: UserDefaults(suiteName: "cmux.tests.omitted-ambient")!
         )
 
-        XCTAssertEqual(
-            snapshot.resolvedColorScheme,
-            .dark,
+        #expect(
+            snapshot.resolvedColorScheme == .dark,
             "Without an injected ambient scheme, translucent chrome must stay on the terminal authority, not a guessed light window"
         )
     }
