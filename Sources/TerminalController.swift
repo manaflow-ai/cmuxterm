@@ -7629,7 +7629,8 @@ class TerminalController {
                     omnibarVisible: omnibarVisible
                 ),
                 transparentBackground: transparentBackground,
-                bypassRemoteProxy: bypassRemoteProxy
+                bypassRemoteProxy: bypassRemoteProxy,
+                engine: nil
             )
             guard let placement = container.openBrowserToRight(
                 of: sourceSurfaceId,
