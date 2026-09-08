@@ -501,6 +501,37 @@ struct FeedEventClassificationTests {
         #expect(CodexApprovalNotificationIdentity.make(rawObject: providerEnvelope, fallbackSessionID: nil)?.isAuthoritative == true)
     }
 
+    @Test func codexCompletionOnlyCallIDRetainsTupleResolution() throws {
+        let request: [String: Any] = [
+            "session_id": "session", "turn_id": "turn", "tool_name": "shell",
+            "tool_input": ["command": "echo ok"],
+        ]
+        var completion = request
+        completion["call_id"] = "completion-only"
+        let requestIdentity = try #require(CodexApprovalNotificationIdentity.make(rawObject: request, fallbackSessionID: nil))
+        let completionIdentity = try #require(CodexApprovalNotificationIdentity.make(rawObject: completion, fallbackSessionID: nil))
+        let command = try #require(attentionCommand("codex", "PostToolUse", tool: "shell", approvalIdentity: completionIdentity))
+        #expect(command.contains("--approval-id=\(completionIdentity.approvalID)"))
+        #expect(command.contains("--approval-fallback-id=\(requestIdentity.approvalID)"))
+    }
+
+    @Test(arguments: ["thread_settings", "threadSettings", "context"])
+    func codexThreadDefaultCannotOverrideEffectiveTurnReviewer(container: String) {
+        let payload: [String: Any] = [
+            "session_id": "session", "turn_id": "turn", "tool_name": "shell",
+            container: ["approvals_reviewer": "auto_review"],
+        ]
+        let policy = CodexApprovalNotificationPolicy()
+        #expect(policy.reviewRoute(rawObject: payload, rolloutLines: []) == nil)
+        #expect(policy.reviewRoute(rawObject: payload, rolloutLines: [
+            #"{"type":"turn_context","payload":{"turn_id":"turn","approvals_reviewer":"user"}}"#,
+        ]) == .user)
+        #expect(!policy.isAutoReviewed(rawObject: payload, transcriptPath: "/rollout") { _, _ in ["{}"] })
+        #expect(policy.reviewRoute(rawObject: payload, rolloutLines: [
+            #"{"type":"turn_context","payload":{"turn_id":"turn","approvals_reviewer":"auto_review"}}"#,
+        ]) == .autoReview)
+    }
+
     @Test func codexApprovalIdentityBoundsNestedEnvelopeTraversal() {
         var deeplyWrapped: [String: Any] = ["tool_input": ["command": "git status"]]
         for _ in 0..<8 {
