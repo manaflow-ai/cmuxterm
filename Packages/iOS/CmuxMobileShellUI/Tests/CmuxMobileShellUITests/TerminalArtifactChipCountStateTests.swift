@@ -190,6 +190,39 @@ struct TerminalArtifactChipCountStateTests {
         #expect(upgraded == .init(count: 12, surfaceGeneration: 5))
     }
 
+    @Test("unchanged visible counts do not reissue the session scan")
+    func unchangedVisibleCountDoesNotRearmScan() throws {
+        var state = TerminalArtifactChipCountState()
+        let first = try request(from: state.trigger(
+            localCount: 0,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+        #expect(state.trigger(
+            localCount: 0,
+            surfaceGeneration: 2,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 0, surfaceGeneration: 2)))
+        let completion = state.complete(
+            first,
+            galleryRowTotal: 0,
+            sessionTotal: 0,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 0
+        )
+        #expect(completion.outcome == .reported(.init(count: 0, surfaceGeneration: 1)))
+        #expect(completion.nextRequest == nil)
+
+        // Render-grid snapshots can advance their surface generation without
+        // changing the visible artifact count. That observation only updates
+        // the chip and must not open another RPC.
+        #expect(state.trigger(
+            localCount: 0,
+            surfaceGeneration: 2,
+            supportsSessionCount: true
+        ) == .provisionalReport(.init(count: 0, surfaceGeneration: 2)))
+    }
+
     @Test("a failed scan with fresh local evidence drops a held authoritative zero")
     func failedScanDropsHeldZero() throws {
         var state = TerminalArtifactChipCountState()
