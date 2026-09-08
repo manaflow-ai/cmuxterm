@@ -160,33 +160,39 @@ struct SidebarWorkspaceAgentActivityTests {
                 : [original, current, unrelated]
         }
 
-        let owners = Workspace.sidebarPanelOwnership(
+        let eventScope = Workspace.sidebarIndexEventScope(
             in: workspaces,
             workspaceByID: Dictionary(uniqueKeysWithValues: workspaces.map { ($0.id, $0) }),
             scopedTo: [original.id: [panelID]]
         )
 
-        #expect(owners == [panelID: current.id])
+        #expect(eventScope.ownerByPanelID == [panelID: current.id])
+        let expectedRows: Set<UUID> = topology == "moved"
+            ? [original.id, current.id]
+            : [current.id]
+        #expect(eventScope.workspaceIDsToRefresh == expectedRows)
     }
 
     @MainActor
-    @Test("Ambiguous panel ownership is rejected for direct and restored scopes", arguments: [false, true])
+    @Test("Ambiguous owners do not arm watchers but both rows refresh", arguments: [false, true])
     func ambiguousScopedPanelOwnershipIsRejected(useCurrentScope: Bool) throws {
         let first = Workspace(initialSurface: .cloudVMLoading)
         let second = Workspace(initialSurface: .cloudVMLoading)
+        let unrelated = Workspace(initialSurface: .cloudVMLoading)
         let panelID = try #require(first.panels.keys.first)
         second.panels[panelID] = try #require(first.panels[panelID])
         let scope: [UUID: Set<UUID>] = useCurrentScope
             ? [first.id: [panelID], second.id: [panelID]]
             : [UUID(): [panelID]]
 
-        let owners = Workspace.sidebarPanelOwnership(
-            in: [first, second],
-            workspaceByID: [first.id: first, second.id: second],
+        let eventScope = Workspace.sidebarIndexEventScope(
+            in: [first, second, unrelated],
+            workspaceByID: [first.id: first, second.id: second, unrelated.id: unrelated],
             scopedTo: scope
         )
 
-        #expect(owners.isEmpty)
+        #expect(eventScope.ownerByPanelID.isEmpty)
+        #expect(eventScope.workspaceIDsToRefresh == Set([first.id, second.id]))
     }
 
     @MainActor
@@ -194,11 +200,12 @@ struct SidebarWorkspaceAgentActivityTests {
     func absentScopedPanelsDoNotRegisterOtherOwners(useDeletedPanel: Bool) {
         let workspace = Workspace(initialSurface: .cloudVMLoading)
         let scope: [UUID: Set<UUID>] = useDeletedPanel ? [UUID(): [UUID()]] : [:]
-        let owners = Workspace.sidebarPanelOwnership(
+        let eventScope = Workspace.sidebarIndexEventScope(
             in: [workspace], workspaceByID: [workspace.id: workspace], scopedTo: scope
         )
 
-        #expect(owners.isEmpty)
+        #expect(eventScope.ownerByPanelID.isEmpty)
+        #expect(eventScope.workspaceIDsToRefresh.isEmpty)
     }
 
     @MainActor
