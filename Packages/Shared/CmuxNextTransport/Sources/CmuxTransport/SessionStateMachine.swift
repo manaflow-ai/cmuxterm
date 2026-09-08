@@ -117,7 +117,7 @@ public struct SessionStateMachine: Sendable {
     /// advanced when a replacement dial starts, before that dial succeeds.
     public private(set) var activeConnectionGeneration: ConnectionGeneration?
     /// A dial was requested before the endpoint was ready (2.4).
-    public private(set) var dialDeferred = false
+    public var dialDeferred: Bool { deferredDialIntent != nil }
     /// The close was locally REQUESTED (stop, mode switch, denial parking):
     /// terminal. No later trigger may dial a requested-closed machine back
     /// up; a stopped owner that redials is the shutdown-resurrection bug.
@@ -125,6 +125,7 @@ public struct SessionStateMachine: Sendable {
     public private(set) var closedTerminally = false
 
     private var attemptCounter: UInt64 = 0
+    private var deferredDialIntent: DialIntent?
 
     public init() {}
 
@@ -142,9 +143,12 @@ public struct SessionStateMachine: Sendable {
         switch event {
         case .endpointReadyChanged(let ready):
             endpointReady = ready
-            if ready, dialDeferred {
-                dialDeferred = false
-                return beginDial()
+            if ready, let intent = deferredDialIntent {
+                deferredDialIntent = nil
+                // Readiness can change while a session or attempt is still
+                // live. Replay the intent through the normal ownership path,
+                // including joins and explicit connection retirement.
+                return handleDial(intent)
             }
             return []
 
@@ -208,7 +212,7 @@ public struct SessionStateMachine: Sendable {
                 effects.append(.cancelDial(attempt))
                 currentAttempt = nil
             }
-            dialDeferred = false
+            deferredDialIntent = nil
             activeConnectionGeneration = nil
             state = .closed(reason)
             closedTerminally = true
@@ -242,10 +246,22 @@ public struct SessionStateMachine: Sendable {
             return [.invalidEventRecorded("dialRequested after terminal close")]
         }
 
+        // Endpoint readiness gates new work, not ownership of a session or
+        // attempt that already exists. Ambient triggers must remain no-ops
+        // or joins even during a readiness flap.
+        if case .automatic = intent {
+            if state == .ready { return [] }
+            if let attempt = currentAttempt { return [.joinDial(attempt)] }
+        }
+
         // No dial before the endpoint is ready (contract 2.4). This kills the
         // launch dial race: 286 field failures dialed a dead endpoint.
         guard endpointReady else {
-            dialDeferred = true
+            if case .explicit = intent {
+                deferredDialIntent = intent
+            } else if deferredDialIntent == nil {
+                deferredDialIntent = intent
+            }
             if state == .idle || state.isClosed { state = .connecting }
             return [.deferDialUntilEndpointReady]
         }
