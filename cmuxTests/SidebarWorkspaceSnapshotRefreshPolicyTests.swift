@@ -225,7 +225,7 @@ import Testing
             checklistTotalCount: 0,
             checklistFirstUncheckedText: nil,
             remoteReconnectHelpText: "",
-            loadingTooltip: "",
+            loadingTooltip: SidebarWorkspaceRowLocalizedStrings.loadingTooltip(count: activeCodingAgentCount),
             taskStatusCompactLabel: nil,
             taskStatusTooltip: nil
         )
