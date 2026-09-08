@@ -50,7 +50,8 @@ extension TerminalSurface {
         surfaceCallbackContext?.release()
         surfaceCallbackContext = callbackContext
         let runtimeGeneration = view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: callbackContextValue.runtimeLifetimeId
+            runtimeLifetimeId: callbackContextValue.runtimeLifetimeId,
+            surfaceId: id
         )
         callbackContextValue.installPointerIngressGeneration(runtimeGeneration)
         surfaceConfig.scale_factor = scaleFactors.layer

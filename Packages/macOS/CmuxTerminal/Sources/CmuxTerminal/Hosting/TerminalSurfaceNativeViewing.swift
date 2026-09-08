@@ -40,13 +40,18 @@ public protocol TerminalSurfaceNativeViewing: NSView, TerminalSurfaceHosting {
     @discardableResult
     func forceRefreshSurface() -> Bool
 
-    /// Resets view-owned state and accepts callbacks for the native surface
-    /// lifetime that is about to be created.
-    /// - Parameter runtimeLifetimeId: The callback-context identity installed
-    ///   before the native constructor can emit actions.
+    /// Resets or reactivates view-owned state and accepts callbacks for the
+    /// native surface lifetime that is about to be created or reattached.
+    /// - Parameters:
+    ///   - runtimeLifetimeId: The callback-context identity installed before
+    ///     the native constructor can emit actions.
+    ///   - surfaceId: The logical surface identity that owns the runtime.
     /// - Returns: The ingress generation assigned to this runtime lifetime.
     @discardableResult
-    func prepareForRuntimeSurfaceCreation(runtimeLifetimeId: UUID) -> UInt64
+    func prepareForRuntimeSurfaceCreation(
+        runtimeLifetimeId: UUID,
+        surfaceId: UUID
+    ) -> UInt64
 
     /// Resets view-owned state and rejects callbacks from an ended native
     /// surface lifetime.

@@ -12,14 +12,47 @@ import Testing
 @MainActor
 @Suite("Pointer ingress semantic preservation")
 struct TerminalPointerIngressRegressionTests {
+    @Test("callback ingress uses the explicit surface identity")
+    func callbackIngressUsesExplicitSurfaceIdentity() {
+        let runtimeID = UUID()
+        let surfaceID = UUID()
+        let view = GhosttyNSView(frame: .zero)
+        let generation = view.prepareForRuntimeSurfaceCreation(
+            runtimeLifetimeId: runtimeID,
+            surfaceId: surfaceID
+        )
+        let ingress = view.pointerStyleIngress!
+
+        #expect(ingress.mailbox.snapshot.surfaceId == surfaceID)
+        #expect(ingress.submit(
+            .init(
+                event: .shape(GHOSTTY_MOUSE_SHAPE_COPY),
+                surfaceId: surfaceID,
+                runtimeLifetimeId: runtimeID,
+                runtimeGeneration: generation
+            )
+        ))
+        #expect(!ingress.submit(
+            .init(
+                event: .shape(GHOSTTY_MOUSE_SHAPE_WAIT),
+                surfaceId: UUID(),
+                runtimeLifetimeId: runtimeID,
+                runtimeGeneration: generation
+            )
+        ))
+    }
+
     @Test("coalescing preserves the last supported shape before an unsupported shape")
     func supportedIntermediateShapeSurvivesCoalescing() {
         let runtimeID = UUID()
+        let surfaceID = UUID()
         let view = GhosttyNSView(frame: .zero)
-        let generation = view.prepareForRuntimeSurfaceCreation(runtimeLifetimeId: runtimeID)
+        let generation = view.prepareForRuntimeSurfaceCreation(
+            runtimeLifetimeId: runtimeID,
+            surfaceId: surfaceID
+        )
         view.applyTerminalPointerStyle(.focusChanged(true))
         let ingress = view.pointerStyleIngress!
-        let surfaceID = ingress.mailbox.snapshot.surfaceId!
         for shape in [GHOSTTY_MOUSE_SHAPE_CROSSHAIR, GHOSTTY_MOUSE_SHAPE_COPY, GHOSTTY_MOUSE_SHAPE_WAIT] {
             ingress.submit(.init(event: .shape(shape), surfaceId: surfaceID,
                 runtimeLifetimeId: runtimeID, runtimeGeneration: generation))
@@ -33,7 +66,11 @@ struct TerminalPointerIngressRegressionTests {
     func oldSnapshotCannotCrossFocusTransition() {
         let view = GhosttyNSView(frame: .zero)
         let runtimeID = UUID()
-        view.prepareForRuntimeSurfaceCreation(runtimeLifetimeId: runtimeID)
+        let surfaceID = UUID()
+        view.prepareForRuntimeSurfaceCreation(
+            runtimeLifetimeId: runtimeID,
+            surfaceId: surfaceID
+        )
         view.applyTerminalPointerStyle(.focusChanged(true))
         view.applyTerminalPointerStyle(.ghosttyShape(GHOSTTY_MOUSE_SHAPE_COPY, runtimeLifetimeId: runtimeID))
         let oldSnapshot = view.pointerStyleIngress!.mailbox.snapshot

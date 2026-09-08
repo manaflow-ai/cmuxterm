@@ -19,10 +19,12 @@ struct TerminalPointerStyleViewTests {
         let secondRuntimeLifetimeId = UUID()
 
         firstView.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: firstRuntimeLifetimeId
+            runtimeLifetimeId: firstRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         secondView.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: secondRuntimeLifetimeId
+            runtimeLifetimeId: secondRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         firstView.applyTerminalPointerStyle(.focusChanged(true))
         secondView.applyTerminalPointerStyle(.focusChanged(true))
@@ -42,7 +44,8 @@ struct TerminalPointerStyleViewTests {
         let view = GhosttyNSView(frame: .zero)
         let oldRuntimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: oldRuntimeLifetimeId
+            runtimeLifetimeId: oldRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(.focusChanged(true))
         view.applyTerminalPointerStyle(
@@ -64,7 +67,8 @@ struct TerminalPointerStyleViewTests {
 
         let newRuntimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: newRuntimeLifetimeId
+            runtimeLifetimeId: newRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(
             .ghosttyShape(
@@ -78,12 +82,34 @@ struct TerminalPointerStyleViewTests {
         #expect(view.effectiveTerminalPointerCursor == NSCursor.crosshair)
     }
 
+    @Test("reattaching an ended runtime reactivates its pointer ingress")
+    func reattachingEndedRuntimeReactivatesPointerIngress() {
+        let view = GhosttyNSView(frame: .zero)
+        let runtimeLifetimeId = UUID()
+        let surfaceId = UUID()
+        let firstGeneration = view.prepareForRuntimeSurfaceCreation(
+            runtimeLifetimeId: runtimeLifetimeId,
+            surfaceId: surfaceId
+        )
+        view.applyTerminalPointerStyle(.focusChanged(true))
+        view.runtimeSurfaceDidEnd(runtimeLifetimeId: runtimeLifetimeId)
+
+        let secondGeneration = view.prepareForRuntimeSurfaceCreation(
+            runtimeLifetimeId: runtimeLifetimeId,
+            surfaceId: surfaceId
+        )
+        #expect(secondGeneration != firstGeneration)
+        #expect(view.pointerStyleIngress?.mailbox.snapshot.surfaceId == surfaceId)
+        #expect(view.pointerStyleIngress?.mailbox.snapshot.intent.activeRuntimeLifetimeId == runtimeLifetimeId)
+    }
+
     @Test("stale runtime teardown preserves replacement pointer state")
     func staleRuntimeTeardownPreservesReplacementPointerState() {
         let view = GhosttyNSView(frame: .zero)
         let oldRuntimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: oldRuntimeLifetimeId
+            runtimeLifetimeId: oldRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(.focusChanged(true))
         view.applyTerminalPointerStyle(
@@ -95,7 +121,8 @@ struct TerminalPointerStyleViewTests {
 
         let replacementRuntimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: replacementRuntimeLifetimeId
+            runtimeLifetimeId: replacementRuntimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(
             .ghosttyShape(
@@ -136,7 +163,8 @@ struct TerminalPointerStyleViewTests {
         let view = GhosttyNSView(frame: .zero)
         let runtimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: runtimeLifetimeId
+            runtimeLifetimeId: runtimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(.focusChanged(true))
         view.applyTerminalPointerStyle(
@@ -179,7 +207,8 @@ struct TerminalPointerStyleViewTests {
         let view = GhosttyNSView(frame: .zero)
         let runtimeLifetimeId = UUID()
         view.prepareForRuntimeSurfaceCreation(
-            runtimeLifetimeId: runtimeLifetimeId
+            runtimeLifetimeId: runtimeLifetimeId,
+            surfaceId: UUID()
         )
         view.applyTerminalPointerStyle(.focusChanged(true))
         view.applyTerminalPointerStyle(

@@ -4715,9 +4715,8 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
         terminalSurface = surface
         tabId = surface.tabId
-        if !isAlreadyAttached {
-            surface.attachToView(self)
-        } else {
+        surface.attachToView(self)
+        if isAlreadyAttached {
             surface.reconcileAttachedWindowIfNeeded(for: self)
         }
         surface.setKeyboardCopyModeActive(keyboardCopyModeActive)
@@ -5684,12 +5683,21 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     }
 
     @discardableResult
-    func prepareForRuntimeSurfaceCreation(runtimeLifetimeId: UUID) -> UInt64 {
+    func prepareForRuntimeSurfaceCreation(
+        runtimeLifetimeId: UUID,
+        surfaceId: UUID
+    ) -> UInt64 {
+        if pointerStyleRuntimeLifetimeId == runtimeLifetimeId,
+           let snapshot = pointerStyleIngress?.mailbox.snapshot,
+           snapshot.surfaceId == surfaceId,
+           snapshot.intent.activeRuntimeLifetimeId == runtimeLifetimeId {
+            return snapshot.runtimeGeneration
+        }
         pointerStyleRuntimeLifetimeId = runtimeLifetimeId
         pointerStyleRefreshFocusGeneration = nil
         let runtimeGeneration = pointerStyleIngress?.activate(
             runtimeLifetimeId: runtimeLifetimeId,
-            surfaceId: terminalSurface?.id ?? UUID()
+            surfaceId: surfaceId
         ) ?? 0
         if let snapshot = pointerStyleIngress?.mailbox.snapshot {
             applyTerminalPointerStyleSnapshot(snapshot)

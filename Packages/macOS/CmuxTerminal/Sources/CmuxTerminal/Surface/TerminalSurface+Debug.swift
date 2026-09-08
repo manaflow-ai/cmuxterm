@@ -258,7 +258,8 @@ extension TerminalSurface {
         }
         let runtimeGeneration = surfaceView.prepareForRuntimeSurfaceCreation(
             runtimeLifetimeId: callbackContext
-                .takeUnretainedValue().runtimeLifetimeId
+                .takeUnretainedValue().runtimeLifetimeId,
+            surfaceId: id
         )
         callbackContext.takeUnretainedValue()
             .installPointerIngressGeneration(runtimeGeneration)

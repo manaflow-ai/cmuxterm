@@ -577,6 +577,13 @@ extension TerminalSurface {
         // the surface can freeze visually until focus/visibility changes. Avoid forcing refresh when the attachment
         // itself is unchanged.
         if attachedView === view && surface != nil {
+            if let callbackContext = surfaceCallbackContext?.takeUnretainedValue() {
+                let runtimeGeneration = view.prepareForRuntimeSurfaceCreation(
+                    runtimeLifetimeId: callbackContext.runtimeLifetimeId,
+                    surfaceId: id
+                )
+                callbackContext.installPointerIngressGeneration(runtimeGeneration)
+            }
             releaseHeadlessStartupWindowIfNeeded(for: view)
             flushPendingManualSizeReportIfAttached()
             if isViewInWindow {
