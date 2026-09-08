@@ -79,27 +79,6 @@ extension CmuxEventBus {
         )
     }
 
-    func publishWorkspacePromptSubmitted(
-        workspaceId: UUID,
-        message: String?,
-        preview: String?,
-        source: String = "workspace.prompt_submit"
-    ) {
-        publish(
-            name: "workspace.prompt.submitted",
-            category: "workspace",
-            source: source,
-            workspaceId: workspaceId.uuidString,
-            payload: [
-                "workspace_id": workspaceId.uuidString,
-                "message": NSNull(),
-                "message_preview": preview ?? NSNull(),
-                "message_length": message?.count ?? 0,
-                "redacted_fields": ["message"]
-            ]
-        )
-    }
-
     func publishWorkspaceReordered(
         workspaceIds: [UUID],
         movedWorkspaceIds: [UUID],

@@ -9666,6 +9666,8 @@ final class GhosttySurfaceScrollView: NSView {
     private let keyboardCopyModeBadgeView: GhosttyPassthroughVisualEffectView
     private let keyboardCopyModeBadgeIconView: NSImageView
     private let keyboardCopyModeBadgeLabel: NSTextField
+    let stickyPromptHeaderOverlayView: StickyPromptHeaderOverlayView
+    let stickyPromptHeaderController = StickyPromptHeaderController()
     let linkHoverIndicatorView: TerminalLinkHoverIndicatorView
     private let imageTransferIndicatorContainerView: NSView
     private let imageTransferIndicatorView: NSVisualEffectView
@@ -9911,6 +9913,7 @@ final class GhosttySurfaceScrollView: NSView {
         keyboardCopyModeBadgeView = GhosttyPassthroughVisualEffectView(frame: .zero)
         keyboardCopyModeBadgeIconView = NSImageView(frame: .zero)
         keyboardCopyModeBadgeLabel = NSTextField(labelWithString: terminalKeyboardCopyModeIndicatorText)
+        stickyPromptHeaderOverlayView = StickyPromptHeaderOverlayView(frame: .zero)
         linkHoverIndicatorView = TerminalLinkHoverIndicatorView(frame: .zero)
         imageTransferIndicatorContainerView = NSView(frame: .zero)
         imageTransferIndicatorView = NSVisualEffectView(frame: .zero)
@@ -9942,6 +9945,7 @@ final class GhosttySurfaceScrollView: NSView {
         backgroundView.terminalScrollView = scrollView
         addSubview(backgroundView)
         addSubview(scrollView)
+        installStickyPromptHeader(above: scrollView)
         mobileViewportBorderOverlayView.isHidden = true
         addSubview(mobileViewportBorderOverlayView, positioned: .above, relativeTo: scrollView)
         paneDropTargetView.hostedView = self
@@ -10736,6 +10740,7 @@ final class GhosttySurfaceScrollView: NSView {
     func attachSurface(_ terminalSurface: TerminalSurface) {
         if surfaceView.terminalSurface !== terminalSurface { setLinkHoverURL(nil) }
         surfaceView.attachSurface(terminalSurface)
+        defer { updateStickyPromptHeader() }
         // Preserve the bootstrap 800x600 surface until portal reattach churn
         // has produced a real host size instead of a transient 1x1 placeholder.
         guard bounds.width > 1, bounds.height > 1 else { return }
@@ -13078,6 +13083,7 @@ final class GhosttySurfaceScrollView: NSView {
 
     private func handleScrollChange() {
         synchronizeSurfaceView()
+        updateStickyPromptHeader()
     }
 
     private func beginExplicitScrollbarSync(
@@ -13149,6 +13155,7 @@ final class GhosttySurfaceScrollView: NSView {
         scrollbackViewportIntent = syncDecision.intent
         let wasVisible = scrollView.hasVerticalScroller
         surfaceView.scrollbar = scrollbar
+        defer { updateStickyPromptHeader() }
         let isVisible = shouldShowTerminalScrollBar()
         if wasVisible != isVisible {
             _ = synchronizeGeometryAndContent(

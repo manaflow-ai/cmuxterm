@@ -146,11 +146,13 @@ extension TabManager {
     func handlePromptSubmit(
         workspaceId: UUID,
         message: String?,
+        surfaceId: UUID? = nil,
         iMessageModeEnabled: Bool = IMessageModeSettings.isEnabled()
     ) -> (messageRecorded: Bool, reordered: Bool, index: Int)? {
         handleConversationMessage(
             workspaceId: workspaceId,
             message: message,
+            surfaceId: surfaceId,
             iMessageModeEnabled: iMessageModeEnabled,
             kind: .promptSubmission,
             reorderWithoutMessage: true
@@ -166,6 +168,7 @@ extension TabManager {
         handleConversationMessage(
             workspaceId: workspaceId,
             message: message,
+            surfaceId: nil,
             iMessageModeEnabled: iMessageModeEnabled,
             kind: .assistantFinal,
             reorderWithoutMessage: false
@@ -175,6 +178,7 @@ extension TabManager {
     private func handleConversationMessage(
         workspaceId: UUID,
         message: String?,
+        surfaceId: UUID?,
         iMessageModeEnabled: Bool,
         kind: ConversationMessageKind,
         reorderWithoutMessage: Bool
@@ -189,11 +193,18 @@ extension TabManager {
         switch kind {
         case .promptSubmission:
             messageRecorded = workspace.recordSubmittedMessage(message)
+            let preview = Workspace.conversationMessagePreview(from: message)
+            let target = surfaceId.flatMap { workspace.terminalPanel(for: $0) }
+            let promptAnchor = preview.flatMap { preview in
+                target.flatMap { $0.hostedView.recordSubmittedPrompt(preview, surface: $0.surface) }
+            }
             if messageRecorded {
                 CmuxEventBus.shared.publishWorkspacePromptSubmitted(
                     workspaceId: workspaceId,
+                    surfaceId: target?.id,
                     message: message,
-                    preview: Workspace.conversationMessagePreview(from: message)
+                    preview: preview,
+                    promptAnchor: promptAnchor
                 )
             }
         case .assistantFinal:
@@ -212,6 +223,7 @@ extension TabManager {
         let newIndex = tabs.firstIndex(where: { $0.id == workspaceId }) ?? originalIndex
         return (messageRecorded, newIndex != originalIndex, newIndex)
     }
+
 }
 
 extension Workspace {
