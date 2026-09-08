@@ -87,7 +87,11 @@ private struct VaultHistoryContentView: View {
                     CmuxSystemSymbolImage(
                         magnified: model.groupKey.symbolName,
                         pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
-                        weight: RightSidebarChromeControlStyle.iconWeight
+                        weight: RightSidebarChromeControlStyle.iconWeight,
+                        tint: RightSidebarChromeControlStyle.pillForegroundColor(
+                            isSelected: false,
+                            isHovered: isGroupPickerHovered
+                        )
                     )
                     Text(model.groupKey.label)
                         .cmuxFont(
@@ -166,9 +170,9 @@ private struct VaultHistoryContentView: View {
             CmuxSystemSymbolImage(
                 magnified: "clock.arrow.circlepath",
                 pointSize: 22,
-                weight: .regular
+                weight: .regular,
+                tint: .secondary.opacity(0.65)
             )
-                .foregroundColor(.secondary.opacity(0.65))
             ProgressView().controlSize(.small)
             Text(String(
                 localized: "vaultHistory.loading",
@@ -185,9 +189,9 @@ private struct VaultHistoryContentView: View {
             CmuxSystemSymbolImage(
                 magnified: "clock.arrow.circlepath",
                 pointSize: 28,
-                weight: .light
+                weight: .light,
+                tint: .secondary.opacity(0.55)
             )
-                .foregroundColor(.secondary.opacity(0.55))
             Text(String(
                 localized: "vaultHistory.empty.title",
                 defaultValue: "No history yet"

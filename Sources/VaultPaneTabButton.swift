@@ -14,7 +14,11 @@ struct VaultPaneTabButton: View {
                 CmuxSystemSymbolImage(
                     magnified: tab.symbolName,
                     pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
-                    weight: RightSidebarChromeControlStyle.iconWeight
+                    weight: RightSidebarChromeControlStyle.iconWeight,
+                    tint: RightSidebarChromeControlStyle.pillForegroundColor(
+                        isSelected: isSelected,
+                        isHovered: isHovered
+                    )
                 )
                 Text(tab.label)
                     .cmuxFont(

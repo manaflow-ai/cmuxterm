@@ -39,9 +39,9 @@ struct VaultHistoryGroupHeader: View, Equatable {
             CmuxSystemSymbolImage(
                 magnified: key.symbolName,
                 pointSize: 14,
-                weight: .regular
+                weight: .regular,
+                tint: .secondary
             )
-            .foregroundColor(.secondary)
             Text(title)
                 .cmuxFont(size: 12, weight: .semibold)
                 .foregroundColor(.secondary)

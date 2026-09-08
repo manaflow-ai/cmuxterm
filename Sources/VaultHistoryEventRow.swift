@@ -71,9 +71,9 @@ struct VaultHistoryEventRow: View, Equatable {
             CmuxSystemSymbolImage(
                 magnified: event.kind.symbolName,
                 pointSize: 11,
-                weight: .regular
+                weight: .regular,
+                tint: iconColor
             )
-            .foregroundColor(iconColor)
         }
     }
 
