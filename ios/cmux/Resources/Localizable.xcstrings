@@ -84923,43 +84923,43 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auf diesem Mac ist ein neueres cmux Nightly erforderlich. Aktualisiere cmux auf diesem Mac auf %1$@ oder neuer, um eine Verbindung herzustellen."
+            "value": "Auf diesem Mac ist ein neueres cmux Nightly erforderlich. Aktualisiere cmux Nightly auf diesem Mac auf %1$@ oder neuer, um eine Verbindung herzustellen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce Mac nécessite une version plus récente de cmux Nightly. Mettez cmux à jour sur ce Mac vers %1$@ ou une version ultérieure pour vous connecter."
+            "value": "Ce Mac nécessite une version plus récente de cmux Nightly. Mettez cmux Nightly à jour sur ce Mac vers %1$@ ou une version ultérieure pour vous connecter."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يحتاج هذا الـMac إلى إصدار أحدث من cmux Nightly. حدّث cmux على هذا الـMac إلى %1$@ أو أحدث للاتصال."
+            "value": "يحتاج هذا الـMac إلى إصدار أحدث من cmux Nightly. حدّث cmux Nightly على هذا الـMac إلى %1$@ أو أحدث للاتصال."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este Mac necesita una versión más reciente de cmux Nightly. Actualiza cmux en este Mac a %1$@ o posterior para conectarte."
+            "value": "Este Mac necesita una versión más reciente de cmux Nightly. Actualiza cmux Nightly en este Mac a %1$@ o posterior para conectarte."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 Mac 需要較新的 cmux Nightly。請將此 Mac 上的 cmux 更新至 %1$@ 或更新版本才能連線。"
+            "value": "此 Mac 需要較新的 cmux Nightly。請將此 Mac 上的 cmux Nightly 更新至 %1$@ 或更新版本才能連線。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "此 Mac 需要更新的 cmux Nightly。请将此 Mac 上的 cmux 更新到 %1$@ 或更高版本后再连接。"
+            "value": "此 Mac 需要更新的 cmux Nightly。请将此 Mac 上的 cmux Nightly 更新到 %1$@ 或更高版本后再连接。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 Mac에 최신 cmux Nightly가 필요합니다. 연결하려면 이 Mac의 cmux를 %1$@ 이상으로 업데이트하세요."
+            "value": "이 Mac에 최신 cmux Nightly가 필요합니다. 연결하려면 이 Mac의 cmux Nightly를 %1$@ 이상으로 업데이트하세요."
           }
         }
       }
