@@ -557,7 +557,7 @@ struct SessionEntryResumeLaunchTests {
         )
     }
 
-    @Test("Vault active-session keys follow foreground shell activity")
+    @Test("Vault active-session keys and focus follow foreground shell activity")
     func inPaneSessionKeysDropAfterAgentReturnsToShell() throws {
         let manager = TabManager(
             initialWorkingDirectory: "/tmp/vault-active-session",
@@ -566,6 +566,7 @@ struct SessionEntryResumeLaunchTests {
         defer { manager.tabs.forEach { $0.teardownAllPanels() } }
         let workspace = try #require(manager.selectedWorkspace)
         let paneID = try #require(workspace.bonsplitController.focusedPaneId)
+        let originalPanelID = try #require(workspace.focusedPanelId)
         let entry = SessionEntry(
             id: "codex:active-session",
             agent: .codex,
@@ -593,11 +594,29 @@ struct SessionEntryResumeLaunchTests {
             startupRestoreAgent: snapshot
         ))
         let key = VaultLiveSessionKeys.key(for: entry)
+        let coordinator = SessionEntryResumeCoordinator()
+
+        workspace.panelShellActivityStates.removeValue(forKey: panel.id)
+        #expect(!coordinator.inPaneSessionKeys(tabManager: manager).contains(key))
+        #expect(coordinator.activeTarget(for: entry, tabManager: manager) == nil)
+        #expect(!coordinator.focusIfActive(entry, tabManager: manager))
 
         workspace.updatePanelShellActivityState(panelId: panel.id, state: .commandRunning)
-        #expect(SessionEntryResumeCoordinator().inPaneSessionKeys(tabManager: manager).contains(key))
+        #expect(coordinator.inPaneSessionKeys(tabManager: manager).contains(key))
+        let target = try #require(coordinator.activeTarget(for: entry, tabManager: manager))
+        #expect(target.workspaceID == workspace.id)
+        #expect(target.surfaceID == panel.id)
+        manager.focusTab(workspace.id, surfaceId: originalPanelID)
+        #expect(workspace.focusedPanelId == originalPanelID)
+        #expect(coordinator.focusIfActive(entry, tabManager: manager))
+        #expect(workspace.focusedPanelId == panel.id)
 
         workspace.updatePanelShellActivityState(panelId: panel.id, state: .promptIdle)
-        #expect(!SessionEntryResumeCoordinator().inPaneSessionKeys(tabManager: manager).contains(key))
+        manager.focusTab(workspace.id, surfaceId: originalPanelID)
+        #expect(workspace.restoredAgentSnapshotsByPanelId[panel.id]?.sessionId == entry.sessionId)
+        #expect(!coordinator.inPaneSessionKeys(tabManager: manager).contains(key))
+        #expect(coordinator.activeTarget(for: entry, tabManager: manager) == nil)
+        #expect(!coordinator.focusIfActive(entry, tabManager: manager))
+        #expect(workspace.focusedPanelId == originalPanelID)
     }
 }
