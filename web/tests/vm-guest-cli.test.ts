@@ -1021,6 +1021,14 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values.KEY).toBe("last");
     });
 
+    test("explicit assignments preserve literal quotes, hashes, and surrounding whitespace", () => {
+      const dir = makeStatefulDir();
+      expect(runStateful(dir, ["env", "set", 'VALUE= "quoted" # literal ']).status).toBe(0);
+      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values.VALUE).toBe(' "quoted" # literal ');
+      expect(runStateful(dir, ["env", "set", "VALUE=line\nINJECTED=yes"]).status).toBe(2);
+      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values).toEqual({ VALUE: ' "quoted" # literal ' });
+    });
+
     test("rm removes only the named keys; invalid keys and empty sets are usage errors; path prints the file", () => {
       const dir = makeStatefulDir();
       runStateful(dir, ["env", "set", "A=1", "B=2", "C=3"]);
