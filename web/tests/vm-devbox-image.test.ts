@@ -79,6 +79,7 @@ describe("devbox image template", () => {
       "cmux-motd",
       "cmux-terminfo.sh",
       "cmux-terminfo.src",
+      "codex-managed.toml",
       // The desktop layer (Freestyle only); pinned by vm-devbox-desktop.test.ts.
       "desktop",
       "seed-history",
@@ -93,6 +94,7 @@ describe("devbox image template", () => {
       "cmux-motd",
       "cmux-terminfo.sh",
       "cmux-terminfo.src",
+      "codex-managed.toml",
       "seed-history",
     ]);
   });
@@ -191,6 +193,19 @@ describe("devbox image template", () => {
     for (const line of faceLines) {
       expect(line).not.toContain("bg=");
     }
+  });
+
+  test("keeps Alt+Backspace word delete working in ble.sh", () => {
+    // Once ble.sh identifies the terminal from its DA2 reply it enables xterm
+    // modifyOtherKeys, and then Alt+Backspace does nothing: the legacy ESC DEL
+    // binding is gone and CSI 27;3;127~ does not decode back to M-C-?. Cloud
+    // panes send the legacy form, so the bashrc pins the legacy encoding and
+    // binds both backspace spellings.
+    expect(bashrc).toContain(
+      "bleopt term_modifyOtherKeys_internal=0 term_modifyOtherKeys_external=0",
+    );
+    expect(bashrc).toContain("ble-bind -f 'M-C-?' kill-backward-cword");
+    expect(bashrc).toContain("ble-bind -f 'M-C-h' kill-backward-cword");
   });
 
   test("bakes ble.sh cache seeds for every shared devbox provider", () => {
@@ -597,8 +612,8 @@ describe("devbox image template", () => {
   });
 
   test("claude transcript retention is pinned everywhere", () => {
-    expect(dockerfile).toContain('{ "cleanupPeriodDays": 99999 }');
-    expect(readScript("build-devbox-freestyle.ts")).toContain('{ "cleanupPeriodDays": 99999 }');
+    expect(dockerfile).toContain('{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }');
+    expect(readScript("build-devbox-freestyle.ts")).toContain('{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }');
   });
 
   test("never installs docker (deliberate image-scope choice)", () => {

@@ -14,7 +14,6 @@ import LocalAuthentication
 import Security
 #endif
 
-
 struct WindowInfo {
     let index: Int
     let id: String

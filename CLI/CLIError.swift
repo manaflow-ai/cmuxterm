@@ -1,10 +1,5 @@
 import Foundation
 
-/// The CLI's error type. It lives in its own file rather than in `cmux.swift`
-/// so targets that compile CLI value types without the CLI entry point — the
-/// `cmuxTests` bundle, which exercises the local-tmux builders and parsers
-/// directly — can link it. `cmux.swift` carries the top-level program, which a
-/// test bundle cannot compile.
 struct CLIError: Error, CustomStringConvertible {
     enum SocketFailureKind: Equatable {
         case pathMissing
