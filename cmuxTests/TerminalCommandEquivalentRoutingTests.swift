@@ -106,7 +106,7 @@ struct TerminalCommandEquivalentRoutingTests {
                 ("Paste", "v", [.command], #selector(MenuActionProbe.pasteAction(_:))),
                 (
                     "Paste and Match Style",
-                    "v",
+                    "V",
                     [.command, .shift],
                     #selector(MenuActionProbe.pasteAndMatchStyleAction(_:))
                 ),
@@ -125,7 +125,7 @@ struct TerminalCommandEquivalentRoutingTests {
             windowNumber: window.windowNumber
         ))
         let shiftedPasteEvent = try #require(makeKeyDownEvent(
-            key: "v",
+            key: "V",
             keyCode: UInt16(kVK_ANSI_V),
             modifierFlags: [.command, .shift],
             windowNumber: window.windowNumber
