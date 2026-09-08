@@ -2474,28 +2474,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         PhoneReplyInboxClient.shared.configure(auth: auth.coordinator)
         PhoneReplyInboxCoordinator.shared.configure(client: PhoneReplyInboxClient.shared)
-        // Relayed phone replies type through the SAME paste-and-submit
-        // entrypoint as the phone's direct RPC sends, so both lanes share claim
-        // resolution and key-event submission semantics.
+        // Relayed phone replies share the direct RPC paste-and-submit path,
+        // including named Return-key submission and partial-success semantics.
         PhoneReplyInboxCoordinator.shared.injectTerminalInput = { [weak self] params, retargetsToLiveSurfaceOwner in
             guard let self else { return .permanentlyUndeliverable }
-            let routedParams: [String: Any]
-            if retargetsToLiveSurfaceOwner {
-                guard let surfaceID = TerminalController.shared.v2UUID(params, "surface_id"),
-                      let target = self.agentNotificationDeliveryTarget(
-                          claimedTabId: TerminalController.shared.v2UUID(params, "workspace_id"),
-                          surfaceId: surfaceID
-                      ) else {
-                    return .retryable
+            let controller = TerminalController.shared
+            // The inbox payload always carries a stable surface id. Resolve it
+            // before entering the generic mobile RPC so a launch-time workspace
+            // claim cannot route the reply to a stale manager.
+            guard let routedParams = self.phoneReplyTerminalInputParams(
+                params,
+                retargetsToLiveSurfaceOwner: retargetsToLiveSurfaceOwner
+            ) else {
+                // A valid surface can be temporarily absent while a window,
+                // Dock, or remote-tmux projection is being rebuilt. The inbox
+                // has a server-side TTL, so keep that bounded retry alive;
+                // malformed payloads are the only immediate permanent case.
+                let hasValidSurfaceID = controller.v2UUID(params, "surface_id") != nil
+                let hasWorkspaceID = controller.v2HasNonNullParam(params, "workspace_id")
+                let hasValidWorkspaceID = controller.v2UUID(params, "workspace_id") != nil
+                if !retargetsToLiveSurfaceOwner, !hasWorkspaceID {
+                    return .permanentlyUndeliverable
                 }
-                var resolved = params
-                resolved["workspace_id"] = target.tabId.uuidString
-                resolved["surface_id"] = (target.surfaceId ?? surfaceID).uuidString
-                routedParams = resolved
-            } else {
-                routedParams = params
+                guard hasValidSurfaceID,
+                      (!hasWorkspaceID || hasValidWorkspaceID) else {
+                    return .permanentlyUndeliverable
+                }
+                return .retryable
             }
-            switch TerminalController.shared.v2MobileTerminalPaste(params: routedParams) {
+            switch controller.v2MobileTerminalPaste(params: routedParams) {
             case .ok:
                 // `terminal.paste` applies the text before it attempts the
                 // named key. A false `submitted` flag is therefore a partial
@@ -2505,16 +2512,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 // can press Return manually if the key was rejected.
                 return .delivered
             case .err(let code, _, _):
-                // `not_found` is transient here, not proof the target is gone:
-                // the sweep can run while session restore is still loading the
-                // claimed workspace. Retrying is bounded by the reply's
-                // server-side TTL, so a truly-deleted surface ages out instead
-                // of silently discarding the user's reply on first sight.
-                return code == "input_queue_full"
-                    || code == "surface_unavailable"
-                    || code == "not_found"
-                    ? .retryable
-                    : .permanentlyUndeliverable
+                if code == "input_queue_full" || code == "surface_unavailable" {
+                    return .retryable
+                }
+                guard code == "not_found" else {
+                    return .permanentlyUndeliverable
+                }
+                // A surface can be absent while startup/session restoration is
+                // still rebuilding its workspace. Once that pass has finished,
+                // a stable-surface lookup miss is authoritative and the parked
+                // reply must be acknowledged instead of retrying until TTL.
+                let restorationPending = !self.didAttemptStartupSessionRestore
+                    || self.isApplyingSessionRestore
+                return restorationPending ? .retryable : .permanentlyUndeliverable
             }
         }
         connectivityInvalidationSubscriberCoordinator.configure(auth: auth.coordinator)
@@ -10079,7 +10089,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             pullRequestProbeService: pullRequestProbeService,
             workspaceCustomizationStore: self.tabManager?.workspaceCustomizationStore
                 ?? WorkspaceCustomizationStore(defaults: .standard),
-            nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker
+            nativeSSHConnectionBroker: TerminalController.shared.nativeSSHConnectionBroker,
+            fileContentChangeCoordinator: self.tabManager?.fileContentChangeCoordinator
         )
         tabManager.windowId = windowId
         if let sessionWindowSnapshot {

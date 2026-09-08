@@ -2448,7 +2448,8 @@ struct ContentView: View {
                         inPane: paneId,
                         filePaths: [localURL.path],
                         focus: true,
-                        reuseExisting: true
+                        reuseExisting: true,
+                        duplicateWhenFocused: true
                     )
                 } catch {
                     NSSound.beep()
@@ -2460,7 +2461,8 @@ struct ContentView: View {
             inPane: paneId,
             filePaths: [filePath],
             focus: true,
-            reuseExisting: true
+            reuseExisting: true,
+            duplicateWhenFocused: true
         )
     }
 
