@@ -99,7 +99,7 @@ extension MobileShellComposite {
         // callback. Keep this generation marked until its acknowledgement
         // settles so registration can let that acknowledgement own the cold
         // replay instead of racing it with a second request.
-        terminalViewportPreparationGenerationsBySurfaceID[surfaceID] = requestGeneration
+        terminalViewportPreparationGenerationsBySequenceKey[sequenceKey] = requestGeneration
         return MobileTerminalViewportPreparation(
             workspaceID: workspaceID,
             ownerKey: ownerKey,
@@ -134,9 +134,11 @@ extension MobileShellComposite {
             terminalID: MobileTerminalPreview.ID(rawValue: surfaceID)
         )
         func finishPreparation(requestColdReplay: Bool = false) {
-            guard terminalViewportPreparationGenerationsBySurfaceID[surfaceID]
+            guard terminalViewportPreparationGenerationsBySequenceKey[sequenceKey]
                     == requestGeneration else { return }
-            terminalViewportPreparationGenerationsBySurfaceID.removeValue(forKey: surfaceID)
+            terminalViewportPreparationGenerationsBySequenceKey.removeValue(
+                forKey: sequenceKey
+            )
             if requestColdReplay, hasTerminalOutputSink(surfaceID: surfaceID) {
                 requestColdAttachTerminalReplay(surfaceID: surfaceID)
             }
@@ -346,7 +348,12 @@ extension MobileShellComposite {
     /// detach). Fire-and-forget; the Mac also clears on connection close.
     public func clearTerminalViewport(surfaceID: String) {
         recordAppEvent(.terminalViewportClearStarted, correlationID: surfaceID)
-        terminalViewportPreparationGenerationsBySurfaceID.removeValue(forKey: surfaceID)
+        terminalViewportPreparationGenerationsBySequenceKey.removeValue(
+            forKey: MobileTerminalViewportSequenceKey(
+                ownerKey: foregroundMacKey,
+                surfaceID: surfaceID
+            )
+        )
         let workspaceID = workspaceID(forTerminalID: surfaceID)
         // A clear releases the presentation's full local viewport lease. Any
         // replay, input, or paste that races after this point must not carry
