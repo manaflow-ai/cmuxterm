@@ -112,7 +112,7 @@ describe("coderouter accounts section", () => {
     expect(html).toContain('role="tablist"');
     expect(html).toContain('role="tabpanel"');
     // Base UI marks the current tab with data-active; the selected styles key off it.
-    const activeTab = html.match(/<button[^>]*role="tab"[^>]*data-active[^>]*>([^<]+)</)?.[1];
+    const activeTab = html.match(/<button[^>]*\bdata-active=""[^>]*>([^<]+)</)?.[1];
     expect(activeTab).toBe("Anthropic API key");
     expect(html).toMatch(/data-\[active\]:border-foreground/);
     expect(tabs).toEqual([
