@@ -237,7 +237,7 @@ final class HiveComputerMirrorController {
         while mirror.workspaceIdByRemoteID.isEmpty, attempts < 40 {
             do {
                 try await ContinuousClock().sleep(for: .milliseconds(250))
-            } catch is CancellationError {
+            } catch {
                 return nil
             }
             attempts += 1
