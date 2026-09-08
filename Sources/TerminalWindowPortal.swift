@@ -2573,9 +2573,8 @@ final class WindowTerminalPortal: NSObject {
         presentationNotificationSchedulers.removeAll(keepingCapacity: false)
         isTearingDown = false
         rootBackdropExclusionScheduler.cancel()
-        if updateRootBackdropExclusionCache() {
-            publishRootBackdropExclusions()
-        }
+        _ = updateRootBackdropExclusionCache()
+        publishRootBackdropExclusions()
         hostView.removeFromSuperview()
         installedContainerView = nil
         installedReferenceView = nil
