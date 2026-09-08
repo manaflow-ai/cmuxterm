@@ -254,7 +254,6 @@ struct WorkspaceShellView: View {
     // instead of stranding the user on a deactivated search tab whose selected
     // (tinted) search control suggests a search is still in progress.
     @State private var searchSelectionReturnsToWorkspaces = false
-    @State private var restoreNotificationSearchOnPop = false
     @State private var rootToolbarMachineSnapshots: WorkspaceMachineSnapshots?
     @State private var rootToolbarPendingSelection: WorkspaceMacSelection?
     @State private var rootToolbarSelectionTask: Task<Void, Never>?
@@ -374,7 +373,6 @@ struct WorkspaceShellView: View {
                     notificationSearchNavigationPath = []
                     workspaceSearchNavigationPath = []
                     searchSelectionReturnsToWorkspaces = false
-                    restoreNotificationSearchOnPop = false
                 }
             }
             .onChange(of: visibleSimulatorWorkspaceID) { previousWorkspaceID, workspaceID in
@@ -465,12 +463,8 @@ struct WorkspaceShellView: View {
             .onChange(of: pendingPrimarySearchNotificationNavigationID) { _, _ in
                 consumePendingPrimarySearchNavigation(for: .notifications)
             }
-        } workspaceSearch: {
-            workspaceSearchTabContent(
-                canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
-            )
-        } notificationSearch: {
-            notificationSearchTabContent(presentation: presentation)
+        } search: {
+            primarySearchTabContent(presentation: presentation)
         }
     }
     #endif
@@ -491,42 +485,59 @@ struct WorkspaceShellView: View {
     }
     #endif
 
-    private func workspaceSearchTabContent(canCreateWorkspaceForSelection: Bool) -> some View {
+    private var primarySearchNavigationPath: Binding<[MobileWorkspacePreview.ID]> {
+        primarySearchCoordinator.scope == .workspaces
+            ? $workspaceSearchNavigationPath
+            : $notificationSearchNavigationPath
+    }
+
+    private func primarySearchTabContent(
+        presentation: WorkspaceShellRenderPresentation
+    ) -> some View {
         workspaceActionToastOverlay {
-            NavigationStack(path: $workspaceSearchNavigationPath) {
-                MobilePrimaryWorkspaceSearchContentHost(
-                    searchCoordinator: primarySearchCoordinator
-                ) { searchText in
-                    workspaceList(
-                        navigationStyle: .push,
-                        searchText: searchText,
-                        canCreateWorkspaceForSelection: canCreateWorkspaceForSelection,
-                        showsNavigationToolbar: true,
-                        selectWorkspaceAction: selectWorkspaceFromSearch,
-                        createWorkspaceAction: createWorkspaceFromSearch,
-                        createWorkspaceInGroupAction: createWorkspaceInGroupFromSearchClosure,
-                        createWorkspaceGroupAction: createWorkspaceGroupFromSearchClosure
-                    )
+            MobilePrimarySearchNavigationStack(
+                path: primarySearchNavigationPath,
+                selection: $selectedPrimaryTab,
+                searchCoordinator: primarySearchCoordinator
+            ) {
+                Group {
+                    switch primarySearchCoordinator.scope {
+                    case .workspaces:
+                        MobilePrimaryWorkspaceSearchContentHost(
+                            searchCoordinator: primarySearchCoordinator
+                        ) { searchText in
+                            workspaceList(
+                                navigationStyle: .push,
+                                searchText: searchText,
+                                canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection,
+                                showsNavigationToolbar: true,
+                                selectWorkspaceAction: selectWorkspaceFromSearch,
+                                createWorkspaceAction: createWorkspaceFromSearch,
+                                createWorkspaceInGroupAction: createWorkspaceInGroupFromSearchClosure,
+                                createWorkspaceGroupAction: createWorkspaceGroupFromSearchClosure
+                            )
+                        }
+                    case .notifications:
+                        NotificationFeedStoreView(
+                            store: store,
+                            items: presentation.notificationFeedItems,
+                            status: presentation.notificationFeedStatus,
+                            projection: notificationFeedProjection,
+                            selectedMacDeviceIDs: presentation.selectedNotificationFeedMacDeviceIDs
+                        )
+                    }
                 }
                 .toolbar {
-                    if workspaceSearchNavigationPath.isEmpty {
+                    if primarySearchNavigationPath.wrappedValue.isEmpty {
                         rootToolbarContent
                     }
                 }
-                // Selecting a search result opens the workspace inside the
-                // search tab's own stack, exactly like notification search.
-                // Transitioning to the Workspaces tab and pushing on its stack
-                // from here raced the search-field dismissal and could record
-                // the push without performing it, stranding the list with no
-                // tab bar (the "stuck after selecting from search" bug).
-                .navigationDestination(for: MobileWorkspacePreview.ID.self) { workspaceID in
-                    workspaceDestination(
-                        for: workspaceID,
-                        createWorkspace: createWorkspaceInCompactStack,
-                        canCreateWorkspaceForSelection: canCreateWorkspaceForSelection
-                    )
-                    .toolbarVisibility(.hidden, for: .tabBar)
-                }
+            } destination: { workspaceID in
+                workspaceDestination(
+                    for: workspaceID,
+                    createWorkspace: createWorkspaceInCompactStack,
+                    canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
+                )
             }
         }
     }
@@ -549,50 +560,6 @@ struct WorkspaceShellView: View {
                 .padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .accessibilityIdentifier("MobileWorkspaceActionToast")
-            }
-        }
-    }
-
-    private func notificationSearchTabContent(
-        presentation: WorkspaceShellRenderPresentation
-    ) -> some View {
-        NavigationStack(path: $notificationSearchNavigationPath) {
-            NotificationFeedStoreView(
-                store: store,
-                items: presentation.notificationFeedItems,
-                status: presentation.notificationFeedStatus,
-                projection: notificationFeedProjection,
-                selectedMacDeviceIDs: presentation.selectedNotificationFeedMacDeviceIDs
-            )
-            .toolbar {
-                if notificationSearchNavigationPath.isEmpty {
-                    rootToolbarContent
-                }
-            }
-                .navigationDestination(for: MobileWorkspacePreview.ID.self) { workspaceID in
-                    workspaceDestination(
-                        for: workspaceID,
-                        createWorkspace: createWorkspaceInCompactStack,
-                        canCreateWorkspaceForSelection: presentation.canCreateWorkspaceForSelection
-                    )
-                    .toolbarVisibility(.hidden, for: .tabBar)
-            }
-            // Keep the tab bar hidden only while the detail route is active so
-            // the restored search control returns to its bottom placement.
-            .toolbarVisibility(
-                notificationSearchNavigationPath.isEmpty ? .automatic : .hidden,
-                for: .tabBar
-            )
-            .onChange(of: notificationSearchNavigationPath) { oldPath, newPath in
-                guard !oldPath.isEmpty,
-                      newPath.isEmpty,
-                      restoreNotificationSearchOnPop else { return }
-                restoreNotificationSearchOnPop = false
-                guard selectedPrimaryTab == .search else { return }
-                // Back is the authoritative transition out of the detail
-                // route. Restore the native search session from that state
-                // change instead of relying on a destination lifecycle callback.
-                primarySearchCoordinator.setPresentation(true)
             }
         }
     }
@@ -1508,7 +1475,6 @@ struct WorkspaceShellView: View {
             ) {
             case .mountedNotificationSearch:
                 primarySearchCoordinator.deactivateCurrentSearch()
-                restoreNotificationSearchOnPop = true
                 if notificationSearchNavigationPath.last != workspaceID {
                     notificationSearchNavigationPath = [workspaceID]
                 }
