@@ -225873,13 +225873,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A shared video queue plays behind every terminal window. New windows join the same video and playhead; audio is opt-in."
+            "value": "A shared video queue plays behind every terminal window. YouTube playlists keep an independent playhead in each window; audio is opt-in."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてのターミナルウィンドウの背後で共有ビデオキューを再生します。新しいウィンドウも同じビデオと再生位置に参加し、音声はオプトインです。"
+            "value": "すべてのターミナルウィンドウの背後で共有ビデオキューを再生します。YouTube プレイリストの再生位置はウィンドウごとに独立し、音声はオプトインです。"
           }
         }
       }
@@ -226047,8 +226047,8 @@
     "settings.terminal.videoBackground.queue.subtitle": {
       "extractionState": "manual",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Entries play in order and repeat. Every terminal window shares this queue and its current playhead." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "エントリを順番に再生して繰り返します。すべてのターミナルウィンドウでキューと再生位置を共有します。" } }
+        "en": { "stringUnit": { "state": "translated", "value": "Entries play in order and repeat. Windows share this queue; only individual videos and local files share a playhead." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "エントリを順番に再生して繰り返します。ウィンドウ間でキューを共有し、再生位置は単体の動画とローカルファイルのみで共有します。" } }
       }
     },
     "settings.terminal.videoBackground.queue.empty": {

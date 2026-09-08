@@ -50,7 +50,7 @@ struct TerminalVideoBackgroundCard: View {
                 configurationReview: .json("terminal.videoBackground.enabled"),
                 String(localized: "settings.terminal.videoBackground", defaultValue: "Video Background"),
                 subtitle: enabled.current
-                    ? String(localized: "settings.terminal.videoBackground.subtitleOn", defaultValue: "A shared video queue plays behind every terminal window. New windows join the same video and playhead.")
+                    ? String(localized: "settings.terminal.videoBackground.subtitleOn", defaultValue: "A shared video queue plays behind every terminal window. YouTube playlists keep an independent playhead in each window; audio is opt-in.")
                     : String(localized: "settings.terminal.videoBackground.subtitleOff", defaultValue: "Terminal windows use the regular static background.")
             ) {
                 Toggle("", isOn: Binding(get: { enabled.current }, set: { requestEnabled($0) }))
@@ -163,7 +163,7 @@ struct TerminalVideoBackgroundCard: View {
         return SettingsCardRow(
             configurationReview: .json("terminal.videoBackground.queue"),
             String(localized: "settings.terminal.videoBackground.queue", defaultValue: "Video Queue"),
-            subtitle: String(localized: "settings.terminal.videoBackground.queue.subtitle", defaultValue: "Entries play in order and repeat. Every terminal window shares this queue and its current playhead."),
+            subtitle: String(localized: "settings.terminal.videoBackground.queue.subtitle", defaultValue: "Entries play in order and repeat. Windows share this queue; only individual videos and local files share a playhead."),
             controlWidth: 290
         ) {
             VStack(alignment: .trailing, spacing: 6) {

@@ -214,9 +214,13 @@ public struct VideoBackgroundEmbedPage: Sendable {
 
           function applyPendingPosition(target) {
             if (!hasPendingPosition || !target || typeof target.seekTo !== 'function') { return; }
+            if (isPlaylist) {
+              hasPendingPosition = false;
+              return;
+            }
             var duration = typeof target.getDuration === 'function' ? target.getDuration() : 0;
             if (!isFinite(duration) || duration <= 0) { return; }
-            var position = !queueManaged && !isPlaylist
+            var position = !queueManaged
               ? pendingPosition % duration : Math.min(pendingPosition, duration);
             hasPendingPosition = false;
             target.seekTo(position, true);

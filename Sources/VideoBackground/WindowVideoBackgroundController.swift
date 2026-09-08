@@ -25,7 +25,8 @@ final class VideoBackgroundPresentation {
 /// Each window still owns a lightweight player view (WebKit cannot be mounted
 /// in two windows at once), but all controllers consume this one coordinator's
 /// source index, generation, and elapsed playhead. A newly created terminal
-/// therefore joins the currently playing item instead of restarting at zero;
+/// therefore joins the current queue entry. Individual videos and local files
+/// also share a playhead; YouTube playlists retain independent item timelines.
 /// an end event from any window advances every other window exactly once. The
 /// clock advances only while at least one registered player is running, and a
 /// failed queue entry is skipped at most once so an all-failing queue settles.

@@ -141,7 +141,7 @@ Enable routine hibernation from the command palette (`⌘⇧P` -> Enable Agent H
 
 ## `terminal.videoBackground`
 
-Opt-in dynamic video background: a non-interactive video plays behind terminal content in every window, dimmed so text stays readable and silent by default. The video layer never takes clicks or keystrokes, and playback pauses automatically while the window is occluded or minimized, during system sleep, and in Low Power Mode. YouTube embeds use a selectable quality cap (1080p by default) and every terminal window shares the same queue and playhead.
+Opt-in dynamic video background: a non-interactive video plays behind terminal content in every window, dimmed so text stays readable and silent by default. The video layer never takes clicks or keystrokes, and playback pauses automatically while the window is occluded or minimized, during system sleep, and in Low Power Mode. YouTube embeds use a selectable quality cap (1080p by default) and every terminal window shares the same queue. Individual YouTube videos and local files share a playhead; YouTube playlists play independently within each window because a playlist's total elapsed time cannot identify a timestamp within one of its videos.
 
 ```json
 {
@@ -164,7 +164,7 @@ Opt-in dynamic video background: a non-interactive video plays behind terminal c
 
 - `enabled`: turn the video background on. Default: `false`.
 - `source`: a YouTube video or playlist URL (playlists loop and advance automatically via the YouTube iframe embed), a raw YouTube video/playlist ID, or a local `.mp4`/`.m4v`/`.mov` file path played with AVFoundation. If a YouTube embed refuses to play (embedding disabled), the layer disappears and the terminal is unaffected; edit the source to retry.
-- `queue`: an ordered array of video URLs/IDs or local file paths. Entries play one after another and repeat from the beginning; an empty queue falls back to `source` for compatibility. New terminal windows join the same queue and playhead.
+- `queue`: an ordered array of video URLs/IDs or local file paths. Entries play one after another and repeat from the beginning; an empty queue falls back to `source` for compatibility. New terminal windows join the same queue. Individual videos and local files share a playhead; playlist entries retain independent playback positions within each window. A queue-managed playlist advances the shared queue only after its final video. If YouTube does not expose playlist metadata, the app defers queue advancement rather than guessing that an intermediate video ended the playlist.
 - `quality`: YouTube stream cap: `720p`, `1080p`, `1440p`, or `2160p` (`4k`). The default is `1080p`; local files always use their native stream.
 - `volume`: audio volume from `0` (silent) to `1` (full). It is applied when `muted` is `false`; default: `1`.
 - `muted`: keep the video silent. Set `false` to play its audio; only the most recently active cmux window plays sound (audio follows keyboard focus between cmux windows and keeps playing while you work in another app), and it stops whenever the video pauses. Default: `true`.

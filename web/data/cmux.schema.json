@@ -708,7 +708,7 @@
               "maxItems": 128,
               "default": [],
               "descriptionKey": "schemaDescriptions.terminal.videoBackgroundQueue",
-              "description": "Ordered video URLs/IDs or local file paths played one after another and repeated. An empty queue falls back to source; new terminal windows share the queue and playhead."
+              "description": "Ordered video URLs/IDs or local file paths played one after another and repeated. An empty queue falls back to source. Windows share the queue; YouTube playlists keep independent playheads."
             },
             "quality": {
               "type": "string",
