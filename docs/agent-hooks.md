@@ -37,18 +37,34 @@ Supported agent names are `codex`, `grok`, `opencode`, `pi`, `omp`, `campfire`, 
 
 ### Codex wrapper precedence
 
-When cmux launches Codex, the wrapper adds its lifecycle and Feed handlers for
-that invocation only. Codex treats each command-line `-c hooks.<event>=...`
-assignment as the complete value for that event, so cmux reads the existing
-array from `hooks.json` and appends its handler after the user-owned groups.
-User handlers therefore run first, followed by cmux's handler; cmux does not
-rewrite `hooks.json`. If a matching cmux handler is already installed
-persistently, the wrapper does not add a duplicate for that event.
+When cmux launches Codex, the wrapper adds `--enable hooks`,
+`--dangerously-bypass-hook-trust`, and one `-c hooks.<event>=...` value per
+cmux event for that invocation only. Codex discovers hooks per configuration
+layer and appends them from lowest to highest: the user `hooks.json` and
+`[hooks]` table in `config.toml` (under `~/.codex` or `$CODEX_HOME`), a
+trusted project's `.codex/hooks.json` and `.codex/config.toml`, and finally
+the session flags cmux injects. A `-c hooks.<event>=` value only defines that
+session-flags layer, so user and project handlers keep running before cmux's
+handler and nothing in `hooks.json` or `config.toml` is replaced or rewritten.
+cmux deliberately does not copy user handlers into its own value: Codex would
+discover the copy as a second handler and run it twice. If a matching cmux
+handler is already installed persistently (`cmux hooks codex install`), the
+wrapper does not add a duplicate for that event. This contract is verified
+against codex-cli 0.146.0 and 0.153.4 by
+`tests/test_codex_wrapper_hook_append.py`, which runs the real `codex` binary
+against a local fake model provider.
+
+Two trade-offs apply while cmux hooks are active. `--dangerously-bypass-hook-trust`
+skips Codex's hook review for the whole process, so user and project handlers
+run without the trust prompt. Session flags form one layer, so a
+`-c hooks.<event>=` value you pass to `codex` yourself is applied after cmux's
+and replaces cmux's handler for that event only; use `cmux hooks codex install`
+when you need both.
 
 Set `CMUX_CODEX_HOOKS_DISABLED=1` for a launch to keep Codex's configuration
-entirely untouched. This preserves user hook behavior but also disables cmux's
-Codex lifecycle registration, Feed and notification bridge, rebinding, and
-hibernation integration for that process.
+entirely untouched. This preserves user hook behavior and Codex's own trust
+review, but also disables cmux's Codex lifecycle registration, Feed and
+notification bridge, rebinding, and hibernation integration for that process.
 
 OpenCode also supports project-local Feed installation:
 
