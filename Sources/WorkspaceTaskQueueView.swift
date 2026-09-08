@@ -13,13 +13,21 @@ struct WorkspaceTaskQueueView: View {
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if model.rows.isEmpty {
-                ContentUnavailableView(
-                    String(localized: "taskQueue.empty.title", defaultValue: "No queued tasks"),
-                    systemImage: "checklist",
-                    description: Text(String(localized: "taskQueue.empty.detail", defaultValue: "Tasks from every workspace appear here."))
-                )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.quaternary.opacity(0.35))
+            }
+            if model.rows.isEmpty {
+                if model.errorMessage == nil {
+                    ContentUnavailableView(
+                        String(localized: "taskQueue.empty.title", defaultValue: "No queued tasks"),
+                        systemImage: "checklist",
+                        description: Text(String(localized: "taskQueue.empty.detail", defaultValue: "Tasks from every workspace appear here."))
+                    )
+                } else {
+                    Spacer(minLength: 0)
+                }
             } else {
                 WorkspaceTaskQueueListView(
                     rows: model.rows,

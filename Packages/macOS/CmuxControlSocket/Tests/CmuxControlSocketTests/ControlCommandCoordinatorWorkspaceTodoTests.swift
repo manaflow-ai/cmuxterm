@@ -24,6 +24,7 @@ final class FakeWorkspaceTodoControlCommandContext: ControlCommandContext {
     var queueRevealResolution: ControlWorkspaceTaskQueueRevealResolution = .tabManagerUnavailable
     var queueTargetResolution: ControlWorkspaceTaskQueueTargetResolution = .tabManagerUnavailable
     var queueStrings = ControlWorkspaceTaskQueueStrings()
+    var lastQueueStatusRaw: String?
     var lastQueueWindowID: UUID?
     var lastQueueTarget: (workingDirectory: String?, agentCommand: String?, agentName: String?)?
     var queueTargetCallCount = 0
@@ -123,6 +124,7 @@ final class FakeWorkspaceTodoControlCommandContext: ControlCommandContext {
         workspaceID: UUID?,
         windowID: UUID?
     ) -> ControlWorkspaceTaskQueueResolution {
+        lastQueueStatusRaw = statusRaw
         lastQueueWindowID = windowID
         queueResolution
     }

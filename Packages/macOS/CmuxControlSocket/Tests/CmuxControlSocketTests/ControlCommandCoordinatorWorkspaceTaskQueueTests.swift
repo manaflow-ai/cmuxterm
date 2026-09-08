@@ -83,6 +83,29 @@ struct ControlCommandCoordinatorWorkspaceTaskQueueTests {
         #expect(context.lastQueueWindowID == windowID)
     }
 
+    @Test("index selectors use the requested status filter")
+    func indexSelectorUsesStatusFilter() throws {
+        let context = FakeWorkspaceTodoControlCommandContext()
+        let row = item()
+        context.queueResolution = .resolved([row])
+        context.queueDispatchResolution = .created(
+            item: row,
+            createdWorkspaceID: UUID(),
+            windowID: nil
+        )
+        let coordinator = ControlCommandCoordinator(context: context)
+
+        _ = try #require(coordinator.handle(request(
+            "workspace.todo.queue.dispatch",
+            [
+                "index": .int(0),
+                "status": .string("pending"),
+            ]
+        )))
+
+        #expect(context.lastQueueStatusRaw == "pending")
+    }
+
     @Test("dispatch response explicitly reports focus false")
     func dispatchIsFocusSafe() throws {
         let context = FakeWorkspaceTodoControlCommandContext()

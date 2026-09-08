@@ -241,22 +241,26 @@ extension CMUXCLI {
             )
             printTodoQueuePayload(payload, jsonOutput: jsonOutput, idFormat: idFormat)
         case "dispatch":
-            guard let selector = rest.first(where: { !$0.hasPrefix("--") }) else {
-                throw CLIError(message: String(localized: "cli.todo.error.dispatchUsage", defaultValue: "Usage: cmux todo dispatch <index|id>"))
-            }
             var dispatchParams = params
-            for (key, value) in try workspaceTodoItemSelectorParams(selector) {
+            let selectorParams = try workspaceTodoQueueSelectorParams(
+                rest,
+                usageKey: "cli.todo.error.dispatchUsage",
+                usage: "Usage: cmux todo dispatch <index|id> [--status <pending|in-progress|completed>]"
+            )
+            for (key, value) in selectorParams {
                 dispatchParams[key] = value
             }
             dispatchParams["focus"] = false
             let payload = try client.sendV2(method: "workspace.todo.queue.dispatch", params: dispatchParams)
             printV2Payload(payload, jsonOutput: jsonOutput, idFormat: idFormat, fallbackText: String(localized: "cli.todo.output.focusUnchanged", defaultValue: "OK (focus unchanged)"))
         case "reveal":
-            guard let selector = rest.first(where: { !$0.hasPrefix("--") }) else {
-                throw CLIError(message: String(localized: "cli.todo.error.revealUsage", defaultValue: "Usage: cmux todo reveal <index|id>"))
-            }
             var revealParams = params
-            for (key, value) in try workspaceTodoItemSelectorParams(selector) {
+            let selectorParams = try workspaceTodoQueueSelectorParams(
+                rest,
+                usageKey: "cli.todo.error.revealUsage",
+                usage: "Usage: cmux todo reveal <index|id> [--status <pending|in-progress|completed>]"
+            )
+            for (key, value) in selectorParams {
                 revealParams[key] = value
             }
             let payload = try client.sendV2(
@@ -265,16 +269,21 @@ extension CMUXCLI {
             )
             printV2Payload(payload, jsonOutput: jsonOutput, idFormat: idFormat, fallbackText: String(localized: "cli.todo.output.focusUnchanged", defaultValue: "OK (focus unchanged)"))
         case "target":
-            let (cwdArg, rem0) = parseOption(rest, name: "--cwd")
+            let (statusArg, remStatus) = parseOption(rest, name: "--status")
+            let (cwdArg, rem0) = parseOption(remStatus, name: "--cwd")
             let (commandArg, rem1) = parseOption(rem0, name: "--command")
             let (agentArg, remainder) = parseOption(rem1, name: "--agent")
             let positional = remainder.filter { $0 != "--" && !$0.hasPrefix("--") }
             guard remainder.allSatisfy({ $0 == "--" || !$0.hasPrefix("--") }),
                   positional.count == 1,
                   let selector = positional.first else {
-                throw CLIError(message: String(localized: "cli.todo.error.targetUsage", defaultValue: "Usage: cmux todo target <index|id> --command <agent command> [--cwd <directory>] [--agent <name>]"))
+                throw CLIError(message: String(localized: "cli.todo.error.targetUsage", defaultValue: "Usage: cmux todo target <index|id> --command <agent command> [--cwd <directory>] [--agent <name>] [--status <pending|in-progress|completed>]"))
+            }
+            guard commandArg != nil || (cwdArg == nil && agentArg == nil) else {
+                throw CLIError(message: String(localized: "cli.todo.error.targetRequiresCommand", defaultValue: "cmux todo target requires --command when --cwd or --agent is provided"))
             }
             var targetParams = params
+            if let statusArg { targetParams["status"] = statusArg }
             for (key, value) in try workspaceTodoItemSelectorParams(selector) {
                 targetParams[key] = value
             }
@@ -293,6 +302,29 @@ extension CMUXCLI {
         default:
             throw CLIError(message: String(format: String(localized: "cli.todo.error.unknownSubcommand", defaultValue: "Unknown todo subcommand: %@. Try: add, list, queue, all, dispatch, reveal, target, check, uncheck, start, edit, rm, move, clear, set, open"), sub))
         }
+    }
+
+    /// Parses the selector and optional status filter shared by queue actions.
+    /// The status must be forwarded whenever an index came from a filtered
+    /// `todo queue` listing; UUID selectors remain independent of the filter.
+    private func workspaceTodoQueueSelectorParams(
+        _ rest: [String],
+        usageKey: String,
+        usage: String
+    ) throws -> [String: Any] {
+        let (statusArg, remainder) = parseOption(rest, name: "--status")
+        let positional = remainder.filter { $0 != "--" && !$0.hasPrefix("--") }
+        guard remainder.allSatisfy({ $0 == "--" || !$0.hasPrefix("--") }),
+              positional.count == 1,
+              let selector = positional.first else {
+            throw CLIError(message: String(localized: usageKey, defaultValue: usage))
+        }
+        var params: [String: Any] = [:]
+        if let statusArg { params["status"] = statusArg }
+        for (key, value) in try workspaceTodoItemSelectorParams(selector) {
+            params[key] = value
+        }
+        return params
     }
 
     /// Parses `cmux todo set`'s items JSON: an inline positional argument, or
@@ -399,7 +431,8 @@ extension CMUXCLI {
                 ?? String(localized: "cli.todo.output.workspaceFallback", defaultValue: "workspace")
             let agent = (item["owning_agent"] as? String).map { "  [\($0)]" } ?? ""
             let text = item["text"] as? String ?? ""
-            print(String(format: String(localized: "cli.todo.output.queueItem", defaultValue: "%d. [%@] %@  —  %@%@"), index + 1, state, text, workspace, agent))
+            let itemID = item["id"] as? String ?? "?"
+            print(String(format: String(localized: "cli.todo.output.queueItem", defaultValue: "%d. [%@] %@  —  %@%@  (id: %@)"), index + 1, state, text, workspace, agent, itemID))
         }
     }
 
@@ -486,9 +519,12 @@ extension CMUXCLI {
                               Aggregate every workspace's checklist
       move <index|id> <newIndex>  Reorder an item (newIndex is 1-based)
       refresh                 Refresh the aggregate queue without changing focus
-      dispatch <index|id>     Create the target workspace without changing focus
-      reveal <index|id>       Reveal the owning workspace without selecting it
+      dispatch <index|id> [--status ...]
+                              Create the target workspace without changing focus
+      reveal <index|id> [--status ...]
+                              Reveal the owning workspace without selecting it
       target <index|id> ...   Set/clear a working directory and agent command
+                              (--status narrows index resolution)
       check <index|id>        Mark an item completed
       uncheck <index|id>      Mark an item pending
       start <index|id>        Mark an item in-progress
