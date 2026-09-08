@@ -14,7 +14,11 @@ struct SudoExecutionRecovery: SudoInterruptedExecutionRecovering {
         terminator = SudoProcessTreeTerminator(inspector: inspector, signaler: signaler)
     }
 
+    #if compiler(>=6.2)
     @concurrent
+    #else
+    @Sendable
+    #endif
     func recover(
         states: [SudoRequestState],
         approvedDirectory: URL

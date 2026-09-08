@@ -19,7 +19,11 @@ struct SudoRunnerLauncher: SudoRunnerLaunching {
         self.temporaryDirectoryURL = temporaryDirectoryURL
     }
 
+    #if compiler(>=6.2)
     @concurrent
+    #else
+    @Sendable
+    #endif
     func launch(
         requestID: String,
         reviewedScript: Data,
