@@ -86,6 +86,37 @@ struct VaultRestoreCompatibilitySecurityTests {
         ) == ["custom-agent", "--label", " padded ", "--session", "quoted-session"])
     }
 
+    @Test("Legacy Codex approval metadata preserves the upstream on-request migration")
+    func legacyCodexApprovalPolicyMigratesExplicitly() throws {
+        let sessionID = "669b4d0f-a991-4a51-aeb4-4b78a611c803"
+        let entry = SessionEntry(
+            id: "codex:\(sessionID)",
+            agent: .codex,
+            sessionId: sessionID,
+            title: "Legacy Codex approval",
+            cwd: nil,
+            gitBranch: nil,
+            pullRequest: nil,
+            modified: Date(timeIntervalSince1970: 1_800_000_110),
+            fileURL: nil,
+            specifics: .codex(
+                model: nil,
+                approvalPolicy: "on-failure",
+                sandboxMode: "workspace-write",
+                effort: nil
+            )
+        )
+        let launch = try #require(entry.resumeLaunch)
+        let snapshot = try #require(launch.startupRestoreAgent)
+
+        #expect(launch.strategy == .restoreVerb)
+        #expect(snapshot.preparedResumeArguments(
+            launchCommand: snapshot.launchCommand,
+            workingDirectory: snapshot.workingDirectory,
+            observedPermissionMode: snapshot.permissionMode
+        ) == ["codex", "-a", "on-request", "-s", "workspace-write", "resume", sessionID])
+    }
+
     @Test(arguments: ["claude", "codex"])
     func invalidBuiltInSessionIDsAreQuotedInCompatibilityInput(_ rawKind: String) throws {
         let unsafeSessionID = "bad;echo-pwned"

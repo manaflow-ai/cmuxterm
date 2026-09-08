@@ -85,7 +85,13 @@ struct VaultResumeLaunchPlannerTests {
         )
         #expect(
             planner.codexApprovalSandboxArgumentTokens(
-                approvalPolicy: "on-failure",
+                approvalPolicy: " on-failure ",
+                sandboxMode: nil
+            ) == ["-a", "on-request"]
+        )
+        #expect(
+            planner.codexApprovalSandboxArgumentTokens(
+                approvalPolicy: "unknown-policy",
                 sandboxMode: nil
             ) == []
         )
