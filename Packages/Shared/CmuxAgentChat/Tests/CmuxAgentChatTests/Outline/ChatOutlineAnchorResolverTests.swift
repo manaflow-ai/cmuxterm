@@ -80,7 +80,7 @@ struct ChatOutlineAnchorResolverTests {
 
     @Test("anchors start at prompt rows and support clipped titles")
     func anchorsStartAtPromptRowsAndSupportClippedTitles() {
-        let title = String(repeating: "a", count: 160)
+        let title = String(repeating: "a  ", count: 53) + "b"
         let entry = ChatOutlineEntry(
             id: "prompt",
             seq: 1,
@@ -88,7 +88,7 @@ struct ChatOutlineAnchorResolverTests {
             title: title,
             hasAlert: false
         )
-        let fullPrompt = String(repeating: "a", count: 180)
+        let fullPrompt = title + " extra"
 
         #expect(ChatOutlineAnchorResolver().row(
             for: entry,

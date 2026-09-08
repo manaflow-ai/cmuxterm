@@ -23,6 +23,7 @@ public struct ChatOutlineAnchorResolver: Sendable {
     ) -> Int? {
         let target = normalized(entry.title)
         guard !target.isEmpty else { return nil }
+        let allowsClippedMatch = entry.title.count == 160
         let occurrence = entries
             .prefix { $0.id != entry.id }
             .filter { normalized($0.title) == target }
@@ -33,25 +34,35 @@ public struct ChatOutlineAnchorResolver: Sendable {
             .map(normalized)
         var matchingOccurrence = 0
         for row in rows.indices {
-            guard matches(target: target, startingAt: row, in: rows) else { continue }
+            guard matches(
+                target: target,
+                startingAt: row,
+                in: rows,
+                allowsClippedMatch: allowsClippedMatch
+            ) else { continue }
             if matchingOccurrence == occurrence { return row }
             matchingOccurrence += 1
         }
         return nil
     }
 
-    private func matches(target: String, startingAt row: Int, in rows: [String]) -> Bool {
+    private func matches(
+        target: String,
+        startingAt row: Int,
+        in rows: [String],
+        allowsClippedMatch: Bool
+    ) -> Bool {
         guard let prefix = Self.promptPrefixes.first(where: { rows[row].hasPrefix($0) }) else {
             return false
         }
         var candidate = String(rows[row].dropFirst(prefix.count))
-        if matchesPromptContent(candidate, target: target) {
+        if matchesPromptContent(candidate, target: target, allowsClippedMatch: allowsClippedMatch) {
             return true
         }
         for nextRow in rows.dropFirst(row + 1) {
             guard !nextRow.isEmpty, !isPromptRow(nextRow) else { return false }
             candidate += " " + nextRow
-            if matchesPromptContent(candidate, target: target) {
+            if matchesPromptContent(candidate, target: target, allowsClippedMatch: allowsClippedMatch) {
                 return true
             }
         }
@@ -62,8 +73,12 @@ public struct ChatOutlineAnchorResolver: Sendable {
         Self.promptPrefixes.contains { row.hasPrefix($0) }
     }
 
-    private func matchesPromptContent(_ candidate: String, target: String) -> Bool {
-        candidate == target || (target.count == 160 && candidate.hasPrefix(target))
+    private func matchesPromptContent(
+        _ candidate: String,
+        target: String,
+        allowsClippedMatch: Bool
+    ) -> Bool {
+        candidate == target || (allowsClippedMatch && candidate.hasPrefix(target))
     }
 
     private func normalized(_ text: String) -> String {
