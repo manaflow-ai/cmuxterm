@@ -55,8 +55,12 @@ extension AppDelegate {
         }
 
         let previousResolvedActionID = activeResolvedPrefixChordActionID
+        let previousChordPrefix = activeConfiguredShortcutChordPrefixForCurrentEvent
         activeResolvedPrefixChordActionID = binding.actionID
-        defer { activeResolvedPrefixChordActionID = previousResolvedActionID }
+        defer {
+            activeResolvedPrefixChordActionID = previousResolvedActionID
+            activeConfiguredShortcutChordPrefixForCurrentEvent = previousChordPrefix
+        }
 
         // Config-defined actions have their own resolved executor (including
         // trust prompts and workspace/terminal command targets). Dispatch
@@ -92,6 +96,10 @@ extension AppDelegate {
             // at a plugin or menu target.
             return false
         }
+        // The generic dispatcher clears its event-local prefix on return.
+        // Focused responders rematch this same suffix through the shared
+        // matcher, so retain the resolved leader for the entire fallback.
+        activeConfiguredShortcutChordPrefixForCurrentEvent = resolvedPrefix
         return executeFocusedPrefixChordAction(action, event: event)
     }
 
