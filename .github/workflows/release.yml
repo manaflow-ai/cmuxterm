@@ -96,7 +96,11 @@ jobs:
     # Notarization wait times vary on Apple's side. The standalone Computer Use
     # helper starts as soon as the unsigned app exists and overlaps the remaining
     # release preparation; the outer app and final DMG still serialize afterward.
-    timeout-minutes: 60
+    # v0.64.22 took 40 minutes before the Cloud tunnel extension, its Go engine
+    # build and the universal diff sidecar joined this job, and the helper's
+    # Gatekeeper propagation wait alone can now take twenty minutes, so 60 left
+    # no headroom. Keep at least 25 percent above the measured duration.
+    timeout-minutes: 90
     steps:
       - name: Clear stale git locks (self-hosted reused workspace)
         shell: bash
