@@ -192,7 +192,7 @@ struct SurfaceCatalogTests {
         }
     }
 
-    private final class FakeProvider: SurfaceProvider {
+    final class FakeProvider: SurfaceProvider {
         let machine: SurfaceMachineID
         var info: SurfaceMachineInfo
         var materialized: [(SurfaceResourceID, SurfaceDestination)] = []

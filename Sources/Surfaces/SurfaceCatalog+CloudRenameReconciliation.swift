@@ -35,9 +35,9 @@ extension SurfaceCatalog {
         guard case .cloud = info.id else { return info }
         guard let state = state ?? cloudStates[info.id] else { return cloudResourceCompatibilityMachineInfo(info) }
         var adjusted = info
-        let canonical = state.workspaces.map {
+        let canonical = cloudWorkspaceRenameEffectiveWorkspaces(state.workspaces.map {
             SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
-        }
+        }, machine: info.id)
         var seen = Set(canonical.map(\.id))
         let pending = (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted }
         adjusted.remoteWorkspaces = canonical + pending
@@ -102,7 +102,7 @@ extension SurfaceCatalog {
         name: String
     ) throws -> CloudWorkspaceRenameToken {
         guard case .cloud = machine,
-              cloudResourceCompatibility[machine] != nil,
+              cloudResourceCompatibility[machine] != nil || cloudStates[machine] != nil,
               accepts(writeFor: machine) else { throw SurfaceCatalogError.noProvider(machine) }
         let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedName.isEmpty else {
@@ -173,13 +173,11 @@ extension SurfaceCatalog {
         guard let state = cloudResourceCompatibility[info.id] else { return info }
         var adjusted = info
         var workspaces = state.canonicalWorkspaces
-        for index in workspaces.indices {
-            let key = CloudWorkspaceRenameKey(machine: info.id, workspaceID: workspaces[index].id)
-            if let name = cloudWorkspaceRenameIntents[key]?.last?.name {
-                workspaces[index].name = name
-            }
+        var seen = Set(workspaces.map(\.id))
+        for workspace in info.remoteWorkspaces ?? [] where seen.insert(workspace.id).inserted {
+            workspaces.append(workspace)
         }
-        adjusted.remoteWorkspaces = workspaces
+        adjusted.remoteWorkspaces = cloudWorkspaceRenameEffectiveWorkspaces(workspaces, machine: info.id)
         return adjusted
     }
 
@@ -236,12 +234,25 @@ extension SurfaceCatalog {
 
     private func applyCloudWorkspaceRenameOverlay(machine: SurfaceMachineID) {
         guard let info = snapshot.machines.first(where: { $0.id == machine }) else { return }
-        let effectiveInfo = cloudResourceCompatibilityMachineInfo(info)
+        let effectiveInfo = machineInfoPreservingCanonicalCloudState(info)
         let effectiveResources = cloudWorkspaceRenameEffectiveResources(
             snapshot.resources(on: machine),
             machine: machine
         )
         _ = replaceResources(effectiveResources, on: machine, info: effectiveInfo)
+    }
+
+    private func cloudWorkspaceRenameEffectiveWorkspaces(
+        _ workspaces: [SurfaceRemoteWorkspace],
+        machine: SurfaceMachineID
+    ) -> [SurfaceRemoteWorkspace] {
+        workspaces.map { workspace in
+            let key = CloudWorkspaceRenameKey(machine: machine, workspaceID: workspace.id)
+            guard let name = cloudWorkspaceRenameIntents[key]?.last?.name else { return workspace }
+            var adjusted = workspace
+            adjusted.name = name
+            return adjusted
+        }
     }
 
     private func cloudWorkspaceRenameEffectiveResources(
