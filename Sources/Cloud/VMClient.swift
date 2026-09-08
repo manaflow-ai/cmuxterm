@@ -708,14 +708,10 @@ actor VMClient {
     @MainActor private(set) static var shared: VMClient!
 
     /// Build the shared client with its injected auth dependency. Call once at
-    /// the composition root. `privateNetwork` is used only for Cloud webviews.
+    /// the composition root.
     @MainActor
-    static func bootstrap(
-        auth: AuthCoordinator,
-        session: URLSession = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
-    ) {
-        shared = VMClient(session: session, auth: auth, privateNetwork: privateNetwork)
+    static func bootstrap(auth: AuthCoordinator, session: URLSession = .shared) {
+        shared = VMClient(session: session, auth: auth)
     }
 
     /// Revoke endpoint credentials issued by the Cloud VM service during sign-out.
@@ -755,9 +751,6 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
-    /// The browser-only private-network gate. Terminal and metadata traffic
-    /// uses the separate user-space WireGuard hub.
-    private let privateNetwork: any CloudPrivateNetworkGate
     /// The `DisableCloud` managed policy. Every Cloud VM API call reads it, so
     /// a profile pushed mid-session takes effect on the next request.
     private let isDisabledByManagedPolicy: @Sendable () -> Bool
@@ -766,7 +759,6 @@ actor VMClient {
         session: URLSession = .shared,
         auth: AuthCoordinator,
         telemetry: VMClientTelemetry = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate(),
         isDisabledByManagedPolicy: @escaping @Sendable () -> Bool = {
             ManagedDevicePolicy().isEnforced(.disableCloud)
         }
@@ -774,16 +766,7 @@ actor VMClient {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
-        self.privateNetwork = privateNetwork
         self.isDisabledByManagedPolicy = isDisabledByManagedPolicy
-    }
-
-    /// Do not let a Cloud webview navigate until the browser tunnel is ready.
-    /// Direct private URLs call this without a control-plane request.
-    func requireCloudBrowserAccess(machineID: String) async throws {
-        try await privateNetwork.requirePrivateNetworkUse(
-            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort)
-        )
     }
 
     func list() async throws -> [VMSummary] {
@@ -1811,9 +1794,11 @@ actor VMClient {
         )
     }
 
+    /// Asks the control plane to open (and, for a paused machine, resume)
+    /// `port`. This is a plain HTTPS request: it never involves the Mac's
+    /// private-network route, which Ports panes get from the user-space hub.
     func openPort(id: String, port: Int) async throws -> VMOpenPortEndpoint {
         let encodedID = try pathSegment(id, fieldName: "vm id")
-        try await requireCloudBrowserAccess(machineID: id)
         let (data, http) = try await request(
             "POST",
             path: "/api/vm/\(encodedID)/open-port",
