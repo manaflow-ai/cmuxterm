@@ -11919,30 +11919,21 @@ struct VerticalTabsSidebar: View, Equatable {
             }
             if let panelIdsByWorkspaceId = notification.userInfo?["panelIdsByWorkspaceId"] as? [UUID: Set<UUID>] {
                 guard !panelIdsByWorkspaceId.isEmpty else { return }
-                // Scoped index events carry the exact panel keys whose
-                // process bindings changed. Resolve only those live workspace
-                // owners here; a full owner traversal is reserved for the
-                // legacy/unscoped notification below.
+                // Use one current-owner projection for both watcher arming
+                // and snapshots, including stable panel IDs whose workspace
+                // owner rotated during restore or changed during a move.
                 let ownerByPanelID = sidebarPanelOwnership(
                     in: renderContext,
                     scopedTo: panelIdsByWorkspaceId
                 )
                 armSidebarProcessExitWatchers(for: ownerByPanelID)
-                var panelIdsWithoutCurrentWorkspace = Set<UUID>()
-                for (workspaceId, panelIds) in panelIdsByWorkspaceId {
-                    if renderContext.workspaceById[workspaceId] != nil {
-                        scheduleWorkspaceSnapshotRefresh(workspaceId: workspaceId)
-                    } else {
-                        panelIdsWithoutCurrentWorkspace.formUnion(panelIds)
-                    }
-                }
-                // Restored workspaces can rotate their UUID while retaining
-                // the panel id. Resolve those panel-only index entries against
-                // the current owner so their activity/elapsed snapshot updates.
-                guard !panelIdsWithoutCurrentWorkspace.isEmpty else { return }
-                for workspace in renderContext.tabs
-                where !panelIdsWithoutCurrentWorkspace.isDisjoint(with: workspace.panels.keys) {
-                    scheduleWorkspaceSnapshotRefresh(workspaceId: workspace.id)
+                // A notified owner may have just lost its final agent panel;
+                // refresh that row too, even when it has no watcher to arm.
+                let workspaceIDsToRefresh = Set(ownerByPanelID.values).union(
+                    panelIdsByWorkspaceId.keys.filter { renderContext.workspaceById[$0] != nil }
+                )
+                for workspaceID in workspaceIDsToRefresh {
+                    scheduleWorkspaceSnapshotRefresh(workspaceId: workspaceID)
                 }
             } else if let workspaceId = notification.userInfo?["workspaceId"] as? UUID,
                       let workspace = renderContext.workspaceById[workspaceId] {

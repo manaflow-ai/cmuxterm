@@ -278,22 +278,35 @@ extension Workspace {
         var ownerByPanelID: [UUID: UUID] = [:]
         var ambiguousPanelIDs = Set<UUID>()
 
+        func recordOwner(panelID: UUID, workspaceID: UUID) {
+            guard !ambiguousPanelIDs.contains(panelID) else { return }
+            if let previousOwner = ownerByPanelID[panelID], previousOwner != workspaceID {
+                ownerByPanelID.removeValue(forKey: panelID)
+                ambiguousPanelIDs.insert(panelID)
+            } else {
+                ownerByPanelID[panelID] = workspaceID
+            }
+        }
+
         if let panelIdsByWorkspaceId {
-            // The common scoped path performs dictionary lookups for only the
-            // changed workspace/panel keys. If a workspace identity was
-            // rotated during restore, its lifecycle registration will arm the
-            // current owner; resolving that alias here would require an
-            // all-sidebar panel scan on every index event.
+            // Direct scope stays O(changed panels). Only unmatched panel IDs
+            // need current-owner lookups after a restore or panel move; that
+            // fallback checks those IDs, not every panel in every workspace.
             guard let workspaceByID else { return [:] }
+            var unmatchedPanelIDs = Set<UUID>()
             for (workspaceID, panelIDs) in panelIdsByWorkspaceId {
-                guard let workspace = workspaceByID[workspaceID] else { continue }
-                for panelID in panelIDs where workspace.panels[panelID] != nil {
-                    guard !ambiguousPanelIDs.contains(panelID) else { continue }
-                    if let previousOwner = ownerByPanelID[panelID], previousOwner != workspaceID {
-                        ownerByPanelID.removeValue(forKey: panelID)
-                        ambiguousPanelIDs.insert(panelID)
+                for panelID in panelIDs {
+                    if workspaceByID[workspaceID]?.panels[panelID] != nil {
+                        recordOwner(panelID: panelID, workspaceID: workspaceID)
                     } else {
-                        ownerByPanelID[panelID] = workspaceID
+                        unmatchedPanelIDs.insert(panelID)
+                    }
+                }
+            }
+            if !unmatchedPanelIDs.isEmpty {
+                for workspace in workspaces {
+                    for panelID in unmatchedPanelIDs where workspace.panels[panelID] != nil {
+                        recordOwner(panelID: panelID, workspaceID: workspace.id)
                     }
                 }
             }
@@ -301,13 +314,7 @@ extension Workspace {
             // Only unscoped/legacy notifications pay the full owner traversal.
             for workspace in workspaces {
                 for panelID in workspace.panels.keys {
-                    guard !ambiguousPanelIDs.contains(panelID) else { continue }
-                    if let previousOwner = ownerByPanelID[panelID], previousOwner != workspace.id {
-                        ownerByPanelID.removeValue(forKey: panelID)
-                        ambiguousPanelIDs.insert(panelID)
-                    } else {
-                        ownerByPanelID[panelID] = workspace.id
-                    }
+                    recordOwner(panelID: panelID, workspaceID: workspace.id)
                 }
             }
         }
