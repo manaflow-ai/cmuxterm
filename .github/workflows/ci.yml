@@ -1225,9 +1225,21 @@ jobs:
               while kill -0 "$xcodebuild_pid" 2>/dev/null; do
                 if [ "$SECONDS" -ge "$deadline" ]; then
                   echo "xcodebuild unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} timeout after ${timeout_seconds}s; terminating"
+                  # Record what was still alive: the wrapper chain, xcodebuild,
+                  # the xctest runner, and the app host launched from this
+                  # job's DerivedData.
+                  ps -axo pid,ppid,pgid,etime,command 2>/dev/null \
+                    | grep -E 'xcodebuild|xctest|run-app-host-xcodebuild|app_host_test_lock|Contents/MacOS/cmux' \
+                    | grep -v grep || true
+                  # The wrapper forwards SIGTERM to its xcodebuild process group.
+                  # Also kill anything still referencing this job's DerivedData
+                  # (xctest runner, app host): a survivor keeps this pipe open
+                  # and stalls the shard until the job-level cap.
                   kill -TERM "$xcodebuild_pid" 2>/dev/null || true
+                  pkill -TERM -f "$CMUX_DERIVED_DATA_PATH" 2>/dev/null || true
                   sleep 5
                   kill -KILL "$xcodebuild_pid" 2>/dev/null || true
+                  pkill -KILL -f "$CMUX_DERIVED_DATA_PATH" 2>/dev/null || true
                   wait "$xcodebuild_pid" 2>/dev/null || true
                   exit 124
                 fi
