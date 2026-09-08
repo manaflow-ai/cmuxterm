@@ -808,8 +808,10 @@ final class FinderFileDropRegressionTests: XCTestCase {
         ])
         let pasteboard = NSPasteboard(name: .init("cmux-test-file-preview-transfer-drop-\(UUID().uuidString)"))
         pasteboard.clearContents()
+        // Only the private preview payload is advertised: once the Bonsplit
+        // capability type is on the pasteboard, resolution must go through the
+        // live tab-transfer registry and fails closed without a registration.
         pasteboard.setData(transferData, forType: DragOverlayRoutingPolicy.filePreviewTransferType)
-        pasteboard.setData(transferData, forType: DragOverlayRoutingPolicy.bonsplitTabTransferType)
 
         XCTAssertFalse(DragOverlayRoutingPolicy.hasFileURL(pasteboard.types))
         XCTAssertTrue(DragOverlayRoutingPolicy.hasFileDropPayload(pasteboard.types))
