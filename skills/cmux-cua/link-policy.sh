@@ -310,18 +310,27 @@ cmux_cua_skill_home_lock_path() {
 
 cmux_cua_skill_acquire_home_lock() {
     local lock_path="$1"
-    local owner attempts=0
+    local owner lock_mtime now attempts=0
     while ! /bin/mkdir "$lock_path" 2>/dev/null; do
-        # A crashed wrapper can leave an empty directory or a PID marker. Only
-        # remove a lock we can prove is stale, and never follow a symlink.
+        # A crashed wrapper can leave a PID marker. Only remove a lock we can
+        # prove is stale, and never follow a symlink. The owner writes its PID
+        # immediately after mkdir; keep an empty directory through a grace
+        # period so a waiter cannot remove a live owner in that window.
         if [[ -d "$lock_path" && ! -L "$lock_path" ]]; then
             if [[ -f "$lock_path/pid" ]]; then
                 owner="$(/bin/cat "$lock_path/pid" 2>/dev/null || true)"
                 if [[ "$owner" =~ ^[0-9]+$ ]] && ! /bin/kill -0 "$owner" 2>/dev/null; then
                     /bin/unlink "$lock_path/pid" 2>/dev/null || true
+                    /bin/rmdir "$lock_path" 2>/dev/null || true
+                fi
+            else
+                lock_mtime="$(/usr/bin/stat -f '%m' "$lock_path" 2>/dev/null || true)"
+                now="$(/bin/date '+%s')"
+                if [[ "$lock_mtime" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ \
+                      && $((now - lock_mtime)) -ge 5 ]]; then
+                    /bin/rmdir "$lock_path" 2>/dev/null || true
                 fi
             fi
-            /bin/rmdir "$lock_path" 2>/dev/null || true
         fi
         attempts=$((attempts + 1))
         (( attempts < 200 )) || return 1
