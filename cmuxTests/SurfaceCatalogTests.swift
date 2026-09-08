@@ -1175,5 +1175,4 @@ struct SurfaceCatalogTests {
         #expect(provider.closedTerminals.isEmpty)
         #expect(provider.closedRemoteWorkspaces == ["ws_empty"])
     }
-
 }
