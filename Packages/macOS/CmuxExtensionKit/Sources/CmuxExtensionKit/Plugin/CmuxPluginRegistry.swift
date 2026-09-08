@@ -236,14 +236,14 @@ public actor CmuxPluginRegistry {
     public func approveAll(pluginID: String) async throws -> CmuxPluginRegistrySnapshot {
         let plugin = try loadedPlugin(pluginID)
         try await permissionStore.approveAll(for: plugin)
-        return await reload()
+        return await reload(affectedPluginIDs: [pluginID])
     }
 
     /// Enables or disables one plugin while retaining its approved scopes.
     public func setEnabled(_ enabled: Bool, pluginID: String) async throws -> CmuxPluginRegistrySnapshot {
         let plugin = try loadedPlugin(pluginID)
         try await permissionStore.setEnabled(enabled, for: plugin)
-        return await reload()
+        return await reload(affectedPluginIDs: [pluginID])
     }
 
     /// Returns a process session token for an enabled plugin. Tokens are

@@ -40,6 +40,55 @@ extension CmuxPluginSystemTests {
     }
 
     @Test
+    func approvalAndEnablementRetainPartialReloadsBeyondFullScanLimit() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let initialPluginIDs = (0 ..< CmuxPluginDirectoryLoader.maximumPluginCount).map {
+            "dev.example.over-limit-\($0)"
+        }
+        for pluginID in initialPluginIDs {
+            try Self.writePlugin(
+                CmuxExtensionManifest.plugin(
+                    id: pluginID,
+                    displayName: pluginID,
+                    entrypoint: "bin/plugin"
+                ),
+                to: root
+            )
+        }
+        let extraPluginID = "dev.example.over-limit-extra"
+        let extraManifest = CmuxExtensionManifest.plugin(
+            id: extraPluginID,
+            displayName: extraPluginID,
+            entrypoint: "bin/plugin"
+        )
+
+        let registry = CmuxPluginRegistry(
+            loader: CmuxPluginDirectoryLoader(directoryURL: root),
+            permissionStore: CmuxPluginPermissionStore(storageURL: nil)
+        )
+        let initialSnapshot = await registry.reload()
+        #expect(initialSnapshot.plugins.count == CmuxPluginDirectoryLoader.maximumPluginCount)
+
+        try Self.writePlugin(extraManifest, to: root)
+        let partialSnapshot = await registry.reload(affectedPluginIDs: [extraPluginID])
+        #expect(partialSnapshot.plugins.count == CmuxPluginDirectoryLoader.maximumPluginCount + 1)
+
+        let approvedSnapshot = try await registry.approveAll(pluginID: initialPluginIDs[0])
+        #expect(approvedSnapshot.plugins.count == partialSnapshot.plugins.count)
+        #expect(approvedSnapshot.plugins.first(where: { $0.plugin.manifest.id == initialPluginIDs[0] })?.isApproved == true)
+
+        let disabledSnapshot = try await registry.setEnabled(false, pluginID: initialPluginIDs[0])
+        #expect(disabledSnapshot.plugins.count == partialSnapshot.plugins.count)
+        #expect(disabledSnapshot.plugins.first(where: { $0.plugin.manifest.id == initialPluginIDs[0] })?.isEnabled == false)
+
+        let reenabledSnapshot = try await registry.setEnabled(true, pluginID: initialPluginIDs[0])
+        #expect(reenabledSnapshot.plugins.count == partialSnapshot.plugins.count)
+        #expect(reenabledSnapshot.plugins.first(where: { $0.plugin.manifest.id == initialPluginIDs[0] })?.isEnabled == true)
+    }
+
+    @Test
     func artifactFingerprintIncludesCaseMismatchedEntrypointInterpreter() throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
