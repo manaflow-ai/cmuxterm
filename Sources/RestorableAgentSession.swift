@@ -594,7 +594,7 @@ enum AgentResumeCommandBuilder {
         return kind.rawValue
     }
 
-    fileprivate static func resumeArguments(
+    static func resumeArguments(
         kind: RestorableAgentKind,
         sessionId: String,
         launchCommand: AgentLaunchCommandSnapshot?,
@@ -765,6 +765,8 @@ struct SessionRestorableAgentSnapshot: Codable, Sendable {
     /// Last hook-observed permission mode; re-applied as `--permission-mode` on
     /// user-owned claude resume/fork when no explicit launch flag covers it.
     var permissionMode: String? = nil
+    /// Persisted cwd trust boundary applied to every later restore entrypoint.
+    var restoreWorkingDirectorySelection: AgentRestoreWorkingDirectorySelection? = nil
 
     func resumeStartupInput(
         useLocalRestoreVerb: Bool = true,

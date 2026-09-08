@@ -171,7 +171,7 @@ extension SessionRestorableAgentSnapshot {
             snapshotWorkingDirectory: self.workingDirectory,
             launchWorkingDirectory: effectiveLaunchCommand?.workingDirectory
         )
-        return AgentResumeCommandBuilder().resumeArguments(
+        return AgentResumeCommandBuilder.resumeArguments(
             kind: kind,
             sessionId: sessionId,
             launchCommand: effectiveLaunchCommand,
@@ -213,12 +213,11 @@ extension SessionRestorableAgentSnapshot {
                 includeWorkingDirectoryPrefix: includeWorkingDirectoryPrefix
             )
         }
-        return AgentResumeCommandBuilder().resumeShellCommand(
+        return AgentResumeCommandBuilder.resumeShellCommand(
             kind: kind,
             sessionId: sessionId,
             launchCommand: effectiveLaunchCommand,
-            resolvedWorkingDirectory: effectiveWorkingDirectory,
-            discardRecordedCwdOptions: selection.discardsRecordedCwdOptions,
+            workingDirectory: effectiveWorkingDirectory,
             registrationOverride: registration,
             includeWorkingDirectoryPrefix: includeWorkingDirectoryPrefix,
             observedPermissionMode: permissionMode
@@ -239,12 +238,11 @@ extension SessionRestorableAgentSnapshot {
             snapshotWorkingDirectory: workingDirectory,
             launchWorkingDirectory: effectiveLaunchCommand?.workingDirectory
         )
-        return AgentResumeCommandBuilder().forkShellCommand(
+        return AgentResumeCommandBuilder.forkShellCommand(
             kind: kind,
             sessionId: sessionId,
             launchCommand: effectiveLaunchCommand,
-            resolvedWorkingDirectory: effectiveWorkingDirectory,
-            discardRecordedCwdOptions: selection.discardsRecordedCwdOptions,
+            workingDirectory: effectiveWorkingDirectory,
             registrationOverride: registration,
             observedPermissionMode: permissionMode
         )
