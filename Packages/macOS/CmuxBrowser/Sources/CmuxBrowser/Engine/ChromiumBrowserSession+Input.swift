@@ -75,6 +75,9 @@ extension ChromiumBrowserSession {
     /// - Returns: Encoded PNG data.
     /// - Throws: A CDP transport error or malformed screenshot response.
     public func screenshotPNG() async throws -> Data {
+        if let owlRuntime {
+            return try owlRuntime.screenshotPNG()
+        }
         let value = try await send(
             method: "Page.captureScreenshot",
             parameters: .object(["format": .string("png")])

@@ -21,6 +21,7 @@ int owl_shim_mouse(OwlShimSession *session, uint32_t kind, float x, float y, uin
 int owl_shim_key(OwlShimSession *session, bool down, uint32_t key_code, const char *text, uint32_t modifiers);
 int owl_shim_eval(OwlShimSession *session, const char *script, char **result_json);
 int owl_shim_surface_json(OwlShimSession *session, char **result_json);
+int owl_shim_capture_surface_json(OwlShimSession *session, char **result_json);
 void owl_shim_free(void *buffer);
 void owl_shim_poll(uint32_t timeout_ms);
 #ifdef __cplusplus

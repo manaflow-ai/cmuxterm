@@ -67,4 +67,25 @@ final class OwlFreshRuntime: @unchecked Sendable {
     func key(down: Bool, keyCode: UInt32, text: String?, modifiers: UInt32) throws { guard let session, owl_shim_key(session, down, keyCode, text, modifiers) == 0 else { throw CDPError.notConnected } }
     func evaluate(_ script: String) throws -> String { guard let session else { throw CDPError.notConnected }; var result: UnsafeMutablePointer<CChar>?; guard owl_shim_eval(session, script, &result) == 0 else { throw CDPError.commandFailed("OWL JavaScript evaluation failed") }; defer { if let result { owl_shim_free(result) } }; return result.map { String(cString: $0) } ?? "null" }
     func surfaceTreeJSON() throws -> String { guard let session else { throw CDPError.notConnected }; var result: UnsafeMutablePointer<CChar>?; guard owl_shim_surface_json(session, &result) == 0 else { throw CDPError.commandFailed("OWL surface tree unavailable") }; defer { if let result { owl_shim_free(result) } }; return result.map { String(cString: $0) } ?? "{}" }
+
+    /// Captures the active OWL web surface as PNG bytes through the runtime's
+    /// native surface-tree capture path. This keeps browser screenshot and
+    /// viewport snapshot commands available without a CDP connection.
+    func screenshotPNG() throws -> Data {
+        guard let session else { throw CDPError.notConnected }
+        var result: UnsafeMutablePointer<CChar>?
+        guard owl_shim_capture_surface_json(session, &result) == 0,
+              let result else {
+            throw CDPError.commandFailed("OWL surface capture unavailable")
+        }
+        defer { owl_shim_free(result) }
+        guard let data = String(cString: result).data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let payload = object as? [String: Any],
+              let encoded = payload["pngBase64"] as? String,
+              let png = Data(base64Encoded: encoded) else {
+            throw CDPError.protocolError("OWL surface capture returned invalid PNG data")
+        }
+        return png
+    }
 }
