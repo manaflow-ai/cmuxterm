@@ -389,6 +389,108 @@
         }
       }
     },
+    "socket.surfaceSyncCodexNativeTitle.invalidTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid title"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイトルが指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title requires asynchronous socket dispatch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "surface.sync_codex_native_title には非同期ソケットディスパッチが必要です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager not available"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TabManager は利用できません"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid workspace_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "workspace_id が指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelIdInvalid": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing or invalid panel_id"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "panel_id が指定されていないか無効です"
+          }
+        }
+      }
+    },
+    "socket.surfaceSyncCodexNativeTitle.panelNotFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panel not found"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "パネルが見つかりません"
+          }
+        }
+      }
+    },
     "socket.error.unknownMethod": {
       "extractionState": "manual",
       "localizations": {
