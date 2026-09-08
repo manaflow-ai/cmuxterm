@@ -2014,6 +2014,7 @@ describe("VM Effect workflows", () => {
       token: "remote-token",
       expiresAtUnix: Math.floor(Date.now() / 1000) + 300,
       session: "cloud",
+      trustedCarrier: true,
     };
     const callOrder: string[] = [];
     let statusCalls = 0;
@@ -2088,6 +2089,7 @@ describe("VM Effect workflows", () => {
             token: "remote-token",
             expiresAtUnix: Math.floor(Date.now() / 1000) + 300,
             session: "cloud",
+            trustedCarrier: true,
           };
         }),
     };
@@ -2131,6 +2133,7 @@ describe("VM Effect workflows", () => {
             token: "remote-token",
             expiresAtUnix: Math.floor(Date.now() / 1000) + 300,
             session: "cloud",
+            trustedCarrier: true,
           };
         }),
     };

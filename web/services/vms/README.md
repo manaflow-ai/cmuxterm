@@ -483,12 +483,16 @@ the root layout they are baked around.
 
 `POST /api/vm/[id]/attach-endpoint` with
 `{"transport":"cmux-remote","clientCapabilities":[...]}` returns
-`{route, token, session, daemonBuild?, invitation?}` where `invitation` is a single-use
-`cmux://enroll/…` URI minted only when the caller's device is not enrolled. The client
-connects with `cmux-tui remote connect <route> --invite-file …` through the user-space
-WireGuard hub, then
-`POST /api/vm/[id]/cmux-remote/approve {invitationId}` approves the pending claim (poll
-inside one provider-side wait command until `state` is `approved`). The legacy websocket/SSH attach (`attach-endpoint` without a
+`{route, token, session, trustedCarrier, daemonBuild?}`. The machine's daemon serves a
+trusted-carrier listener: the route is reachable only inside the owner's private network,
+whose members are all the owner's, so the daemon grants every link carrier
+authentication and the client connects with `cmux-tui remote connect <route> --carrier`
+through the user-space WireGuard hub — no device enrollment, no invitation, no approval.
+The endpoint brings a daemon from an older bake to the pinned build and restarts it with
+the trusted drop-in, except under a device that is already enrolled there (its sessions
+would end); that device keeps dialing with its stored key. `POST
+/api/vm/[id]/cmux-remote/approve` remains as a no-op that answers `approved` for older
+Mac builds. The legacy websocket/SSH attach (`attach-endpoint` without a
 transport, `POST /api/vm/[id]/sessions`) answers `409 vm_attach_transport_unsupported` with
 `details.supportedTransports: ["cmux-remote"]`. `cmux vm shell`, `cmux vm new`,
 `cmux vm base open` and the Machines panel all drive this from the Mac.
