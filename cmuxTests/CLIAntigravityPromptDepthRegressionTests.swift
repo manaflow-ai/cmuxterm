@@ -152,6 +152,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         var record = try readAntigravityHookSession(sessionId, context: context)
         XCTAssertNil(record["activePromptDepth"])
         XCTAssertEqual(record["agentLifecycle"] as? String, "idle")
+        XCTAssertEqual(record["runtimeStatus"] as? String, "idle")
 
         // A subsequent session-start with the same conversation id must also
         // discard a depth left behind when the provider omits SessionEnd.
