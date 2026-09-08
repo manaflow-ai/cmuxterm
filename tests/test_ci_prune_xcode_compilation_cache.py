@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fcntl
+import os
 import subprocess
 import sys
 import tempfile
@@ -111,6 +112,44 @@ def test_cas_dir_held_open_by_another_process_is_left_alone() -> None:
         assert "builtin: still in use" in result.stdout
 
 
+def test_root_level_generations_and_unlistable_dirs_do_not_stop_pruning() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        cache_dir = Path(temp_dir) / "CompilationCache.noindex"
+        cache_dir.mkdir(parents=True)
+        # Generations directly under the cache root: pruning one must not
+        # break the walk over the sibling CAS directories listed before it.
+        for name in ("v1.7", "v1.8", "v1.9"):
+            make_generation(cache_dir, name, payload_kib=8)
+        builtin = make_cas_dir(cache_dir, "builtin", ["v1.1", "v1.2", "v1.3"])
+        sealed = make_cas_dir(cache_dir, "sealed", ["v1.1", "v1.2", "v1.3"])
+        # `zzz` sorts after `sealed`, so it is only reached if the unlistable
+        # directory was skipped instead of aborting the run.
+        trailing = make_cas_dir(cache_dir, "zzz", ["v1.1", "v1.2", "v1.3"])
+        can_seal = os.geteuid() != 0
+        if can_seal:
+            sealed.chmod(0o000)
+        try:
+            result = run_helper(cache_dir)
+        finally:
+            sealed.chmod(0o755)
+
+        assert result.returncode == 0, result.stderr
+        assert "Traceback" not in result.stderr, result.stderr
+        assert "v1.7" not in child_names(cache_dir)
+        assert {"v1.8", "v1.9", "builtin", "sealed", "zzz"} <= child_names(cache_dir)
+        assert child_names(builtin) == {"lock", "v1.validation", "v1.2", "v1.3"}
+        assert child_names(trailing) == {"lock", "v1.validation", "v1.2", "v1.3"}
+        if can_seal:
+            assert child_names(sealed) == {
+                "lock",
+                "v1.validation",
+                "v1.1",
+                "v1.2",
+                "v1.3",
+            }
+            assert "sealed: could not inspect" in result.stdout
+
+
 def test_missing_cache_is_noop() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = Path(temp_dir) / "missing-compilation-cache"
@@ -126,6 +165,7 @@ def main() -> int:
     test_keeps_the_two_newest_generations_of_every_cas_dir()
     test_live_generations_are_untouched()
     test_cas_dir_held_open_by_another_process_is_left_alone()
+    test_root_level_generations_and_unlistable_dirs_do_not_stop_pruning()
     test_missing_cache_is_noop()
     print("PASS: Xcode compilation cache pruning keeps only the live CAS generations")
     return 0
