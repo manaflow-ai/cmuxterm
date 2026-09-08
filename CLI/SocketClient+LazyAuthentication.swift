@@ -9,7 +9,7 @@ extension SocketClient {
         operationDeadline: Date
     ) throws -> String? {
         guard !authenticationInProgress,
-              !authenticationPasswordResolutionAttempted,
+              !authenticationPasswordResolutionAttempt.isCompleted,
               SocketAuthenticationChallenge.isRequired(response),
               authenticationPasswordProvider != nil else {
             return nil
@@ -45,17 +45,8 @@ extension SocketClient {
 
     /// Completes a deferred attempt only within this request's deadline.
     func resolveDeferredAuthenticationPassword(deadline: Date?) -> String? {
-        if let deadline, deadline.timeIntervalSinceNow <= 0 {
-            return nil
-        }
-        let password = authenticationPasswordProvider?(deadline)
-        if let deadline, deadline.timeIntervalSinceNow <= 0 {
-            // The resolver may have cached a late result. A later operation
-            // needs a fresh attempt to consume it, without extending this one.
-            return nil
-        }
-        authenticationPasswordResolutionAttempted = true
-        return password
+        guard let provider = authenticationPasswordProvider else { return nil }
+        return authenticationPasswordResolutionAttempt.resolve(provider: provider, deadline: deadline)
     }
 
     /// Probes once before a write-only request when authentication is deferred.
@@ -98,7 +89,7 @@ extension SocketClient {
     /// Prepares a one-way client without turning unknown-mode writes into reads.
     func prepareOneWayAuthentication(responseTimeout: TimeInterval) throws {
         if authenticationPassword != nil,
-           !authenticationPasswordResolutionAttempted {
+           !authenticationPasswordResolutionAttempt.isCompleted {
             try authenticateIfNeeded(
                 responseTimeout: responseTimeout,
                 deadline: Date.now.addingTimeInterval(responseTimeout)
@@ -116,7 +107,7 @@ extension SocketClient {
     /// Authenticates a one-way client after the shared mode requires a password.
     private func authenticateOneWayClientIfNeeded(responseTimeout: TimeInterval) throws {
         let deadline = Date.now.addingTimeInterval(responseTimeout)
-        guard !authenticationPasswordResolutionAttempted,
+        guard !authenticationPasswordResolutionAttempt.isCompleted,
               let password = resolveDeferredAuthenticationPassword(deadline: deadline) else {
             return
         }

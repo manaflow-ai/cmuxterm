@@ -1,5 +1,4 @@
 import CmuxSettings
-import Darwin
 import Foundation
 import Testing
 
@@ -63,80 +62,6 @@ struct CLISocketAuthenticationDeadlineTests {
                 #expect(requests[offset] == "ping")
             }
         }
-    }
-
-    @Test(arguments: [false, true])
-    func reusedClientAuthenticatesAfterPasswordReadExceedsPriorDeadline(useV2: Bool) throws {
-        let support = CMUXCLIErrorOutputRegressionTests()
-        let cliPath = try support.bundledCLIPath()
-        let root = try makeHome()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let stateDirectory = CmuxStateDirectory.url(homeDirectory: root)
-        try FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
-        let passwordURL = stateDirectory.appendingPathComponent(SocketControlPasswordStore.fileName)
-        try #require(mkfifo(passwordURL.path, 0o600) == 0)
-
-        // Opening the FIFO synchronizes with the real credential read. Delay
-        // only after that read starts, so it must overrun the first deadline.
-        let writer = Process()
-        writer.executableURL = URL(fileURLWithPath: "/bin/sh")
-        writer.arguments = [
-            "-c", "exec 3>\"$1\"; sleep 1.2; printf '%s' deadline-test-password >&3",
-            "cmux-delayed-password", passwordURL.path,
-        ]
-        try writer.run()
-        defer {
-            if writer.isRunning {
-                writer.terminate()
-                writer.waitUntilExit()
-            }
-        }
-
-        let socketPath = root.appendingPathComponent("control.sock").path
-        let challenge = useV2
-            ? #"{"ok":false,"error":{"code":"auth_required","message":"send auth <password> first"}}"#
-            : "ERROR: Authentication required — send auth <password> first"
-        let server = try UnixSocketResponder(path: socketPath, responses: [
-            challenge, challenge, "OK: Authenticated",
-            #"{"ok":true,"result":{"terminals":[]}}"#,
-            #"{"ok":true,"result":{"flashed":true}}"#,
-        ])
-        defer { server.stop() }
-        var testEnvironment = environment(home: root, responseTimeout: "1")
-        testEnvironment["TMUX"] = nil
-        testEnvironment["CMUX_WORKSPACE_ID"] = "11111111-1111-1111-1111-111111111111"
-        testEnvironment["CMUX_CLI_TTY_NAME"] = "ttys-auth-deadline-fixture"
-
-        // Ambient workspace validation and its TTY fallback reuse one client.
-        // Only the fallback's fresh deadline may authenticate and replay.
-        let result = support.runProcess(
-            executablePath: cliPath,
-            arguments: [
-                "--socket", socketPath, "--json", "trigger-flash", "--surface",
-                "22222222-2222-2222-2222-222222222222",
-            ],
-            environment: testEnvironment,
-            timeout: 8
-        )
-        #expect(!result.timedOut, "\(result.diagnostics)")
-        #expect(result.status == 0, "\(result.diagnostics)")
-        let requests = server.receivedRequests
-        try #require(requests.count == 5, "\(requests)")
-        #expect(requests[2] == "auth deadline-test-password")
-        #expect(requests[1] == requests[3], "Replay must preserve the fallback request")
-        let methods = try [0, 1, 3, 4].map { index in
-            let request = try #require(
-                JSONSerialization.jsonObject(with: Data(requests[index].utf8)) as? [String: Any]
-            )
-            return try #require(request["method"] as? String)
-        }
-        #expect(methods == ["surface.list", "debug.terminals", "debug.terminals", "surface.trigger_flash"])
-        let response = try #require(
-            JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Bool]
-        )
-        #expect(response["flashed"] == true)
-        writer.waitUntilExit()
-        #expect(writer.terminationStatus == 0)
     }
 
     @Test

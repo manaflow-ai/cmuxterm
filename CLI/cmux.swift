@@ -2869,7 +2869,7 @@ final class SocketClient {
     var authenticationPassword: String?
     /// Deferred password source invoked only after an auth-required reply.
     var authenticationPasswordProvider: ((Date?) -> String?)?
-    var authenticationPasswordResolutionAttempted = false
+    var authenticationPasswordResolutionAttempt = SocketCredentialResolutionAttempt()
     var authenticationModeCoordinator = SocketAuthenticationModeCoordinator()
     var authenticationInProgress = false
     var socketAuthenticated = false
@@ -3051,7 +3051,7 @@ final class SocketClient {
         if let authenticationModeCoordinator {
             self.authenticationModeCoordinator = authenticationModeCoordinator
         }
-        authenticationPasswordResolutionAttempted = false
+        authenticationPasswordResolutionAttempt = SocketCredentialResolutionAttempt()
         socketAuthenticated = password == nil
     }
 
@@ -4119,7 +4119,7 @@ final class SocketClient {
                 authenticationModeCoordinator.recordPasswordRequired()
                 guard !didRetryAuthentication,
                       !authenticationInProgress,
-                      !authenticationPasswordResolutionAttempted,
+                      !authenticationPasswordResolutionAttempt.isCompleted,
                       authenticationPasswordProvider != nil,
                       let password = resolveDeferredAuthenticationPassword(deadline: deadline) else {
                     throw CLIError(message: line)
