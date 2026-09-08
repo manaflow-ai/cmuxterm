@@ -153,10 +153,12 @@ public final class HiveRemoteMacSession {
         await pendingConnect?.value
         connectTask = nil
         let pendingEvents = eventTask
+        let pendingRefresh = workspaceRefreshTask
         pendingEvents?.cancel()
+        pendingRefresh?.cancel()
         await pendingEvents?.value
+        await pendingRefresh?.value
         eventTask = nil
-        workspaceRefreshTask?.cancel()
         workspaceRefreshTask = nil
         workspaceRefreshPending = false
         renderGridRouter?.stop()

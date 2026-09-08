@@ -49,7 +49,8 @@ public final class HiveComputerDirectory {
         [String: [UUID: AsyncStream<HiveComputer?>.Continuation]] = [:]
     @ObservationIgnored private var presenceTask: Task<Void, Never>?
     @ObservationIgnored private var presenceGeneration = 0
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Int?, Never>?
+    @ObservationIgnored private var refreshRequestID: UUID?
 
     /// Creates a directory over injected source seams.
     ///
@@ -168,33 +169,48 @@ public final class HiveComputerDirectory {
     /// rebuild the merged rows. Transient registry failures keep the previous
     /// registry data; an auth rejection clears it (the scope changed).
     public func refresh() async {
-        if let refreshTask {
-            await refreshTask.value
-            return
+        let generationBeforeRead = scopeGeneration
+        let scope = await scopeProvider()
+        guard generationBeforeRead == scopeGeneration || loadedScope == scope else { return }
+        let generation = activateScope(scope)
+        while !Task.isCancelled {
+            guard generation == scopeGeneration, loadedScope == scope else { return }
+            if refreshTask == nil {
+                refreshRequestID = UUID()
+                refreshTask = Task { [weak self] in
+                    await self?.performRefresh(scope: scope, generation: generation)
+                }
+            }
+            guard let task = refreshTask else { return }
+            let requestID = refreshRequestID
+            let completedGeneration = await task.value
+            if refreshRequestID == requestID {
+                refreshTask = nil
+                refreshRequestID = nil
+            }
+            guard generation == scopeGeneration, loadedScope == scope else { return }
+            guard let completedGeneration else { return }
+            if completedGeneration == generation {
+                _ = await isCurrentScope(scope, generation: generation)
+                return
+            }
+            // An old account's completed request is not a refresh of the
+            // current account. Join or start its one shared successor.
         }
-        let task = Task { [weak self] in
-            guard let self else { return }
-            await self.performRefresh()
-        }
-        refreshTask = task
-        await task.value
-        refreshTask = nil
     }
 
-    private func performRefresh() async {
-        guard !isRefreshing else { return }
+    private func performRefresh(scope: HiveAccountScope, generation: Int) async -> Int {
+        guard await isCurrentScope(scope, generation: generation) else { return generation }
         isRefreshing = true
         defer { isRefreshing = false }
-        let scope = await scopeProvider()
-        let generation = activateScope(scope)
         guard scope.stackUserID != nil else {
             clearLoadedSources()
             rebuild()
-            return
+            return generation
         }
         switch await registry.listDevices() {
         case .ok(let devices):
-            guard await isCurrentScope(scope, generation: generation) else { return }
+            guard await isCurrentScope(scope, generation: generation) else { return generation }
             registryDevices = devices
             registryByID = Dictionary(
                 devices.map { ($0.deviceId, $0) },
@@ -202,18 +218,19 @@ public final class HiveComputerDirectory {
             )
             lastRefreshFailed = false
         case .authRejected:
-            guard await isCurrentScope(scope, generation: generation) else { return }
+            guard await isCurrentScope(scope, generation: generation) else { return generation }
             registryDevices = []
             registryByID = [:]
             lastRefreshFailed = false
         case .transientFailure:
-            guard await isCurrentScope(scope, generation: generation) else { return }
+            guard await isCurrentScope(scope, generation: generation) else { return generation }
             lastRefreshFailed = true
         }
-        guard await isCurrentScope(scope, generation: generation) else { return }
+        guard await isCurrentScope(scope, generation: generation) else { return generation }
         await reloadPairedRecords(scope: scope)
-        guard await isCurrentScope(scope, generation: generation) else { return }
+        guard await isCurrentScope(scope, generation: generation) else { return generation }
         rebuild()
+        return generation
     }
 
     func reloadPairedRecords(scope: HiveAccountScope) async {

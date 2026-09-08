@@ -15,12 +15,15 @@ public struct HiveTailscaleByteTransportFactory: CmxByteTransportFactory {
     /// Creates the factory.
     public init() {}
 
-    /// Route-only variant; same verification as the request variant.
+    /// Rejects route-only calls because they carry no admission request.
+    /// - Parameter route: The unadmitted route.
+    /// - Throws: `CmxNetworkByteTransportError.tailscaleAuthorizationUnavailable`.
     public func makeTransport(for route: CmxAttachRoute) throws -> any CmxByteTransport {
-        try makeVerifiedTransport(route: route)
+        throw CmxNetworkByteTransportError.tailscaleAuthorizationUnavailable
     }
 
-    /// Builds a TCP transport for a verified tailnet route.
+    /// Builds a TCP transport for the explicit transport-admission handshake.
+    /// - Parameter request: The route and its required authorization mode.
     /// - Throws: `CmxNetworkByteTransportError.tailscaleAuthorizationUnavailable`
     ///   when the route is not a tailnet-classified tailscale host.
     public func makeTransport(for request: CmxByteTransportRequest) throws -> any CmxByteTransport {

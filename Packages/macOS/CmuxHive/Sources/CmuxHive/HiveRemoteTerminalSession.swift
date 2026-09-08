@@ -149,6 +149,7 @@ public final class HiveRemoteTerminalSession {
                 self.replayRetryAttempt = 0
                 if self.phase == .reattaching {
                     self.phase = .live
+                    self.startInputWorkerIfNeeded()
                 }
             } catch is CancellationError {
                 return

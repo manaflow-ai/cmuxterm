@@ -95,7 +95,7 @@ extension HiveComputerDirectory {
             _ = activateScope(scope)
         } else if loadedScope != scope {
             await refresh()
-            return .accountMismatch
+            guard loadedScope == scope else { return .accountMismatch }
         }
         switch linkDecoder.decode(rawLink, currentStackUserID: scope.stackUserID) {
         case .invalidLink:
@@ -126,7 +126,9 @@ extension HiveComputerDirectory {
             } else {
                 macDeviceID = ticket.macDeviceID
             }
-            guard macDeviceID != ownDeviceID else { return .loopbackRejected }
+            guard macDeviceID.caseInsensitiveCompare(ownDeviceID) != .orderedSame else {
+                return .loopbackRejected
+            }
             return await persistPairing(
                 macDeviceID: macDeviceID,
                 displayName: ticket.macDisplayName ?? Self.endpointLabel(for: ticket.routes),
