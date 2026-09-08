@@ -36,7 +36,7 @@ ${fail ? `echo "curl: (6) Could not resolve host: coderouter.cmux.internal" >&2;
 const run = (args: string[], env: Record<string, string> = {}) =>
   spawnSync("/bin/sh", [path.join(bin, "cmux"), ...args], {
     encoding: "utf8",
-    env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, LANG: "en_US.UTF-8", ...env },
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, LANG: "en_US.UTF-8", LC_ALL: "", ...env },
   });
 
 beforeAll(() => {

@@ -47,7 +47,7 @@ import {
   DEVBOX_DESKTOP_UNIT,
   devboxDesktopOpenUrl,
 } from "../images/desktop";
-import { guestSelfCliInstallCommand } from "../guestSelfCli";
+import { GUEST_CMUX_SELF_SHIM_PATH, guestSelfCliInstallCommand } from "../guestSelfCli";
 import { recordSpanError, setSpanAttributes, withVmSpan } from "../telemetry";
 import {
   CMUX_TUI_BINARY_PATH,
@@ -1206,7 +1206,11 @@ export class FreestyleProvider implements VMProvider {
       async (span) => {
         try {
           const fs = this.deps.client(timeoutMs + EXEC_OVERHEAD_TIMEOUT_MS);
-          const r = await fs.vms.ref(vmId).exec({ command, timeoutMs, linuxUser: GUEST_LINUX_USER });
+          // A machine that was never attached (vm exec straight after create)
+          // has no guest `cmux` yet; one stat in the same round trip closes
+          // that gap without touching the command's own exit status.
+          const guarded = `{ [ -x ${GUEST_CMUX_SELF_SHIM_PATH} ] || { ${guestSelfCliInstallCommand()}; }; } >/dev/null 2>&1; ${command}`;
+          const r = await fs.vms.ref(vmId).exec({ command: guarded, timeoutMs, linuxUser: GUEST_LINUX_USER });
           // statusCode is null when the guest killed the command at its timeout.
           const exitCode = r.statusCode ?? 124;
           setSpanAttributes(span, { "cmux.exec.exit_code": exitCode });
