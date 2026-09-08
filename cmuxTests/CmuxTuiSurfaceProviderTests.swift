@@ -1073,6 +1073,34 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(settingsOpens == 0, "System Settings opens only for a registered (started) pane")
     }
 
+    @Test @MainActor func paneOpenerHoldsItsTokenUntilFinishedOrCancelled() {
+        var finished: [UUID] = []
+        let panelID = UUID()
+        let opener = CloudBrowserPaneOpener(
+            pane: (workspaceID: UUID(), panelID: panelID),
+            machineID: "vivid-newt",
+            machineName: "vivid-newt",
+            privateAddress: nil,
+            port: 8000,
+            label: "vivid-newt:8000",
+            directURL: URL(string: "http://10.0.0.1:8000")!,
+            machineWasAwake: true,
+            proxyAvailable: false,
+            openSystemSettings: { false },
+            onFinish: { finished.append($0) }
+        )
+        let before = SurfaceBrowserPlaceholderBridge.shared.registeredTokenCount
+        opener.start()
+        #expect(!opener.isFinished)
+        #expect(SurfaceBrowserPlaceholderBridge.shared.registeredTokenCount == before + 1)
+        // A closed pane releases the token exactly once and tells its owner.
+        opener.cancel()
+        opener.cancel()
+        #expect(opener.isFinished)
+        #expect(SurfaceBrowserPlaceholderBridge.shared.registeredTokenCount == before)
+        #expect(finished == [panelID])
+    }
+
     @Test func linkPipesReadOnGCDNotCooperativeThreads() async throws {
         // Lines arrive as the child writes them, a trailing CR is dropped, and an
         // unterminated last line is delivered at EOF.

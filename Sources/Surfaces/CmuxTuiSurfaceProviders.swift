@@ -92,6 +92,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Panels this provider created (or replaced) in this process. A projection whose
     /// panel is not here came back from a restored session as a placeholder shell.
     var materializedPanels: Set<UUID> = []
+    /// Browser panes still resolving their endpoint, by panel id. The opener owns the
+    /// pane's placeholder token and retry loop, so it must outlive `materialize`; it
+    /// leaves when the page loads or the pane goes away.
+    private var browserPaneOpeners: [UUID: CloudBrowserPaneOpener] = [:]
     /// Native cloud terminals own a manual attachment separate from their
     /// catalog projection. The provider retains it for the life of the pane.
     var manualMirrorSessions: [UUID: CloudTuiManualMirrorSession] = [:]
@@ -1123,8 +1127,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 machineWasAwake: isAwake,
                 // The desktop is a VNC page served only on the private network;
                 // a `cmux.sh` publication of it would expose the desktop token.
-                proxyAvailable: !desktop
+                proxyAvailable: !desktop,
+                onFinish: { [weak self] panelID in self?.browserPaneOpeners[panelID] = nil }
             )
+            browserPaneOpeners[created.panelID] = opener
             opener.start()
         }
         materializedPanels.insert(created.panelID)
@@ -1604,12 +1610,14 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func projectionDidEnd(_ projection: SurfaceProjection) {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserPaneOpeners.removeValue(forKey: projection.panelID)?.cancel()
     }
 
     @discardableResult
     func discardMaterialization(_ projection: SurfaceProjection) -> Bool {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserPaneOpeners.removeValue(forKey: projection.panelID)?.cancel()
         SurfacePaneFactory.close(panelID: projection.panelID, in: projection.workspaceID)
         return false
     }
@@ -1982,6 +1990,7 @@ final class CloudBrowserPaneOpener {
     private let machineWasAwake: Bool
     private let proxyAvailable: Bool
     private let openSystemSettings: @MainActor () -> Bool
+    private let onFinish: @MainActor (UUID) -> Void
     private var token: String?
     private var attempt: Task<Void, Never>?
     private var openedSystemSettings = false
@@ -1997,7 +2006,8 @@ final class CloudBrowserPaneOpener {
         directURL: URL,
         machineWasAwake: Bool,
         proxyAvailable: Bool,
-        openSystemSettings: @escaping @MainActor () -> Bool = { CloudTunnelSystemSettings.openNetworkExtensions() }
+        openSystemSettings: @escaping @MainActor () -> Bool = { CloudTunnelSystemSettings.openNetworkExtensions() },
+        onFinish: @escaping @MainActor (UUID) -> Void = { _ in }
     ) {
         self.pane = pane
         self.machineID = machineID
@@ -2009,7 +2019,10 @@ final class CloudBrowserPaneOpener {
         self.machineWasAwake = machineWasAwake
         self.proxyAvailable = proxyAvailable
         self.openSystemSettings = openSystemSettings
+        self.onFinish = onFinish
     }
+
+    var isFinished: Bool { token == nil }
 
     func start() {
         let token = SurfaceBrowserPlaceholderBridge.shared.register { [weak self] action in
@@ -2121,8 +2134,17 @@ final class CloudBrowserPaneOpener {
         }
     }
 
+    /// The pane went away: stop any in-flight attempt and drop the token.
+    func cancel() {
+        attempt?.cancel()
+        attempt = nil
+        finish()
+    }
+
     private func finish() {
-        if let token { SurfaceBrowserPlaceholderBridge.shared.unregister(token) }
-        token = nil
+        guard let token else { return }
+        SurfaceBrowserPlaceholderBridge.shared.unregister(token)
+        self.token = nil
+        onFinish(pane.panelID)
     }
 }
