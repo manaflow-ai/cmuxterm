@@ -1,4 +1,5 @@
 import Foundation
+import CmuxWorkspaces
 
 extension RestorableAgentSessionIndex {
     struct Entry: Sendable {
