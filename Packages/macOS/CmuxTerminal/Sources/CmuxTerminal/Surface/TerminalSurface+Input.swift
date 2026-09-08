@@ -246,8 +246,10 @@ extension TerminalSurface {
             return false
         }
         guard !ghostty_surface_process_exited(liveSurface) else { return false }
-        writeTextData(data, to: liveSurface)
+        // Record ownership before the runtime write can synchronously trigger
+        // a UserPromptSubmit hook.
         promptInputLedger.recordHumanInput(.unknown)
+        writeTextData(data, to: liveSurface)
         didAcceptExplicitInput()
         return true
     }
@@ -306,6 +308,12 @@ extension TerminalSurface {
         keyEvent.consumed_mods = GHOSTTY_MODS_NONE
         keyEvent.unshifted_codepoint = 0
         keyEvent.composing = false
+        // Record ownership before the key event can synchronously trigger a
+        // UserPromptSubmit hook. A failed runtime handling result remains
+        // fail-closed rather than allowing a hook to race the ledger update.
+        if recordsPromptInput {
+            promptInputLedger.recordHumanInput(.unknown)
+        }
         let accepted = text.withCString { ptr in
             keyEvent.text = ptr
             return withRuntimeClipboardPasteIntent {
@@ -313,9 +321,6 @@ extension TerminalSurface {
             }
         }
         if accepted {
-            if recordsPromptInput {
-                promptInputLedger.recordHumanInput(.unknown)
-            }
             didAcceptExplicitInput()
         }
         return accepted
@@ -376,12 +381,12 @@ extension TerminalSurface {
             return .surfaceUnavailable
         }
         guard !ghostty_surface_process_exited(liveSurface) else { return .processExited }
-        sendKeyEvent(surface: liveSurface, keycode: event.keycode, mods: event.mods)
         if recordsPromptInput {
             promptInputLedger.recordHumanInput(
                 promptInputMutation(for: event)
             )
         }
+        sendKeyEvent(surface: liveSurface, keycode: event.keycode, mods: event.mods)
         didAcceptExplicitInput()
         return .sent
     }
