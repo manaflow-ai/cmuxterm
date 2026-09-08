@@ -195,9 +195,9 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
-    /// Prompt submit clears prior attention through the journal's semantic
-    /// admission path, with the moved pane's current address and no broad clear.
-    @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
+    /// Since #11976, the CLI records the new turn in the journal for the resolved pane
+    /// instead of sending `clear_notifications`; the app reconciles attention from that event.
+    @Test func promptSubmitTurnStartFollowsMovedPaneWithoutTouchingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
@@ -241,6 +241,10 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect((event.draft["native_event"] as? String) == "UserPromptSubmit")
         #expect(!event.isSubagent)
         #expect(!commands.contains { $0.hasPrefix("clear_notifications") })
+        #expect(
+            !commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") },
+            "a new turn must not touch sibling panes; saw \(commands)"
+        )
     }
 
     /// A pane moves mid-turn: the next PreToolUse (which skips the pid/tty
