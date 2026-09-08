@@ -10,6 +10,26 @@ import AppKit
 struct SidebarWorkspaceContextMenuResolver {
     let rowView: NSView
 
+    static func menu(
+        forRow row: Int,
+        event: NSEvent,
+        rows: [SidebarWorkspaceTableRowConfiguration],
+        table: NSTableView?
+    ) -> NSMenu? {
+        guard rows.indices.contains(row), let table else { return nil }
+        let cell: NSView
+        switch table.view(atColumn: 0, row: row, makeIfNecessary: false) {
+        case let workspaceCell as SidebarWorkspaceRowTableCellView:
+            cell = workspaceCell
+        case let headerCell as SidebarGroupHeaderTableCellView:
+            cell = headerCell
+        default:
+            // Hosted SwiftUI rows retain their existing responder-chain path.
+            return nil
+        }
+        return SidebarWorkspaceContextMenuResolver(rowView: cell).menu(for: event)
+    }
+
     func menu(for event: NSEvent) -> NSMenu? {
         guard let coordinateView = rowView.superview else {
             return rowView.menu(for: event)

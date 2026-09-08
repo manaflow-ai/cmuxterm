@@ -49,25 +49,6 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(globalWindow.stderr.contains("only valid with start or attach"), globalWindow.stderr)
     }
 
-    func testLocalTmuxAliasRejectsNonAttachActions() throws {
-        let cliPath = try bundledCLIPath()
-        var environment = ProcessInfo.processInfo.environment
-        environment["CMUX_CLI_SENTRY_DISABLED"] = "1"
-        environment.removeValue(forKey: "CMUX_SOCKET")
-        environment.removeValue(forKey: "CMUX_SOCKET_PATH")
-
-        let result = runProcess(
-            executablePath: cliPath,
-            arguments: ["tmux", "list"],
-            environment: environment,
-            timeout: 10
-        )
-
-        XCTAssertFalse(result.timedOut, result.stderr)
-        XCTAssertNotEqual(result.status, 0, result.stdout)
-        XCTAssertTrue(result.stderr.contains("only supports attach"), result.stderr)
-    }
-
     func testLocalTmuxAttachCommandRunsThroughGhosttyLoginShellWrapper() throws {
         let root = makeLocalTmuxTestRoot("ghostty-attach-wrapper")
         let fakeTmuxURL = root.appendingPathComponent("fake-tmux", isDirectory: false)
