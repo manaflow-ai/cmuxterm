@@ -15,6 +15,7 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         let window = openSettings(app)
         let field = familyField(in: window)
         field.click()
+        field.typeKey("a", modifierFlags: .command)
         field.typeText("Menlo")
         let search = requireElement(
             candidates: [window.searchFields.firstMatch, window.textFields["Search"]],
@@ -31,6 +32,7 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         let window = openSettings(app)
         let field = familyField(in: window)
         field.click()
+        field.typeKey("a", modifierFlags: .command)
         field.typeText("Courier New")
         closeSettings(app, window)
 
@@ -68,6 +70,9 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         app.terminate()
         launchAndActivate(app)
         let field = familyField(in: openSettings(app))
-        XCTAssertTrue(poll(timeout: 5) { field.value as? String == expected })
+        XCTAssertTrue(
+            poll(timeout: 5) { field.value as? String == expected },
+            "Expected persisted family \(expected), got \(String(describing: field.value))"
+        )
     }
 }
