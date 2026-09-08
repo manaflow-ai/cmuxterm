@@ -2,6 +2,8 @@ import Foundation
 
 /// Locates an outline prompt in captured terminal history.
 public struct ChatOutlineAnchorResolver: Sendable {
+    private static let promptPrefixes = ["❯ ", "› ", "> ", "$ ", "% ", "# ", ">>> "]
+
     /// Creates an anchor resolver.
     public init() {}
 
@@ -59,12 +61,11 @@ public struct ChatOutlineAnchorResolver: Sendable {
     }
 
     private func isPromptMatch(_ candidate: String, target: String) -> Bool {
-        candidate == target
+        candidate == target || Self.promptPrefixes.contains { candidate == $0 + target }
     }
 
     private func isWrappedPromptMatch(_ candidate: String, target: String) -> Bool {
-        let promptPrefixes = ["❯ ", "> ", "$ ", "% ", "# ", ">>> "]
-        return promptPrefixes.contains { prefix in
+        Self.promptPrefixes.contains { prefix in
             candidate.hasPrefix(prefix) && candidate.hasSuffix(" " + target)
         }
     }
