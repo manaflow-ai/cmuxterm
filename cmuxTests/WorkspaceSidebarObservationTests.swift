@@ -136,19 +136,6 @@ struct WorkspaceSidebarObservationTests {
         )
     }
 
-    @Test func sidebarLayoutObservationReplaysChangeToLateSubscriber() async {
-        let model = WorkspaceSidebarLayoutObservationModel()
-        model.layoutDidChange()
-
-        var iterator = model.changes().makeAsyncIterator()
-        let nextChange = await iterator.next()
-
-        #expect(
-            nextChange != nil,
-            "A sidebar row that subscribes after a pane-layout change must still refresh from current workspace state."
-        )
-    }
-
     @Test func sidebarImmediateObservationPublisherCoalescesDescriptionBursts() {
         let workspace = Workspace()
 

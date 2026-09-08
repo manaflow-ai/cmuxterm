@@ -85,6 +85,9 @@ final class SidebarRowSplitPaneCountView: NSView {
         countLabel.alignment = .center
         countLabel.lineBreakMode = .byClipping
         countLabel.maximumNumberOfLines = 1
+        setAccessibilityRole(.staticText)
+        iconView.setAccessibilityElement(false)
+        countLabel.setAccessibilityElement(false)
         addSubview(iconView)
         addSubview(countLabel)
     }
@@ -102,6 +105,7 @@ final class SidebarRowSplitPaneCountView: NSView {
         configuredCount = count
         visualScale = max(0.1, font.pointSize / 9)
         isHidden = count <= 1
+        setAccessibilityElement(!isHidden)
         iconView.image = RenderableSystemSymbol.configuredAppKitImage(
             systemName: "rectangle.split.2x1",
             pointSize: font.pointSize,
