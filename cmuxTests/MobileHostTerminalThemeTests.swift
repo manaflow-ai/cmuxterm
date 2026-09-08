@@ -205,8 +205,8 @@ import Testing
             terminalConfigTheme: .monokai
         )
         observer.adoptReplayBaseline(seeded, surfaceID: surfaceID)
-        #expect(observer.debugReplayThemeCaches(for: surfaceID).0 != nil)
-        #expect(observer.debugReplayThemeCaches(for: surfaceID).1 != nil)
+        #expect(observer.terminalThemesBySurfaceID[surfaceID] != nil)
+        #expect(observer.terminalConfigThemesBySurfaceID[surfaceID] != nil)
 
         let cleared = try MobileTerminalRenderGridFrame(
             surfaceID: surfaceID.uuidString,
@@ -218,8 +218,8 @@ import Testing
         )
         observer.adoptReplayBaseline(cleared, surfaceID: surfaceID)
 
-        #expect(observer.debugReplayThemeCaches(for: surfaceID).0 == nil)
-        #expect(observer.debugReplayThemeCaches(for: surfaceID).1 == nil)
+        #expect(observer.terminalThemesBySurfaceID[surfaceID] == nil)
+        #expect(observer.terminalConfigThemesBySurfaceID[surfaceID] == nil)
     }
 }
 

@@ -60,6 +60,10 @@ struct TerminalArtifactChipCountState: Sendable {
     /// artifact count stays the same; issuing another session RPC for those
     /// snapshots needlessly competes with terminal input and output traffic.
     private var lastRequestedLocalCount: Int?
+    /// Refresh the authoritative count after a bounded run of unchanged
+    /// render-grid generations so an artifact created outside the viewport is
+    /// eventually reflected without reopening a scan for every frame.
+    private var lastRequestedSurfaceGeneration: UInt64?
     private var consecutiveRearmCount = 0
     /// Last successful gallery total (or positive legacy session total), held
     /// across transient scan failures so
@@ -73,12 +77,14 @@ struct TerminalArtifactChipCountState: Sendable {
     private var lastAuthoritativeSessionID: String?
 
     static let maxConsecutiveRearms = 3
+    static let maxDedupeSurfaceGenerationGap: UInt64 = 120
 
     mutating func reset() {
         stateGeneration &+= 1
         inFlight = nil
         trailing = nil
         lastRequestedLocalCount = nil
+        lastRequestedSurfaceGeneration = nil
         consecutiveRearmCount = 0
         lastAuthoritativeTotal = nil
         lastAuthoritativeSessionID = nil
@@ -98,7 +104,15 @@ struct TerminalArtifactChipCountState: Sendable {
             surfaceGeneration: surfaceGeneration
         )
         let pending = Pending(surfaceGeneration: surfaceGeneration, localCount: localCount)
-        if lastRequestedLocalCount == localCount {
+        let isWithinDedupeWindow: Bool
+        if let requestedGeneration = lastRequestedSurfaceGeneration,
+           surfaceGeneration >= requestedGeneration {
+            isWithinDedupeWindow =
+                surfaceGeneration - requestedGeneration < Self.maxDedupeSurfaceGenerationGap
+        } else {
+            isWithinDedupeWindow = false
+        }
+        if lastRequestedLocalCount == localCount, isWithinDedupeWindow {
             // Keep the chip's local observation current, but do not re-open
             // the count RPC until the visible count changes. A matching
             // trailing request still represents a count that has not been
@@ -107,6 +121,7 @@ struct TerminalArtifactChipCountState: Sendable {
             return .provisionalReport(provisional)
         }
         lastRequestedLocalCount = localCount
+        lastRequestedSurfaceGeneration = surfaceGeneration
         guard inFlight == nil else {
             trailing = pending
             return .provisionalReport(provisional)

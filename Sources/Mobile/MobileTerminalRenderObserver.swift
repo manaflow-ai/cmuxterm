@@ -20,8 +20,8 @@ final class MobileTerminalRenderObserver {
     private var isEmitFlushScheduled = false
     private var renderGridStatesBySurfaceID:
         [UUID: [MobileTerminalRenderGridFrame.Anchor: MobileTerminalRenderGridEmissionState]] = [:]
-    private var terminalThemesBySurfaceID: [UUID: TerminalTheme] = [:]
-    private var terminalConfigThemesBySurfaceID: [UUID: TerminalTheme] = [:]
+    var terminalThemesBySurfaceID: [UUID: TerminalTheme] = [:]
+    var terminalConfigThemesBySurfaceID: [UUID: TerminalTheme] = [:]
     private var runtimeSurfaceGenerationsBySurfaceID: [UUID: UInt64] = [:]
     private var reconciledSurfaceTopologyGeneration: UInt64?
     private var cachedTerminalTheme: TerminalTheme = .monokai
@@ -472,12 +472,6 @@ final class MobileTerminalRenderObserver {
         terminalThemesBySurfaceID[surfaceID] = frame.terminalTheme
         terminalConfigThemesBySurfaceID[surfaceID] = frame.terminalConfigTheme
     }
-
-    #if DEBUG
-    func debugReplayThemeCaches(for surfaceID: UUID) -> (TerminalTheme?, TerminalTheme?) {
-        (terminalThemesBySurfaceID[surfaceID], terminalConfigThemesBySurfaceID[surfaceID])
-    }
-    #endif
 
     func decorateReplayFrame(_ frame: MobileTerminalRenderGridFrame) -> MobileTerminalRenderGridFrame {
         if !hasLoadedTerminalTheme { refreshTerminalTheme() }
