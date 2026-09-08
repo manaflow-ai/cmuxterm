@@ -25,7 +25,7 @@ extension TerminalSurface {
     @MainActor
     public var hasPendingProgrammaticPromptSubmission: Bool {
         promptInputLedger.hasPendingProgrammaticSubmission
-            || deferredPromptSubmissionAwaitingClipboardReplay
+            || deferredPromptSubmissionAwaitingClipboardReplay != nil
             || (pendingSocketInputQueue + deferredPromptSubmissionRetries)
                 .contains { input in
                     guard case .promptSubmission(
@@ -681,7 +681,7 @@ extension TerminalSurface {
                 agentInputScope: admittedAgentInputScope,
                 deliveryReceipt: deliveryReceipt
             )
-        if deferredPromptSubmissionAwaitingClipboardReplay
+        if deferredPromptSubmissionAwaitingClipboardReplay != nil
             || !deferredPromptSubmissionRetries.isEmpty {
             return .inputQueueFull
         }
@@ -698,9 +698,7 @@ extension TerminalSurface {
                     deliveryReceipt?.finish(.surfaceUnavailable)
                     return
                 }
-                if deliveryReceipt == nil {
-                    self.deferredPromptSubmissionAwaitingClipboardReplay = false
-                }
+                self.deferredPromptSubmissionAwaitingClipboardReplay = nil
                 let result = self.sendPromptSubmissionAfterAdmission(
                     text,
                     data: data,
@@ -736,9 +734,7 @@ extension TerminalSurface {
                     deliveryReceipt?.cancel()
                     return
                 }
-                if deliveryReceipt == nil {
-                    self.deferredPromptSubmissionAwaitingClipboardReplay = false
-                }
+                self.deferredPromptSubmissionAwaitingClipboardReplay = nil
                 if let deliveryReceipt {
                     deliveryReceipt.finish(.surfaceUnavailable)
                 } else {
@@ -749,9 +745,7 @@ extension TerminalSurface {
                 }
             }
         ) {
-            if deliveryReceipt == nil {
-                deferredPromptSubmissionAwaitingClipboardReplay = true
-            }
+            deferredPromptSubmissionAwaitingClipboardReplay = pendingPromptInput
             hibernationRecorder.recordTerminalInput(
                 workspaceId: tabId,
                 panelId: id
@@ -1531,11 +1525,13 @@ extension TerminalSurface {
     ) {
         let queued = pendingSocketInputQueue
             + deferredPromptSubmissionRetries
+            + (deferredPromptSubmissionAwaitingClipboardReplay.map { [$0] } ?? [])
         pendingSocketInputQueue.removeAll(keepingCapacity: false)
         pendingSocketInputBytes = 0
         deferredPromptSubmissionRetries.removeAll(keepingCapacity: false)
         deferredPromptSubmissionRetryBytes = 0
         deferredPromptSubmissionRetryRounds = 0
+        deferredPromptSubmissionAwaitingClipboardReplay = nil
         for input in queued {
             finishPendingPromptDelivery(input, with: result)
         }

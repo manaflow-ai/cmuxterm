@@ -330,9 +330,9 @@ public final class TerminalSurface: Identifiable, ObservableObject {
     var deferredPromptSubmissionRetries: [PendingSocketInput] = []
     var deferredPromptSubmissionRetryBytes = 0
     var deferredPromptSubmissionRetryRounds = 0
-    // A receipt-less prompt waiting for clipboard replay is reserved here,
-    // separately from retry items that are safe for a surface flush to send.
-    var deferredPromptSubmissionAwaitingClipboardReplay = false
+    // A prompt waiting for clipboard replay is reserved here, separately from
+    // retry items that are safe for a surface flush to send.
+    var deferredPromptSubmissionAwaitingClipboardReplay: PendingSocketInput?
     let maxDeferredPromptSubmissionRetries = 64
     var promptInputLedger = TerminalPromptInputLedger()
     var controlReturnIsPromptSubmissionBoundary = false
@@ -720,12 +720,14 @@ public final class TerminalSurface: Identifiable, ObservableObject {
         for input in deferredPromptSubmissionRetries {
             input.completePromptSubmissionDelivery(with: .surfaceUnavailable)
         }
+        deferredPromptSubmissionAwaitingClipboardReplay?
+            .completePromptSubmissionDelivery(with: .surfaceUnavailable)
         pendingSocketInputQueue.removeAll(keepingCapacity: false)
         pendingSocketInputBytes = 0
         deferredPromptSubmissionRetries.removeAll(keepingCapacity: false)
         deferredPromptSubmissionRetryBytes = 0
         deferredPromptSubmissionRetryRounds = 0
-        deferredPromptSubmissionAwaitingClipboardReplay = false
+        deferredPromptSubmissionAwaitingClipboardReplay = nil
         retireSurfaceRegistryRegistrationIfNeeded()
         markPortalLifecycleClosed(reason: "deinit")
         // Mirror closeHeadlessStartupWindowIfNeeded: deinit is nonisolated, so

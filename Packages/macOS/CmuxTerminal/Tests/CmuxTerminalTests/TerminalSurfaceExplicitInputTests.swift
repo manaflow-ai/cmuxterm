@@ -481,6 +481,35 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(await receipt.wait() == .surfaceUnavailable)
     }
 
+    @Test func clipboardDeferredPromptWithReceiptIsTrackedUntilDiscarded() async {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.shouldDeferRuntimeInput = true
+        let receipt = PromptSubmissionDeliveryReceipt()
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "deferred receipt prompt",
+                submitKey: "return",
+                hookRecordingSource: "workspace.agent_submit",
+                deliveryReceipt: receipt
+            ) == .queued
+        )
+        #expect(fixture.surface.hasPendingProgrammaticPromptSubmission)
+
+        fixture.surface.flushPendingSocketInputIfNeeded()
+        #expect(fixture.paneHost.explicitInputCount == 0)
+
+        fixture.surface.discardPendingSocketInput()
+
+        #expect(await receipt.wait() == .surfaceUnavailable)
+        #expect(!fixture.surface.hasPendingProgrammaticPromptSubmission)
+    }
+
     @Test func nativePromptDoesNotRetainAReplacedAgentScope() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }
