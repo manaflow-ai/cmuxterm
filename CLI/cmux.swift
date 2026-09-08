@@ -31181,7 +31181,7 @@ struct CMUXCLI {
             let sessionEndTaskStoreScope = sessionEndEntry?.record?.claudeTaskDirectoryName.map {
                 sessionEndTaskStoreIdentity.rawValue + ":" + $0
             } ?? sessionEndTaskStoreIdentity.rawValue
-            var mappedSession = sessionEndEntry?.record
+            let mappedSession = sessionEndEntry?.record
             if parsedInput.sessionId != nil, mappedSession == nil {
                 // A session-id-bearing end event without an atomic generation
                 // proof must not fall back to workspace matching: a newer
