@@ -113,6 +113,13 @@ struct TerminalArtifactChipCountState: Sendable {
             isWithinDedupeWindow = false
         }
         if lastRequestedLocalCount == localCount, isWithinDedupeWindow {
+            if inFlight != nil, trailing?.localCount == localCount {
+                // Keep a queued count tied to the freshest render-grid
+                // generation. The original request may settle after several
+                // frames, and an old generation would otherwise discard the
+                // follow-up as stale.
+                trailing = pending
+            }
             // Keep the chip's local observation current, but do not re-open
             // the count RPC until the visible count changes. A matching
             // trailing request still represents a count that has not been
