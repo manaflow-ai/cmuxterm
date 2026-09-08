@@ -5621,7 +5621,7 @@ describe("VM Effect workflows", () => {
     // yield exactly one provider create, with the loser observing the
     // winner's row.
     const results = await Promise.allSettled([attempt(), attempt()]);
-    expect(createCalls).toBe(1);
+    expect(createCalls, results.map((result) => result.status === "rejected" ? String(result.reason) : "fulfilled").join("\n")).toBe(1);
     const fulfilled = results.filter((r) => r.status === "fulfilled");
     expect(fulfilled.length).toBeGreaterThanOrEqual(1);
 
