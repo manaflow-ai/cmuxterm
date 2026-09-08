@@ -28,10 +28,10 @@ struct TerminalConfigurationPresentationMetrics: Equatable {
     }
 
     func publishChanges(
-        comparedTo previous: Self?
+        comparedTo previous: Self?,
+        notificationCenter center: NotificationCenter = .default
     ) {
         guard let previous else { return }
-        let center = NotificationCenter.default
         if terminalFontSize != previous.terminalFontSize {
             center.post(
                 name: .ghosttyTerminalFontSizeDidChange,
