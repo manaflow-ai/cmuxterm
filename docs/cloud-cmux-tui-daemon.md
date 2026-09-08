@@ -524,9 +524,11 @@ Socket methods (the CLI, the sidebar tree, and agents all go through them):
 | `vm.terminal_rename` | `{id, terminal_id, name}` | Explicit compatibility fan-out that renames every tab view of one terminal. `name: ""` clears the custom label on every view. |
 
 CLI addresses are the tree's lines: `cmux vm tree`, then
-`cmux vm open <machine>[/<ws>[/<term>]]`, `cmux vm open <machine>:desktop`,
+`cmux vm open <machine>[/<ws>[/<term>[/<tab>]]]`, `cmux vm open <machine>:desktop`,
 `cmux vm open <machine>:port/<n>`. A workspace name is accepted only when it
-is unique; IDs always win. A terminal opens locally as a pane running
+is unique; IDs always win. The `/<tab>` suffix (a `tab_…` id from the tree)
+picks one exact tab of a terminal that occupies several. A terminal opens
+locally as a pane running
 `cmux-tui attach --terminal <term_…>` against the link socket, with the exact
 remote workspace and tab IDs retained in the projection.
 

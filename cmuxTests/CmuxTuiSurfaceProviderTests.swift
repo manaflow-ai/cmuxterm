@@ -306,6 +306,10 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
             ["tab_id": "tab_b", "workspace": ["id": "ws_main"], "focused": false],
         ]
         #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [duplicate]]) == .ambiguous)
+        #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [duplicate]], tabID: "tab_a") == .resolved(terminalID: "term_build", tabID: "tab_a"))
+        #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [duplicate]], tabID: "tab_missing") == .notFound)
+        #expect(CMUXCLI.parseVMOpenTarget("vivid-newt/ws_main/term_build") == .terminal(machine: "vivid-newt", workspace: "ws_main", terminal: "term_build", tab: nil))
+        #expect(CMUXCLI.parseVMOpenTarget("vivid-newt/ws_main/term_build/tab_a") == .terminal(machine: "vivid-newt", workspace: "ws_main", terminal: "term_build", tab: "tab_a"))
 
         #expect(CMUXCLI.resolveVMRemoteTerminalPlacement("term_build", machine: "vivid-newt", workspaceID: "ws_main", in: ["resources": [["kind": "terminal", "key": "term_build", "remote_views": NSNull()]]]) == .unavailable)
 

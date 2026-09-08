@@ -127,6 +127,15 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         machine: [String: Any],
         resources: [[String: Any]]
     ) throws -> CloudTreeCLIResult {
+        try runCLICloudCommand(arguments: ["vm", "tree"], machine: machine, resources: resources)
+    }
+
+    private func runCLICloudCommand(
+        arguments: [String],
+        machine: [String: Any],
+        resources: [[String: Any]],
+        extraResponses: [[String: Any]] = []
+    ) throws -> CloudTreeCLIResult {
         let socketPath = "/tmp/cmux-cloud-tree-cli-\(UUID().uuidString.prefix(8)).sock"
         let machineID = machine["id"] as? String
         let catalogResources = resources.map { resource -> [String: Any] in
@@ -140,16 +149,18 @@ struct CloudTreeOneMachineManyWorkspacesTests {
             }
             return resource
         }
-        let responseData = try JSONSerialization.data(withJSONObject: [
+        let catalog: [String: Any] = [
             "ok": true,
             "result": [
                 "machines": [machine],
                 "resources": catalogResources,
                 "projections": [],
             ],
-        ])
-        let response = String(decoding: responseData, as: UTF8.self)
-        let responder = try UnixSocketResponder(path: socketPath, response: response)
+        ]
+        let payloads = try ([catalog] + extraResponses).map { object in
+            String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+        }
+        let responder = try UnixSocketResponder(path: socketPath, responses: payloads)
         defer { responder.stop() }
 
         var environment = ProcessInfo.processInfo.environment
@@ -166,7 +177,7 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         process.executableURL = try BundledCLITestSupport.bundledCLIURL(
             for: CloudTreeCLIBundleToken.self
         )
-        process.arguments = ["vm", "tree"]
+        process.arguments = arguments
         process.environment = environment
         process.standardOutput = outputPipe
         process.standardError = errorPipe
@@ -490,7 +501,7 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         let after = try workspaceRow(rowLocal)
         let refreshed = try workspaceRow(CmuxTuiSnapshotParser.resources(from: next))
         #expect(before.children.count == 1)
-        #expect(before.children.first?.id.contains("term_a") == true)
+        #expect(before.children.first?.id.contains("pane:pane_1") == true)
         #expect(after.children.map(\.id) == before.children.map(\.id))
         #expect(after.children.flatMap { $0.children }.map(\.id) == before.children.flatMap { $0.children }.map(\.id))
         #expect(refreshed.children.map(\.id) == after.children.map(\.id))
@@ -564,6 +575,24 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(hidden.contains("build"), "the hidden row uses its own tab name")
         #expect(!shown.contains("/term_shared)"), "a tab-less command would open the focused tab for both rows")
         #expect(!hidden.contains("/term_shared)"))
+
+        let opened = try runCLICloudCommand(
+            arguments: ["vm", "open", "\(machineID)/ws_main/term_shared/tab_a", "--json"],
+            machine: machine,
+            resources: [resource],
+            extraResponses: [[
+                "ok": true,
+                "result": [
+                    "surface_id": "surface-1",
+                    "workspace_id": "workspace-1",
+                    "reused": false,
+                ],
+            ]]
+        )
+        #expect(opened.status == 0, Comment(rawValue: opened.stderr))
+        let project = try #require(opened.requests.first { $0.contains("surface.project") }, Comment(rawValue: opened.requests.joined(separator: "\n")))
+        #expect(project.contains("\"remote_tab_id\":\"tab_a\""), Comment(rawValue: project))
+        #expect(!project.contains("\"remote_tab_id\":\"tab_b\""), Comment(rawValue: project))
     }
 
     @Test("A terminal that left a workspace's layout leaves its folder; Terminals still lists it, greyed as detached")

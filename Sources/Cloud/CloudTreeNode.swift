@@ -656,6 +656,26 @@ enum CloudTreeNodeBuilder {
         let tabSuffix = remoteTabID.map { "/tab:\($0)" } ?? ""
         return "machine:\(resource.machine.rawValue)/ws/\(workspaceID)/resource:\(resource.rawValue)\(tabSuffix)"
     }
+
+    /// A pane row that nests hidden tabs. Identity is the daemon pane, not the
+    /// tab it currently shows, so collapse and selection survive a tab switch.
+    static func nodeID(
+        pane paneID: String,
+        screenID: String?,
+        screenIndex: Int?,
+        inRemoteWorkspace workspaceID: String,
+        machine: SurfaceMachineID
+    ) -> String {
+        let screenPart: String
+        if let screenID, !screenID.isEmpty {
+            screenPart = "/screen:\(screenID)"
+        } else if let screenIndex {
+            screenPart = "/screen-index:\(screenIndex)"
+        } else {
+            screenPart = ""
+        }
+        return "machine:\(machine.rawValue)/ws/\(workspaceID)\(screenPart)/pane:\(paneID)"
+    }
     static func nodeID(browsersGroup machine: SurfaceMachineID) -> String { "machine:\(machine.rawValue)/browsers" }
     static func nodeID(portsGroup machine: SurfaceMachineID) -> String { "machine:\(machine.rawValue)/ports" }
     static func nodeID(placeholder machine: SurfaceMachineID) -> String { "machine:\(machine.rawValue)/placeholder" }
@@ -1029,11 +1049,22 @@ enum CloudTreeNodeBuilder {
         hiddenTabCount: Int,
         children: [CloudTreeNode]
     ) -> CloudTreeNode {
-        let id = nodeID(
-            resource: placement.resource.id,
-            inRemoteWorkspace: workspace.id,
-            remoteTabID: placement.view?.tabID
-        )
+        let id: String
+        if let paneID = placement.view?.paneID, !paneID.isEmpty, !children.isEmpty {
+            id = nodeID(
+                pane: paneID,
+                screenID: placement.view?.screenID,
+                screenIndex: placement.view?.screenIndex,
+                inRemoteWorkspace: workspace.id,
+                machine: machine
+            )
+        } else {
+            id = nodeID(
+                resource: placement.resource.id,
+                inRemoteWorkspace: workspace.id,
+                remoteTabID: placement.view?.tabID
+            )
+        }
         switch placement.resource.kind {
         case .terminal:
             return terminalNode(
