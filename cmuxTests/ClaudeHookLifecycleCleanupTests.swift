@@ -69,7 +69,6 @@ struct ClaudeHookLifecycleCleanupTests {
 
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
-
         let commands = context.state.snapshot()
         #expect(
             commands.contains {
@@ -240,7 +239,7 @@ struct ClaudeHookLifecycleCleanupTests {
 
         let commands = context.state.snapshot()
         #expect(
-            commands.contains { $0.contains("\"method\":\"agent.hibernation.session_end\"") },
+            commands.contains { $0.contains("\"method\":\"agent.hibernation.session_end\"") && $0.contains("\"pid\":43219") && $0.contains("\"pid_start_seconds\":17") && $0.contains("\"pid_start_microseconds\":23") },
             "SessionEnd must consult the app's exact hibernation intent before consuming cleanup state; saw \(commands)"
         )
         #expect(

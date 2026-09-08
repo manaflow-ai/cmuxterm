@@ -126,6 +126,9 @@ extension TerminalPanel {
         guard surface.prepareAgentHibernationResume(initialInput: resumeStartupInput) else {
             return .unavailable
         }
+        AgentHibernationController.shared.disarmSessionEndPreservation(
+            panelKey: AgentHibernationPanelKey(workspaceId: workspaceId, panelId: id)
+        )
         agentHibernationPhase = .live
         requestViewReattach()
         surface.requestBackgroundSurfaceStartIfNeeded()
