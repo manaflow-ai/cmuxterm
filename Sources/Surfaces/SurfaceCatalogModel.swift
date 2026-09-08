@@ -984,8 +984,7 @@ struct CloudVMStateDocument: Hashable, Codable, Sendable {
         guard uniqueMatches.count <= 1 else { return false }
         let rowID = uniqueMatches.first
         let existingObject = rowID.flatMap { collection.object(forRowID: $0) }
-        if let rowID,
-           let existingID = existingObject.flatMap({ Self.nonEmptyString($0["id"]) }),
+        if let existingID = existingObject.flatMap({ Self.nonEmptyString($0["id"]) }),
            let explicitID,
            existingID != explicitID {
             // An explicit identity cannot silently claim a different row found
