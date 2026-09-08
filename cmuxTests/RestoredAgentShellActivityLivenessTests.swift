@@ -161,6 +161,70 @@ struct RestoredAgentShellActivityLivenessTests {
         #expect(store.surfaceResumeBinding(panelId: panel.id)?.allowsAutomaticResume == false)
     }
 
+    // MARK: - Deferred restore ownership
+
+    /// After a relaunch the only process evidence for a restored binding is the
+    /// hook-recorded PID that died with the previous app instance. While the
+    /// restore is still deferred behind its ownership scan, nothing owns the
+    /// binding yet, so the staleness reconciliation used to retire it and the
+    /// scan then cancelled the launch: every deferred pane came back as a
+    /// bare shell.
+    @Test
+    func workspaceKeepsDeferredRestoreBindingThroughStalenessReconciliation() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+        let binding = Self.trustedPiBinding()
+
+        #expect(workspace.setSurfaceResumeBinding(binding, panelId: panelId))
+        let restoredAgent = try #require(workspace.restoredAgentSnapshotsByPanelId[panelId])
+        workspace.deferredAgentResumeRestoresByPanelId[panelId] = DeferredAgentResumeRestore(
+            stablePanelID: panelId,
+            restorableAgent: restoredAgent,
+            resumeBinding: binding,
+            restoresRemoteWorkspaceTerminalSnapshot: false,
+            workingDirectory: Self.projectDirectory,
+            resumeWorkingDirectory: Self.projectDirectory
+        )
+        defer { workspace.deferredAgentResumeRestoresByPanelId.removeValue(forKey: panelId) }
+
+        workspace.reconcileSurfaceResumeBindings(
+            using: .empty,
+            restorableAgentIndex: Self.emptyLiveIndex()
+        )
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == true)
+        #expect(!workspace.isStaleAgentHookBinding(
+            binding,
+            panelId: panelId,
+            restorableAgentIndex: Self.emptyLiveIndex()
+        ))
+    }
+
+    @Test
+    func workspaceStillRetiresExitedBindingWithoutDeferredRestore() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+
+        #expect(workspace.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panelId))
+        workspace.reconcileSurfaceResumeBindings(
+            using: .empty,
+            restorableAgentIndex: Self.emptyLiveIndex()
+        )
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == false)
+    }
+
+    /// A completed scan that found no live process for any panel.
+    private static func emptyLiveIndex() -> RestorableAgentSessionIndex {
+        RestorableAgentSessionIndex.load(
+            homeDirectory: "/tmp/cmux-deferred-restore-empty-home",
+            fileManager: .default,
+            registry: CmuxVaultAgentRegistry(registrations: []),
+            detectedSnapshots: [:],
+            processIdentityProvider: { _ in nil }
+        )
+    }
+
     // MARK: - Foreground process evidence
 
     @Test
