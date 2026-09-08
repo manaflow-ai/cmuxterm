@@ -98,6 +98,24 @@ cmux vm new [--desktop|--base] [--size <4g|8g|16g|24g|32g|64g|MB>] [--name <labe
 Socket `vm.create` with the machine **kind** — shell-only (`base`) for a bare `vm new` on this rollout; `--desktop` requests a machine with a screen (TigerVNC + openbox + noVNC on 6901) when the deployment advertises that image (`--base`/`--no-desktop` explicitly ask for shell-only). The backend selects a kind-specific image from its manifest; `--image <id>` is the explicit override and the only way an image id leaves the client. If the requested kind is not offered, the server fails closed with an image-config error rather than silently returning the wrong shape. `--size` accepts `4g`, `8g`, `16g`, `24g`, `32g`, `64g`, or raw MB ≥ 512. `vm ls --json` → `limits.memoryOptionsMb` is authoritative for the current plan; the backend selects its default when a parsed request is unavailable, and the chosen image supplies the matching CPU and initial disk. `--name` applies a display label through `vm.rename` after the create. Positional arguments are rejected (`cmux vm new myvm` errors instead of provisioning). Retries of a failed create reuse an idempotency key so a transient failure never mints two machines.
 Without `--detach`, opens a plain terminal on the machine (the same open path as `vm shell`); `--focus false` opens it without switching to its workspace (what the New Machine sheet does — the app's Create returns control immediately and the pane appears in the background); desktop machines also get their screen in a split. Text output carries the stable `OK machine=<id>` marker after the localized created line; `--detach` prints `<id> is ready` and the follow-up commands. `--json`: the `vm.create` payload (`{id, provider, image, kind?, …}`) and no pane. Sidebar: Machines panel ＋ / "New Cloud Machine…" sheet (name, kind, size, plan meter). On a free or unknown plan the backend returns `vm_requires_pro` (exit 1); paid-plan machine caps come from the backend (`vm ls --json` → `limits.maxActiveVms`; absent means uncapped). The current CLI accepts `--provider freestyle`; omit it to let the server choose the configured default. If a deployment adds another provider, read that tagged app's `vm new --help` before using it.
 
+### `cmux vm rename`
+
+```bash
+cmux vm rename <id> <label> [--json]
+cmux vm rename <id> --clear [--json]
+```
+
+Sets or clears the machine's display-only label through `vm.rename`; the generated machine id remains its address. The response is JSON when requested, otherwise it confirms the stored label.
+
+### `cmux vm rm`
+
+```bash
+cmux vm rm <id> [--json]
+# aliases: cmux vm destroy <id>, cmux vm delete <id>
+```
+
+Permanently deletes the machine and its data through `vm.destroy`. Confirm the machine id before running this destructive command.
+
 ### `cmux vm status`
 
 ```bash
@@ -419,6 +437,14 @@ cmux vm shell <id> [--window <id|ref|index>] [--json]    # alias: cmux vm attach
 
 A **plain terminal** on the machine, like an ssh session (not the cmux-tui client): one shared open path — `vm.cmux_remote_info` (availability and protocol check), `workspace.create` (or `workspace.cloud_vm_terminal_ready` for `--workspace`), `workspace.cloud_vm_bind`, then `surface.new_terminal {machine, open: true, name: "shell"}`, which creates a `bash -l` terminal in the machine's session and projects it as a pane; the placeholder pane is closed with `surface.close`. Desktop machines also get their screen in a split (`vm.desktop_open`). Text `OK workspace=<ws> transport=cmux-remote terminal=<term>` plus `Reattach: cmux vm open <m>/<ws>/<term>`; `--json` adds `terminal_id`, `remote_workspace_id`, `surface_id`. Every other cloud open (`vm new`, `vm fork`, `vm restore`, `vm base open`, the Machines panel, the sidebar cloud button) uses this path. Older deployments without a cmux-tui daemon fall back to the websocket/SSH transports (`vm.attach_info`, `vm.session_attach_info`, `vm.sessions`); a machine that answers `vm_attach_transport_unsupported` is cmux-tui only. Sidebar: machine row › Open Shell / click.
 
+### `cmux vm tui`
+
+```bash
+cmux vm tui <id> [--window <id|ref|index>] [--json]
+```
+
+Opens the full cmux-tui client in a pane, with its own workspaces, panes, and tabs. It dials the machine's trusted-carrier listener over the private network, so it does not perform device enrollment or approval. The hidden `vm-tui-connect --config <file>` helper is used only by this command. Use `vm shell` for a plain terminal.
+
 ### `cmux vm open`
 
 ```bash
@@ -446,6 +472,14 @@ cmux vm desktop <id> [--workspace <id|ref|index>] [--json]    # alias: cmux vm v
 ```
 
 Socket `vm.desktop_open {id, workspace_id?, focus: false}`: the machine's noVNC desktop as a browser pane in the machine's open workspace, else the one you name, else where you are (focus defaults to false so the pane never steals typing from the shell). The pane opens the machine's **private address on 6901** over the owner's private network — `cmux vpn up` first, like every other access verb. Text `OK surface=… url=…`. Desktop-kind machines only; a `--base` machine has no screen (exit 1). Sidebar: machine row › Open Desktop; Displays › Open Desktop.
+
+### `cmux vm ssh`
+
+```bash
+cmux vm ssh <id> [--window <id|ref|index>] [--json]
+```
+
+Opens the provider SSH-backed workspace through the app's SSH attach path. This compatibility path is provider-dependent; the normal cloud terminal path is `vm shell`.
 
 ### Provider attach diagnostics
 
@@ -604,7 +638,7 @@ cmux rpc <method> [json-params]        # call any v2 method directly, e.g. cmux 
 | `vm.exec` | `vm exec`, `vm run`, `vm push`, `vm pull`, `vm wait --wake`, `vm tools`, `vm ports` |
 | `vm.open_port`, `vm.port_open` | `vm open <id> <port> --print`, `vm open <id> <port>` / `<id>:port/<n>` |
 | `vm.desktop_open` | `vm desktop`, `vm open <id>:desktop`, the split beside `vm shell` |
-| `vm.cmux_remote_info`, `vm.cmux_remote_approve`, `vm.link_socket` | the shared machine shell and surface open path |
+| `vm.cmux_remote_info`, `vm.link_socket` | the shared machine shell and surface open path |
 | `vm.ssh_info` | provider-specific attach diagnostics surfaced by the app |
 | `vm.attach_info`, `vm.session_attach_info`, `vm.sessions` | legacy websocket/SSH attach transports the open path falls back to on deployments without a cmux-tui daemon (`cmux rpc` reaches them directly) |
 | `vm.tree` | the pre-catalog tree; `vm tree` uses `surface.catalog` |

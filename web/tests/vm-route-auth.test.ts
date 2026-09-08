@@ -618,7 +618,7 @@ describe("VM REST auth", () => {
     }
   });
 
-  test("passes configured plan active VM limits into the create workflow", async () => {
+  test("passes the advertised allowance despite a retired deployment override", async () => {
     process.env.CMUX_VM_PLAN_PRO_MAX_ACTIVE_VMS = "25";
     getUser.mockResolvedValue(authedStackUser());
     runVmWorkflow.mockResolvedValue({
@@ -641,7 +641,7 @@ describe("VM REST auth", () => {
     expect(createVm).toHaveBeenCalledWith(expect.objectContaining({
       billingTeamId: "team-1",
       billingPlanId: "pro",
-      maxActiveVms: 25,
+      maxActiveVms: 50,
     }));
   });
 
@@ -1613,7 +1613,7 @@ describe("VM REST auth", () => {
       token: "t",
       expiresAtUnix: 1_777_000_300,
       session: "cloud",
-      invitation: { uri: "cmux://enroll/abc", invitationId: "inv-1", expiresAtUnix: 1_777_000_200 },
+      trustedCarrier: true,
     });
     const response = await attachRoute.POST(
       new Request("https://cmux.test/api/vm/provider-vm-team-1/attach-endpoint", {
@@ -1632,11 +1632,13 @@ describe("VM REST auth", () => {
       deviceFingerprint: "fp-device-1",
       clientCapabilities: ["direct-ws-user-agent"],
       callerPlanId: "pro",
+      maxActiveVms: 50,
     });
     expect(openAttachEndpoint).not.toHaveBeenCalled();
     const payload = await response.json();
     expect(payload.transport).toBe("cmux-remote");
-    expect(payload.invitation.invitationId).toBe("inv-1");
+    expect(payload.trustedCarrier).toBe(true);
+    expect(payload.invitation).toBeUndefined();
   });
 
   test("attach-endpoint answers 409 vm_attach_transport_unsupported when the machine only runs cmux-tui", async () => {
@@ -1814,6 +1816,7 @@ describe("VM REST auth", () => {
       providerVmId: "provider-vm-team-1",
       callerPlanId: "pro",
       command: "true",
+      maxActiveVms: 50,
       timeoutMs: 30_000,
     });
   });

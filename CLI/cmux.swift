@@ -4387,8 +4387,7 @@ struct CMUXCLI {
     // `vm_image_config_error`.
     /// `--size` spellings → memory in MB. The supported base-image ladder is
     /// 4 GB, 8 GB, 16 GB, 24 GB, 32 GB, and 64 GB of RAM, with disk sizes
-    /// following each image. Pricing separately describes 5 vCPU, 20 GB RAM,
-    /// and 200 GB disk as one pool shared across the plan's Cloud VMs.
+    /// following each image. Each machine has its own resources.
     private static let cloudVMSizeAliases: [String: Int] = [
         "4g": 4096, "4gb": 4096,
         "8g": 8192, "8gb": 8192,
@@ -4966,6 +4965,11 @@ struct CMUXCLI {
         if normalizedCommand == "restore" || normalizedCommand == "fork" {
             return false
         }
+        if normalizedCommand == "local-tmux" || normalizedCommand == "tmux" {
+            // The local-tmux command owns its explicit --focus decision; do
+            // not activate a window as a side effect of global --window parsing.
+            return false
+        }
         if normalizedCommand == "read-screen" || normalizedCommand == "read-selection" {
             return false
         }
@@ -5214,6 +5218,27 @@ struct CMUXCLI {
                 return
             }
             throw unknownCommandError(command)
+        }
+
+        // Registry inspection, cleanup, and direct headless attach must keep
+        // working while the GUI is quit (including during an app update).
+        if command == "local-tmux" || command == "tmux" {
+            let invocation = try LocalTmuxInvocation.parse(commandArgs)
+            if command == "tmux", invocation.action != .attach {
+                throw CLIError(message: String(
+                    localized: "cli.localTmux.error.tmuxAliasAttachOnly",
+                    defaultValue: "the tmux alias only supports attach; use local-tmux for other session operations"
+                ))
+            }
+            if invocation.canRunWithoutCmux {
+                try runLocalTmuxOfflineCommand(
+                    commandArgs: commandArgs,
+                    jsonOutput: jsonOutput,
+                    idFormat: try resolvedIDFormat(jsonOutput: jsonOutput, raw: idFormatArg),
+                    windowOverride: windowId
+                )
+                return
+            }
         }
 
         if command == "help" { print(usage()); return }; if command == "remote-daemon-status" { try runRemoteDaemonStatus(commandArgs: commandArgs, jsonOutput: jsonOutput); return }
@@ -6403,6 +6428,74 @@ struct CMUXCLI {
                 let (windowOpt, vmArgs) = parseOption(rest, name: "--window")
                 guard let vmId = vmArgs.first else {
                     throw CLIError(message: """
+                        Usage: cmux \(command) shell <id>
+
+                        Find an id:
+                          cmux vm ls
+                        """)
+                }
+                try openVMShellWithDesktop(
+                    vmId: vmId,
+                    windowRaw: windowOpt ?? windowId,
+                    targetWorkspaceId: nil,
+                    client: client,
+                    jsonOutput: jsonOutput,
+                    idFormat: idFormat
+                )
+
+            case "tui":
+                let (windowOpt, vmArgs) = parseOption(rest, name: "--window")
+                try runVMTuiCommand(rest: vmArgs, windowRaw: windowOpt ?? windowId, client: client, jsonOutput: jsonOutput)
+
+            case "rename":
+                let clear = hasFlag(rest, name: "--clear")
+                let positional = rest.filter { !Self.isFlagToken($0) }
+                guard let vmId = positional.first, clear || positional.count >= 2 else {
+                    throw CLIError(message: String(localized: "cli.vm.rename.usage", defaultValue: """
+                        Usage: cmux vm rename <id> <new-label>
+                               cmux vm rename <id> --clear
+
+                        The label is display-only; the machine id stays its address.
+                        Find an id:
+                          cmux vm ls
+                        """))
+                }
+                let label = clear ? nil : positional.dropFirst().joined(separator: " ")
+                var renameParams: [String: Any] = ["id": vmId]
+                if let label { renameParams["display_name"] = label }
+                let renameResponse = try client.sendV2(method: "vm.rename", params: renameParams, responseTimeout: 30)
+                if jsonOutput {
+                    print(jsonString(renameResponse))
+                    break
+                }
+                if let stored = renameResponse["displayName"] as? String, !stored.isEmpty {
+                    let format = String(localized: "cli.vm.rename.set", defaultValue: "%1$@ is now labeled \u{201C}%2$@\u{201D}")
+                    print(String(format: format, vmId, stored))
+                } else {
+                    let format = String(localized: "cli.vm.rename.cleared", defaultValue: "%@ label cleared")
+                    print(String(format: format, vmId))
+                }
+
+            case "rm", "destroy", "delete":
+                guard let vmId = rest.first else {
+                    throw CLIError(message: """
+                        Usage: cmux vm rm <id>
+
+                        Find an id:
+                          cmux vm ls
+                        """)
+                }
+                _ = try client.sendV2(method: "vm.destroy", params: ["id": vmId], responseTimeout: 60)
+                if jsonOutput {
+                    print("{\"ok\":true,\"id\":\"\(vmId)\"}")
+                } else {
+                    print("OK \(vmId)")
+                }
+
+            case "ssh":
+                let (windowOpt, vmArgs) = parseOption(rest, name: "--window")
+                guard let vmId = vmArgs.first else {
+                    throw CLIError(message: """
                         Usage: cmux \(command) ssh <id>
 
                         Find an id:
@@ -6580,7 +6673,7 @@ struct CMUXCLI {
 
             default:
                 throw CLIError(message: """
-                    Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|snapshot|fork|restore|run|route|agent|prompt|exec|push|pull|wait|shell|desktop|open|ports|tools|handoff|promote-template|ssh-info|workspace|terminal|tab> [args...]
+                    Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|attach|ssh|ssh-info|workspace|terminal|tab> [args...]
 
                     Common commands:
                       cmux vm ls
@@ -6979,6 +7072,14 @@ struct CMUXCLI {
                 client: client,
                 jsonOutput: jsonOutput
             )
+        case "local-tmux", "tmux":
+            try runLocalTmuxCommand(
+                commandArgs: commandArgs,
+                client: client,
+                jsonOutput: jsonOutput,
+                idFormat: idFormat,
+                windowOverride: windowId
+            )
         case "ssh-pty-attach":
             let (requestedLifecycleID, attachArgsWithoutLifecycle) = parseOption(commandArgs, name: "--lifecycle-id")
             let stableLifecycleID = Self.normalizedEnvValue(requestedLifecycleID) ?? UUID().uuidString.lowercased()
@@ -7024,8 +7125,6 @@ struct CMUXCLI {
             try runVMPtyAttach(commandArgs: commandArgs, client: client)
         case "vm-tui-connect":
             try runVMTuiConnect(commandArgs: commandArgs, client: client)
-        case "vm-tui-approve":
-            try runVMTuiApprove(commandArgs: commandArgs, client: client)
         case "vm-ssh-attach":
             // Hidden compatibility alias for workspaces created before the split helper was
             // nested under `cmux vm`.
@@ -13211,7 +13310,7 @@ struct CMUXCLI {
             client: client
         )
         logVMTiming("attach_info", vmID: id, transport: "cmux-remote", startedAt: attachInfoStartedAt)
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "ok": true,
             "vm_id": id,
             "workspace_id": opened.workspaceId,
@@ -13219,11 +13318,14 @@ struct CMUXCLI {
             "window_id": opened.windowId ?? NSNull(),
             "transport": "cmux-remote",
             "session": opened.session,
-            "enrolling": opened.enrolling,
+            "trusted_carrier": opened.trustedCarrier,
             "terminal_id": opened.terminalId ?? NSNull(),
             "remote_workspace_id": opened.remoteWorkspaceId ?? NSNull(),
             "surface_id": opened.terminalSurfaceId ?? NSNull(),
         ]
+        if let networkAddresses = opened.networkAddresses {
+            payload["network_addresses"] = networkAddresses
+        }
         if jsonOutput {
             print(jsonString(formatIDs(payload, mode: idFormat)))
         } else {
@@ -18650,7 +18752,7 @@ struct CMUXCLI {
                 defaultValue: "Publish VM ports on generated or custom domains."
             )
             return """
-            Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|snapshot|fork|restore|run|route|agent|prompt|exec|push|pull|wait|shell|desktop|open|ports|tools|handoff|promote-template|ssh-info|workspace|terminal|tab> [args...]
+            Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|attach|ssh|ssh-info|workspace|terminal|tab> [args...]
 
             Manage cloud VMs. `cloud` is an alias for `vm`. Requires `cmux auth login`.
             Machines live on your private network with no public ports. Terminal
@@ -19512,6 +19614,8 @@ struct CMUXCLI {
                 """
             )
             return "\(help)\n\n\(newWindowHelp)"
+        case "local-tmux", "tmux":
+            return LocalTmuxInvocation.usage
         case "ssh-session-list":
             return """
             Usage: cmux ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
@@ -41179,7 +41283,7 @@ export default CMUXSessionRestore;
           login | logout                                      (aliases for auth login/logout)
           \(localizedCoderouterAliases())
           \(localizedCoderouterCommands())
-          vm <base|new|ls|domains|tree|status|stats|resize|snapshot|fork|restore|run|route|agent|prompt|exec|push|pull|wait|shell|desktop|open|ports|tools|handoff|promote-template|ssh-info|workspace|terminal|tab> [args...]    (alias: cloud)
+          vm <base|new|ls|domains|tree|status|stats|resize|rename|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|ports|tools|handoff|promote-template|attach|ssh|ssh-info|workspace|terminal|tab> [args...]    (alias: cloud)
           remotes <list|add|remove> [--route <host:port>] [--tag <tag>] [--json]    (alias: remote)
           ai-accounts <list|upload|remove> [--team <id>] [--json]
           rpc <method> [json-params]
@@ -41210,6 +41314,8 @@ export default CMUXSessionRestore;
           mosh <destination> [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus] [-- <remote-command-args>]
           mosh-tmux <destination> [--session <name>] [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus]
           ssh-tmux <destination> [--port <n>] [--identity <path>] [--no-focus] [--new-window]
+          local-tmux <start|attach|list|status|detach|close|cleanup> [session] [options]
+          tmux attach [session] [options]                         (local-tmux alias)
           ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
           ssh-session-attach --session-id <id> [--workspace <id|ref|index>] [--pane <id|ref|index> | --split <left|right|up|down>]
           ssh-session-cleanup [--workspace <id|ref|index> | --all-workspaces] (--session-id <id> | --all)
