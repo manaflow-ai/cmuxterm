@@ -196,7 +196,6 @@ struct RestorableAgentProcessGenerationTests {
         let revalidated = index.revalidatingCachedProcesses(
             against: processSnapshot,
             panelIDs: [fixture.panelID],
-            currentWorkspaceIDByPanelID: [fixture.panelID: restoredWorkspaceID],
             processArgumentsProvider: { _ in
                 CmuxTopProcessArguments(
                     arguments: ["/usr/local/bin/codex"],

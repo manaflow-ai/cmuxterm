@@ -708,8 +708,7 @@ final class SharedLiveAgentIndex {
             guard !Task.isCancelled else { return cachedIndex }
             return cachedIndex.revalidatingCachedProcesses(
                 against: processSnapshot,
-                panelIDs: panelIDs,
-                currentWorkspaceIDByPanelID: currentWorkspaceIDByPanelID
+                panelIDs: panelIDs
             )
         }
         sidebarLivenessRefreshTask = Task { @MainActor [weak self] in

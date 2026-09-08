@@ -1460,10 +1460,11 @@ struct RestorableAgentSessionIndex: Sendable {
     /// trust a TTL-cached PID after exit, exec, PID reuse, or a session-changing relaunch. A cached
     /// running entry stays live only when its exact process generation, cmux scope, executable,
     /// invocation mode, and explicit session argument still match.
+    /// The scope is the recorded launch owner, not the sidebar's current owner: restoring or
+    /// moving a stable panel does not rewrite the environment of its surviving processes.
     func revalidatingCachedProcesses(
         against processSnapshot: CmuxTopProcessSnapshot,
         panelIDs: Set<UUID>? = nil,
-        currentWorkspaceIDByPanelID: [UUID: UUID] = [:],
         processArgumentsProvider: (Int) -> CmuxTopProcessArguments? = {
             CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for: $0)
         },
@@ -1487,7 +1488,7 @@ struct RestorableAgentSessionIndex: Sendable {
             let matchesByProcessID = Dictionary(uniqueKeysWithValues: recordedAgentProcessIDs.map { processID in
                 let processMatch = Self.scopedProcessMatch(
                     for: entry.snapshot,
-                    workspaceId: currentWorkspaceIDByPanelID[key.panelId] ?? key.workspaceId,
+                    workspaceId: key.workspaceId,
                     panelId: key.panelId,
                     processID: processID,
                     recordedProcessIdentity: entry.agentProcessIdentities[processID]
@@ -1535,7 +1536,7 @@ struct RestorableAgentSessionIndex: Sendable {
             let currentPanelProcessIDs: Set<Int> = processLiveness == .running
                 ? Set(entry.processIDs.filter { processID in
                     guard let process = processSnapshot.process(pid: processID) else { return false }
-                    return process.cmuxWorkspaceID == (currentWorkspaceIDByPanelID[key.panelId] ?? key.workspaceId)
+                    return process.cmuxWorkspaceID == key.workspaceId
                         && process.cmuxSurfaceID == key.panelId
                 }).union(confirmedAgentProcessIDs)
                 : []
