@@ -215,6 +215,7 @@ def run_linux_preflight(needs: dict[str, object]) -> subprocess.CompletedProcess
 
 def run_app_host_unit_test_step(
     shard_mode: str = "selectors",
+    failed_batch_status: int = 9,
 ) -> tuple[subprocess.CompletedProcess[str], bool]:
     script = workflow_job_step_script("app-host-unit-tests", "Run unit tests")
     script = script.replace("${{ matrix.shard }}", "1")
@@ -267,7 +268,7 @@ if [ "$iteration" -eq 1 ]; then
   exit 65
 fi
 echo "simulated app-host crash before test summary" >&2
-exit 9
+exit "${CMUX_TEST_FAILED_BATCH_STATUS:?}"
 """.lstrip(),
             encoding="utf-8",
         )
@@ -293,6 +294,7 @@ exit 9
                 "CMUX_TEST_BATCH_COUNTER": str(root / "batch-counter"),
                 "CMUX_TEST_RUNNER_MARKER": str(runner_marker),
                 "CMUX_TEST_SHARD_MODE": shard_mode,
+                "CMUX_TEST_FAILED_BATCH_STATUS": str(failed_batch_status),
             },
             text=True,
             stdout=subprocess.PIPE,
@@ -844,11 +846,14 @@ def test_determinism_workflow_runs_self_test_before_strict_scan() -> None:
 
 
 def test_app_host_multi_batch_failure_cannot_reuse_prior_expected_summary() -> None:
-    result, runner_invoked = run_app_host_unit_test_step()
+    for failed_batch_status in (9, 65, 125):
+        result, runner_invoked = run_app_host_unit_test_step(
+            failed_batch_status=failed_batch_status,
+        )
 
-    assert runner_invoked
-    assert result.returncode != 0, result.stdout
-    assert "simulated app-host crash before test summary" in result.stdout
+        assert runner_invoked
+        assert result.returncode != 0, (failed_batch_status, result.stdout)
+        assert "simulated app-host crash before test summary" in result.stdout
 
 
 def test_app_host_rejects_failed_or_empty_shard_generation() -> None:

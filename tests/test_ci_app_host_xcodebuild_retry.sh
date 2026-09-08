@@ -64,6 +64,17 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
     no-config-evidence)
       emit_config_evidence=0
       ;;
+    missing-config-probe|missing-config-probe-error)
+      config_category=config
+      config_message="unexpected file open error"
+      config_suffix='.config/ghostty/missing/config.ghostty'
+      if [ "$CMUX_MOCK_XCODEBUILD_MODE" = "missing-config-probe-error" ]; then
+        config_suffix="$config_suffix err=error.AccessDenied"
+      fi
+      ;;
+    missing-symlink-leak)
+      config_suffix='.config/ghostty/escaping-parent/missing/config.ghostty'
+      ;;
     missing-log)
       rm -f "$CMUX_XCODEBUILD_NONINTERACTIVE_LOG_PATH"
       exit 0
@@ -71,7 +82,8 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
   esac
   if [ "$emit_config_evidence" = "1" ]; then
     echo "cmux DEV [$config_category] $config_message path=$config_home/$config_suffix"
-    if [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "config-home-alias-traversal" ]; then
+    if [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "config-home-alias-traversal" ] \
+      || [[ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" == missing-* ]]; then
       echo "cmux DEV [default] reading configuration file path=${TEST_RUNNER_HOME}/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
     fi
   fi
@@ -83,6 +95,7 @@ if [ "${CMUX_MOCK_XCODEBUILD_PROCESS:-0}" = "1" ]; then
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "xdg-default-leak" ] \
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "unrelated-config-token" ] \
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "no-config-evidence" ] \
+    || [[ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" == missing-* ]] \
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "published-default-alias" ] \
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "published-config-alias" ] \
     || [ "${CMUX_MOCK_XCODEBUILD_MODE:-timeout}" = "published-default-sibling-leak" ] \
@@ -320,7 +333,9 @@ if [ "$isolated_runner_count" -ne "$invocation_count" ]; then
   exit 1
 fi
 
-for published_alias_evidence in published-default-alias published-config-alias; do
+for published_alias_evidence in \
+  published-default-alias published-config-alias \
+  missing-config-probe missing-config-probe-error; do
   set +e
   PATH="$TMP_DIR:$PATH" \
   RUNNER_TEMP="$RUNNER_TEMP_DIR" \
@@ -521,13 +536,16 @@ for xdg_leak in xdg-config-leak xdg-default-leak; do
   fi
 done
 
+ln -s "$TMP_DIR" "$RESOLVED_APP_HOST_HOME/.config/ghostty/escaping-parent"
+
 for regression in \
   sibling-leak \
   published-default-sibling-leak \
   published-config-sibling-leak \
+  missing-symlink-leak \
   missing-log; do
   case "$regression" in
-    *sibling-leak)
+    *sibling-leak|missing-symlink-leak)
       expected_failure="FAIL: Ghostty accessed configuration outside the isolated app-host home"
       ;;
     missing-log)
