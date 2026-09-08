@@ -28,8 +28,10 @@ import { listClaudeAccounts } from "@/services/coderouter/claudeUpstream";
 import {
   CoderouterAccountsSection,
   type ClaudeAccountsState,
+  type NativeAccountsState,
   type SharedAccountsState,
 } from "../components/coderouter-accounts";
+import { listAccounts as listNativeAccounts } from "@/services/coderouter/repository";
 import { CoderouterPageHeader } from "../components/dashboard-page-headers";
 import { withPrioritySpan } from "@/services/telemetry";
 import { withStackAuthSpan } from "@/services/auth/stackTelemetry";
@@ -134,7 +136,7 @@ export async function CoderouterOverviewContent({
   }
 
   const { selectedTeam, accessToken } = authorization.value;
-  const [tPage, sharedAccounts, metrics, claudeAccounts, machineUsage] = await Promise.all([
+  const [tPage, sharedAccounts, metrics, claudeAccounts, nativeAccounts, machineUsage] = await Promise.all([
     getTranslations({ locale, namespace: "dashboard.coderouter" }),
     withPrioritySpan(
       "cmux-coderouter-dashboard",
@@ -156,6 +158,12 @@ export async function CoderouterOverviewContent({
     ),
     withPrioritySpan(
       "cmux-coderouter-dashboard",
+      "cmux.coderouter.native_accounts",
+      { "cmux.team_scope": "selected" },
+      () => loadNativeAccounts(selectedTeam.id),
+    ),
+    withPrioritySpan(
+      "cmux-coderouter-dashboard",
       "cmux.coderouter.machine_usage",
       { "cmux.team_scope": "selected" },
       () => loadMachineUsage(selectedTeam.id),
@@ -174,6 +182,7 @@ export async function CoderouterOverviewContent({
         teamId={selectedTeam.id}
         canManage={selectedTeam.manageAccounts}
         claude={claudeAccounts}
+        native={nativeAccounts}
         shared={sharedAccounts}
       />
 
@@ -315,9 +324,9 @@ function TeamMetricsSection({
     style: "percent",
     maximumFractionDigits: 0,
   });
-  const coverage = metrics.totals.totalTokens > 0
-    ? metrics.totals.pricedTokens / metrics.totals.totalTokens
-    : 1;
+  const unpricedShare = metrics.totals.totalTokens > 0
+    ? metrics.totals.unpricedTokens / metrics.totals.totalTokens
+    : 0;
   const maxDailyTokens = Math.max(
     1,
     ...metrics.daily.map((day) => day.totalTokens),
@@ -337,7 +346,7 @@ function TeamMetricsSection({
         </span>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label={copy.tokens}
           value={number.format(metrics.totals.totalTokens)}
@@ -353,10 +362,6 @@ function TeamMetricsSection({
         <MetricCard
           label={copy.apiEquivalent}
           value={currency.format(metrics.totals.apiEquivalentUsd)}
-        />
-        <MetricCard
-          label={copy.pricingCoverage}
-          value={percent.format(coverage)}
         />
       </div>
 
@@ -385,6 +390,9 @@ function TeamMetricsSection({
       </p>
       <p className="text-[11px] leading-5 text-muted">
         {copy.estimate.replace("{version}", metrics.rateCardVersion)}
+        {unpricedShare > 0
+          ? ` ${copy.unpriced.replace("{share}", percent.format(unpricedShare))}`
+          : ""}
       </p>
     </section>
   );
@@ -409,12 +417,12 @@ function metricsCopy(locale: string) {
       outputTokens: "出力トークン",
       tokens: "合計トークン",
       apiEquivalent: "API換算額",
-      pricingCoverage: "価格対応率",
+      unpriced: "全トークンの {share} は価格が不明なモデルのもので、換算額に含まれていません。",
       chartLabel: "日別のCodeRouterトークン使用量",
       privacy:
         "プロンプト、出力、アカウントラベル、メンバーIDは記録・表示しません。",
       estimate:
-        "API換算額は公開定価（レート表 {version}）による推定で、実際の請求額ではありません。価格不明のモデルは換算額から除外されます。",
+        "API換算額は、同じトークンを公開定価（レート表 {version}）で API 利用した場合の推定額で、実際の請求額ではありません。",
       unavailable: "チーム使用状況は現在利用できません。",
     };
   }
@@ -426,12 +434,12 @@ function metricsCopy(locale: string) {
     outputTokens: "Output tokens",
     tokens: "Total tokens",
     apiEquivalent: "API-equivalent value",
-    pricingCoverage: "Pricing coverage",
+    unpriced: "{share} of these tokens came from models without a list price and are left out of that value.",
     chartLabel: "Daily CodeRouter token usage",
     privacy:
       "No prompts, outputs, account labels, or member identities are recorded or shown.",
     estimate:
-      "API-equivalent value is an estimate using public list prices (rate card {version}), not actual spend. Models without a known price are excluded.",
+      "API-equivalent value is what these tokens would have cost at public API list prices (rate card {version}). It is not what you paid.",
     unavailable: "Team usage is temporarily unavailable.",
   };
 }
@@ -489,6 +497,14 @@ async function loadSharedAccounts(
     });
     const accounts = await client.listAccounts(tenant.tenantKey);
     return { kind: "ok", accounts };
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+async function loadNativeAccounts(teamId: string): Promise<NativeAccountsState> {
+  try {
+    return { kind: "ok", accounts: await listNativeAccounts(teamId) };
   } catch {
     return { kind: "error" };
   }

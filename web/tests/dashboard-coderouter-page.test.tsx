@@ -227,16 +227,19 @@ mock.module("../app/[locale]/dashboard/components/coderouter-accounts", () => ({
   CoderouterAccountsSection: ({
     shared,
     claude,
+    native,
     canManage,
   }: {
     shared: { kind: string };
     claude: { kind: string };
+    native: { kind: string };
     canManage: boolean;
   }) => (
     <div
       data-testid="coderouter-accounts"
       data-shared={shared.kind}
       data-claude={claude.kind}
+      data-native={native.kind}
       data-can-manage={String(canManage)}
     />
   ),
@@ -244,6 +247,10 @@ mock.module("../app/[locale]/dashboard/components/coderouter-accounts", () => ({
 
 mock.module("../services/coderouter/claudeUpstream", () => ({
   listClaudeAccounts: async () => [],
+}));
+
+mock.module("../services/coderouter/repository", () => ({
+  listAccounts: async () => [],
 }));
 
 const { default: CoderouterOverviewPage, CoderouterOverviewContent } = await import(
@@ -312,6 +319,7 @@ describe("coderouter dashboard", () => {
     expect(hostedExchangeCalls).toBe(0);
     expect(html).toContain('data-shared="migrationPending"');
     expect(html).toContain('data-claude="ok"');
+    expect(html).toContain('data-native="ok"');
   });
 
   test("renders recovery UI when the bounded Stack session refresh fails", async () => {
@@ -356,6 +364,9 @@ describe("coderouter dashboard", () => {
     expect(html).toContain("30-day usage");
     expect(html).toContain("1.3K");
     expect(html).toContain("$4.25");
+    // Every token was priced, so no coverage caveat and no coverage card.
+    expect(html).not.toContain("Pricing coverage");
+    expect(html).not.toContain("without a list price");
     expect(html).toContain("No prompts, outputs, account labels, or member identities");
     expect(html).not.toContain("stack-user");
   });

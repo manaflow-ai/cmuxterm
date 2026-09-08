@@ -59,6 +59,18 @@ const codexAccount = {
   health: { ok: true },
 };
 
+const nativeCodexAccount = {
+  id: "native-1",
+  provider: "codex" as const,
+  providerAccountId: "acct_9f3",
+  label: "lawrence@example.com",
+  state: "active" as const,
+  credentialExpiresAt: "2026-09-08T00:00:00.000Z",
+  lastFailureCode: null,
+  cooldownUntil: null,
+  activeSessions: 3,
+};
+
 describe("coderouter accounts section", () => {
   test("lists Claude upstream and shared Codex accounts in one table", () => {
     const html = renderToStaticMarkup(
@@ -66,11 +78,14 @@ describe("coderouter accounts section", () => {
         teamId="team-1"
         canManage
         claude={{ kind: "ok", accounts: [claudeAccount] }}
+        native={{ kind: "ok", accounts: [nativeCodexAccount] }}
         shared={{ kind: "ok", accounts: [codexAccount] }}
       />,
     );
 
-    expect(html).toContain("2 accounts");
+    expect(html).toContain("3 accounts");
+    expect(html).toContain("lawrence@example.com");
+    expect(html).toContain("3 active sessions");
     expect(html.match(/<ul[^>]*>/g)).toHaveLength(1);
     expect(html).toContain("Claude Code OAuth");
     expect(html).toContain("sk-ant-oat01-…a1b2");
@@ -88,6 +103,7 @@ describe("coderouter accounts section", () => {
         teamId="team-1"
         canManage
         claude={{ kind: "ok", accounts: [] }}
+        native={{ kind: "ok", accounts: [] }}
         shared={{ kind: "ok", accounts: [] }}
       />,
     );
@@ -110,6 +126,7 @@ describe("coderouter accounts section", () => {
         teamId="team-1"
         canManage={false}
         claude={{ kind: "ok", accounts: [claudeAccount] }}
+        native={{ kind: "ok", accounts: [nativeCodexAccount] }}
         shared={{ kind: "ok", accounts: [codexAccount] }}
       />,
     );
@@ -125,6 +142,7 @@ describe("coderouter accounts section", () => {
         teamId="team-1"
         canManage
         claude={{ kind: "ok", accounts: [claudeAccount] }}
+        native={{ kind: "ok", accounts: [] }}
         shared={{ kind: "error" }}
       />,
     );
@@ -140,6 +158,7 @@ describe("coderouter accounts section", () => {
         teamId="team-1"
         canManage
         claude={{ kind: "ok", accounts: [claudeAccount] }}
+        native={{ kind: "ok", accounts: [] }}
         shared={{ kind: "migrationPending" }}
       />,
     );
@@ -167,9 +186,12 @@ function valueAtPath(root: unknown, path: string): unknown {
 function interpolate(message: string, values?: Record<string, unknown>): string {
   if (!values) return message;
   return Object.entries(values).reduce((result, [key, value]) => {
-    const plural = result.match(new RegExp(`\\{${key}, plural, one \\{([^}]*)\\} other \\{([^}]*)\\}\\}`));
+    const plural = result.match(new RegExp(`\\{${key}, plural, ((?:=\\d+ \\{[^}]*\\} )?)one \\{([^}]*)\\} other \\{([^}]*)\\}\\}`));
     if (plural) {
-      const form = value === 1 ? plural[1] : plural[2];
+      const exact = plural[1].match(/^=(\d+) \{([^}]*)\} $/);
+      const form = exact && Number(exact[1]) === value
+        ? exact[2]
+        : value === 1 ? plural[2] : plural[3];
       return result.replace(plural[0], form.replaceAll("#", String(value)));
     }
     return result.replaceAll(`{${key}}`, String(value));

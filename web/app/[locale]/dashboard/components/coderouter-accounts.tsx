@@ -11,6 +11,7 @@ import type {
   ClaudeUpstreamKind,
 } from "../../../../services/coderouter/claudeUpstream";
 import type { SubrouterAccount } from "../../../../services/subrouter/types";
+import type { CodeRouterAccountSummary } from "../../../../services/coderouter/types";
 
 /**
  * Every account the team routes through, in one list: the Claude upstream
@@ -21,6 +22,11 @@ import type { SubrouterAccount } from "../../../../services/subrouter/types";
  */
 export type ClaudeAccountsState =
   | { readonly kind: "ok"; readonly accounts: readonly ClaudeAccountDescription[] }
+  | { readonly kind: "error" };
+
+/** Accounts `cr add` stores: Codex and OpenCode Go sign-ins routed by coderouter. */
+export type NativeAccountsState =
+  | { readonly kind: "ok"; readonly accounts: readonly CodeRouterAccountSummary[] }
   | { readonly kind: "error" };
 
 export type SharedAccountsState =
@@ -61,18 +67,21 @@ export function CoderouterAccountsSection({
   teamId,
   canManage,
   claude,
+  native,
   shared,
 }: {
   readonly teamId: string;
   readonly canManage: boolean;
   readonly claude: ClaudeAccountsState;
+  readonly native: NativeAccountsState;
   readonly shared: SharedAccountsState;
 }) {
   const t = useTranslations("dashboard.coderouterAccounts");
   const claudeAccounts = claude.kind === "ok" ? claude.accounts : [];
+  const nativeAccounts = native.kind === "ok" ? native.accounts : [];
   const sharedAccounts = shared.kind === "ok" ? shared.accounts : [];
-  const total = claudeAccounts.length + sharedAccounts.length;
-  const partialFailure = claude.kind === "error" || shared.kind === "error";
+  const total = claudeAccounts.length + nativeAccounts.length + sharedAccounts.length;
+  const partialFailure = claude.kind === "error" || native.kind === "error" || shared.kind === "error";
 
   return (
     <section className="mb-4">
@@ -115,6 +124,14 @@ export function CoderouterAccountsSection({
             {claudeAccounts.map((account) => (
               <ClaudeAccountRow
                 key={`claude:${account.id}`}
+                teamId={teamId}
+                account={account}
+                canManage={canManage}
+              />
+            ))}
+            {nativeAccounts.map((account) => (
+              <NativeAccountRow
+                key={`native:${account.id}`}
                 teamId={teamId}
                 account={account}
                 canManage={canManage}
@@ -183,6 +200,93 @@ function ClaudeAccountRow({
       }
       dimmed={account.state === "disabled"}
       actions={canManage ? <ClaudeAccountActions teamId={teamId} account={account} /> : null}
+      t={t}
+    />
+  );
+}
+
+function NativeAccountRow({
+  teamId,
+  account,
+  canManage,
+}: {
+  readonly teamId: string;
+  readonly account: CodeRouterAccountSummary;
+  readonly canManage: boolean;
+}) {
+  const t = useTranslations("dashboard.coderouterAccounts");
+  const format = useFormatter();
+  const now = useNow();
+  const cooling = account.cooldownUntil !== null &&
+    new Date(account.cooldownUntil).getTime() > now.getTime();
+  const status = account.state === "broken"
+    ? t("stateBroken")
+    : account.state === "expired"
+      ? t("stateExpired")
+      : cooling
+        ? t("coolingDown", {
+          until: format.dateTime(new Date(account.cooldownUntil!), { timeStyle: "short" }),
+        })
+        : t("stateActive");
+  const sessions = t("activeSessions", { count: account.activeSessions });
+  return (
+    <AccountRowFrame
+      provider={nativeKindLabel(account.provider, t)}
+      detail={account.providerAccountId}
+      label={account.label}
+      status={status}
+      statusDetail={
+        account.lastFailureCode && account.state !== "active" && account.state !== "refreshing"
+          ? `${sessions} · ${t("lastFailure", { code: account.lastFailureCode })}`
+          : sessions
+      }
+      dimmed={account.state === "broken" || account.state === "expired"}
+      actions={canManage ? <NativeAccountActions teamId={teamId} accountId={account.id} /> : null}
+      t={t}
+    />
+  );
+}
+
+function NativeAccountActions({
+  teamId,
+  accountId,
+}: {
+  readonly teamId: string;
+  readonly accountId: string;
+}) {
+  const t = useTranslations("dashboard.coderouterAccounts");
+  const router = useRouter();
+  const [status, setStatus] = useState<FormStatus>(idleStatus);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const remove = async () => {
+    if (status.state === "submitting") return;
+    setConfirmOpen(false);
+    setStatus({ state: "submitting" });
+    try {
+      const response = await fetch(
+        `/api/coderouter/accounts/${encodeURIComponent(accountId)}`,
+        { method: "DELETE", headers: { "x-cmux-team-id": teamId } },
+      );
+      if (!response.ok && response.status !== 404) {
+        setStatus({ state: "error", message: errorMessageForStatus(response.status, t, t("removeError")) });
+        return;
+      }
+      setStatus(idleStatus);
+      router.refresh();
+    } catch {
+      setStatus({ state: "error", message: t("removeError") });
+    }
+  };
+
+  return (
+    <RowActions
+      status={status}
+      confirmOpen={confirmOpen}
+      setConfirmOpen={setConfirmOpen}
+      onConfirm={remove}
+      confirmTitle={t("removeConfirmTitle")}
+      confirmBody={t("removeNativeConfirmBody")}
       t={t}
     />
   );
@@ -652,6 +756,16 @@ function addKindLabel(kind: AddKind, t: Translator): string {
       return t("kindOpencode");
     default:
       return claudeKindLabel(kind, t);
+  }
+}
+
+/** Provider names for accounts `cr add` stores. */
+function nativeKindLabel(kind: CodeRouterAccountSummary["provider"], t: Translator): string {
+  switch (kind) {
+    case "codex":
+      return t("kindCodex");
+    case "opencode-go":
+      return t("kindOpencodeGo");
   }
 }
 
