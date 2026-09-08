@@ -14863,7 +14863,7 @@ class TerminalController {
         sidebarMetadataArgumentParser.parseMetadataFormat(raw)
     }
 
-    private func normalizedOptionValue(_ value: String?) -> String? {
+    private nonisolated func normalizedOptionValue(_ value: String?) -> String? {
         sidebarMetadataArgumentParser.normalizedOptionValue(value)
     }
 
