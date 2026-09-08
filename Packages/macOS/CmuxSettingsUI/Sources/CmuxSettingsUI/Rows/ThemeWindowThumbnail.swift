@@ -54,7 +54,7 @@ struct ThemeWindowThumbnail: View {
                     HStack {
                         Image(systemName: "applelogo")
                             .cmuxFont(size: max(height * 0.08, 6))
-                            .foregroundColor(chromePalette.textPrimary.swiftUIColor)
+                            .foregroundColor((isDark ? ChromeColor.white : ChromeColor.black).swiftUIColor)
                             .opacity(0.8)
                         Spacer()
                     }

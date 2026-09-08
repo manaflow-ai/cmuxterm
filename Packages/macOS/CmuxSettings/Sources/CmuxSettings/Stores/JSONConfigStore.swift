@@ -136,14 +136,14 @@ public actor JSONConfigStore {
         _ key: JSONKey<Value>,
         transform: @Sendable (Value) -> Value
     ) throws -> Value {
-        // A view model may still hold its launch-time default while another
-        // writer has already persisted overrides, and a watcher event can be
-        // queued behind this actor. Force this merge to read the configured
-        // file before transforming so a stale cache can never erase tokens.
-        cacheValid = false
-        let updated = transform(value(for: key))
-        try set(updated, for: key)
-        return updated
+        var updatedValue: Value?
+        try mutateRoot(forceReload: true) { root in
+            let current = Value.decodeFromJSON(key.path.lookup(in: root)) ?? key.defaultValue
+            let updated = transform(current)
+            key.path.assign(updated.encodeForJSON(), in: &root)
+            updatedValue = updated
+        }
+        return updatedValue!
     }
 
     /// Removes the key's entry from the file. Parent objects that become
@@ -360,12 +360,17 @@ public actor JSONConfigStore {
     /// target's data. A single mutation reads and writes through one resolution
     /// snapshot, so a concurrent retarget serializes against the write instead
     /// of splitting the operation across two targets.
-    private func mutateRoot(_ mutate: (inout [String: Any]) -> Void) throws {
+    private func mutateRoot(
+        forceReload: Bool = false,
+        _ mutate: (inout [String: Any]) -> Void
+    ) throws {
         // Write through a symlink to its target rather than at the link path:
         // an atomic write is a temp-file + `rename()`, which would replace the
         // link itself with a regular file and break a dotfiles-managed config.
         let writeURL = Self.resolvedWriteURL(for: fileURL)
-        var root = cacheIsCurrent(for: writeURL.path) ? cachedRoot : try readFromDisk(at: writeURL)
+        var root = !forceReload && cacheIsCurrent(for: writeURL.path)
+            ? cachedRoot
+            : try readFromDisk(at: writeURL)
         mutate(&root)
 
         let parent = writeURL.deletingLastPathComponent()

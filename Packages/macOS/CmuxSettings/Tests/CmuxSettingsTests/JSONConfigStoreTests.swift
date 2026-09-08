@@ -133,6 +133,24 @@ struct JSONConfigStoreTests {
         #expect(merged[.accent] == ChromeColor(hex: "#AABBCC"))
     }
 
+    @Test func updateRefusesToOverwriteUnreadableConfig() async throws {
+        let (store, fileURL, catalog) = makeStore()
+        let key = catalog.chrome.overrides
+        let valid = ##"{"chrome":{"overrides":{"surface":"#445566"}}}"##
+        try Data(valid.utf8).write(to: fileURL)
+        _ = await store.value(for: key)
+
+        let unreadable = Data("{\"chrome\":".utf8)
+        try unreadable.write(to: fileURL)
+
+        #expect(throws: (any Error).self) {
+            try await store.update(key) { current in
+                current
+            }
+        }
+        #expect(Data(contentsOf: fileURL) == unreadable)
+    }
+
     @Test func snapshotMatchesAsyncRead() async throws {
         let (store, _, _) = makeStore()
         let key = JSONKey<String>(id: "automation.socketPassword", defaultValue: "")
