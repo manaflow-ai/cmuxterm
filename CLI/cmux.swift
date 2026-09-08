@@ -36749,6 +36749,7 @@ export default CMUXSessionRestore;
                         && hasActiveAntigravityBackgroundWork(),
                     agentID: def.name,
                     isSubagent: isNestedAgentSession,
+                    correlationKey: cursorShellNeedsApproval ? cursorApprovalNotificationCorrelationKey : nil,
                     statusKey: def.statusKey,
                     eventTime: hookEventTime
                 )
