@@ -63,6 +63,15 @@ test("locale switch preserves a nested route after client-side navigation", asyn
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("combobox", { name: "Language", exact: true })).toHaveValue("en");
   await page.waitForLoadState("load");
+  // Force the old-locale background request that router revalidation can
+  // race with the switch. It must render its route without changing the
+  // selected preference; do not leave reproducing the race up to timing.
+  const backgroundStatus = await page.evaluate(async () => {
+    const response = await fetch("/ko/blog", { cache: "no-store" });
+    await response.text();
+    return response.status;
+  });
+  expect(backgroundStatus).toBe(200);
   await expect.poll(async () => (await page.context().cookies(page.url()))
     .find((cookie) => cookie.name === "NEXT_LOCALE")?.value).toBe("en");
   const title = await page.title();
