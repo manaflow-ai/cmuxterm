@@ -7,8 +7,11 @@ use serde_json::{Value, json};
 use super::{GlobalArgs, OutputMode, UsageError};
 use crate::localization::catalog;
 
+mod internal;
+use internal::{AppFailure, Operation};
+
 pub(super) enum Plan {
-    Request { method: &'static str, params: Value, view: View },
+    Request { method: Operation, params: Value, view: View },
     Tui { vm: String },
 }
 
@@ -23,7 +26,7 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
     let request = |method, params, view| Ok(Plan::Request { method, params, view });
     let valid_id = |value: &str| !value.is_empty() && !value.starts_with('-');
     match words.as_slice() {
-        ["ls" | "list"] => request("vm.list", json!({}), View::List),
+        ["ls" | "list"] => request(Operation::List, json!({}), View::List),
         ["tui", vm] if valid_id(vm) => Ok(Plan::Tui { vm: (*vm).into() }),
         ["tree", rest @ ..] => {
             let mut params = json!({});
@@ -36,7 +39,7 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
                     return Err(usage());
                 }
             }
-            request("surface.catalog", params, View::Json)
+            request(Operation::Catalog, params, View::Json)
         }
         ["terminal", "new", vm, rest @ ..] if valid_id(vm) => {
             let mut params = json!({"id":vm,"open":false});
@@ -45,13 +48,13 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
                 ["--name", name] if !name.is_empty() => params["name"] = json!(name),
                 _ => return Err(usage()),
             }
-            request("vm.terminal_new", params, View::Json)
+            request(Operation::TerminalNew, params, View::Json)
         }
         ["terminal", action @ ("read" | "close"), vm, terminal]
             if valid_id(vm) && valid_id(terminal) =>
         {
             request(
-                if *action == "read" { "vm.terminal_read" } else { "vm.terminal_close" },
+                if *action == "read" { Operation::TerminalRead } else { Operation::TerminalClose },
                 json!({"id":vm,"terminal_id":terminal}),
                 if *action == "read" { View::Text } else { View::Json },
             )
@@ -85,7 +88,7 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
             if params.get("text").is_none() && params.get("keys").is_none() {
                 return Err(usage());
             }
-            request("vm.terminal_write", params, View::Json)
+            request(Operation::TerminalWrite, params, View::Json)
         }
         _ => Err(usage()),
     }
@@ -94,20 +97,6 @@ pub(super) fn parse(args: &[String]) -> Result<Plan, UsageError> {
 fn usage() -> UsageError {
     UsageError::new(catalog().cloud_vm.help)
 }
-
-#[derive(Debug)]
-struct AppFailure {
-    code: String,
-    message: String,
-}
-
-impl std::fmt::Display for AppFailure {
-    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(out, "{}: {}", self.code, self.message)
-    }
-}
-
-impl std::error::Error for AppFailure {}
 
 pub(super) fn run(global: GlobalArgs, plan: Plan) -> i32 {
     if global.session.is_some()
@@ -158,7 +147,7 @@ fn run_unix(global: &GlobalArgs, plan: Plan) -> anyhow::Result<i32> {
     let (method, params, view, tui) = match plan {
         Plan::Request { method, params, view } => (method, params, view, false),
         Plan::Tui { vm } => (
-            "vm.cmux_remote_info",
+            Operation::RemoteInfo,
             json!({"id":vm,"client_capabilities":crate::remote_cli::PROBE_CAPABILITIES}),
             View::Json,
             true,
@@ -167,7 +156,7 @@ fn run_unix(global: &GlobalArgs, plan: Plan) -> anyhow::Result<i32> {
     // Match the app's bounded Cloud provisioning deadline. Inventory and
     // terminal operations use the shorter ordinary request deadline.
     let timeout = Duration::from_secs(if tui { 16 * 60 } else { 180 });
-    let result = app_request(&socket, method, params, timeout)?;
+    let result = internal::request(&socket, method, params, timeout)?;
     if tui {
         let args = connect_args(&result)?;
         return Ok(crate::remote_cli::run(
@@ -243,107 +232,4 @@ fn connect_args(info: &Value) -> anyhow::Result<Vec<String>> {
         "--wireguard-hub".into(),
         hub.into(),
     ])
-}
-
-#[cfg(unix)]
-fn app_request(
-    socket: &std::path::Path,
-    method: &str,
-    params: Value,
-    timeout: std::time::Duration,
-) -> anyhow::Result<Value> {
-    use anyhow::Context;
-    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-    runtime.block_on(async {
-        tokio::select! {
-            result = tokio::time::timeout(timeout, app_exchange(socket, method, params)) => {
-                result.context(catalog().cloud_vm.read_failed)?
-            }
-            result = crate::wait_for_shutdown_signal_async() => {
-                result?;
-                Err(anyhow::anyhow!(catalog().cloud_vm.read_failed))
-            }
-        }
-    })
-}
-
-#[cfg(unix)]
-async fn app_exchange(
-    socket: &std::path::Path,
-    method: &str,
-    params: Value,
-) -> anyhow::Result<Value> {
-    use anyhow::{Context, ensure};
-    use tokio::io::BufReader;
-    use tokio::net::UnixStream;
-
-    let messages = &catalog().cloud_vm;
-    let stream = UnixStream::connect(socket).await.context(messages.app_required)?;
-    cmux_remote::admin::verify_unix_peer_owner(&stream).context(messages.invalid_owner)?;
-    let mut reader = BufReader::new(stream);
-    let capability = std::env::var("CMUX_SOCKET_CAPABILITY").ok().filter(|v| !v.is_empty());
-    if let Some(capability) = &capability {
-        ensure!(!capability.chars().any(char::is_whitespace), messages.invalid_auth);
-    }
-    if let Some(password) = std::env::var("CMUX_SOCKET_PASSWORD").ok().filter(|v| !v.is_empty()) {
-        ensure!(!password.contains(['\n', '\r']), messages.invalid_auth);
-        app_send(&mut reader, &format!("auth {password}"), capability.as_deref()).await?;
-        let auth = app_receive(&mut reader).await?;
-        ensure!(auth.starts_with(b"OK"), messages.auth_failed);
-    }
-    let id = uuid::Uuid::new_v4().to_string();
-    let line = serde_json::to_string(&json!({"id":id,"method":method,"params":params}))?;
-    ensure!(line.len() <= 4 * 1024 * 1024, messages.request_too_large);
-    app_send(&mut reader, &line, capability.as_deref()).await?;
-    let bytes = app_receive(&mut reader).await?;
-    ensure!(!bytes.starts_with(b"ERROR:"), messages.auth_failed);
-    let response: Value = serde_json::from_slice(&bytes).context(messages.invalid_response)?;
-    ensure!(response["id"].as_str() == Some(&id), messages.invalid_response);
-    if response["ok"].as_bool() != Some(true) {
-        let error = &response["error"];
-        return Err(AppFailure {
-            code: error["code"].as_str().unwrap_or("cloud.failed").to_owned(),
-            message: error["message"].as_str().unwrap_or(messages.invalid_response).to_owned(),
-        }
-        .into());
-    }
-    ensure!(response["result"].is_object(), messages.invalid_response);
-    Ok(response["result"].clone())
-}
-
-#[cfg(unix)]
-async fn app_send(
-    reader: &mut tokio::io::BufReader<tokio::net::UnixStream>,
-    line: &str,
-    capability: Option<&str>,
-) -> anyhow::Result<()> {
-    use tokio::io::AsyncWriteExt;
-    if let Some(capability) = capability {
-        reader.get_mut().write_all(format!("_cmux_capability_v1 {capability} ").as_bytes()).await?;
-    }
-    reader.get_mut().write_all(line.as_bytes()).await?;
-    reader.get_mut().write_all(b"\n").await?;
-    reader.get_mut().flush().await?;
-    Ok(())
-}
-
-#[cfg(unix)]
-async fn app_receive(
-    reader: &mut tokio::io::BufReader<tokio::net::UnixStream>,
-) -> anyhow::Result<Vec<u8>> {
-    use anyhow::{Context, ensure};
-    use tokio::io::{AsyncBufReadExt, AsyncReadExt};
-    const MAX_RESPONSE: u64 = 16 * 1024 * 1024;
-    let messages = &catalog().cloud_vm;
-    let mut bytes = Vec::new();
-    reader
-        .take(MAX_RESPONSE + 1)
-        .read_until(b'\n', &mut bytes)
-        .await
-        .context(messages.read_failed)?;
-    ensure!(
-        bytes.len() as u64 <= MAX_RESPONSE && bytes.last() == Some(&b'\n'),
-        messages.invalid_response
-    );
-    Ok(bytes)
 }
