@@ -902,7 +902,8 @@ struct CLISocketPathResolver {
     static func currentAppBundleIdentifier() -> String? {
         if let bundleIdentifier = ProcessInfo.processInfo.environment["CMUX_BUNDLE_ID"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
-           !bundleIdentifier.isEmpty {
+           !bundleIdentifier.isEmpty,
+           isKnownCmuxBundleIdentifier(bundleIdentifier) {
             return bundleIdentifier
         }
 
@@ -923,6 +924,16 @@ struct CLISocketPathResolver {
 #else
         return SocketPathMarkerFiles.stableBundleIdentifier
 #endif
+    }
+
+    private static func isKnownCmuxBundleIdentifier(_ bundleIdentifier: String) -> Bool {
+        bundleIdentifier == SocketPathMarkerFiles.stableBundleIdentifier
+            || bundleIdentifier == SocketPathMarkerFiles.nightlyBundleIdentifier
+            || bundleIdentifier.hasPrefix(SocketPathMarkerFiles.nightlyBundleIdentifier + ".")
+            || bundleIdentifier == SocketPathMarkerFiles.stagingBundleIdentifier
+            || bundleIdentifier.hasPrefix(SocketPathMarkerFiles.stagingBundleIdentifier + ".")
+            || bundleIdentifier == SocketPathMarkerFiles.defaultBaseDebugBundleIdentifier
+            || bundleIdentifier.hasPrefix(SocketPathMarkerFiles.defaultBaseDebugBundleIdentifier + ".")
     }
 
     private static func normalized(_ value: String?) -> String? {

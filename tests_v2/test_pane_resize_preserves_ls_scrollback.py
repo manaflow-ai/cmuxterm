@@ -29,7 +29,7 @@ from pane_resize_test_support import (
 
 
 DEFAULT_SOCKET_PATHS = [
-    os.path.expanduser("~/Library/Application Support/cmux/com.cmuxterm.app.sock"),
+    os.path.expanduser("~/.local/state/cmux/com.cmuxterm.app.sock"),
     "/tmp/cmux-debug.sock",
     "/tmp/cmux.sock",
 ]
