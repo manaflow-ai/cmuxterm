@@ -33950,6 +33950,14 @@ export default CMUXSessionRestore;
             return resolved
         }
         func processBinding() -> CallerTerminalBinding? { processBindingResolution().binding }
+        func preferredAgentEventPID(mappedPID: Int?) -> Int? {
+            preferredAgentHookEventPID(
+                agentName: def.name,
+                mappedPID: mappedPID,
+                inferredPID: inferredPID,
+                verifiedPID: processBindingResolution().verifiedPID
+            )
+        }
 #if DEBUG
         func processBindingDebugState() -> String {
             guard let processBindingCache else { return "deferred" }
@@ -34817,11 +34825,7 @@ export default CMUXSessionRestore;
                 return
             }
 
-            let pid = preferredAgentHookEventPID(
-                agentName: def.name,
-                mappedPID: mapped?.pid,
-                inferredPID: inferredPID
-            )
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = (def.name == "cursor" ? mapped?.launchCommand : nil)
                 ?? agentLaunchCommandFromEnvironment(
                     env,
@@ -35374,7 +35378,7 @@ export default CMUXSessionRestore;
                     client: client
                 )
             }
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = agentLaunchCommandFromEnvironment(env, fallbackPID: pid, fallbackKind: def.name, cwd: hookCwd ?? mapped?.cwd)
             let transcriptPathForStore = input.transcriptPath ?? mapped?.transcriptPath
             let resumeLaunchCommand = preferredAgentHookResumeLaunchCommand(
@@ -35818,7 +35822,7 @@ export default CMUXSessionRestore;
             if def.name != "cursor" {
                 sendAgentFeedTelemetry(workspaceId: workspaceId, surfaceId: surfaceId)
             }
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let codexFailure: CodexHookFailureSummary?
             if def.name == "codex" {
                 codexFailure = summarizeCodexHookFailure(parsedInput: input, sessionId: sessionId, env: env)
@@ -36325,7 +36329,7 @@ export default CMUXSessionRestore;
             let workspaceId = target.workspaceId
             let surfaceId = target.surfaceId
             sendAgentFeedTelemetryUnlessSuppressed(workspaceId: workspaceId, surfaceId: surfaceId)
-            let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+            let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
             let launchCommand = agentLaunchCommandFromEnvironment(
                 env,
                 fallbackPID: pid,
@@ -36627,7 +36631,7 @@ export default CMUXSessionRestore;
             }
 
             if !sessionId.isEmpty {
-                let pid = preferredAgentHookEventPID(agentName: def.name, mappedPID: mapped?.pid, inferredPID: inferredPID)
+                let pid = preferredAgentEventPID(mappedPID: mapped?.pid)
                 let launchCommand = agentLaunchCommandFromEnvironment(
                     env,
                     fallbackPID: pid,
@@ -36720,11 +36724,7 @@ export default CMUXSessionRestore;
             if !summary.body.isEmpty {
                 // One ancestry walk per delivered notification, feeding the
                 // notify payload's subagent tag below.
-                let notificationEventPID = preferredAgentHookEventPID(
-                    agentName: def.name,
-                    mappedPID: mapped?.pid,
-                    inferredPID: inferredPID
-                )
+                let notificationEventPID = preferredAgentEventPID(mappedPID: mapped?.pid)
                 let isNestedAgentSession = nestedAgentSessionDetected(
                     currentAgentPID: notificationEventPID,
                     env: env
