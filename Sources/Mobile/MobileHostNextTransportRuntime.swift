@@ -98,6 +98,7 @@ final class MobileHostNextTransportRuntime {
     var host: TransportHost?
     var signer: GrantSigner?
     private var startTask: Task<Void, Never>?
+    var endpointCloseTask: Task<Bool, Never>?
     var acceptTask: Task<Void, Never>?
     var credentialTask: Task<Void, Never>?
     var serveTasks: [UInt64: Task<Void, Never>] = [:]
@@ -201,9 +202,8 @@ final class MobileHostNextTransportRuntime {
         beginStop(reason: "mobile host service stopped")
     }
 
-    /// Tear down synchronously on the main actor (so a re-enable can start
-    /// fresh immediately), closing the endpoint in the background. Bumping
-    /// the generation strands any in-flight start at its next checkpoint.
+    /// Withdraws the route synchronously and owns the endpoint's background
+    /// close. A new generation waits for this close before binding again.
     private func beginStop(reason: String) {
         MobileHostNextTransportRuntime.logger.notice(
             """
@@ -255,9 +255,17 @@ final class MobileHostNextTransportRuntime {
             // Closing also unblocks the accept loop and any hello reads the
             // cancelled tasks are still parked on (uniffi futures do not
             // observe Swift task cancellation).
-            Task.detached {
-                try? await closing.close()
-                MobileHostNextTransportRuntime.logger.notice("host endpoint closed")
+            let previousClose = endpointCloseTask
+            endpointCloseTask = Task {
+                let previousSucceeded = await previousClose?.value
+                do {
+                    try await closing.close()
+                    Self.logger.notice("host endpoint closed")
+                    return previousSucceeded != false
+                } catch {
+                    Self.logger.error("host endpoint close failed; next generation blocked")
+                    return false
+                }
             }
         }
         MobileHostNextTransportRuntime.logger.notice("host stop done state=off")

@@ -14,6 +14,9 @@ public struct TransportClient: Sendable {
     /// cancelled FFI lane read is explicitly woken by closing the connection;
     /// this keeps caller deadlines effective even when the underlying future
     /// does not observe Swift task cancellation on its own.
+    #if compiler(>=6.2)
+    @concurrent
+    #endif
     public func connect(
         connection: any PeerConnection, identity: PeerIdentity, grant: PairingGrant
     ) async throws -> ConnectOutcome {
@@ -29,6 +32,9 @@ public struct TransportClient: Sendable {
         })
     }
 
+    #if compiler(>=6.2)
+    @concurrent
+    #endif
     private func connectUncancelled(
         connection: any PeerConnection, identity: PeerIdentity, grant: PairingGrant
     ) async throws -> ConnectOutcome {

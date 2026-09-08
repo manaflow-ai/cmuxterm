@@ -24,7 +24,7 @@ extension NextTransportDialClient {
         defaults: UserDefaults = .standard,
         keychainService: String = "dev.cmux.nextTransport.ios.identity.v1"
     ) async -> PeerIdentity {
-        let box = DefaultsBox(defaults)
+        let box = NextTransportDefaultsBox(defaults)
         return await currentIdentityOffMain(
             defaults: box, keychainService: keychainService)
     }
@@ -33,7 +33,7 @@ extension NextTransportDialClient {
     @concurrent
     #endif
     private nonisolated static func currentIdentityOffMain(
-        defaults: DefaultsBox, keychainService: String
+        defaults: NextTransportDefaultsBox, keychainService: String
     ) async -> PeerIdentity {
         loadOrCreateIdentity(defaults: defaults.value, keychainService: keychainService)
     }

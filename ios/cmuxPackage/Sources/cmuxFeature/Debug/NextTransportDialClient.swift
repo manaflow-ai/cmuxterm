@@ -93,6 +93,7 @@ public final class NextTransportDialClient {
     var owner: ReconnectOwner?
     var appliedRelayToken: String?
     var pendingRelay: (url: String, token: String)?
+    let credentialPersistence = CredentialPersistenceQueue()
 
     var hostKey: Data?
     var hostAddrs: [String] = []
@@ -145,15 +146,6 @@ public final class NextTransportDialClient {
     }
 
     let renewalRetryPolicy = RenewalRetryPolicy()
-
-    /// `UserDefaults` is thread-safe in its documented API but lacks a
-    /// `Sendable` conformance. This private box is only transferred to the
-    /// worker that performs the isolated identity read/write operations.
-    final class DefaultsBox: @unchecked Sendable {
-        let value: UserDefaults
-
-        nonisolated init(_ value: UserDefaults) { self.value = value }
-    }
 
     public init(
         brokerFactory: BrokerFactory? = nil,

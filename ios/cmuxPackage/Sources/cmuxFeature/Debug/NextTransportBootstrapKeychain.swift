@@ -12,6 +12,34 @@ struct NextTransportBootstrapKeychain: Sendable {
 
     private static let accountPrefix = "mac-"
 
+    /// Performs JSON encoding and protected persistence off the UI actor.
+    #if compiler(>=6.2)
+    @concurrent
+    #endif
+    func persist(
+        ticket: String, grant: String, macID: String,
+        defaults: NextTransportDefaultsBox, keyPrefix: String
+    ) async -> Bool {
+        guard let data = try? JSONEncoder().encode(["ticket": ticket, "grant": grant]) else {
+            return false
+        }
+        return write(data, macID: macID, defaults: defaults.value, keyPrefix: keyPrefix)
+    }
+
+    /// Runs invalidation on the same concurrent persistence boundary as writes.
+    #if compiler(>=6.2)
+    @concurrent
+    #endif
+    func remove(
+        macID: String, defaults: NextTransportDefaultsBox, keyPrefix: String
+    ) async -> Bool {
+        let status = SecItemDelete(baseQuery(account: Self.accountPrefix + macID) as CFDictionary)
+        defaults.value.removeObject(forKey: keyPrefix + macID)
+        let succeeded = status == errSecSuccess || status == errSecItemNotFound
+        if !succeeded { logger.error("bootstrap Keychain deletion failed status=\(status, privacy: .public)") }
+        return succeeded
+    }
+
     func read(
         macID: String, defaults: UserDefaults, keyPrefix: String
     ) -> Data? {
@@ -46,13 +74,6 @@ struct NextTransportBootstrapKeychain: Sendable {
             defaults.removeObject(forKey: keyPrefix + macID)
             return false
         }
-    }
-
-    func delete(
-        macID: String, defaults: UserDefaults, keyPrefix: String
-    ) {
-        SecItemDelete(baseQuery(account: Self.accountPrefix + macID) as CFDictionary)
-        defaults.removeObject(forKey: keyPrefix + macID)
     }
 
     private func writeKeychain(_ data: Data, account: String) -> Bool {

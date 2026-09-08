@@ -13,6 +13,21 @@ struct NextTransportIdentityKeychain: Sendable {
 
     static let account = "identity-private-key"
 
+    /// Encodes and persists a live relay push on the generic executor.
+    #if compiler(>=6.2)
+    @concurrent
+    #endif
+    func persistRelay(
+        url: String, token: String, service: String, account: String,
+        defaults: NextTransportDefaultsBox, legacyKey: String
+    ) async -> Bool {
+        defer { defaults.value.removeObject(forKey: legacyKey) }
+        guard let data = try? JSONEncoder().encode(["url": url, "token": token]) else {
+            return false
+        }
+        return write(data, service: service, account: account)
+    }
+
     func read(service: String, account: String) -> Data? {
         var query = baseQuery(service: service, account: account)
         query[kSecReturnData as String] = true

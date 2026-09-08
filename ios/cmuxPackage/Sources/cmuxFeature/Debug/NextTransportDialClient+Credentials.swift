@@ -20,20 +20,22 @@ extension NextTransportDialClient {
             return
         }
         pendingRelay = (url, token)
-        let payload: [String: String] = ["url": url, "token": token]
-        if let data = try? JSONEncoder().encode(payload),
-            NextTransportIdentityKeychain(logger: Self.logger).write(
-                data, service: pushedRelayKeychainService,
-                account: Self.pushedRelayKeychainAccount)
-        {
-            // Remove the pre-Keychain copy after the protected write succeeds.
-            defaults.removeObject(forKey: Self.pushedRelayDefaultsKey)
-        } else {
-            // Never create or retain a new plaintext preferences copy when the
-            // protected store is unavailable; the value remains in memory only.
-            defaults.removeObject(forKey: Self.pushedRelayDefaultsKey)
+        let generation = lifecycleGeneration
+        let keychain = NextTransportIdentityKeychain(logger: Self.logger)
+        let defaults = NextTransportDefaultsBox(defaults)
+        let service = pushedRelayKeychainService
+        let account = Self.pushedRelayKeychainAccount
+        let legacyKey = Self.pushedRelayDefaultsKey
+        let write = credentialPersistence.enqueue(key: account) {
+            await keychain.persistRelay(
+                url: url, token: token, service: service, account: account,
+                defaults: defaults, legacyKey: legacyKey)
+        }
+        if !(await write.value) {
             log("pushed credential keychain write failed; keeping session-only")
         }
+        guard generation == lifecycleGeneration, !Task.isCancelled,
+            pendingRelay?.url == url, pendingRelay?.token == token else { return }
         await applyPendingRelayCredential()
     }
 

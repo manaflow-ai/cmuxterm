@@ -91,8 +91,7 @@ extension NextTransportGraduationFacade {
             // os.log only; nothing user-visible interpolates it.
             if probeErrorClassifier.isMethodNotFound(error) {
                 probedThisRun.insert(macID)
-                bootstrapKeychain.delete(
-                    macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
+                deleteBootstrap(macID: macID)
                 clientStartupTasks[macID]?.task.cancel()
                 clientStartupTasks.removeValue(forKey: macID)
                 let staleClient = clients.removeValue(forKey: macID)
@@ -219,18 +218,14 @@ extension NextTransportGraduationFacade {
     /// Persist-only write (also the hint-refresh path, where the LIVE dial
     /// client is mid-attempt and must not be dropped).
     private func persistBootstrap(macID: String, ticket: String, grant: String) async -> Bool {
-        let bootstrap = Bootstrap(ticket: ticket, grant: grant)
-        guard let data = try? JSONEncoder().encode(bootstrap) else {
-            Self.logger.error(
-                """
-                persistBootstrap FAILED mac=\(String(macID.prefix(8)), privacy: .public): \
-                bootstrap did not encode
-                """)
-            return false
+        let keychain = bootstrapKeychain
+        let defaults = NextTransportDefaultsBox(defaults)
+        let prefix = Self.bootstrapKeyPrefix
+        let write = credentialPersistence.enqueue(key: macID) {
+            await keychain.persist(
+                ticket: ticket, grant: grant, macID: macID, defaults: defaults, keyPrefix: prefix)
         }
-        guard bootstrapKeychain.write(
-            data, macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
-        else { return false }
+        guard await write.value else { return false }
         Self.logger.notice(
             """
             bootstrap persisted mac=\(String(macID.prefix(8)), privacy: .public) \
@@ -241,6 +236,7 @@ extension NextTransportGraduationFacade {
     }
 
     func storedBootstrap(macID: String) -> Bootstrap? {
+        guard credentialPersistence.permitsRead(key: macID) else { return nil }
         guard let data = bootstrapKeychain.read(
             macID: macID, defaults: defaults, keyPrefix: Self.bootstrapKeyPrefix)
         else { return nil }

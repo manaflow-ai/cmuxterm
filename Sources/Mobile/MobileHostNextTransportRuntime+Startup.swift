@@ -12,6 +12,10 @@ extension MobileHostNextTransportRuntime {
     // MARK: - Startup (cache-first, register-when-ready)
 
     func start(generation gen: UInt64) async {
+        let previousEndpointClosed = await endpointCloseTask?.value
+        guard generation == gen, !Task.isCancelled else { return }
+        guard previousEndpointClosed != false else { return }
+        endpointCloseTask = nil
         let startClock = ContinuousClock.now
         state = "starting"
         readiness = .starting

@@ -1906,12 +1906,8 @@
 		A5FB1400 /* NewWorkspaceMenuModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5FB1401 /* NewWorkspaceMenuModelTests.swift */; };
 		51AB43CACA4CC61AD5C9B388 /* NextTransportAcceptRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */; };
 		1457DE945E06D884A501AF63 /* NextTransportAcceptRetryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */; };
-		C2051F7EE134357B5B287589 /* NextTransportCachedRelayCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5720B7685FAF8A7F53704C8 /* NextTransportCachedRelayCredential.swift */; };
 		2E4207FBB4007E34645049DA /* NextTransportHostTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28A99A098DD98611B73BF178 /* NextTransportHostTiming.swift */; };
-		B873F9235DE54B9FCA435A3A /* NextTransportMintRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */; };
 		460A23C1B02ED3D0955B7EBC /* NextTransportPairAuthorizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */; };
-		9A71FDA9C5AB5BAD95716FF6 /* NextTransportRelayCredentialCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */; };
-		509FF536E69C5AA4B245928F /* NextTransportRelayPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */; };
 		50F3D3A9946F442327C95159 /* NextTransportSecureStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */; };
 		8940877D58F49667D6421AF5 /* NextTransportSecureStoreFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */; };
 		734F49D37E543DD01C2F4FEF /* NotificationAndMenuBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C075029771815DD5DA1332 /* NotificationAndMenuBarTests.swift */; };
@@ -5290,12 +5286,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		A5FB1401 /* NewWorkspaceMenuModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewWorkspaceMenuModelTests.swift; sourceTree = "<group>"; };
 		A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportAcceptRetryPolicy.swift; sourceTree = "<group>"; };
 		783AF810D656965D37BA9CBC /* NextTransportAcceptRetryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportAcceptRetryPolicyTests.swift; sourceTree = "<group>"; };
-		D5720B7685FAF8A7F53704C8 /* NextTransportCachedRelayCredential.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportCachedRelayCredential.swift; sourceTree = "<group>"; };
 		28A99A098DD98611B73BF178 /* NextTransportHostTiming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportHostTiming.swift; sourceTree = "<group>"; };
-		62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportMintRetryPolicy.swift; sourceTree = "<group>"; };
 		18CC034D06444023216F84CA /* NextTransportPairAuthorizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportPairAuthorizationTests.swift; sourceTree = "<group>"; };
-		26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayCredentialCachePolicy.swift; sourceTree = "<group>"; };
-		901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayPlan.swift; sourceTree = "<group>"; };
 		05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportSecureStorageTests.swift; sourceTree = "<group>"; };
 		3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportSecureStoreFixture.swift; sourceTree = "<group>"; };
 		D2C075029771815DD5DA1332 /* NotificationAndMenuBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationAndMenuBarTests.swift; sourceTree = "<group>"; };
@@ -7114,11 +7106,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				1B0B09010000000000000001 /* MobileHostIrohRuntime.swift */,
 				1B0B0901000000000000NT01 /* MobileHostNextTransportRuntime.swift */,
 				A999BB7BDD3CD2393EA012E3 /* NextTransportAcceptRetryPolicy.swift */,
-				901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */,
-				26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */,
-				62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */,
 				28A99A098DD98611B73BF178 /* NextTransportHostTiming.swift */,
-				D5720B7685FAF8A7F53704C8 /* NextTransportCachedRelayCredential.swift */,
 				05A5C5DA95AEEA116CA98C4B /* MobileHostService+StatusPayload.swift */,
 				F5F9EF6BF147912B9E33B1CC /* MobileHostRoutableLaneSession.swift */,
 				2DD1047728E8B3B097A2F339 /* MobileHostNextTransportRuntime+Startup.swift */,
@@ -12012,11 +12000,7 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				548D90758DB3CF890BFDC603 /* NewMachineSheetPresenter.swift in Sources */,
 				C0DE77060000000000000003 /* NewWorkspaceMenuModel.swift in Sources */,
 				51AB43CACA4CC61AD5C9B388 /* NextTransportAcceptRetryPolicy.swift in Sources */,
-				C2051F7EE134357B5B287589 /* NextTransportCachedRelayCredential.swift in Sources */,
 				2E4207FBB4007E34645049DA /* NextTransportHostTiming.swift in Sources */,
-				B873F9235DE54B9FCA435A3A /* NextTransportMintRetryPolicy.swift in Sources */,
-				9A71FDA9C5AB5BAD95716FF6 /* NextTransportRelayCredentialCachePolicy.swift in Sources */,
-				509FF536E69C5AA4B245928F /* NextTransportRelayPlan.swift in Sources */,
 				C06552010000000000000003 /* NotificationBurstCoalescer.swift in Sources */,
 				7490C00D7490C00D7490C00D /* NotificationCacheMemoryPressureResponder.swift in Sources */,
 				A11E00010000000000000001 /* NotificationDebugEmitter.swift in Sources */,

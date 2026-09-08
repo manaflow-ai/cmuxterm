@@ -62,6 +62,7 @@ final class NextTransportGraduationFacade {
     private static let routingKeyPrefix = "dev.cmux.nextTransport.ios.routing.v1."
 
     let defaults: UserDefaults
+    let credentialPersistence = CredentialPersistenceQueue()
     private let denialPolicy = NextTransportDenialPolicy()
     let probeErrorClassifier = NextTransportProbeErrorClassifier()
     var brokerFactory: NextTransportDialClient.BrokerFactory?
