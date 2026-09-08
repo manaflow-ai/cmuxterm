@@ -86,7 +86,10 @@ struct SidebarAgentActivityEvidence: Equatable, Sendable {
                 panelID: panelID,
                 statusKey: runtime.statusKey,
                 generation: generation,
-                lifecycle: runtime.lifecycle,
+                // A PID binding proves presence, not a lifecycle value. For
+                // this same generation, retain the hook/index state when the
+                // runtime has none, without upgrading its process confidence.
+                lifecycle: runtime.lifecycle ?? cached.lifecycle,
                 startedAt: elapsedAnchor,
                 updatedAt: max(updatedAt ?? 0, other.updatedAt ?? 0),
                 processLiveness: runtime.processLiveness,
