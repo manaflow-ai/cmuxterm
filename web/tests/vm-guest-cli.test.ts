@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createServer } from "node:net";
 import { join } from "node:path";
 
 import { GUEST_CMUX_SHIM, GUEST_CMUX_SHIM_PATH, guestCliInstallCommand } from "../services/vms/guestCli";
@@ -38,6 +39,61 @@ const TERMINAL_ID = "term_0123456789abcdef0123456789abcdef";
 // The in-VM `cmux` shim is shipped as driver-written bytes; a syntax error
 // would surface only inside a live machine, so validate it here.
 describe("in-VM cmux shim", () => {
+  test.each(["existing", "create", "create-failed", "missing-id"])("peer exec selects a supported workspace and fails closed (%s)", async (mode) => {
+    const directory = mkdtempSync(join(tmpdir(), "cmux-peer-exec-"));
+    const socket = join(directory, "peer.sock");
+    const server = createServer();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(socket, resolve);
+      });
+      const peers = join(directory, ".cmux", "peers");
+      const links = join(directory, ".cmux", "peer-links");
+      mkdirSync(peers, { recursive: true });
+      mkdirSync(links, { recursive: true });
+      writeFileSync(join(peers, "peer.json"), "{}");
+      writeFileSync(join(links, "peer.sock-path"), socket);
+      writeFileSync(join(links, "peer.pid"), String(process.pid));
+      const shim = join(directory, "cmux");
+      const daemon = join(directory, "cmux-tui");
+      writeFileSync(shim, GUEST_CMUX_SHIM);
+      writeFileSync(daemon, `#!/bin/sh
+printf '%s\\n' "$*" >> "$HOME/calls"
+case "$*" in
+  *"workspace current show") [ "$MODE" = existing ] ;;
+  *"workspace create --name main")
+    [ "$MODE" != create-failed ] || exit 74
+    if [ "$MODE" = missing-id ]; then printf '{}'; else printf '{"value":{"workspace_id":"ws_created"}}'; fi ;;
+  *"workspace current run "*|*"workspace ws_created run "*) printf '%s\\n' "$*" ;;
+  *) exit 91 ;;
+esac
+`);
+      chmodSync(daemon, 0o755);
+      const result = spawnSync("sh", [shim, "vm", "exec", "peer", "--", "printf", "hello"], {
+        encoding: "utf8",
+        timeout: 10_000,
+        env: { PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
+      });
+      const calls = readFileSync(join(directory, "calls"), "utf8");
+      expect(calls).toContain("workspace current show");
+      if (mode === "existing") {
+        expect(result.status).toBe(0);
+        expect(calls).not.toContain("workspace create");
+        expect(result.stdout).toContain("workspace current run");
+      } else if (mode === "create") {
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("workspace ws_created run");
+      } else {
+        expect(result.status).toBe(3);
+        expect(calls).not.toContain(" run ");
+      }
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   test("localizes help and interpolated errors using the guest locale", () => {
     const help = runShim(["--help"], { LANG: "ja_JP.UTF-8" });
     expect(help.status).toBe(0);
