@@ -2519,7 +2519,7 @@ final class ClaudeHookSessionStore {
         }
         let loaded = try loadUnlocked(deadline: deadline)
         var state = loaded.state
-        let originalData = persist ? try encoder.encode(state) : nil
+        let originalData = persist ? try (loaded.recoveryData ?? encoder.encode(state)) : nil
         backfillSurfaceActiveSlots(&state)
         if let deadline, Date.now >= deadline {
             throw CLIError(message: "Claude hook state deadline exceeded: \(lockPath)")
@@ -2621,9 +2621,9 @@ final class ClaudeHookSessionStore {
 
     private func loadUnlocked(
         deadline: Date? = nil
-    ) throws -> (state: ClaudeHookSessionStoreFile, requiresPersistence: Bool) {
+    ) throws -> (state: ClaudeHookSessionStoreFile, requiresPersistence: Bool, recoveryData: Data?) {
         guard fileManager.fileExists(atPath: statePath) else {
-            return (ClaudeHookSessionStoreFile(), false)
+            return (ClaudeHookSessionStoreFile(), false, nil)
         }
         let stateURL = URL(fileURLWithPath: statePath)
         guard let values = try? stateURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
@@ -2635,19 +2635,20 @@ final class ClaudeHookSessionStore {
             throw CLIError(message: "Claude hook state file is too large for the hook deadline: \(statePath)")
         }
         if fileSize > Self.maxRecoverableHookStateFileBytes {
-            return (try quarantineOversizedState(at: stateURL), true)
+            return (try quarantineOversizedState(at: stateURL), true, nil)
         }
         let data = try Data(contentsOf: stateURL)
         guard var decoded = try? decoder.decode(ClaudeHookSessionStoreFile.self, from: data) else {
-            return (try quarantineOversizedState(at: stateURL), true)
+            return (try quarantineOversizedState(at: stateURL), true, nil)
         }
-        let requiresPersistence = fileSize > Self.maxHookStateFileBytes
-        if requiresPersistence {
+        let isOversized = fileSize > Self.maxHookStateFileBytes
+        if isOversized {
             compactRecoveredState(&decoded)
         }
-        // Oversized whitespace or unknown fields can leave the decoded model
-        // unchanged, but the on-disk file still needs a recovery rewrite.
-        return (decoded, requiresPersistence)
+        // Compare recovery against the actual bytes so padding and compaction
+        // are persisted once, even if retained live records still exceed the
+        // size limit. Size alone must not force another write on every hook.
+        return (decoded, false, isOversized ? data : nil)
     }
 
     /// Moves an unreadable/oversized state file aside before rebuilding a
