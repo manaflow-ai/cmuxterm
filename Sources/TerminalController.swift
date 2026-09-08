@@ -13460,8 +13460,8 @@ class TerminalController {
                         agentKind: meta?.agentKind,
                         isSubagent: meta?.isSubagent
                     ),
-                    correlationKey: meta?.correlationKey,
                     soundContext: meta?.soundContext,
+                    correlationKey: meta?.correlationKey,
                     agentMutationGuard: meta?.agentMutationGuard
                 )
                 return meta?.agentMutationGuard == nil ? "OK" : "OK:1"
@@ -13501,8 +13501,8 @@ class TerminalController {
                     agentKind: meta?.agentKind,
                     isSubagent: meta?.isSubagent
                 ),
-                correlationKey: meta?.correlationKey,
                 soundContext: meta?.soundContext,
+                correlationKey: meta?.correlationKey,
                 agentMutationGuard: meta?.agentMutationGuard
             )
             return meta?.agentMutationGuard == nil ? "OK" : "OK:1"
@@ -13658,8 +13658,17 @@ class TerminalController {
             guard let panelID = panelResolution.panelId else {
                 return "ERROR: Usage: \(usage)"
             }
+            let controlTarget: ControlSidebarTabTarget
+            switch target {
+            case .selected:
+                controlTarget = .selected
+            case .workspace(let tabID):
+                controlTarget = .workspace(tabID)
+            case .index(let index):
+                controlTarget = .index(index)
+            }
             controlSidebarScheduleGuardedNotificationClear(
-                target: target,
+                target: controlTarget,
                 panelID: panelID,
                 guardValue: agentMutationGuard,
                 correlationKey: correlationKey
