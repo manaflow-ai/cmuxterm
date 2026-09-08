@@ -32,8 +32,10 @@ final class WindowRootBackdropView: NSView {
     }
 
     deinit {
-        for observer in referenceGeometryObservers {
-            NotificationCenter.default.removeObserver(observer)
+        MainActor.assumeIsolated {
+            for observer in referenceGeometryObservers {
+                NotificationCenter.default.removeObserver(observer)
+            }
         }
     }
 
