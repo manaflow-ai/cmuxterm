@@ -114,7 +114,7 @@ final class HiveComputersService {
         switch result {
         case .failure(let message):
             error = message
-        case .success:
+        case .ok, .state:
             DeviceSurfaceProviderRegistry.shared.reveal(instance: instance)
             error = nil
         }
@@ -157,7 +157,7 @@ final class HiveComputersService {
             )
             let controller = try HivePairingController(
                 databaseURL: directory.appendingPathComponent("paired-computers.sqlite3"), runtime: runtime,
-                userID: identity.accountID, teamID: scope.1, email: auth.currentUser?.email,
+                userID: identity.accountID, teamID: scope.1, email: auth.currentUser?.primaryEmail,
                 ownDeviceID: MobileHostIdentity.deviceID(), ownInstanceTag: MobileHostIdentity.instanceTag(),
                 allowsLoopback: allowsLoopback
             )
