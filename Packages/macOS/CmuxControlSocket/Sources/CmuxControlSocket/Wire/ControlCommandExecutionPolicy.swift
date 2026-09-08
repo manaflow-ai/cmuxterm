@@ -95,6 +95,11 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
         // all downstream process/socket work happens after the reply.
         "agent.hook.enqueue",
         "agent.hook.barrier",
+        // Performs a fresh off-main process scan before one agent exec. Only
+        // the final target revalidation and launch claim hop to MainActor.
+        "agent.restore.admit",
+        // Releases only the tokenized claim owned by a failed restore exec.
+        "agent.restore.release",
         "browser.download.wait",
         "browser.profiles.list",
         "browser.profiles.create",

@@ -42,7 +42,8 @@ struct ControlCommandExecutionPolicyTests {
     @Test func fixedWorkerSetRunsOnTheSocketWorker() {
         for method in [
             "system.ping", "system.capabilities", "auth.status", "auth.sign_in_url",
-            "feed.push", "agent.hook.enqueue", "agent.hook.barrier",
+            "feed.jump", "feed.push", "agent.hook.enqueue", "agent.hook.barrier",
+            "agent.restore.admit", "agent.restore.release",
             "browser.download.wait", "system.top", "system.memory",
             "workspace.remote.pty_bridge", "workspace.env", "sidebar.custom.reload",
             "sidebar.custom.open",
@@ -72,6 +73,13 @@ struct ControlCommandExecutionPolicyTests {
             "browser.design_mode.set", "browser.design_mode.status",
         ] {
             #expect(ControlCommandExecutionPolicy(forMethod: method).runsOnSocketWorker, "\(method)")
+        }
+        for method in ["agent.restore.admit", "agent.restore.release"] {
+            #expect(
+                ControlCommandExecutionPolicy(forMethod: method)
+                    == .socketWorker(mainThreadCallable: false),
+                "\(method)"
+            )
         }
     }
 
