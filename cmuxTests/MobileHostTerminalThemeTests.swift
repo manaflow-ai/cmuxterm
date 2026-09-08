@@ -200,9 +200,9 @@ import Testing
             columns: 2,
             rows: 1,
             rowSpans: [],
-            anchor: .screen,
             terminalTheme: .monokai,
-            terminalConfigTheme: .monokai
+            terminalConfigTheme: .monokai,
+            anchor: .screen
         )
         observer.adoptReplayBaseline(seeded, surfaceID: surfaceID)
         #expect(observer.terminalThemesBySurfaceID[surfaceID] != nil)
