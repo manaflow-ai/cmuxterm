@@ -68,6 +68,7 @@ public final class HiveRemoteMacSession {
     @ObservationIgnored public private(set) var renderGridRouter: HiveRemoteRenderGridRouter?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var connectTask: Task<Void, Never>?
+    @ObservationIgnored private var disconnectTask: Task<Void, Never>?
     @ObservationIgnored private var workspaceRefreshTask: Task<Bool, Never>?
     @ObservationIgnored private var workspaceRefreshPending = false
     @ObservationIgnored private var workspaceListeners:
@@ -118,7 +119,7 @@ public final class HiveRemoteMacSession {
     /// and begin observing workspace updates. Idempotent while a connect is
     /// already in flight.
     public func connect() {
-        guard connectTask == nil else { return }
+        guard connectTask == nil, disconnectTask == nil else { return }
         phase = .connecting
         connectTask = Task { [weak self] in
             await self?.runConnect()
@@ -137,6 +138,7 @@ public final class HiveRemoteMacSession {
     /// - Returns: `true` when a new connection attempt was started.
     @discardableResult
     public func reconnectIfNeeded() -> Bool {
+        guard disconnectTask == nil else { return false }
         switch phase {
         case .idle, .failed:
             connect()
@@ -148,26 +150,37 @@ public final class HiveRemoteMacSession {
 
     /// Tear down the session (window closed).
     public func disconnect() async {
+        if let disconnectTask {
+            await disconnectTask.value
+            return
+        }
+        // Revoke every admission surface before the first suspension. The
+        // captured resources remain owned until their cancellation drains.
+        let retiringClient = client
+        retiringClient?.retire()
+        client = nil
+        phase = .idle
+        renderGridRouter?.stop()
+        renderGridRouter = nil
         let pendingConnect = connectTask
-        pendingConnect?.cancel()
-        await pendingConnect?.value
         connectTask = nil
         let pendingEvents = eventTask
         let pendingRefresh = workspaceRefreshTask
+        pendingConnect?.cancel()
         pendingEvents?.cancel()
         pendingRefresh?.cancel()
-        await pendingEvents?.value
-        await pendingRefresh?.value
         eventTask = nil
         workspaceRefreshTask = nil
         workspaceRefreshPending = false
-        renderGridRouter?.stop()
-        renderGridRouter = nil
-        if let client {
-            await client.disconnect()
+        let teardown = Task<Void, Never> {
+            await pendingConnect?.value
+            await pendingEvents?.value
+            await pendingRefresh?.value
+            await retiringClient?.disconnect()
         }
-        client = nil
-        phase = .idle
+        disconnectTask = teardown
+        await teardown.value
+        disconnectTask = nil
     }
 
     /// Re-fetch the workspace list from the connected Mac.
@@ -178,7 +191,7 @@ public final class HiveRemoteMacSession {
     }
 
     /// Creates a terminal session using this Mac's shared surface-scoped event
-    /// router. Returns `nil` until the initial RPC client is connected.
+    /// router. Returns `nil` unless connected, including throughout teardown.
     /// - Parameters:
     ///   - workspaceID: The remote workspace containing the terminal.
     ///   - terminalID: The remote terminal/surface identifier.
@@ -188,7 +201,8 @@ public final class HiveRemoteMacSession {
         terminalID: String,
         retryDelay: @escaping @Sendable (_ attempt: Int) async -> Void
     ) -> HiveRemoteTerminalSession? {
-        guard let client else { return nil }
+        guard disconnectTask == nil, phase == .connected,
+              let client, let renderGridRouter else { return nil }
         return HiveRemoteTerminalSession(
             client: client,
             workspaceID: workspaceID,
@@ -199,6 +213,7 @@ public final class HiveRemoteMacSession {
     }
 
     private func scheduleWorkspaceRefresh() {
+        guard disconnectTask == nil, client != nil else { return }
         guard workspaceRefreshTask == nil else {
             workspaceRefreshPending = true
             return
@@ -306,6 +321,10 @@ public final class HiveRemoteMacSession {
                 renderGridRouter?.stop()
                 renderGridRouter = nil
                 if let previous = client { await previous.disconnect() }
+                guard !Task.isCancelled else {
+                    await candidate.disconnect()
+                    return
+                }
                 client = candidate
                 renderGridRouter = HiveRemoteRenderGridRouter(client: candidate, hostEvents: hostEvents)
                 setWorkspaces(workspaces)
