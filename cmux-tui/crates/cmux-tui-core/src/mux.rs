@@ -9311,7 +9311,11 @@ impl Mux {
             ResourceEffectOutcome::Success(_) => Ok(None),
             ResourceEffectOutcome::Failure(error) => Err(anyhow::Error::new(error)),
         };
-        let preparation = match self.lookup_resource_effect(idempotency_key, OPERATION, &fingerprint)? {
+        let preparation = match self.lookup_resource_effect(
+            idempotency_key,
+            OPERATION,
+            &fingerprint,
+        )? {
             Some(preparation) => preparation,
             None => {
                 let intent = serde_json::json!({
@@ -9432,8 +9436,7 @@ impl Mux {
                 }
                 match ledger.iter().find(|entry| &entry.id == id) {
                     Some(entry) => {
-                        let mut read_by =
-                            reads.get(id).cloned().unwrap_or_default();
+                        let mut read_by = reads.get(id).cloned().unwrap_or_default();
                         read_by.insert(client_id.to_string());
                         let read_by = read_by.into_iter().collect::<Vec<_>>();
                         let value = self.notification_snapshot_value(entry, &session_id, &read_by);
@@ -23081,9 +23084,14 @@ mod tests {
             page.batches.iter().find(|batch| batch.revision == revision_before + 2).unwrap();
         let changes = ack_batch.changes.as_array().unwrap();
         assert_eq!(changes.len(), 2);
-        assert!(changes.iter().all(|change| change["resource"] == "notification"
-            && change["kind"] == "upsert"
-            && change["value"]["read_by"].as_array().unwrap().contains(&serde_json::json!("mac-b"))));
+        assert!(changes.iter().all(|change| {
+            change["resource"] == "notification"
+                && change["kind"] == "upsert"
+                && change["value"]["read_by"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&serde_json::json!("mac-b"))
+        }));
 
         let bad = WorkspaceMutation::new("ack-bad", "test").unwrap();
         assert!(mux.ack_notifications(&bad, None, "has space", &[oldest]).is_err());

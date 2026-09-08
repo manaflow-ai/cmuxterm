@@ -1424,7 +1424,12 @@ fn ack_notifications(mux: &Mux, request: ParsedResourceRequest) -> Result<Value,
     )
     .map_err(resource_operation_error)?;
     let ack = mux
-        .ack_notifications(&mutation, expected_revision(&request.fields)?, &client_id, &notifications)
+        .ack_notifications(
+            &mutation,
+            expected_revision(&request.fields)?,
+            &client_id,
+            &notifications,
+        )
         .map_err(resource_operation_error)?;
     mutation_result(mux, ack.result, ack.revision, ack.replayed)
 }

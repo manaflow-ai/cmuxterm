@@ -1050,7 +1050,8 @@ impl WorkspaceRegistry {
             )?;
         }
         {
-            let mut statement = tx.prepare("SELECT DISTINCT notification_id FROM resource_notification_reads")?;
+            let mut statement =
+                tx.prepare("SELECT DISTINCT notification_id FROM resource_notification_reads")?;
             let stored = statement
                 .query_map([], |row| row.get::<_, String>(0))?
                 .collect::<Result<Vec<_>, _>>()?;

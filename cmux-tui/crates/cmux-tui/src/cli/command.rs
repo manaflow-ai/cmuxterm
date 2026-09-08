@@ -1348,7 +1348,9 @@ fn parse_notification(words: &[String], flags: &mut Flags) -> Result<CommandPlan
                 return Err(UsageError::new("notification ack needs at least one notification ID"));
             }
             if ids.len() > 256 {
-                return Err(UsageError::new("notification ack accepts at most 256 notification IDs"));
+                return Err(UsageError::new(
+                    "notification ack accepts at most 256 notification IDs",
+                ));
             }
             for id in ids {
                 validate_prefixed_id("notification", "notification", id)?;
