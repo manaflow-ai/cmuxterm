@@ -5,9 +5,10 @@ import CmuxFoundation
 @MainActor
 class SidebarSearchField: NSSearchField {
     static let leadingPadding: CGFloat = 4
-    static let verticalPadding: CGFloat = 3
+    static let topPadding: CGFloat = 0
 
     var onCommandSubmit: (() -> Void)?
+    private var hoverTrackingArea: NSTrackingArea?
 
     override class var cellClass: AnyClass? {
         get { SidebarSearchFieldCell.self }
@@ -30,6 +31,36 @@ class SidebarSearchField: NSSearchField {
 
     func applyFontScale() {
         font = GlobalFontMagnification.systemFont(ofSize: 13, weight: .regular)
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard isEnabled, isEditable else { return }
+        addCursorRect(searchTextBounds, cursor: .iBeam)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTrackingArea { removeTrackingArea(hoverTrackingArea) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.inVisibleRect, .activeAlways, .cursorUpdate, .mouseEnteredAndExited, .mouseMoved],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverTrackingArea = area
+    }
+
+    override func cursorUpdate(with event: NSEvent) { updateHoverCursor(with: event) }
+    override func mouseEntered(with event: NSEvent) { updateHoverCursor(with: event) }
+    override func mouseMoved(with event: NSEvent) { updateHoverCursor(with: event) }
+    override func mouseExited(with event: NSEvent) { NSCursor.arrow.set() }
+
+    private func updateHoverCursor(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let cursor: NSCursor = isEnabled && isEditable && searchTextBounds.contains(point) ? .iBeam : .arrow
+        cursor.set()
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
