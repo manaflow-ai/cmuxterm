@@ -256,7 +256,7 @@ describe("VM Effect workflows", () => {
       resume: () => Effect.succeed(testVmHandle({ providerVmId: source.providerVmId! })),
       snapshot: () => {
         snapshotCalls += 1;
-        return Effect.succeed({ snapshotId: "sh-fork-source", providerVmId: source.providerVmId! });
+        return Effect.succeed({ id: "sh-fork-source", createdAt: Date.now() });
       },
       // The live gateway always defines fork; the driver answers whether it is native.
       supportsNativeFork: () => false,
