@@ -27986,6 +27986,7 @@ struct CMUXCLI {
                 cwd: parsedInput.cwd
             )
             let isClearSessionStart = isClaudeClearSessionStart(parsedInput)
+            let isForkSessionStart = isClaudeForkSessionStart(parsedInput)
             let isNoFlickerStartupSessionStart = isClaudeNoFlickerStartupSessionStart(
                 parsedInput,
                 env: ProcessInfo.processInfo.environment
@@ -27997,7 +27998,9 @@ struct CMUXCLI {
                 surfaceId: resolvedSurface.isAuthoritative ? surfaceId : nil,
                 telemetry: telemetry
             )
-            let shouldPublishSessionStartResumeBinding = isClearSessionStart || canReplaceStoppedSession
+            let shouldPublishSessionStartResumeBinding = isClearSessionStart
+                || isForkSessionStart
+                || canReplaceStoppedSession
             let sessionStartSource = parsedInput.object?["source"] as? String
             let acceptedSessionStart = parsedInput.sessionId.map { sessionId -> (sessionId: String, accepted: Bool) in
                 let accepted = (try? sessionStore.upsertAuthoritativeClaudeSessionStart(
@@ -29249,6 +29252,13 @@ struct CMUXCLI {
             return false
         }
         return source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "clear"
+    }
+
+    private func isClaudeForkSessionStart(_ parsedInput: ClaudeHookParsedInput) -> Bool {
+        guard let source = parsedInput.object?["source"] as? String else {
+            return false
+        }
+        return source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "fork"
     }
 
     private func isClaudeNoFlickerStartupSessionStart(
