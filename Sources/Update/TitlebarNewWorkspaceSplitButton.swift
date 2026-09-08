@@ -42,11 +42,17 @@ struct TitlebarNewWorkspaceSplitButton: View {
         titlebarControlBorderOpacity(config: config, isHovering: isHovering, isPressed: false, isEnabled: true)
     }
 
+    /// Makes each segment's full frame interactive, including transparent label space.
     var body: some View {
         HStack(spacing: 0) {
             Button(action: onNewTab) {
-                CmuxSystemSymbolImage(systemName: "plus", pointSize: config.iconSize, weight: .medium)
-                    .frame(width: primaryWidth, height: config.buttonSize)
+                ZStack {
+                    Rectangle()
+                        .fill(Color.clear)
+                    CmuxSystemSymbolImage(systemName: "plus", pointSize: config.iconSize, weight: .medium)
+                }
+                .frame(width: primaryWidth, height: config.buttonSize)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .frame(width: primaryWidth, height: config.buttonSize)
