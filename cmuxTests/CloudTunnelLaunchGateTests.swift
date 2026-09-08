@@ -248,7 +248,7 @@ struct CloudTunnelLaunchGateTests {
         #expect(resolver.count == 2)
     }
 
-    @Test("a start that is refused after being scheduled ends off, without failure backoff")
+    @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
     func refusalAfterSchedulingEndsOff() async {
         let controller = FakeTunnelController()
         let enroller = FakeTunnelEnroller()
@@ -264,12 +264,24 @@ struct CloudTunnelLaunchGateTests {
             }
         )
         let coordinator = makeCoordinator(controller: controller, enroller: enroller, admission: admission)
-        await coordinator.beginUp(pin: false)
-        _ = await coordinator.waitForState(timeout: .seconds(5)) { !$0.isSettling }
+        // `cmux vpn up` waits in `ensureUp` on the state stream: it must see
+        // the Cloud Machines message, not a generic cancellation.
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await coordinator.requestUp(pin: true)
+        }
         #expect(await coordinator.state == .off)
+        #expect(await coordinator.isPinned)
         #expect(await coordinator.isInFailureBackoff == false)
         #expect(controller.calls.isEmpty)
         #expect(enroller.enrollCount == 0)
+
+        // The next scheduled start is judged afresh.
+        await coordinator.requestDown()
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await coordinator.requirePrivateNetworkUse(Self.use)
+        }
+        #expect(await coordinator.state == .off)
+        #expect(controller.calls.isEmpty)
     }
 
     @Test("launch composition: a saved VPN configuration gets the eager controller, otherwise construction waits; an unavailable build is inert")

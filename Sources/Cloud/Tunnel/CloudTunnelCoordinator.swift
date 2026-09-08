@@ -56,6 +56,10 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// The in-flight stop, so a Cloud use that arrives mid-stop queues behind
     /// it instead of racing NetworkExtension with a start.
     private var stopTask: Task<Void, Never>?
+    /// Set when a scheduled start was refused by the policy after all, so the
+    /// callers waiting on the state stream report that refusal rather than a
+    /// generic cancellation. Cleared when the next start is scheduled.
+    private var lastStartRefusal: CloudTunnelError?
 
     init(
         backend: CloudTunnelBackend,
@@ -248,6 +252,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             case .failed(let message):
                 throw CloudTunnelError.startFailed(message)
             case .off:
+                if let lastStartRefusal {
+                    throw lastStartRefusal
+                }
                 throw CloudTunnelError.startFailed(String(
                     localized: "cloudTunnel.error.startCancelled",
                     defaultValue: "The tunnel start was cancelled."
@@ -263,6 +270,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         if let startTask { return startTask }
         startGeneration += 1
         let generation = startGeneration
+        lastStartRefusal = nil
         // Visible before the task runs, so a subscriber never sees `.off`
         // between asking for the start and the start beginning.
         setState(.starting)
@@ -327,7 +335,9 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             throw CancellationError()
         } catch let error as CloudTunnelError where error.isActivationRefusal {
             // A policy refusal is not a failure to back off from: the next
-            // use re-asks the policy, and nothing was started.
+            // use re-asks the policy, and nothing was started. Record it
+            // before the state changes so every waiter sees the real reason.
+            if startGeneration == generation { lastStartRefusal = error }
             setState(.off, generation: generation)
             throw error
         } catch {
