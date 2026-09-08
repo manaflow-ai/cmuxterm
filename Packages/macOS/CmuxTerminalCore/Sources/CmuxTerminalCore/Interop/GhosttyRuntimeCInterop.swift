@@ -1,3 +1,4 @@
+public import Foundation
 public import GhosttyKit
 
 // lint:allow free-function — @_silgen_name FFI declaration: the symbol is
@@ -17,7 +18,24 @@ private func cmux_ghostty_surface_clear_selection(_ surface: ghostty_surface_t) 
 // lint:allow namespace-type — sanctioned FFI seam: a holder for header-less
 // @_silgen_name libghostty bindings; there is nothing to instantiate.
 public struct GhosttyRuntimeCInterop {
+    private static let initializationLock = NSLock()
+    nonisolated(unsafe) private static var initializationResult: Int32?
+
     private init() {}
+
+    /// Initializes libghostty once for the process.
+    public static func initialize() -> Int32 {
+        initializationLock.lock()
+        defer { initializationLock.unlock() }
+
+        if let initializationResult {
+            return initializationResult
+        }
+
+        let result = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
+        initializationResult = result
+        return result
+    }
 
     /// Clears the active selection on a runtime surface.
     ///

@@ -872,7 +872,7 @@ class GhosttyApp {
         }
 
         // Initialize Ghostty library first
-        let result = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
+        let result = GhosttyRuntimeCInterop.initialize()
         if result != GHOSTTY_SUCCESS {
             #if DEBUG
             cmuxDebugLog("ghostty.initialize.failed result=\(result)")
