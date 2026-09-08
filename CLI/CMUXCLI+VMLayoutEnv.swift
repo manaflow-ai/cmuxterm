@@ -764,8 +764,10 @@ extension CMUXCLI {
                 throw VMLayoutDocumentError(path: "\(path).env.\(bad)", reason: String(format: String(localized: "cli.vm.layoutEnv.invalidVariableNameValueKeysMatchAZaZA", defaultValue: "invalid variable name '%1$@' (keys match [A-Za-z_][A-Za-z0-9_]*)"), String(describing: bad)))
             }
         }
-        if let focus = surface["focus"], !(focus is NSNull), !(focus is Bool) {
-            throw VMLayoutDocumentError(path: "\(path).focus", reason: String(localized: "cli.vm.layoutEnv.focusMustBeTrueOrFalse", defaultValue: "'focus' must be true or false"))
+        if let focus = surface["focus"], !(focus is NSNull) {
+            guard let number = focus as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+                throw VMLayoutDocumentError(path: "\(path).focus", reason: String(localized: "cli.vm.layoutEnv.focusMustBeTrueOrFalse", defaultValue: "'focus' must be true or false"))
+            }
         }
     }
 

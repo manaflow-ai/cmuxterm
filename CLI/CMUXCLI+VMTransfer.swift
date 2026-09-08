@@ -27,6 +27,7 @@ extension CMUXCLI {
     static let vmTransferMaxBytes = 256 * 1024 * 1024
     static let vmTransferExecTimeoutMs = 100_000
     static let vmTransferExecResponseTimeout: TimeInterval = 120
+    static let vmPushWatchSettleTimeoutSeconds: TimeInterval = 10
     /// Directory entries skipped by default on `vm push` of a directory. Every
     /// entry here is cheap to recreate on the machine (installs, build output)
     /// or meaningless there (VCS internals, OS litter); `--no-default-excludes`
@@ -543,7 +544,8 @@ extension CMUXCLI {
             var current = Self.vmPushTreeSignature(root: localURL, isDirectory: isDirectory, excludes: excludes)
             guard current != last else { continue }
             // Settle: keep re-reading until two consecutive reads agree.
-            while true {
+            let settleDeadline = Date().addingTimeInterval(Self.vmPushWatchSettleTimeoutSeconds)
+            while Date() < settleDeadline {
                 Thread.sleep(forTimeInterval: Self.vmPushWatchSettleSeconds)
                 let settled = Self.vmPushTreeSignature(root: localURL, isDirectory: isDirectory, excludes: excludes)
                 if settled == current { break }

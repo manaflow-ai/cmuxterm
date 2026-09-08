@@ -46,9 +46,16 @@ extension CMUXCLI {
         let status = (response["http_status"] as? Int) ?? 200
         if status == 404 {
             if jsonOutput { print(jsonString(body)) }
+            guard !path.isEmpty else {
+                throw CLIError(message: "\(machine) has no reflection index")
+            }
             let paths = Self.vmReflectionPaths(body)
             let hint = paths.isEmpty ? "" : " Paths: \(paths.joined(separator: ", "))"
             throw CLIError(message: "\(machine) has no reflection path '\(path)'.\(hint)")
+        }
+        guard (200...299).contains(status) else {
+            if jsonOutput || !path.isEmpty { print(jsonString(body)) }
+            throw CLIError(message: "\(machine) reflection request failed (HTTP \(status))")
         }
         if jsonOutput || !path.isEmpty {
             print(jsonString(body))

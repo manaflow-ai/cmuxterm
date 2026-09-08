@@ -417,7 +417,7 @@ extension CMUXCLI {
         if let explicit = options.port {
             port = explicit
         } else if let overridden = options.command {
-            port = Self.vmDevPort(inScript: overridden)
+            port = Self.vmDevPort(inScript: overridden) ?? detection.port
         } else {
             port = detection.port
         }
