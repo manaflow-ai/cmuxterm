@@ -1531,8 +1531,10 @@
 		C4160A020000000000000001 /* HistoryMenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4160A020000000000000002 /* HistoryMenuCoordinator.swift */; };
 		A10348030000000000000001 /* HistoryMenuCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10348030000000000000002 /* HistoryMenuCoordinatorTests.swift */; };
 		A10348020000000000000001 /* HistoryMenuState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10348020000000000000002 /* HistoryMenuState.swift */; };
+		C41FE00000000000000000FA /* HiveComputerMirrorController+Reconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FE00000000000000000EA /* HiveComputerMirrorController+Reconciliation.swift */; };
 		C41FE00000000000000000C9 /* HiveComputerMirrorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FE00000000000000000D9 /* HiveComputerMirrorController.swift */; };
 		C41FE00000000000000000C2 /* HiveComputersService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FE00000000000000000D2 /* HiveComputersService.swift */; };
+		C41FE00000000000000000F9 /* HiveDeviceMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FE00000000000000000E9 /* HiveDeviceMirror.swift */; };
 		7DD3FE43EB968D44E5652135 /* HiveSidebarConnectionStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E8D5AF4AAC86680531F2BAC /* HiveSidebarConnectionStatusView.swift */; };
 		C41FE00000000000000000C5 /* HiveViewerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41FE00000000000000000D5 /* HiveViewerWindowController.swift */; };
 		CD0CFE6000000000CD0CFE60 /* HostAccountFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0CFE6100000000CD0CFE61 /* HostAccountFlow.swift */; };
@@ -4805,8 +4807,10 @@
 		C4160A020000000000000002 /* HistoryMenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuCoordinator.swift; sourceTree = "<group>"; };
 		A10348030000000000000002 /* HistoryMenuCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuCoordinatorTests.swift; sourceTree = "<group>"; };
 		A10348020000000000000002 /* HistoryMenuState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMenuState.swift; sourceTree = "<group>"; };
+		C41FE00000000000000000EA /* HiveComputerMirrorController+Reconciliation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputerMirrorController+Reconciliation.swift; sourceTree = "<group>"; };
 		C41FE00000000000000000D9 /* HiveComputerMirrorController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputerMirrorController.swift; sourceTree = "<group>"; };
 		C41FE00000000000000000D2 /* HiveComputersService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveComputersService.swift; sourceTree = "<group>"; };
+		C41FE00000000000000000E9 /* HiveDeviceMirror.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveDeviceMirror.swift; sourceTree = "<group>"; };
 		5E8D5AF4AAC86680531F2BAC /* HiveSidebarConnectionStatusView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveSidebarConnectionStatusView.swift; sourceTree = "<group>"; };
 		C41FE00000000000000000D5 /* HiveViewerWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HiveViewerWindowController.swift; sourceTree = "<group>"; };
 		CD0CFE6100000000CD0CFE61 /* HostAccountFlow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HostAccountFlow.swift; sourceTree = "<group>"; };
@@ -6939,6 +6943,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 			children = (
 				C41FE00000000000000000D2 /* HiveComputersService.swift */,
 				C41FE00000000000000000D9 /* HiveComputerMirrorController.swift */,
+				C41FE00000000000000000E9 /* HiveDeviceMirror.swift */,
+				C41FE00000000000000000EA /* HiveComputerMirrorController+Reconciliation.swift */,
 				C41FE00000000000000000D5 /* HiveViewerWindowController.swift */,
 				5E8D5AF4AAC86680531F2BAC /* HiveSidebarConnectionStatusView.swift */,
 			);
@@ -11434,8 +11440,10 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A10348010000000000000001 /* HistoryMenuActions.swift in Sources */,
 				C4160A020000000000000001 /* HistoryMenuCoordinator.swift in Sources */,
 				A10348020000000000000001 /* HistoryMenuState.swift in Sources */,
+				C41FE00000000000000000FA /* HiveComputerMirrorController+Reconciliation.swift in Sources */,
 				C41FE00000000000000000C9 /* HiveComputerMirrorController.swift in Sources */,
 				C41FE00000000000000000C2 /* HiveComputersService.swift in Sources */,
+				C41FE00000000000000000F9 /* HiveDeviceMirror.swift in Sources */,
 				7DD3FE43EB968D44E5652135 /* HiveSidebarConnectionStatusView.swift in Sources */,
 				C41FE00000000000000000C5 /* HiveViewerWindowController.swift in Sources */,
 				CD0CFE6000000000CD0CFE60 /* HostAccountFlow.swift in Sources */,
