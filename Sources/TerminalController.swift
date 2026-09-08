@@ -1156,6 +1156,16 @@ class TerminalController {
             if let workspaceParamError = v2UnsupportedWorkspaceAliasError(method: request.method, params: request.params) {
                 return v2Result(id: request.id, workspaceParamError)
             }
+            if request.method == "surface.sync_codex_native_title" {
+                return v2Error(
+                    id: request.id,
+                    code: "invalid_dispatch",
+                    message: String(
+                        localized: "socket.surfaceSyncCodexNativeTitle.asyncDispatchRequired",
+                        defaultValue: "surface.sync_codex_native_title requires asynchronous socket dispatch"
+                    )
+                )
+            }
             if Self.socketWorkerCoordinatorHopMethods.contains(request.method) {
                 // Mirror processParsedV2Command's tail: one main hop for the
                 // command body, encode after the hop on this worker thread.
@@ -2710,6 +2720,8 @@ class TerminalController {
             return v2Result(id: id, self.v2WorkspaceCloudVMBind(params: params))
         case "workspace.set_auto_title":
             return v2Result(id: id, self.v2WorkspaceSetAutoTitle(params: params))
+        case "surface.sync_codex_native_title":
+            return v2Result(id: id, self.v2SurfaceSyncCodexNativeTitle(params: params))
 
         // Settings/session/feedback: session.restore_previous, settings.open, and
         // feedback.open handled by ControlCommandCoordinator.
@@ -3043,6 +3055,7 @@ class TerminalController {
             "workspace.prompt_submit",
             "workspace.rename",
             "workspace.set_auto_title",
+            "surface.sync_codex_native_title",
             "workspace.group.list",
             "workspace.group.create",
             "workspace.group.ungroup",
@@ -4364,6 +4377,87 @@ class TerminalController {
 
     private func v2ResolveWorkspaceOwner(_ workspaceId: UUID) -> TabManager? {
         v2MainSync { AppDelegate.shared?.tabManagerFor(tabId: workspaceId) }
+    }
+
+    /// `surface.sync_codex_native_title`: applies Codex's already-resolved
+    /// native thread title to the panel's raw title tier, the same tier used
+    /// by OSC terminal-title updates. The detached CLI hook owns the database
+    /// read; this app-side handler only resolves the panel and mutates
+    /// in-memory workspace state.
+    /// Applies the title on the main actor for the asynchronous socket bridge.
+    func v2SurfaceSyncCodexNativeTitle(params: [String: Any]) -> V2CallResult {
+        guard let title = v2String(params, "title")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.invalidTitle",
+                    defaultValue: "Missing or invalid title"
+                ),
+                data: nil
+            )
+        }
+        guard let tabManager = v2ResolveTabManager(params: params) else {
+            return .err(
+                code: "unavailable",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.tabManagerUnavailable",
+                    defaultValue: "TabManager not available"
+                ),
+                data: nil
+            )
+        }
+        guard let workspaceId = v2UUID(params, "workspace_id") else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.workspaceIdInvalid",
+                    defaultValue: "Missing or invalid workspace_id"
+                ),
+                data: nil
+            )
+        }
+        guard let panelId = v2UUID(params, "panel_id") else {
+            return .err(
+                code: "invalid_params",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelIdInvalid",
+                    defaultValue: "Missing or invalid panel_id"
+                ),
+                data: nil
+            )
+        }
+
+        var found = false
+        var applied = false
+        v2MainSync {
+            guard let workspace = tabManager.tabs.first(where: { $0.id == workspaceId }) else { return }
+            let resolvedPanelId = workspace.panels[panelId] != nil
+                ? panelId
+                : workspace.panelIdFromSurfaceId(TabID(uuid: panelId))
+            guard let resolvedPanelId else { return }
+            found = true
+            applied = tabManager.updatePanelTitle(
+                tabId: workspaceId,
+                panelId: resolvedPanelId,
+                title: title
+            )
+        }
+
+        guard found else {
+            return .err(
+                code: "not_found",
+                message: String(
+                    localized: "socket.surfaceSyncCodexNativeTitle.panelNotFound",
+                    defaultValue: "Panel not found"
+                ),
+                data: [
+                    "workspace_id": workspaceId.uuidString,
+                    "workspace_ref": v2Ref(kind: .workspace, uuid: workspaceId)
+                ]
+            )
+        }
+        return .ok(["applied": applied])
     }
 
     // MARK: - V2 Workspace Methods
