@@ -1,0 +1,198 @@
+import Foundation
+import Testing
+
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+
+/// Regression coverage for #12084: shell-activity flips must not retire a
+/// hook-published resume binding whose agent process is verifiably alive.
+///
+/// Pi's interactive TUI emits OSC 133 prompt and command marks while the agent
+/// keeps running, so cmux sees the pane go idle and busy on every turn. The
+/// restored-agent lifecycle used to read the first busy flip after an idle
+/// hook publish as an unrelated command replacing the agent, and the first
+/// idle flip after a resumed launch as the agent exiting, and demoted the
+/// binding to manual either way. The next relaunch then restored a bare shell.
+@MainActor
+@Suite(.serialized)
+struct RestoredAgentShellActivityLivenessTests {
+    private static let sessionID = "5c0f2e4a-9b3d-4f6e-8a1c-2d7b9e0f4a63"
+    private static let projectDirectory = "/tmp/pi-liveness-project"
+
+    private static func trustedPiBinding(updatedAt: TimeInterval = 10) -> SurfaceResumeBindingSnapshot {
+        SurfaceResumeBindingSnapshot(
+            name: "Pi",
+            kind: "pi",
+            command: "pi --session \(sessionID)",
+            cwd: projectDirectory,
+            checkpointId: sessionID,
+            source: "agent-hook",
+            launchCommand: AgentLaunchCommandSnapshot(
+                launcher: "pi",
+                executablePath: "pi",
+                arguments: ["pi"],
+                workingDirectory: projectDirectory,
+                capturedAt: updatedAt,
+                source: "process"
+            ),
+            autoResume: true,
+            approvalPolicy: .auto,
+            updatedAt: updatedAt
+        )
+    }
+
+    private static var pidKey: String { "pi.\(sessionID)" }
+
+    /// The test process itself stands in for the live Pi process the hook
+    /// registered through `set_agent_pid`.
+    private static var livePID: pid_t { ProcessInfo.processInfo.processIdentifier }
+
+    /// A PID with no process table entry stands in for an agent that exited.
+    private static var exitedPID: pid_t { pid_t(Int32.max - 11) }
+
+    // MARK: - Workspace
+
+    @Test
+    func workspaceKeepsFreshHookBindingAcrossTUIPromptMarks() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+
+        // Pi renders its prompt (133;A/B) before its session-start hook lands.
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .promptIdle)
+        #expect(workspace.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panelId))
+        #expect(workspace.restoredAgentSnapshotsByPanelId[panelId]?.sessionId == Self.sessionID)
+        _ = workspace.recordAgentPID(key: Self.pidKey, pid: Self.livePID, panelId: panelId)
+
+        // The first turn emits 133;C: the running command is the agent itself.
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .commandRunning)
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == true)
+        #expect(workspace.restoredAgentSnapshotsByPanelId[panelId]?.sessionId == Self.sessionID)
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .observedAgentCommandRunning)
+
+        // The turn ends with 133;A while Pi keeps running.
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .promptIdle)
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == true)
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .observedAgentCommandRunning)
+    }
+
+    @Test
+    func workspaceStillRetiresBindingAfterAgentExits() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .commandRunning)
+        #expect(workspace.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panelId))
+        workspace.restoredAgentLifecycle.setResumeState(.observedAgentCommandRunning, panelId: panelId)
+        _ = workspace.recordAgentPID(key: Self.pidKey, pid: Self.exitedPID, panelId: panelId)
+
+        // The shell prompt returns after the agent process is gone (#8446).
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .promptIdle)
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == false)
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .completedAgentExit)
+    }
+
+    @Test
+    func workspaceKeepsResumedLaunchAcrossTUIPromptMarks() throws {
+        let workspace = Workspace()
+        defer { workspace.teardownAllPanels() }
+        let panelId = try #require(workspace.focusedPanelId)
+
+        #expect(workspace.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panelId))
+        workspace.restoredAgentLifecycle.setResumeState(.awaitingAutoResumeCommand, panelId: panelId)
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .commandRunning)
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .autoResumeCommandRunning)
+        _ = workspace.recordAgentPID(key: Self.pidKey, pid: Self.livePID, panelId: panelId)
+
+        // The resumed Pi renders its prompt; the agent has not exited.
+        workspace.updatePanelShellActivityState(panelId: panelId, state: .promptIdle)
+        #expect(workspace.surfaceResumeBinding(panelId: panelId)?.allowsAutomaticResume == true)
+        #expect(workspace.restoredAgentResumeStatesByPanelId[panelId] == .autoResumeCommandRunning)
+        #expect(workspace.restoredAgentSnapshotsByPanelId[panelId]?.sessionId == Self.sessionID)
+    }
+
+    // MARK: - Dock
+
+    @Test
+    func dockKeepsFreshHookBindingAcrossTUIPromptMarks() throws {
+        let store = DockSplitStore(
+            workspaceId: UUID(),
+            baseDirectoryProvider: { nil }
+        )
+        defer { store.closeAllPanels() }
+        let panel = TerminalPanel(workspaceId: store.workspaceId)
+        store.panels[panel.id] = panel
+
+        store.updatePanelShellActivityState(panelId: panel.id, state: .promptIdle)
+        #expect(store.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panel.id))
+        store.restoredAgentLifecycle.setResumeState(.manualResumeAvailable, panelId: panel.id)
+        _ = store.recordAgentPID(key: Self.pidKey, pid: Self.livePID, panelId: panel.id)
+
+        store.updatePanelShellActivityState(panelId: panel.id, state: .commandRunning)
+        #expect(store.surfaceResumeBinding(panelId: panel.id)?.allowsAutomaticResume == true)
+        #expect(store.restoredAgentLifecycle.snapshotsByPanelId[panel.id]?.sessionId == Self.sessionID)
+        #expect(store.restoredAgentLifecycle.resumeStatesByPanelId[panel.id] == .observedAgentCommandRunning)
+
+        store.updatePanelShellActivityState(panelId: panel.id, state: .promptIdle)
+        #expect(store.surfaceResumeBinding(panelId: panel.id)?.allowsAutomaticResume == true)
+        #expect(store.restoredAgentLifecycle.resumeStatesByPanelId[panel.id] == .observedAgentCommandRunning)
+    }
+
+    @Test
+    func dockStillRetiresBindingAfterAgentExits() throws {
+        let store = DockSplitStore(
+            workspaceId: UUID(),
+            baseDirectoryProvider: { nil }
+        )
+        defer { store.closeAllPanels() }
+        let panel = TerminalPanel(workspaceId: store.workspaceId)
+        store.panels[panel.id] = panel
+
+        store.updatePanelShellActivityState(panelId: panel.id, state: .commandRunning)
+        #expect(store.setSurfaceResumeBinding(Self.trustedPiBinding(), panelId: panel.id))
+        store.restoredAgentLifecycle.setResumeState(.observedAgentCommandRunning, panelId: panel.id)
+        _ = store.recordAgentPID(key: Self.pidKey, pid: Self.exitedPID, panelId: panel.id)
+
+        store.updatePanelShellActivityState(panelId: panel.id, state: .promptIdle)
+        #expect(store.surfaceResumeBinding(panelId: panel.id)?.allowsAutomaticResume == false)
+    }
+
+    // MARK: - Foreground process evidence
+
+    @Test
+    func foregroundProcessMatchesAgentBeforeHookRegistersPID() {
+        let agent = SessionRestorableAgentSnapshot(
+            kind: .pi,
+            sessionId: Self.sessionID,
+            workingDirectory: Self.projectDirectory,
+            launchCommand: nil
+        )
+        let piProcess = CmuxTopProcessArguments(arguments: ["pi"], environment: [:])
+        let shellProcess = CmuxTopProcessArguments(arguments: ["zsh", "-l"], environment: [:])
+
+        #expect(RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 4242,
+            processArguments: { _ in piProcess }
+        ))
+        #expect(!RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 4242,
+            processArguments: { _ in shellProcess }
+        ))
+        #expect(!RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: nil,
+            processArguments: { _ in piProcess }
+        ))
+        #expect(!RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 4242,
+            processArguments: { _ in nil }
+        ))
+    }
+}
