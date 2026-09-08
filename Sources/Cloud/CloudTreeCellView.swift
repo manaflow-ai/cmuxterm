@@ -57,6 +57,10 @@ final class CloudTreeCellView: NSTableCellView {
             CloudTreeRowContentView(kind: node.kind, style: style)
                 .frame(maxWidth: .infinity, alignment: .leading)
         )
+        // An in-place row reload reuses this cell; the new content can be wider
+        // than the last fitting size, so ask AppKit to re-measure the host.
+        displayHost.invalidateIntrinsicContentSize()
+        needsLayout = true
         if CloudTreeRowHoverButtons.hasButtons(for: node.kind) {
             let buttons = buttonsHost ?? makeButtonsHost()
             buttons.rootView = AnyView(CloudTreeRowHoverButtons(kind: node.kind, machineActions: machineActions, nodeActions: nodeActions))
