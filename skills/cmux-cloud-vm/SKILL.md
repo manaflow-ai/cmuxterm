@@ -149,7 +149,7 @@ cmux env ls                             # the same env file
 cmux notify --title "done" --body "…"   # lands on the Mac pane showing this terminal
 ```
 
-To talk to **another** machine (a second agent, a service box), the Mac grants a link once — `cmux vm link <src> <dst>` — and then, inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only the peers the person's Mac linked.
+To talk to **another** machine (a second agent, a service box), this build requires an existing peer-route file; it cannot create new peer grants. Inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only its previously configured peers.
 
 ## CodeRouter and model credentials
 

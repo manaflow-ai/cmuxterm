@@ -2830,6 +2830,15 @@ export function openVmCmuxRemote(input: {
     const repo = yield* VmRepository;
     const providers = yield* VmProviderGateway;
     const vm = yield* requireAccessibleUserVm(input);
+    const supportedTransports = providers.attachTransports?.(vm.provider);
+    if (supportedTransports && !supportedTransports.includes("cmux-remote")) {
+      return yield* Effect.fail(new VmAttachTransportUnsupportedError({
+        provider: vm.provider,
+        vmId: input.providerVmId,
+        requested: "cmux-remote",
+        supported: supportedTransports,
+      }));
+    }
     if (!providers.openCmuxRemote) {
       return yield* Effect.fail(
         new VmProviderOperationError({

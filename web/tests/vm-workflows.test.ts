@@ -1996,6 +1996,37 @@ describe("VM Effect workflows", () => {
     });
   });
 
+  test("openVmCmuxRemote rejects an explicitly unsupported transport before provider work", async () => {
+    const vm = testCloudVmRow({ userId: "user-remote-unsupported", providerVmId: "vm-remote-unsupported", status: "running" });
+    const repo = testWorkflowRepo({ vm });
+    let providerCalls = 0;
+    const provider: VmProviderGatewayShape = {
+      ...unusedProviderGateway(),
+      attachTransports: () => ["ssh"],
+      getStatus: () => Effect.sync(() => {
+        providerCalls += 1;
+        return "running" as const;
+      }),
+      openCmuxRemote: () => Effect.sync(() => {
+        providerCalls += 1;
+        return {
+          transport: "cmux-remote" as const,
+          route: "ws://10.0.0.5:1337/v1/link",
+          token: "",
+          expiresAtUnix: 0,
+          session: "cloud",
+          trustedCarrier: true,
+        };
+      }),
+    };
+    const error = await Effect.runPromise(openVmCmuxRemote({ userId: vm.userId, providerVmId: vm.providerVmId }).pipe(
+      Effect.flip,
+      Effect.provide(workflowLayer(repo, provider)),
+    ));
+    expect(isVmAttachTransportUnsupportedError(error)).toBe(true);
+    expect(providerCalls).toBe(0);
+  });
+
   test("openVmCmuxRemote wakes a provider-paused VM even when its row still says running", async () => {
     const vm = testCloudVmRow({
       id: "00000000-0000-4000-8000-000000000146",

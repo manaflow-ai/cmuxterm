@@ -85,10 +85,9 @@ cmux send-key --terminal <term> enter
 cmux terminal read <term>
 ```
 
-Across machines, the person's Mac grants a link once, then the source machine speaks to the peer with the Mac grammar:
+Across machines, an existing peer route lets the source machine speak to the peer with the Mac grammar. This build cannot create new peer grants:
 
 ```bash
-cmux vm link <builder> <reviewer>                       # on the Mac: builder may reach reviewer
 # inside <builder>:
 cmux vm agent reviewer --agent codex --name "review" --cwd /root/work/app -- "review the diff on branch feat/x and write REVIEW.md"
 cmux vm terminal wait reviewer <term> --pattern 'REVIEW.md written' --timeout 1800
@@ -97,7 +96,7 @@ cmux vm env set reviewer GITHUB_REPO=org/app                       # settings fo
 cmux vm layout apply reviewer review-layout.json --name review     # a workspace on the peer, ready for the human
 ```
 
-Only the Mac can grant or revoke links; a machine never holds a control-plane credential and can reach only the peers it was linked to.
+A machine never holds a control-plane credential and can reach only its previously configured peers. The earlier Mac enrollment broker is no longer implemented.
 
 ## 3. Repo with history (private repos, no credentials on the machine)
 

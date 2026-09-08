@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "
 // Every shim run spawns dozens of processes (sh + jq per step); give the suites room.
 setDefaultTimeout(60_000);
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createServer } from "node:net";
 import { join } from "node:path";
@@ -76,7 +76,7 @@ esac
       const result = spawnSync("sh", [shim, "vm", "exec", "peer", "--", "printf", "hello"], {
         encoding: "utf8",
         timeout: 10_000,
-        env: { PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
+        env: { NODE_ENV: "test", PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
       });
       const calls = readFileSync(join(directory, "calls"), "utf8");
       expect(calls).toContain("workspace current show");
@@ -448,7 +448,6 @@ esac
 // answers creation verbs with CreatedTerminalPath / CreatedBrowserPath results
 // whose ids embed the call number, so the exact op sequence is assertable.
 // ---------------------------------------------------------------------------
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 
 const STATEFUL_FAKE_TUI = `#!/bin/sh
 { printf '%s\\n' "$@"; printf '%s\\n' "--END--"; } >> "$FAKE_LOG"
@@ -1063,7 +1062,7 @@ describe("in-VM cmux shim: agent primitives", () => {
     // A live link: the shim reuses ~/.cmux/peer-links/<peer>.{pid,sock-path}
     // when the pid is alive and the socket exists, so the peer verbs can be
     // exercised without a cmux-remote daemon.
-    let server: ReturnType<typeof Bun.listen> | undefined;
+    let server: ReturnType<typeof createServer> | undefined;
     let sockPath = "";
     const peer = "brave-otter";
 
@@ -1077,12 +1076,16 @@ describe("in-VM cmux shim: agent primitives", () => {
       return dir;
     }
 
-    beforeAll(() => {
+    beforeAll(async () => {
       sockPath = `/tmp/cmux-gs-${process.pid}-${Math.random().toString(36).slice(2, 8)}.sock`;
-      server = Bun.listen({ unix: sockPath, socket: { data() {}, open() {}, close() {} } });
+      server = createServer();
+      await new Promise<void>((resolve, reject) => {
+        server!.once("error", reject);
+        server!.listen(sockPath, resolve);
+      });
     });
-    afterAll(() => {
-      server?.stop(true);
+    afterAll(async () => {
+      if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
       try {
         unlinkSync(sockPath);
       } catch {

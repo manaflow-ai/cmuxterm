@@ -1,17 +1,17 @@
 # VM identity at the TLS edge: automatic auth for machines, and machines talking to machines
 
-Status: design (phase 1 shipped in PR #11609). Owner: cloud VM control plane.
+Status: proposal; the identity table and peer-grant broker below are not implemented by PR #11609. Owner: cloud VM control plane.
 
 ## The problem
 
 A cmux Cloud machine has no way to call the control plane. `/api/vm/*` accepts only a
 Stack Auth user session (bearer + refresh token, or browser cookie), and nothing that
 lives inside a VM may hold either — a refresh token in a guest is the user's whole
-account sitting in an agent sandbox. The only credential a VM holds today is the
-coderouter model-plane token, delivered as a root-readable file, and it authenticates
-nothing but the model plane. Machine-to-machine access exists only as the Mac-brokered
-`cmux vm link` flow (PR #11609): the Mac mints routes and approves enrollments because
-the VM cannot.
+account sitting in an agent sandbox. CodeRouter credentials are held at the TLS edge;
+the guest has placeholders, not a user or machine control-plane token. The earlier
+Mac-brokered `cmux vm link` prototype was superseded by main's trusted private-network
+listener. Existing peer-route files remain readable, but this build cannot create new
+peer grants. The following design describes a future broker, not a shipped flow.
 
 ## The primitive that changes this
 
@@ -88,7 +88,7 @@ money, delete machines, or widen its own access.
 
 ### 3. Peer grants: the user decides who talks to whom
 
-`cmux vm link <src> <dst>` (today: Mac-brokered route files) becomes a control-plane
+The proposed `cmux vm link <src> <dst>` becomes a control-plane
 row: `cloud_vm_peer_grants { src_vm, dst_vm, scopes, created_by, revoked_at }`,
 written only by a **user** principal. The grant is the authorization; everything
 after it is plumbing:
