@@ -268,6 +268,8 @@ fn tokenize(args: &[String]) -> Result<Tokens, UsageError> {
 /// same distinction Clap models with `ArgAction::SetTrue`, while retaining
 /// cmux's custom forwarding and error text.
 const BOOLEAN_FLAGS: &[&str] = &[
+    "clear",
+    "reply",
     "empty",
     "left",
     "right",
@@ -1338,6 +1340,14 @@ fn parse_notification(words: &[String], flags: &mut Flags) -> Result<CommandPlan
                 params.insert("terminal_id".into(), Value::String(terminal));
             }
             request(ResourceOperation::NotificationCreate, &selectors, flags, params)
+        }
+        ["clear"] => {
+            let mut params = Map::new();
+            if let Some(terminal) = flags.take("terminal") {
+                validate_prefixed_id("terminal", "term", &terminal)?;
+                params.insert("terminal_id".into(), Value::String(terminal));
+            }
+            request(ResourceOperation::NotificationClear, &selectors, flags, params)
         }
         ["ack", ids @ ..] => {
             let mut params = Map::new();
@@ -3348,7 +3358,7 @@ mod tests {
 
         assert!(parse(&strings(&["notify", "--reply", "--title", "x"])).is_err(), "no reply channel across the link");
         assert!(parse(&strings(&["notify", "--title", ""])).is_err());
-        assert!(parse(&strings(&["notify", "--surface", "pane:3"])).is_err(), "only this session's terminal ids");
+        assert!(parse(&strings(&["notify", "--surface", "not-a-terminal"])).is_err(), "only this session's terminal ids");
         assert!(parse(&strings(&["notify", "extra"])).is_err());
         let long = "x".repeat(4097);
         assert!(parse(&strings(&["notify", "--body", &long])).is_err());
@@ -4669,7 +4679,7 @@ mod tests {
                 "notification.ack",
             ),
             (
-                vec!["notify", "--clear", "--surface", "term_00000000000000000000000000000041"],
+                vec!["notification", "clear", "--terminal", "term_00000000000000000000000000000041"],
                 "notification.clear",
             ),
         ];
