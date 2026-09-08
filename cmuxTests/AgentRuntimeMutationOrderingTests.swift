@@ -245,13 +245,16 @@ extension AgentNotificationRegressionTests {
 
         fixture.source.clearAllAgentLifecycleStates()
 
+        #expect(fixture.source.agentLifecycleEventTimesByPanelId.isEmpty)
         #expect(fixture.source.setAgentLifecycle(
             key: "claude_code",
             panelId: fixture.panelId,
             lifecycle: .idle,
+            agentEventTime: 1_893_456_100,
             enforceAgentEventOrdering: true
         ))
         #expect(fixture.source.agentLifecycleStatesByPanelId[fixture.panelId]?["claude_code"] == .idle)
+        #expect(fixture.source.agentLifecycleEventTimesByPanelId[fixture.panelId]?["claude_code"] == 1_893_456_100)
     }
 
     @Test("An untimestamped teardown cannot clear timestamped agent runtime")
@@ -307,7 +310,8 @@ extension AgentNotificationRegressionTests {
             target: .workspace(fixture.source.id),
             key: "claude_code.session",
             pid: 43_210,
-            panelID: fixture.panelId
+            panelID: fixture.panelId,
+            agentEventTime: 100
         )
         bus.drainForTesting()
 

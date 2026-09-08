@@ -1184,6 +1184,11 @@ extension CLINotifyProcessIntegrationRegressionTests {
             "Expected Cursor's paired completion hook to restore Running, saw \(responseCommands)"
         )
 
+        XCTAssertEqual(runCursorHook(
+            "stop",
+            input: #"{"session_id":"\#(sessionId)","cwd":"\#(root.path)","hook_event_name":"stop","reason":"completed"}"#
+        ).status, 0)
+
         let secondCommand = "npm run build"
         let secondApproval = runCursorHook(
             "shell-exec",
@@ -1218,15 +1223,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
             "Refreshing a remaining Cursor approval must not clear unrelated surface notifications, saw \(remainingCompletionCommands)"
         )
         XCTAssertTrue(
-            remainingCompletionCommands.contains {
-                $0.contains("notify_target_async \(workspaceId) \(surfaceId) Cursor|Permission|Approval needed")
-            },
+            AgentJournalAppendCapture.containsCursorApprovalRequested(remainingCompletionCommands, sessionId: sessionId),
             "Resolving one of two approvals must refresh the remaining command notice, saw \(remainingCompletionCommands)"
         )
         XCTAssertTrue(
-            remainingCompletionCommands.contains {
-                $0.contains(";s=needsInput")
-            },
+            AgentJournalAppendCapture.containsNeedsInputStateChange(
+                remainingCompletionCommands, agentKey: "cursor", sessionId: sessionId),
             "A refreshed Cursor approval must retain its Needs input sound context, saw \(remainingCompletionCommands)"
         )
 
@@ -1386,9 +1388,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(firstQuotedCompletion.status, 0, firstQuotedCompletion.stderr)
         let firstQuotedCompletionCommands = Array(state.snapshot().dropFirst(firstQuotedCompletionStart))
         XCTAssertTrue(
-            firstQuotedCompletionCommands.contains {
-                $0.contains("notify_target_async \(workspaceId) \(surfaceId) Cursor|Permission|Approval needed")
-            },
+            AgentJournalAppendCapture.containsCursorApprovalRequested(firstQuotedCompletionCommands, sessionId: sessionId),
             "Quoted whitespace must remain part of Cursor command identity, saw \(firstQuotedCompletionCommands)"
         )
         let secondQuotedCompletion = runCursorHook(

@@ -18,7 +18,7 @@ extension AgentNotificationRegressionTests {
         let target: ControlSurfaceResumeTarget
         let bindingTime: TimeInterval = 1_893_456_100
         if useDock {
-            let dock = try #require(fixture.source.dockSplit)
+            let dock = try #require(fixture.appDelegate.windowDock(for: fixture.manager))
             let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
             let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
             try #require(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)
@@ -61,7 +61,9 @@ extension AgentNotificationRegressionTests {
         bus.discardPendingNotifications()
         defer { bus.discardPendingNotifications() }
 
-        let dock = try #require(fixture.source.dockSplit)
+        // Visible notification ownership belongs to the window Dock; legacy
+        // workspace-scoped Docks deliberately cannot render notifications.
+        let dock = try #require(fixture.appDelegate.windowDock(for: fixture.manager))
         let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
         let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
         #expect(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)
@@ -96,7 +98,11 @@ extension AgentNotificationRegressionTests {
         bus.drainForTesting()
 
         #expect(!fixture.store.notifications.contains { $0.body == "Stale Dock notification" })
-        #expect(fixture.store.notifications.contains { $0.body == "Current Dock notification" })
+        let currentNotification = try #require(fixture.store.notifications.first {
+            $0.body == "Current Dock notification"
+        })
+        #expect(currentNotification.tabId == dock.workspaceId)
+        #expect(currentNotification.surfaceId == fixture.panelId)
         #expect(
             dock.agentRuntimeByPanelId[fixture.panelId]?.agentLifecycleEventTimes["claude_code"] == 300
         )
@@ -124,7 +130,7 @@ extension AgentNotificationRegressionTests {
     func noOpDockResumeClearDoesNotAdvanceOrderingWatermark() throws {
         let fixture = try makeFixture()
         defer { fixture.restore() }
-        let dock = try #require(fixture.source.dockSplit)
+        let dock = try #require(fixture.appDelegate.windowDock(for: fixture.manager))
         let transfer = try #require(fixture.source.detachSurface(panelId: fixture.panelId))
         let rootPane = try #require(dock.bonsplitController.allPaneIds.first)
         #expect(dock.attachDetachedSurface(transfer, inPane: rootPane, focus: false) == fixture.panelId)

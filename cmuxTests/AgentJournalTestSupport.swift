@@ -15,6 +15,10 @@ struct AgentJournalAppendCapture {
     var unattributedReason: String? { draft["unattributed_reason"] as? String }
     var isSubagent: Bool { draft["is_subagent"] as? Bool ?? false }
     var pendingWork: Bool { draft["pending_work"] as? Bool ?? false }
+    var attentionNotification: [String: Any]? {
+        (draft["attention"] as? [String: Any])?["notification"] as? [String: Any]
+    }
+    var declaredPhase: String? { draft["declared_phase"] as? String }
 
     static func captures(in commands: [String]) -> [AgentJournalAppendCapture] {
         commands.compactMap { line in
@@ -48,5 +52,36 @@ struct AgentJournalAppendCapture {
         sessionId: String? = nil
     ) -> Bool {
         first(in: commands, kind: kind, agentKey: agentKey, sessionId: sessionId) != nil
+    }
+
+    static func containsCursorApprovalRequested(
+        _ commands: [String],
+        sessionId: String
+    ) -> Bool {
+        captures(in: commands).contains { capture in
+            guard capture.kind == "agent.approval.requested",
+                  capture.agentKey == "cursor",
+                  capture.sessionId == sessionId,
+                  capture.attentionNotification?["category"] as? String == "needs-permission",
+                  capture.attentionNotification?["body"] as? String == "Approval needed",
+                  let correlationKey = capture.attentionNotification?["correlationKey"] as? String else {
+                return false
+            }
+            return UUID(uuidString: correlationKey) != nil
+                && (capture.draft["attention"] as? [String: Any])?["requestIdentity"] as? String == correlationKey
+        }
+    }
+
+    static func containsNeedsInputStateChange(
+        _ commands: [String],
+        agentKey: String,
+        sessionId: String
+    ) -> Bool {
+        captures(in: commands).contains { capture in
+            capture.kind == "agent.state.changed"
+                && capture.agentKey == agentKey
+                && capture.sessionId == sessionId
+                && capture.declaredPhase == "needsInput"
+        }
     }
 }

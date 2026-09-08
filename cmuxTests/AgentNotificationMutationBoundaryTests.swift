@@ -35,13 +35,13 @@ extension AgentNotificationRegressionTests {
         let readyMarker = root.appendingPathComponent("ready")
         let execMarker = root.appendingPathComponent("execed")
         try """
-        touch '\(readyMarker.path)'
         trap 'exec /bin/sh "\(scopedScript.path)"' USR1
+        touch '\(readyMarker.path)'
         while :; do sleep 1; done
         """.write(to: initialScript, atomically: true, encoding: .utf8)
         try """
         export CMUX_SURFACE_ID='\(fixture.panelId.uuidString)'
-        exec /bin/sh -c 'touch "\(execMarker.path)"; exec sleep 30'
+        exec /bin/sh -c 'touch "\(execMarker.path)"; while :; do sleep 1; done'
         """.write(to: scopedScript, atomically: true, encoding: .utf8)
 
         let process = Process()
@@ -62,17 +62,34 @@ extension AgentNotificationRegressionTests {
             }
             try? FileManager.default.removeItem(at: root)
         }
-        #expect(await waitForMarker(at: readyMarker))
+        try #require(await waitForMarker(at: readyMarker))
 
         let identity = try #require(agentLiveProcessIdentity(pid: process.processIdentifier))
+        try #require(CmuxTopProcessSnapshot.cmuxScopeProbe(
+            for: Int(process.processIdentifier), expectedCacheKey: identity.scopeCacheKey
+        ) == .resolved(nil))
+        let cacheTime = DispatchTime.now().uptimeNanoseconds
         let cachedMiss = CmuxTopProcessSnapshot.cachedCMUXScope(
             for: Int(process.processIdentifier),
             cacheKey: identity.scopeCacheKey,
-            nowNanoseconds: DispatchTime.now().uptimeNanoseconds
+            nowNanoseconds: cacheTime
         )
-        #expect(cachedMiss == nil)
-        #expect(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
-        #expect(await waitForMarker(at: execMarker))
+        try #require(cachedMiss == nil)
+        try #require(Darwin.kill(process.processIdentifier, SIGUSR1) == 0)
+        try #require(await waitForMarker(at: execMarker))
+
+        let scopedIdentity = try #require(agentLiveProcessIdentity(pid: process.processIdentifier))
+        try #require(scopedIdentity.scopeCacheKey == identity.scopeCacheKey)
+        try #require(CmuxTopProcessSnapshot.cmuxScopeProbe(
+            for: Int(process.processIdentifier), expectedCacheKey: scopedIdentity.scopeCacheKey
+        ) == .resolved(CmuxTopProcessScope(
+            workspaceID: nil, surfaceID: fixture.panelId, attributionReason: "cmux-environment"
+        )))
+        // Pin cache time so slow CI cannot accidentally test an expired miss.
+        try #require(CmuxTopProcessSnapshot.cachedCMUXScope(
+            for: Int(process.processIdentifier), cacheKey: identity.scopeCacheKey,
+            nowNanoseconds: cacheTime
+        ) == nil)
 
         #expect(
             fixture.appDelegate.liveAgentDeliveryTarget(forAgentPID: process.processIdentifier)
