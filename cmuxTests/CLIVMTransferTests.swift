@@ -842,6 +842,14 @@ extension CLINotifyProcessIntegrationRegressionTests {
     }
 
     func testVMPushWatchPushesAgainWhenAFileChanges() throws {
+        try assertVMPushWatchPushesAgainWhenAFileChanges(jsonOutput: false)
+    }
+
+    func testVMPushJSONWatchReportsInitialAndSubsequentSyncs() throws {
+        try assertVMPushWatchPushesAgainWhenAFileChanges(jsonOutput: true)
+    }
+
+    private func assertVMPushWatchPushesAgainWhenAFileChanges(jsonOutput: Bool) throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-push-watch")
         let listenerFD = try bindUnixSocket(at: socketPath)
@@ -909,7 +917,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         environment["CMUX_VM_PUSH_WATCH_ROUNDS"] = "1"
         let result = runProcess(
             executablePath: cliPath,
-            arguments: ["vm", "push", "brave-otter", tempDir.path, "work/app", "--watch", "--interval", "0.2"],
+            arguments: (jsonOutput ? ["--json"] : []) + ["vm", "push", "brave-otter", tempDir.path, "work/app", "--watch", "--interval", "0.2"],
             environment: environment,
             timeout: 30
         )
@@ -917,8 +925,19 @@ extension CLINotifyProcessIntegrationRegressionTests {
         wait(for: [serverHandled], timeout: 30)
         XCTAssertFalse(result.timedOut, "watch did not end after one sync: \(result.stderr)")
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
-        XCTAssertTrue(result.stdout.contains("Pushed"), "the initial push reports like a one-shot push: \(result.stdout)")
-        XCTAssertTrue(result.stdout.contains("synced 2 files at "), "the re-push names the tracked files: \(result.stdout)")
+        if jsonOutput {
+            let events = try result.stdout.split(separator: "\n").map { line in
+                try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+            }
+            XCTAssertEqual(events.count, 2, result.stdout)
+            XCTAssertEqual(events.compactMap { $0["event"] as? String }, ["synced", "synced"])
+            XCTAssertEqual(events.compactMap { $0["sync"] as? Int }, [0, 1])
+            XCTAssertEqual(events.compactMap { $0["files"] as? Int }, [1, 2])
+            XCTAssertFalse(result.stderr.contains("Pushed"), result.stderr)
+        } else {
+            XCTAssertTrue(result.stdout.contains("Pushed"), "the initial push reports like a one-shot push: \(result.stdout)")
+            XCTAssertTrue(result.stdout.contains("synced 2 files at "), "the re-push names the tracked files: \(result.stdout)")
+        }
         XCTAssertEqual(pushes.finalizedCount, 2, "one initial push plus one re-push")
         XCTAssertEqual(
             state.snapshot().filter { $0.contains("tar -xzf") }.count, 2,
