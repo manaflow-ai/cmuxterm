@@ -152,6 +152,11 @@ extension CMUXCLI {
             telemetry.breadcrumb("claude-hook.task-sync.task-directory-unresolved")
             return
         }
+        let personalBindingSource: ClaudeTaskBindingSource = usedCompatibilityScan
+            ? .compatibilityScan
+            : (automaticTeamResolution != nil
+                ? .directSession
+                : (taskBindingSource ?? .directSession))
         let personalTaskResolver = ClaudeTeamTaskListResolver(
             teamsRootURL: operation.teamsRootURL,
             taskStoreIdentity: taskStoreIdentity,
@@ -239,9 +244,7 @@ extension CMUXCLI {
             surfaceId: resolvedTarget.surfaceId,
             pid: taskHookPID,
             expectedStartedAt: currentRecord?.startedAt,
-            source: usedCompatibilityScan
-                ? .compatibilityScan
-                : (taskBindingSource ?? .directSession)
+            source: personalBindingSource
         ) else {
             telemetry.breadcrumb("claude-hook.task-sync.session-ended")
             if (try? sessionStore.isClaudeSessionEnded(sessionID)) == true {
@@ -265,9 +268,7 @@ extension CMUXCLI {
                 boundRecord: boundRecord,
                 taskDirectoryName: sessionSnapshot.directoryName,
                 taskStoreIdentity: taskStoreIdentity,
-                bindingSource: usedCompatibilityScan
-                    ? .compatibilityScan
-                    : (taskBindingSource ?? .directSession),
+                bindingSource: personalBindingSource,
                 destinationBefore: destinationRecordBeforePrepare,
                 destinationAfter: destinationRecordAfterPrepare,
                 destinationWasRetired: destinationWasRetired,
@@ -293,9 +294,7 @@ extension CMUXCLI {
                 boundRecord: boundRecord,
                 taskDirectoryName: sessionSnapshot.directoryName,
                 taskStoreIdentity: taskStoreIdentity,
-                bindingSource: usedCompatibilityScan
-                    ? .compatibilityScan
-                    : (taskBindingSource ?? .directSession),
+                bindingSource: personalBindingSource,
                 destinationBefore: destinationRecordBeforePrepare,
                 destinationAfter: destinationRecordAfterPrepare,
                 destinationWasRetired: destinationWasRetired,
