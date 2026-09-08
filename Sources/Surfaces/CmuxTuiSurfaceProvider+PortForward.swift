@@ -93,7 +93,7 @@ extension CmuxTuiSurfaceProvider {
                 machineID
             ))
         }
-        return await hubForward(to: target).localURLString
+        return try await hubForward(to: target).localURLString
     }
 
     private func hubForward(to target: CloudPortForwardTarget) async throws -> CloudLoopbackPortForward {
