@@ -2066,31 +2066,15 @@ public struct SSHForegroundAuthenticationRetryPolicy: Sendable {
               exit 0
             fi
             if [ "$cmux_ssh_auth_cleanup_complete" != 1 ]; then
-              # The journal files are the authoritative ownership state. A
-              # shell can abort before assigning one of the in-memory phase
-              # flags when an external command hits EAGAIN, so key the
-              # fork-free recovery on the files as well as the normal phase
-              # markers. Every row was admitted only after an identity-checked
-              # STOP request; using that journal here is still narrower than
-              # rediscovering the process table while resources are exhausted.
-              cmux_ssh_auth_has_confirmed_journal=0
-              if [ -n "${cmux_ssh_auth_pending:-}" ] &&
-                 [ -s "$cmux_ssh_auth_pending" ]; then
-                cmux_ssh_auth_has_confirmed_journal=1
-              fi
-              if [ -n "${cmux_ssh_auth_owned:-}" ] &&
-                 [ -s "$cmux_ssh_auth_owned" ]; then
-                cmux_ssh_auth_has_confirmed_journal=1
-              fi
               if { [ "$cmux_ssh_auth_dynamic_discovery_failed" != 1 ] ||
                    [ -z "${cmux_ssh_auth_event_token:-}" ]; } &&
                  { [ "$cmux_ssh_auth_tree_frozen" = 1 ] ||
-                   [ "$cmux_ssh_auth_force_frozen" = 1 ] ||
-                   [ "$cmux_ssh_auth_has_confirmed_journal" = 1 ]; }; then
-                # The journal is already stopped and identity-fenced. Use the
-                # no-fork backstop before any best-effort rollback helper; this
-                # is the only cleanup operation that remains reliable after an
-                # EAGAIN abort in a snapshot or Ruby/Perl signal process.
+                   [ "$cmux_ssh_auth_force_frozen" = 1 ]; }; then
+                # The frozen marker is the proof that every journal row was
+                # stopped and identity-fenced. A non-empty journal alone is
+                # insufficient: a failed freeze may already have resumed its
+                # rows, and a later EAGAIN abort must never signal a reused PID.
+                # Use the no-fork backstop only after a confirmed freeze.
                 cmux_ssh_auth_force_confirmed_journal "$cmux_ssh_auth_pending"
                 cmux_ssh_auth_force_confirmed_journal "$cmux_ssh_auth_owned"
                 cmux_ssh_auth_cleanup_complete=1
