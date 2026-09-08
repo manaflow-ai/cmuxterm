@@ -2901,7 +2901,7 @@ final class SocketClient {
         }
 
         if normalized == "OK" ||
-            normalized == "PONG" ||
+            normalized == "PONG" || normalized == "OK: Authenticated" ||
             normalized.hasPrefix("OK ") ||
             normalized.hasPrefix("ERROR:") {
             return true
