@@ -241,7 +241,13 @@ struct TerminalCommandEquivalentRoutingTests {
 
         appDelegate.configuredShortcutChordKeyEquivalentState = .init(
             event: event,
-            firstStroke: ShortcutStroke(key: "q", command: true)
+            firstStroke: ShortcutStroke(
+                key: "q",
+                command: true,
+                shift: false,
+                option: false,
+                control: false
+            )
         )
 
         #expect(window.performKeyEquivalent(with: event))
