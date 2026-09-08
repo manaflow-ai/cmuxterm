@@ -1288,7 +1288,11 @@ export function forkVm(input: {
       { forceProviderProbe: true, maxActiveVms: input.maxActiveVms },
     );
 
-    const nativeFork = source.provider === "freestyle" && providers.fork !== undefined;
+    // Native only when the driver really clones; otherwise snapshot then
+    // create from that snapshot (Freestyle: memory resume of the snapshot).
+    const nativeFork = source.provider === "freestyle"
+      && providers.fork !== undefined
+      && (providers.supportsNativeFork?.(source.provider) ?? true);
     // The provider owns cloning the source. Record its initial shape and
     // reconcile the copied machine independently after the fork completes.
     const sourceHasReservation = hasVmResourceReservationMetadata(source.providerMetadata);

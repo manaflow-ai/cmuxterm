@@ -57,6 +57,13 @@ export type VmProviderGatewayShape = {
     options?: RestoreOptions,
   ) => Effect.Effect<VMHandle, VmProviderOperationError>;
   readonly fork?: (provider: ProviderId, vmId: string) => Effect.Effect<VMHandle, VmProviderOperationError>;
+  /**
+   * Whether the provider's driver clones a VM in one call. When absent, a
+   * defined `fork` is taken as native (test doubles); the live gateway
+   * answers from the driver so providers without `fork` (Freestyle) use the
+   * snapshot-then-create path instead of failing with unsupported.
+   */
+  readonly supportsNativeFork?: (provider: ProviderId) => boolean;
   readonly exec: (
     provider: ProviderId,
     vmId: string,
@@ -210,6 +217,7 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
     providerEffect(provider, "snapshot", () => getProvider(provider).snapshot(vmId, name)),
   restore: (provider, snapshotId, options) =>
     providerEffect(provider, "restore", () => getProvider(provider).restore(snapshotId, options)),
+  supportsNativeFork: (provider) => typeof getProvider(provider).fork === "function",
   fork: (provider, vmId) =>
     providerEffect(provider, "fork", async () => {
       const driver = getProvider(provider);

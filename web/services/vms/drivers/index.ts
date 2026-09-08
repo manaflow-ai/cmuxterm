@@ -48,7 +48,10 @@ export function vmCapabilitiesFor(id: ProviderId): VmCapabilities {
   return {
     snapshot: declared.snapshot ?? true,
     restore: declared.restore ?? true,
-    fork: declared.fork ?? typeof provider.fork === "function",
+    // A driver without a native clone still forks through snapshot + restore.
+    fork: declared.fork
+      ?? (typeof provider.fork === "function"
+        || ((declared.snapshot ?? true) && (declared.restore ?? true))),
     ports: declared.ports ?? typeof provider.openPort === "function",
   };
 }
