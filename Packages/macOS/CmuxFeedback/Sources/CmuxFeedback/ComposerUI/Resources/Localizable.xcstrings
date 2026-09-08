@@ -46,6 +46,12 @@
             "state": "translated",
             "value": "إرفاق"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjuntar"
+          }
         }
       }
     },
@@ -92,6 +98,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "إرفاق صور"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjuntar imágenes"
           }
         }
       }
@@ -140,6 +152,12 @@
             "state": "translated",
             "value": "إرفاق صور"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjuntar imágenes"
+          }
         }
       }
     },
@@ -186,6 +204,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ما يصل إلى 10 صور."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta 10 imágenes."
           }
         }
       }
@@ -299,6 +323,12 @@
             "state": "translated",
             "value": "تعذر إرسال الملاحظات. تحقق من اتصالك وحاول مجدداً."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron enviar los comentarios. Comprueba la conexión e inténtalo de nuevo."
+          }
         }
       }
     },
@@ -411,6 +441,12 @@
             "state": "translated",
             "value": "بريدك الإلكتروني"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu correo electrónico"
+          }
         }
       }
     },
@@ -457,6 +493,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "you@example.com"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tu@ejemplo.com"
           }
         }
       }
@@ -505,6 +547,12 @@
             "state": "translated",
             "value": "أدخل رسالة قبل الإرسال."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un mensaje antes de enviar."
+          }
         }
       }
     },
@@ -551,6 +599,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "الملاحظات غير متوفرة الآن. يرجى مراسلة founders@manaflow.com عبر البريد الإلكتروني بدلاً من ذلك."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los comentarios no están disponibles en este momento. Envía un correo a founders@manaflow.com en su lugar."
           }
         }
       }
@@ -599,6 +653,12 @@
             "state": "translated",
             "value": "تعذر إرسال الملاحظات. يرجى المحاولة مرة أخرى."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron enviar los comentarios. Inténtalo de nuevo."
+          }
         }
       }
     },
@@ -646,6 +706,12 @@
             "state": "translated",
             "value": "أدخل عنوان بريد إلكتروني صالحاً."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce una dirección de correo electrónico válida."
+          }
         }
       }
     },
@@ -692,6 +758,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "تعذر إرفاق أحد الملفات المحددة."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo adjuntar uno de los archivos seleccionados."
           }
         }
       }
@@ -805,6 +877,12 @@
             "state": "translated",
             "value": "شاركنا ملاحظاتك، أو طلبات الميزات، أو المشاكل."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparte comentarios, solicitudes de funciones o problemas."
+          }
         }
       }
     },
@@ -851,6 +929,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "رسالتك طويلة جداً."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu mensaje es demasiado largo."
           }
         }
       }
@@ -899,6 +983,12 @@
             "state": "translated",
             "value": "يمكنك أيضاً التواصل معنا عبر founders@manaflow.com."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También puedes contactarnos en founders@manaflow.com."
+          }
         }
       }
     },
@@ -945,6 +1035,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "محاولات إرسال ملاحظات كثيرة جداً. يرجى المحاولة مرة أخرى لاحقاً."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demasiados intentos de envío. Inténtalo de nuevo más tarde."
           }
         }
       }
@@ -1111,6 +1207,12 @@
             "state": "translated",
             "value": "يمكنك أيضاً التواصل معنا عبر founders@manaflow.com."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También puedes contactarnos en founders@manaflow.com."
+          }
         }
       }
     },
@@ -1157,6 +1259,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "شكراً على ملاحظاتك."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gracias por tus comentarios."
           }
         }
       }
@@ -1270,6 +1378,12 @@
             "state": "translated",
             "value": "يمكنك إرفاق ما يصل إلى 10 صور."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puedes adjuntar hasta 10 imágenes."
+          }
         }
       }
     },
@@ -1317,6 +1431,12 @@
             "state": "translated",
             "value": "هذه الصور كبيرة جداً ليتم إرسالها معاً. يرجى إزالة بعضها والمحاولة مجدداً."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas imágenes son demasiado grandes para enviarse juntas. Elimina algunas e inténtalo de nuevo."
+          }
         }
       }
     },
@@ -1363,6 +1483,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "تحقق من رسالتك والمرفقات، ثم حاول مجدداً."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprueba tu mensaje y los archivos adjuntos, e inténtalo de nuevo."
           }
         }
       }

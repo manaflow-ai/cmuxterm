@@ -34,6 +34,12 @@
             "state": "translated",
             "value": "قائمة عارض الفروق المسموحة كبيرة جداً"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista de permitidos del visor de diferencias es demasiado grande"
+          }
         }
       }
     },
@@ -68,6 +74,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "إدخال مكرر في قائمة عارض الفروق المسموحة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrada duplicada en la lista de permitidos del visor de diferencias"
           }
         }
       }
@@ -104,6 +116,12 @@
             "state": "translated",
             "value": "قائمة عارض الفروق المسموحة فارغة"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista de permitidos del visor de diferencias está vacía"
+          }
         }
       }
     },
@@ -138,6 +156,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "إدخال غير صالح في قائمة عارض الفروق المسموحة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entrada no válida en la lista de permitidos del visor de diferencias"
           }
         }
       }
@@ -174,6 +198,12 @@
             "state": "translated",
             "value": "بيان عارض الفروق غير صالح"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manifiesto del visor de diferencias no válido"
+          }
         }
       }
     },
@@ -208,6 +238,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "رمز عارض الفروق غير صالح"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token del visor de diferencias no válido"
           }
         }
       }
@@ -244,6 +280,12 @@
             "state": "translated",
             "value": "بيان عارض الفروق كبير جداً"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El manifiesto del visor de diferencias es demasiado grande"
+          }
         }
       }
     },
@@ -279,6 +321,12 @@
             "state": "translated",
             "value": "ملف عارض الفروق غير قابل للقراءة"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo del visor de diferencias no es legible"
+          }
         }
       }
     },
@@ -313,6 +361,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "الدليل الموثوق لعارض الفروق غير آمن"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El directorio de confianza del visor de diferencias no es seguro"
           }
         }
       }

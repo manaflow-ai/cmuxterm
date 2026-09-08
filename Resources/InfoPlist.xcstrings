@@ -40,6 +40,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى محتويات تطبيقات أخرى."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder al contenido de otras aplicaciones."
+          }
         }
       }
     },
@@ -80,6 +86,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى بيانات من تطبيقات أخرى."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a datos de otras aplicaciones."
           }
         }
       }
@@ -122,6 +134,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في استخدام AppleScript."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea utilizar AppleScript."
+          }
         }
       }
     },
@@ -162,6 +180,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في استخدام بلوتوث لاكتشاف مفاتيح المرور ومفاتيح الأمان."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea utilizar Bluetooth para detectar llaves de acceso y llaves de seguridad."
           }
         }
       }
@@ -204,6 +228,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في قراءة التقاويم الخاصة بك والكتابة فيها."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea leer y escribir en tus calendarios."
+          }
         }
       }
     },
@@ -244,6 +274,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في إضافة أحداث إلى التقاويم الخاصة بك."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea añadir eventos a tus calendarios."
           }
         }
       }
@@ -286,6 +322,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في استخدام الكاميرا الخاصة بك."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea utilizar tu cámara."
+          }
         }
       }
     },
@@ -326,6 +368,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى الملفات في مجلد سطح المكتب الخاص بك."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Escritorio."
           }
         }
       }
@@ -368,6 +416,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى الملفات في مجلد المستندات الخاص بك."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Documentos."
+          }
         }
       }
     },
@@ -408,6 +462,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى الملفات في مجلد التنزيلات الخاص بك."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Descargas."
           }
         }
       }
@@ -450,6 +510,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى ملفات مدارة بواسطة موفر ملفات."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos gestionados por un proveedor de archivos."
+          }
         }
       }
     },
@@ -484,6 +550,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في اكتشاف الأجهزة على شبكتك المحلية."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea buscar dispositivos en tu red local."
           }
         }
       }
@@ -525,6 +597,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى موقعك الجغرافي."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a tu ubicación."
           }
         }
       }
@@ -680,6 +758,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى بيانات الحركة."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los datos de movimiento."
+          }
         }
       }
     },
@@ -720,6 +804,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى الملفات على وحدة تخزين شبكية."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de un volumen de red."
           }
         }
       }
@@ -762,6 +852,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في قراءة التذكيرات الخاصة بك والكتابة فيها."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea leer y escribir en tus recordatorios."
+          }
         }
       }
     },
@@ -802,6 +898,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في الوصول إلى الملفات على وحدة تخزين قابلة للإزالة."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de un volumen extraíble."
           }
         }
       }
@@ -844,6 +946,12 @@
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في استخدام ميزة التعرف على الكلام."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea utilizar el reconocimiento de voz."
+          }
         }
       }
     },
@@ -878,6 +986,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يرغب برنامج يعمل داخل cmux في إجراء مهام إدارة النظام."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un programa que se ejecuta dentro de cmux desea realizar tareas de administración del sistema."
           }
         }
       }
@@ -1941,7 +2055,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un programa en ejecución dentro de cmux desea usar el reconocimiento de voz."
+            "value": "Un programa que se ejecuta dentro de cmux desea utilizar el reconocimiento de voz."
           }
         },
         "fr": {
@@ -2054,7 +2168,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un programa en ejecución dentro de cmux desea acceder a los datos de movimiento."
+            "value": "Un programa que se ejecuta dentro de cmux desea acceder a los datos de movimiento."
           }
         },
         "fr": {
@@ -2275,6 +2389,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "يقوم cmux بتثبيت امتداد شبكة ليتمكن جهاز Mac هذا من الوصول إلى أجهزة السحابة الخاصة بك على شبكتها الخاصة. يعمل هذا الامتداد فقط أثناء استخدامك لـ cmux Cloud."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux instala una extensión de red para que este Mac pueda conectarse a tus máquinas Cloud en su red privada. Solo se ejecuta mientras usas cmux Cloud."
           }
         }
       }

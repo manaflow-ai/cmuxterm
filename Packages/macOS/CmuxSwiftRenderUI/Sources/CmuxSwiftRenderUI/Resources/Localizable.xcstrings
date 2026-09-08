@@ -39,6 +39,12 @@
             "state": "translated",
             "value": "خطأ في الشريط الجانبي"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error de la barra lateral"
+          }
         }
       }
     },
@@ -80,6 +86,12 @@
             "state": "translated",
             "value": "ملف الشريط الجانبي فارغ أو مفقود."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo de la barra lateral está vacío o falta."
+          }
         }
       }
     },
@@ -120,6 +132,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "لم يتم العثور على عرض SwiftUI مدعوم."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna vista de SwiftUI compatible."
           }
         }
       }
