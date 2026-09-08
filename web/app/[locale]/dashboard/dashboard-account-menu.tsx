@@ -72,17 +72,6 @@ export function DashboardAccountMenu() {
                 <SettingsIcon />
                 <span>{t("settings")}</span>
               </Menu.Item>
-              <Menu.Item render={<Link href="/dashboard/billing" />} className={menuItemClass}>
-                <BillingIcon />
-                <span>{t("billing")}</span>
-              </Menu.Item>
-              {teamScope.status === "ready" ? (
-                <TeamSubmenu
-                  teams={teamScope.teams}
-                  selected={teamScope.selected}
-                  onSelect={teamScope.switchTeam}
-                />
-              ) : null}
               <Menu.Item
                 className={menuItemClass}
                 closeOnClick={false}
@@ -94,6 +83,17 @@ export function DashboardAccountMenu() {
                 <ThemeIcon dark={theme.resolvedTheme === "dark"} />
                 <span>{theme.resolvedTheme === "dark" ? t("themeLight") : t("themeDark")}</span>
               </Menu.Item>
+              <Menu.Item render={<Link href="/dashboard/billing" />} className={menuItemClass}>
+                <BillingIcon />
+                <span>{t("billing")}</span>
+              </Menu.Item>
+              {teamScope.status === "ready" ? (
+                <TeamSubmenu
+                  teams={teamScope.teams}
+                  selected={teamScope.selected}
+                  onSelect={teamScope.switchTeam}
+                />
+              ) : null}
               <Menu.Separator className="mx-1 my-1 h-px bg-border" />
               <Menu.Item
                 className={`${menuItemClass} text-red-600 dark:text-red-400`}

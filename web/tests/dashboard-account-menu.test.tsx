@@ -118,8 +118,8 @@ describe("dashboard account menu", () => {
     resolvedTheme = "light";
     const html = renderToStaticMarkup(<DashboardAccountMenu />);
     expect(html).toContain(">themeDark<");
-    expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/billing"));
-    expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("signOut"));
+    expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/team"));
+    expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("/dashboard/billing"));
   });
 
   test("lists every permitted team in a submenu and shows the current one on the trigger", () => {
@@ -147,9 +147,11 @@ describe("dashboard account menu", () => {
     expect(submenu.match(/aria-checked="false"/g)).toHaveLength(2);
     // The trigger row names the current team under the user's name.
     expect(html.indexOf("Manaflow")).toBeLessThan(html.indexOf("/dashboard/team"));
-    // The team entry sits after settings and billing, before sign out.
-    expect(html.indexOf('data-testid="team-submenu"')).toBeGreaterThan(html.indexOf("/dashboard/billing"));
-    expect(html.indexOf('data-testid="team-submenu"')).toBeLessThan(html.indexOf("signOut"));
+    // Order: settings, theme, billing, team, then sign out.
+    const order = ["/dashboard/team", ">themeLight<", "/dashboard/billing", 'data-testid="team-submenu"', "signOut"]
+      .map((marker) => html.indexOf(marker));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   test("uses the unlocalized auth handler and names the compact sign-in link", () => {
