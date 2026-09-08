@@ -1017,8 +1017,10 @@ describe("in-VM cmux shim: agent primitives", () => {
       const dir = makeStatefulDir();
       const file = join(dir, "ordered.env");
       writeFileSync(file, "KEY=file\n");
-      expect(runStateful(dir, ["env", "set", "KEY=first", "--from-file", file, "KEY=after-file", "-", "KEY=last"], {}, "KEY=stdin\n").status).toBe(0);
-      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values.KEY).toBe("last");
+      // The stdin marker is in the middle. A parser that defers stdin until after
+      // argv would incorrectly make it win over the later explicit assignment.
+      expect(runStateful(dir, ["env", "set", "KEY=first", "--from-file", file, "-", "KEY=after-stdin"], {}, "KEY=stdin\n").status).toBe(0);
+      expect(JSON.parse(runStateful(dir, ["env", "ls", "--json", "--show"]).stdout).values.KEY).toBe("after-stdin");
     });
 
     test("explicit assignments preserve literal quotes, hashes, and surrounding whitespace", () => {

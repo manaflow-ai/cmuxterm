@@ -26,7 +26,7 @@ extension CMUXCLI {
                                                               `cmux layout save/open`, and cmux.json use. Default: the
                                                               machine's focused workspace. --raw prints the daemon's own
                                                               LayoutDocument (exact pane/tab ids) instead.
-          cmux vm layout apply <machine> (<file>|- | --from-saved <name>) [--workspace <workspace-id>] [--name <name>] [--cwd <dir>] [--open]
+          cmux vm layout apply <machine> (<file>|- | --from-saved <name>) [--workspace <workspace-id>|--name <name>] [--cwd <dir>] [--open]
                                                               Build panes, splits, and tabs on the machine from a layout
                                                               document: a file, stdin (-), or a layout saved on this Mac
                                                               (`cmux layout list`). Default: a NEW machine workspace named
@@ -122,6 +122,9 @@ extension CMUXCLI {
         let (nameOpt, r2) = parseOption(r1, name: "--name")
         let (cwdOpt, r3) = parseOption(r2, name: "--cwd")
         let (savedOpt, r4) = parseOption(r3, name: "--from-saved")
+        if workspaceOpt != nil, nameOpt != nil {
+            throw CLIError(message: Self.vmLayoutUsage, exitCode: 2)
+        }
         let open = hasFlag(r4, name: "--open")
         let known: Set<String> = ["--open", "--json"]
         if let unknown = r4.first(where: { $0.hasPrefix("-") && $0 != "-" && !known.contains($0) }) {
@@ -283,30 +286,26 @@ extension CMUXCLI {
         let tail = Array(rest.dropFirst()).filter { $0 != "--json" }
         switch verb {
         case "set", "add":
-            let (fileOpt, args0) = parseOption(tail, name: "--from-file")
-            // `-`: KEY=VALUE lines on stdin — the way to keep values out of argv entirely.
-            let readStdin = args0.contains("-")
-            let args = args0.filter { $0 != "-" }
-            if let unknown = args.first(where: { $0.hasPrefix("-") }) {
-                throw CLIError(message: "vm env set: unknown flag '\(unknown)'\n\n\(Self.vmEnvUsage)")
-            }
-            guard let machine = args.first, !machine.isEmpty else { throw CLIError(message: Self.vmEnvUsage) }
+            let (machine, sources) = try Self.vmEnvSetInputs(tail)
             var assignments: [VMEnvAssignment] = []
             do {
-                assignments = try args.dropFirst().map(Self.parseVMEnvAssignment)
-                if let fileOpt {
-                    let path = resolvePath(fileOpt)
-                    guard let data = FileManager.default.contents(atPath: path), let text = String(data: data, encoding: .utf8) else {
-                        throw CLIError(message: "vm env set: cannot read \(path)")
+                for source in sources {
+                    switch source {
+                    case .assignment(let raw):
+                        assignments.append(try Self.parseVMEnvAssignment(raw))
+                    case .file(let file):
+                        let path = resolvePath(file)
+                        guard let data = FileManager.default.contents(atPath: path), let text = String(data: data, encoding: .utf8) else {
+                            throw CLIError(message: "vm env set: cannot read \(path)")
+                        }
+                        assignments += try Self.parseVMEnvFile(text)
+                    case .standardInput:
+                        let data = FileHandle.standardInput.readDataToEndOfFile()
+                        guard let text = String(data: data, encoding: .utf8) else {
+                            throw VMEnvError(description: "stdin is not UTF-8 text")
+                        }
+                        assignments += try Self.parseVMEnvFile(text)
                     }
-                    assignments += try Self.parseVMEnvFile(text)
-                }
-                if readStdin {
-                    let data = FileHandle.standardInput.readDataToEndOfFile()
-                    guard let text = String(data: data, encoding: .utf8) else {
-                        throw VMEnvError(description: "stdin is not UTF-8 text")
-                    }
-                    assignments += try Self.parseVMEnvFile(text)
                 }
             } catch let error as VMEnvError {
                 throw CLIError(message: "vm env set: \(error.description)", exitCode: 2)
@@ -539,9 +538,68 @@ extension CMUXCLI {
         return VMEnvAssignment(key: key, value: value)
     }
 
+    enum VMEnvInputSource: Equatable {
+        case assignment(String)
+        case file(String)
+        case standardInput
+    }
+
+    static func vmEnvSetInputs(_ arguments: [String]) throws -> (machine: String, sources: [VMEnvInputSource]) {
+        var machine: String?
+        var sources: [VMEnvInputSource] = []
+        var index = 0
+        while index < arguments.count {
+            let argument = arguments[index]
+            if argument == "--from-file" {
+                guard index + 1 < arguments.count, !arguments[index + 1].isEmpty else {
+                    throw CLIError(message: vmEnvUsage, exitCode: 2)
+                }
+                sources.append(.file(arguments[index + 1]))
+                index += 2
+                continue
+            }
+            if argument.hasPrefix("--from-file=") {
+                let path = String(argument.dropFirst("--from-file=".count))
+                guard !path.isEmpty else { throw CLIError(message: vmEnvUsage, exitCode: 2) }
+                sources.append(.file(path))
+            } else if argument == "-" {
+                sources.append(.standardInput)
+            } else if argument.hasPrefix("-") {
+                throw CLIError(message: "vm env set: unknown flag '\(argument)'\n\n\(vmEnvUsage)")
+            } else if machine == nil {
+                machine = argument
+            } else {
+                sources.append(.assignment(argument))
+            }
+            index += 1
+        }
+        guard let machine, !machine.isEmpty else { throw CLIError(message: vmEnvUsage) }
+        return (machine, sources)
+    }
+
+    static func parseVMEnvFileValue(_ value: String) -> String {
+        if let quote = value.first, quote == "\"" || quote == "'" {
+            var escaped = false
+            for index in value.indices.dropFirst() {
+                let character = value[index]
+                if character == quote, !escaped {
+                    let suffix = value[value.index(after: index)...].trimmingCharacters(in: .whitespaces)
+                    if suffix.isEmpty || suffix.hasPrefix("#") {
+                        return String(value[value.index(after: value.startIndex)..<index])
+                    }
+                }
+                escaped = character == "\\" && !escaped
+            }
+        }
+        if let comment = value.range(of: "[ \\t]+#", options: .regularExpression) {
+            return value[..<comment.lowerBound].trimmingCharacters(in: .whitespaces)
+        }
+        return value
+    }
+
     /// dotenv, the common subset: blank lines and `#` comments skipped, optional
     /// `export `, `KEY=VALUE`, a matching pair of surrounding quotes stripped (no escape
-    /// processing), an unquoted value's trailing ` # comment` dropped. Line numbers are
+    /// processing), trailing comments outside the quotes dropped. Line numbers are
     /// reported so a bad file is fixable.
     static func parseVMEnvFile(_ text: String) throws -> [VMEnvAssignment] {
         var assignments: [VMEnvAssignment] = []
@@ -558,12 +616,8 @@ extension CMUXCLI {
             guard isValidVMEnvKey(key) else {
                 throw VMEnvError(description: "line \(index + 1): invalid variable name '\(key)' (keys match [A-Za-z_][A-Za-z0-9_]*)")
             }
-            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
-            if value.count >= 2, let first = value.first, first == "\"" || first == "'", value.last == first {
-                value = String(value.dropFirst().dropLast())
-            } else if let comment = value.range(of: " #") ?? value.range(of: "\t#") {
-                value = value[..<comment.lowerBound].trimmingCharacters(in: .whitespaces)
-            }
+            let rawValue = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
+            let value = parseVMEnvFileValue(rawValue)
             assignments.append(VMEnvAssignment(key: key, value: value))
         }
         return assignments

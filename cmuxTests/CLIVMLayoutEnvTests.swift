@@ -608,15 +608,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-layout-invalid")
         let listenerFD = try bindUnixSocket(at: socketPath)
-        let state = MockSocketServerState()
-        let log = VMLayoutEnvRequestLog()
         defer {
             Darwin.close(listenerFD)
             unlink(socketPath)
-        }
-        // Never awaited: a correct CLI makes no connection for a bad document.
-        _ = startVMExecMock(listenerFD: listenerFD, state: state, log: log) { id, _ in
-            self.vmLayoutEnvExecResponse(id: id, stdout: "")
         }
         let tempDir = try vmLayoutEnvTempDir("layout-invalid")
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -695,8 +689,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
             timeout: 5
         )
         XCTAssertEqual(conflict.status, 2, conflict.stderr)
-        XCTAssertTrue(log.commands().isEmpty, "no exec for a rejected document: \(log.commands())")
-        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.exec") }, state.snapshot().description)
+        var connection = pollfd(fd: listenerFD, events: Int16(POLLIN), revents: 0)
+        XCTAssertEqual(Darwin.poll(&connection, 1, 0), 0, "invalid documents and targets must not connect to the socket")
     }
 
     func testVMLayoutApplyExplainsAnOutdatedShim() throws {

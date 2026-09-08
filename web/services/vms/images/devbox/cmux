@@ -733,6 +733,34 @@ env_key_ok() {
 # Single-quote a value for an `export KEY='…'` line (' becomes '\'').
 env_quote() { printf '%s\n' "$1" | sed "s/'/'\\\\''/g"; }
 
+env_parse_dotenv_value() {
+  awk '
+    {
+      value = $0
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      quote = substr(value, 1, 1)
+      if (quote == sprintf("%c", 34) || quote == sprintf("%c", 39)) {
+        escaped = 0
+        for (offset = 2; offset <= length(value); offset++) {
+          character = substr(value, offset, 1)
+          if (character == quote && !escaped) {
+            suffix = substr(value, offset + 1)
+            sub(/^[[:space:]]+/, "", suffix)
+            if (suffix == "" || substr(suffix, 1, 1) == "#") {
+              print substr(value, 2, offset - 2)
+              next
+            }
+          }
+          escaped = character == sprintf("%c", 92) && !escaped
+        }
+      }
+      sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+    }'
+}
+
 # stdin: dotenv text → stdout: KEY=VALUE lines (comments/blank lines dropped,
 # a leading `export ` removed, one pair of matching quotes stripped).
 env_parse_dotenv() {
@@ -750,11 +778,7 @@ env_parse_dotenv() {
     case "$cmux_line" in *=*) ;; *) die "env: malformed line (expected KEY=VALUE): $cmux_line" 2 ;; esac
     cmux_key="${cmux_line%%=*}"
     cmux_key="$(printf '%s\n' "$cmux_key" | sed 's/[[:space:]]*$//')"
-    cmux_val="$(printf '%s\n' "${cmux_line#*=}" | sed 's/^[[:space:]]*//')"
-    case "$cmux_val" in
-      \"*\") cmux_val="${cmux_val#\"}"; cmux_val="${cmux_val%\"}" ;;
-      \'*\') cmux_val="${cmux_val#\'}"; cmux_val="${cmux_val%\'}" ;;
-    esac
+    cmux_val="$(printf '%s\n' "${cmux_line#*=}" | env_parse_dotenv_value)"
     printf '%s=%s\n' "$cmux_key" "$cmux_val"
   done
   return 0
@@ -841,7 +865,6 @@ env_merge_and_write() {
 env_collect_input() {
   cmux_ec_file="$1"
   shift
-  cmux_ec_stdin=0
   : > "$cmux_ec_file"
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -856,7 +879,10 @@ env_collect_input() {
         env_parse_dotenv < "${1#--from-file=}" >> "$cmux_ec_file"
         shift
         ;;
-      -) cmux_ec_stdin=1; shift ;;
+      -)
+        env_parse_dotenv >> "$cmux_ec_file"
+        shift
+        ;;
       --json) shift ;;
       -*) die "env set: unknown option $1" 2 ;;
       *)
@@ -868,7 +894,6 @@ env_collect_input() {
         ;;
     esac
   done
-  if [ "$cmux_ec_stdin" -eq 1 ]; then env_parse_dotenv >> "$cmux_ec_file"; fi
   [ -s "$cmux_ec_file" ] || die "env set: nothing to set (pass KEY=VALUE, --from-file <path>, or - for stdin)" 2
   # Keys are checked here, before anything is written, so a bad line never half-applies.
   while IFS= read -r cmux_ec_pair || [ -n "$cmux_ec_pair" ]; do
