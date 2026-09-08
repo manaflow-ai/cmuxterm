@@ -1739,6 +1739,12 @@ jobs:
             CmuxAgentChat|CmuxAuthRuntime|CmuxFoundation|CmuxIrohTransport)
               ./scripts/ci/run-swift-testing-suites.sh "$pkgdir"
               ;;
+            CmuxSubrouterUI)
+              # This package intentionally has no test target yet; still
+              # compile it headlessly so UI regressions cannot hide behind
+              # the SwiftPM "no tests found" diagnostic.
+              swift build --package-path "$pkgdir"
+              ;;
             CmuxTerminal|CmuxTerminalCore)
               test_status=0
               output="$(swift test --package-path "$pkgdir" 2>&1)" || test_status=$?
