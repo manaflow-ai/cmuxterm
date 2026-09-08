@@ -312,16 +312,16 @@
       "label": "アカウントメニュー",
       "settings": "設定",
       "billing": "請求",
-      "themeDark": "Dark theme",
-      "themeLight": "Light theme",
+      "themeDark": "ダークテーマ",
+      "themeLight": "ライトテーマ",
       "signOut": "サインアウト",
       "signingOut": "サインアウト中…",
       "signOutError": "サインアウトできませんでした。もう一度お試しください。",
       "signIn": "サインイン"
     },
     "teamSwitcher": {
-      "label": "Team",
-      "personal": "Personal"
+      "label": "チーム",
+      "personal": "個人"
     },
     "billing": {
       "eyebrow": "アカウント",
