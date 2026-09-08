@@ -25,6 +25,8 @@
  */
 import { Freestyle, type FirewallSpec } from "freestyle";
 import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { cmuxTuiWebsocketSmokeCommand, readImageManifest } from "./devbox-image-common";
 import { resolveCmuxTuiSource } from "../services/vms/drivers/cmuxTuiDaemon";
 
@@ -145,5 +147,9 @@ async function main(): Promise<void> {
   console.log(`REACHABLE ${kind}/${size} ${target} in ${elapsed()}`);
 }
 
-// Bun sets import.meta.main; the web tsconfig has no bun-types, so cast to keep `tsgo --noEmit` green.
-if ((import.meta as ImportMeta & { main?: boolean }).main) await main();
+// Bun-only `import.meta.main` is not in TypeScript's ImportMeta type; use the
+// portable entry-point check the sibling devbox scripts already rely on.
+const isEntryPoint =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isEntryPoint) await main();
