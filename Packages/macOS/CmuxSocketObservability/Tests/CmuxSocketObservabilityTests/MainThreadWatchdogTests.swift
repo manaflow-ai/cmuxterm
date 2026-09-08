@@ -1,11 +1,7 @@
 import Foundation
 import Testing
 
-#if canImport(cmux_DEV)
-@testable import cmux_DEV
-#elseif canImport(cmux)
-@testable import cmux
-#endif
+@testable import CmuxSocketObservability
 
 /// Records watchdog callbacks for deterministic state-machine assertions.
 ///
@@ -69,11 +65,12 @@ private struct FixedBacktraceCapturer: SocketCommandBacktraceCapturing {
 }
 
 private final class BlockingBacktraceCapturer: SocketCommandBacktraceCapturing, @unchecked Sendable {
-    let started = DispatchSemaphore(value: 0)
+    let started = AsyncStream<Void>.makeStream()
     let release = DispatchSemaphore(value: 0)
 
     func captureBacktrace() -> [String] {
-        started.signal()
+        started.continuation.yield(())
+        started.continuation.finish()
         release.wait()
         return ["late"]
     }
@@ -170,7 +167,7 @@ struct MainThreadWatchdogTests {
         #expect(reporter.recoveries.isEmpty)
     }
 
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func finishingDuringBacktraceCaptureDoesNotReportLateHang() async {
         let reporter = RecordingWatchdogReporter()
         let capturer = BlockingBacktraceCapturer()
@@ -183,14 +180,19 @@ struct MainThreadWatchdogTests {
         )
         let thresholdNs = 1000 * ms
 
-        let fireTask = Task.detached {
+        let finished = AsyncStream<Void>.makeStream()
+        Thread.detachNewThread {
             ticket.fireIfNeeded(nowNs: thresholdNs)
+            finished.continuation.yield(())
+            finished.continuation.finish()
         }
 
-        #expect(capturer.started.wait(timeout: .now() + 1) == .success)
+        var startedIterator = capturer.started.stream.makeAsyncIterator()
+        await startedIterator.next()
         ticket.finish(nowNs: 1500 * ms)
         capturer.release.signal()
-        await fireTask.value
+        var finishedIterator = finished.stream.makeAsyncIterator()
+        await finishedIterator.next()
 
         #expect(reporter.hangs.isEmpty)
         #expect(reporter.recoveries.isEmpty)

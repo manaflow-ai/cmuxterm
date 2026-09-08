@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 
 /// Formats instruction addresses for watchdog unified-log records.
-struct SocketCommandBacktraceSymbolicator {
+nonisolated struct SocketCommandBacktraceSymbolicator {
     static func symbolicate(_ addresses: [UInt]) -> [String] {
         addresses.enumerated().map { index, address in
             symbolLine(index: index, address: address)

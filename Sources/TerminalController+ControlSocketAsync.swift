@@ -1,4 +1,5 @@
 import CmuxControlSocket
+import CmuxSocketObservability
 import CmuxBrowser
 import Foundation
 

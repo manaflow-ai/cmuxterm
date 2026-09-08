@@ -1,8 +1,9 @@
 import Foundation
 import os
+import CmuxSocketObservability
 
 /// Writes main-thread socket command watchdog events to unified logging.
-final class UnifiedLogMainThreadSocketCommandWatchdogReporter: MainThreadSocketCommandWatchdogReporter {
+nonisolated final class UnifiedLogMainThreadSocketCommandWatchdogReporter: MainThreadSocketCommandWatchdogReporter {
     private static let subsystem = "com.cmuxterm.app"
     private static let category = "socket-command-watchdog"
 

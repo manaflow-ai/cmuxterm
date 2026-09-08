@@ -1,7 +1,8 @@
 import os
+import CmuxSocketObservability
 
 /// Writes slow CLI socket command observations to unified logging.
-final class UnifiedLogSlowSocketCommandSink: SlowSocketCommandSink {
+nonisolated final class UnifiedLogSlowSocketCommandSink: SlowSocketCommandSink {
     static let subsystem = "com.cmuxterm.app"
     static let category = "socket-command"
 

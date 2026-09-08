@@ -2,14 +2,18 @@ import Darwin
 import Foundation
 
 /// Captures a best-effort stack from the recorded main thread.
-struct MainThreadSocketCommandBacktraceCapturer: SocketCommandBacktraceCapturing {
+nonisolated public struct MainThreadSocketCommandBacktraceCapturer: SocketCommandBacktraceCapturing {
     private let mainThread: thread_act_t?
 
-    init(mainThread: thread_act_t? = Self.currentMainThreadIfAvailable()) {
+    public init() {
+        self.init(mainThread: Self.currentMainThreadIfAvailable())
+    }
+
+    init(mainThread: thread_act_t?) {
         self.mainThread = mainThread
     }
 
-    func captureBacktrace() -> [String] {
+    public func captureBacktrace() -> [String] {
         guard let mainThread else {
             return ["main-thread backtrace unavailable: capturer was not initialized on the main thread"]
         }

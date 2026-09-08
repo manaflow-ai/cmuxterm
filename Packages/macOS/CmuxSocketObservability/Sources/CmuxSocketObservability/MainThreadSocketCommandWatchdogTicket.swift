@@ -3,7 +3,7 @@ import Foundation
 /// One watchdog deadline for a single main-actor socket command.
 ///
 /// Safety: mutable timer/finish state is protected by `lock`; collaborators are Sendable.
-final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
+nonisolated final class MainThreadSocketCommandWatchdogTicket: @unchecked Sendable {
     private let descriptor: SocketCommandDescriptor
     private let thresholdMs: Double
     private let startNs: UInt64

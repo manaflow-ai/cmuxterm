@@ -3,8 +3,8 @@ import Foundation
 /// Arms a one-shot watchdog while a socket command is executing on the main actor.
 ///
 /// Safety: instances hold immutable Sendable collaborators and a serial timer queue.
-final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
-    static let defaultThresholdMs: Double = 1000
+nonisolated public final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
+    public static let defaultThresholdMs: Double = 1000
 
     let thresholdMs: Double
     private let reporter: MainThreadSocketCommandWatchdogReporter
@@ -12,9 +12,9 @@ final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
     // Serial timer queue for watchdog deadlines; no command work runs here.
     private let queue: DispatchQueue
 
-    init(
+    public init(
         thresholdMs: Double = defaultThresholdMs,
-        reporter: MainThreadSocketCommandWatchdogReporter = UnifiedLogMainThreadSocketCommandWatchdogReporter(),
+        reporter: any MainThreadSocketCommandWatchdogReporter,
         backtraceCapturer: any SocketCommandBacktraceCapturing = MainThreadSocketCommandBacktraceCapturer(),
         queue: DispatchQueue = DispatchQueue(
             label: "com.cmuxterm.app.socket-command-watchdog",
@@ -27,7 +27,7 @@ final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
         self.queue = queue
     }
 
-    func monitor<T>(
+    public func monitor<T>(
         descriptor: SocketCommandDescriptor,
         startNs: UInt64,
         _ body: () -> T
@@ -48,24 +48,4 @@ final class MainThreadSocketCommandWatchdog: @unchecked Sendable {
         return body()
     }
 
-    func monitorAsync<T: Sendable>(
-        descriptor: SocketCommandDescriptor,
-        startNs: UInt64,
-        _ body: () async -> T
-    ) async -> T {
-        guard descriptor.executedOnMain else {
-            return await body()
-        }
-
-        let ticket = MainThreadSocketCommandWatchdogTicket(
-            descriptor: descriptor,
-            thresholdMs: thresholdMs,
-            startNs: startNs,
-            reporter: reporter,
-            backtraceCapturer: backtraceCapturer
-        )
-        ticket.start(on: queue)
-        defer { ticket.finish(nowNs: DispatchTime.now().uptimeNanoseconds) }
-        return await body()
-    }
 }

@@ -4,15 +4,15 @@ import Foundation
 ///
 /// Contains no command payload or user data; only sanitized protocol/method
 /// identity, timing, routing facts, peer pid, and response size.
-struct SocketCommandObservation: Sendable, Equatable {
-    let protocolName: String
-    let method: String
-    let durationMs: Double
-    let executedOnMain: Bool
-    let peerPid: pid_t?
-    let responseByteCount: Int
+nonisolated public struct SocketCommandObservation: Sendable, Equatable {
+    public let protocolName: String
+    public let method: String
+    public let durationMs: Double
+    public let executedOnMain: Bool
+    public let peerPid: pid_t?
+    public let responseByteCount: Int
 
-    init(
+    public init(
         descriptor: SocketCommandDescriptor,
         durationMs: Double,
         responseByteCount: Int
@@ -25,7 +25,7 @@ struct SocketCommandObservation: Sendable, Equatable {
         self.responseByteCount = responseByteCount
     }
 
-    init(
+    public init(
         protocolName: String,
         method: String,
         durationMs: Double,

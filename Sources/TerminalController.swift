@@ -6,6 +6,7 @@ import CmuxAuthRuntime
 import CmuxFeedback
 import CmuxBrowser
 import CmuxControlSocket
+import CmuxSocketObservability
 import CmuxFoundation
 import CmuxPanes
 import CmuxRemoteDaemon
@@ -41,7 +42,7 @@ private struct SocketLineProcessingResult: Sendable {
     let passwordAuthorization: SocketPasswordAuthorization
 }
 
-struct SocketCommandProcessingResult: Sendable {
+nonisolated struct SocketCommandProcessingResult: Sendable {
     let response: String?
     let descriptor: SocketCommandDescriptor
 }
@@ -141,9 +142,11 @@ class TerminalController {
     /// Actor-isolated ten-minute cache for mobile task model discovery.
     nonisolated let mobileTaskModelDiscovery: MobileTaskModelDiscovery
     /// Release-visible slow CLI socket command reporter.
-    nonisolated let slowCommandReporter = SlowSocketCommandReporter()
+    nonisolated let slowCommandReporter = SlowSocketCommandReporter(sink: UnifiedLogSlowSocketCommandSink())
     /// Per-command watchdog for socket commands that execute on the main actor.
-    nonisolated let mainThreadSocketCommandWatchdog = MainThreadSocketCommandWatchdog()
+    nonisolated let mainThreadSocketCommandWatchdog = MainThreadSocketCommandWatchdog(
+        reporter: UnifiedLogMainThreadSocketCommandWatchdogReporter()
+    )
     var tabManager: TabManager?
     private let externalNavigationHandler = BrowserExternalNavigationHandler()
     let workspaceCreateIdempotencyCache = WorkspaceCreateIdempotencyCache(capacity: 256)
@@ -2447,16 +2450,12 @@ class TerminalController {
             }
             let preparedRegistration = preparedDiffViewerRegistration(for: request)
             return SocketCommandProcessingResult(
-                response: mainThreadSocketCommandWatchdog.monitor(
-                    descriptor: descriptor,
-                    startNs: DispatchTime.now().uptimeNanoseconds
-                ) {
-                    CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
-                        processParsedV2Command(
-                            request,
-                            diffViewerRegistration: preparedRegistration
-                        )
-                    }
+                response: CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                    processParsedV2Command(
+                        request,
+                        diffViewerRegistration: preparedRegistration,
+                        descriptor: descriptor
+                    )
                 },
                 descriptor: descriptor
             )
@@ -2500,11 +2499,11 @@ class TerminalController {
         }
 
         return SocketCommandProcessingResult(
-            response: mainThreadSocketCommandWatchdog.monitor(
-                descriptor: descriptor,
-                startNs: DispatchTime.now().uptimeNanoseconds
-            ) {
-                v2MainSync(commandKey: cmd) {
+            response: v2MainSync(commandKey: cmd) {
+                self.mainThreadSocketCommandWatchdog.monitor(
+                    descriptor: descriptor,
+                    startNs: DispatchTime.now().uptimeNanoseconds
+                ) {
                     self.processCommand(command)
                 }
             },
@@ -2775,7 +2774,8 @@ class TerminalController {
     /// via a single `v2MainSync` hop.
     private nonisolated func processParsedV2Command(
         _ request: ControlRequest,
-        diffViewerRegistration: DiffViewerSessionPreparation = .notNeeded
+        diffViewerRegistration: DiffViewerSessionPreparation = .notNeeded,
+        descriptor: SocketCommandDescriptor? = nil
     ) -> String {
         if let focusError = Self.focusSuppressionResponse(
             method: request.method,
@@ -2803,12 +2803,20 @@ class TerminalController {
             }
 
             let outcome = v2MainSync {
-                self.v2MainActorResponse(
-                    request: request,
-                    id: id,
-                    method: method,
-                    params: params,
-                    diffViewerRegistration: diffViewerRegistration
+                let body = {
+                    self.v2MainActorResponse(
+                        request: request,
+                        id: id,
+                        method: method,
+                        params: params,
+                        diffViewerRegistration: diffViewerRegistration
+                    )
+                }
+                guard let descriptor else { return body() }
+                return self.mainThreadSocketCommandWatchdog.monitor(
+                    descriptor: descriptor,
+                    startNs: DispatchTime.now().uptimeNanoseconds,
+                    body
                 )
             }
             switch outcome {
