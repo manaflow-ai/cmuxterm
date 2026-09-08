@@ -137,7 +137,7 @@ struct FileExplorerOpenedTabDragSourceTests {
             hostingView.autoresizingMask = [.width, .height]
             contentView.addSubview(hostingView)
             window.makeKeyAndOrderFront(nil)
-            Self.settle(window, hostingView)
+            Self.settle(window, hostingView) { Self.strip(in: hostingView) != nil }
 
             let paneId = try #require(controller.focusedPaneId ?? controller.allPaneIds.first)
             let openedPanels = workspace.openFileSurfaces(
@@ -149,11 +149,11 @@ struct FileExplorerOpenedTabDragSourceTests {
             )
             let panel = try #require(openedPanels.first as? FilePreviewPanel)
             let tabId = try #require(workspace.surfaceIdFromPanelId(panel.id))
-            Self.settle(window, hostingView)
+            Self.settle(window, hostingView) {
+                Self.strip(in: hostingView).flatMap { $0.geometryRegistry?.frame(for: tabId.uuid, in: $0) } != nil
+            }
 
-            let strip = try #require(
-                Self.descendants(ofType: TabBarDragAndHoverView.TabBarBackgroundNSView.self, in: hostingView).first
-            )
+            let strip = try #require(Self.strip(in: hostingView))
             let frame = try #require(strip.geometryRegistry?.frame(for: tabId.uuid, in: strip))
             let pressPoint = NSPoint(x: frame.midX, y: frame.midY)
             // A press on the laid-out tab is a tab press for the strip
@@ -219,7 +219,7 @@ struct FileExplorerOpenedTabDragSourceTests {
             hostingView.autoresizingMask = [.width, .height]
             contentView.addSubview(hostingView)
             window.makeKeyAndOrderFront(nil)
-            Self.settle(window, hostingView)
+            Self.settle(window, hostingView) { Self.strip(in: hostingView) != nil }
 
             let paneId = try #require(controller.focusedPaneId ?? controller.allPaneIds.first)
             let openedPanels = workspace.openFileSurfaces(
@@ -231,15 +231,16 @@ struct FileExplorerOpenedTabDragSourceTests {
             )
             let panel = try #require(openedPanels.first as? FilePreviewPanel)
             let tabId = try #require(workspace.surfaceIdFromPanelId(panel.id))
-            Self.settle(window, hostingView)
+            Self.settle(window, hostingView) {
+                Self.descendants(ofType: NSTextView.self, in: hostingView).first?.window === window
+                    && Self.strip(in: hostingView).flatMap { $0.geometryRegistry?.frame(for: tabId.uuid, in: $0) } != nil
+            }
 
             let editor = try #require(Self.descendants(ofType: NSTextView.self, in: hostingView).first)
             #expect(window.makeFirstResponder(editor))
-            Self.settle(window, hostingView, passes: 2)
+            Self.settle(window, hostingView) { window.firstResponder === editor }
 
-            let strip = try #require(
-                Self.descendants(ofType: TabBarDragAndHoverView.TabBarBackgroundNSView.self, in: hostingView).first
-            )
+            let strip = try #require(Self.strip(in: hostingView))
             let frame = try #require(strip.geometryRegistry?.frame(for: tabId.uuid, in: strip))
             let pressPoint = NSPoint(x: frame.midX, y: frame.midY)
             let windowPoint = strip.convert(pressPoint, to: nil)
@@ -268,12 +269,29 @@ struct FileExplorerOpenedTabDragSourceTests {
         }
     }
 
-    private static func settle(_ window: NSWindow, _ hostingView: NSView, passes: Int = 8) {
-        for _ in 0..<passes {
+    /// Pumps layout and the run loop until `predicate` holds or the deadline
+    /// passes. Layout under a loaded CI host can lag a fixed number of run-loop
+    /// turns, so every lookup that depends on SwiftUI having committed waits on
+    /// the state it needs rather than on a duration.
+    @discardableResult
+    private static func settle(
+        _ window: NSWindow,
+        _ hostingView: NSView,
+        timeout: TimeInterval = 5,
+        until predicate: () -> Bool
+    ) -> Bool {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        repeat {
             window.contentView?.layoutSubtreeIfNeeded()
             hostingView.layoutSubtreeIfNeeded()
             RunLoop.current.run(mode: .default, before: Date.now.addingTimeInterval(0.02))
-        }
+            if predicate() { return true }
+        } while Date.now < deadline
+        return false
+    }
+
+    private static func strip(in hostingView: NSView) -> TabBarDragAndHoverView.TabBarBackgroundNSView? {
+        descendants(ofType: TabBarDragAndHoverView.TabBarBackgroundNSView.self, in: hostingView).first
     }
 
     private static func descendants<T: NSView>(ofType type: T.Type, in root: NSView) -> [T] {
