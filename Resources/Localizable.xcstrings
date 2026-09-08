@@ -26447,7 +26447,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لم تكن استجابة خادم تطبيق Codex بتنسيق JSON صالح."
+            "value": "تعذر على cmux قراءة رد Codex. حاول مرة أخرى."
           }
         },
         "bs": {
@@ -26465,25 +26465,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Antwort des Codex-App-Servers war kein gültiges JSON."
+            "value": "cmux konnte die Antwort von Codex nicht lesen. Versuchen Sie es erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server response was not valid JSON."
+            "value": "cmux could not read the response from Codex. Try again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La respuesta del servidor de la aplicación Codex no era un JSON válido."
+            "value": "cmux no pudo leer la respuesta de Codex. Inténtalo de nuevo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La réponse du serveur d’application Codex n’est pas un JSON valide."
+            "value": "cmux n’a pas pu lire la réponse de Codex. Réessayez."
           }
         },
         "it": {
@@ -26495,7 +26495,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server の応答が有効な JSON ではありません。"
+            "value": "cmux は Codex からの応答を読み取れませんでした。もう一度お試しください。"
           }
         },
         "km": {
@@ -26507,7 +26507,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex 앱 서버 응답이 올바른 JSON 형식이 아닙니다."
+            "value": "cmux가 Codex의 응답을 읽을 수 없습니다. 다시 시도하세요."
           }
         },
         "nb": {
@@ -26555,13 +26555,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 的响应不是有效的 JSON。"
+            "value": "cmux 无法读取 Codex 的响应。请重试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 的回應不是有效的 JSON。"
+            "value": "cmux 無法讀取 Codex 的回應。請再試一次。"
           }
         }
       }
@@ -26572,7 +26572,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "فشل طلب خادم تطبيق Codex."
+            "value": "فشل طلب Codex. حاول مرة أخرى."
           }
         },
         "bs": {
@@ -26590,25 +26590,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Anfrage an den Codex-App-Server ist fehlgeschlagen."
+            "value": "Die Codex-Anfrage ist fehlgeschlagen. Versuchen Sie es erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server request failed."
+            "value": "The Codex request failed. Try again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La solicitud al servidor de la aplicación Codex falló."
+            "value": "La solicitud a Codex falló. Inténtalo de nuevo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La requête du serveur d’application Codex a échoué."
+            "value": "La requête à Codex a échoué. Réessayez."
           }
         },
         "it": {
@@ -26620,7 +26620,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server リクエストに失敗しました。"
+            "value": "Codex へのリクエストに失敗しました。もう一度お試しください。"
           }
         },
         "km": {
@@ -26632,7 +26632,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex 앱 서버 요청에 실패했습니다."
+            "value": "Codex 요청이 실패했습니다. 다시 시도하세요."
           }
         },
         "nb": {
@@ -26680,13 +26680,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 请求失败。"
+            "value": "Codex 请求失败。请重试。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 請求失敗。"
+            "value": "Codex 請求失敗。請再試一次。"
           }
         }
       }
@@ -26822,7 +26822,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أبلغ خادم تطبيق Codex عن تحذير."
+            "value": "أصدر Codex تحذيرًا."
           }
         },
         "bs": {
@@ -26840,25 +26840,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Codex-App-Server hat eine Warnung gemeldet."
+            "value": "Codex hat eine Warnung gemeldet."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server reported a warning."
+            "value": "Codex reported a warning."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El servidor de la aplicación Codex informó una advertencia."
+            "value": "Codex emitió una advertencia."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le serveur d’application Codex a signalé un avertissement."
+            "value": "Codex a signalé un avertissement."
           }
         },
         "it": {
@@ -26870,7 +26870,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server が警告を報告しました。"
+            "value": "Codex から警告が報告されました。"
           }
         },
         "km": {
@@ -26882,7 +26882,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex 앱 서버에서 경고를 보고했습니다."
+            "value": "Codex가 경고를 보냈습니다."
           }
         },
         "nb": {
@@ -26930,13 +26930,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 报告了一条警告。"
+            "value": "Codex 发出警告。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Codex app-server 回報了警告。"
+            "value": "Codex 發出警告。"
           }
         }
       }
@@ -26947,7 +26947,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تعذر العثور على %@. يرجى تثبيته والتأكد من توفر \"%@\" في متغير البيئة PATH."
+            "value": "لم يتم العثور على %@. ثبّته وتأكد من إمكانية تشغيل \"%@\" من الطرفية."
           }
         },
         "bs": {
@@ -26965,25 +26965,25 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ wurde nicht gefunden. Installiere es und stelle sicher, dass „%@“ im PATH verfügbar ist."
+            "value": "%@ wurde nicht gefunden. Installieren Sie es und stellen Sie sicher, dass \"%@\" in Ihrem Terminal ausgeführt werden kann."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ was not found. Install it and make sure \"%@\" is available on PATH."
+            "value": "%@ was not found. Install it and make sure \"%@\" can be run from your terminal."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se encontró %@. Instálalo y asegúrate de que \"%@\" esté disponible en el PATH."
+            "value": "No se encontró %@. Instálalo y asegúrate de que \"%@\" se pueda ejecutar desde tu terminal."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ est introuvable. Installez-le et assurez-vous que \"%@\" est disponible dans le PATH."
+            "value": "%@ est introuvable. Installez-le et assurez-vous que \"%@\" peut être exécuté depuis votre terminal."
           }
         },
         "it": {
@@ -26995,7 +26995,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ が見つかりませんでした。インストールして \"%@\" が PATH で利用できるようにしてください。"
+            "value": "%@ が見つかりません。インストールして、ターミナルから \"%@\" を実行できることを確認してください。"
           }
         },
         "km": {
@@ -27007,7 +27007,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@을(를) 찾을 수 없습니다. 설치 후 PATH에서 \"%@\"을(를) 사용할 수 있는지 확인하세요."
+            "value": "%@을(를) 찾을 수 없습니다. 설치한 후 터미널에서 \"%@\"을(를) 실행할 수 있는지 확인하세요."
           }
         },
         "nb": {
@@ -27055,13 +27055,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未找到 %@。请先安装，并确保 \"%@\" 在 PATH 中可用。"
+            "value": "未找到 %@。请安装它，并确保可以在终端中运行 \"%@\"。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "找不到 %@。請安裝它並確保 \"%@\" 在 PATH 中可用。"
+            "value": "找不到 %@。請安裝它，並確認可在終端機中執行 \"%@\"。"
           }
         }
       }
