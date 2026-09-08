@@ -29,8 +29,8 @@ while IFS= read -r suite; do
   [ -n "$suite" ] || continue
   echo "swift test $package_path --filter $suite"
   suite_status=0
-  # </dev/null: the child must not inherit the loop's stdin, or it drains
-  # the suite list and every read after the first suite sees EOF.
+  # Keep the child from consuming the suite-list pipe that drives this loop.
+  # </dev/null prevents a child from draining the loop's stdin after the first suite.
   python3 "$script_dir/run_with_timeout.py" \
     --timeout-seconds "$suite_timeout_seconds" \
     -- swift test --package-path "$package_path" --filter "$suite" \
