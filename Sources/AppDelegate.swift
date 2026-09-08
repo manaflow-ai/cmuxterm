@@ -550,9 +550,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         (() -> Void)?,
         ((CloudVMActionLauncher.Completion) -> Void)?
     ) -> Bool
+    typealias StartupSessionRestoreDeferral = @MainActor (
+        _ resume: @escaping @MainActor @Sendable () -> Void
+    ) -> Bool
 
     private var configuredActionExecutor: ConfiguredActionExecutor?
     private var windowConfigStoreFactory: @MainActor () -> CmuxConfigStore = { CmuxConfigStore() }
+    /// The external readiness boundary can defer restore without blocking the UI.
+    private var startupSessionRestoreDeferral: StartupSessionRestoreDeferral = { resume in
+        guard !SurfaceResumeApprovalStore.signingSecretIsReady else { return false }
+        SurfaceResumeApprovalStore.whenSigningSecretReady {
+            Task { @MainActor in resume() }
+        }
+        return true
+    }
 
     nonisolated(unsafe) static var shared: AppDelegate?
     /// Stateless control-socket syscall layer (CmuxControlSocket); composition-root owned.
@@ -1322,12 +1333,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     convenience init(
         vaultHistoryEventLog: VaultHistoryEventLog,
         windowConfigStoreFactory: @escaping @MainActor () -> CmuxConfigStore = { CmuxConfigStore() },
-        configuredActionExecutor: ConfiguredActionExecutor? = nil
+        configuredActionExecutor: ConfiguredActionExecutor? = nil,
+        startupSessionRestoreDeferral: StartupSessionRestoreDeferral? = nil
     ) {
         self.init()
         self.vaultHistoryEventLog = vaultHistoryEventLog
         self.windowConfigStoreFactory = windowConfigStoreFactory
         self.configuredActionExecutor = configuredActionExecutor
+        if let startupSessionRestoreDeferral {
+            self.startupSessionRestoreDeferral = startupSessionRestoreDeferral
+        }
     }
 
     override init() {
@@ -3972,13 +3987,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @discardableResult
     private func attemptStartupSessionRestoreIfNeeded(primaryWindow: NSWindow) -> Bool {
         guard !didAttemptStartupSessionRestore else { return false }
-        guard SurfaceResumeApprovalStore.signingSecretIsReady else {
-            SurfaceResumeApprovalStore.whenSigningSecretReady { [weak self, weak primaryWindow] in
-                DispatchQueue.main.async {
-                    guard let self, let primaryWindow else { return }
-                    self.attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: primaryWindow)
-                }
-            }
+        if startupSessionRestoreDeferral({ [weak self, weak primaryWindow] in
+            guard let self, let primaryWindow else { return }
+            self.attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: primaryWindow)
+        }) {
             return false
         }
         didAttemptStartupSessionRestore = true
