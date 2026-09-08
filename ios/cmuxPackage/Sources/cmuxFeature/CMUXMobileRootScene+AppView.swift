@@ -1,4 +1,5 @@
 import CmuxMobileBrowserStream
+import CmuxMobileShell
 import CmuxMobileShellUI
 import CmuxMobileTransport
 import SwiftUI
