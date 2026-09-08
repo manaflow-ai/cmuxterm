@@ -109,7 +109,6 @@ final class SessionIndexTableController: NSObject, NSTableViewDataSource, NSTabl
             object: scrollView.contentView,
             queue: .main
         ) { [weak self, weak table] _ in
-            // NotificationCenter delivers this observer on OperationQueue.main.
             MainActor.assumeIsolated {
                 guard let self, let table, !self.isApplyingRows else { return }
                 self.reconcilePresentation(in: table)
