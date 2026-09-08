@@ -98,7 +98,7 @@ struct SurfaceMachineIDDeviceEncodingTests {
             state: .offline, lastSeenAt: Date(timeIntervalSince1970: 1_700_000_000), tag: "default",
             bundleID: "com.cmuxterm.app", accountTrust: .sameAccount
         )
-        let device = SurfaceSocketCommands.surfaceMachinePayload(machineInfo(.device(studio), linkState: .offline, presence: presence))
+        let device = TerminalController.surfaceMachinePayload(machineInfo(.device(studio), linkState: .offline, presence: presence))
         #expect(device["kind"] as? String == "device")
         #expect(device["local"] as? Bool == false)
         #expect(device["id"] as? String == "device:\(uuid)@default")
@@ -109,10 +109,10 @@ struct SurfaceMachineIDDeviceEncodingTests {
         #expect(devicePresence?["bundle_id"] as? String == "com.cmuxterm.app")
         #expect((devicePresence?["last_seen_at"] as? NSNumber)?.doubleValue == 1_700_000_000)
 
-        let cloud = SurfaceSocketCommands.surfaceMachinePayload(machineInfo(.cloud("brave-otter"), linkState: .connected, presence: nil))
+        let cloud = TerminalController.surfaceMachinePayload(machineInfo(.cloud("brave-otter"), linkState: .connected, presence: nil))
         #expect(cloud["kind"] as? String == "cloud")
         #expect(cloud["presence"] is NSNull)
-        let local = SurfaceSocketCommands.surfaceMachinePayload(machineInfo(.local, linkState: .notApplicable, presence: nil))
+        let local = TerminalController.surfaceMachinePayload(machineInfo(.local, linkState: .notApplicable, presence: nil))
         #expect(local["kind"] as? String == "local")
         #expect(local["local"] as? Bool == true)
     }

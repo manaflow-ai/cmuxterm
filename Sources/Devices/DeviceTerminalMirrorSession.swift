@@ -51,8 +51,7 @@ final class DeviceTerminalMirrorSession {
             "workspace_id": remoteWorkspaceID,
             "surface_id": remoteSurfaceID.uuidString,
         ]
-        var routerBox: DeviceTerminalInputRouter?
-        let router = DeviceTerminalInputRouter(
+        inputRouter = DeviceTerminalInputRouter(
             send: { data in
                 guard let text = String(data: data, encoding: .utf8) else { return }
                 var input = params
@@ -61,11 +60,8 @@ final class DeviceTerminalMirrorSession {
             },
             onFailure: { error in
                 deviceMirrorLog.error("device terminal input failed: \(String(describing: error), privacy: .public)")
-                _ = routerBox
             }
         )
-        routerBox = router
-        inputRouter = router
     }
 
     private var surfaceParams: [String: Any] {
