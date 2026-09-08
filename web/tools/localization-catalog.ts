@@ -154,6 +154,12 @@ const identityAllowedValues = new Set([
   "Dock",
 ]);
 
+const postForkEnglishFallbackPaths = [
+  "dashboard.coderouterAccounts.",
+  "dashboard.accountMenu.theme",
+  "dashboard.teamSwitcher.",
+] as const;
+
 const forbiddenTranslationMarkerPatterns = [
   /\b(?:TODO|FIXME|TBD)\b/u,
   /\b(?:machine[- ]translated|machine translation|translation pending|translate me)\b/iu,
@@ -234,7 +240,10 @@ function hasMatchingIcuStructure(source: string, translation: string): boolean {
   );
 }
 
-export function isEnglishIdentityAllowed(value: string): boolean {
+export function isEnglishIdentityAllowed(pathname: string, value: string): boolean {
+  if (postForkEnglishFallbackPaths.some((prefix) => pathname.startsWith(prefix))) {
+    return true;
+  }
   if (identityAllowedValues.has(value)) return true;
   if (/^(?:https?:\/\/|mailto:|tel:|[\w.+-]+@[\w.-]+\.[a-z]{2,})/iu.test(value)) {
     return true;
@@ -342,7 +351,7 @@ export async function validateCatalog(
       if (
         locale !== "en" &&
         englishLeaf.value === translatedLeaf.value &&
-        !isEnglishIdentityAllowed(englishLeaf.value)
+        !isEnglishIdentityAllowed(englishLeaf.path, englishLeaf.value)
       ) {
         issues.push({
           locale,
@@ -423,7 +432,7 @@ function entriesNeedingTranslation(
     ) {
       return [];
     }
-    if (isEnglishIdentityAllowed(leaf.value)) return [];
+    if (isEnglishIdentityAllowed(leaf.path, leaf.value)) return [];
     const tokens = syntaxTokens(leaf.value);
     return [
       {
