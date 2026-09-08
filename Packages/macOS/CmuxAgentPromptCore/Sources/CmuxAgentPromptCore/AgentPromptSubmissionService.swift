@@ -158,13 +158,13 @@ public final class AgentPromptSubmissionService {
             )
         }
 
-        if let inFlight = inFlightByWorkspace[workspaceID] {
-            guard enqueue(request, surfaceID: inFlight.surfaceID) else {
+        if inFlightByWorkspace[workspaceID] != nil {
+            guard enqueue(request) else {
                 return Receipt(
                     messageID: messageID,
                     result: .submissionQueueFull(
                         workspaceID: workspaceID,
-                        surfaceID: inFlight.surfaceID
+                        surfaceID: requestedSurfaceID
                     )
                 )
             }
@@ -172,7 +172,7 @@ public final class AgentPromptSubmissionService {
                 messageID: messageID,
                 result: .queued(
                     workspaceID: workspaceID,
-                    surfaceID: inFlight.surfaceID,
+                    surfaceID: request.surfaceID,
                     reason: "prior_prompt_in_flight"
                 )
             )
