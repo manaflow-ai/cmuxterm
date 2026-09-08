@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 import CmuxSettings
 @testable import CmuxSettingsUI
@@ -105,6 +106,10 @@ import CmuxSettings
 
         #expect(model.prefix.isUnbound)
         #expect(model.prefixRejection == .chordConflict)
+        // Unrelated bindings writes can republish the unchanged prefix. They
+        // must not dismiss the rejection before the user can act on it.
+        model.ingestPrefix(.unbound)
+        #expect(model.prefixRejection == .chordConflict)
         let persistedPrefix = await store.value(for: catalog.shortcuts.prefix)
         #expect(persistedPrefix.isUnbound)
         let persisted = await store.value(for: catalog.shortcuts.bindings)
@@ -116,6 +121,67 @@ import CmuxSettings
             persisted[ShortcutAction.openSettings.rawValue]
                 == StoredShortcut(first: secondLeader, second: suffix)
         )
+    }
+
+    @Test func stalePrefixObservationCannotRetargetAChordDuringRebase() async throws {
+        let (store, catalog, errorLog, tempDir) = makeStore()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let model = ShortcutListModel(jsonStore: store, catalog: catalog, errorLog: errorLog)
+        let oldPrefix = ShortcutStroke(key: "b", control: true)
+        let newPrefix = ShortcutStroke(key: "g", control: true)
+        await model.assignPrefix(oldPrefix)
+        await model.assignChord(
+            StoredShortcut(first: oldPrefix, second: ShortcutStroke(key: "n")),
+            to: .newTab
+        )
+
+        // Hold the real persistence queue and wait for observable mutations,
+        // not scheduler timing, before replaying the stale store observation.
+        let gate = AsyncStream<Void>.makeStream()
+        defer { gate.continuation.finish() }
+        model.shortcutWriteTail = Task { for await _ in gate.stream {} }
+        let prefixChanges = AsyncStream<Void>.makeStream()
+        defer { prefixChanges.continuation.finish() }
+        withObservationTracking {
+            _ = model.prefix
+        } onChange: {
+            prefixChanges.continuation.yield(())
+        }
+        let rebase = Task { await model.assignPrefix(newPrefix) }
+        var prefixIterator = prefixChanges.stream.makeAsyncIterator()
+        await prefixIterator.next()
+        model.ingestPrefix(StoredShortcut(first: oldPrefix))
+        #expect(model.prefix.first == newPrefix)
+
+        let bindingChanges = AsyncStream<Void>.makeStream()
+        defer { bindingChanges.continuation.finish() }
+        withObservationTracking {
+            _ = model.pendingBindings
+        } onChange: {
+            bindingChanges.continuation.yield(())
+        }
+        let assignment = Task {
+            await model.assignChord(
+                StoredShortcut(first: oldPrefix, second: ShortcutStroke(key: "s")),
+                to: .openSettings
+            )
+        }
+        var bindingIterator = bindingChanges.stream.makeAsyncIterator()
+        await bindingIterator.next()
+        gate.continuation.finish()
+        await rebase.value
+        await assignment.value
+
+        let persistedPrefix = await store.value(for: catalog.shortcuts.prefix)
+        let persisted = await store.value(for: catalog.shortcuts.bindings)
+        #expect(persistedPrefix.first == newPrefix)
+        #expect(persisted[ShortcutAction.newTab.rawValue]?.first == newPrefix)
+        #expect(persisted[ShortcutAction.openSettings.rawValue]?.first == newPrefix)
+        #expect(model.prefix.first == newPrefix)
+
+        // Once the write completes, real external changes still take effect.
+        model.ingestPrefix(StoredShortcut(first: oldPrefix))
+        #expect(model.prefix.first == oldPrefix)
     }
 
     @Test func overlappingPrefixWritesLeaveTheNewestValuePersisted() async throws {

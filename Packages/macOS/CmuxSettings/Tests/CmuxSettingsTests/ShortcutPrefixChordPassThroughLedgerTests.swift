@@ -27,8 +27,10 @@ struct ShortcutPrefixChordPassThroughLedgerTests {
         ledger.mark(identities[2])
         #expect(ledger.count == identities.count)
         for identity in identities {
-            #expect(ledger.consume(identity))
-            #expect(!ledger.consume(identity))
+            let consumed = ledger.consume(identity)
+            let consumedAgain = ledger.consume(identity)
+            #expect(consumed)
+            #expect(!consumedAgain)
         }
         #expect(ledger.count == 0)
     }
