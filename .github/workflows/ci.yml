@@ -335,6 +335,9 @@ jobs:
       - name: Validate Sparkle monotonic guard modes
         run: ./tests/test_sparkle_build_monotonic_modes.sh
 
+      - name: Validate release tunnel extension identifiers
+        run: ./tests/test_ci_release_tunnel_identifiers.sh
+
       - name: Validate markdown viewer asset compression
         run: ./tests/test_compress_markdown_viewer_assets.sh
 
