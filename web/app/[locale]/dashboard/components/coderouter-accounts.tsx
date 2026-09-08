@@ -191,7 +191,7 @@ function ClaudeAccountRow({
   return (
     <AccountRowFrame
       provider={claudeKindLabel(account.kind, t)}
-      detail={`${account.identifier}${account.region ? ` · ${account.region}` : ""}`}
+      detail={canManage ? `${account.identifier}${account.region ? ` · ${account.region}` : ""}` : null}
       label={account.label}
       status={health}
       statusDetail={
@@ -224,7 +224,9 @@ function NativeAccountRow({
     ? t("stateBroken")
     : account.state === "expired"
       ? t("stateExpired")
-      : cooling
+      : account.state === "refreshing"
+        ? t("stateRefreshing")
+        : cooling
         ? t("coolingDown", {
           until: format.dateTime(new Date(account.cooldownUntil!), { timeStyle: "short" }),
         })
@@ -233,7 +235,7 @@ function NativeAccountRow({
   return (
     <AccountRowFrame
       provider={nativeKindLabel(account.provider, t)}
-      detail={account.providerAccountId}
+      detail={canManage ? account.providerAccountId : null}
       label={account.label}
       status={status}
       statusDetail={

@@ -140,6 +140,10 @@ describe("coderouter accounts section", () => {
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain(">Remove<");
     expect(html).not.toContain(">Disable<");
+    // Provider account identifiers are for account managers only.
+    expect(html).not.toContain("acct_9f3");
+    expect(html).not.toContain("sk-ant-oat01-…a1b2");
+    expect(html).toContain("Claude Code OAuth");
   });
 
   test("hides the deployment notice from members who cannot manage accounts", () => {
