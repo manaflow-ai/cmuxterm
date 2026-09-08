@@ -329,7 +329,7 @@ extension CMUXCLI {
                         ).sorted()
                         let teamDeleteCleanupDeadline = hookDeadlineUptime
                             - Self.claudeTaskSyncPersistenceMarginSeconds
-                        guard sendClaudeTaskFeedSnapshot(
+                        let feedDelivered = sendClaudeTaskFeedSnapshot(
                             [],
                             client: client,
                             telemetry: telemetry,
@@ -338,7 +338,16 @@ extension CMUXCLI {
                             surfaceId: resolvedTarget.surfaceId,
                             socketPassword: socketPassword,
                             deadlineUptime: hookDeadlineUptime
-                        ) else { return }
+                        )
+                        if !feedDelivered {
+                            // TeamDelete cleanup is independent of the Feed
+                            // projection. A transient Feed failure must not
+                            // strand the deleted team's checklist rows or
+                            // skip the durable retry proof below.
+                            telemetry.breadcrumb(
+                                "claude-hook.task-sync.team-delete-feed-deferred"
+                            )
+                        }
                         let legacyCleanupCompleted = (try? drainLegacyClaudeTaskChecklistOwner(
                             taskDirectoryName: cleanupTaskDirectoryName,
                             sessionStore: sessionStore,
@@ -618,6 +627,16 @@ extension CMUXCLI {
                         telemetry.breadcrumb("claude-hook.task-sync.coalesced")
                         return
                     }
+                    guard clearSupersededPersonalClaudeTaskChecklistOwnerIfNeeded(
+                        currentRecord: currentRecord,
+                        taskDirectoryName: snapshot.directoryName,
+                        taskStoreIdentity: taskStoreIdentity,
+                        currentWorkspaceID: resolvedTarget.workspaceId,
+                        recordedWorkspaceIDs: [],
+                        client: client,
+                        telemetry: telemetry,
+                        deadlineUptime: hookDeadlineUptime
+                    ) else { return }
                     guard try migrateLegacyClaudeTaskChecklistOwnerIfNeeded(
                         currentRecord: currentRecord,
                         sessionID: sessionID,
