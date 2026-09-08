@@ -305,7 +305,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(environment["CMUX_CLAUDE_PID"] as? String == "8535")
     }
 
-    @Test("Local queue admission falls back to the live PID when route probing fails")
+    @Test("Local queue admission retains its lane when route probing fails")
     func localQueueAdmissionFallsBackToLivePIDWhenRouteProbingFails() throws {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(
             for: BundledCLILinkageTests.self
@@ -352,8 +352,8 @@ struct CLIClaudeHookTimeoutRegressionTests {
         let enqueue = try #require(requests.last)
         let params = try #require(enqueue["params"] as? [String: Any])
         let environment = try #require(params["environment"] as? [String: Any])
-        #expect(environment["CMUX_WORKSPACE_ID"] == nil)
-        #expect(environment["CMUX_SURFACE_ID"] == nil)
+        #expect(environment["CMUX_WORKSPACE_ID"] as? String == "workspace-stale")
+        #expect(environment["CMUX_SURFACE_ID"] as? String == "surface-stale")
         #expect(environment["CMUX_AGENT_HOOK_ROUTE_SNAPSHOT"] == nil)
         #expect(environment["CMUX_CLAUDE_PID"] as? String == "8535")
     }

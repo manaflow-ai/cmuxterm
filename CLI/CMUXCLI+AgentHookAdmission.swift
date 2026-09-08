@@ -95,9 +95,7 @@ extension CMUXCLI {
                 environment["CMUX_WORKSPACE_ID"] = binding.workspaceId
                 environment["CMUX_SURFACE_ID"] = binding.surfaceId
                 environment[Self.agentHookRouteSnapshotEnvironmentKey] = "1"
-            } else if environment[pidEnvironmentKey] != nil {
-                environment.removeValue(forKey: "CMUX_WORKSPACE_ID")
-                environment.removeValue(forKey: "CMUX_SURFACE_ID")
+            } else {
                 environment.removeValue(forKey: Self.agentHookRouteSnapshotEnvironmentKey)
             }
             return environment
