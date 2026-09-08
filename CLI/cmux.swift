@@ -39824,7 +39824,7 @@ export default CMUXSessionRestore;
         guard let workstreamID = Self.feedWorkstreamID(
             source: source,
             sessionID: sessionId
-        ) else { return }
+        ) else { return false }
         var event: [String: Any] = [
             "session_id": workstreamID,
             "hook_event_name": hookEventName,
