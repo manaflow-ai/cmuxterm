@@ -256,13 +256,24 @@ struct DevicesCloudTreeBuilderTests {
             return
         }
         #expect(row.indicator == .connecting)
-        // Without devices the section is absent, so the Cloud tab is unchanged.
         let fleetOnly = SurfaceCatalogSnapshot(machines: [cloudInfo("brave-otter")], resources: [], projections: [])
-        let unchanged = CloudTreeNodeBuilder.nodes(
+        let emptyDevices = CloudTreeNodeBuilder.nodes(
             machines: [fleetRow("brave-otter")], snapshot: fleetOnly, localWorkspaces: [], includeLocalMachine: false,
             source: .cloudWithDevicesSection
         )
-        #expect(unchanged.count == 1)
+        #expect(emptyDevices.count == 2)
+        let emptySection = try #require(emptyDevices.last)
+        guard case .devicesSection(let emptyCount) = emptySection.kind else {
+            Issue.record("expected the empty My Devices section after the fleet")
+            return
+        }
+        #expect(emptyCount == 0)
+        #expect(emptySection.children.count == 1)
+        let cloudOnly = CloudTreeNodeBuilder.nodes(
+            machines: [fleetRow("brave-otter")], snapshot: fleetOnly, localWorkspaces: [], includeLocalMachine: false,
+            source: .cloud
+        )
+        #expect(cloudOnly.count == 1)
     }
 
     @Test("Device rows fold presence and link state into one indicator and status")
