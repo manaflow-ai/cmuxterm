@@ -487700,6 +487700,48 @@
             "state": "translated",
             "value": "Cloud サービスから使用できないプレビューアドレスが返されました。更新して再試行してください。"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Cloud-Dienst hat eine unbrauchbare Vorschauadresse zurückgegeben. Aktualisieren und erneut versuchen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le service Cloud a renvoyé une adresse d'aperçu inutilisable. Actualisez et réessayez."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعادت خدمة Cloud عنوان معاينة غير صالح للاستخدام. أعد التحميل وحاول مجددًا."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio Cloud devolvió una dirección de vista previa inutilizable. Actualice y vuelva a intentarlo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雲端服務傳回了無法使用的預覽位址。請重新整理並重試。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "云服务返回了不可用的预览地址。请刷新并重试。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클라우드 서비스가 사용할 수 없는 미리보기 주소를 반환했습니다. 새로고침 후 다시 시도해 주세요."
+          }
         }
       }
     },
@@ -487716,6 +487758,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "cmux は転送用のローカルポートを開けませんでした: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux konnte keinen lokalen Port für die Weiterleitung öffnen: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux n'a pas pu ouvrir un port local pour la redirection : %@"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتمكن cmux من فتح منفذ محلي للتوجيه: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux no pudo abrir un puerto local para el reenvío: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 無法開啟用於轉送的本機連接埠：%@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 无法为转发打开本地端口：%@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux가 포워딩을 위한 로컬 포트를 열 수 없습니다: %@"
           }
         }
       }
@@ -487734,6 +487818,48 @@
             "state": "translated",
             "value": "ローカルポート転送は開始前に閉じられました。"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die lokale Portweiterleitung wurde geschlossen, bevor sie gestartet wurde."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La redirection de port local a été fermée avant de démarrer."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم إغلاق توجيه المنفذ المحلي قبل أن يبدأ."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El reenvío de puerto local se cerró antes de iniciarse."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本機連接埠轉送在啟動前已被關閉。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本地端口转发在启动前已被关闭。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 포트 포워딩이 시작되기 전에 닫혔습니다."
+          }
         }
       }
     },
@@ -487750,6 +487876,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ には開くポートがありません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat keinen Port zum Öffnen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n'a aucun port à ouvrir."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يوجد منفذ لفتحه في %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ no tiene ningún puerto para abrir."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 沒有可開啟的連接埠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有可打开的端口。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 열 수 있는 포트가 없습니다."
           }
         }
       }
@@ -487768,6 +487936,48 @@
             "state": "translated",
             "value": "%@ にはまだプライベートネットワークアドレスがありません。マシン一覧を更新して再試行してください。"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hat noch keine private Netzwerkadresse; aktualisieren Sie die Maschinenliste und versuchen Sie es erneut."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ n'a pas encore d'adresse réseau privée ; actualisez la liste des machines et réessayez."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يملك %@ عنوان شبكة خاصة بعد؛ أعد تحميل قائمة الأجهزة وحاول مجددًا."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ aún no tiene una dirección de red privada; actualice la lista de máquinas y vuelva a intentarlo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 尚無私人網路位址；請重新整理機器清單並重試。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 尚无私有网络地址；请刷新机器列表并重试。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 아직 사설 네트워크 주소가 없습니다. 머신 목록을 새로고침한 후 다시 시도해 주세요."
+          }
         }
       }
     },
@@ -487784,6 +487994,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "この cmux ビルドにはユーザー空間 WireGuard ハブがないため、クラウドマシンのポートに接続できません。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser cmux-Build hat keinen WireGuard-Hub im User-Space, daher kann er keine Ports auf Cloud-Maschinen erreichen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette version de cmux ne dispose d'aucun hub WireGuard en espace utilisateur, elle ne peut donc pas atteindre les ports des machines Cloud."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لا يحتوي إصدار cmux هذا على موزع WireGuard في مساحة المستخدم، لذا لا يمكنه الوصول إلى المنافذ على أجهزة Cloud."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta compilación de cmux no tiene un hub de WireGuard en el espacio de usuario, por lo que no puede acceder a los puertos de las máquinas de Cloud."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 cmux 建置版本沒有使用者空間 WireGuard 集線器，因此無法連線至雲端機器上的連接埠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 cmux 构建版本不包含用户空间 WireGuard 集线器，因此无法访问云端机器上的端口。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 cmux 빌드에는 사용자 공간 WireGuard 허브가 없어 Cloud 머신의 포트에 연결할 수 없습니다."
           }
         }
       }
@@ -487802,6 +488054,48 @@
             "state": "translated",
             "value": "cmux クラウドトンネルはオンです。この Mac のすべてのアプリがクラウド VM ネットワークに到達できます。`cmux vpn down` でオフになります。"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud-Tunnel ist aktiv: Jede App auf diesem Mac kann das Netzwerk Ihrer Cloud-VM erreichen. `cmux vpn down` schaltet ihn aus."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tunnel Cloud cmux est activé : toutes les applications sur ce Mac peuvent accéder au réseau de votre VM Cloud. `cmux vpn down` le désactive."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نفق cmux Cloud Tunnel قيد التشغيل: يمكن لكل تطبيق على جهاز Mac هذا الوصول إلى شبكة Cloud VM الخاصة بك. يقوم الأمر `cmux vpn down` بإيقاف تشغيله."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel está activado: todas las aplicaciones de este Mac pueden acceder a la red de su VM de Cloud. `cmux vpn down` lo desactiva."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 雲端隧道已啟用：這部 Mac 上的每個應用程式都可以連線至您的雲端虛擬機器網路。`cmux vpn down` 可將其關閉。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel 已开启：此 Mac 上的所有应用均可访问您的云端虚拟机网络。使用 `cmux vpn down` 可将其关闭。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud 터널이 켜져 있습니다. 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있습니다. `cmux vpn down`을 실행하면 터널이 꺼집니다."
+          }
         }
       }
     },
@@ -487818,6 +488112,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "cmux クラウドトンネルはオンです。この Mac のすべてのアプリがクラウド VM ネットワークに到達できます。アイドル状態になると自動的に停止します。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud-Tunnel ist aktiv: Jede App auf diesem Mac kann das Netzwerk Ihrer Cloud-VM erreichen. Er stoppt bei Inaktivität automatisch."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tunnel Cloud cmux est activé : toutes les applications sur ce Mac peuvent accéder au réseau de votre VM Cloud. Il s'arrête automatiquement lorsqu'il est inactif."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نفق cmux Cloud Tunnel قيد التشغيل: يمكن لكل تطبيق على جهاز Mac هذا الوصول إلى شبكة Cloud VM الخاصة بك. سيتوقف تلقائيًا عند الخمول."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel está activado: todas las aplicaciones de este Mac pueden acceder a la red de su VM de Cloud. Se detiene solo cuando está inactivo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 雲端隧道已啟用：這部 Mac 上的每個應用程式都可以連線至您的雲端虛擬機器網路。閒置時會自動停止。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel 已开启：此 Mac 上的所有应用均可访问您的云端虚拟机网络。闲置时它会自动停止。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud 터널이 켜져 있습니다. 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있습니다. 유휴 상태가 되면 자동으로 중지됩니다."
           }
         }
       }
@@ -487836,6 +488172,48 @@
             "state": "translated",
             "value": "システム設定を開く"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir les Réglages Système"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "افتتح إعدادات النظام"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes del Sistema"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟系統設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开系统设置"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시스템 설정 열기"
+          }
         }
       }
     },
@@ -487852,6 +488230,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "cmux クラウドトンネルは、この Mac のすべてのアプリにクラウド VM ネットワークへの経路を与える macOS のネットワーク機能拡張です。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der cmux Cloud-Tunnel ist eine macOS-Netzwerkerweiterung, die jeder App auf diesem Mac eine Route zum Netzwerk Ihrer Cloud-VM bereitstellt. cmux selbst benötigt ihn nicht: Terminals, Ports und Desktop verwenden den integrierten User-Space-Tunnel."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le tunnel Cloud cmux est une extension réseau macOS qui fournit à toutes les applications de ce Mac un itinéraire vers le réseau de votre VM Cloud. cmux lui-même n'en a pas besoin : les terminaux, Ports et Desktop utilisent le tunnel intégré en espace utilisateur."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إن نفق cmux Cloud Tunnel هو ملحق شبكة لنظام macOS يمنح كل تطبيق على جهاز Mac هذا مسارًا إلى شبكة Cloud VM الخاصة بك. لا يحتاجه cmux نفسه: حيث تستخدم الطرفيات، والمنافذ، وسطح المكتب النفق المدمج في مساحة المستخدم."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cmux Cloud Tunnel es una extensión de red de macOS que brinda a todas las aplicaciones de este Mac una ruta hacia la red de su VM de Cloud. El propio cmux no la necesita: las terminales, Ports y Desktop utilizan el túnel integrado en el espacio de usuario."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 雲端隧道是一個 macOS 網路延伸功能，可為這部 Mac 上的每個應用程式提供前往您雲端虛擬機器網路的路由。cmux 本身並不需要它：終端機、連接埠和桌面會使用內建的使用者空間隧道。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel 是一个 macOS 网络扩展，它为此 Mac 上的所有应用提供通往您的云端虚拟机网络的路由。cmux 本身不需要它：终端、端口和桌面使用内置的用户空间隧道。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud 터널은 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있는 경로를 제공하는 macOS 네트워크 확장 프로그램입니다. cmux 자체에는 이 터널이 필요하지 않습니다. 터미널, Ports, Desktop은 내장된 사용자 공간 터널을 사용합니다."
           }
         }
       }
@@ -487870,6 +488290,48 @@
             "state": "translated",
             "value": "リンクを準備しています…"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link wird vorbereitet…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Préparation du lien…"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جاري تحضير الرابط…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando el enlace…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備連結…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备链接…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 준비 중…"
+          }
         }
       }
     },
@@ -487886,6 +488348,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "リンクをコピー"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link kopieren"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier le lien"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نسخ الرابط"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar enlace"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製連結"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制链接"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 복사"
           }
         }
       }
@@ -487904,6 +488408,48 @@
             "state": "translated",
             "value": "プライベートアドレスの URL をコピー"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL der privaten Adresse kopieren"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier l'URL de l'adresse privée"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نسخ عنوان الشبكة الخاصة"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar URL de la dirección privada"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製私人位址 URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制私有地址 URL"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사설 주소 URL 복사"
+          }
         }
       }
     },
@@ -487920,6 +488466,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "これにより、cmux クラウドトンネルのネットワーク機能拡張と「cmux Cloud」という名前の macOS VPN 構成がインストールされ、この Mac のすべてのアプリがクラウド VM ネットワークに到達できるようになります。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。初回は、macOS が「システム設定」›「一般」›「ログイン項目と機能拡張」で機能拡張の許可を求めます。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dies installiert die cmux Cloud-Tunnel-Netzwerkerweiterung und eine macOS-VPN-Konfiguration namens „cmux Cloud“, sodass jede App auf diesem Mac das Netzwerk Ihrer Cloud-VM erreichen kann. cmux selbst benötigt diese nicht: Terminals, Ports und Desktop verwenden den integrierten User-Space-Tunnel. Beim ersten Mal fordert macOS Sie auf, die Erweiterung in den Systemeinstellungen › Allgemein › Anmeldeobjekte & Erweiterungen zu erlauben."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceci installe l'extension réseau du tunnel Cloud cmux et une configuration VPN macOS nommée « cmux Cloud », afin que toutes les applications de ce Mac puissent accéder au réseau de votre VM Cloud. cmux lui-même n'en a pas besoin : les terminaux, Ports et Desktop utilisent le tunnel intégré en espace utilisateur. La première fois, macOS vous demandera d'autoriser l'extension dans Réglages Système › Général › Éléments de connexion et extensions."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يقوم هذا بتثبيت ملحق شبكة نفق cmux Cloud Tunnel وتكوين شبكة VPN لنظام macOS باسم “cmux Cloud”، بحيث يمكن لكل تطبيق على جهاز Mac هذا الوصول إلى شبكة Cloud VM الخاصة بك. لا يحتاجه cmux نفسه: حيث تستخدم الطرفيات، والمنافذ، وسطح المكتب النفق المدمج في مساحة المستخدم. في المرة الأولى، سيطلب منك نظام macOS السماح بالملحق في إعدادات النظام › عام › عناصر تسجيل الدخول والملحقات."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto instala la extensión de red cmux Cloud Tunnel y una configuración de VPN de macOS llamada “cmux Cloud”, de modo que todas las aplicaciones de este Mac puedan acceder a la red de su VM de Cloud. El propio cmux no la necesita: las terminales, Ports y Desktop utilizan el túnel integrado en el espacio de usuario. La primera vez, macOS le pedirá que permita la extensión en Ajustes del Sistema › General › Ítems de inicio y extensiones."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會安裝 cmux 雲端隧道網路延伸功能以及名為「cmux Cloud」的 macOS VPN 設定，好讓這部 Mac 上的每個應用程式都能連線至您的雲端虛擬機器網路。cmux 本身並不需要它：終端機、連接埠和桌面會使用內建的使用者空間隧道。首次安裝時，macOS 會要求您在「系統設定」›「一般」›「登入項目與延伸功能」中允許該延伸功能。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会安装 cmux Cloud Tunnel 网络扩展以及一个名为“cmux Cloud”的 macOS VPN 配置，以便此 Mac 上的所有应用都能访问您的云端虚拟机网络。cmux 本身不需要它：终端、端口和桌面使用内置的用户空间隧道。首次使用时，macOS 会要求您在“系统设置 › 通用 › 登录项与扩展”中允许该扩展。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 작업은 cmux Cloud 터널 네트워크 확장 프로그램 및 “cmux Cloud”라는 macOS VPN 구성을 설치하여 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있도록 합니다. cmux 자체에는 이 터널이 필요하지 않습니다. 터미널, Ports, Desktop은 내장된 사용자 공간 터널을 사용합니다. 처음 실행할 때 macOS는 시스템 설정 › 일반 › 로그인 항목 및 확장 프로그램에서 확장 프로그램을 허용하도록 요청합니다."
           }
         }
       }
@@ -487938,6 +488526,48 @@
             "state": "translated",
             "value": "cmux クラウドトンネルを停止しています…"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der cmux Cloud-Tunnel wird gestoppt…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrêt du tunnel Cloud cmux…"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جاري إيقاف نفق cmux Cloud Tunnel…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cmux Cloud Tunnel se está deteniendo…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 雲端隧道正在停止…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel 正在停止…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud 터널을 중지하는 중…"
+          }
         }
       }
     },
@@ -487955,6 +488585,48 @@
             "state": "translated",
             "value": "cmux はこのポート転送用のローカルアドレスを作成できませんでした。"
           }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux konnte keine lokale Adresse für diese Portweiterleitung erstellen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux n'a pas pu créer d'adresse locale pour cette redirection de port."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم يتمكن cmux من إنشاء عنوان محلي لتوجيه هذا المنفذ."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux no pudo generar una dirección local para este reenvío de puerto."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 無法為此連接埠轉送建立本機位址。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 无法为此端口转发构建本地地址。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux가 이 포트 포워딩을 위한 로컬 주소를 생성할 수 없습니다."
+          }
         }
       }
     },
@@ -487971,6 +488643,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "これにより cmux クラウドトンネルが再びオンになり、この Mac のすべてのアプリがクラウド VM ネットワークに到達できるようになります。cmux 自体には不要です。ターミナル、ポート、デスクトップは内蔵のユーザー空間トンネルを使います。"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dies schaltet den cmux Cloud-Tunnel wieder ein, sodass jede App auf diesem Mac das Netzwerk Ihrer Cloud-VM erreichen kann. cmux selbst benötigt ihn nicht: Terminals, Ports und Desktop verwenden den integrierten User-Space-Tunnel."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ceci réactive le tunnel Cloud cmux, permettant à toutes les applications de ce Mac d'accéder au réseau de votre VM Cloud. cmux lui-même n'en a pas besoin : les terminaux, Ports et Desktop utilisent le tunnel intégré en espace utilisateur."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يعيد هذا تشغيل نفق cmux Cloud Tunnel، بحيث يمكن لكل تطبيق على جهاز Mac هذا الوصول إلى شبكة Cloud VM الخاصة بك. لا يحتاجه cmux نفسه: حيث تستخدم الطرفيات، والمنافذ، وسطح المكتب النفق المدمج في مساحة المستخدم."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto vuelve a activar el cmux Cloud Tunnel, de modo que todas las aplicaciones de este Mac puedan acceder a la red de su VM de Cloud. El propio cmux no la necesita: las terminales, Ports y Desktop utilizan el túnel integrado en el espacio de usuario."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這會重新啟用 cmux 雲端隧道，好讓這部 Mac 上的每個應用程式都能連線至您的雲端虛擬機器網路。cmux 本身並不需要它：終端機、連接埠和桌面會使用內建的使用者空間隧道。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会重新开启 cmux Cloud Tunnel，以便此 Mac 上的所有应用都能访问您的云端虚拟机网络。cmux 本身不需要它：终端、端口和桌面使用内置的用户空间隧道。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 작업은 cmux Cloud 터널을 다시 켜서 이 Mac의 모든 앱이 Cloud VM 네트워크에 연결할 수 있도록 합니다. cmux 자체에는 이 터널이 필요하지 않습니다. 터미널, Ports, Desktop은 내장된 사용자 공간 터널을 사용합니다."
           }
         }
       }
