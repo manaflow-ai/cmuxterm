@@ -186,6 +186,7 @@ public struct SidebarSection: View {
                 sidebarFontFamily: sidebarFontFamily,
                 hostActions: hostActions
             )
+            SettingsCardDivider()
 
             SettingsCardRow(
                 configurationReview: .json("sidebar.rightMaxWidth"),

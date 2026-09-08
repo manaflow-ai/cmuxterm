@@ -20,11 +20,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
     // Direct-draw badge (shared with workspace rows): NSTextField's
     // intrinsic insets shift single digits off the circle's optical center.
     private let unreadBadgeView = SidebarRowUnreadBadgeView()
-    private var unreadBadgeFont: NSFont = CmuxFontResolver.appKitFont(
-        family: nil,
-        size: 10,
-        weight: .semibold
-    )
+    private var unreadBadgeFont: NSFont = .systemFont(ofSize: 10, weight: .semibold)
     private let plusButton = SidebarHeaderGlyphButton()
     private let topDropIndicator = NSView()
     private let bottomDropIndicator = NSView()
@@ -181,11 +177,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
             ?? colorResolver.resolvedColor(.secondaryLabelColor, for: colorScheme)
 
         nameField.stringValue = model.name
-        nameField.font = CmuxFontResolver.appKitFont(
-            family: model.sidebarFontFamily,
-            size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
-            weight: .semibold
-        )
+        nameField.font = CmuxFontResolver.appKitFont(family: model.sidebarFontFamily, size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent), weight: .semibold)
         nameField.textColor = model.isAnchorActive
             ? colorResolver.resolvedColor(.labelColor, for: colorScheme)
             : colorResolver.resolvedColor(.labelColor, for: colorScheme, opacity: 0.9)
@@ -193,11 +185,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
         let showsBadge = model.anchorUnreadCount > 0
         unreadBadgeView.isHidden = !showsBadge
         if showsBadge {
-            unreadBadgeFont = CmuxFontResolver.appKitFont(
-                family: model.sidebarFontFamily,
-                size: GlobalFontMagnification.scaledSize(metrics.unreadFontSize, percent: percent),
-                weight: .semibold
-            )
+            unreadBadgeFont = CmuxFontResolver.appKitFont(family: model.sidebarFontFamily, size: GlobalFontMagnification.scaledSize(metrics.unreadFontSize, percent: percent), weight: .semibold)
             unreadBadgeView.configure(
                 count: model.anchorUnreadCount,
                 fillColor: .controlAccentColor,
@@ -370,11 +358,7 @@ final class SidebarGroupHeaderTableCellView: NSTableCellView {
     static func preferredHeight(model: SidebarGroupHeaderRowModel) -> CGFloat {
         let metrics = SidebarWorkspaceGroupHeaderMetrics(fontScale: model.fontScale)
         let percent = model.globalFontMagnificationPercent
-        let nameFont = CmuxFontResolver.appKitFont(
-            family: model.sidebarFontFamily,
-            size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent),
-            weight: .semibold
-        )
+        let nameFont = CmuxFontResolver.appKitFont(family: model.sidebarFontFamily, size: GlobalFontMagnification.scaledSize(metrics.nameFontSize, percent: percent), weight: .semibold)
         let nameLineHeight = ceil(nameFont.ascender - nameFont.descender + nameFont.leading)
         let content = max(metrics.chevronFrame, metrics.iconFrame, metrics.plusFrame, nameLineHeight)
         return ceil(content + 10)

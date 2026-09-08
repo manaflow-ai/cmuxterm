@@ -1351,8 +1351,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
                       tableView: tableView,
                       row: row,
                       size: draggingItem.draggingFrame.size,
-                      count: count,
-                      fontFamily: actionBundle?.sidebarFontFamily
+                      count: count, fontFamily: actionBundle?.sidebarFontFamily
                   ) else {
                 return
             }
@@ -1364,8 +1363,7 @@ final class SidebarWorkspaceTableController: NSObject, NSTableViewDataSource, NS
         tableView: NSTableView,
         row: Int,
         size: NSSize,
-        count: Int,
-        fontFamily: String?
+        count: Int, fontFamily: String?
     ) -> NSImage? {
         let rowRect = tableView.rect(ofRow: row)
         guard rowRect.width > 0,

@@ -594,8 +594,7 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
             text: model.shortcutHintText,
             fontSize: model.scaled(9),
             emphasis: model.isActive ? 1.0 : 0.9,
-            fontFamily: model.settings.sidebarFontFamily,
-            representedIdentity: model.workspaceId
+            fontFamily: model.settings.sidebarFontFamily, representedIdentity: model.workspaceId
         )
         topDropIndicator.layer?.backgroundColor = cmuxAccentNSColor(for: palette.colorScheme).cgColor
         bottomDropIndicator.layer?.backgroundColor = cmuxAccentNSColor(for: palette.colorScheme).cgColor
@@ -1112,7 +1111,7 @@ final class SidebarWorkspaceRowTableCellView: NSTableCellView {
         var x = leading
         let badgeSide = 16 * model.fontScale
         let spinnerSide = max(10, 12 * model.fontScale)
-        let firstLineCenter = model.scaled(12.5) * 0.6 + y
+        let titleFont = titleView.font ?? NSFont.systemFont(ofSize: model.scaled(12.5)); let firstLineCenter = y + (titleFont.ascender - titleFont.descender + titleFont.leading) / 2
 
         func place(_ view: NSView, size: NSSize, centerY: CGFloat) {
             guard apply else { return }

@@ -15,7 +15,7 @@ func dslFontSpec(from token: String?) -> DSLFontSpec? {
     guard cleaned.hasPrefix("system") else {
         return dslFontSpec(named: cleaned, size: nil)
     }
-    let design: Font.Design = cleaned.contains("monospaced") ? .monospaced : .default
+    let design = dslFontDesign(namedArgument(named: "design", in: cleaned)) ?? .default
     let weight = dslFontWeight(in: cleaned)
     if let size = numericArgument(named: "size", in: cleaned) {
         return dslFontSpec(named: nil, size: size, weight: weight, design: design)
@@ -43,6 +43,14 @@ private func numericArgument(named name: String, in token: String) -> Double? {
         .drop(while: { $0 == " " })
         .prefix(while: { $0.isNumber || $0 == "." })
     return Double(digits)
+}
+
+private func namedArgument(named name: String, in token: String) -> String? {
+    guard let range = token.range(of: "\(name):") else { return nil }
+    let value = token[range.upperBound...]
+        .drop(while: { $0 == " " })
+        .prefix(while: { $0 != "," && $0 != ")" })
+    return String(value).trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func dslFontWeight(in token: String) -> Font.Weight? {

@@ -11,7 +11,7 @@ struct SidebarDirectoryText: View {
     let candidates: [String]
     let color: Color
     var fontScale: CGFloat = 1
-    var fontFamily: String?
+    var fontFamily: String? = nil
 
     var body: some View {
         if candidates.count <= 1 {

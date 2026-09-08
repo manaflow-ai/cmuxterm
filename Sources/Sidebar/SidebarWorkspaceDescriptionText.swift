@@ -9,7 +9,7 @@ struct SidebarWorkspaceDescriptionText: View {
     let isActive: Bool
     let activeForegroundColor: Color
     let fontScale: CGFloat
-    let fontFamily: String?
+    let fontFamily: String? = nil
     private static let maxDisplayedLines = 12
     private static let maxDisplayedCharacters = 4096
 

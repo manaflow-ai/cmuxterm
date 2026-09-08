@@ -2107,6 +2107,7 @@
           "currentLineHighlight": "Highlight the caret's line when the selection is empty.",
           "tabWidth": "Width of a tab stop, in columns, for indentation and indent guides."
         },
+        "sidebarAppearance": "Sidebar appearance settings from Settings > Sidebar Appearance.",
         "sidebar": {
           "fontFamily": "Font family used for built-in sidebar text. Leave empty for the system font.",
           "notificationMessageLineLimit": "Maximum lines shown for the latest notification below each workspace title.",

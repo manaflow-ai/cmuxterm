@@ -1265,6 +1265,7 @@
     "sidebarAppearance": {
       "title": "sidebarAppearance",
       "description": "Sidebar appearance settings from Settings > Sidebar Appearance.",
+      "descriptionKey": "schemaDescriptions.sidebarAppearance",
       "type": "object",
       "additionalProperties": false,
       "properties": {

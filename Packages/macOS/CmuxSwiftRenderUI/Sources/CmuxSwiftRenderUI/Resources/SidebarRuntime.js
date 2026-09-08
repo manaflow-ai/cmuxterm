@@ -178,6 +178,9 @@
       pushOp({ op: "update", id, key: "family", value: normalizeProp(value.family) });
       return;
     }
+    if (key === "font") {
+      pushOp({ op: "update", id, key: "family", value: null });
+    }
     pushOp({ op: "update", id, key, value: normalizeProp(value) });
   }
 

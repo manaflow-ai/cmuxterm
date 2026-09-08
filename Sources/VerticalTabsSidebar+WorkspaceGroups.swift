@@ -101,8 +101,7 @@ extension VerticalTabsSidebar {
             shortcutHintText: nil,
             shortcutHintXOffset: settings.sidebarShortcutHintXOffset,
             shortcutHintYOffset: settings.sidebarShortcutHintYOffset,
-            fontScale: settings.sidebarFontScale,
-            sidebarFontFamily: settings.sidebarFontFamily,
+            fontScale: settings.sidebarFontScale, sidebarFontFamily: settings.sidebarFontFamily,
             globalFontMagnificationPercent: renderContext.environment.globalFontMagnificationPercent,
             cwdContextMenuItems: cwdContextMenuItems,
             rowSpacing: tabRowSpacing,
@@ -158,7 +157,6 @@ extension VerticalTabsSidebar {
             }
         )
     }
-
     func sidebarWorkspaceGroupRowSnapshot(
         group: WorkspaceGroup,
         memberWorkspaceIds: [UUID],
@@ -261,6 +259,7 @@ extension VerticalTabsSidebar {
             shortcutHintXOffset: settings.sidebarShortcutHintXOffset,
             shortcutHintYOffset: settings.sidebarShortcutHintYOffset,
             fontScale: settings.sidebarFontScale,
+            sidebarFontFamily: settings.sidebarFontFamily,
             cwdContextMenuItems: cwdContextMenuItems,
             newWorkspacePlacement: newWorkspacePlacement,
             rowSpacing: tabRowSpacing,
@@ -311,7 +310,7 @@ extension VerticalTabsSidebar {
             isPointerHovering: snapshot.isPointerHovering,
             shortcutHintXOffset: snapshot.shortcutHintXOffset,
             shortcutHintYOffset: snapshot.shortcutHintYOffset,
-            fontScale: snapshot.fontScale,
+            fontScale: snapshot.fontScale, sidebarFontFamily: snapshot.sidebarFontFamily,
             cwdContextMenuItems: snapshot.cwdContextMenuItems,
             newWorkspacePlacement: snapshot.newWorkspacePlacement,
             rowSpacing: snapshot.rowSpacing,

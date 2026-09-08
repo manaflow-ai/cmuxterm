@@ -39,4 +39,13 @@ struct SidebarFontFamilyTests {
         #expect(spec?.family == "MonoLisaText")
         #expect(spec?.baseSize == 13)
     }
+
+    @Test("Swift system font tokens retain their design")
+    func swiftSystemFontTokenRetainsDesign() throws {
+        let rounded = dslFontSpec(from: ".system(size: 13, design: .rounded)")
+        let serif = dslFontSpec(from: ".system(size: 13, design: .serif)")
+
+        #expect(rounded?.design == .rounded)
+        #expect(serif?.design == .serif)
+    }
 }
