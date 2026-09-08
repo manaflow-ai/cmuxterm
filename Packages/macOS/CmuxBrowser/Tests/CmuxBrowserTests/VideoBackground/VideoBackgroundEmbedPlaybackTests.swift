@@ -91,6 +91,16 @@ struct VideoBackgroundEmbedPlaybackTests {
         #expect(context.evaluateScript("seeks[0]")?.toDouble() == 120)
     }
 
+    @Test(arguments: [false, true])
+    func playlistDoesNotInterpretAggregateElapsedTimeAsAVideoTimestamp(queueManaged: Bool) throws {
+        let context = try makePlayer(source: .youTubePlaylist(id: "PLtest"), queueManaged: queueManaged)
+        try evaluate("window.cmuxVideoBackgroundSetPosition(250); emitReady()", in: context)
+        try evaluate("playlistIndex = 1; duration = 90; window.cmuxVideoBackgroundSetPosition(500); emitState(1)", in: context)
+        #expect(context.evaluateScript("seeks.length")?.toInt32() == 0)
+        #expect(context.evaluateScript("playlistIndex")?.toInt32() == 1)
+        #expect(context.evaluateScript("hostEvents.length")?.toInt32() == 0)
+    }
+
     private func evaluate(_ script: String, in context: JSContext) throws {
         context.evaluateScript(script)
         try #require(context.exception == nil, "JavaScript error: \(context.exception?.toString() ?? "")")
