@@ -40,6 +40,50 @@ import Testing
         }
     }
 
+    @Test func testRejectedCurrentCaptureRepairsMappedCodexPermissionsFromTranscript() throws {
+        let transcriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-codex-permissions-\(UUID().uuidString).jsonl")
+        let transcript = #"{"timestamp":"1970-01-01T00:01:30.000Z","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
+        try Data((transcript + "\n").utf8).write(to: transcriptURL)
+        defer { try? FileManager.default.removeItem(at: transcriptURL) }
+
+        let current = AgentHookLaunchCommandRecord(
+            rejectedOn: .launcherDoesNotDescribeKind,
+            launcher: "shell",
+            capturedAt: 300,
+            source: "process"
+        )
+        let mappedJSON: [String: Any] = [
+            "sessionId": "mapped-session",
+            "workspaceId": "workspace:1",
+            "surfaceId": "surface:1",
+            "cwd": "/tmp",
+            "transcriptPath": transcriptURL.path,
+            "pid": 123,
+            "launchCommand": [
+                "launcher": "codex",
+                "arguments": ["codex", "resume", "mapped-session"],
+                "capturedAt": 100,
+                "source": "process",
+            ],
+            "startedAt": 100,
+            "updatedAt": 100,
+        ]
+        let mapped = try JSONDecoder().decode(
+            ClaudeHookSessionRecord.self,
+            from: JSONSerialization.data(withJSONObject: mappedJSON)
+        )
+
+        let selected = CMUXCLI(args: []).preferredAgentHookResumeLaunchCommand(
+            kind: "codex",
+            current: current,
+            mapped: mapped,
+            transcriptPath: transcriptURL.path
+        )
+
+        #expect(selected?.arguments == ["codex", "resume", "mapped-session", "--yolo"])
+    }
+
     @Test func testCLIErrorPathDoesNotCrashWhenStderrIsClosed() throws {
         let cliPath = try bundledCLIPath()
         // Pin the socket and the home directory. Without CMUX_SOCKET_PATH the CLI's resolution can
