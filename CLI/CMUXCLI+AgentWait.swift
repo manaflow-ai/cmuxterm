@@ -115,7 +115,20 @@ extension CMUXCLI {
         var index = 0
         while index < args.count {
             let argument = args[index]
+            let option: String
+            let inlineValue: String?
+            if let equalsIndex = argument.firstIndex(of: "=") {
+                option = String(argument[..<equalsIndex])
+                inlineValue = String(argument[argument.index(after: equalsIndex)...])
+            } else {
+                option = argument
+                inlineValue = nil
+            }
+
             func requireValue() throws -> String {
+                if let inlineValue {
+                    return inlineValue
+                }
                 guard index + 1 < args.count else {
                     throw CLIError(
                         message: String.localizedStringWithFormat(
@@ -132,7 +145,7 @@ extension CMUXCLI {
                 return args[index]
             }
 
-            switch argument {
+            switch option {
             case "--surface":
                 options.surface = try requireValue()
             case "--until":

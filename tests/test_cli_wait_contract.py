@@ -162,6 +162,36 @@ def main() -> int:
                 f"unexpected agent.wait request: {state.calls[-1]!r}",
             )
 
+            for timeout_option in ("--timeout=2500", "--timeout-ms=2500"):
+                result = run_cli(
+                    cli,
+                    socket_path,
+                    [
+                        "wait",
+                        "--surface",
+                        SURFACE_ID,
+                        "--until",
+                        "needs-input",
+                        timeout_option,
+                    ],
+                    cwd=tmp,
+                )
+                expect(result.returncode == 0, f"equals-style wait failed: {result}")
+                expect(result.stdout == "", f"equals-style wait wrote stdout: {result.stdout!r}")
+                expect(result.stderr == "", f"equals-style wait wrote stderr: {result.stderr!r}")
+                expect(
+                    state.calls[-1]
+                    == (
+                        "agent.wait",
+                        {
+                            "surface_id": SURFACE_ID,
+                            "until": "needs-input",
+                            "timeout_ms": 2500,
+                        },
+                    ),
+                    f"unexpected equals-style agent.wait request: {state.calls[-1]!r}",
+                )
+
             result = run_cli(
                 cli,
                 socket_path,
