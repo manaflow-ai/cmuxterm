@@ -37,6 +37,24 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_rejects_duplicate_locale_members_before_validation(self):
+        text = '{"sourceLanguage":"en","strings":{"example":{"localizations":{"en":' + json.dumps(unit("Open")) + ',"de":' + json.dumps(unit("")) + ',"de":' + json.dumps(unit("Öffnen")) + '}}},"version":"1.0"}'
+        with self.assertRaisesRegex(ValueError, "duplicate.*de"):
+            MODULE.catalog_entries(text)
+
+    def test_rejects_duplicate_substitution_members(self):
+        english = unit("%d matches")
+        localized = counted("%#@count@ Treffer", unit("%d"), unit("%d"))
+        text = json.dumps({"sourceLanguage": "en", "strings": {"example": {"localizations": {"en": english, "de": localized}}}, "version": "1.0"})
+        text = text.replace('"substitutions": {"count":', '"substitutions": {"count": {}, "count":', 1)
+        with self.assertRaisesRegex(ValueError, "duplicate.*count"):
+            MODULE.catalog_entries(text)
+
+    def test_rejects_duplicate_catalog_containers(self):
+        text = '{"sourceLanguage":"en","strings":{},"strings":{},"version":"1.0"}'
+        with self.assertRaisesRegex(ValueError, "duplicate.*strings"):
+            MODULE.catalog_entries(text)
+
     def test_shared_plural_words_do_not_allow_an_english_parent(self):
         english = counted("Your plan includes %#@count@.", unit("%d machine"), unit("%d machines"))
         french = counted("Votre forfait comprend %#@count@.", unit("%d machine"), unit("%d machines"))
