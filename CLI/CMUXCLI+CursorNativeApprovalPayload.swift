@@ -174,25 +174,25 @@ extension CMUXCLI {
 
         private mutating func consumeKeyByte(_ byte: UInt8) -> Bool {
             if escaped {
-                append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
+                Self.append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
                 escaped = false
                 return false
             }
             if byte == 0x5C {
-                append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
+                Self.append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
                 escaped = true
                 return false
             }
             if byte == 0x22 {
                 return true
             }
-            append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
+            Self.append(byte, to: &keyBytes, overflowed: &keyOverflowed, maximumBytes: 128)
             return false
         }
 
         private mutating func consumeValueByte(_ byte: UInt8) -> Bool {
             if escaped {
-                append(
+                Self.append(
                     byte,
                     to: &valueBytes,
                     overflowed: &valueOverflowed,
@@ -202,7 +202,7 @@ extension CMUXCLI {
                 return false
             }
             if byte == 0x5C {
-                append(
+                Self.append(
                     byte,
                     to: &valueBytes,
                     overflowed: &valueOverflowed,
@@ -212,7 +212,7 @@ extension CMUXCLI {
                 return false
             }
             if byte == 0x22 { return true }
-            append(
+            Self.append(
                 byte,
                 to: &valueBytes,
                 overflowed: &valueOverflowed,
@@ -260,7 +260,7 @@ extension CMUXCLI {
             }
         }
 
-        private mutating func append(
+        private static func append(
             _ byte: UInt8,
             to buffer: inout [UInt8],
             overflowed: inout Bool,
