@@ -98,7 +98,7 @@ extension CmuxPluginSystemTests {
         let pluginIDs = (0 ..< CmuxPluginDirectoryLoader.maximumPluginCount).map {
             "dev.example.overlap-\($0)"
         }
-        for pluginID in pluginIDs {
+        for pluginID in pluginIDs.dropLast() {
             try Self.writePlugin(
                 CmuxExtensionManifest.plugin(
                     id: pluginID,
@@ -113,10 +113,24 @@ extension CmuxPluginSystemTests {
             loader: CmuxPluginDirectoryLoader(directoryURL: root),
             permissionStore: CmuxPluginPermissionStore(storageURL: nil)
         )
+
+        // Seed the registry so a partial reload always merges against the
+        // complete prior report, regardless of which overlapping task reaches
+        // the actor first. The newly added plugin is the affected directory.
+        let initialSnapshot = await registry.reload()
+        #expect(initialSnapshot.plugins.count == pluginIDs.count - 1)
+        try Self.writePlugin(
+            CmuxExtensionManifest.plugin(
+                id: pluginIDs[pluginIDs.count - 1],
+                displayName: pluginIDs[pluginIDs.count - 1],
+                entrypoint: "bin/plugin"
+            ),
+            to: root
+        )
+
         let fullReload = Task { await registry.reload() }
-        await Task.yield()
         let partialReload = Task {
-            await registry.reload(affectedPluginIDs: [pluginIDs[0]])
+            await registry.reload(affectedPluginIDs: [pluginIDs[pluginIDs.count - 1]])
         }
 
         let fullSnapshot = await fullReload.value
