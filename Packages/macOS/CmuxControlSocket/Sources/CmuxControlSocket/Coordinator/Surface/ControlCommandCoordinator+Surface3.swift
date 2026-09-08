@@ -254,6 +254,7 @@ extension ControlCommandCoordinator {
                 "surface_id": .string(snapshot.surfaceID.uuidString),
                 "surface_ref": ref(.surface, snapshot.surfaceID),
                 "cleared": .bool(snapshot.cleared),
+                "agent_restore_admission_supported": .bool(true),
                 "resume_binding": surfaceResumeBindingPayload(snapshot.binding),
                 "resume_binding_generation": snapshot.resumeBindingGeneration.map {
                     .string($0.uuidString)
