@@ -52,6 +52,11 @@ struct AntigravityHookSessionSnapshotRestoreTests {
         let index = RestorableAgentSessionIndex.load(
             homeDirectory: homeDirectory.path,
             fileManager: fileManager,
+            registry: CmuxVaultAgentRegistry.load(
+                homeDirectory: homeDirectory.path,
+                fileManager: fileManager
+            ),
+            detectedSnapshots: [:],
             processArgumentsProvider: { _ in nil }
         )
         let snapshot = try #require(
@@ -66,9 +71,12 @@ struct AntigravityHookSessionSnapshotRestoreTests {
         #expect(snapshot.kind == .custom("antigravity"))
         #expect(snapshot.sessionId == sessionID)
         #expect(snapshot.registration?.id == "antigravity")
+        // `-c` (continue) is a launch-only flag and must not replay; the
+        // permission flag must survive so the restored session keeps the mode
+        // the user launched with (https://github.com/manaflow-ai/cmux/issues/5473).
         #expect(
             snapshot.resumeCommand ==
-                "cd -- '/tmp/antigravity-5473' 2>/dev/null || [ ! -d '/tmp/antigravity-5473' ] && 'agy' '--conversation' 'antigravity-conversation-5473'"
+                "cd -- '/tmp/antigravity-5473' 2>/dev/null || [ ! -d '/tmp/antigravity-5473' ] && 'agy' '--conversation' 'antigravity-conversation-5473' '--dangerously-skip-permissions'"
         )
     }
 }
