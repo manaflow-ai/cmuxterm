@@ -36911,13 +36911,16 @@ export default CMUXSessionRestore;
                         surfaceId: mapped.surfaceId
                     )
                     sendAgentFeedTelemetry(workspaceId: mapped.workspaceId, surfaceId: mapped.surfaceId)
-                    // An authoritative SessionEnd closes abandoned prompt frames. The
-                    // mapped running projection may only describe the pre-boundary
-                    // PreInvocation, so do not carry it across this recovery boundary.
-                    let sessionEndLifecycle = def.promptDepthPolicy.closesActivePrompt
+                    // An authoritative SessionEnd closes abandoned prompt frames. Only
+                    // force idle while a prompt is still active: a preceding Stop or
+                    // Notification may have already settled the turn to a durable
+                    // running/needs-input/error state (for example, background work),
+                    // which this per-turn boundary must preserve.
+                    let hasAbandonedPrompt = (mapped.activePromptDepth ?? 0) > 0
+                    let sessionEndLifecycle = def.promptDepthPolicy.closesActivePrompt && hasAbandonedPrompt
                         ? AgentHibernationLifecycleState.idle
                         : mapped.agentLifecycle
-                    let sessionEndRuntimeStatus = def.promptDepthPolicy.closesActivePrompt
+                    let sessionEndRuntimeStatus = def.promptDepthPolicy.closesActivePrompt && hasAbandonedPrompt
                         ? AgentHookRuntimeStatus.idle
                         : mapped.runtimeStatus
                     _ = try? store.recordPromptStop(
