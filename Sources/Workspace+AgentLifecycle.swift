@@ -473,6 +473,33 @@ extension Workspace {
         ) != nil
     }
 
+    /// Whether a restore deferred behind its ownership scan still targets
+    /// `binding`'s session. Until the scan admits or cancels that launch, the
+    /// binding has no running process by design.
+    func deferredAgentResumeRestoreOwns(
+        _ binding: SurfaceResumeBindingSnapshot,
+        panelId: UUID
+    ) -> Bool {
+        guard binding.isAgentHookBinding,
+              let restore = deferredAgentResumeRestoresByPanelId[panelId] else {
+            return false
+        }
+        if let capturedBinding = restore.resumeBinding {
+            return capturedBinding.isSameManagedSession(as: binding)
+        }
+        guard let restorableAgent = restore.restorableAgent,
+              let kind = binding.kind?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let checkpointId = binding.checkpointId?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return restorableAgent.kind.rawValue == kind
+            && ManagedAgentSessionIdentity.sessionIDsMatch(
+                kind: kind,
+                lhs: restorableAgent.sessionId,
+                rhs: checkpointId
+            )
+    }
+
     /// A real shell callback has advanced this binding's restored launch from
     /// queued input to a running command.
     func restoredAgentLifecycleConfirmsRunning(
@@ -544,6 +571,13 @@ extension Workspace {
             return false
         }
         if restoredAgentLifecycleOwns(binding, panelId: panelId) {
+            return false
+        }
+        // A restore still deferred behind its ownership scan has not launched
+        // yet, so the absence of a live process is expected rather than proof
+        // that the agent exited. Retiring here would make the scan cancel the
+        // launch and restore a bare shell (#12084).
+        if deferredAgentResumeRestoreOwns(binding, panelId: panelId) {
             return false
         }
         let liveIndex = restorableAgentIndex ?? SharedLiveAgentIndex.shared.index
