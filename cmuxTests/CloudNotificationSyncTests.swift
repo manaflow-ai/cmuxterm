@@ -22,8 +22,9 @@ struct CloudNotificationSyncTests {
         readBy: [String] = [],
         createdAt: UInt64 = 1
     ) -> CloudVMNotificationRow {
+        // Left-pad so "n1" and "n10" stay distinct ids.
         CloudVMNotificationRow(
-            id: "notification_\(id.padding(toLength: 32, withPad: "0", startingAt: 0))",
+            id: "notification_\(String(repeating: "0", count: max(0, 32 - id.count)))\(id)",
             title: "title \(id)",
             body: "",
             level: "info",
@@ -390,13 +391,15 @@ struct CloudNotificationSyncTests {
                 break
             }
             machineApplyAcks()
+            #expect(Set(rows.map(\.id)).count == rows.count, "step \(step): fixture produced duplicate ids")
             sync.apply(rows: rows)
             await Task.yield()
             await Task.yield()
 
             // Invariant 1: at most one delivery per retained id, and only for rows not read by me.
             let deliveredCounts = Dictionary(effects.delivered.map { ($0, 1) }, uniquingKeysWith: +)
-            #expect(deliveredCounts.values.allSatisfy { $0 == 1 }, "step \(step): a row was delivered twice")
+            let duplicates = deliveredCounts.filter { $0.value > 1 }.keys.sorted()
+            #expect(duplicates.isEmpty, "step \(step): delivered twice: \(duplicates)")
             // Invariant 2: every local read of a retained row is pending or acknowledged.
             let ackedIDs = Set(effects.acked.values.flatMap { $0 })
             let pending = sync.state.pendingIDs

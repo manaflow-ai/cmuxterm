@@ -323,14 +323,20 @@ final class CloudNotificationSync {
                 next.delivered.removeAll { $0 == row.id }
             }
         }
+        // Commit before delivering: the store can call back into this sync
+        // while a banner is recorded (a focused surface reads it at once), and
+        // that re-entrant commit must build on the state that already counts
+        // these rows as delivered.
+        commit(next)
         var undelivered: [String] = []
         for (row, target) in placed where !deliver(row, target) {
             undelivered.append(row.id)
         }
         if !undelivered.isEmpty {
-            next.delivered.removeAll { undelivered.contains($0) }
+            var declined = state
+            declined.delivered.removeAll { undelivered.contains($0) }
+            commit(declined)
         }
-        commit(next)
         requestFlush()
     }
 
