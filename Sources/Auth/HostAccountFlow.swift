@@ -203,6 +203,16 @@ final class HostAccountFlow: AccountFlow, AccountSignInFlow {
         }
     }
 
+    // `AccountFlow` (CmuxSettingsUI) cannot see `ProUpgradeSource`; its
+    // parameterless calls come from the Settings account card.
+    func openProUpgrade() {
+        openProUpgrade(source: .settingsAccountCard)
+    }
+
+    func prefetchProUpgrade() {
+        prefetchProUpgrade(source: .settingsAccountCard)
+    }
+
     func openProUpgrade(source: ProUpgradeSource) {
         ProUpgradePresenter.present(source: source)
     }

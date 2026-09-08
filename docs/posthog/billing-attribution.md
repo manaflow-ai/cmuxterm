@@ -29,6 +29,7 @@ Sources today:
 | `mac_sidebar_help_menu` | sidebar help (?) menu item |
 | `mac_help_menu` | Help menu bar item |
 | `mac_command_palette` | command palette |
+| `mac_settings_account_card` | Settings > Account card |
 | `mac_settings_cloud_machines` | Settings > Cloud machines billing |
 | `mac_machines_panel_requires_pro` | machines panel empty state |
 | `mac_machines_panel_upgrade_nudge` | nudge under the create button |

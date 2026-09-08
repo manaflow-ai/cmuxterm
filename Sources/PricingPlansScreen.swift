@@ -19,6 +19,8 @@ enum ProUpgradeSource: String, CaseIterable, Sendable {
     case helpMenu = "mac_help_menu"
     /// Command palette "Upgrade to cmux Pro".
     case commandPalette = "mac_command_palette"
+    /// Settings > Account card "Upgrade" (via `AccountFlow`).
+    case settingsAccountCard = "mac_settings_account_card"
     /// Settings > Cloud machines billing.
     case settingsCloudMachines = "mac_settings_cloud_machines"
     /// Machines panel empty state: plan does not include Cloud machines.
