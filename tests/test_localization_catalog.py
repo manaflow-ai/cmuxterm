@@ -34,6 +34,20 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_rejects_strings_outside_the_catalog_strings_object(self):
+        catalog = {"sourceLanguage": "en", "strings": {}, "version": "1.0",
+                   "orphan": {"localizations": {"en": unit("Ignored by Xcode")}}}
+        with self.assertRaisesRegex(ValueError, "outside.*strings"):
+            MODULE.catalog_entries(json.dumps(catalog))
+
+    def test_shared_spelling_exception_is_locale_specific_and_never_allows_omission(self):
+        entry = MODULE.Member("terminal", {"localizations": {"en": unit("Terminal"), "de": unit("Terminal"), "ja": unit("Terminal")}}, 0, 0)
+        metadata = {"terminal": {"source": "Terminal", "identityLocales": {"de": "Established German technical term."}}}
+        self.assertEqual(MODULE.check_entry(entry, "de", metadata, {}), [])
+        self.assertTrue(MODULE.check_entry(entry, "ja", metadata, {}))
+        del entry.value["localizations"]["de"]
+        self.assertIn("missing locale entry", MODULE.check_entry(entry, "de", metadata, {}))
+
     def test_japanese_invariant_requires_entry_but_allows_literal(self):
         entry = MODULE.Member("brand", {"localizations": {"en": unit("cmux"), "ja": unit("cmux")}}, 0, 0)
         omissions = {"brand": {"source": "cmux", "class": "brand"}}
