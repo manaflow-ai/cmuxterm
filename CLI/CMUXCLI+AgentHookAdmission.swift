@@ -69,7 +69,8 @@ extension CMUXCLI {
         agent: String,
         client: SocketClient,
         socketPassword: String? = nil,
-        processEnvironment: [String: String] = ProcessInfo.processInfo.environment
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+        resolveLocalRoute: Bool = true
     ) -> [String: String] {
         var environment = AgentLaunchEnvironmentPolicy().selectedEnvironment(
             from: processEnvironment,
@@ -86,6 +87,9 @@ extension CMUXCLI {
             environment[pidEnvironmentKey] = String(inferredPID)
         }
         guard client.isRelayBacked else {
+            guard resolveLocalRoute else {
+                return environment
+            }
             if let processID = environment[pidEnvironmentKey].flatMap(Int.init),
                let binding = admittedAgentHookRoute(
                    processID: processID,
@@ -212,7 +216,8 @@ extension CMUXCLI {
         let environment = agentHookOrderingEnvironment(
             agent: agent,
             client: client,
-            socketPassword: socketPassword
+            socketPassword: socketPassword,
+            resolveLocalRoute: false
         )
         var params: [String: Any] = [
             "agent": agent,

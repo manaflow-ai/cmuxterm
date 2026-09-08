@@ -39844,7 +39844,7 @@ export default CMUXSessionRestore;
         // The response deadline stays below the generated 120s process
         // timeout, so a stalled daemon still returns neutral output before
         // the agent kills (and may deny) the hook subprocess.
-        let waitTimeout = isActionable ? Self.feedHookDecisionWaitSeconds : 0
+        var waitTimeout = isActionable ? Self.feedHookDecisionWaitSeconds : 0
         let shouldAwaitTelemetryIngestion = source == "pi"
         let params: [String: Any] = [
             "event": eventDict,
@@ -39955,6 +39955,27 @@ export default CMUXSessionRestore;
         } else {
             print("{}")
             return
+        }
+
+        if isActionable {
+            try? waitForPriorAgentHookDeliveries(
+                agent: source,
+                client: activeClient,
+                socketPassword: socketPassword,
+                responseTimeout: min(
+                    TimeInterval(Self.agentHookBarrierResponseTimeoutSeconds),
+                    max(0.01, clientDeadline.timeIntervalSinceNow)
+                ),
+                deadline: clientDeadline
+            )
+            waitTimeout = max(
+                0,
+                min(Self.feedHookDecisionWaitSeconds, clientDeadline.timeIntervalSinceNow)
+            )
+            request["params"] = [
+                "event": eventDict,
+                "wait_timeout_seconds": waitTimeout,
+            ]
         }
 
         if shouldAwaitTelemetryIngestion {

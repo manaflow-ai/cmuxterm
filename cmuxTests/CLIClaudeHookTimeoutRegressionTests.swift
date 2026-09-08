@@ -340,7 +340,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: capturedCommands,
             surfaceId: surfaceID,
-            connectionLimit: 1,
+            connectionLimit: 2,
             processBinding: CodexHookMockProcessBinding(
                 processID: 8535,
                 workspaceID: movedWorkspaceID,
@@ -388,7 +388,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(!commands.contains { $0.hasPrefix("set_agent_pid ") })
         #expect(!commands.contains { $0.contains(" --pid=8535") })
         #expect(commands.contains {
-            $0.hasPrefix("set_status \(agent) Running ")
+            $0.hasPrefix("set_status \(agent == \"claude\" ? \"claude_code\" : agent) Running ")
                 && $0.contains("--tab=\(movedWorkspaceID)")
                 && $0.contains("--panel=\(surfaceID)")
         }, Comment(rawValue: commands.joined(separator: "\n")))
@@ -577,7 +577,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             listenerFD: listenerFD,
             commands: capturedCommands,
             surfaceId: "surface-8535",
-            connectionLimit: 2
+            connectionLimit: 4
         )
         let oversizedOptions: [[String: Any]] = (0..<1_400).map { index in
             ["label": "Option \(index) " + String(repeating: "x", count: 60)]
