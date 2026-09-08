@@ -102,6 +102,28 @@ struct DockTabWorkspaceMoveTests {
         }
     }
 
+    @Test(arguments: [DockScope.global, .workspace])
+    func blankTitleFallsBackToDockPanelTitle(scope: DockScope) async throws {
+        try await AppContextSerialGate.withExclusiveAppContext {
+            try withHarness(scope: scope) { app, manager, dock in
+                let pane = try #require(dock.bonsplitController.allPaneIds.first)
+                let panelID = try #require(dock.newSurface(kind: .browser, inPane: pane, focus: false))
+                let expectedTitle = try #require(dock.panels[panelID]?.displayTitle)
+                #expect(!expectedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                #expect(app.moveDockSurfaceToNewWorkspace(
+                    sourceDock: dock,
+                    panelId: panelID,
+                    title: "   ",
+                    focus: false,
+                    focusWindow: false
+                ))
+                let destination = try #require(manager.tabs.first)
+                #expect(destination.title == expectedTitle)
+            }
+        }
+    }
+
     private func withHarness(
         scope: DockScope,
         _ body: (AppDelegate, TabManager, DockSplitStore) throws -> Void

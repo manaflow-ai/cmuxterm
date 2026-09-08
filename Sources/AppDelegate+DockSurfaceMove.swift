@@ -313,7 +313,7 @@ extension AppDelegate {
         guard let detached = sourceDock.detachSurface(panelId: panelId) else { return nil }
         (detached.panel as? TerminalPanel)?.surface.setFocusPlacement(.workspace)
         let hasExplicitTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        let destinationTitle = title ?? detached.title
+        let destinationTitle = hasExplicitTitle ? (title ?? detached.title) : detached.title
         let activationIntent = focusIntentForNewWorkspaceMove(panel: detached.panel)
 
         guard let destinationWorkspace = manager.addWorkspace(
@@ -339,9 +339,10 @@ extension AppDelegate {
         sourceDock.scheduleDockPortalReconcile(reason: "dock.moveSurfaceToNewWorkspace.source")
 
         if focus {
+            let destinationWindowId = focusWindow ? windowId(for: manager) : nil
             let destinationWindow = windowId(for: manager)
                 .flatMap { mainWindow(for: $0) }
-            if focusWindow, let destinationWindowId = windowId(for: manager) {
+            if let destinationWindowId {
                 _ = focusMainWindow(windowId: destinationWindowId)
             }
             manager.focusTab(
@@ -355,6 +356,15 @@ extension AppDelegate {
                     workspaceId: destinationWorkspace.id,
                     panelId: panelId,
                     in: destinationWindow
+                )
+            }
+            if let destinationWindowId {
+                reassertCrossWindowSurfaceMoveFocusIfNeeded(
+                    destinationWindowId: destinationWindowId,
+                    sourceWindowId: windowId(for: sourceManager) ?? sourceDock.workspaceId,
+                    destinationWorkspaceId: destinationWorkspace.id,
+                    destinationPanelId: panelId,
+                    destinationManager: manager
                 )
             }
         }
