@@ -235,7 +235,7 @@ extension MobileShellComposite {
             }
             guard let payload = try? MobileTerminalViewportResponse.decode(data),
                   let grid = payload.effectiveGrid else {
-                finishPrearmedTerminalViewportBarrierWithoutResize(
+                let replayRequested = finishPrearmedTerminalViewportBarrierWithoutResize(
                     surfaceID: surfaceID,
                     token: prearmedReplayBarrierToken,
                     reason: "viewport_missing_grid"
@@ -245,7 +245,7 @@ extension MobileShellComposite {
                     correlationID: surfaceID,
                     failure: .protocolViolation
                 )
-                finishPreparation(requestColdReplay: true)
+                finishPreparation(requestColdReplay: !replayRequested)
                 return nil
             }
             reportedTerminalViewportSizesBySurfaceID[surfaceID] = reportedGrid
@@ -253,6 +253,7 @@ extension MobileShellComposite {
             let previousGrid = effectiveViewportSizesBySurfaceID[surfaceID]
             effectiveViewportSizesBySurfaceID[surfaceID] = effectiveGrid
             let shouldRequestReplay = previousGrid.map { $0 != effectiveGrid } ?? true
+            var replayRequested = false
             if shouldRequestReplay,
                hasTerminalOutputSink(surfaceID: surfaceID) {
                 let replayBarrierToken: UUID
@@ -277,6 +278,7 @@ extension MobileShellComposite {
                     "terminal.output.viewport_resync surface=\(surfaceID) grid=\(effectiveGrid.columns)x\(effectiveGrid.rows)"
                 )
                 requestTerminalReplay(surfaceID: surfaceID, replayBarrierToken: replayBarrierToken)
+                replayRequested = true
             } else if prearmedReplayBarrierToken == nil,
                       terminalReplayBarrierTokensBySurfaceID[surfaceID] != nil,
                       terminalReplayFailureRetryExhausted(surfaceID: surfaceID),
@@ -290,8 +292,9 @@ extension MobileShellComposite {
                 let replayBarrierToken = beginTerminalReplayBarrierCarryingReplacedWork(surfaceID: surfaceID)
                 MobileDebugLog.anchormux("terminal.output.viewport_rearm_exhausted surface=\(surfaceID)")
                 requestTerminalReplay(surfaceID: surfaceID, replayBarrierToken: replayBarrierToken)
+                replayRequested = true
             } else {
-                finishPrearmedTerminalViewportBarrierWithoutResize(
+                replayRequested = finishPrearmedTerminalViewportBarrierWithoutResize(
                     surfaceID: surfaceID,
                     token: prearmedReplayBarrierToken,
                     reason: "viewport_unchanged"
@@ -302,7 +305,15 @@ extension MobileShellComposite {
                 correlationID: surfaceID,
                 count: grid.columns * grid.rows
             )
-            finishPreparation()
+            // Sink registration defers the cold attach replay while this
+            // acknowledgement is in flight. If the effective grid is
+            // unchanged, the normal resync branches above do not request a
+            // replay, so fulfill that deferred registration before clearing
+            // its preparation marker.
+            finishPreparation(
+                requestColdReplay: hasTerminalOutputSink(surfaceID: surfaceID)
+                    && !replayRequested
+            )
             return (
                 columns: grid.columns,
                 rows: grid.rows,
@@ -328,12 +339,12 @@ extension MobileShellComposite {
                 )
                 return nil
             }
-            finishPrearmedTerminalViewportBarrierWithoutResize(
+            let replayRequested = finishPrearmedTerminalViewportBarrierWithoutResize(
                 surfaceID: surfaceID,
                 token: prearmedReplayBarrierToken,
                 reason: "viewport_failed"
             )
-            finishPreparation(requestColdReplay: true)
+            finishPreparation(requestColdReplay: !replayRequested)
             terminalViewportLog.error("viewport report failed surface=\(surfaceID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             recordAppEvent(
                 .terminalViewportReportFailed,
@@ -452,25 +463,27 @@ extension MobileShellComposite {
         return replayBarrierToken
     }
 
+    @discardableResult
     private func finishPrearmedTerminalViewportBarrierWithoutResize(
         surfaceID: String,
         token: UUID?,
         reason: String
-    ) {
-        guard let token else { return }
+    ) -> Bool {
+        guard let token else { return false }
         terminalViewportReplayBarrierPendingAckTokensBySurfaceID.removeValue(forKey: surfaceID)
-        guard terminalReplayBarrierTokensBySurfaceID[surfaceID] == token else { return }
+        guard terminalReplayBarrierTokensBySurfaceID[surfaceID] == token else { return false }
         if terminalReplayBarrierDroppedOutputSurfaceIDs.contains(surfaceID),
            hasTerminalOutputSink(surfaceID: surfaceID),
            remoteClient != nil {
             MobileDebugLog.anchormux("terminal.output.viewport_replay_after_\(reason) surface=\(surfaceID)")
             requestTerminalReplay(surfaceID: surfaceID, replayBarrierToken: token)
-            return
+            return true
         }
         clearTerminalReplayBarrierIfCurrent(
             surfaceID: surfaceID,
             token: token,
             reason: reason
         )
+        return false
     }
 }
