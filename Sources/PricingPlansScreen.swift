@@ -35,6 +35,9 @@ enum ProUpgradeSource: String, CaseIterable, Sendable {
     case newMachineAtLimit = "mac_new_machine_at_limit"
     /// DEBUG native pricing window.
     case nativePricingPreview = "mac_native_pricing_preview"
+    /// Link inside the `vm_requires_pro` error text (`VMClient`); the token
+    /// is spelled out in the localized string, so the test pins it here.
+    case vmRequiresProError = "mac_vm_requires_pro_error"
 }
 
 /// Checkout attribution query parameters: the upgrade source plus the app's

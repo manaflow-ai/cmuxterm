@@ -15,7 +15,7 @@ Query parameters accepted by `/api/billing/checkout`, `/app-pricing` and `/prici
 | `cmux_app_version`, `cmux_app_build` | `CFBundleShortVersionString`, `CFBundleVersion` | Mac |
 | `utm_source` `utm_medium` `utm_campaign` `utm_content` `utm_term` | free text, max 100 | campaigns |
 
-The `Referer` header adds `checkout_referrer_host` and `checkout_referrer_path` for links that carry no `cmux_source`.
+The `Referer` header adds `checkout_referrer_host` and `checkout_referrer_path` on every checkout, tagged or not; for untagged links it is the only origin signal.
 
 Sources today:
 

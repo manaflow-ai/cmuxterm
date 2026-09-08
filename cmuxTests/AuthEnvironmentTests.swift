@@ -736,6 +736,13 @@ struct CheckoutAttributionTests {
     }
 
     @Test
+    func vmRequiresProErrorTextLinksWithATypedSource() {
+        let text = defaultCloudVMAction(status: 402, errorCode: "vm_requires_pro")
+        #expect(text.contains("cmux_source=\(ProUpgradeSource.vmRequiresProError.rawValue)"))
+        #expect(text.contains("cmux_client=mac"))
+    }
+
+    @Test
     func intentPropertiesNameSurfaceAndChannel() {
         let properties = CheckoutAttribution.intentProperties(source: .helpMenu, flavor: .stable)
         #expect(properties["source"] as? String == "mac_help_menu")
