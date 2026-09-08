@@ -158,7 +158,6 @@ struct ClaudeHookLifecycleCleanupTests {
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
         environment["CMUX_CLAUDE_PID"] = "43305"
-
         let result = Harness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "session-end"],
@@ -171,7 +170,6 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId) --panel=\(Self.liveSurfaceId)"))
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
-
     /// Since #11976, the CLI records the new turn in the journal for the resolved pane
     /// instead of sending `clear_notifications`; the app reconciles attention from that event.
     @Test func promptSubmitTurnStartFollowsMovedPaneWithoutTouchingSiblings() throws {
@@ -179,7 +177,6 @@ struct ClaudeHookLifecycleCleanupTests {
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
         let newWorkspaceId = "77777777-7777-7777-7777-777777777777"
-
         try Harness.writeSessionStore(
             to: context.storeURL,
             sessionId: sessionId,
@@ -196,14 +193,12 @@ struct ClaudeHookLifecycleCleanupTests {
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
         environment["CMUX_CLAUDE_PID"] = "43306"
-
         let result = Harness.runHookProcess(
             context: context,
             arguments: ["hooks", "claude", "prompt-submit"],
             environment: environment,
             standardInput: #"{"session_id":"\#(sessionId)","turn_id":"turn-1","hook_event_name":"UserPromptSubmit","cwd":"\#(context.root.path)"}"#
         )
-
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
@@ -233,8 +228,6 @@ struct ClaudeHookLifecycleCleanupTests {
             "surfaceId": Self.liveSurfaceId,
             "cwd": context.root.path,
             "isRestorable": true,
-            "lastNotificationStatus": "error",
-            "runtimeStatus": "error",
             "agentLifecycle": "needsInput",
             "activePromptDepth": 1,
             "activePromptTurnId": "turn-1",
@@ -258,6 +251,13 @@ struct ClaudeHookLifecycleCleanupTests {
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
         environment["CMUX_CLAUDE_PID"] = "43307"
+        let stopResult = Harness.runHookProcess(
+            context: context, arguments: ["hooks", "claude", "stop"], environment: environment,
+            standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"Stop","last_assistant_message":"Selected model is at capacity"}"#
+        )
+        assertSuccessfulHook(stopResult)
+        #expect(serverHandled.wait(timeout: .now() + 5) == .success)
+        #expect((try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId))?["lastNotificationStatus"] as? String == "error")
 
         let result = Harness.runHookProcess(
             context: context,

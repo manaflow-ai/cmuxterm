@@ -27985,6 +27985,8 @@ struct CMUXCLI {
                         hookEventName: reportedHookEventName(from: parsedInput) ?? "Stop",
                         lastSubtitle: stopSummary?.subtitle,
                         lastBody: stopSummary?.body,
+                        lastNotificationStatus: abnormalStop == nil ? nil : .error,
+                        updateLastNotificationStatus: true,
                         hadPendingBackgroundWorkAtStop: hasPendingBackgroundWork,
                         markActive: true,
                         allowsNewSessionReplacement: true
