@@ -1787,7 +1787,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             machineID: machineID,
             clientID: clientID,
             resolveTarget: { [weak self] row in self?.notificationDeliveryTarget(for: row) },
-            deliver: { [weak self] row, target in self?.deliverNotification(row, to: target) },
+            deliver: { [weak self] row, target in self?.deliverNotification(row, to: target) ?? false },
             send: { [weak self] batch in
                 // A vanished provider must not report success: the batch stays
                 // pending in the durable state for the replacement sync.
