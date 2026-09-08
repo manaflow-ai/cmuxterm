@@ -312,15 +312,10 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("vm-env-bad")
         let listenerFD = try bindUnixSocket(at: socketPath)
-        let state = MockSocketServerState()
-        let log = VMLayoutEnvRequestLog()
         defer {
             Darwin.close(listenerFD)
             unlink(socketPath)
         }
-        // Never awaited: a correct CLI makes no connection at all.
-        _ = startVMEnvSetMock(listenerFD: listenerFD, state: state, log: log)
-
         let result = runProcess(
             executablePath: cliPath,
             arguments: ["vm", "env", "set", "brave-otter", "1BAD=value"],
@@ -330,8 +325,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
 
         XCTAssertEqual(result.status, 2, "stdout=\(result.stdout) stderr=\(result.stderr)")
         XCTAssertTrue(result.stderr.contains("invalid variable name '1BAD'"), result.stderr)
-        XCTAssertTrue(log.methods.isEmpty, "no request for a rejected assignment: \(log.methods)")
-        XCTAssertFalse(state.snapshot().contains { $0.contains("vm.env_set") || $0.contains("vm.exec") }, state.snapshot().description)
+        var connection = pollfd(fd: listenerFD, events: Int16(POLLIN), revents: 0)
+        XCTAssertEqual(Darwin.poll(&connection, 1, 0), 0, "a rejected assignment must not connect to the socket")
     }
 
     func testVMEnvListForwardsFlagsAndPrintsStdoutVerbatim() throws {
@@ -495,7 +490,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
                 let saved: [String: Any] = [
                     "name": "dev",
                     "description": "agent left, tests right",
-                    "workspace": ["name": "dev", "cwd": "~/src/app", "layout": Self.sampleLayoutNode],
+                    "workspace": ["cwd": "~/src/app", "layout": Self.sampleLayoutNode],
                 ]
                 return self.v2Response(id: id, ok: true, result: saved)
             case "vm.exec":

@@ -978,7 +978,7 @@ LAYOUT_NORMALIZE_JQ='
        elif has("split") and (.split | type) != "number" then bad(\$p + ".split"; "must be a number between 0.1 and 0.9")
        else ([(.children[0] | vnode(\$p + ".children[0]")), (.children[1] | vnode(\$p + ".children[1]"))] | first_bad) end)
     else bad(\$p; "node needs pane or direction") end;
-  (if type == "object" and has("workspace") and (.workspace | type) == "object" then {doc: .workspace, prefix: "\$.workspace.layout"}
+  (if type == "object" and has("workspace") and (.workspace | type) == "object" then {doc: (.workspace + {name: (.name // .workspace.name)}), prefix: "\$.workspace.layout"}
    elif type == "object" and has("layout") then {doc: ., prefix: "\$.layout"}
    elif type == "object" and (has("pane") or has("direction")) then {doc: {layout: .}, prefix: "\$"}
    else {doc: {}, prefix: "\$"} end) as \$n

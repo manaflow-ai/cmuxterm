@@ -89,8 +89,9 @@ enum CloudEnvDelivery {
     }
 
     static func requireReady(_ response: [String: Any], machineID: String) throws {
-        guard (response["matched"] as? Bool) == true else {
-            let screen = (response["text"] as? String) ?? ""
+        let value = (response["value"] as? [String: Any]) ?? response
+        guard (value["matched"] as? Bool) == true else {
+            let screen = (value["text"] as? String) ?? ""
             if looksLikeOutdatedShim(screen) {
                 throw DeliveryError.outdatedShim(machineID)
             }
@@ -99,7 +100,8 @@ enum CloudEnvDelivery {
     }
 
     static func requireOutcome(_ response: [String: Any]) throws -> Outcome {
-        let screen = (response["text"] as? String) ?? ""
+        let value = (response["value"] as? [String: Any]) ?? response
+        let screen = (value["text"] as? String) ?? ""
         guard let outcome = outcome(fromScreen: screen) else {
             throw DeliveryError.noResult(screen)
         }
