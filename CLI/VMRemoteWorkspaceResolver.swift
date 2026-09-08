@@ -185,7 +185,7 @@ struct VMRemoteWorkspaceResolver: Sendable {
         }
         guard let workspace = resource["remote_workspace"] as? [String: Any],
               (workspace["id"] as? String) == workspaceID else {
-            return .unavailable
+            return .notFound
         }
         return .legacy
     }
