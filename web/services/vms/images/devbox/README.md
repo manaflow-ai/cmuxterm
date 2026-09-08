@@ -30,18 +30,17 @@ Every prompt on a cmux Cloud machine reads `cmux@cmux`. Both halves are
 contract, not decoration:
 
 - The work user is **`cmux`** (uid 1000, `/home/cmux`, passwordless sudo):
-  the base's `ubuntu` account **renamed** by the bake's first step, before any
-  layer writes into the home or names the account. Freestyle's exec API
+  the base's `ubuntu` account **renamed** right after the machine's own name is
+  set, before any layer writes into the home or names the account. Freestyle's exec API
   resolves its default `linuxUser` to "the account holding uid 1000", so a
   rename (rather than a second account) keeps the provider's own surfaces,
   SSH, the desktop session, and the terminals the cmux-tui daemon opens all
   in one home. The base's `/etc/sudoers.d/90-freestyle` names the old
   account, so the step replaces every sudoers drop-in that does not name
   `cmux`.
-- The machine is named **`cmux`**, not the base's `freestyle-vm`
-  (`hostnamectl` plus `/etc/hostname` and `/etc/hosts`). A Freestyle snapshot
-  is a memory image, so the live kernel name travels to every machine created
-  from it.
+- The machine is named **`cmux`**, not the base's `freestyle-vm`. That half is
+  its own contract (`services/vms/images/identity.ts`): the static and live
+  name, the loopback alias, per-machine SSH host keys, and a residue audit.
 - **Sessions are not root.** Coding agents refuse to run as root:
   `claude --dangerously-skip-permissions` exits before it starts. The daemon
   drops to `cmux` (docs/cloud-cmux-tui-daemon.md), root stays one `sudo`
@@ -127,6 +126,50 @@ auth of its own, so a machine outside a private network gets an error, not
 a public URL. `desktopWrapper.ts` stays the seam for a future public TLS
 edge. The daemon still runs as root, so root shells get `DISPLAY` but not
 the session bus.
+
+## Identity: the machine is `cmux`
+
+`web/services/vms/images/identity.ts` is the contract. The Freestyle base
+calls every VM `freestyle-vm` (static in `/etc/hostname`, the `127.0.1.1`
+alias in `/etc/hosts`, the comment on its SSH host keys), so before this
+contract a cmux machine introduced itself as the provider's in every pane
+(`root@freestyle-vm in ~ λ`), in `hostname`, `$HOSTNAME`, `uname -n`, the
+journal, and the host-key comments. The bake's `identity` step, right after
+the base inventory, renames it:
+
+- **Hostname `cmux`**, static and live (`hostnamectl set-hostname`, with a
+  file-plus-`sethostname` fallback), and the `127.0.1.1 cmux` alias so
+  `getent hosts cmux` and sudo resolve it. Only the alias line of
+  `/etc/hosts` changes; the provider's `# BEGIN freestyle-tls-egress` block
+  and every other line stay byte for byte.
+- **SSH host keys regenerated** under the new name (the base's keys were
+  generated when Freestyle built its rootfs and are shared by every VM booted
+  from that base). `cmux-devbox-boot` regenerates them again on every clone,
+  in a detached subshell so the daemon start never waits, so no two machines
+  from one snapshot share a host key.
+- **The journal starts over** in the cleanup step, so a machine's log begins
+  under its own name instead of with the base's boot as `freestyle-vm`.
+
+The `identity-final` step before the stamp re-runs the check plus a
+whole-word residue audit (`freestyle-vm` under `/etc`, `/home`, `/root`,
+`/usr/local`, `/opt`, package trees skipped). `verify-devbox-image.ts` proves
+the same on a machine booted from the snapshot, plus the prompt a person sees
+in a real pty for both accounts, a journal that knows no other name, and
+different host keys on a second machine; `derive-devbox-sizes.ts` checks the
+hostname on the master and on every derived size after its own boot.
+
+What stays the provider's, on purpose, because the exec/fs API and the
+transport run on it: the guest agent (`freestyle-vms-agent.service`,
+`/sbin/freestyle-vms-agent`), its first-boot host-key unit
+(`freestyle-vms-hostkeys.service`, inert once keys exist), the resolver
+drop-in `/etc/systemd/resolved.conf.d/60-freestyle-vms.conf`, the power-off
+wrappers in `/usr/local/sbin`, the TLS-egress block in `/etc/hosts`, the
+metadata service at 169.254.169.254, and the gateway endpoints
+(`vm-ssh.freestyle.sh`, `*.vm.freestyle.sh`). Those name the platform
+(`freestyle-vms`), never the machine, and the whole-word audit leaves them
+alone. The container recipe has no identity step: `docker build` mounts
+`/etc/hostname` and `/etc/hosts` from the daemon and the runtime names each
+container, so the hostname there is the runtime's.
 
 ## Terminal capabilities (`cmux-terminfo.src`)
 

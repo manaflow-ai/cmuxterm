@@ -22,7 +22,6 @@ import {
 import { VM_PLACEHOLDER_API_KEY } from "../services/coderouter/vmGuestEnv";
 import { DEVBOX_DESKTOP_USER } from "../services/vms/images/desktop";
 import {
-  DEVBOX_HOSTNAME,
   DEVBOX_WORK_HOME,
   DEVBOX_WORK_UID,
   DEVBOX_WORK_USER,
@@ -203,12 +202,12 @@ describe("devbox image template", () => {
   });
 
   test("one non-root work user named cmux, on a machine named cmux", () => {
-    // The complaint this contract answers: a cmux Cloud terminal opened as
+    // Half the complaint this answers: a cmux Cloud terminal opened as
     // `root@freestyle-vm`, and `claude --dangerously-skip-permissions` refuses
-    // to start as root. Both halves are user-visible on every prompt line.
+    // to start as root. The machine's own name is the other half, and its own
+    // contract (services/vms/images/identity.ts, vm-devbox-identity.test.ts).
     expect(DEVBOX_WORK_USER).toBe("cmux");
     expect(DEVBOX_WORK_HOME).toBe("/home/cmux");
-    expect(DEVBOX_HOSTNAME).toBe("cmux");
     // Renamed, not added: the provider's exec default is the uid-1000 account,
     // so a second account would split the machine between two homes.
     expect(DEVBOX_WORK_UID).toBe(1000);
@@ -220,9 +219,10 @@ describe("devbox image template", () => {
     // The base's NOPASSWD policy names the account being renamed away.
     expect(setup).toContain("grep -q '^cmux[[:space:]]' \"$f\" || rm -f \"$f\"");
     expect(setup).toContain("sudo -n -u cmux sudo -n true");
-    // The live kernel name is what a resumed memory snapshot carries.
-    expect(setup).toContain("hostnamectl set-hostname cmux");
-    expect(setup).toContain("[ \"$(hostname)\" = cmux ]");
+    // Ubuntu's user-private-group umask leaves the daemon's state dir
+    // group-writable, and cmux-tui refuses to store its identity under one.
+    expect(setup).toContain("USERGROUPS_ENAB no");
+    expect(setup).toContain('[ "$(sudo -n -u cmux sh -c umask)" = 0022 ]');
     // The bake sets this up before any layer writes into the home or names
     // the account, and the desktop session runs as the same user.
     const freestyleScript = readScript("build-devbox-freestyle.ts");

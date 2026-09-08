@@ -32,7 +32,7 @@ FROM ubuntu:24.04
 # Cache-buster: bump the date to force remote builders past stale layer
 # caches (a remote builder served stale layers for chatmux on 2026-08-21 and
 # 2026-08-25). Also the image version /etc/cmux/image-stamp carries.
-ENV CMUX_IMAGE_EPOCH=2026-09-02-r4
+ENV CMUX_IMAGE_EPOCH=2026-09-07-r1
 
 ENV LANG=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive
@@ -242,6 +242,14 @@ RUN node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-set
   && install -m 600 -o cmux -g cmux /etc/skel/.claude.json /home/cmux/.claude.json \
   && chmod 600 /etc/skel/.claude.json \
   && node -e 'const s=JSON.parse(require("fs").readFileSync("/home/cmux/.claude.json","utf8")); if(!s.hasCompletedOnboarding||!s.bypassPermissionsModeAccepted||!s.customApiKeyResponses.approved.length) throw new Error("seed incomplete")'
+
+# Identity (web/services/vms/images/identity.ts): a cmux Cloud machine is
+# `cmux`, never the provider's base name. The Freestyle bake owns that step
+# (hostname, the 127.0.1.1 alias, fresh SSH host keys, a reset journal) because
+# a container has no identity of its own to bake: `docker build` mounts
+# /etc/hostname and /etc/hosts from the daemon and discards writes to them, and
+# the runtime names every container it starts. cmux-devbox-boot regenerates the
+# host keys on a clone for both recipes.
 
 # Interactive shell polish: bash IS the shell (chatmux parity); it
 # borrows the oh-my-zsh half-life theme colors and ble.sh supplies

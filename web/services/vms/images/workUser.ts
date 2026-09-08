@@ -23,24 +23,16 @@ export const DEVBOX_WORK_HOME = `/home/${DEVBOX_WORK_USER}`;
 export const DEVBOX_WORK_UID = 1000;
 
 /**
- * The machine's hostname, and so the `\h` in the shell prompt. Freestyle's
- * base image boots as `freestyle-vm`; the bake renames it before snapshotting
- * and the name travels with the memory image, so every cmux Cloud machine
- * says `cmux`.
- */
-export const DEVBOX_HOSTNAME = "cmux";
-
-/**
- * Renames the base image's uid-1000 account to the work user and sets the
- * machine name. Idempotent: a re-bake over an already-renamed machine skips
- * the rename and re-asserts the rest. Run as root, before any layer that
- * writes into the home or names the user — the NOPASSWD policy the base ships
- * names the OLD account, so it is replaced here rather than left dangling.
+ * Renames the base image's uid-1000 account to the work user. Idempotent: a
+ * re-bake over an already-renamed machine skips the rename and re-asserts the
+ * rest. Run as root, before any layer that writes into the home or names the
+ * user — the NOPASSWD policy the base ships names the OLD account, so it is
+ * replaced here rather than left dangling. The machine's own name is a
+ * separate contract (services/vms/images/identity.ts).
  */
 export function devboxWorkUserSetupCommand(): string {
   const user = DEVBOX_WORK_USER;
   const home = DEVBOX_WORK_HOME;
-  const host = DEVBOX_HOSTNAME;
   return `
 set -e
 if ! id -u ${user} >/dev/null 2>&1; then
@@ -70,21 +62,12 @@ grep -q '^USERGROUPS_ENAB no$' /etc/login.defs
 find ${home} -type d -exec chmod g-w,o-w {} +
 [ "$(find ${home} -type d \\( -perm -g+w -o -perm -o+w \\) | wc -l)" = 0 ]
 [ "$(sudo -n -u ${user} sh -c umask)" = 0022 ]
-# The prompt renders \\h, so the machine name is user-visible. hostnamectl sets
-# the live kernel name (what a resumed snapshot keeps) and /etc/hostname.
-hostnamectl set-hostname ${host}
-printf '${host}\\n' > /etc/hostname
-sed -i 's/^\\(127\\.0\\.1\\.1[[:space:]]\\+\\).*$/\\1${host}/' /etc/hosts
-grep -q '^127\\.0\\.1\\.1[[:space:]]' /etc/hosts || printf '127.0.1.1\\t${host}\\n' >> /etc/hosts
 # Prove the contract rather than trusting the steps above.
 [ "$(id -u ${user})" = ${DEVBOX_WORK_UID} ]
 [ "$(getent passwd ${DEVBOX_WORK_UID} | cut -d: -f1)" = ${user} ]
 [ "$(getent passwd ${user} | cut -d: -f6)" = ${home} ]
 test -d ${home}
 sudo -n -u ${user} sudo -n true
-[ "$(hostname)" = ${host} ]
-[ "$(cat /etc/hostname)" = ${host} ]
-grep -q '^127\\.0\\.1\\.1[[:space:]]\\+${host}$' /etc/hosts
 echo work-user-ok
 `.trim();
 }

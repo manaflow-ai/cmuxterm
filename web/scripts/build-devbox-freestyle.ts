@@ -70,6 +70,15 @@
  * desktop packages, files and the Ghostty .deb come from the Dockerfile
  * (devbox-image-common.ts reads them), so the container recipe and this bake
  * cannot drift.
+ *
+ * Identity contract (web/services/vms/images/identity.ts): the machine is
+ * `cmux`, not the base's `freestyle-vm`. The first step after the inventory
+ * sets the static and live hostname, the 127.0.1.1 alias in /etc/hosts, and
+ * regenerates the SSH host keys under that name; the last step before the
+ * stamp re-checks all of it plus a whole-word residue audit, and the cleanup
+ * starts the journal over so a machine's log begins under its own name. The
+ * provider's `freestyle-vms` agent, units, and resolver drop-in stay: the
+ * exec/fs API runs on them.
  */
 import { Freestyle } from "freestyle";
 import { fileURLToPath } from "node:url";
@@ -94,6 +103,9 @@ import {
   devboxFileBytes,
   devboxGhosttyDebSha256,
   devboxGhosttyDebUrl,
+  devboxIdentityCheckCommand,
+  devboxIdentityInstallCommand,
+  devboxJournalResetCommand,
   devboxParkDaemonCommand,
   cmuxTuiWebsocketSmokeCommand,
   emitBakeResult,
@@ -101,7 +113,6 @@ import {
   manifestEntrySkeleton,
 } from "./devbox-image-common";
 import {
-  DEVBOX_HOSTNAME,
   DEVBOX_WORK_HOME,
   DEVBOX_WORK_USER,
   devboxWorkUserSetupCommand,
@@ -116,6 +127,7 @@ import {
   DEVBOX_DESKTOP_SUPERVISOR,
   DEVBOX_DESKTOP_UNIT,
 } from "../services/vms/images/desktop";
+import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 
 const apiKey = process.env.FREESTYLE_API_KEY;
 const stackToken = process.env.FREESTYLE_STACK_ACCESS_TOKEN;
@@ -242,13 +254,15 @@ try {
     `node --version && npm --version && bun --version && python3 --version && uv --version && docker --version && test -L /usr/local/bin/node && readlink /usr/local/bin/node | grep -q /usr/local/nvm/ && echo base-ok`,
   );
 
-  // First, before any layer writes into the home or names the account: the
-  // base's uid-1000 `ubuntu` becomes `cmux` (home moved with it, its NOPASSWD
-  // policy rewritten) and the machine is named `cmux` instead of
-  // `freestyle-vm`. The prompt renders \u@\h, so both are what a person reads
-  // on every line of every cmux Cloud terminal. hostnamectl sets the live
-  // kernel name, and a Freestyle snapshot is a memory image, so the name
-  // travels to every machine created from it.
+  // The machine's name, before anything records it (host keys, caches, the
+  // daemon, the journal): see the identity contract in the header.
+  await step("identity", devboxIdentityInstallCommand());
+
+  // Then the account, before any layer writes into the home or names it: the
+  // base's uid-1000 `ubuntu` becomes `cmux`, home moved with it, its NOPASSWD
+  // policy rewritten. The prompt renders \u@\h, so with the name above this is
+  // the other half of what a person reads on every line of every cmux
+  // Cloud terminal.
   await step("work-user", devboxWorkUserSetupCommand());
 
   await step(
@@ -510,6 +524,9 @@ try {
   // shell materializes the harness configs, and the image must carry none.
   await vm.fs.writeFile(VM_GUEST_MODEL_PLANE_ENV_PATH, renderVmGuestModelPlaneEnvFile(vmGuestModelPlaneEnv()), { mode: 0o644 });
   await step("model-plane-env", `sh -n ${VM_GUEST_MODEL_PLANE_ENV_PATH} && grep -q "^export OPENAI_BASE_URL='https://" ${VM_GUEST_MODEL_PLANE_ENV_PATH} && ! grep -q crt_ ${VM_GUEST_MODEL_PLANE_ENV_PATH} && env -i HOME=/tmp/mp-check bash -c '. /etc/cmux/agent-config.sh; echo $OPENAI_BASE_URL' | grep -q '^https://' && rm -rf /tmp/mp-check && echo model-plane-env-baked`);
+  // The identity survived every layer above, and none of them wrote the
+  // provider's machine name anywhere the machine speaks for itself.
+  await step("identity-final", devboxIdentityCheckCommand());
   // Stamp last: its presence tells the driver and the verifier every layer
   // above baked successfully, and which layers the image carries.
   await step(
@@ -517,7 +534,9 @@ try {
     `mkdir -p /etc/cmux && echo "cmux-devbox ${preflight.epoch}${withDesktop ? " desktop" : ""}" > /etc/cmux/image-stamp && cat /etc/cmux/image-stamp`,
   );
 
-  await step("clean", `rm -rf /var/lib/apt/lists/* /root/.npm/_cacache ${WORK_HOME}/.npm/_cacache 2>/dev/null; sync; true`);
+  // The journal starts over so a machine's log begins under its own name,
+  // not with the base's boot as `freestyle-vm`.
+  await step("clean", `rm -rf /var/lib/apt/lists/* /root/.npm/_cacache ${WORK_HOME}/.npm/_cacache 2>/dev/null; ${devboxJournalResetCommand}; sync; true`);
 } catch (error) {
   console.error(`bake failed: ${String(error)}`);
   await deleteBuilder();
@@ -570,8 +589,8 @@ emitBakeResult({
       "FREESTYLE_SANDBOX_SNAPSHOT",
       metadata,
       withDesktop
-        ? `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner, and the desktop layer (openbox/TigerVNC 5901, noVNC 6901, Ghostty, Chrome, Thunar) run by the cmux-desktop systemd unit as cmux; cmux (uid 1000, NOPASSWD sudo, hostname cmux) is the work user and the daemon's session user; baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`
-        : `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner; cmux (uid 1000, NOPASSWD sudo, hostname cmux) is the work user and the daemon's session user; baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`,
+        ? `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner, and the desktop layer (openbox/TigerVNC 5901, noVNC 6901, Ghostty, Chrome, Thunar) run by the cmux-desktop systemd unit as ${WORK_USER}; ${WORK_USER} (uid 1000, NOPASSWD sudo) is the work user and the daemon's session user, so terminals are non-root; hostname ${DEVBOX_HOSTNAME} (static, live, 127.0.1.1 alias; SSH host keys regenerated under it; journal reset); baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`
+        : `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner; ${WORK_USER} (uid 1000, NOPASSWD sudo) is the work user and the daemon's session user, so terminals are non-root; hostname ${DEVBOX_HOSTNAME} (static, live, 127.0.1.1 alias; SSH host keys regenerated under it; journal reset); baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`,
       withDesktop ? "desktop" : "base",
     ),
     cmuxTuiCommit: cmuxTuiSource.commit,
