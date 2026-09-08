@@ -346,6 +346,12 @@ cmux_cua_skill_reconcile() {
         my @path_identity = lstat($lock_path);
         exit 1 unless @path_identity && $path_identity[0] == $identity[0]
             && $path_identity[1] == $identity[1];
+        # The regression harness uses this marker to synchronize immediately
+        # before flock; normal wrappers never set the test-only variable.
+        if ($ENV{CMUX_CUA_TEST_LOCK_READY}) {
+            $| = 1;
+            print STDOUT "ready\n" or exit 1;
+        }
         my $locked = eval {
             local $SIG{ALRM} = sub { die "lock timeout\n" };
             alarm 10;

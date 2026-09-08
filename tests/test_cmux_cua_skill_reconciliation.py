@@ -55,11 +55,15 @@ class SkillReconciliationTests(unittest.TestCase):
         process = subprocess.Popen(
             ["/bin/bash", "-c", '. "$1"; printf "started\\n"; shift; cmux_cua_skill_reconcile "$@"',
              "skill-reconcile", str(POLICY), provider, str(source), str(self.root), "1"],
-            env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env={**self.env, "CMUX_CUA_TEST_LOCK_READY": "1"},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         )
         self.addCleanup(self.stop, process)
         self.assertEqual(process.stdout.readline(), "started\n")
         return process
+
+    def wait_for_lock_attempt(self, process: subprocess.Popen[str]) -> None:
+        self.assertEqual(process.stdout.readline(), "ready\n")
 
     @staticmethod
     def stop(process: subprocess.Popen[str]) -> None:
@@ -79,8 +83,8 @@ class SkillReconciliationTests(unittest.TestCase):
             fcntl.flock(lock, fcntl.LOCK_EX)
             first = self.launch("codex", self.first)
             second = self.launch("claude", self.second)
-            with self.assertRaises(subprocess.TimeoutExpired):
-                first.wait(timeout=0.2)
+            self.wait_for_lock_attempt(first)
+            self.wait_for_lock_attempt(second)
             self.assertEqual([link.resolve() for link in self.links], [self.old.resolve()] * 2)
             fcntl.flock(lock, fcntl.LOCK_UN)
         self.finish(first)
@@ -101,8 +105,7 @@ class SkillReconciliationTests(unittest.TestCase):
         self.addCleanup(self.stop, owner)
         self.assertEqual(owner.stdout.readline(), "locked\n")
         process = self.launch("codex", self.first)
-        with self.assertRaises(subprocess.TimeoutExpired):
-            process.wait(timeout=0.2)
+        self.wait_for_lock_attempt(process)
         owner.kill()
         owner.communicate(timeout=20)
         self.finish(process)
