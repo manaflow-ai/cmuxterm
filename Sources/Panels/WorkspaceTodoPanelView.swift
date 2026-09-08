@@ -395,7 +395,7 @@ private struct WorkspaceTodoPaneContent: View {
         HStack(alignment: .center, spacing: 7) {
             // A `plus.circle` "add" affordance, not an empty checkbox, so the
             // add row never reads as a real (unchecked) item.
-            CmuxSystemSymbolImage(systemName: "plus.circle", pointSize: Self.checkboxPointSize)
+            CmuxSystemSymbolImage(systemName: "plus.circle", pointSize: Self.checkboxPointSize, tint: chromePalette.textSecondary.swiftUIColor)
                 .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
             TextField(
                 String(localized: "sidebar.checklist.addItemPlaceholder", defaultValue: "New checklist item"),
@@ -516,7 +516,7 @@ private struct WorkspaceTodoPaneItemRow: View {
                 CmuxSystemSymbolImage(
                     systemName: checkboxSymbolName(for: item.state),
                     pointSize: checkboxPointSize,
-                    tint: isCompleted ? .secondary : .primary
+                    tint: isCompleted ? chromePalette.textSecondary.swiftUIColor : chromePalette.textPrimary.swiftUIColor
                 )
                 .foregroundColor(isCompleted ? (chromePalette[.textSecondary]).cmuxColor : (chromePalette[.textPrimary]).cmuxColor)
                 .contentShape(Rectangle())

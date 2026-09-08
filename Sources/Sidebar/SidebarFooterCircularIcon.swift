@@ -10,7 +10,8 @@ struct SidebarFooterCircularIcon: View {
         CmuxSystemSymbolImage(
             systemName: systemName,
             pointSize: style.pointSize,
-            weight: style.weight
+            weight: style.weight,
+            tint: chromePalette.textSecondary.swiftUIColor
         )
         .foregroundStyle(chromePalette.textSecondary.swiftUIColor)
     }

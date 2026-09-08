@@ -13356,13 +13356,13 @@ struct VerticalTabsSidebar: View, Equatable {
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                CmuxSystemSymbolImage(magnified: "folder.fill", pointSize: 14, weight: .regular)
+                CmuxSystemSymbolImage(magnified: "folder.fill", pointSize: 14, weight: .regular, tint: sidebarChromePalette.textSecondary.swiftUIColor)
                     .foregroundColor(sidebarChromePalette.textSecondary.swiftUIColor)
                 Text(extensionSidebarTreeSectionTitle(section.treeSection))
                     .cmuxFont(size: 13, weight: .semibold)
                     .foregroundColor(sidebarChromePalette.textPrimary.swiftUIColor.opacity(0.86))
                     .lineLimit(1)
-                CmuxSystemSymbolImage(magnified: "chevron.down", pointSize: 11, weight: .medium)
+                CmuxSystemSymbolImage(magnified: "chevron.down", pointSize: 11, weight: .medium, tint: sidebarChromePalette.textSecondary.swiftUIColor)
                     .foregroundColor(sidebarChromePalette.textSecondary.swiftUIColor)
                 Spacer(minLength: 0)
             }

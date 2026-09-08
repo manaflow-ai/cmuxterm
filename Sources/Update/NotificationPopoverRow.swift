@@ -159,7 +159,7 @@ struct NotificationPopoverRow: View, Equatable {
             ZStack {
                 Circle()
                     .fill((chromePalette[.surfaceHover]).cmuxColor.opacity(0.8))
-                CmuxSystemSymbolImage(systemName: "xmark", pointSize: 9, weight: .bold)
+                CmuxSystemSymbolImage(systemName: "xmark", pointSize: 9, weight: .bold, tint: chromePalette.textPrimary.swiftUIColor.opacity(0.7))
                     .foregroundColor((chromePalette[.textPrimary]).cmuxColor.opacity(0.7))
             }
             .frame(width: 20, height: 20)

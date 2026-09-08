@@ -191,19 +191,6 @@ enum SidebarFooterHelpIconDebugSettings {
 }
 #endif
 
-struct SidebarFooterCircularIcon: View {
-    let systemName: String
-    let style: SidebarFooterCircularIconStyle
-
-    var body: some View {
-        CmuxSystemSymbolImage(
-            systemName: systemName,
-            pointSize: style.pointSize,
-            weight: style.weight,
-            tint: .secondary
-        )
-    }
-}
 struct SidebarFooterHelpIcon: View {
     let style: SidebarFooterCircularIconStyle
 #if DEBUG
@@ -474,7 +461,7 @@ struct SidebarMobileConnectButton: View {
                     debugSource: "sidebar.mobileConnect"
                 )
             } label: {
-                CmuxSystemSymbolImage(systemName: "iphone", pointSize: iconSize, weight: .medium)
+                CmuxSystemSymbolImage(systemName: "iphone", pointSize: iconSize, weight: .medium, tint: chromePalette.textSecondary.swiftUIColor)
                     .foregroundStyle(chromePalette.textSecondary.swiftUIColor)
                     .frame(
                         width: SidebarFooterButtonMetrics.buttonSize,

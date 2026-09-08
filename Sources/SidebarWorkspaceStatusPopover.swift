@@ -236,7 +236,7 @@ struct SidebarWorkspaceStatusPopover: View {
                     .lineLimit(1)
                 Spacer(minLength: 8)
                 if lane.isSelected {
-                    CmuxSystemSymbolImage(systemName: "checkmark", pointSize: 10, weight: .semibold)
+                    CmuxSystemSymbolImage(systemName: "checkmark", pointSize: 10, weight: .semibold, tint: chromePalette.textSecondary.swiftUIColor)
                         .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
                 }
             }

@@ -13,7 +13,6 @@ struct NotificationsPage: View {
     @Environment(\.chromePalette) private var chromePalette
     @FocusState private var focusedNotificationId: UUID?
     @State private var keyboardShortcutSettingsObserver = KeyboardShortcutSettingsObserver.shared
-    @State private var ghosttyBackgroundColor = Color(nsColor: GhosttyBackgroundTheme.currentColor())
     @State private var phonePushConfigurationState =
         PhonePushClient.shared.configurationState
 
@@ -49,10 +48,6 @@ struct NotificationsPage: View {
         .onChange(of: isVisibleInUI) {
             setInitialFocus()
         }
-    }
-
-    private func refreshGhosttyBackground() {
-        ghosttyBackgroundColor = Color(nsColor: GhosttyBackgroundTheme.currentColor())
     }
 
     private var notificationsList: some View {
@@ -214,7 +209,7 @@ struct NotificationsPage: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            CmuxSystemSymbolImage(magnified: "bell.slash", pointSize: 32)
+            CmuxSystemSymbolImage(magnified: "bell.slash", pointSize: 32, tint: chromePalette.textSecondary.swiftUIColor)
                 .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
             Text(String(localized: "notifications.empty.title", defaultValue: "No notifications yet"))
                 .cmuxFont(.headline)
@@ -227,7 +222,7 @@ struct NotificationsPage: View {
 
     private var workspaceUnreadIndicatorState: some View {
         VStack(spacing: 8) {
-            CmuxSystemSymbolImage(magnified: "bell.badge", pointSize: 32)
+            CmuxSystemSymbolImage(magnified: "bell.badge", pointSize: 32, tint: chromePalette.textSecondary.swiftUIColor)
                 .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
             Text(notificationStore.notificationMenuSnapshot.stateHintTitle)
                 .cmuxFont(.headline)
@@ -380,7 +375,7 @@ struct NotificationRow: View, Equatable {
             .modifier(DefaultActionModifier(isActive: isFocused))
 
             Button(action: onClear) {
-                CmuxSystemSymbolImage(systemName: "xmark.circle.fill", pointSize: 14)
+                CmuxSystemSymbolImage(systemName: "xmark.circle.fill", pointSize: 14, tint: chromePalette.textSecondary.swiftUIColor)
                     .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
             }
             .buttonStyle(.plain)

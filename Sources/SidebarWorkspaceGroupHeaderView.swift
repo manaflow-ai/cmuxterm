@@ -135,7 +135,7 @@ struct SidebarWorkspaceGroupHeaderView: View, Equatable {
                     magnified: "pin.fill",
                     pointSize: metrics.pinnedIconFontSize,
                     weight: .semibold,
-                    tint: .secondary
+                    tint: chromePalette.textSecondary.swiftUIColor
                 )
                 .foregroundStyle((chromePalette[.textSecondary]).cmuxColor)
                 .frame(width: metrics.iconFrame, height: metrics.iconFrame)
@@ -146,7 +146,7 @@ struct SidebarWorkspaceGroupHeaderView: View, Equatable {
                 systemName: isCollapsed ? "chevron.right" : "chevron.down",
                 pointSize: metrics.chevronFontSize,
                 weight: .semibold,
-                tint: .secondary,
+                tint: chromePalette.textSecondary.swiftUIColor,
                 appliesGlobalFontMagnification: true)
                 .foregroundStyle((chromePalette[.textSecondary]).cmuxColor)
                 .frame(width: metrics.chevronFrame, height: metrics.chevronFrame)
@@ -206,7 +206,7 @@ struct SidebarWorkspaceGroupHeaderView: View, Equatable {
                     systemName: "plus",
                     pointSize: metrics.plusFontSize,
                     weight: .medium,
-                    tint: .secondary,
+                    tint: chromePalette.textSecondary.swiftUIColor,
                     appliesGlobalFontMagnification: true)
                     .foregroundStyle((chromePalette[.textSecondary]).cmuxColor)
                     .frame(width: metrics.plusFrame, height: metrics.plusFrame)

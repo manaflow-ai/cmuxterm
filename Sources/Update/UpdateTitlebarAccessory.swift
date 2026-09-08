@@ -2556,7 +2556,7 @@ private struct NotificationsPopoverView: View {
     private var phoneForwardingEntry: some View {
         Button(action: onOpenPhoneForwarding) {
             HStack(spacing: 8) {
-                CmuxSystemSymbolImage(systemName: "iphone", pointSize: 12, weight: .medium)
+                CmuxSystemSymbolImage(systemName: "iphone", pointSize: 12, weight: .medium, tint: chromePalette.textSecondary.swiftUIColor)
                     .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
                 Text(
                     String(
@@ -2566,7 +2566,7 @@ private struct NotificationsPopoverView: View {
                 )
                 .cmuxFont(size: 12, weight: .medium)
                 Spacer()
-                CmuxSystemSymbolImage(systemName: "chevron.right", pointSize: 9, weight: .semibold)
+                CmuxSystemSymbolImage(systemName: "chevron.right", pointSize: 9, weight: .semibold, tint: chromePalette.textSecondary.swiftUIColor)
                     .foregroundColor((chromePalette[.textSecondary]).cmuxColor)
             }
             .contentShape(Rectangle())
@@ -2705,7 +2705,7 @@ private struct NotificationsPopoverView: View {
 
     private func emptyState(systemImage: String, title: String, subtitle: String?) -> some View {
         VStack(spacing: 10) {
-            CmuxSystemSymbolImage(systemName: systemImage, pointSize: 30, weight: .light)
+            CmuxSystemSymbolImage(systemName: systemImage, pointSize: 30, weight: .light, tint: chromePalette.textSecondary.swiftUIColor.opacity(0.7))
                 .foregroundColor((chromePalette[.textSecondary]).cmuxColor.opacity(0.7))
             Text(title)
                 .cmuxFont(size: 14, weight: .medium)
