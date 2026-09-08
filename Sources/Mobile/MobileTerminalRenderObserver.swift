@@ -477,6 +477,12 @@ final class MobileTerminalRenderObserver {
         }
     }
 
+    #if DEBUG
+    func debugReplayThemeCaches(for surfaceID: UUID) -> (TerminalTheme?, TerminalTheme?) {
+        (terminalThemesBySurfaceID[surfaceID], terminalConfigThemesBySurfaceID[surfaceID])
+    }
+    #endif
+
     func decorateReplayFrame(_ frame: MobileTerminalRenderGridFrame) -> MobileTerminalRenderGridFrame {
         if !hasLoadedTerminalTheme { refreshTerminalTheme() }
         var themedFrame = frame
