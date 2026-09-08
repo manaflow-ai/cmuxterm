@@ -58,7 +58,7 @@ function runRekey(owner: "bake" | "supervisor", failure: string) {
     const result = spawnSync("sh", ["-c", command], {
       encoding: "utf8",
       timeout: 5000,
-      env: { PATH: `${bin}:${process.env.PATH}`, FAILURE: failure, TEST_ROOT: root },
+      env: { NODE_ENV: "test", PATH: `${bin}:${process.env.PATH}`, FAILURE: failure, TEST_ROOT: root },
     });
     return {
       status: result.status,
@@ -70,16 +70,20 @@ function runRekey(owner: "bake" | "supervisor", failure: string) {
   }
 }
 
-describe.each(["bake", "supervisor"] as const)("%s SSH host-key replacement", (owner) => {
-  test("installs every generated key on success", () => {
-    const result = runRekey(owner, "none");
-    expect(result).toMatchObject({ status: 0, stderr: "" });
-    expect(result.keys).toEqual(keyNames.map((name) => `new ${name}\n`));
-  });
+for (const owner of ["bake", "supervisor"] as const) {
+  describe(`${owner} SSH host-key replacement`, () => {
+    test("installs every generated key on success", () => {
+      const result = runRekey(owner, "none");
+      expect(result).toMatchObject({ status: 0, stderr: "" });
+      expect(result.keys).toEqual(keyNames.map((name) => `new ${name}\n`));
+    });
 
-  test.each(["generate", "replace", "restart"])("reports %s failure and preserves the complete original key set", (failure) => {
-    const result = runRekey(owner, failure);
-    expect(result.status).not.toBe(0);
-    expect(result.keys).toEqual(keyNames.map((name) => `old ${name}\n`));
+    for (const failure of ["generate", "replace", "restart"]) {
+      test(`reports ${failure} failure and preserves the complete original key set`, () => {
+        const result = runRekey(owner, failure);
+        expect(result.status).not.toBe(0);
+        expect(result.keys).toEqual(keyNames.map((name) => `old ${name}\n`));
+      });
+    }
   });
-});
+}

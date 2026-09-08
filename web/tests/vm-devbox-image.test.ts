@@ -91,6 +91,7 @@ describe("devbox image template", () => {
       "chrome-managed-policy.json",
       "cmux-bashrc",
       "cmux-devbox-boot",
+      "cmux-devbox-rekey",
       "cmux-motd",
       "cmux-terminfo.sh",
       "cmux-terminfo.src",

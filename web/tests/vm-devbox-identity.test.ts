@@ -9,6 +9,7 @@ import {
   devboxIdentityCheckCommand,
   devboxIdentityInstallCommand,
   devboxProviderResidueCommand,
+  devboxSshHostKeyRegenerateCommand,
 } from "../scripts/devbox-image-common";
 import { DEVBOX_HOSTNAME, DEVBOX_HOSTNAME_LOOPBACK, DEVBOX_PROVIDER_HOSTNAME } from "../services/vms/images/identity";
 

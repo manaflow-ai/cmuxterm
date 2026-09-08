@@ -60,7 +60,7 @@ function fixture(options: { clone?: boolean; coldBoot?: boolean; failRekey?: boo
       child = spawn("sh", ["-c", redirected], {
         detached: true,
         stdio: "ignore",
-        env: { PATH: `${bin}:${process.env.PATH}`, TEST_ROOT: root },
+        env: { NODE_ENV: "test", PATH: `${bin}:${process.env.PATH}`, TEST_ROOT: root },
       });
     },
     close: async () => {
