@@ -309,6 +309,55 @@ extension TerminalController {
                     : try await VMClient.shared.pause(id: vmId)
                 return ["id": vmId, "status": status]
             }
+        case "vm.reflection":
+            // `cmux vm self <machine> [<path>]`: the machine's platform identity through the
+            // user's session — what `cmux self` prints inside it — without starting a shell.
+            guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.reflection requires `id`. Run `cmux vm ls` to find one.")
+            }
+            let rawPath = Self.socketWorkerString(params["path"]) ?? ""
+            let path = rawPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if path.contains("?") || path.contains("#") || path.contains(" ")
+                || path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) {
+                return v2Error(id: id, code: "invalid_params", message: "vm.reflection: `path` is a reflection path such as owner, machine, peers, or integrations.")
+            }
+            return v2VmCall(id: id, timeoutSeconds: 60) {
+                let result = try await VMClient.shared.reflection(id: vmId, path: path.isEmpty ? nil : path)
+                return [
+                    "machine": vmId,
+                    "path": path,
+                    "http_status": result.statusCode,
+                    "reflection": result.object,
+                ]
+            }
+        case "vm.file_put":
+            return socketWorkerVMFilePutResponse(id: id, params: params)
+        case "vm.snapshot_list":
+            // `cmux vm snapshot ls <machine>`: this machine's snapshots, newest first.
+            guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.snapshot_list requires `id`. Run `cmux vm ls` to find one.")
+            }
+            return v2VmCall(id: id, timeoutSeconds: 60) {
+                let snapshots = try await VMClient.shared.listSnapshots(id: vmId)
+                return [
+                    "machine": vmId,
+                    "snapshots": snapshots.map { snapshot -> [String: Any] in
+                        ["id": snapshot.id, "name": snapshot.name ?? NSNull(), "created_at": snapshot.createdAt]
+                    },
+                ]
+            }
+        case "vm.snapshot_delete":
+            // `cmux vm snapshot rm <machine> <snapshot-id>`: the snapshot must be this machine's.
+            guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.snapshot_delete requires `id`. Run `cmux vm ls` to find one.")
+            }
+            guard let snapshotId = Self.socketWorkerString(params["snapshot_id"]), !snapshotId.isEmpty else {
+                return v2Error(id: id, code: "invalid_params", message: "vm.snapshot_delete requires `snapshot_id`. Run `cmux vm snapshot ls <machine>` to find one.")
+            }
+            return v2VmCall(id: id, timeoutSeconds: 120) {
+                let deleted = try await VMClient.shared.deleteSnapshot(id: vmId, snapshotId: snapshotId)
+                return ["machine": vmId, "snapshot_id": snapshotId, "deleted": deleted]
+            }
         case "vm.snapshot":
             guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
                 return v2Error(id: id, code: "invalid_params", message: "vm.snapshot requires `id`. Run `cmux vm ls` to find one.")

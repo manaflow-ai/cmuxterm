@@ -6302,10 +6302,22 @@ struct CMUXCLI {
                 }
 
             case "snapshot", "checkpoint":
+                // `snapshot ls|rm` are the only new shapes; a machine id in first position
+                // keeps creating a snapshot exactly as before.
+                if let first = rest.first?.lowercased(), first == "ls" || first == "list" {
+                    try runVMSnapshotListCommand(rest: Array(rest.dropFirst()), client: client, jsonOutput: jsonOutput)
+                    break
+                }
+                if let first = rest.first?.lowercased(), first == "rm" || first == "delete" {
+                    try runVMSnapshotDeleteCommand(rest: Array(rest.dropFirst()), client: client, jsonOutput: jsonOutput)
+                    break
+                }
                 let (nameOpt, snapshotArgs) = parseOption(rest, name: "--name")
                 guard let vmId = snapshotArgs.first else {
                     throw CLIError(message: """
                         Usage: cmux vm snapshot <id> [--name <name>]
+                               cmux vm snapshot ls <id>
+                               cmux vm snapshot rm <id> <snapshot-id>
 
                         Find an id:
                           cmux vm ls
@@ -6570,6 +6582,12 @@ struct CMUXCLI {
             case "tree":
                 try runVMTreeCommand(rest: rest, client: client, jsonOutput: jsonOutput)
 
+            case "self":
+                try runVMSelfCommand(rest: rest, client: client, jsonOutput: jsonOutput)
+
+            case "dev":
+                try runVMDevCommand(rest: rest, client: client, jsonOutput: jsonOutput)
+
             case "workspace":
                 try runVMWorkspaceCommand(rest: rest, client: client, jsonOutput: jsonOutput)
 
@@ -6665,7 +6683,7 @@ struct CMUXCLI {
 
             default:
                 throw CLIError(message: """
-                    Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|attach|ssh|ssh-info> [args...]
+                    Usage: cmux \(command) <base|new|ls|domains|tree|self|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|dev|prompt|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|attach|ssh|ssh-info> [args...]
 
                     Common commands:
                       cmux vm ls
@@ -6673,9 +6691,12 @@ struct CMUXCLI {
                       cmux cloud domains
                       cmux vm status <id>
                       cmux vm snapshot <id>
+                      cmux vm snapshot ls <id>
                       cmux vm fork <id>
                       cmux vm exec <id> -- <command...>
                       cmux vm push <id> <local-path>
+                      cmux vm dev <id>
+                      cmux vm self <id>
                       cmux vm ssh <id>
                       cmux vm rm <id>
                     """)
@@ -18626,7 +18647,7 @@ struct CMUXCLI {
                 defaultValue: "Publish VM ports on generated or custom domains."
             )
             return """
-            Usage: cmux \(command) <base|new|ls|domains|tree|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|prompt|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|attach|ssh|ssh-info> [args...]
+            Usage: cmux \(command) <base|new|ls|domains|tree|self|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|dev|prompt|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|attach|ssh|ssh-info> [args...]
 
             `cmux vm <verb> --help` prints that verb's own usage.
 
@@ -18698,6 +18719,11 @@ struct CMUXCLI {
                                         (title, cwd, agent, open pane), desktop, and
                                         forwarded ports — each with the address
                                         `vm open` / `surface open` accepts.
+              self <machine> [<path>]   Who the machine is, as the platform sees it: the
+                                        reflection `cmux self` prints inside it (name,
+                                        owner, team, plan; paths owner|machine|peers|
+                                        integrations) — read through your session, no
+                                        shell started.
               status <id>                Print provider, status, and image.
               base open [--desktop|--base|--no-desktop] [--workspace <id>] [--window <id|ref|index>] [--focus <true|false>] [--detach|-d]
                                         Open Base, your persistent cloud workspace.
@@ -18721,6 +18747,10 @@ struct CMUXCLI {
               snapshot <id> [--name <name>]
                                         Create a provider snapshot/checkpoint and print its id.
                                         Alias: `checkpoint`.
+              snapshot ls <id>          List the machine's snapshots, newest first
+                                        (`<id>  <created>  <name|->`).
+              snapshot rm <id> <snapshot-id>
+                                        Delete one of the machine's snapshots. Permanent.
               fork <id> [--name <name>] [--window <id|ref|index>] [--detach|-d]
                                         Fork a VM as a tracked Cloud VM and open it unless
                                         --detach is passed.
@@ -18762,13 +18792,27 @@ struct CMUXCLI {
               route [--cwd <dir>] [--new] [--provision]
                                         Print the machine `run`/`agent` would use for a
                                         directory and why, without running anything.
-              agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <n>] [--no-open] -- <prompt or args...>
+              agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <n>] [--no-open] [--wait [--output] [--timeout <s>]] -- <prompt or args...>
                                         Start a coding agent as a detached terminal in a
                                         machine's cmux-tui session (routed like `run`);
                                         reattach with `vm open <machine>/<ws>/<term>`.
+                                        --wait blocks until it exits and passes the exit
+                                        code through; --output then prints its whole log.
+              dev <machine> [<dir>] [--name <workspace>] [--layout <file>] [--command <c>] [--port <n>] [--sync|--no-sync] [--no-open]
+                                        One command from a folder to a running dev layout:
+                                        route + sync the folder + detect the dev command +
+                                        a named workspace with a dev pane, a shell, and a
+                                        browser tab on its port, opened here.
               push <id> <local> [remote] [--exclude <pattern>]... [--no-default-excludes]
                                         Copy a local file or directory onto the VM over the
                                         exec channel (no SSH needed). Alias: `upload`.
+              push <id> <local> [remote] --watch [--interval <s>]
+                                        Keep pushing: re-sync whenever a local file changes,
+                                        until Ctrl-C.
+              push --secret <id> <local-file> [remote] [--mode <octal>]
+                                        A file that must never transit the control plane
+                                        (token, deploy key, .npmrc): over the machine's link
+                                        into `cmux file receive`, mode 600 by default.
               pull <id> <remote> [local]
                                         Copy a file or directory from the VM to local disk.
                                         Alias: `download`.
@@ -41186,7 +41230,7 @@ export default CMUXSessionRestore;
           login | logout                                      (aliases for auth login/logout)
           \(localizedCoderouterAliases())
           \(localizedCoderouterCommands())
-          vm <base|new|ls|domains|tree|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|ssh> [args...]    (alias: cloud)
+          vm <base|new|ls|domains|tree|self|status|stats|resize|rename|pause|resume|snapshot|fork|restore|rm|run|route|agent|dev|exec|push|pull|wait|shell|tui|desktop|open|workspace|terminal|tab|layout|env|ports|tools|handoff|promote-template|ssh> [args...]    (alias: cloud)
           remotes <list|add|remove> [--route <host:port>] [--tag <tag>] [--json]    (alias: remote)
           ai-accounts <list|upload|remove> [--team <id>] [--json]
           rpc <method> [json-params]

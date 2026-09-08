@@ -619,6 +619,26 @@ struct VMSnapshotResult {
     let createdAt: Int64
 }
 
+/// One reflection read (`GET /api/vm/<id>/reflection[/<path>]`): the HTTP status and the
+/// JSON body as sent. A 404 with `{error: "not_found", paths: […]}` is a normal result
+/// (an unknown reflection path), so the CLI can print the paths that do exist.
+struct VMReflectionResult: Sendable {
+    let statusCode: Int
+    let body: Data
+
+    var object: [String: Any] {
+        ((try? JSONSerialization.jsonObject(with: body, options: [])) as? [String: Any]) ?? [:]
+    }
+}
+
+/// One row of `GET /api/vm/<id>/snapshots`: the provider snapshot id, its display name
+/// when one was given, and the creation time as the ISO-8601 string the server sent.
+struct VMSnapshotSummary: Sendable, Equatable {
+    let id: String
+    let name: String?
+    let createdAt: String
+}
+
 struct VMSSHEndpoint {
     let transport: String
     let host: String
@@ -1373,6 +1393,67 @@ actor VMClient {
             throw VMClientError.malformedResponse("Cloud VM \(action) response was missing `status`.")
         }
         return status
+    }
+
+    /// `GET /api/vm/<id>/reflection[/<path>]`: the machine's identity as the platform sees
+    /// it — the same payloads a process inside the machine reads from `cmux self` (index,
+    /// `owner`, `machine`, `peers`, `integrations`) — through the signed-in user's session,
+    /// so no shell is started on the machine. `path` is already normalized (no leading or
+    /// trailing slash; nil for the index). Unknown paths come back as a 404 result rather
+    /// than an error; every other non-2xx is thrown like any Cloud VM call.
+    func reflection(id: String, path: String?) async throws -> VMReflectionResult {
+        let encodedID = try pathSegment(id, fieldName: "vm id")
+        var requestPath = "/api/vm/\(encodedID)/reflection"
+        if let path, !path.isEmpty {
+            let segments = try path.split(separator: "/").map { try pathSegment(String($0), fieldName: "reflection path") }
+            requestPath += "/" + segments.joined(separator: "/")
+        }
+        let (data, http) = try await request("GET", path: requestPath)
+        if http.statusCode == 404,
+           let object = try? decodeJSONObject(data),
+           (object["error"] as? String) == "not_found" {
+            return VMReflectionResult(statusCode: 404, body: data)
+        }
+        try ensureOK(http, data: data)
+        _ = try decodeJSONObject(data)
+        return VMReflectionResult(statusCode: http.statusCode, body: data)
+    }
+
+    /// `GET /api/vm/<id>/snapshots`: this machine's snapshots, newest first. A provider
+    /// without the operation answers 501 `vm_operation_unsupported`; that HTTP failure is
+    /// passed through (the socket layer attaches `backend_code`, the CLI words it).
+    func listSnapshots(id: String) async throws -> [VMSnapshotSummary] {
+        let encodedID = try pathSegment(id, fieldName: "vm id")
+        let (data, http) = try await request("GET", path: "/api/vm/\(encodedID)/snapshots")
+        try ensureOK(http, data: data)
+        let obj = try decodeJSONObject(data)
+        guard let rows = obj["snapshots"] as? [[String: Any]] else {
+            throw VMClientError.malformedResponse("Cloud VM snapshot list response was missing `snapshots`.")
+        }
+        return try rows.map { row in
+            guard let snapshotID = row["id"] as? String, !snapshotID.isEmpty else {
+                throw VMClientError.malformedResponse("Cloud VM snapshot list response had a snapshot without an `id`.")
+            }
+            let name = (row["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let createdAt = (row["createdAt"] as? String) ?? (row["created_at"] as? String) ?? ""
+            return VMSnapshotSummary(id: snapshotID, name: name, createdAt: createdAt)
+        }
+    }
+
+    /// `DELETE /api/vm/<id>/snapshots/<snapshotId>` → true. 404 `vm_snapshot_not_found`
+    /// (not this machine's, or unknown) and 501 `vm_operation_unsupported` pass through
+    /// as HTTP failures for the CLI to word.
+    func deleteSnapshot(id: String, snapshotId: String) async throws -> Bool {
+        let encodedID = try pathSegment(id, fieldName: "vm id")
+        let encodedSnapshotID = try pathSegment(snapshotId, fieldName: "snapshot id")
+        let (data, http) = try await request(
+            "DELETE",
+            path: "/api/vm/\(encodedID)/snapshots/\(encodedSnapshotID)",
+            timeoutSeconds: Self.createTimeoutSeconds
+        )
+        try ensureOK(http, data: data)
+        let obj = try decodeJSONObject(data)
+        return (obj["deleted"] as? Bool) ?? true
     }
 
     func snapshot(id: String, name: String? = nil) async throws -> VMSnapshotResult {

@@ -1255,6 +1255,9 @@ extension CMUXCLI {
         case "push", "upload": return vmPushUsage
         case "pull", "download": return vmPullUsage
         case "wait": return vmWaitUsage
+        case "self": return vmSelfUsage
+        case "dev": return vmDevUsage
+        case "snapshot", "checkpoint": return vmSnapshotUsage
         default: return nil
         }
     }
