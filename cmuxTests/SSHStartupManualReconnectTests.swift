@@ -14,14 +14,28 @@ import Testing
 struct SSHStartupManualReconnectTests {
     private final class BundleToken {}
 
-    private struct ProcessRunResult {
+    struct ProcessRunResult {
         let status: Int32
         let stdout: String
         let stderr: String
         let timedOut: Bool
     }
 
-    private final class MockSocketServerState: @unchecked Sendable {
+    private struct TerminalExitPromptFixture {
+        let startupCommand: String
+        let environment: [String: String]
+        let temporaryDirectory: URL
+    }
+
+    private struct TerminalExitPromptProcess {
+        let process: Process
+        let standardInput: Pipe
+        let transcriptURL: URL
+        let transcriptHandle: FileHandle
+        let temporaryDirectory: URL
+    }
+
+    final class MockSocketServerState: @unchecked Sendable {
         private let lock = NSLock()
         private var commands: [String] = []
 
@@ -66,7 +80,7 @@ struct SSHStartupManualReconnectTests {
         try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fakeSSH.path)
 
         let startupCommand = try Self.generatedVMSSHInitialStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         #expect(!startupCommand.contains("workspace.remote.terminal_session_connected"))
         var environment = ProcessInfo.processInfo.environment
@@ -104,6 +118,73 @@ struct SSHStartupManualReconnectTests {
         )
     }
 
+    @Test func terminalTeardownDisablesRemoteInputReportingModesBeforePrompt() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-ssh-terminal-mode-reset-\(UUID().uuidString)", isDirectory: true)
+        let fakeCLI = root.appendingPathComponent("cmux")
+        let fakeSSH = root.appendingPathComponent("ssh")
+
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        try Self.writeShellFile(at: fakeCLI, lines: ["#!/bin/sh", "exit 0"])
+        try Self.writeShellFile(at: fakeSSH, lines: ["#!/bin/sh", "exit 7"])
+        for executable in [fakeCLI, fakeSSH] {
+            try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        }
+
+        let generatedStartupCommand = try Self.generatedVMSSHInitialStartupCommand(
+            replacingSystemSSHWith: fakeSSH
+        )
+        let generatedStartupURL = URL(
+            fileURLWithPath: generatedStartupCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        defer { try? fileManager.removeItem(at: generatedStartupURL) }
+        let generatedStartupScript = try String(contentsOf: generatedStartupURL, encoding: .utf8)
+        try #require(generatedStartupScript.contains(fakeSSH.path))
+        let startupURL = root.appendingPathComponent("startup-with-fake-ssh.sh")
+        try generatedStartupScript.write(to: startupURL, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: startupURL.path)
+        try fileManager.removeItem(at: generatedStartupURL)
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["CMUX_BUNDLED_CLI_PATH"] = fakeCLI.path
+        environment["CMUX_SOCKET_PATH"] = "/tmp/cmux-debug-test.sock"
+        environment["CMUX_WORKSPACE_ID"] = "11111111-1111-1111-1111-111111111111"
+        environment["CMUX_SURFACE_ID"] = "22222222-2222-2222-2222-222222222222"
+        environment["CMUX_SSH_RECONNECT_LIMIT"] = "0"
+        let result = Self.runProcess(
+            executablePath: "/usr/bin/script",
+            arguments: ["-q", "-F", "/dev/null", "/bin/sh", startupURL.path],
+            environment: environment,
+            standardInput: "\n",
+            timeout: 5
+        )
+
+        let transcript = result.stdout + result.stderr
+        #expect(!result.timedOut, Comment(rawValue: transcript))
+        #expect(result.status == 7, Comment(rawValue: transcript))
+        let requiredResets = [
+            "\u{1B}[?1004l", // focus reporting
+            "\u{1B}[?1000l", // mouse reporting
+            "\u{1B}[?2004l", // bracketed paste
+            "\u{1B}[999<u", // Kitty keyboard stack
+            "\u{1B}[0;1=u", // Kitty keyboard flags
+            "\u{1B}[?2048l", // in-band resize reports
+            "\u{1B}[?2026l", // synchronized output
+        ]
+        let closePrompt = transcript.range(of: "press Enter to close this pane")
+        #expect(closePrompt != nil)
+        for reset in requiredResets {
+            let resetRange = transcript.range(of: reset)
+            #expect(resetRange != nil, Comment(rawValue: transcript))
+            if let resetRange, let closePrompt {
+                #expect(resetRange.lowerBound < closePrompt.lowerBound)
+            }
+        }
+    }
+
     @Test func directSignalTerminatesForegroundAuthenticationProcessTree() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
@@ -130,7 +211,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -185,7 +266,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -267,7 +348,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -351,7 +432,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -367,15 +448,14 @@ struct SSHStartupManualReconnectTests {
             executablePath: "/bin/sh",
             arguments: ["-c", startupCommand],
             environment: environment,
-            timeout: 5
+            timeout: 2
         )
 
-        #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 255, Comment(rawValue: result.stderr))
+        #expect(result.timedOut, "closed stdin must not dismiss the terminal failure prompt")
         #expect(try String(contentsOf: attemptFile, encoding: .utf8) == "20")
     }
 
-    @Test func establishedStartupFailsClosedOnUnclassifiedReauthenticationFailure() throws {
+    @Test func establishedStartupRetriesUnclassifiedReauthenticationFailure() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("cmux-ssh-unclassified-reauth-\(UUID().uuidString)", isDirectory: true)
@@ -396,7 +476,8 @@ struct SSHStartupManualReconnectTests {
             "case \"$count\" in",
             "  1) exit 0 ;;",
             "  2) exit 255 ;;",
-            "  *) printf '%s\\n' 'Bad owner or permissions on ~/.ssh/config' >&2; exit 255 ;;",
+            "  3) printf '%s\\n' 'Connection closed by UNKNOWN port 65535' >&2; exit 255 ;;",
+            "  *) exit 0 ;;",
             "esac",
         ])
         try Self.writeShellFile(at: fakeSleep, lines: ["#!/bin/sh", "exit 0"])
@@ -405,7 +486,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -425,8 +506,57 @@ struct SSHStartupManualReconnectTests {
         )
 
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
-        #expect(result.status == 255, Comment(rawValue: result.stderr))
-        #expect(try String(contentsOf: attemptFile, encoding: .utf8) == "3")
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        #expect(try String(contentsOf: attemptFile, encoding: .utf8) == "5")
+    }
+
+    @Test func terminalExitPromptIgnoresQueuedWakeReportsAndEOTUntilFreshEnter() throws {
+        let prompt = try Self.makeTerminalExitPromptProcess()
+        defer { Self.stopAndCleanUp(prompt) }
+
+        let queuedWakeInput = Data("\u{1B}[I\u{1B}[O\u{1B}[13;2u".utf8) + Data([0x04])
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: queuedWakeInput)
+        #expect(
+            Self.waitForFile(
+                at: prompt.transcriptURL,
+                containing: "press Enter to close this pane",
+                timeout: 3
+            ),
+            "terminal exit prompt was not emitted"
+        )
+
+        let lateWakeInput = Data([0x04, 0x04])
+            + Data("\u{1B}[O\u{1B}[13;2u\u{1B}[200~pasted\nline\u{1B}[201~".utf8)
+        try prompt.standardInput.fileHandleForWriting.write(contentsOf: lateWakeInput)
+        let dismissedByWakeInput = Self.waitForExit(prompt.process, timeout: 0.5)
+        #expect(!dismissedByWakeInput, "late focus reports, CSI-u, paste, and repeated EOT must not dismiss the prompt")
+        if !dismissedByWakeInput {
+            try prompt.standardInput.fileHandleForWriting.write(contentsOf: Data([0x0A]))
+            #expect(Self.waitForExit(prompt.process, timeout: 2), "a fresh Enter must dismiss the prompt")
+            if !prompt.process.isRunning {
+                #expect(prompt.process.terminationStatus == 255)
+            }
+        }
+    }
+
+    @Test func terminalExitPromptDoesNotDismissOnClosedInput() throws {
+        let prompt = try Self.makeTerminalExitPromptProcess()
+        defer { Self.stopAndCleanUp(prompt) }
+
+        #expect(
+            Self.waitForFile(
+                at: prompt.transcriptURL,
+                containing: "press Enter to close this pane",
+                timeout: 3
+            ),
+            "terminal exit prompt was not emitted"
+        )
+        try prompt.standardInput.fileHandleForWriting.close()
+
+        #expect(
+            !Self.waitForExit(prompt.process, timeout: 0.5),
+            "closed stdin must leave the prompt waiting for a real Enter keypress"
+        )
     }
 
     @Test func persistentStartupIgnoresInheritedInternalPendingSignalState() throws {
@@ -453,7 +583,7 @@ struct SSHStartupManualReconnectTests {
         }
 
         let startupCommand = try Self.generatedPersistentSSHForegroundAuthenticationStartupCommand(
-            sshExecutable: fakeSSH.path
+            replacingSystemSSHWith: fakeSSH
         )
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
@@ -638,7 +768,7 @@ struct SSHStartupManualReconnectTests {
     }
 
     private static func generatedPersistentSSHForegroundAuthenticationStartupCommand(
-        sshExecutable: String
+        replacingSystemSSHWith fakeSSH: URL
     ) throws -> String {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundleToken.self)
         let socketPath = makeSocketPath("ssh-foreground-auth")
@@ -722,18 +852,14 @@ struct SSHStartupManualReconnectTests {
         )
         let configureParams = try #require(configureRequest["params"] as? [String: Any])
         let startupCommand = try #require(configureParams["terminal_startup_command"] as? String)
-        #expect(
-            startupCommand.contains("cmux_ssh_foreground_auth"),
-            "Expected the persistent SSH foreground-auth startup path: \(startupCommand)"
-        )
         return try SSHStartupCommandTestSupport.replacingSystemSSH(
             in: startupCommand,
-            with: sshExecutable
+            with: fakeSSH.path
         )
     }
 
     private static func generatedVMSSHInitialStartupCommand(
-        sshExecutable: String
+        replacingSystemSSHWith fakeSSH: URL
     ) throws -> String {
         let cliPath = try BundledCLITestSupport.bundledCLIPath(for: BundleToken.self)
         let socketPath = makeSocketPath("vm-ssh-startup")
@@ -756,10 +882,9 @@ struct SSHStartupManualReconnectTests {
             }
 
             switch method {
-            case "vm.attach_info":
+            case "vm.ssh_info":
                 let params = payload["params"] as? [String: Any] ?? [:]
-                guard params["id"] as? String == vmID,
-                      params["require_daemon"] as? Bool == true else {
+                guard params["id"] as? String == vmID else {
                     return v2Response(id: id, ok: false, error: ["code": "invalid_params", "message": "unexpected attach params"])
                 }
                 return v2Response(
@@ -825,7 +950,79 @@ struct SSHStartupManualReconnectTests {
         let startupCommand = try #require(createParams["initial_command"] as? String)
         return try SSHStartupCommandTestSupport.replacingSystemSSH(
             in: startupCommand,
-            with: sshExecutable
+            with: fakeSSH.path
+        )
+    }
+
+    private static func makeTerminalExitPromptFixture() throws -> TerminalExitPromptFixture {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("cmux-ssh-exit-prompt-fixture-\(UUID().uuidString)", isDirectory: true)
+        let fakeCLI = root.appendingPathComponent("cmux")
+        let fakeSSH = root.appendingPathComponent("ssh")
+        let fakeSleep = root.appendingPathComponent("sleep")
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        do {
+            try writeShellFile(at: fakeCLI, lines: ["#!/bin/sh", "exit 0"])
+            try writeShellFile(at: fakeSSH, lines: [
+                "#!/bin/sh",
+                "printf '%s\\n' 'Permission denied (publickey).' >&2",
+                "exit 255",
+            ])
+            try writeShellFile(at: fakeSleep, lines: ["#!/bin/sh", "exit 0"])
+            for executable in [fakeCLI, fakeSSH, fakeSleep] {
+                try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+            }
+
+            let startupCommand = try generatedPersistentSSHForegroundAuthenticationStartupCommand(
+                replacingSystemSSHWith: fakeSSH
+            )
+            var environment = ProcessInfo.processInfo.environment
+            environment["PATH"] = "\(root.path):\(environment["PATH"] ?? "/usr/bin:/bin")"
+            environment["CMUX_BUNDLED_CLI_PATH"] = fakeCLI.path
+            environment["CMUX_SOCKET_PATH"] = "/tmp/cmux-debug-test.sock"
+            environment["CMUX_WORKSPACE_ID"] = "11111111-1111-1111-1111-111111111111"
+            environment["CMUX_SURFACE_ID"] = "22222222-2222-2222-2222-222222222222"
+            environment["CMUX_SSH_RECONNECT_DELAY_SECONDS"] = "2"
+            environment["CMUX_SSH_RECONNECT_MAX_DELAY_SECONDS"] = "2"
+            return TerminalExitPromptFixture(
+                startupCommand: startupCommand,
+                environment: environment,
+                temporaryDirectory: root
+            )
+        } catch {
+            try? fileManager.removeItem(at: root)
+            throw error
+        }
+    }
+
+    private static func makeTerminalExitPromptProcess() throws -> TerminalExitPromptProcess {
+        let fixture = try makeTerminalExitPromptFixture()
+        let transcriptURL = fixture.temporaryDirectory.appendingPathComponent("transcript.txt")
+        try Data().write(to: transcriptURL)
+        let transcriptHandle = try FileHandle(forWritingTo: transcriptURL)
+        let process = Process()
+        let standardInput = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
+        process.arguments = ["-q", "-F", "/dev/null", "/bin/sh", "-c", fixture.startupCommand]
+        process.environment = fixture.environment
+        process.standardInput = standardInput
+        process.standardOutput = transcriptHandle
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            try? transcriptHandle.close()
+            try? FileManager.default.removeItem(at: fixture.temporaryDirectory)
+            throw error
+        }
+        return TerminalExitPromptProcess(
+            process: process,
+            standardInput: standardInput,
+            transcriptURL: transcriptURL,
+            transcriptHandle: transcriptHandle,
+            temporaryDirectory: fixture.temporaryDirectory
         )
     }
 
@@ -874,7 +1071,7 @@ struct SSHStartupManualReconnectTests {
         return handled
     }
 
-    private static func runProcess(
+    static func runProcess(
         executablePath: String,
         arguments: [String],
         environment: [String: String],
@@ -920,7 +1117,7 @@ struct SSHStartupManualReconnectTests {
         return ProcessRunResult(status: process.terminationStatus, stdout: stdout, stderr: stderr, timedOut: timedOut)
     }
 
-    private static func writeShellFile(at url: URL, lines: [String]) throws {
+    static func writeShellFile(at url: URL, lines: [String]) throws {
         try lines.joined(separator: "\n")
             .appending("\n")
             .write(to: url, atomically: true, encoding: .utf8)
@@ -943,12 +1140,37 @@ struct SSHStartupManualReconnectTests {
         return contents.contains(expectedContents)
     }
 
-    private static func makeSocketPath(_ name: String) -> String {
+    private static func waitForExit(_ process: Process, timeout: TimeInterval) -> Bool {
+        let deadline = Date.now.addingTimeInterval(timeout)
+        while process.isRunning, Date.now < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        if !process.isRunning {
+            process.waitUntilExit()
+            return true
+        }
+        return false
+    }
+
+    private static func stopAndCleanUp(_ prompt: TerminalExitPromptProcess) {
+        if prompt.process.isRunning {
+            prompt.process.terminate()
+            if !waitForExit(prompt.process, timeout: 1) {
+                Darwin.kill(prompt.process.processIdentifier, SIGKILL)
+                prompt.process.waitUntilExit()
+            }
+        }
+        try? prompt.standardInput.fileHandleForWriting.close()
+        try? prompt.transcriptHandle.close()
+        try? FileManager.default.removeItem(at: prompt.temporaryDirectory)
+    }
+
+    static func makeSocketPath(_ name: String) -> String {
         let shortID = UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)
         return "/tmp/cli-\(name.prefix(3))-\(shortID).sock"
     }
 
-    private static func bindUnixSocket(at path: String) throws -> Int32 {
+    static func bindUnixSocket(at path: String) throws -> Int32 {
         unlink(path)
         let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else {
@@ -984,7 +1206,7 @@ struct SSHStartupManualReconnectTests {
         return fd
     }
 
-    private static func v2Response(
+    static func v2Response(
         id: String,
         ok: Bool,
         result: [String: Any]? = nil,
@@ -997,7 +1219,7 @@ struct SSHStartupManualReconnectTests {
         return String(data: data ?? Data("{}".utf8), encoding: .utf8) ?? "{}"
     }
 
-    private static func malformedRequestResponse(raw: String) -> String {
+    static func malformedRequestResponse(raw: String) -> String {
         v2Response(
             id: "unknown",
             ok: false,
@@ -1005,12 +1227,12 @@ struct SSHStartupManualReconnectTests {
         )
     }
 
-    private static func jsonObject(_ line: String) -> [String: Any]? {
+    static func jsonObject(_ line: String) -> [String: Any]? {
         guard let data = line.data(using: .utf8) else { return nil }
         return try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
     }
 
-    private static func testError(_ message: String) -> NSError {
+    static func testError(_ message: String) -> NSError {
         NSError(domain: "cmux.tests", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 }

@@ -542,6 +542,18 @@ final class CmuxSettingsFileStore {
                 logInvalid("notifications.sound", sourcePath: sourcePath)
             }
         }
+        if let raw = section["soundOverrides"] {
+            if let data = NotificationSoundOverrides.boundedJSONData(
+                fromJSONObject: raw
+            ),
+               let overrides = try? NotificationSoundOverrides(jsonData: data) {
+                snapshot.managedUserDefaults[
+                    NotificationsCatalogSection().soundOverrides.userDefaultsKey
+                ] = .string(overrides.jsonString)
+            } else {
+                logInvalid("notifications.soundOverrides", sourcePath: sourcePath)
+            }
+        }
         applyStringSettings(NotificationSettingsFileMapping.stringSettings, from: section, snapshot: &snapshot)
         if section.keys.contains("paneFlashColor") {
             if let value = parseNullableHex(
@@ -1852,7 +1864,7 @@ final class CmuxSettingsFileStore {
         return number.boolValue
     }
 
-    private func jsonInt(_ rawValue: Any?) -> Int? {
+    func jsonInt(_ rawValue: Any?) -> Int? {
         guard let number = rawValue as? NSNumber else { return nil }
         guard CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let doubleValue = number.doubleValue
