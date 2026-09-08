@@ -1,4 +1,4 @@
-public import CMUXMobileCore
+import CMUXMobileCore
 public import Foundation
 
 /// Keeps the endpoint's relay credentials perpetually fresh: mints early
