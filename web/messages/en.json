@@ -305,10 +305,11 @@
       "label": "Account menu",
       "settings": "Settings",
       "billing": "Billing",
+      "themeDark": "Dark theme",
+      "themeLight": "Light theme",
       "signOut": "Sign out",
       "signingOut": "Signing out…",
       "signOutError": "Could not sign out. Try again.",
-      "organizationSwitchError": "Could not switch organization. Try again.",
       "signIn": "Sign in"
     },
     "teamSwitcher": {

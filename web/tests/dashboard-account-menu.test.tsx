@@ -45,6 +45,12 @@ mock.module("@base-ui-components/react/menu", () => ({
   },
 }));
 
+let resolvedTheme = "dark";
+const themeToggle = mock(() => undefined);
+mock.module("@/app/[locale]/theme", () => ({
+  useThemeToggle: () => ({ resolvedTheme, toggle: themeToggle }),
+}));
+
 let teamScope: unknown = { status: "unavailable" };
 mock.module("../app/[locale]/dashboard/dashboard-team-scope", () => ({
   useDashboardTeamScope: () => teamScope,
@@ -98,6 +104,22 @@ describe("dashboard account menu", () => {
     expect(html).toContain("signOut");
     // Without a team catalog the menu has no team entry at all.
     expect(html).not.toContain("team-submenu");
+  });
+
+  test("offers the theme switch inside the menu, named after the theme it switches to", () => {
+    currentUser = {
+      id: "user-lawrence",
+      displayName: "Lawrence",
+      primaryEmail: "lawrence@example.com",
+      signOut: async () => undefined,
+    };
+    resolvedTheme = "dark";
+    expect(renderToStaticMarkup(<DashboardAccountMenu />)).toContain(">themeLight<");
+    resolvedTheme = "light";
+    const html = renderToStaticMarkup(<DashboardAccountMenu />);
+    expect(html).toContain(">themeDark<");
+    expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/billing"));
+    expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("signOut"));
   });
 
   test("lists every permitted team in a submenu and shows the current one on the trigger", () => {

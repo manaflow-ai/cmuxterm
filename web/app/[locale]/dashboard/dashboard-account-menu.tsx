@@ -7,6 +7,7 @@ import { useState } from "react";
 import { localizedVaultPath, vaultSignInHref } from "@/app/lib/vault-auth";
 import { Link, useRouter } from "@/i18n/navigation";
 import { clearCoderouterOrganizationScope } from "@/services/coderouter/organizationScope";
+import { useThemeToggle } from "@/app/[locale]/theme";
 import { useDashboardTeamScope, type DashboardCatalogTeam } from "./dashboard-team-scope";
 
 const menuItemClass =
@@ -18,6 +19,7 @@ export function DashboardAccountMenu() {
   const router = useRouter();
   const user = useUser({ or: "return-null" });
   const teamScope = useDashboardTeamScope(user?.id ?? null);
+  const theme = useThemeToggle();
   const [signOutPending, setSignOutPending] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
   const signInHref = vaultSignInHref(localizedVaultPath(locale, "/dashboard"));
@@ -81,6 +83,17 @@ export function DashboardAccountMenu() {
                   onSelect={teamScope.switchTeam}
                 />
               ) : null}
+              <Menu.Item
+                className={menuItemClass}
+                closeOnClick={false}
+                onClick={(event) => {
+                  event.preventDefault();
+                  theme.toggle();
+                }}
+              >
+                <ThemeIcon dark={theme.resolvedTheme === "dark"} />
+                <span>{theme.resolvedTheme === "dark" ? t("themeLight") : t("themeDark")}</span>
+              </Menu.Item>
               <Menu.Separator className="mx-1 my-1 h-px bg-border" />
               <Menu.Item
                 className={`${menuItemClass} text-red-600 dark:text-red-400`}
@@ -165,6 +178,19 @@ function TeamSubmenu({
         </Menu.Positioner>
       </Menu.Portal>
     </Menu.SubmenuRoot>
+  );
+}
+
+function ThemeIcon({ dark }: { readonly dark: boolean }) {
+  return dark ? (
+    <svg aria-hidden="true" className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round">
+      <circle cx="8" cy="8" r="3" />
+      <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1.05 1.05M11.55 11.55l1.05 1.05M12.6 3.4l-1.05 1.05M4.45 11.55 3.4 12.6" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" className="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round">
+      <path d="M13.5 9.75A5.75 5.75 0 0 1 6.25 2.5a5.75 5.75 0 1 0 7.25 7.25Z" />
+    </svg>
   );
 }
 
