@@ -12,14 +12,17 @@ struct GitStatusSnapshot: Equatable, Sendable {
     let statusesByPath: [String: GitFileStatus]
     let displayableEntries: [GitStatusSnapshotEntry]
     let state: GitStatusSnapshotState
+    let branchName: String?
 
     init(
         statusesByPath: [String: GitFileStatus],
         displayableEntries: [GitStatusSnapshotEntry],
-        state: GitStatusSnapshotState = .available
+        state: GitStatusSnapshotState = .available,
+        branchName: String? = nil
     ) {
         self.statusesByPath = statusesByPath
         self.displayableEntries = displayableEntries
         self.state = state
+        self.branchName = branchName
     }
 }

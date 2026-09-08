@@ -35,7 +35,7 @@ struct GitStatusProvider: Sendable {
         // spelling so FileExplorerStore lookups match.
         guard let output = runGit(
             in: repoRoot,
-            arguments: ["status", "--porcelain=v1", "--untracked-files=all", "-z"]
+            arguments: ["status", "--porcelain=v1", "--branch", "--no-ahead-behind", "--untracked-files=all", "-z"]
         ) else {
             return .empty
         }
@@ -70,7 +70,7 @@ struct GitStatusProvider: Sendable {
             "cd '\(escapedDir)' 2>/dev/null",
             "\(Self.nonLockingRemoteGitCommand) rev-parse --show-toplevel 2>/dev/null",
             "printf '\\0'",
-            "\(Self.nonLockingRemoteGitCommand) status --porcelain=v1 --untracked-files=all -z 2>/dev/null",
+            "\(Self.nonLockingRemoteGitCommand) status --porcelain=v1 --branch --no-ahead-behind --untracked-files=all -z 2>/dev/null",
         ].joined(separator: " && ")
         guard let output = runSSH(
             command: cmd, destination: destination,
@@ -110,6 +110,11 @@ struct GitStatusProvider: Sendable {
         let entries = output.split(separator: "\0", omittingEmptySubsequences: true).map(String.init)
 
         var entryIndex = 0
+        var branchName: String?
+        if let header = entries.first, header.hasPrefix("## ") {
+            branchName = Self.branchName(fromPorcelainHeader: header)
+            entryIndex = 1
+        }
         while entryIndex < entries.count {
             let entry = entries[entryIndex]
             guard entry.count >= 4 else {
@@ -164,8 +169,21 @@ struct GitStatusProvider: Sendable {
         return GitStatusSnapshot(
             statusesByPath: statusMap,
             displayableEntries: displayableEntries,
-            state: .available
+            state: .available,
+            branchName: branchName
         )
+    }
+
+    private static func branchName(fromPorcelainHeader header: String) -> String? {
+        var branch = String(header.dropFirst(3))
+        for prefix in ["No commits yet on ", "Initial commit on "] where branch.hasPrefix(prefix) {
+            branch = String(branch.dropFirst(prefix.count))
+        }
+        if branch == "HEAD (no branch)" { return "HEAD" }
+        if let upstreamSeparator = branch.range(of: "...") {
+            branch = String(branch[..<upstreamSeparator.lowerBound])
+        }
+        return branch.isEmpty ? nil : branch
     }
 
     private func parseStatusChars(index: Character, workTree: Character) -> GitFileStatus? {

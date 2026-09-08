@@ -22,11 +22,7 @@ struct SourceControlPanelView: View {
     }
 
     private var branchName: String? {
-        guard let branch = tabManager.selectedWorkspace?.gitBranch?.branch,
-              !branch.isEmpty else {
-            return nil
-        }
-        return branch
+        fileExplorerStore.gitStatusSnapshot.branchName
     }
 
     private var isRemoteWorkspace: Bool {
