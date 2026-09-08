@@ -1770,7 +1770,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     // MARK: Notifications
 
     private func installNotificationSync() {
-        guard !ManagedDevicePolicy().isEnforced(.disableCloud) else { return }
+        // The registry never creates a provider while the managed-device
+        // policy disables Cloud, so no policy check is repeated here.
         let machineID = self.machineID
         let clientID = CloudTuiClientPaths().notificationClientID()
         let sync = CloudNotificationSync(
