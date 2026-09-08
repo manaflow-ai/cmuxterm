@@ -94,7 +94,7 @@ import Testing
     )
     #expect(scheduledBeforeFetch)
     let fetchRequest = store.workspaceChangesSummaryRefreshSchedulePolicy.beginFetchAfterDebounce()
-    try #require(fetchRequest)
+    #expect(fetchRequest != nil)
     #expect(store.workspaceChangesSummaryRefreshSchedulePolicy.isFetchInFlight)
 
     store.suspendWorkspaceChangesSummaryFetchesPreservingChips()
