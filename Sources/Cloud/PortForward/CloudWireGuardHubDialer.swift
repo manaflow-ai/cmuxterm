@@ -7,7 +7,12 @@ struct CloudWireGuardHubDialer: CloudHubDialing {
     let hub: CloudWireGuardHub
 
     func claimHubSocket() async throws -> CloudHubSocketClaim {
+        try Task.checkCancellation()
         let claim = try await hub.acquire()
+        if Task.isCancelled {
+            await hub.release(claim.lease)
+            throw CancellationError()
+        }
         let hub = self.hub
         let lease = claim.lease
         return CloudHubSocketClaim(endpoint: .unix(path: claim.ready.socketPath)) {

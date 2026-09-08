@@ -243,7 +243,7 @@ final class CloudVMActionLauncher {
             allowDuringAuthTransition: true,
             onCompletion: { completion in
                 guard completion.succeeded || completion.indicatesCloudVMNotFound else { return }
-                AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: id)
+                Task { await AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: id) }
             }
         )
     }

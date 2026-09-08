@@ -133,12 +133,12 @@ final class CmuxTuiSurfaceProviderRegistry {
         return providers[machineID]
     }
 
-    func machineWasDeleted(_ id: String) {
+    func machineWasDeleted(_ id: String) async {
         providers[id]?.stop()
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
-        Task { await links.disconnect(machineID: id) }
-        Task { await portForwards?.close(machineID: id) }
+        await portForwards?.close(machineID: id)
+        await links.disconnect(machineID: id)
     }
 
     /// The headless link's local mux socket for a machine, connecting if needed.

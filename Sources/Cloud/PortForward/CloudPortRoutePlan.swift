@@ -52,6 +52,7 @@ enum CloudPortRoutePlan: Equatable, Sendable {
     static func localURL(rewriting remoteURL: String, toLoopbackPort localPort: UInt16) -> URL? {
         guard var parts = URLComponents(string: remoteURL) else { return nil }
         if parts.scheme == nil { parts.scheme = "http" }
+        guard let scheme = parts.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
         parts.host = "127.0.0.1"
         parts.port = Int(localPort)
         return parts.url

@@ -929,7 +929,7 @@ struct MachineRowActions {
                 arguments: ["vm", "rm", id],
                 onSuccess: {
                     // The machine is gone; its workspaces would only sit there "Connected".
-                    AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: id)
+                    Task { await AppDelegate.shared?.closeWorkspaces(forManagedCloudVMID: id) }
                 },
                 onDidMutate: onDidMutate
             ) {

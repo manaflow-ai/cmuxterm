@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+  "cloudTree.error.invalidPreviewURL": {
+    "extractionState": "manual",
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The Cloud service returned an unusable preview address. Refresh and retry."
+        }
+      },
+      "ja": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Cloud サービスから使用できないプレビューアドレスが返されました。更新して再試行してください。"
+        }
+      }
+    }
+  },
     "cli.help.readScreen": {
       "extractionState": "manual",
       "localizations": {

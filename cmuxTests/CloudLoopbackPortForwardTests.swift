@@ -23,6 +23,7 @@ struct CloudLoopbackPortForwardTests {
         private var targets: [CloudPortForwardTarget] = []
         private var _replyCode: UInt8 = SocksV5Client.replySucceeded
         private var _silent = false
+        let accepted = CloudLinkFirstValue<Bool>()
         private var _closesAfterReplyHeader = false
         private(set) var port: UInt16 = 0
 
@@ -88,6 +89,7 @@ struct CloudLoopbackPortForwardTests {
         private func serve(_ connection: NWConnection) async {
             do {
                 try await connection.startAndWaitUntilReady(queue: queue)
+                accepted.resolve(true)
                 if silent { return }
                 let greeting = try await connection.receiveExactly(3)
                 guard greeting == SocksV5Client.greeting else { throw NSError(domain: "FakeSocksHub", code: 2) }
@@ -351,10 +353,14 @@ struct CloudLoopbackPortForwardTests {
         hub.silent = true
         let dialer = FakeHubDialer(endpoint: hub.endpoint)
         var relay = CloudPortForwardRelay(dialer: dialer)
-        relay.handshakeTimeout = .milliseconds(400)
+        let clock = SidebarTestManualClock()
+        relay.clock = clock
         let forward = try CloudLoopbackPortForward(target: CloudPortForwardTarget(host: "10.0.0.7", port: 80), dialer: dialer, relay: relay)
         let localPort = try await forward.start()
         let client = try await Self.client(port: localPort)
+        #expect(await hub.accepted.result == true)
+        await clock.waitUntilSleeping(for: relay.handshakeTimeout)
+        clock.advance(by: relay.handshakeTimeout)
         let ended: Bool
         do {
             let (_, isComplete) = try await client.receiveChunk()

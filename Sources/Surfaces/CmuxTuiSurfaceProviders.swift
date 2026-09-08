@@ -3,66 +3,9 @@ import Foundation
 
 /// One cloud machine's resources: its cmux-tui terminals (over the headless link), its
 /// noVNC screen, and its forwarded ports. Terminals live in the machine's cmux-tui
-/// session, so a local pane closing never touches them (`projectionDidEnd` is a no-op).
+/// session, so a local pane closing never touches them (only local browser preparation is cancelled).
 @MainActor
 final class CmuxTuiSurfaceProvider: SurfaceProvider {
-    enum ProviderError: Error, LocalizedError {
-        case notSignedIn
-        case machineAsleep(String)
-        case noWorkspaceOnMachine(String)
-        case terminalNotCreated(String)
-        case invalidSnapshot(String)
-        case snapshotOnly(String)
-        case stateUnavailable(String)
-        case badURL(String)
-        /// No user-space WireGuard hub in this build (no bundled cmux-tui client).
-        case hubUnavailable
-        /// The private URL could not be rewritten onto the loopback forward.
-        case localForwardURLUnavailable
-
-        var errorDescription: String? {
-            switch self {
-            case .notSignedIn:
-                return "Cloud VM access requires sign-in. Run `cmux auth login`, then retry."
-            case .machineAsleep(let id):
-                return "\(id) is asleep; open it (`cmux vm shell \(id)`) to wake it before listing its terminals."
-            case .noWorkspaceOnMachine(let id):
-                return "\(id) has no cmux-tui workspace yet."
-            case .terminalNotCreated(let detail):
-                return "cmux-tui did not report the new terminal: \(detail)"
-            case .invalidSnapshot(let id):
-                return "cmux-tui returned an unversioned or malformed session snapshot for \(id)."
-            case .snapshotOnly(let id):
-                return String(
-                    format: String(
-                        localized: "cloudTree.error.snapshotOnly",
-                        defaultValue: "%@ uses an older cmux-tui protocol. Refresh it to enable live sync and rename operations."
-                    ),
-                    id
-                )
-            case .stateUnavailable(let id):
-                return String(
-                    format: String(
-                        localized: "cloudTree.error.renameTerminalUnavailable",
-                        defaultValue: "The current state for %@ is unavailable. Refresh and retry before renaming."
-                    ),
-                    id
-                )
-            case .badURL(let url):
-                return "The control plane returned an unusable URL: \(url)"
-            case .hubUnavailable:
-                return String(
-                    localized: "cloudTree.error.hubUnavailable",
-                    defaultValue: "This cmux build has no user-space WireGuard hub, so it cannot reach ports on Cloud machines."
-                )
-            case .localForwardURLUnavailable:
-                return String(
-                    localized: "cloudTree.error.localForwardURLUnavailable",
-                    defaultValue: "cmux could not build a local address for this port forward."
-                )
-            }
-        }
-    }
 
     let machineID: String
     var machine: SurfaceMachineID { .cloud(machineID) }
@@ -109,6 +52,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Panels this provider created (or replaced) in this process. A projection whose
     /// panel is not here came back from a restored session as a placeholder shell.
     var materializedPanels: Set<UUID> = []
+    /// Setup belongs to the local projection and is cancelled when that pane ends.
+    var browserPaneTasks: [UUID: Task<Void, Never>] = [:]
     /// Native cloud terminals own a manual attachment separate from their
     /// catalog projection. The provider retains it for the life of the pane.
     var manualMirrorSessions: [UUID: CloudTuiManualMirrorSession] = [:]
@@ -201,6 +146,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     func stop() {
         lifecycleGeneration &+= 1
+        for task in browserPaneTasks.values { task.cancel() }
+        browserPaneTasks.removeAll()
         refreshGeneration &+= 1
         changeWatcher?.cancel()
         changeWatcher = nil
@@ -1541,12 +1488,14 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     /// The terminal lives in the machine's session; only the local pane went away.
     func projectionDidEnd(_ projection: SurfaceProjection) {
+        browserPaneTasks.removeValue(forKey: projection.panelID)?.cancel()
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
     }
 
     @discardableResult
     func discardMaterialization(_ projection: SurfaceProjection) -> Bool {
+        browserPaneTasks.removeValue(forKey: projection.panelID)?.cancel()
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
         SurfacePaneFactory.close(panelID: projection.panelID, in: projection.workspaceID)
