@@ -72,6 +72,10 @@ public actor CmuxPluginRegistry {
     private var tokensByID: [String: String] = [:]
     private var tokenFingerprintsByID: [String: String] = [:]
     private var reloadGeneration: UInt64 = 0
+    private var committedReloadGeneration: UInt64 = 0
+    private var reloadWaiters: [
+        (generation: UInt64, continuation: CheckedContinuation<CmuxPluginRegistrySnapshot, Never>)
+    ] = []
     private var permissionStoreLoadFailure: CmuxPluginPermissionStoreLoadFailure?
 
     /// Creates a registry from a loader and permission store.
@@ -163,10 +167,10 @@ public actor CmuxPluginRegistry {
         // reload owns the commit if calls overlap; an older scan must never
         // replace its manifest, grant, or token projection afterward.
         guard generation == reloadGeneration else {
-            // A newer reload owns the commit. Reconcile against the newest
-            // generation before returning so callers never receive a stale
-            // pre-commit view after an approval or enablement write.
-            return await reload()
+            // A newer reload owns the commit. Wait for that in-flight commit
+            // instead of starting another generation, which would make every
+            // overlapping reload stale and can livelock the registry actor.
+            return await waitForReloadCommit(atLeast: reloadGeneration)
         }
         report = loadedReport
         permissionStoreLoadFailure = loadedPermissionStoreFailure
@@ -174,7 +178,23 @@ public actor CmuxPluginRegistry {
         tokenFingerprintsByID = nextTokenFingerprints
         permissionsByID = nextPermissions
         approvalByID = nextApprovals
-        return snapshot()
+        committedReloadGeneration = generation
+        let committedSnapshot = snapshot()
+        let readyWaiters = reloadWaiters.filter { $0.generation <= generation }
+        reloadWaiters.removeAll { $0.generation <= generation }
+        for waiter in readyWaiters {
+            waiter.continuation.resume(returning: committedSnapshot)
+        }
+        return committedSnapshot
+    }
+
+    private func waitForReloadCommit(
+        atLeast generation: UInt64
+    ) async -> CmuxPluginRegistrySnapshot {
+        guard committedReloadGeneration < generation else { return snapshot() }
+        return await withCheckedContinuation { continuation in
+            reloadWaiters.append((generation: generation, continuation: continuation))
+        }
     }
 
     private func mergedReport(

@@ -341,13 +341,18 @@ extension CmuxPluginExecutionSnapshotter {
         let resolved = standardized.path.withCString { pointer in
             Darwin.realpath(pointer, &buffer)
         }
-        guard resolved != nil else { return standardized }
+        guard resolved != nil else {
+            return URL(fileURLWithPath: standardized.path)
+        }
         let length = buffer.firstIndex(of: 0) ?? buffer.count
         let path = String(
             decoding: buffer[..<length].map { UInt8(bitPattern: $0) },
             as: UTF8.self
         )
-        return URL(fileURLWithPath: path, isDirectory: url.hasDirectoryPath)
+        // Path identity must not depend on URL's directory hint. FileManager
+        // enumeration and our staging URLs can represent the same directory
+        // with different `hasDirectoryPath` values.
+        return URL(fileURLWithPath: path)
     }
 
     func readBoundedFile(at url: URL, maximumBytes: Int) -> Data? {
