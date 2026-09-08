@@ -1,0 +1,162 @@
+import Foundation
+import Testing
+
+#if canImport(cmux_DEV)
+@testable import cmux_DEV
+#elseif canImport(cmux)
+@testable import cmux
+#endif
+
+/// Regression coverage for #12084: a restore must not give up on the first
+/// `busy` answer from the app's ownership scan.
+///
+/// Right after a relaunch several restored panes fire their session-start
+/// hooks at once, so the app's ownership-sensitive process scan cannot settle
+/// for a few seconds and answers `busy` with `retryable`. Aborting on that
+/// answer left a bare shell whose binding then retired, so resumes only worked
+/// once. The CLI now waits through a bounded delay budget.
+@Suite struct RestoreAdmissionRetryPolicyTests {
+    private static func busy(retryable: Bool = true) -> CLIError {
+        CLIError(
+            message: "busy: cmux could not verify whether this agent session is already running.",
+            v2Code: "busy",
+            isStructuredProtocolResponse: true,
+            v2Retryable: retryable
+        )
+    }
+
+    @Test
+    func retryableBusyIsRetriedUntilAdmitted() throws {
+        var sends = 0
+        var slept: [TimeInterval] = []
+        var retriesAnnounced: [Int] = []
+
+        let response = try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+            delays: [0.5, 1, 2],
+            sleep: { slept.append($0) },
+            onRetry: { retriesAnnounced.append($0) }
+        ) {
+            sends += 1
+            if sends < 3 { throw Self.busy() }
+            return ["admitted": true, "claim_id": UUID().uuidString]
+        }
+
+        #expect(response["admitted"] as? Bool == true)
+        #expect(sends == 3)
+        #expect(slept == [0.5, 1])
+        #expect(retriesAnnounced == [0, 1])
+    }
+
+    @Test
+    func exhaustedBudgetPropagatesTheLastBusyAnswer() {
+        var sends = 0
+        var slept: [TimeInterval] = []
+
+        #expect(throws: CLIError.self) {
+            try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+                delays: [0.5, 1],
+                sleep: { slept.append($0) }
+            ) {
+                sends += 1
+                throw Self.busy()
+            }
+        }
+        #expect(sends == 3)
+        #expect(slept == [0.5, 1])
+    }
+
+    @Test
+    func nonRetryableFailuresAreNotRetried() {
+        var sends = 0
+        var slept: [TimeInterval] = []
+        let liveOwner = CLIError(
+            message: "conflict",
+            v2Code: "conflict",
+            isStructuredProtocolResponse: true
+        )
+
+        #expect(throws: CLIError.self) {
+            try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+                delays: [0.5, 1],
+                sleep: { slept.append($0) }
+            ) {
+                sends += 1
+                throw liveOwner
+            }
+        }
+        #expect(sends == 1)
+        #expect(slept.isEmpty)
+        #expect(!CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(Self.busy(retryable: false)))
+        #expect(!CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(
+            CLIError(message: "busy", v2Code: "busy", isStructuredProtocolResponse: false, v2Retryable: true)
+        ))
+        #expect(CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(Self.busy()))
+    }
+
+    @Test
+    func defaultBudgetWaitsLongEnoughForAHookStormToSubside() {
+        let total = CMUXCLI.RestoreAdmissionRetryPolicy.delaysSeconds.reduce(0, +)
+        #expect(total >= 30)
+        #expect(total <= 60)
+    }
+}
+
+/// Deferred restores wait for the ownership scan to settle instead of
+/// cancelling every restore on the first unsettled pass (#12084).
+@Suite struct LiveAgentIndexSettleTests {
+    @Test
+    func settledIndexRetriesUntilTheScanSettles() async {
+        var refreshes = 0
+        var pauses = 0
+
+        let index = await SharedLiveAgentIndex.settledIndex(
+            attempts: 4,
+            pause: { pauses += 1 },
+            refresh: {
+                refreshes += 1
+                return refreshes == 3 ? RestorableAgentSessionIndex.empty : nil
+            }
+        )
+
+        #expect(index != nil)
+        #expect(refreshes == 3)
+        #expect(pauses == 2)
+    }
+
+    @Test
+    func settledIndexGivesUpAfterTheAttemptBudget() async {
+        var refreshes = 0
+        var pauses = 0
+
+        let index = await SharedLiveAgentIndex.settledIndex(
+            attempts: 3,
+            pause: { pauses += 1 },
+            refresh: {
+                refreshes += 1
+                return nil
+            }
+        )
+
+        #expect(index == nil)
+        #expect(refreshes == 3)
+        #expect(pauses == 2)
+    }
+
+    @Test
+    func settledIndexTreatsNonPositiveAttemptsAsOne() async {
+        var refreshes = 0
+
+        let index = await SharedLiveAgentIndex.settledIndex(
+            attempts: 0,
+            pause: {},
+            refresh: {
+                refreshes += 1
+                return nil
+            }
+        )
+
+        #expect(index == nil)
+        #expect(refreshes == 1)
+        #expect(SharedLiveAgentIndex.deferredRestoreSettleAttempts > 1)
+    }
+}

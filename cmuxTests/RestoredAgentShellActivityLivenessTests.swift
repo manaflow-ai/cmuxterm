@@ -235,13 +235,24 @@ struct RestoredAgentShellActivityLivenessTests {
             workingDirectory: Self.projectDirectory,
             launchCommand: nil
         )
+        // Pi overwrites its argv with a bare title, so the foreground process
+        // carries no session identity of its own.
         let piProcess = CmuxTopProcessArguments(arguments: ["pi"], environment: [:])
+        let otherPiSession = CmuxTopProcessArguments(
+            arguments: ["pi", "--session", "9b7e1c2d-3a4f-4e5b-8c6d-7e8f9a0b1c2d"],
+            environment: [:]
+        )
         let shellProcess = CmuxTopProcessArguments(arguments: ["zsh", "-l"], environment: [:])
 
         #expect(RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 4242,
             processArguments: { _ in piProcess }
+        ))
+        #expect(!RestoredAgentForegroundProcess.matches(
+            agent,
+            foregroundProcessID: 4242,
+            processArguments: { _ in otherPiSession }
         ))
         #expect(!RestoredAgentForegroundProcess.matches(
             agent,
