@@ -260,6 +260,33 @@ struct TerminalArtifactChipCountStateTests {
         #expect(nextRequest.surfaceGeneration == 1)
     }
 
+    @Test("a failed scan can retry at the same visible count")
+    func failedScanAllowsSameCountRetry() throws {
+        var state = TerminalArtifactChipCountState()
+        let first = try request(from: state.trigger(
+            localCount: 2,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ))
+        #expect(state.complete(
+            first,
+            sessionTotal: nil,
+            scanSucceeded: false,
+            currentSurfaceGeneration: 1,
+            freshestLocalCount: 2
+        ).outcome == .reported(.init(count: 2, surfaceGeneration: 1)))
+
+        guard case .reportAndRequest(_, let retry) = state.trigger(
+            localCount: 2,
+            surfaceGeneration: 1,
+            supportsSessionCount: true
+        ) else {
+            Issue.record("Expected the failed scan to be retried")
+            throw UnexpectedAction()
+        }
+        #expect(retry.localCount == 2)
+    }
+
     @Test("a failed scan with fresh local evidence drops a held authoritative zero")
     func failedScanDropsHeldZero() throws {
         var state = TerminalArtifactChipCountState()
