@@ -40,6 +40,12 @@
             "state": "translated",
             "value": "Joindre"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إرفاق"
+          }
         }
       }
     },
@@ -80,6 +86,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Joindre des images"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إرفاق صور"
           }
         }
       }
@@ -122,6 +134,12 @@
             "state": "translated",
             "value": "Joindre des images"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إرفاق صور"
+          }
         }
       }
     },
@@ -162,6 +180,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jusqu’à 10 images."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ما يصل إلى 10 صور."
           }
         }
       }
@@ -222,6 +246,12 @@
             "state": "translated",
             "value": "Abbrechen"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إلغاء"
+          }
         }
       }
     },
@@ -262,6 +292,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Impossible d’envoyer les commentaires. Vérifiez votre connexion et réessayez."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذر إرسال الملاحظات. تحقق من اتصالك وحاول مجدداً."
           }
         }
       }
@@ -369,6 +405,12 @@
             "state": "translated",
             "value": "Votre adresse e-mail"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بريدك الإلكتروني"
+          }
         }
       }
     },
@@ -409,6 +451,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "vous@example.com"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@example.com"
           }
         }
       }
@@ -451,6 +499,12 @@
             "state": "translated",
             "value": "Saisissez un message avant d’envoyer."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أدخل رسالة قبل الإرسال."
+          }
         }
       }
     },
@@ -491,6 +545,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Les retours ne sont pas disponibles pour le moment. Envoyez plutôt un e-mail à founders@manaflow.com."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الملاحظات غير متوفرة الآن. يرجى مراسلة founders@manaflow.com عبر البريد الإلكتروني بدلاً من ذلك."
           }
         }
       }
@@ -533,6 +593,12 @@
             "state": "translated",
             "value": "Impossible d’envoyer les commentaires. Veuillez réessayer."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذر إرسال الملاحظات. يرجى المحاولة مرة أخرى."
+          }
         }
       }
     },
@@ -574,6 +640,12 @@
             "state": "translated",
             "value": "Saisissez une adresse e-mail valide."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أدخل عنوان بريد إلكتروني صالحاً."
+          }
         }
       }
     },
@@ -614,6 +686,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "L’un des fichiers sélectionnés n’a pas pu être joint."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذر إرفاق أحد الملفات المحددة."
           }
         }
       }
@@ -721,6 +799,12 @@
             "state": "translated",
             "value": "Partagez vos commentaires, demandes de fonctionnalités ou problèmes."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شاركنا ملاحظاتك، أو طلبات الميزات، أو المشاكل."
+          }
         }
       }
     },
@@ -761,6 +845,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Votre message est trop long."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رسالتك طويلة جداً."
           }
         }
       }
@@ -803,6 +893,12 @@
             "state": "translated",
             "value": "Vous pouvez également nous contacter à l'adresse founders@manaflow.com."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمكنك أيضاً التواصل معنا عبر founders@manaflow.com."
+          }
         }
       }
     },
@@ -843,6 +939,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trop de tentatives d’envoi de commentaires. Veuillez réessayer plus tard."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "محاولات إرسال ملاحظات كثيرة جداً. يرجى المحاولة مرة أخرى لاحقاً."
           }
         }
       }
@@ -890,6 +992,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Supprimer"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إزالة"
           }
         }
       }
@@ -997,6 +1105,12 @@
             "state": "translated",
             "value": "Vous pouvez également nous contacter à l'adresse founders@manaflow.com."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمكنك أيضاً التواصل معنا عبر founders@manaflow.com."
+          }
         }
       }
     },
@@ -1037,6 +1151,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Merci pour vos commentaires."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شكراً على ملاحظاتك."
           }
         }
       }
@@ -1144,6 +1264,12 @@
             "state": "translated",
             "value": "Vous pouvez joindre jusqu’à 10 images."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يمكنك إرفاق ما يصل إلى 10 صور."
+          }
         }
       }
     },
@@ -1185,6 +1311,12 @@
             "state": "translated",
             "value": "Ces images sont trop volumineuses pour être envoyées ensemble. Supprimez-en quelques-unes et réessayez."
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هذه الصور كبيرة جداً ليتم إرسالها معاً. يرجى إزالة بعضها والمحاولة مجدداً."
+          }
         }
       }
     },
@@ -1225,6 +1357,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vérifiez votre message et vos pièces jointes, puis réessayez."
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تحقق من رسالتك والمرفقات، ثم حاول مجدداً."
           }
         }
       }

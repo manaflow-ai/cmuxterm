@@ -28,6 +28,12 @@
             "state": "translated",
             "value": "La liste d’autorisation du visualiseur de diff est trop grande"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قائمة عارض الفروق المسموحة كبيرة جداً"
+          }
         }
       }
     },
@@ -56,6 +62,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entrée en double dans la liste d’autorisation du visualiseur de diff"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إدخال مكرر في قائمة عارض الفروق المسموحة"
           }
         }
       }
@@ -86,6 +98,12 @@
             "state": "translated",
             "value": "La liste d’autorisation du visualiseur de diff est vide"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "قائمة عارض الفروق المسموحة فارغة"
+          }
         }
       }
     },
@@ -114,6 +132,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entrée non valide dans la liste d’autorisation du visualiseur de diff"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "إدخال غير صالح في قائمة عارض الفروق المسموحة"
           }
         }
       }
@@ -144,6 +168,12 @@
             "state": "translated",
             "value": "Manifeste du visualiseur de diff non valide"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بيان عارض الفروق غير صالح"
+          }
         }
       }
     },
@@ -172,6 +202,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Jeton du visualiseur de diff non valide"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رمز عارض الفروق غير صالح"
           }
         }
       }
@@ -202,6 +238,12 @@
             "state": "translated",
             "value": "Le manifeste du visualiseur de diff est trop grand"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بيان عارض الفروق كبير جداً"
+          }
         }
       }
     },
@@ -231,6 +273,12 @@
             "state": "translated",
             "value": "Le fichier du visualiseur de diff n’est pas lisible"
           }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ملف عارض الفروق غير قابل للقراءة"
+          }
         }
       }
     },
@@ -259,6 +307,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Le répertoire de confiance du visualiseur de diff n’est pas sécurisé"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الدليل الموثوق لعارض الفروق غير آمن"
           }
         }
       }
