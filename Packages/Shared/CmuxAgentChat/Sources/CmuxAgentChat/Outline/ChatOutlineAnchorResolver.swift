@@ -65,7 +65,7 @@ public struct ChatOutlineAnchorResolver: Sendable {
                 .flatMap { candidate in
                     [candidate + " " + nextRow, candidate + nextRow]
                 }
-                .filter { target.hasPrefix($0) || $0.hasPrefix(target) }
+                .filter { target.hasPrefix($0) || (allowsClippedMatch && $0.hasPrefix(target)) }
             if candidates.contains(where: {
                 matchesPromptContent($0, target: target, allowsClippedMatch: allowsClippedMatch)
             }) {
