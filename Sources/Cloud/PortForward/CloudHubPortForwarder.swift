@@ -10,7 +10,11 @@ actor CloudHubPortForwarder {
         let port: Int
     }
 
+    /// Builds one forward; injected so a test can make a bind fail.
+    typealias ForwardFactory = @Sendable (CloudPortForwardTarget, any CloudHubDialing) throws -> CloudLoopbackPortForward
+
     private let dialer: any CloudHubDialing
+    private let makeForward: ForwardFactory
     private var forwards: [Key: CloudLoopbackPortForward] = [:]
     private struct StartEntry {
         let id: UUID
@@ -19,8 +23,12 @@ actor CloudHubPortForwarder {
     }
     private var starting: [Key: StartEntry] = [:]
 
-    init(dialer: any CloudHubDialing) {
+    init(
+        dialer: any CloudHubDialing,
+        makeForward: @escaping ForwardFactory = { try CloudLoopbackPortForward(target: $0, dialer: $1) }
+    ) {
         self.dialer = dialer
+        self.makeForward = makeForward
     }
 
     /// The forward for `target.port` on `machineID`, started on first use.
@@ -51,8 +59,9 @@ actor CloudHubPortForwarder {
                 entry = inFlight
             } else {
                 let dialer = self.dialer
+                let makeForward = self.makeForward
                 let task = Task { () throws -> CloudLoopbackPortForward in
-                    let forward = try CloudLoopbackPortForward(target: target, dialer: dialer)
+                    let forward = try makeForward(target, dialer)
                     do {
                         try await forward.start()
                         try Task.checkCancellation()
@@ -97,7 +106,11 @@ actor CloudHubPortForwarder {
                 }
                 return forward
             } catch {
-                _ = finishStartWaiter(key: key, entryID: entry.id, waiterID: waiterID)
+                // The bind failed (or was cancelled): the entry must not outlive
+                // its task, or every later open would join the failed start.
+                if starting[key]?.id == entry.id {
+                    starting[key] = nil
+                }
                 throw error
             }
         }

@@ -307,6 +307,34 @@ struct CloudLoopbackPortForwardTests {
         await forwarder.closeAll()
     }
 
+    @Test("a failed bind does not poison later opens of the same port")
+    func failedBindIsRetried() async throws {
+        struct BindFailed: Error {}
+        let hub = try FakeSocksHub()
+        try await hub.start()
+        defer { hub.stop() }
+        let attempts = FakeHubDialer(endpoint: hub.endpoint)
+        let failures = NSLock()
+        nonisolated(unsafe) var remainingFailures = 1
+        let forwarder = CloudHubPortForwarder(dialer: attempts) { target, dialer in
+            let failNow = failures.withLock { () -> Bool in
+                guard remainingFailures > 0 else { return false }
+                remainingFailures -= 1
+                return true
+            }
+            if failNow { throw BindFailed() }
+            return try CloudLoopbackPortForward(target: target, dialer: dialer)
+        }
+        let target = CloudPortForwardTarget(host: "10.0.0.7", port: 3000)
+        await #expect(throws: BindFailed.self) {
+            try await forwarder.forward(machineID: "vm-1", to: target)
+        }
+        let forward = try await forwarder.forward(machineID: "vm-1", to: target)
+        #expect(await forward.isListening, "the second open binds fresh instead of joining the failed start")
+        #expect(await forwarder.count == 1)
+        await forwarder.closeAll()
+    }
+
     @Test("a forward whose listener died is torn down and replaced on the next use")
     func deadForwardIsReplaced() async throws {
         let hub = try FakeSocksHub()

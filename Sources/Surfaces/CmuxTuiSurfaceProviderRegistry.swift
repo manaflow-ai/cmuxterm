@@ -143,6 +143,9 @@ final class CmuxTuiSurfaceProviderRegistry {
         providers[id]?.stop()
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
+        // A fleet page fetched before the delete must not re-register the
+        // machine on top of this teardown.
+        refreshGeneration &+= 1
         machineTeardowns[id]?.cancel()
         machineTeardowns[id] = Task { [links, portForwards] in
             await portForwards?.close(machineID: id)
@@ -185,6 +188,13 @@ final class CmuxTuiSurfaceProviderRegistry {
         await links.retain(machineIDs: seen)
         guard generation == refreshGeneration else { return false }
         for summary in page.vms {
+            // A machine listed again after a delete waits for that delete's
+            // teardown, so the teardown cannot close the new provider's
+            // forwards or link.
+            if let teardown = machineTeardowns.removeValue(forKey: summary.id) {
+                await teardown.value
+                guard generation == refreshGeneration else { return false }
+            }
             await links.setPrivateAddress(summary.preferredPrivateAddress, for: summary.id)
             if let provider = providers[summary.id] {
                 provider.update(summary: summary)
