@@ -567,6 +567,63 @@ struct CLIOmpSupersededCleanupTests {
     }
 
     @Test
+    func legacyPendingCleanupDoesNotAdoptReplacementProcessGeneration() throws {
+        let context = try Harness.makeContext(name: "omp-cleanup-legacy-pending-generation")
+        defer { context.cleanup() }
+
+        let staleSessionId = "omp-anonymous-surface-derived"
+        let currentSessionId = "omp-replacement-session"
+        let identity = try #require(Self.processStartIdentity(pid: Self.ompPID))
+        let storeURL = context.root.appendingPathComponent("omp-hook-sessions.json")
+        try Self.writePendingSessions(
+            to: storeURL,
+            sessionIds: [staleSessionId],
+            cwd: context.root.path,
+            pid: Self.ompPID,
+            identity: identity,
+            includeProcessIdentity: false
+        )
+        let serverHandled = Harness.startDeliveryTargetServer(
+            context: context,
+            surfacesByWorkspace: [
+                Self.staleWorkspaceId: [Self.staleSurfaceId],
+                Self.liveWorkspaceId: [Self.liveSurfaceId],
+            ],
+            pidTarget: (workspaceId: Self.liveWorkspaceId, surfaceId: Self.liveSurfaceId)
+        )
+        var environment = Harness.hookEnvironment(context: context)
+        environment["CMUX_AGENT_HOOK_STATE_DIR"] = context.root.path
+        environment["CMUX_OMP_PID"] = String(Self.ompPID)
+
+        let result = Harness.runHookProcess(
+            context: context,
+            arguments: [
+                "hooks", "omp", "session-start",
+                "--workspace", Self.liveWorkspaceId,
+                "--surface", Self.liveSurfaceId,
+            ],
+            environment: environment,
+            standardInput: #"{"session_id":"\#(currentSessionId)","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#
+        )
+
+        #expect(serverHandled.wait(timeout: .now() + 5) == .success)
+        #expect(!result.timedOut, Comment(rawValue: result.stderr))
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        let commands = context.state.snapshot()
+        #expect(Self.clearedCheckpoints(in: commands).isEmpty)
+        #expect(!commands.contains { $0.hasPrefix("clear_agent_pid omp.\(staleSessionId) ") })
+
+        let saved = try #require(
+            JSONSerialization.jsonObject(with: Data(contentsOf: storeURL)) as? [String: Any]
+        )
+        let pending = try #require(saved["pendingSupersededSessionCleanup"] as? [String: Any])
+        let record = try #require(pending[staleSessionId] as? [String: Any])
+        #expect(record["pidStartSeconds"] == nil)
+        #expect(record["pidStartMicroseconds"] == nil)
+        #expect(record["supersededCleanupAttemptCount"] as? Int == 0)
+    }
+
+    @Test
     func laterOMPProcessRecoversCleanupOwnedByDeadGeneration() throws {
         let context = try Harness.makeContext(name: "omp-cleanup-dead")
         defer { context.cleanup() }
@@ -686,6 +743,7 @@ struct CLIOmpSupersededCleanupTests {
         cwd: String,
         pid: Int,
         identity: (seconds: Int64, microseconds: Int64),
+        includeProcessIdentity: Bool = true,
         attemptCount: (String) -> Int = { _ in 0 },
         enqueuedAt: TimeInterval? = nil,
         updatedAt: TimeInterval? = nil
@@ -694,20 +752,23 @@ struct CLIOmpSupersededCleanupTests {
         var pending: [String: Any] = [:]
         for (index, sessionId) in sessionIds.enumerated() {
             let recordUpdatedAt = updatedAt ?? (timestamp + Double(index))
-            pending[sessionId] = [
+            var record: [String: Any] = [
                 "sessionId": sessionId,
                 "workspaceId": Self.staleWorkspaceId,
                 "surfaceId": Self.staleSurfaceId,
                 "cwd": cwd,
                 "pid": pid,
-                "pidStartSeconds": identity.seconds,
-                "pidStartMicroseconds": identity.microseconds,
                 "isRestorable": true,
                 "startedAt": timestamp + Double(index),
                 "updatedAt": recordUpdatedAt,
                 "supersededCleanupEnqueuedAt": enqueuedAt ?? recordUpdatedAt,
                 "supersededCleanupAttemptCount": attemptCount(sessionId),
             ]
+            if includeProcessIdentity {
+                record["pidStartSeconds"] = identity.seconds
+                record["pidStartMicroseconds"] = identity.microseconds
+            }
+            pending[sessionId] = record
         }
         let store: [String: Any] = [
             "version": 1,

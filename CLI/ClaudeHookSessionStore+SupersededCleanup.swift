@@ -92,22 +92,10 @@ extension ClaudeHookSessionStore {
         owner: ClaudeHookSessionRecord
     ) -> [ClaudeHookSessionRecord] {
         normalizePendingSupersededSessionCleanupMetadata(in: &state)
-        if let ownerIdentity = AgentHookProcessIdentity(record: owner) {
-            // Older persisted retry entries may predate birth-time capture.
-            // Stamp only same-PID entries from this OMP store with the owner
-            // generation so they can take the normal guarded cleanup path.
-            for sessionId in Array(state.pendingSupersededSessionCleanup.keys) {
-                guard var record = state.pendingSupersededSessionCleanup[sessionId],
-                      record.pid == ownerIdentity.pid,
-                      record.pidStartSeconds == nil,
-                      record.pidStartMicroseconds == nil else {
-                    continue
-                }
-                record.pidStartSeconds = ownerIdentity.startSeconds
-                record.pidStartMicroseconds = ownerIdentity.startMicroseconds
-                state.pendingSupersededSessionCleanup[sessionId] = record
-            }
-        }
+        // Pending records without birth fields cannot prove which process
+        // generation created them. Leave them queued for expiry instead of
+        // adopting the current owner's generation: a reused PID could let a
+        // stale retry authorize cleanup against a replacement occupant.
         trimPendingSupersededSessionCleanup(in: &state)
         let orderedRecords = state.pendingSupersededSessionCleanup.values.sorted {
             switch ($0.supersededCleanupLastAttemptAt, $1.supersededCleanupLastAttemptAt) {
