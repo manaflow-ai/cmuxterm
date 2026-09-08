@@ -178,22 +178,56 @@ import Testing
         }
     }
 
+    @Test func suppressedWindowCloseDoesNotRecordWorkspaceClosures() async throws {
+        try await withWindowHistory { app, log in
+            let windowId = app.createMainWindow(
+                initialWorkspaceHistoryContext: .bootstrap,
+                shouldActivate: false
+            )
+            #expect(app.closeMainWindow(windowId: windowId, recordHistory: false))
+            await log.flushPendingRecords()
+
+            let events = await log.recentEvents()
+            #expect(!events.contains { $0.kind == .workspaceCreated || $0.kind == .workspaceClosed })
+            #expect(!events.contains { $0.kind == .windowClosed })
+        }
+    }
+
+    @Test func ordinaryWindowCloseRecordsEveryWorkspace() async throws {
+        try await withWindowHistory { app, log in
+            let windowId = app.createMainWindow(shouldActivate: false)
+            let manager = try #require(app.tabManagerFor(windowId: windowId))
+            let initial = try #require(manager.selectedWorkspace)
+            let additional = manager.addWorkspace(select: false, autoWelcomeIfNeeded: false)
+            #expect(app.closeMainWindow(windowId: windowId))
+            await log.flushPendingRecords()
+
+            let events = await log.recentEvents()
+            let closedIds = events.filter { $0.kind == .workspaceClosed }.compactMap(\.subject.workspaceId)
+            #expect(Set(closedIds) == Set([initial.id, additional.id]))
+            #expect(closedIds.count == 2)
+            #expect(events.filter { $0.kind == .windowClosed }.count == 1)
+        }
+    }
+
     private func withWindowHistory(
         _ body: (AppDelegate, VaultHistoryEventLog) async throws -> Void
     ) async rethrows {
-        _ = NSApplication.shared
-        let previousDelegate = AppDelegate.shared
-        let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
-        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: .active)
-        let app = AppDelegate(vaultHistoryEventLog: log)
-        defer {
-            for windowId in app.mainWindowContexts.values.map(\.windowId) {
-                _ = app.closeMainWindow(windowId: windowId, recordHistory: false)
+        try await AppContextSerialGate.withExclusiveAppContext {
+            _ = NSApplication.shared
+            let previousDelegate = AppDelegate.shared
+            let previousManager = TerminalController.shared.activeTabManagerForCallerNotification()
+            let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil), phase: .active)
+            let app = AppDelegate(vaultHistoryEventLog: log)
+            defer {
+                for windowId in app.mainWindowContexts.values.map(\.windowId) {
+                    _ = app.closeMainWindow(windowId: windowId, recordHistory: false)
+                }
+                TerminalController.shared.setActiveTabManager(previousManager)
+                AppDelegate.shared = previousDelegate
             }
-            TerminalController.shared.setActiveTabManager(previousManager)
-            AppDelegate.shared = previousDelegate
+            try await body(app, log)
         }
-        try await body(app, log)
     }
 
     private func event(id: String) -> VaultHistoryEvent {
