@@ -140,15 +140,21 @@ struct AgentRestoreLiveOwnerAdmissionTests {
         )
 
         // agy mints the conversation id in-process and reports it through its
-        // hooks, so the record behind this snapshot came from this very process.
-        // Rejecting the bare argv retired every fresh binding on the next
-        // autosave (https://github.com/manaflow-ai/cmux/issues/5473).
-        #expect(validator.currentProcess(freshLaunch, matches: snapshot))
+        // hooks, so the current hook record behind this snapshot came from this
+        // very process. Rejecting the bare argv retired every fresh binding on
+        // the next autosave (https://github.com/manaflow-ai/cmux/issues/5473).
         #expect(validator.currentProcess(
             freshLaunch,
             matches: snapshot,
             hermesSessionValidation: .currentHookRecord
         ))
+        // A cached snapshot cannot rule out an in-process conversation switch.
+        #expect(!validator.currentProcess(
+            freshLaunch,
+            matches: snapshot,
+            hermesSessionValidation: .cachedSnapshot
+        ))
+        #expect(!validator.currentProcess(freshLaunch, matches: snapshot))
         // An explicit selector still has to name this session.
         #expect(validator.currentProcess(
             CmuxTopProcessArguments(arguments: ["agy", "--conversation", sessionID], environment: [:]),
@@ -159,7 +165,8 @@ struct AgentRestoreLiveOwnerAdmissionTests {
                 arguments: ["agy", "--conversation", "11111111-2222-3333-4444-555555555555"],
                 environment: [:]
             ),
-            matches: snapshot
+            matches: snapshot,
+            hermesSessionValidation: .currentHookRecord
         ))
         // So does an exported process identity.
         #expect(!validator.currentProcess(
@@ -167,7 +174,8 @@ struct AgentRestoreLiveOwnerAdmissionTests {
                 arguments: ["agy"],
                 environment: ["CMUX_AGENT_SESSION_ID": "11111111-2222-3333-4444-555555555555"]
             ),
-            matches: snapshot
+            matches: snapshot,
+            hermesSessionValidation: .currentHookRecord
         ))
     }
 

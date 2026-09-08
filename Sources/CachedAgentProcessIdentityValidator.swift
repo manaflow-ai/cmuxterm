@@ -2,6 +2,9 @@ import CMUXAgentLaunch
 import Foundation
 
 struct CachedAgentProcessIdentityValidator: Sendable {
+    /// Which evidence backs the snapshot's session id when the live process
+    /// cannot state its own (a bare Hermes argv, or an argv-keyed
+    /// registration launched without its identity option).
     enum HermesSessionValidation: Sendable {
         /// A cached snapshot can outlive a conversation switch in the same process.
         case cachedSnapshot
@@ -46,7 +49,11 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         guard currentProcessExecutable(process.arguments, environment: process.environment, matches: snapshot) else {
             return false
         }
-        return currentProcessSession(process, matches: snapshot)
+        return currentProcessSession(
+            process,
+            matches: snapshot,
+            hermesSessionValidation: hermesSessionValidation
+        )
     }
 
     private func currentProcessExecutable(
@@ -91,7 +98,8 @@ struct CachedAgentProcessIdentityValidator: Sendable {
 
     private func currentProcessSession(
         _ process: CmuxTopProcessArguments,
-        matches snapshot: SessionRestorableAgentSnapshot
+        matches snapshot: SessionRestorableAgentSnapshot,
+        hermesSessionValidation: HermesSessionValidation
     ) -> Bool {
         let arguments = process.arguments
         let authoritativeEnvironmentSessionID = normalizedProcessValue(
@@ -105,14 +113,16 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                     ?? authoritativeEnvironmentSessionID else {
                     // The identity option only appears on explicit resumes. A
                     // fresh launch has none: Antigravity mints its conversation
-                    // id in-process and reports it through its hooks, so the
-                    // record behind this snapshot was written by the very
-                    // process generation that already matched on pid identity,
-                    // cmux scope, and executable above. A bare argv cannot
-                    // contradict that record. Failing closed here marked every
-                    // fresh Antigravity session exited and retired its binding
-                    // on the next autosave (#5473).
-                    return true
+                    // id in-process and reports it through its hooks. When the
+                    // current hook record is the evidence, it was written by
+                    // the very process generation that already matched on pid
+                    // identity, cmux scope, and executable above, so a bare
+                    // argv cannot contradict it; failing closed there marked
+                    // every fresh Antigravity session exited and retired its
+                    // binding on the next autosave (#5473). A cached snapshot
+                    // cannot rule out an in-process conversation switch, so it
+                    // keeps failing closed, as for Hermes.
+                    return hermesSessionValidation == .currentHookRecord
                 }
                 return ManagedAgentSessionIdentity.sessionIDsMatch(
                     kind: snapshot.kind.rawValue,
