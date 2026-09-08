@@ -412,6 +412,60 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(legacyRow.children.allSatisfy { $0.children.isEmpty })
     }
 
+    @Test("A row-local tab rename preserves the pane's shown row and hidden-tab order", arguments: [false, true])
+    func tabRenameKeepsSnapshotAndDeltaLayoutOrder(explicitIndices: Bool) throws {
+        let main = workspace("ws_main", "main", index: 0, focused: true)
+        var tabs: [[String: Any]] = [
+            ["id": "tab_a", "pane_id": "pane_1", "content_kind": "terminal", "content_id": "term_a"],
+            ["id": "tab_b", "pane_id": "pane_1", "content_kind": "terminal", "content_id": "term_b"],
+        ]
+        if explicitIndices {
+            tabs[0]["index"] = 0
+            tabs[1]["index"] = 1
+        }
+        let document: [String: Any] = [
+            "cursor": ["generation": "layout-test", "revision": "1"],
+            "workspaces": [["id": "ws_main", "name": "main", "index": 0, "focused": true]],
+            "screens": [["id": "screen_1", "workspace_id": "ws_main"]],
+            "panes": [["id": "pane_1", "screen_id": "screen_1"]],
+            "tabs": tabs,
+            "terminals": [
+                ["id": "term_a", "tab_ids": ["tab_a"], "title": "term_a", "running": true],
+                ["id": "term_b", "tab_ids": ["tab_b"], "title": "term_b", "running": true],
+            ],
+            "browsers": [], "agents": [],
+        ]
+        let state = try #require(CmuxTuiSnapshotParser.state(fromSnapshot: document, machine: machine))
+        let initial = CmuxTuiSnapshotParser.resources(from: state)
+        var renamedTab = tabs[1]
+        renamedTab["name"] = "renamed"
+        let delta: [String: Any] = [
+            "kind": "delta", "previous_revision": "1", "revision": "2",
+            "changes": [["kind": "upsert", "resource": "tab", "id": "tab_b", "value": renamedTab]],
+        ]
+        let next = try #require(CmuxTuiSnapshotParser.applying(
+            deltaPayload: JSONSerialization.data(withJSONObject: delta),
+            cursor: CloudVMCursor(generation: "layout-test", revision: 2), to: state
+        ))
+        let updated = try #require(CmuxTuiSnapshotParser.resources(
+            from: next, matching: [SurfaceResourceID(machine: machine, kind: .terminal, key: "term_b")]
+        ).first)
+        let rowLocal = initial.map { $0.id == updated.id ? updated : $0 }
+        func workspaceRow(_ resources: [SurfaceResource]) throws -> CloudTreeNode {
+            let catalog = SurfaceCatalogSnapshot(machines: [info(workspaces: [main])], resources: resources, projections: [])
+            return try #require(rows(catalog).first { $0.structureTag == "workspace" })
+        }
+        let before = try workspaceRow(initial)
+        let after = try workspaceRow(rowLocal)
+        let refreshed = try workspaceRow(CmuxTuiSnapshotParser.resources(from: next))
+        #expect(before.children.count == 1)
+        #expect(before.children.first?.id.contains("term_a") == true)
+        #expect(after.children.map(\.id) == before.children.map(\.id))
+        #expect(after.children.flatMap(\.children).map(\.id) == before.children.flatMap(\.children).map(\.id))
+        #expect(refreshed.children.map(\.id) == after.children.map(\.id))
+        #expect(updated.remoteViews?.first?.name == "renamed")
+    }
+
     @Test("The CLI shows a pane's hidden tabs indented beneath the tab the pane shows")
     func cliTreeNestsHiddenTabs() throws {
         let workspace: [String: Any] = ["id": "ws_main", "name": "main", "index": 0, "focused": true]
