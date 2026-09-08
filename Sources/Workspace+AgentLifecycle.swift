@@ -573,13 +573,20 @@ extension Workspace {
         ) != true else {
             return false
         }
-        let liveEntry = liveIndex.entryForStablePanel(
+        // Only an index entry for this very session can say it exited. A panel
+        // with no entry, or entries for other sessions only, means the scan has
+        // not caught up with a hook record written after it (routine on a busy
+        // Mac, where the next autosave used to retire a binding that was
+        // published seconds earlier, #5473). Treat that as unknown and keep it.
+        guard let sessionEntry = liveIndex.entryForStablePanel(
             workspaceId: id,
             panelId: panelId,
             revalidateProcessEvidence: false
-        )
+        )?.matchingAgentSession(kind: kind, sessionId: checkpointId) else {
+            return false
+        }
         return !AgentResumeLiveness.hasLiveProcess(
-            for: liveEntry,
+            for: sessionEntry,
             kind: kind,
             sessionId: checkpointId
         )
