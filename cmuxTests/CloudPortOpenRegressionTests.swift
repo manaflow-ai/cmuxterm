@@ -272,6 +272,23 @@ struct CloudPortOpenRegressionTests {
         #expect(port.remoteViews?.map(\.tabID) == ["tab_port_8000", "tab_port_second"])
     }
 
+    @Test("SSH and display transport listeners are not advertised as web previews")
+    func infrastructureListenersAreNotWebPorts() {
+        let bindings = """
+        State Recv-Q Send-Q Local Address:Port Peer Address:Port
+        LISTEN 0 128 0.0.0.0:22 0.0.0.0:*
+        LISTEN 0 128 [::]:22 [::]:*
+        LISTEN 0 128 0.0.0.0:1337 0.0.0.0:*
+        LISTEN 0 128 127.0.0.1:5901 0.0.0.0:*
+        LISTEN 0 128 0.0.0.0:6901 0.0.0.0:*
+        LISTEN 0 128 0.0.0.0:3000 0.0.0.0:*
+        """
+        #expect(CmuxTuiSurfaceProvider.ports(
+            from: VMExecResult(exitCode: 0, stdout: bindings, stderr: ""),
+            privateAddress: "10.16.179.6"
+        ) == [3000])
+    }
+
     @Test("Unavailable scans retain ports while an authoritative empty scan retires them")
     func portScanCompletenessControlsRefresh() throws {
         #expect(CmuxTuiSurfaceProvider.ports(from: VMExecResult(exitCode: 127, stdout: "", stderr: "ss unavailable")) == nil)
