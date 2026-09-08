@@ -234,7 +234,12 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         }
         self.searchState = nil
         if shouldRestorePreviewFocus {
-            focus()
+            pendingPreviewFocus = false
+            if displayMode == .preview,
+               let webView = rendererSession.webView,
+               webView.window === window {
+                _ = window?.makeFirstResponder(webView)
+            }
         }
     }
 
