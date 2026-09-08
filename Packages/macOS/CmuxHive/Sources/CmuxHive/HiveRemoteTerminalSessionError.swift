@@ -2,6 +2,7 @@
 enum HiveRemoteTerminalSessionError: Error {
     case missingFrame
     case incompleteFrame
+    case mismatchedWorkspace
     case mismatchedSurface
     case hostIdentityMismatch
 }

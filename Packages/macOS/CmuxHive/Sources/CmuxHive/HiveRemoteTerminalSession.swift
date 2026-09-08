@@ -400,7 +400,9 @@ public final class HiveRemoteTerminalSession {
         )
         let data = try await client.sendRequest(request)
         let decoder = renderGridDecoder
-        let response = try await decoder.decodeReplay(data)
+        let response = try await decoder.decodeReplay(
+            data, workspaceID: workspaceID, surfaceID: terminalID
+        )
         try Task.checkCancellation()
         guard let frame = response.renderGrid else {
             throw HiveRemoteTerminalSessionError.missingFrame

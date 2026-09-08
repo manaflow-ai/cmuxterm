@@ -15,8 +15,17 @@ actor HiveRemoteRenderGridDecoder {
         return try? decoder.decode(MobileTerminalRenderGridFrame.self, from: payload)
     }
 
-    /// Decode one terminal replay response.
-    func decodeReplay(_ payload: Data) throws -> MobileTerminalReplayResponse {
-        try decoder.decode(MobileTerminalReplayResponse.self, from: payload)
+    /// Decode a replay only when the host's routing identity matches the requesting session.
+    func decodeReplay(
+        _ payload: Data, workspaceID: String, surfaceID: String
+    ) throws -> MobileTerminalReplayResponse {
+        let envelope = try decoder.decode(HiveRemoteReplayEnvelope.self, from: payload)
+        guard envelope.workspaceID == workspaceID else {
+            throw HiveRemoteTerminalSessionError.mismatchedWorkspace
+        }
+        guard envelope.surfaceID == surfaceID else {
+            throw HiveRemoteTerminalSessionError.mismatchedSurface
+        }
+        return envelope.response
     }
 }
