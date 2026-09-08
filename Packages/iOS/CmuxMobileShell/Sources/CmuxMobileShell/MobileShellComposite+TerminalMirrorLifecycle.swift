@@ -24,11 +24,14 @@ extension MobileShellComposite {
     }
 
     /// Record the producer identity and history baseline of a delivered frame.
-    func recordTerminalMirrorFrame(_ frame: MobileTerminalRenderGridFrame) {
+    @discardableResult
+    func recordTerminalMirrorFrame(_ frame: MobileTerminalRenderGridFrame) -> Bool {
         var state = terminalMirrorStatesBySurfaceID[frame.surfaceID]
             ?? MobileTerminalMirrorState()
+        let retainedMirrorWasActive = state.retainedAcrossReconnect
         state.record(frame)
         terminalMirrorStatesBySurfaceID[frame.surfaceID] = state
+        return retainedMirrorWasActive && state.hydrationNeeded
     }
 
     /// Returns whether a retained mirror's provisional zero-row replay failed

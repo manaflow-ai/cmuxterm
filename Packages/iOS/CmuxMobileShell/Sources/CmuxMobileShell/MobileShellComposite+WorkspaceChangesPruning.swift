@@ -23,6 +23,9 @@ extension MobileShellComposite {
         workspaceChangesSummaryTrailingTask = nil
         workspaceChangesSummaryTrailingTaskID = nil
         workspaceChangesSummaryTrailingDeadline = nil
+        // The canceled task cannot reach `fetchCompleted()`, so clear the
+        // single-flight marker while preserving fetched timestamps and chips.
+        workspaceChangesSummaryRefreshSchedulePolicy.reset()
     }
 
     func resetWorkspaceChangesState() {

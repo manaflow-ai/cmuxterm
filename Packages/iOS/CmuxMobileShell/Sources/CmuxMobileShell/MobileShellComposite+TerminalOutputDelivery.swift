@@ -19,7 +19,8 @@ extension MobileShellComposite {
 
     /// Updates per-surface screen and mirror metadata after an authoritative
     /// render-grid frame has been accepted for delivery.
-    func recordTerminalRenderGridDelivery(_ renderGrid: MobileTerminalRenderGridFrame) {
+    @discardableResult
+    func recordTerminalRenderGridDelivery(_ renderGrid: MobileTerminalRenderGridFrame) -> Bool {
         // The toolbar observes this dictionary via `isAlternateScreen`; same-value
         // writes would re-fire observers for every delivered render-grid frame.
         if terminalActiveScreenBySurfaceID[renderGrid.surfaceID] != renderGrid.activeScreen {
@@ -35,7 +36,7 @@ extension MobileShellComposite {
         } else if renderGrid.activeScreen == .primary {
             terminalAlternateRenderGridBaselineSurfaceIDs.remove(renderGrid.surfaceID)
         }
-        recordTerminalMirrorFrame(renderGrid)
+        return recordTerminalMirrorFrame(renderGrid)
     }
 
     /// Record the screen-anchor history that the next live delta must link to.
@@ -342,7 +343,15 @@ extension MobileShellComposite {
             terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID[renderGrid.surfaceID] =
                 terminalReplayBarrierDroppedOutputCountsBySurfaceID[renderGrid.surfaceID] ?? 0
         }
-        recordTerminalRenderGridDelivery(renderGrid)
+        let retainedMirrorNeedsHydration = recordTerminalRenderGridDelivery(renderGrid)
+        if source == "event",
+           retainedMirrorNeedsHydration,
+           terminalReplayBarrierTokensBySurfaceID[renderGrid.surfaceID] == nil {
+            // A producer change can arrive as a live full frame before the
+            // reconnect replay response. Keep that screen visible, but open a
+            // full replay barrier so its old local scrollback is not trusted.
+            terminalOutputNeedsReplay(surfaceID: renderGrid.surfaceID)
+        }
         markTerminalBytesDelivered(
             surfaceID: renderGrid.surfaceID,
             endSeq: renderGrid.stateSeq,

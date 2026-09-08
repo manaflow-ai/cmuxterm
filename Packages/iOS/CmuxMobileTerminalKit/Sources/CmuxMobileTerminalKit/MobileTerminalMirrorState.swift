@@ -37,10 +37,18 @@ public struct MobileTerminalMirrorState: Sendable {
 
     /// Records producer metadata from a delivered render-grid frame. A full
     /// frame with no retained history still completes hydration; deltas never do.
+    /// A retained mirror accepts a live full frame only when its producer
+    /// identity and history metadata still match the visible mirror. If those
+    /// values changed, the visible screen may still be useful, but its
+    /// scrollback must be rehydrated before a zero-row repaint is trusted.
     /// - Parameter frame: The accepted authoritative frame.
     public mutating func record(_ frame: MobileTerminalRenderGridFrame) {
-        if retainedAcrossReconnect && !frame.full {
-            return
+        if retainedAcrossReconnect {
+            guard frame.full else { return }
+            guard matchesRetainedBaseline(frame) else {
+                invalidate()
+                return
+            }
         }
         renderEpoch = frame.renderEpoch.isEmpty ? nil : frame.renderEpoch
         historyRows = frame.historyRows
@@ -64,16 +72,22 @@ public struct MobileTerminalMirrorState: Sendable {
     ///   or changed; otherwise `false` for a safe zero-row repaint.
     public func requiresHydration(for frame: MobileTerminalRenderGridFrame) -> Bool {
         guard retainedAcrossReconnect else { return hydrationNeeded }
+        return !matchesRetainedBaseline(frame)
+    }
+
+    private func matchesRetainedBaseline(
+        _ frame: MobileTerminalRenderGridFrame
+    ) -> Bool {
         guard let renderEpoch,
               let historyRows,
               let rowSpaceRevision,
               !frame.renderEpoch.isEmpty,
               let frameHistoryRows = frame.historyRows,
               let frameRowSpaceRevision = frame.rowSpaceRevision else {
-            return true
+            return false
         }
-        return renderEpoch != frame.renderEpoch
-            || historyRows != frameHistoryRows
-            || rowSpaceRevision != frameRowSpaceRevision
+        return renderEpoch == frame.renderEpoch
+            && historyRows == frameHistoryRows
+            && rowSpaceRevision == frameRowSpaceRevision
     }
 }
