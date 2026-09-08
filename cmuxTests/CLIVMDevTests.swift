@@ -336,9 +336,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, params in
             switch method {
             case "vm.status": return ["id": params["id"] ?? "?", "status": "running"]
-            case "vm.workspace_new": return ["machine": params["id"] ?? "?", "name": params["name"] ?? "?", "existing": false, "remote_workspace_id": "ws_7"]
             case "vm.exec": return ["exit_code": 0, "stdout": summary, "stderr": ""]
-            case "vm.tree": return ["machine": ["id": "brave-otter"], "resources": []]
+            case "vm.tree": return ["machines": [["id": "brave-otter", "remote_workspaces": []]], "resources": []]
             case "vm.workspace_open": return ["workspace_id": "3F1C7A2E-0000-4000-8000-000000000007", "opened": 2, "empty": false]
             case "vm.open_port": return ["url": "http://internal:3000", "token": "t", "open_url": "https://brave-otter-3000.example.test/"]
             default: return nil
@@ -347,22 +346,16 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
         XCTAssertEqual(
             log.methods,
-            ["vm.status", "vm.workspace_new", "vm.exec", "vm.tree", "vm.workspace_open", "vm.open_port"],
+            ["vm.status", "vm.tree", "vm.exec", "vm.tree", "vm.workspace_open", "vm.open_port"],
             log.methods.description
         )
 
-        let workspaceParams = log.params(ofFirst: "vm.workspace_new")
-        XCTAssertEqual(workspaceParams?["id"] as? String, "brave-otter")
-        XCTAssertEqual(workspaceParams?["name"] as? String, "app")
-        XCTAssertEqual(workspaceParams?["reuse"] as? Bool, true)
-        XCTAssertEqual(workspaceParams?["open"] as? Bool, false, "the layout decides what opens; the workspace is staged headless")
-
-        // The machine gets the standard `cmux layout apply --json --workspace <ws> -` with the
-        // built-in document piped in: the shell says `vm layout apply` would send the same.
+        // New workspaces are created by the layout shim with --name; vm.workspace_new is not
+        // used because its --no-open contract intentionally creates a starter shell.
         let commands = log.execCommands()
         XCTAssertEqual(commands.count, 1, commands.description)
         let apply = commands[0]
-        XCTAssertTrue(apply.hasSuffix("| base64 -d | cmux layout apply --json --workspace ws_7 -"), apply)
+        XCTAssertTrue(apply.hasSuffix("| base64 -d | cmux layout apply --json --name app -"), apply)
         let document = try XCTUnwrap(Self.vmDevBase64Payload(inCommand: apply).flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
         XCTAssertEqual(document["name"] as? String, "app")
         XCTAssertEqual(document["cwd"] as? String, "work/app")
@@ -409,9 +402,8 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, _ in
             switch method {
             case "vm.status": return ["status": "running"]
-            case "vm.workspace_new": return ["existing": false, "remote_workspace_id": "ws_7"]
             case "vm.exec": return ["exit_code": 0, "stdout": summary, "stderr": ""]
-            case "vm.tree": return [:]
+            case "vm.tree": return ["machines": [["id": "brave-otter", "remote_workspaces": []]], "resources": []]
             case "vm.workspace_open": return ["workspace_id": "LOCAL-7", "opened": 2]
             case "vm.open_port": return ["open_url": "https://brave-otter-3000.example.test/"]
             default: return nil
@@ -453,13 +445,13 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, _ in
             switch method {
             case "vm.status": return ["status": "paused"]
-            case "vm.workspace_new": return ["existing": false, "remote_workspace_id": "ws_9"]
+            case "vm.tree": return ["machines": [["id": "brave-otter", "remote_workspaces": []]], "resources": []]
             case "vm.exec": return ["exit_code": 0, "stdout": summary, "stderr": ""]
             default: return nil
             }
         }
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
-        XCTAssertEqual(log.methods, ["vm.status", "vm.workspace_new", "vm.exec"], "no tree refresh, no open, no port without one: \(log.methods)")
+        XCTAssertEqual(log.methods, ["vm.status", "vm.tree", "vm.exec"], "no local open, no port without one: \(log.methods)")
         XCTAssertTrue(result.stdout.contains("staged: cmux vm workspace open brave-otter ws_9"), result.stdout)
         XCTAssertTrue(result.stdout.contains("dev: cargo run\n"), result.stdout)
         XCTAssertFalse(result.stdout.contains("url:"), result.stdout)
@@ -481,8 +473,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, _ in
             switch method {
             case "vm.status": return ["status": "running"]
-            case "vm.workspace_new": return ["existing": true, "remote_workspace_id": "ws_7"]
-            case "surface.catalog":
+            case "vm.tree":
                 return [
                     "machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]],
                     "resources": [[
@@ -495,7 +486,6 @@ extension CLINotifyProcessIntegrationRegressionTests {
                         "remote_views": [["tab_id": "tab_2", "workspace": ["id": "ws_7", "name": "app"], "name": "shell", "focused": false]],
                     ]],
                 ]
-            case "vm.tree": return [:]
             case "vm.workspace_open": return ["workspace_id": "LOCAL-7", "opened": 2]
             case "vm.open_port": return ["open_url": "https://brave-otter-3000.example.test/"]
             default: return nil
@@ -504,7 +494,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
         XCTAssertEqual(
             log.methods,
-            ["vm.status", "vm.workspace_new", "surface.catalog", "vm.tree", "vm.workspace_open", "vm.open_port"],
+            ["vm.status", "vm.tree", "vm.tree", "vm.workspace_open", "vm.open_port"],
             "an already-built workspace must not receive a second layout: \(log.methods)"
         )
         XCTAssertTrue(result.stdout.contains("workspace app = ws_7 (existing)"), result.stdout)
@@ -518,12 +508,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, _ in
             switch method {
             case "vm.status": return ["status": "running"]
-            case "vm.workspace_new": return ["existing": true, "remote_workspace_id": "ws_7"]
-            case "surface.catalog":
+            case "vm.tree":
                 return [
+                    "machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]],
                     "resources": [
-                        ["id": "brave-otter/terminal/term_dev", "machine": "brave-otter", "kind": "terminal", "key": "term_dev", "title": "dev", "lifecycle": "running", "remote_views": [["workspace": ["id": "ws_7"], "name": "dev"]]],
-                        ["id": "brave-otter/terminal/term_shell", "machine": "brave-otter", "kind": "terminal", "key": "term_shell", "title": "shell", "lifecycle": "running", "remote_views": [["workspace": ["id": "ws_7"], "name": "shell"]]],
+                        ["id": "brave-otter/terminal/term_dev", "machine": "brave-otter", "kind": "terminal", "key": "term_dev", "title": "dev", "lifecycle": "running", "remote_views": [["tab_id": "tab_1", "workspace": ["id": "ws_7"], "name": "dev"]]],
+                        ["id": "brave-otter/terminal/term_shell", "machine": "brave-otter", "kind": "terminal", "key": "term_shell", "title": "shell", "lifecycle": "running", "remote_views": [["tab_id": "tab_2", "workspace": ["id": "ws_7"], "name": "shell"]]],
                     ]
                 ]
             case "vm.open_port": return ["open_url": "https://brave-otter-3000.example.test/"]
@@ -545,14 +535,13 @@ extension CLINotifyProcessIntegrationRegressionTests {
         ) { method, _ in
             switch method {
             case "vm.status": return ["status": "running"]
-            case "vm.workspace_new": return ["existing": true, "remote_workspace_id": "ws_7"]
-            case "surface.catalog": return ["machines": [], "resources": []]
+            case "vm.tree": return ["machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]], "resources": []]
             case "vm.exec": return ["exit_code": 0, "stdout": summary, "stderr": ""]
             default: return nil
             }
         }
         XCTAssertEqual(staged.status, 0, "stdout=\(staged.stdout) stderr=\(staged.stderr)")
-        XCTAssertEqual(stagedLog.methods, ["vm.status", "vm.workspace_new", "surface.catalog", "vm.exec"], stagedLog.methods.description)
+        XCTAssertEqual(stagedLog.methods, ["vm.status", "vm.tree", "vm.exec"], stagedLog.methods.description)
         XCTAssertTrue(staged.stdout.contains("layout applied: 2 panes"), staged.stdout)
     }
 
@@ -585,7 +574,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
                     return ["exit_code": 0, "stdout": "\(sink.digest())  /tmp/staging\n", "stderr": ""]
                 }
                 return ["exit_code": 0, "stdout": "", "stderr": ""]
-            case "vm.workspace_new": return ["existing": false, "remote_workspace_id": "ws_3"]
+            case "vm.tree": return ["machines": [["id": "brave-otter", "remote_workspaces": []]], "resources": []]
             default: return nil
             }
         }
@@ -596,9 +585,9 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let extractIndex = try XCTUnwrap(commands.firstIndex { $0.contains("tar -xzf") && $0.contains("-C work/site") }, commands.description)
         let applyIndex = try XCTUnwrap(commands.firstIndex { $0.contains("cmux layout apply") })
         XCTAssertLessThan(extractIndex, applyIndex)
-        let workspaceIndex = try XCTUnwrap(log.methods.firstIndex(of: "vm.workspace_new"))
+        let applyExecIndex = try XCTUnwrap(log.methods.lastIndex(of: "vm.exec"))
         let lastPushExecIndex = try XCTUnwrap(log.methods.indices.filter { log.methods[$0] == "vm.exec" }.dropLast().last)
-        XCTAssertLessThan(lastPushExecIndex, workspaceIndex, "every push exec precedes the workspace: \(log.methods)")
+        XCTAssertLessThan(lastPushExecIndex, applyExecIndex, "every push exec precedes layout apply: \(log.methods)")
         XCTAssertTrue(result.stdout.contains("synced 2 files → brave-otter:work/site"), "node_modules is excluded by the push defaults: \(result.stdout)")
         XCTAssertTrue(result.stdout.contains("dev: npm install && npm run dev (port 5173)"), result.stdout)
     }

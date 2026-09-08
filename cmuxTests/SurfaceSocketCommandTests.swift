@@ -463,22 +463,6 @@ struct SurfaceSocketCommandTests {
         }
     }
 
-    @Test func workspaceNewNoOpenCreatesAnEmptyWorkspaceForLayoutStaging() async throws {
-        let fixture = Fixture()
-        defer { fixture.tearDown() }
-
-        let response = try await Self.call("vm.workspace_new", ["id": fixture.machineID, "name": "staged", "open": false])
-        #expect(fixture.provider.mutations == ["workspace create staged"])
-        #expect(fixture.provider.createdTerminals.isEmpty)
-        if response["ok"] as? Bool == true {
-            let result = try #require(response["result"] as? [String: Any])
-            #expect(result["remote_workspace_id"] as? String == "ws_created")
-            #expect(result["opened"] as? Bool == false)
-            #expect(result["terminal_id"] is NSNull)
-            #expect(result["workspace_id"] is NSNull)
-        }
-    }
-
     // MARK: - vm.terminal_close
 
     @Test func terminalCloseEndsTheTerminalOnItsMachine() async throws {

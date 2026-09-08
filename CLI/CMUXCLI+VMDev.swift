@@ -2,12 +2,12 @@ import Foundation
 
 /// `cmux vm dev`: one command from a local folder to a running dev layout on a
 /// cloud machine — the composition an agent otherwise types by hand as
-/// `vm push` → `vm workspace new --reuse --no-open` → `vm layout apply` →
+/// `vm push` → `vm tree --refresh` → `vm layout apply` →
 /// `vm workspace open` → `vm open <port>`.
 ///
 /// Every step goes through the SAME socket methods and command builders those
-/// verbs use (`vm.status`, `runVMPushCommand`, `vm.workspace_new {reuse, open:false}`,
-/// `vmLayoutApplyCommand` over `vm.exec`, `vm.tree {refresh}` + `vm.workspace_open`,
+/// verbs use (`vm.status`, `runVMPushCommand`, `vm.tree {refresh}`,
+/// `vmLayoutApplyCommand` over `vm.exec`, `vm.workspace_open`,
 /// `vm.open_port`), so a script that runs the verbs one by one and `vm dev` cannot
 /// disagree about what a workspace, a layout, or an open is. Nothing here shells out.
 ///
@@ -281,11 +281,19 @@ extension CMUXCLI {
         var ids: [String: String] = [:]
         for resource in resources where (resource["kind"] as? String) == "terminal" {
             guard (resource["lifecycle"] as? String) != "exited",
+                  Self.vmDevResourceBelongsToMachine(resource, machine: machine),
                   let terminalID = Self.vmTerminalID(in: resource, machine: machine),
                   !terminalID.isEmpty else { continue }
-            let view = (resource["remote_views"] as? [[String: Any]])?
-                .first { (($0["workspace"] as? [String: Any])?["id"] as? String) == workspaceID }
-            let viewName = (view?["name"] as? String).flatMap {
+            let view: [String: Any]
+            switch Self.resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
+            case .resolved(let resolved):
+                view = resolved
+            case .legacy:
+                view = [:]
+            case .notFound, .ambiguous, .unavailable:
+                continue
+            }
+            let viewName = (view["name"] as? String).flatMap {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
             }
             let resourceName = (resource["title"] as? String).flatMap {
@@ -295,6 +303,14 @@ extension CMUXCLI {
             if ids[name] == nil { ids[name] = terminalID }
         }
         return ids
+    }
+
+    private static func vmDevResourceBelongsToMachine(_ resource: [String: Any], machine: String) -> Bool {
+        if let resourceMachine = resource["machine"] as? String {
+            return resourceMachine == machine
+        }
+        guard let id = resource["id"] as? String else { return false }
+        return id.hasPrefix("\(machine)/terminal/")
     }
 
     // MARK: - The command
@@ -490,17 +506,34 @@ extension CMUXCLI {
         lines.append(devLine)
         if !jsonOutput { Self.vmDevFlush(&lines) }
 
-        // 3. workspace: get-or-create by name, headless (the layout decides what opens).
-        let workspaceResponse = try client.sendV2(
-            method: "vm.workspace_new",
-            params: ["id": machine, "name": workspaceName, "reuse": true, "open": false],
-            responseTimeout: 240
+        // 3. workspace discovery: refresh the authoritative machine catalog before deciding
+        // whether to reuse a workspace. New workspaces are created by the layout shim with
+        // --name, because vm.workspace_new intentionally preserves its starter-shell contract.
+        let catalog = try client.sendV2(
+            method: "vm.tree",
+            params: ["id": machine, "refresh": true],
+            responseTimeout: 120
         )
-        guard let remoteWorkspace = workspaceResponse["remote_workspace_id"] as? String, !remoteWorkspace.isEmpty else {
-            throw CLIError(message: "vm dev: the app created no machine workspace for \(workspaceName) on \(machine) (response: \(jsonString(workspaceResponse)))")
+        guard let machinePayload = Self.vmMachinePayload(machine, from: catalog) else {
+            throw CLIError(message: "vm dev: workspace state for \(machine) is unavailable; reconnect and retry")
         }
-        let existing = (workspaceResponse["existing"] as? Bool) == true
-        lines.append("workspace \(workspaceName) = \(remoteWorkspace) (\(existing ? "existing" : "new"))")
+        var remoteWorkspace: String?
+        let existing: Bool
+        switch Self.resolveVMRemoteWorkspaceSelector(workspaceName, in: machinePayload) {
+        case .resolved(let id):
+            remoteWorkspace = id
+            existing = true
+        case .notFound:
+            remoteWorkspace = nil
+            existing = false
+        case .ambiguous(let ids):
+            throw CLIError(message: "vm dev: several workspaces on \(machine) are named '\(workspaceName)' (\(ids.joined(separator: ", "))); choose a unique --name or remove the duplicates")
+        case .unavailable:
+            throw CLIError(message: "vm dev: workspace state for \(machine) is unavailable; reconnect and retry")
+        }
+        if let remoteWorkspace {
+            lines.append("workspace \(workspaceName) = \(remoteWorkspace) (existing)")
+        }
 
         // 4. layout: only into an EMPTY workspace (the shim refuses otherwise). A reused
         // workspace that already has panes keeps them — running `vm dev` twice must not
@@ -509,15 +542,24 @@ extension CMUXCLI {
         var terminals: [String: String] = [:]
         var applyPayload: [String: Any]?
         let existingInfo = existing
-            ? vmDevWorkspaceInfo(machine: machine, remoteWorkspace: remoteWorkspace, client: client)
+            ? vmDevWorkspaceInfo(
+                resources: (catalog["resources"] as? [[String: Any]]) ?? [],
+                machine: machine,
+                remoteWorkspace: remoteWorkspace ?? ""
+            )
             : nil
         let alreadyBuilt = existingInfo?.hasPanes == true
         if alreadyBuilt {
             terminals = existingInfo?.terminalIDs ?? [:]
-            lines.append("layout kept: \(remoteWorkspace) already has panes (close it with `cmux vm workspace rm \(machine) \(remoteWorkspace)` to rebuild)")
+            lines.append("layout kept: \(remoteWorkspace ?? "?") already has panes (close it with `cmux vm workspace rm \(machine) \(remoteWorkspace ?? "?")` to rebuild)")
         } else {
             let result = try vmDevRunShim(
-                Self.vmLayoutApplyCommand(documentJSON: documentData, workspace: remoteWorkspace, name: nil, cwd: nil),
+                Self.vmLayoutApplyCommand(
+                    documentJSON: documentData,
+                    workspace: existing ? remoteWorkspace : nil,
+                    name: existing ? nil : workspaceName,
+                    cwd: nil
+                ),
                 machine: machine,
                 client: client,
                 timeoutMs: Self.vmDevApplyExecTimeoutMs
@@ -525,6 +567,16 @@ extension CMUXCLI {
             applyPayload = Self.jsonObject(fromShimOutput: result.stdout)
             for warning in (applyPayload?["warnings"] as? [String]) ?? [] {
                 cliWriteStderr("warning: \(warning)\n")
+            }
+            let appliedWorkspace = (applyPayload?["workspace_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let appliedWorkspace, !appliedWorkspace.isEmpty else {
+                throw CLIError(message: "vm dev: layout apply returned no workspace id for \(workspaceName) on \(machine)")
+            }
+            if remoteWorkspace == nil {
+                // Keep the output and follow-up open operation tied to the workspace the
+                // shim actually created, rather than guessing from the pre-apply catalog.
+                remoteWorkspace = appliedWorkspace
+                lines.append("workspace \(workspaceName) = \(appliedWorkspace) (new)")
             }
             terminals = Self.vmDevTerminalIDs(fromApplyPayload: applyPayload)
             layoutApplied = true
@@ -536,10 +588,16 @@ extension CMUXCLI {
         // 5. open here with the same geometry; then the public URL for the port.
         var openedPayload: [String: Any]?
         if !options.noOpen {
+            guard let remoteWorkspace else {
+                throw CLIError(message: "vm dev: no remote workspace id is available to open")
+            }
             openedPayload = try vmDevOpenWorkspace(machine: machine, remoteWorkspace: remoteWorkspace, client: client)
             let local = (openedPayload?["workspace_id"] as? String) ?? "?"
             lines.append("opened locally: workspace \(local)")
         } else {
+            guard let remoteWorkspace else {
+                throw CLIError(message: "vm dev: no remote workspace id is available to stage")
+            }
             lines.append("staged: cmux vm workspace open \(machine) \(remoteWorkspace)")
         }
         var publicURL: String?
@@ -628,14 +686,10 @@ extension CMUXCLI {
     }
 
     private func vmDevWorkspaceInfo(
+        resources: [[String: Any]],
         machine: String,
-        remoteWorkspace: String,
-        client: SocketClient
+        remoteWorkspace: String
     ) -> (hasPanes: Bool, terminalIDs: [String: String])? {
-        guard let catalog = try? client.sendV2(method: "surface.catalog", params: ["machine": machine], responseTimeout: 120) else {
-            return nil
-        }
-        let resources = (catalog["resources"] as? [[String: Any]]) ?? []
         let terminalIDs = Self.vmDevTerminalIDs(
             fromCatalogResources: resources,
             machine: machine,

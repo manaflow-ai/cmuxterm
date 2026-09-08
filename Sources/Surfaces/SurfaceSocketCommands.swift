@@ -330,7 +330,7 @@ extension TerminalController {
 
     /// `vm.workspace_new {id, name?, focus?, open?}` → creates a cmux-tui workspace on the
     /// machine and, when opened, gives it a starter terminal and projects it locally. A
-    /// headless request keeps the new workspace empty for a subsequent layout apply.
+    /// headless request stages that same workspace without projecting it locally.
     nonisolated func socketWorkerVMWorkspaceNewResponse(id: Any?, params: [String: Any]) -> String {
         guard let vmId = Self.surfaceString(params["id"]), !vmId.isEmpty else {
             return v2Error(id: id, code: "invalid_params", message: "vm.workspace_new requires `id`. Run `cmux vm ls` to find one.")
@@ -390,19 +390,6 @@ extension TerminalController {
                 case .notFound:
                     break
                 }
-            }
-            if !open {
-                let workspace = try await provider.createRemoteWorkspace(name: name)
-                return [
-                    "machine": machine.rawValue,
-                    "remote_workspace_id": workspace.id,
-                    "remote_workspace_name": workspace.name,
-                    "existing": false,
-                    "opened": false,
-                    "terminal_id": NSNull(),
-                    "workspace_id": NSNull(),
-                    "surface_id": NSNull(),
-                ]
             }
             let created = try await CloudTreeNodeActions.createWorkspaceAndOpenLocally(
                 machine: machine,

@@ -406,9 +406,9 @@ struct CloudTreeNodeActions {
         } else {
             terminal = try await provider.createTerminal(command: nil, cwd: nil, name: nil, remoteWorkspaceID: workspace.id)
         }
-        // Headless staging (`cmux vm workspace new --no-open`): an agent composes machine
-        // workspaces (then `vm layout apply --workspace`, `vm agent --remote-workspace`)
-        // for the person to open later; nothing local is created or focused.
+        // Headless staging (`cmux vm workspace new --no-open`): the machine workspace and
+        // its starter terminal are created, but nothing local is created or focused. A
+        // later layout apply may target this workspace only when it is still empty.
         guard openLocally else { return (workspace, terminal, nil) }
         let placement = SurfaceResourcePlacement(
             resource: terminal.id,
