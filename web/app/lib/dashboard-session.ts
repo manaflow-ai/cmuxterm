@@ -1,13 +1,19 @@
 import { cache } from "react";
 import { cacheLife } from "next/cache";
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import {
   isSubrouterAuthorizationError,
   verifyBrowserSessionRequest,
   withSubrouterAuthorizationDeadline,
 } from "../../services/vms/auth";
+import {
+  DASHBOARD_RETURN_PATH_HEADER,
+  normalizeDashboardReturnPath,
+} from "./dashboard-return-path";
 import { isStackConfigured } from "./stack";
+import { localizedVaultPath, vaultSignInHref } from "./vault-auth";
 
 /**
  * The narrow, serializable view of the signed-in browser user that dashboard
@@ -62,10 +68,13 @@ export async function dashboardSessionKey(): Promise<string> {
   ).join("");
 }
 
+const INTL_LOCALE_HEADER = "x-next-intl-locale";
+
 /**
  * Resolve the browser user once per server render and, through the private
- * cache, once per browser session per stale window. Missing and unavailable
- * sessions throw so they are never cached; only a resolved user is.
+ * cache, once per browser session per stale window. Only a resolved user is
+ * cached: a rejected cookie redirects to sign-in from inside the cached
+ * scope, which the framework recognizes, and an outage throws.
  */
 export const readDashboardSessionUser = cache(
   async (): Promise<DashboardSessionUser> => {
@@ -110,7 +119,18 @@ async function readCachedDashboardSessionUser(
     }
     throw error;
   }
-  if (!user) throw new DashboardSessionMissingError("No dashboard session");
+  if (!user) {
+    // The destination and locale come from request headers set by the
+    // middleware, so they stay out of the cache key.
+    const requestHeaders = await headers();
+    redirect(vaultSignInHref(localizedVaultPath(
+      requestHeaders.get(INTL_LOCALE_HEADER) ?? "en",
+      normalizeDashboardReturnPath(
+        requestHeaders.get(DASHBOARD_RETURN_PATH_HEADER),
+        "/dashboard",
+      ),
+    )));
+  }
   return {
     id: user.id,
     displayName: user.displayName ?? null,

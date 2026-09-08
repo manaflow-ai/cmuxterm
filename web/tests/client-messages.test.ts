@@ -10,21 +10,21 @@ describe("client message catalogs", () => {
     const shared = sharedClientMessages(enMessages);
 
     expect(shared.docs).toBeUndefined();
-    expect(shared.community).toBeUndefined();
+    // Read by the download confirmation outside the community route.
+    expect(shared.community).toBeDefined();
     expect(shared.dashboard).toBeDefined();
     expect(shared.common).toBeDefined();
     expect(shared.landing).toBeDefined();
-    // The dropped namespaces are the bulk of the catalog.
+    // The docs namespace alone is about half of the catalog.
     const before = JSON.stringify(pruneClientMessages(enMessages)).length;
     const after = JSON.stringify(shared).length;
-    expect(after).toBeLessThan(before * 0.5);
+    expect(after).toBeLessThan(before * 0.55);
   });
 
-  test("the subtree catalog keeps docs and community for their nested providers", () => {
+  test("the subtree catalog keeps docs for its nested provider", () => {
     const pruned = pruneClientMessages(enMessages);
 
     expect(pruned.docs).toBeDefined();
-    expect(pruned.community).toBeDefined();
     expect(enMessages.docs).toBeDefined();
   });
 });

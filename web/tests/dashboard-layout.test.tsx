@@ -44,6 +44,9 @@ mock.module("next/navigation", () => ({
     redirectedTo = target;
     throw new Error(`redirect:${target}`);
   },
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && error.message.startsWith("redirect:")) throw error;
+  },
 }));
 
 mock.module("next/headers", () =>

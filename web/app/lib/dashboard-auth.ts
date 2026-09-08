@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 import {
   type DashboardSessionUser,
@@ -68,13 +68,19 @@ export async function loadDashboardSection(
   try {
     return { kind: "user", user: await readDashboardSessionUser() };
   } catch (error) {
+    // A framework redirect from inside the cached scope must propagate.
+    unstable_rethrow(error);
     if (error instanceof DashboardSessionMissingError) {
       redirect(dashboardAuthorizationSignInHref(locale, returnPath));
     }
-    if (error instanceof DashboardSessionUnavailableError) {
-      return { kind: "unavailable" };
+    // Anything else crossed the cache boundary, where prototypes are not
+    // preserved, or is a Stack outage; both render recovery UI in place.
+    if (!(error instanceof DashboardSessionUnavailableError)) {
+      console.error("Dashboard session read failed", {
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
     }
-    throw error;
+    return { kind: "unavailable" };
   }
 }
 
@@ -84,13 +90,8 @@ export async function optionalDashboardUser(): Promise<DashboardSessionUser | nu
   try {
     return await readDashboardSessionUser();
   } catch (error) {
-    if (
-      error instanceof DashboardSessionMissingError ||
-      error instanceof DashboardSessionUnavailableError
-    ) {
-      return null;
-    }
-    throw error;
+    unstable_rethrow(error);
+    return null;
   }
 }
 

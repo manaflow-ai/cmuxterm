@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import enMessages from "../messages/en.json";
@@ -7,7 +7,15 @@ import {
   nextHeadersMock,
 } from "./helpers/dashboard-session-mock";
 
+const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
 process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
+afterAll(() => {
+  if (previousStackProjectId === undefined) {
+    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+  } else {
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
+  }
+});
 import {
   createTestflightUser,
   testflightUserEligibility,

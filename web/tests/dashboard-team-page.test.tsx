@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createNextNavigationMock } from "./helpers/next-navigation-mock";
 import {
@@ -7,7 +7,15 @@ import {
 } from "./helpers/dashboard-session-mock";
 import { renderSettled } from "./helpers/render-stream";
 
+const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
 process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
+afterAll(() => {
+  if (previousStackProjectId === undefined) {
+    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+  } else {
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
+  }
+});
 
 let signedIn = true;
 let stackConfigured = true;
@@ -33,7 +41,11 @@ mock.module("next/navigation", () => {
 });
 
 mock.module("next/headers", () =>
-  nextHeadersMock({ refreshToken: () => "refresh-1" }),
+  nextHeadersMock({
+    refreshToken: () => "refresh-1",
+    // Middleware forwards the destination for the sign-in redirect.
+    headers: () => new Headers({ "x-cmux-dashboard-return-path": "/dashboard/team" }),
+  }),
 );
 
 mock.module("next/cache", () => ({
