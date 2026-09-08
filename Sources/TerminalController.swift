@@ -4094,7 +4094,7 @@ class TerminalController {
     nonisolated func v2VmCall(
         id: Any?,
         timeoutSeconds: TimeInterval = 17 * 60,
-        transportUnsupportedContext: (command: String, machineID: String)? = nil,
+        transportUnsupportedMachineID: String? = nil,
         _ work: @escaping () async throws -> [String: Any]
     ) -> String {
         let semaphore = DispatchSemaphore(value: 0)
@@ -4162,24 +4162,27 @@ class TerminalController {
                 )
             }
             if let vmError = error as? VMClientError,
-               let context = transportUnsupportedContext,
+               let machineID = transportUnsupportedMachineID,
                Self.isCloudVMTransportUnsupportedError(vmError) {
+                // `vm.cmux_remote_info` is the shared attach path for `vm shell`,
+                // `vm open`, `vm tui`, and the sidebar, so the message names the
+                // machine and the missing transport rather than guessing the
+                // caller, and points at commands that do not need that transport.
                 let alternative = String(
                     format: String(
-                        localized: "socket.cloudVM.transportUnsupported.useShell",
-                        defaultValue: "Use `cmux vm shell %1$@` or `cmux vm exec %2$@ -- <command>` instead."
+                        localized: "socket.cloudVM.transportUnsupported.useExec",
+                        defaultValue: "Use `cmux vm exec %1$@ -- <command>`; `cmux vm ssh %1$@` works where the provider offers SSH."
                     ),
-                    context.machineID,
-                    context.machineID
+                    machineID,
+                    machineID
                 )
                 let message = String(
                     format: String(
                         localized: "socket.cloudVM.transportUnsupported",
-                        defaultValue: "`cmux %1$@` needs the `%2$@` transport, which %3$@ machines do not offer. %4$@"
+                        defaultValue: "%1$@ offers no `%2$@` transport (its provider has no cmux-tui daemon route), so cmux cannot attach a terminal to it. %3$@"
                     ),
-                    context.command,
+                    machineID,
                     "cmux-remote",
-                    "base",
                     alternative
                 )
                 return v2Error(
