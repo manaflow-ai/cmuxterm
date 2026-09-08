@@ -275,6 +275,19 @@ extension Workspace {
         workspaceByID: [UUID: Workspace]? = nil,
         scopedTo panelIdsByWorkspaceId: [UUID: Set<UUID>]? = nil
     ) -> [UUID: UUID] {
+        sidebarIndexEventScope(
+            in: workspaces,
+            workspaceByID: workspaceByID,
+            scopedTo: panelIdsByWorkspaceId
+        ).ownerByPanelID
+    }
+
+    /// Projects watcher owners and row invalidation scope from the same index event.
+    static func sidebarIndexEventScope(
+        in workspaces: [Workspace],
+        workspaceByID: [UUID: Workspace]? = nil,
+        scopedTo panelIdsByWorkspaceId: [UUID: Set<UUID>]? = nil
+    ) -> (ownerByPanelID: [UUID: UUID], workspaceIDsToRefresh: Set<UUID>) {
         var ownerByPanelID: [UUID: UUID] = [:]
         var ambiguousPanelIDs = Set<UUID>()
 
@@ -292,7 +305,7 @@ extension Workspace {
             // Direct scope stays O(changed panels). Only unmatched panel IDs
             // need current-owner lookups after a restore or panel move; that
             // fallback checks those IDs, not every panel in every workspace.
-            guard let workspaceByID else { return [:] }
+            guard let workspaceByID else { return ([:], []) }
             var unmatchedPanelIDs = Set<UUID>()
             for (workspaceID, panelIDs) in panelIdsByWorkspaceId {
                 for panelID in panelIDs {
@@ -319,7 +332,10 @@ extension Workspace {
             }
         }
 
-        return ownerByPanelID
+        let workspaceIDsToRefresh = Set(ownerByPanelID.values).union(
+            (panelIdsByWorkspaceId ?? [:]).keys.filter { workspaceByID?[$0] != nil }
+        )
+        return (ownerByPanelID, workspaceIDsToRefresh)
     }
 
     nonisolated private static func sidebarLifecyclePriority(
