@@ -109,6 +109,37 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(fixture.surface.hasUnconfirmedHumanPromptInput)
     }
 
+    @Test func deferredPromptSubmissionReplaysAfterLaterHumanMutation() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.nativeView.shouldDeferRuntimeInput = true
+        fixture.surface.synchronizePromptInputAgentScope(
+            "agentPIDKey:codex.clipboard-replay"
+        )
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "admitted before clipboard read",
+                submitKey: "return",
+                hookRecordingSource: "workspace.agent_submit"
+            ) == .queued
+        )
+        fixture.surface.recordHumanPromptInput(.unknown)
+        fixture.nativeView.shouldDeferRuntimeInput = false
+        fixture.nativeView.deferredRuntimeInputs.removeFirst()()
+
+        #expect(
+            fixture.surface.confirmPromptSubmission(
+                message: "admitted before clipboard read"
+            ) == .programmatic(source: "workspace.agent_submit")
+        )
+        #expect(fixture.surface.hasUnconfirmedHumanPromptInput)
+    }
+
     @Test func pasteTextNotifiesPaneHostBeforeQueueingOnAColdSurface() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }

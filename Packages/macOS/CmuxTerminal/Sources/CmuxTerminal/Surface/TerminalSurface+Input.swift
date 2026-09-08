@@ -541,11 +541,15 @@ extension TerminalSurface {
             if deferInputDuringRuntimeClipboardRead(
                 estimatedBytes: data.count + preparationEvents.reduce(0) { $0 + $1.queuedByteCost },
                 replay: { [weak self] in
+                    // Admission already passed before the clipboard read was
+                    // deferred. Preserve that ordering decision on replay so
+                    // a later human mutation cannot silently discard the
+                    // admitted transaction.
                     _ = self?.sendPromptSubmission(
                         text,
                         submitKey: submitKey,
                         preparationKeys: preparationKeys,
-                        rejectIfHumanComposerBusy: rejectIfHumanComposerBusy,
+                        rejectIfHumanComposerBusy: false,
                         hookRecordingSource: hookRecordingSource,
                         hookConfirmsHumanInput: hookConfirmsHumanInput,
                         deferDuringRuntimeClipboardRead: false,
