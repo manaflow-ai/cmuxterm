@@ -141,6 +141,7 @@ extension TerminalController {
         let preparedArguments = restoredAgentExists
             ? preparedResumeArguments(
                 binding: binding,
+                launchCommand: launchCommand,
                 normalizedKind: normalizedKind,
                 workingDirectory: workingDirectory
             )
@@ -148,6 +149,7 @@ extension TerminalController {
         let forkArguments = restoredAgentExists
             ? preparedForkArguments(
                 binding: binding,
+                launchCommand: launchCommand,
                 normalizedKind: normalizedKind,
                 workingDirectory: workingDirectory
             )
@@ -190,6 +192,7 @@ extension TerminalController {
 
     private func preparedResumeArguments(
         binding: SurfaceResumeBindingSnapshot,
+        launchCommand: AgentLaunchCommandSnapshot?,
         normalizedKind: String,
         workingDirectory: String?
     ) -> [String]? {
@@ -209,10 +212,10 @@ extension TerminalController {
             kind: kind,
             sessionId: checkpointID,
             workingDirectory: workingDirectory,
-            launchCommand: binding.launchCommand,
+            launchCommand: launchCommand,
             permissionMode: binding.permissionMode
         ).preparedResumeArguments(
-            launchCommand: binding.launchCommand,
+            launchCommand: launchCommand,
             workingDirectory: workingDirectory,
             observedPermissionMode: binding.permissionMode
         )
@@ -220,6 +223,7 @@ extension TerminalController {
 
     private func preparedForkArguments(
         binding: SurfaceResumeBindingSnapshot,
+        launchCommand: AgentLaunchCommandSnapshot?,
         normalizedKind: String,
         workingDirectory: String?
     ) -> [String]? {
@@ -235,10 +239,10 @@ extension TerminalController {
             kind: kind,
             sessionId: checkpointID,
             workingDirectory: workingDirectory,
-            launchCommand: binding.launchCommand,
+            launchCommand: launchCommand,
             permissionMode: binding.permissionMode
         ).preparedForkArguments(
-            launchCommand: binding.launchCommand,
+            launchCommand: launchCommand,
             workingDirectory: workingDirectory,
             observedPermissionMode: binding.permissionMode
         )

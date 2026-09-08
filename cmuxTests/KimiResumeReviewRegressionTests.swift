@@ -203,6 +203,104 @@ struct KimiResumeReviewRegressionTests {
     }
 
     @MainActor
+    @Test("Binding-only custom Kimi restore preserves profile working-directory options")
+    func bindingOnlyCustomKimiRestorePreservesProfileOption() throws {
+        let manager = TabManager(autoWelcomeIfNeeded: false)
+        defer { manager.tabs.forEach { $0.teardownAllPanels() } }
+        let workspace = try #require(manager.selectedWorkspace)
+        let panelID = try #require(workspace.focusedPanelId)
+        let target = ControlSurfaceResumeTarget.workspace(
+            tabManager: manager,
+            workspace: workspace,
+            surfaceID: panelID
+        )
+        let sessionID = "binding-only-custom-kimi-session"
+        let profile = "profile-a"
+        let launchCommand = AgentLaunchCommandSnapshot(
+            launcher: "custom-kimi",
+            executablePath: "custom-kimi",
+            arguments: ["custom-kimi", "--resume", sessionID, "-w", profile]
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "kimi",
+            command: "custom-kimi --resume \(sessionID) -w \(profile)",
+            checkpointId: sessionID,
+            source: "agent-hook",
+            launchCommand: launchCommand,
+            restoreWorkingDirectorySelection: .exact("/remote/project")
+        )
+
+        let record = try #require(
+            TerminalController.shared.controlSurfaceBindingContinuationRecord(
+                target: target,
+                binding: binding,
+                compatibilityBinding: nil,
+                restoredAgentExists: false
+            )
+        )
+        #expect(record.launchCommand?.arguments == launchCommand.arguments)
+        #expect(record.launchCommand?.arguments.contains("-w") == true)
+        #expect(record.launchCommand?.arguments.contains(profile) == true)
+    }
+
+    @MainActor
+    @Test("Binding continuation reuses sanitized launch data for prepared resume and fork argv")
+    func bindingContinuationSanitizesPreparedArguments() throws {
+        let manager = TabManager(autoWelcomeIfNeeded: false)
+        defer { manager.tabs.forEach { $0.teardownAllPanels() } }
+        let workspace = try #require(manager.selectedWorkspace)
+        let panelID = try #require(workspace.focusedPanelId)
+        let target = ControlSurfaceResumeTarget.workspace(
+            tabManager: manager,
+            workspace: workspace,
+            surfaceID: panelID
+        )
+        let sessionID = "binding-continuation-codex-session"
+        let capturedDirectory = "/Users/example/local-codex-project"
+        let trustedDirectory = "/remote/codex-project"
+        let launchCommand = AgentLaunchCommandSnapshot(
+            launcher: "codex",
+            executablePath: "codex",
+            arguments: ["codex", "resume", sessionID, "-C", capturedDirectory, "--model", "test-model"],
+            workingDirectory: capturedDirectory
+        )
+        workspace.setRestoredAgentSnapshotForTesting(
+            SessionRestorableAgentSnapshot(
+                kind: .codex,
+                sessionId: sessionID,
+                workingDirectory: capturedDirectory,
+                launchCommand: launchCommand
+            ),
+            panelId: panelID
+        )
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "codex",
+            command: "codex resume \(sessionID) -C '\(capturedDirectory)'",
+            checkpointId: sessionID,
+            source: "agent-hook",
+            launchCommand: launchCommand,
+            restoreWorkingDirectorySelection: .exact(trustedDirectory)
+        )
+
+        let record = try #require(
+            TerminalController.shared.controlSurfaceBindingContinuationRecord(
+                target: target,
+                binding: binding,
+                compatibilityBinding: nil,
+                restoredAgentExists: true
+            )
+        )
+        let launchArguments = try #require(record.launchCommand?.arguments)
+        let preparedArguments = try #require(record.preparedArguments)
+        let forkArguments = try #require(record.forkArguments)
+        #expect(!launchArguments.contains(capturedDirectory))
+        #expect(!preparedArguments.contains(capturedDirectory))
+        #expect(!forkArguments.contains(capturedDirectory))
+        #expect(preparedArguments.contains(sessionID))
+        #expect(forkArguments.contains(sessionID))
+    }
+
+    @MainActor
     @Test("Control restore strips native Kimi cwd flags without consuming custom profiles")
     func controlRestoreUsesOnlyMatchingNativeKimiPolicy() throws {
         let manager = TabManager(autoWelcomeIfNeeded: false)

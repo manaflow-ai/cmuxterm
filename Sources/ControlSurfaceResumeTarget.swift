@@ -91,12 +91,11 @@ enum ControlSurfaceResumeTarget {
            let snapshotBuiltInKind = snapshot.workingDirectoryOptionPolicyBuiltInKind {
             return snapshotBuiltInKind
         }
-        guard RestorableAgentKind.allCases.contains(where: {
-            $0.rawValue.lowercased() == normalized
-        }) else {
-            return nil
-        }
-        return normalized
+        // Without a matching native snapshot, the persisted kind may be a
+        // custom Vault registration reusing a built-in spelling.  Do not infer
+        // provider-specific cwd flags from the raw binding id; preserving an
+        // ambiguous option is safer than stripping a custom profile selector.
+        return nil
     }
 
     @discardableResult
