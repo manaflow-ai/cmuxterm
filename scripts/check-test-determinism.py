@@ -3322,9 +3322,12 @@ def _direct_network_target_ranges(
         executable = _select_call_argument(arguments, _NO_ARGUMENT_LABELS, 0)
         if executable is None:
             return []
-        executable_source = line[executable.value_bounds[0] : executable.value_bounds[1]]
+        executable_source = _strip_comments(
+            line[executable.value_bounds[0] : executable.value_bounds[1]],
+            ".swift",
+        ).strip()
         executable_match = re.search(
-            r'\bURL\s*\(\s*fileURLWithPath\s*:\s*"([^"]+)"',
+            r'^URL\s*\(\s*fileURLWithPath\s*:\s*"([^"]+)"\s*\)$',
             executable_source,
         )
         if executable_match is None:
@@ -5139,6 +5142,10 @@ def _self_test() -> int:
         (
             "cmuxTests/process_echo.swift",
             'Process.run(URL(fileURLWithPath: "/usr/bin/echo"), arguments: ["https://api.openai.com/v1/items"])\n',
+        ),
+        (
+            "cmuxTests/process_commented_executable.swift",
+            'Process.run(/* URL(fileURLWithPath: "/usr/bin/curl") */ executableURL, arguments: ["https://api.openai.com/v1/items"])\n',
         ),
         (
             "web/tests/local_exec_helper.ts",

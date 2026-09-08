@@ -537,6 +537,47 @@ def main() -> int:
         )
         return 1
 
+    failed_then_passing_swift_testing_child = textwrap.dedent(
+        """
+        print("Test Suite 'Selected tests' passed at now", flush=True)
+        print("\\t Executed 1 test, with 0 failures (0 unexpected) in 0.001 seconds", flush=True)
+        print("◇ Test run started.", flush=True)
+        print("✘ Test run with 1 test failed after 0.001 seconds with 1 issue.", flush=True)
+        print("◇ Test run started.", flush=True)
+        print("✔ Test run with 1 test passed after 0.001 seconds.", flush=True)
+        """
+    )
+    failed_then_passing_swift_testing_result = subprocess.run(
+        [
+            sys.executable,
+            str(HELPER),
+            sys.executable,
+            "-c",
+            failed_then_passing_swift_testing_child,
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=HELPER_TEST_TIMEOUT_SECONDS,
+        env=expected_mixed_framework_env,
+    )
+    if (
+        failed_then_passing_swift_testing_result.returncode
+        != SWIFT_TESTING_FAILED_EXIT_CODE
+    ):
+        print(failed_then_passing_swift_testing_result.stdout, end="")
+        print(
+            failed_then_passing_swift_testing_result.stderr,
+            end="",
+            file=sys.stderr,
+        )
+        print(
+            "FAIL: a later passing Swift Testing phase must not hide an earlier failure, "
+            f"got {failed_then_passing_swift_testing_result.returncode}"
+        )
+        return 1
+
     failing_post_test_child = textwrap.dedent(
         """
         import time

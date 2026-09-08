@@ -241,6 +241,9 @@ if mode == "fail":
     raise SystemExit(23)
 output = Path(sys.argv[sys.argv.index("--output") + 1])
 output.parent.mkdir(parents=True, exist_ok=True)
+if "--swift-testing-output" in sys.argv:
+    swift_testing_output = Path(sys.argv[sys.argv.index("--swift-testing-output") + 1])
+    swift_testing_output.write_text("0\\n", encoding="utf-8")
 selectors = "" if mode == "empty" else "-only-testing:cmuxTests/FakeTests\\n"
 output.write_text(selectors, encoding="utf-8")
 """.lstrip(),

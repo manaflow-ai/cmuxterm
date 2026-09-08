@@ -1169,11 +1169,13 @@ jobs:
           run_unit_test_batch() {
             local logical_shard="$1"
             local shard_args="$RUNNER_TEMP/cmux-unit-shard-${logical_shard}-of-${LOGICAL_SHARD_TOTAL}.args"
+            local swift_testing_output="$RUNNER_TEMP/cmux-unit-shard-${logical_shard}-of-${LOGICAL_SHARD_TOTAL}.swift-testing"
             local batch_output="$RUNNER_TEMP/cmux-unit-output-${logical_shard}-of-${LOGICAL_SHARD_TOTAL}.txt"
             python3 scripts/ci/cmux_unit_test_shard.py \
               --shard-index "$logical_shard" \
               --shard-total "$LOGICAL_SHARD_TOTAL" \
-              --output "$shard_args" || {
+              --output "$shard_args" \
+              --swift-testing-output "$swift_testing_output" || {
                 local shard_status=$?
                 echo "Failed to generate app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL}"
                 return "$shard_status"
@@ -1182,6 +1184,19 @@ jobs:
               echo "Missing selector file for app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL}"
               return 1
             fi
+            if [ ! -r "$swift_testing_output" ]; then
+              echo "Missing Swift Testing metadata for app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL}"
+              return 1
+            fi
+            local expect_swift_testing
+            expect_swift_testing="$(tr -d '[:space:]' < "$swift_testing_output")"
+            case "$expect_swift_testing" in
+              0|1) ;;
+              *)
+                echo "Invalid Swift Testing metadata for app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL}"
+                return 1
+                ;;
+            esac
             local only_testing_args=()
             while IFS= read -r arg; do
               [ -n "$arg" ] && only_testing_args+=("$arg")
@@ -1208,7 +1223,7 @@ jobs:
               # while still allowing shards on separate Macs to run in parallel.
               # Keep the helper's independent deadline below the 1800-second
               # job watchdog so it can report its own timeout first.
-              CMUX_XCODEBUILD_NONINTERACTIVE_EXPECT_SWIFT_TESTING=1 \
+              CMUX_XCODEBUILD_NONINTERACTIVE_EXPECT_SWIFT_TESTING="$expect_swift_testing" \
                 CMUX_XCODEBUILD_NONINTERACTIVE_TOTAL_TIMEOUT_SECONDS=1700 \
                 scripts/ci/run-in-console-session.sh \
                 scripts/ci/run-app-host-xcodebuild.sh \

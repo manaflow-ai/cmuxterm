@@ -124,6 +124,7 @@ def test_result_exit_code(
     swift_testing_expected: bool,
     selected_tests_result: str | None,
     swift_testing_result: str | None,
+    swift_testing_failure_seen: bool,
     swift_testing_active: bool,
     require_expected_swift_testing: bool,
 ) -> int | None:
@@ -139,7 +140,7 @@ def test_result_exit_code(
     )
     if swift_testing_missing:
         return EXPECTED_SWIFT_TESTING_MISSING_EXIT_CODE
-    if swift_testing_result == "failed":
+    if swift_testing_failure_seen or swift_testing_result == "failed":
         return SWIFT_TESTING_FAILED_EXIT_CODE
     if selected_tests_result == "failed":
         return POST_TEST_FAILED_EXIT_CODE
@@ -220,6 +221,7 @@ def main() -> int:
     post_test_deadline: float | None = None
     selected_tests_result: str | None = None
     swift_testing_result: str | None = None
+    swift_testing_failure_seen = False
     swift_testing_active = False
     saw_passing_terminal_summary = False
     log_path = os.environ.get("CMUX_XCODEBUILD_NONINTERACTIVE_LOG_PATH")
@@ -336,13 +338,16 @@ def main() -> int:
             # until Swift Testing emits its own terminal summary.
             if SWIFT_TESTING_STARTED_MARKER in line:
                 swift_testing_active = True
-                swift_testing_result = None
+                if not swift_testing_failure_seen:
+                    swift_testing_result = None
                 post_test_deadline = None
 
             swift_testing_match = SWIFT_TESTING_DONE_RE.search(line)
             if swift_testing_match:
                 swift_testing_active = False
                 swift_testing_result = swift_testing_match.group(1).decode("ascii")
+                if swift_testing_result == "failed":
+                    swift_testing_failure_seen = True
                 if post_test_timeout:
                     post_test_deadline = time.monotonic() + post_test_timeout
         if len(test_output_buffer) > TEST_OUTPUT_TAIL_BYTES:
@@ -381,6 +386,7 @@ def main() -> int:
             swift_testing_expected=swift_testing_expected,
             selected_tests_result=selected_tests_result,
             swift_testing_result=swift_testing_result,
+            swift_testing_failure_seen=swift_testing_failure_seen,
             swift_testing_active=swift_testing_active,
             require_expected_swift_testing=False,
         )
@@ -403,6 +409,7 @@ def main() -> int:
             swift_testing_expected=swift_testing_expected,
             selected_tests_result=selected_tests_result,
             swift_testing_result=swift_testing_result,
+            swift_testing_failure_seen=swift_testing_failure_seen,
             swift_testing_active=swift_testing_active,
             require_expected_swift_testing=True,
         )
@@ -437,6 +444,7 @@ def main() -> int:
         swift_testing_expected=swift_testing_expected,
         selected_tests_result=selected_tests_result,
         swift_testing_result=swift_testing_result,
+        swift_testing_failure_seen=swift_testing_failure_seen,
         swift_testing_active=swift_testing_active,
         require_expected_swift_testing=exit_code == 0,
     )

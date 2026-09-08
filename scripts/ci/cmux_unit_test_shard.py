@@ -27,6 +27,7 @@ SUITE_RE = re.compile(
 )
 EXTENSION_RE = re.compile(r"^extension\s+([A-Za-z_][A-Za-z0-9_]*)\b")
 TEST_TOKEN_RE = re.compile(r"(^|\s)(@Test\b|func\s+test[A-Za-z0-9_]*\s*\()")
+SWIFT_TEST_DECLARATION_RE = re.compile(r"^\s*@Test\b")
 XCTEST_METHOD_RE = re.compile(
     r"^\s*(?:(?:final|private|fileprivate|internal|public)\s+)*"
     r"func\s+(test[A-Za-z0-9_]*)\s*\("
@@ -68,6 +69,7 @@ class TestSelector:
     path: str
     line: int
     weight: int
+    has_swift_testing: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ class SuiteDeclaration:
     line: int
     weight: int
     methods: tuple[TestSelector, ...]
+    has_swift_testing: bool
 
 
 def xctest_methods(
@@ -104,6 +107,9 @@ def discover_selectors(root: Path) -> list[TestSelector]:
     for path in sorted(test_root.glob("**/*.swift")):
         relative = path.relative_to(root).as_posix()
         lines = path.read_text(encoding="utf-8").splitlines()
+        file_has_swift_testing = any(
+            SWIFT_TEST_DECLARATION_RE.match(line) for line in lines
+        )
         top_level_declarations: list[tuple[int, str, str]] = []
         for index, line in enumerate(lines, start=1):
             match = SUITE_RE.match(line)
@@ -140,6 +146,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
                     line=line_number,
                     weight=weight,
                     methods=tuple(methods),
+                    has_swift_testing=file_has_swift_testing,
                 )
             )
 
@@ -169,7 +176,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
         # smaller suites grouped so xcodebuild still has a compact selector
         # list and shared setup inside each suite. Include extension methods in
         # the split so extension-declared regressions remain covered.
-        if len(methods) >= LARGE_SUITE_METHOD_THRESHOLD:
+        if len(methods) >= LARGE_SUITE_METHOD_THRESHOLD and not declaration.has_swift_testing:
             selectors.extend(methods)
             continue
 
@@ -179,6 +186,7 @@ def discover_selectors(root: Path) -> list[TestSelector]:
                 path=declaration.path,
                 line=declaration.line,
                 weight=weight,
+                has_swift_testing=declaration.has_swift_testing,
             )
         )
 
@@ -326,6 +334,7 @@ def main() -> int:
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--shard-total", type=int)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--swift-testing-output", type=Path)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--validate", action="store_true")
     parser.add_argument("--timings", type=Path, default=DEFAULT_TIMINGS_PATH)
@@ -359,6 +368,13 @@ def main() -> int:
         raise SystemExit(f"Shard {args.shard_index}/{args.shard_total} is empty")
 
     write_output(args.output, selected)
+    if args.swift_testing_output is not None:
+        args.swift_testing_output.parent.mkdir(parents=True, exist_ok=True)
+        has_swift_testing = any(selector.has_swift_testing for selector in selected)
+        args.swift_testing_output.write_text(
+            "1\n" if has_swift_testing else "0\n",
+            encoding="utf-8",
+        )
     total_weight = sum(selector.weight for selector in selected)
     print(
         f"Shard {args.shard_index}/{args.shard_total}: "
