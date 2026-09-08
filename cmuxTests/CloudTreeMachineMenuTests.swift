@@ -111,7 +111,6 @@ struct CloudTreeMachineMenuTests {
             runCommand: { id, verb in recorder.commands.append((id: id, verb: verb)) },
             confirmDelete: { recorder.deletions.append($0) },
             promptRename: { _, _ in },
-            resizeDisk: { _, _ in },
             promptUpgrade: {}
         )
     }
