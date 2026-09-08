@@ -4,9 +4,12 @@
 # and `cmux cr ...` with no separate install, no Node, and no PATH setup.
 #
 # The build comes from the public manaflow-ai/coderouter-releases GitHub release named
-# in scripts/coderouter-cli-version (or CMUX_CODEROUTER_CLI_VERSION). Both darwin
-# slices are downloaded, sha256-verified against that release's manifest.json, and
-# lipo'd into one universal binary. Downloads are cached per version.
+# in scripts/coderouter-cli-version (or CMUX_CODEROUTER_CLI_VERSION). The release's
+# manifest.json is verified against the digest pinned in
+# scripts/coderouter-cli-manifest.sha256 (or CMUX_CODEROUTER_CLI_MANIFEST_SHA256), both
+# darwin slices are sha256-verified against that manifest, and lipo'd into one
+# universal binary. Downloads are cached per version. Bump the version and the
+# manifest digest together (the digest is in the release's SHA256SUMS).
 #
 #   scripts/install-coderouter-cli.sh <app-path> [--version <x.y.z>] [--cache-dir <dir>]
 #
@@ -15,7 +18,7 @@
 # CMUX_CODEROUTER_CLI_BASE_URL overrides the release download base (tests, mirrors).
 set -euo pipefail
 
-usage() { sed -n '2,15p' "$0"; }
+usage() { sed -n '2,18p' "$0"; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_PATH=""
@@ -43,14 +46,18 @@ mkdir -p "$DEST_DIR"
 sha256_of() { shasum -a 256 "$1" | awk '{print $1}'; }
 
 # `coderouter capabilities --json` needs no login and no network; it is the
-# credential-free probe the CLI documents for scripts.
+# credential-free probe the CLI documents for scripts. The command must exit 0
+# and print JSON whose product is coderouter.
 verify_probe() {
   local probe
-  probe="$("$DEST" capabilities --json 2>/dev/null || true)"
-  [[ "$probe" == *'"product":"coderouter"'* ]] || {
+  if ! probe="$("$DEST" capabilities --json 2>/dev/null)"; then
+    echo "error: installed binary does not probe as coderouter (capabilities --json failed): $probe" >&2
+    exit 1
+  fi
+  if ! python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("product") == "coderouter" else 1)' "$probe" 2>/dev/null; then
     echo "error: installed binary does not probe as coderouter: $probe" >&2
     exit 1
-  }
+  fi
 }
 
 if [[ -n "${CMUX_CODEROUTER_CLI_LOCAL:-}" ]]; then
@@ -67,11 +74,31 @@ mkdir -p "$BUILD_DIR"
 MANIFEST="$BUILD_DIR/manifest.json"
 
 fetch() { # <url> <out>
-  curl --proto '=https,file' --tlsv1.2 -fsSL --retry 3 --retry-delay 2 "$1" -o "$2"
+  curl --proto '=https,file' --tlsv1.2 -fsSL --retry 3 --retry-delay 2 \
+    --connect-timeout 20 --max-time 300 "$1" -o "$2"
 }
 
-if [[ ! -f "$MANIFEST" ]]; then
+# The manifest and the binaries come from the same host, so the manifest's own
+# digest is pinned in the repo (scripts/coderouter-cli-manifest.sha256) as the
+# independent trust root. A version that is not the pinned one needs its digest
+# through CMUX_CODEROUTER_CLI_MANIFEST_SHA256.
+MANIFEST_SHA256="${CMUX_CODEROUTER_CLI_MANIFEST_SHA256:-}"
+if [[ -z "$MANIFEST_SHA256" && "$VERSION" == "$(tr -d '[:space:]' < "$SCRIPT_DIR/coderouter-cli-version")" ]]; then
+  MANIFEST_SHA256="$(tr -d '[:space:]' < "$SCRIPT_DIR/coderouter-cli-manifest.sha256")"
+fi
+[[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || {
+  echo "error: no pinned manifest digest for coderouter $VERSION; set CMUX_CODEROUTER_CLI_MANIFEST_SHA256 or bump scripts/coderouter-cli-version and scripts/coderouter-cli-manifest.sha256 together" >&2
+  exit 1
+}
+
+if [[ ! -f "$MANIFEST" ]] || [[ "$(sha256_of "$MANIFEST")" != "$MANIFEST_SHA256" ]]; then
   fetch "$BASE/manifest.json" "$MANIFEST.tmp"
+  got="$(sha256_of "$MANIFEST.tmp")"
+  [[ "$got" == "$MANIFEST_SHA256" ]] || {
+    echo "error: sha256 mismatch for manifest.json (want $MANIFEST_SHA256, got $got)" >&2
+    rm -f "$MANIFEST.tmp"
+    exit 1
+  }
   mv -f "$MANIFEST.tmp" "$MANIFEST"
 fi
 MANIFEST_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$MANIFEST")"

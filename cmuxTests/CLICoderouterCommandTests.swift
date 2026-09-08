@@ -454,7 +454,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let result = runProcess(
             executablePath: cli.path,
             arguments: ["coderouter", "accounts"],
-            environment: passthroughEnvironment(path: "/usr/bin:/bin"),
+            environment: passthroughEnvironment(path: root.appendingPathComponent("empty-path").path),
             timeout: 5
         )
 
@@ -481,21 +481,26 @@ extension CLINotifyProcessIntegrationRegressionTests {
         return environment
     }
 
+    /// Both executable names a user install can carry win over the bundled copy.
+    /// PATH is exactly one temp directory so a real install on this Mac cannot
+    /// leak into the lookup; the fake needs only /bin/sh builtins.
     func testCoderouterPassthroughPrefersTheUserInstallOnPath() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-coderouter-path-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try writeFakeCoderouter(at: root.appendingPathComponent("bin/cr"), marker: "PATH-CR")
+        for name in ["cr", "coderouter"] {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("cmux-coderouter-path-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            try writeFakeCoderouter(at: root.appendingPathComponent("bin/\(name)"), marker: "PATH-\(name)")
 
-        let result = runProcess(
-            executablePath: try bundledCLIPath(),
-            arguments: ["cr", "add", "codex"],
-            environment: passthroughEnvironment(path: "\(root.path)/bin:/usr/bin:/bin"),
-            timeout: 5
-        )
+            let result = runProcess(
+                executablePath: try bundledCLIPath(),
+                arguments: ["cr", "add", "codex"],
+                environment: passthroughEnvironment(path: "\(root.path)/bin"),
+                timeout: 5
+            )
 
-        XCTAssertEqual(result.status, 0, result.stderr)
-        XCTAssertEqual(result.stdout, "PATH-CR argv=add codex\n")
+            XCTAssertEqual(result.status, 0, "\(name): \(result.stderr)")
+            XCTAssertEqual(result.stdout, "PATH-\(name) argv=add codex\n", name)
+        }
     }
 
     /// The fresh-Mac case: nothing on PATH, so `cmux coderouter <verb>` execs the
@@ -515,7 +520,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         let result = runProcess(
             executablePath: cli.path,
             arguments: ["coderouter", "login"],
-            environment: passthroughEnvironment(path: "/usr/bin:/bin"),
+            environment: passthroughEnvironment(path: root.appendingPathComponent("empty-path").path),
             timeout: 5
         )
 
