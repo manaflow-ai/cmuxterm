@@ -88,7 +88,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
 
     /// Incremented whenever find focus ownership changes, so stale async
     /// focus requests posted before a hide/re-show can never steal focus.
-    @Published internal(set) var searchFocusRequestGeneration: UInt64 = 0
+    @Published var searchFocusRequestGeneration: UInt64 = 0
 
     /// The generation currently allowed to claim the find field. Leaving the
     /// pane clears this lease even though the monotonic counter continues, so
