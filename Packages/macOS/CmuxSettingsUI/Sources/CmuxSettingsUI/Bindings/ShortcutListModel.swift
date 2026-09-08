@@ -245,11 +245,28 @@ final class ShortcutListModel {
             ) else { continue }
             let otherShortcut: StoredShortcut?
             if let candidate = overriding[other.rawValue] {
-                guard !candidate.isUnbound,
-                      other.shortcutBindingPolicyResult(for: candidate) == .accepted else {
-                    continue
+                if candidate.isUnbound {
+                    otherShortcut = nil
+                } else if other.shortcutBindingPolicyResult(for: candidate) == .accepted {
+                    otherShortcut = candidate.canonicalized()
+                } else if other == .showHideAllWindows {
+                    // The runtime fails closed for an invalid system-wide
+                    // candidate instead of restoring its global hotkey.
+                    otherShortcut = nil
+                } else {
+                    // Invalid persisted values fall back to the executable
+                    // built-in/host default at runtime. Conflict detection
+                    // must inspect that same fallback so a prefix rebase
+                    // cannot create a collision the dispatcher will honor.
+                    let fallback = other.defaultShortcut(using: defaultShortcutResolver)
+                    otherShortcut = fallback.flatMap { candidate in
+                        guard !candidate.isUnbound,
+                              other.shortcutBindingPolicyResult(for: candidate) == .accepted else {
+                            return nil
+                        }
+                        return candidate.canonicalized()
+                    }
                 }
-                otherShortcut = candidate.canonicalized()
             } else {
                 otherShortcut = self.effective(for: other)
             }

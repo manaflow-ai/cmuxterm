@@ -123,6 +123,38 @@ import CmuxSettings
         )
     }
 
+    @Test func changingPrefixChecksBuiltInFallbackForInvalidPersistedOverrides() async throws {
+        let (store, catalog, errorLog, tempDir) = makeStore()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let invalidCloseWindow = StoredShortcut(first: ShortcutStroke(key: "w"))
+        let existingChord = StoredShortcut(
+            first: ShortcutStroke(key: "b", control: true),
+            second: ShortcutStroke(key: "n")
+        )
+        try await store.set(
+            [
+                ShortcutAction.closeWindow.rawValue: invalidCloseWindow,
+                ShortcutAction.newTab.rawValue: existingChord,
+            ],
+            for: catalog.shortcuts.bindings
+        )
+
+        let model = ShortcutListModel(jsonStore: store, catalog: catalog, errorLog: errorLog)
+        model.startObserving()
+
+        // closeWindow's malformed persisted value executes as its built-in
+        // ⌘⌃W fallback. Rebasing the existing chord onto that leader must be
+        // rejected even though the persisted candidate itself is invalid.
+        await model.assignPrefix(
+            ShortcutStroke(key: "w", command: true, control: true)
+        )
+
+        #expect(model.prefix.isUnbound)
+        #expect(model.prefixRejection == .chordConflict)
+        #expect(await store.value(for: catalog.shortcuts.prefix).isUnbound)
+        #expect(await store.value(for: catalog.shortcuts.bindings)[ShortcutAction.newTab.rawValue] == existingChord)
+    }
+
     @Test func stalePrefixObservationCannotRetargetAChordDuringRebase() async throws {
         let (store, catalog, errorLog, tempDir) = makeStore()
         defer { try? FileManager.default.removeItem(at: tempDir) }
