@@ -1,18 +1,40 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import enMessages from "../messages/en.json";
+import {
+  TEST_STACK_PROJECT_ID,
+  nextHeadersMock,
+} from "./helpers/dashboard-session-mock";
+
+const previousStackProjectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+process.env.NEXT_PUBLIC_STACK_PROJECT_ID = TEST_STACK_PROJECT_ID;
+afterAll(() => {
+  if (previousStackProjectId === undefined) {
+    delete process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
+  } else {
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID = previousStackProjectId;
+  }
+});
 import {
   createTestflightUser,
   testflightUserEligibility,
 } from "./helpers/testflight-user";
 
 let stackConfigured = true;
+let userPending = false;
 let currentUser: ReturnType<typeof createTestflightUser> | null = null;
+let freshUser: ReturnType<typeof createTestflightUser> | null | undefined;
 let ascConfigured = true;
 let status = { enrolled: false } as { enrolled: boolean; state?: string };
 
-const getUser = mock(async () => currentUser);
+const pendingUser = new Promise<never>(() => {});
+const getUser = mock(async (input?: unknown) => {
+  if (typeof input === "string") {
+    return freshUser === undefined ? currentUser : freshUser;
+  }
+  return userPending ? pendingUser : currentUser;
+});
 const isTestflightEligible = mock(async (user: unknown) =>
   testflightUserEligibility(user) ?? false,
 );
@@ -51,9 +73,9 @@ mock.module("next-intl/server", () => ({
   setRequestLocale: () => undefined,
 }));
 
-mock.module("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
+mock.module("next/headers", () =>
+  nextHeadersMock({ refreshToken: () => "refresh-1" }),
+);
 
 mock.module("next/cache", () => ({
   cacheLife: () => undefined,
@@ -105,20 +127,37 @@ mock.module("@/services/billing/pro", () => ({
 }));
 
 const { PRO_TESTFLIGHT_GROUP_ID } = await import("../services/asc/testflight");
-const { DashboardTestflightContent } = await import(
+const { default: DashboardTestflightPage, DashboardTestflightContent } = await import(
   "../app/[locale]/dashboard/testflight/page",
 );
 
 describe("dashboard TestFlight page", () => {
   beforeEach(() => {
     stackConfigured = true;
+    userPending = false;
     currentUser = createTestflightUser();
+    freshUser = undefined;
     ascConfigured = true;
     status = { enrolled: false };
     getUser.mockClear();
     isTestflightEligible.mockClear();
     ascFetch.mockClear();
     captureAscError.mockClear();
+  });
+
+  test("paints the page header and a section skeleton before the private content", () => {
+    userPending = true;
+
+    const html = renderToStaticMarkup(
+      <DashboardTestflightPage
+        params={Promise.resolve({ locale: "en" })}
+        searchParams={Promise.resolve({})}
+      />,
+    );
+
+    expect(html).toContain('data-testid="testflight-page-header"');
+    expect(html).toContain('data-testid="dashboard-section-skeleton"');
+    expect(html).not.toContain("/api/testflight");
   });
 
   test("renders not eligible state with pricing link", async () => {
@@ -140,6 +179,7 @@ describe("dashboard TestFlight page", () => {
     expect(html).toContain("Apple will send a TestFlight invite to pro@example.com");
     expect(html).toContain('action="/api/testflight"');
     expect(html).toContain('name="action" value="join"');
+    expect(isTestflightEligible).toHaveBeenCalledWith(currentUser);
     expect(ascFetch).toHaveBeenCalledWith(
       "/v1/betaTesters?filter[email]=pro%40example.com&limit=1",
     );
@@ -154,6 +194,32 @@ describe("dashboard TestFlight page", () => {
     expect(html).toContain("INVITED");
     expect(html).toContain("Your TestFlight access follows your cmux Pro entitlement.");
     expect(html).toContain('name="action" value="leave"');
+  });
+
+  test("reads Founder metadata and the enrollment email outside the private session cache", async () => {
+    freshUser = Object.assign(createTestflightUser(), {
+      clientReadOnlyMetadata: { cmuxVmPlan: "founders" },
+      primaryEmail: "founder@example.com",
+    });
+
+    const html = await renderTestflightPage();
+
+    expect(getUser).toHaveBeenCalledWith("user-pro");
+    expect(isTestflightEligible).toHaveBeenCalledWith(freshUser);
+    expect(html).toContain("Apple will send a TestFlight invite to founder@example.com");
+    expect(ascFetch).toHaveBeenCalledWith(
+      "/v1/betaTesters?filter[email]=founder%40example.com&limit=1",
+    );
+  });
+
+  test("does not retain eligibility from an older dashboard session", async () => {
+    freshUser = createTestflightUser({ eligible: false });
+
+    const html = await renderTestflightPage();
+
+    expect(isTestflightEligible).toHaveBeenCalledWith(freshUser);
+    expect(html).toContain("Subscription required");
+    expect(ascFetch).not.toHaveBeenCalled();
   });
 
   for (const [testflight, message] of [
