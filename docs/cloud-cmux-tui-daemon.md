@@ -341,35 +341,41 @@ The rejected alternatives are explicit:
 ## Lease/auth integration with the attach-endpoint flow
 
 `POST /api/vm/[id]/attach-endpoint` returns
-`{transport:"cmux-remote", route, token, expiresAtUnix, session, invitation?}`.
+`{transport:"cmux-remote", route, token, expiresAtUnix, session, trustedCarrier}`.
 The route is a direct Freestyle private IPv4 address on port 1337 when available,
 then private IPv6 for machines with a VPC, or the machine's public IPv6 for legacy
 public-network machines.
 The provider route token is recorded as a hash in the lease ledger and is not
-used as daemon session authentication. The cmux-tui Noise handshake and the
-enrolled device key authenticate the session. Private-network machines are
-reachable only when the owner's WireGuard tunnel is active.
+used as daemon session authentication. Private-network machines are reachable
+only when the owner's WireGuard tunnel is active, and that reachability is the
+admission: the daemon's cloud listener runs in trusted-carrier mode
+(`--remote-ws-trusted-carrier`, or `CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1` from
+the driver's systemd drop-in), so every link that reaches it is granted carrier
+authentication keyed by the client's own key. There is no device enrollment,
+no invitation, and no approval on the cloud path. The Noise handshake still
+runs for encryption and key binding; only the authorization check changed.
+Every other transport on the same daemon (unix, ssh, relay, iroh) keeps the
+enrollment model, and plain network evidence on an untrusted listener is still
+refused, so the flag is a property of that one listener.
 
 - `route` is a `ws://[address]:1337/v1/link` endpoint. It must never be copied
   into a durable invitation or log. The route posture is read from the VM, so
   changing the private-network feature flag cannot strand an existing VM.
-- `invitation` is present only when this client device is not yet enrolled
-  with this VM's daemon. The endpoint execs `remote enroll create --ttl 300`
-  in the VM and returns the single-use `cmux://enroll/...` URI. The Mac claims
-  it through `remote connect --invite-file`; the control plane approves the
-  matching invitation through `/cmux-remote/approve`. Approval and device
-  enrollment are separate from the short-lived provider lease.
-- After first enrollment the device key lives in the Mac's client state and
-  reattach needs only a fresh route and a valid device key. Revocation removes
-  the control-plane lease row. Freestyle does not yet revoke the daemon device
-  record because the lease ledger does not persist the claimed device id. This
-  is an explicit security follow-up: persist the returned fingerprint/device id
-  per lease, then call `remote enroll revoke <device-id>` for exactly those rows.
-  Never revoke every device on a team VM when one member signs out.
+- `trustedCarrier` is true when the machine's daemon serves the trusted
+  listener; the Mac then dials `remote connect <route> --carrier`. The endpoint
+  brings a daemon from an older bake to the pinned build and restarts it with
+  the drop-in, except under a device that is already enrolled there (the
+  restart would end its sessions); that device keeps dialing with its stored
+  key, and `trustedCarrier` is false for it until the machine is restarted for
+  another reason.
+- Revocation is the private network's: deleting a Mac's WireGuard peer ends
+  every connection from it at once. `POST /cmux-remote/approve` remains as a
+  no-op that answers `approved` for older Mac builds and is deleted once they
+  have rolled.
 
-Per-VM daemon identity plus per-user device keys give cloud attach the same
-model as every other cmux-tui remote (ssh, iroh, relay), which is what makes
-the right-pane drag UX (below) uniform.
+The trusted listener is what gives cloud attach one trust layer: the private
+network. The right-pane drag UX (below) stays uniform because the daemon still
+names every connection by the client's key.
 
 ## macOS integration: manual IO instead of a PTY bridge
 
@@ -533,6 +539,52 @@ session (so it survives the pane and reattaches from any device); `cmux vm run`,
 orthogonal: it routes model credentials, not compute, and is configured inside
 the machine the same way as locally. The `skills/cmux-cloud-vm` skill teaches
 this policy to Claude Code, Codex, OpenCode, and Pi.
+
+## Notifications: the VM is the source of truth
+
+A Cloud machine's notifications live in its cmux-tui daemon, and every client
+(the Mac app, a second Mac, an iPhone, the in-VM TUI) derives its unread state
+from that one ledger. The Mac never runs a listener and the VM never dials the
+Mac; the existing Mac-to-VM state feed carries notifications like any other
+resource.
+
+Sources. An agent hook transition that deserves attention posts a durable
+`notification.create` effect from inside the journal fold: `turn.completed`
+(info, "Claude finished"), `approval.requested`, `question.requested`,
+`plan_review.requested` (warning), and `error.reported` (error). The key is
+derived from the journal sequence, so a crash between the notification commit
+and the agent-report commit replays the notification on retry instead of
+posting it twice, and the hook fence still advances once. Prompt and message
+text is redacted before the journal accepts it, so the body carries only the
+tool name an approval waits on. The legacy `notify` verb and `cmux-tui
+notification create` use the same durable path. All three survive a daemon
+restart and are rebuilt from committed effect receipts.
+
+Delivery. Every notification is a row in the `notifications` collection of
+the public session snapshot and an `upsert` delta on the `session current
+events` feed. The Mac's per-machine link already resumes that feed from its
+`(generation, revision)` cursor with bounded recovery, so a notification posted
+while the link was down arrives on reconnect through the same catch-up path
+as a renamed tab. No journal subscription and no second stream are involved.
+
+Read state is per client. Each row carries `read_by`, the sorted client ids
+that acknowledged it. `notification.ack {client_id, notifications[]}` records
+the marks in `resource_notification_reads`, publishes the refreshed rows as one
+revision, and replays under its idempotency key. Ids the 256-entry ledger no
+longer retains come back under `unknown` rather than as an error, and their
+read rows are pruned in the same transaction. The shared `unread` marker on
+the console tree (the TUI's own tab dot) is unchanged by an acknowledgement:
+it answers "does this terminal need attention on the shared console", while
+`read_by` answers "has this client install seen it". Two Macs attached to one
+machine therefore keep independent dots, and a Mac reattaching after a
+reinstall with a new client id starts unread, which is the safe direction.
+
+Client ids are the durable per-install identity already used for focus
+memory (`client-focus`), 1 to 128 printable ASCII bytes. The Mac app derives
+one from its `vm-tui-devices.json` record for the machine.
+
+CLI: `cmux-tui notification list` prints rows with `read_by`;
+`cmux-tui notification ack --client <id> <notification-id>...` acknowledges.
 
 ## Surface catalog
 

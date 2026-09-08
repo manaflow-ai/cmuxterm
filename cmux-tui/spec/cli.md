@@ -95,7 +95,11 @@ filesystem error text.
 
 Authenticated network operations use `remote connect|ssh|forward|rpc`,
 `remote enroll`, and `remote known-daemons`; they cannot accept local server
-targeting. `remote stop` manages only a replaceable SSH sidecar. A listener
+targeting. `remote connect --carrier` dials a `ws`/`wss` route with carrier
+authentication and no enrollment; only a daemon started with
+`--remote-ws-trusted-carrier` (or `CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1`), whose
+listener is reachable solely from a private network of authorized members,
+accepts it. `remote stop` manages only a replaceable SSH sidecar. A listener
 embedded by `server start` stops only through `server stop`, which also stops
 the local owner and its workspaces. `server start` accepts the explicit
 remote-listener flags when the owning process also serves authenticated
@@ -310,6 +314,7 @@ browser <selector> key|text|attach|close
 browser <selector> mouse|wheel --pointer-frame-seq <decimal>
 
 notification list|create
+notification ack --client <id> <notification-id>...
 agent list|report
 pairing request list
 pairing request <selector> respond <accept|reject>
@@ -321,6 +326,16 @@ sidebar plugin list|install|use|update|remove
 provider authority install
 
 ```
+
+`notification ack --client <id> <notification-id>...` records that one client
+install has read the listed notifications. `--client` is the durable client
+id (1 to 128 printable ASCII bytes) that the client also reports through
+`client-focus`. Read state is per client: every notification row carries
+`read_by`, the sorted client ids that acknowledged it, and a second client
+keeps its own unread state. The shared `unread` marker on the console tree is
+unchanged by an acknowledgement. Ids the bounded ledger no longer retains are
+returned under `unknown`, not rejected, so a late acknowledgement after
+eviction is complete.
 
 `terminal <selector> output read` returns a bounded plain-text window of the
 terminal's journaled output stream: `{text, start_offset, next_offset,

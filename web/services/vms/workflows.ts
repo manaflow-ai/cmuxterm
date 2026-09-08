@@ -1,7 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Either from "effect/Either";
 import * as Exit from "effect/Exit";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import type { CreateOptions } from "./drivers/types";
 import * as Layer from "effect/Layer";
 import type {
@@ -63,7 +66,6 @@ import {
   isVmCreateCreditsInsufficientError,
   isVmLimitExceededError,
   isVmModelPlaneError,
-  vmWorkflowErrorCause,
   type VmWorkflowError,
 } from "./errors";
 import {
@@ -218,14 +220,44 @@ export type VmProviderStatusReconcileResult = {
   readonly skippedNoGetStatus: boolean;
 };
 
-export async function runVmWorkflow<A>(
-  program: Effect.Effect<A, VmWorkflowError, VmRepository | VmProviderGateway | VmBillingGateway>,
-): Promise<A> {
-  try {
-    return await Effect.runPromise(program.pipe(Effect.provide(VmWorkflowLive)));
-  } catch (err) {
-    throw vmWorkflowErrorCause(err) ?? err;
-  }
+/** A VM control-plane program: typed failures, live services provided by {@link vmWorkflowRuntime}. */
+export type VmWorkflowProgram<A> = Effect.Effect<
+  A,
+  VmWorkflowError,
+  VmRepository | VmProviderGateway | VmBillingGateway
+>;
+
+/**
+ * One process-wide runtime for {@link VmWorkflowLive}. The layer is built on
+ * first use and shared by every request, so routes stop re-providing services
+ * per call and every program runs with the same services and fiber refs.
+ */
+export const vmWorkflowRuntime = ManagedRuntime.make(VmWorkflowLive);
+
+/**
+ * Run a program to its `Exit`. Routes branch on the exit: a typed failure maps
+ * to an HTTP response through the responder table in `routeHelpers`, a defect
+ * is a bug and propagates as a thrown error.
+ */
+export function runVmWorkflowExit<A>(program: VmWorkflowProgram<A>): Promise<Exit.Exit<A, VmWorkflowError>> {
+  return vmWorkflowRuntime.runPromiseExit(program);
+}
+
+/**
+ * Promise adapter for callers outside the route layer (cron, account
+ * deletion, tests). Throws the typed workflow error itself, never a
+ * FiberFailure, so `catch` blocks match on `_tag` directly.
+ */
+export async function runVmWorkflow<A>(program: VmWorkflowProgram<A>): Promise<A> {
+  const exit = await runVmWorkflowExit(program);
+  if (Exit.isSuccess(exit)) return exit.value;
+  throw vmWorkflowExitError(exit.cause);
+}
+
+/** The value a failed program throws: its typed failure, or the squashed defect. */
+export function vmWorkflowExitError(cause: Cause.Cause<VmWorkflowError>): unknown {
+  const failure = Cause.failureOption(cause);
+  return Option.isSome(failure) ? failure.value : Cause.squash(cause);
 }
 
 /**
@@ -2867,7 +2899,7 @@ export function openVmCmuxRemote(input: {
       tokenHash: hashToken(endpoint.token),
       expiresAt: new Date(endpoint.expiresAtUnix * 1000),
       transport: "cmux-remote",
-      metadata: { session: endpoint.session, invited: !!endpoint.invitation },
+      metadata: { session: endpoint.session, invited: false, trustedCarrier: endpoint.trustedCarrier },
     }).pipe(
       Effect.catchAll((err) => {
         const cleanup = providers.revokeEndpointLeases
@@ -2884,7 +2916,7 @@ export function openVmCmuxRemote(input: {
       eventType: "vm.attach",
       provider: vm.provider,
       imageId: vm.imageId,
-      metadata: { transport: "cmux-remote", invited: !!endpoint.invitation },
+      metadata: { transport: "cmux-remote", invited: false, trustedCarrier: endpoint.trustedCarrier },
     }).pipe(Effect.catchAll(() => Effect.void));
     // Backfill: machines created before address recording learn their private
     // address on first attach, so "Copy IP Address" appears for them too.

@@ -32,6 +32,14 @@
 # Without a metadata service (containers) the id is empty and the daemon
 # simply runs, keeping whatever identity the state dir already holds.
 #
+# The SSH host keys are per machine for the same reason: a clone would
+# otherwise present the builder's keys (and every other clone's). The clone
+# branch regenerates them under the machine's own name
+# (web/services/vms/images/identity.ts) in a detached subshell, so the daemon
+# start never waits on key generation (sshd is not the daemon's readiness),
+# and restarts sshd so it serves them. The new keys are staged before the old
+# ones go, so a failed generation keeps a working sshd.
+#
 # The Freestyle public-platform bake runs this script from the cmux-tui-daemon
 # systemd unit.
 #
@@ -47,6 +55,15 @@
 # and restarts it if it ever exits. The daemon loop below is untouched by it:
 # the desktop is a sibling process, never a child of the session daemon.
 BIN=/root/.cmux/bin/cmux-tui
+# Terminal identity for every pane the daemon opens. Children inherit the
+# daemon's environment, and the Mac app renders each pane in its embedded
+# Ghostty, so panes carry the same identity the app exports to local and SSH
+# shells: TERM=xterm-256color plus COLORTERM=truecolor (set by the daemon at
+# spawn), TERM_PROGRAM=ghostty, and TERM_PROGRAM_VERSION from the Ghostty
+# generation the bake recorded in /etc/cmux/ghostty-version. Agents gate
+# synchronized output, progress reporting, strikethrough, and Cmd-click on
+# TERM_PROGRAM; without it Claude Code treats the pane as a plain xterm.
+# The exact string is CMUX_TUI_DAEMON_TERMINAL_ENV in cmuxTuiDaemon.ts.
 DESKTOP_BOOT=/usr/local/bin/cmux-desktop-boot
 DESKTOP_RUNTIME_DIR=/run/cmux-desktop
 DESKTOP_DISPLAY=:1
@@ -78,6 +95,27 @@ start_desktop() {
   desktop_pid=$!
 }
 
+# New host keys are generated into a staging dir on the same filesystem and
+# moved over the old ones only once all of them exist, so a failed generation
+# leaves the previous keys in place (logged to the unit's journal) and sshd is
+# never left without a key. sshd loads keys at start, so it is restarted last.
+rekey_ssh_host() {
+  command -v ssh-keygen >/dev/null 2>&1 || return 0
+  staging=$(mktemp -d /etc/ssh/.cmux-rekey.XXXXXX) || { echo "cmux-devbox-boot: could not stage new ssh host keys; keeping the existing ones" >&2; return 1; }
+  mkdir -p "$staging/etc/ssh"
+  if ! ssh-keygen -A -f "$staging" >/dev/null 2>&1 || [ -z "$(ls "$staging"/etc/ssh/ssh_host_*_key 2>/dev/null)" ]; then
+    rm -rf "$staging"
+    echo "cmux-devbox-boot: ssh host key generation failed; keeping the existing keys" >&2
+    return 1
+  fi
+  for key in "$staging"/etc/ssh/ssh_host_*_key; do
+    mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/
+  done
+  rm -rf "$staging"
+  [ -d /run/systemd/system ] && systemctl try-restart ssh >/dev/null 2>&1
+  return 0
+}
+
 stop_daemon() {
   [ -n "$daemon_pid" ] || return 0
   kill "$daemon_pid" 2>/dev/null
@@ -98,11 +136,15 @@ while true; do
       if [ -n "$id" ] && [ "$id" != "$(cat "$BOUND_INSTANCE_FILE" 2>/dev/null)" ]; then
         stop_daemon
         rm -rf "$REMOTE_STATE_DIR"
+        ( rekey_ssh_host & )
         mkdir -p /etc/cmux && printf '%s\n' "$id" > "$BOUND_INSTANCE_FILE"
       fi
       if [ -z "$daemon_pid" ] || ! kill -0 "$daemon_pid" 2>/dev/null; then
         [ -n "$daemon_pid" ] && wait "$daemon_pid" 2>/dev/null
-        (cd /root && exec env HOME=/root TERM=xterm-256color /root/.cmux/bin/cmux-tui server start --session cloud --remote-ws "${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}" --remote-ws-insecure-bind) &
+        # --remote-ws-trusted-carrier: the listener is reachable only inside the
+        # owner's private network, whose members are all authorized, so every
+        # link gets carrier authentication with no device enrollment.
+        (cd /root && exec env HOME=/root TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION="$(cat /etc/cmux/ghostty-version 2>/dev/null)" /root/.cmux/bin/cmux-tui server start --session cloud --remote-ws "${CMUX_TUI_REMOTE_WS_BIND:-0.0.0.0:1337}" --remote-ws-insecure-bind --remote-ws-trusted-carrier) &
         daemon_pid=$!
       fi
     fi

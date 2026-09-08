@@ -608,12 +608,13 @@ private struct GroupingButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: RightSidebarChromeMetrics.contentIconTextSpacing) {
                 CmuxSystemSymbolImage(
                     magnified: mode.symbolName,
                     pointSize: RightSidebarChromeControlStyle.secondaryIconSize,
                     weight: RightSidebarChromeControlStyle.iconWeight
                 )
+                .frame(width: RightSidebarChromeMetrics.contentIconFrameSize)
                 Text(mode.label)
                     .cmuxFont(
                         size: RightSidebarChromeControlStyle.labelSize,
@@ -1410,7 +1411,7 @@ private struct SessionTranscriptTurnView: View, Equatable {
             Text(row.text)
                 .cmuxFont(size: row.role.bodyFontSize, design: row.role.bodyFontDesign)
                 .foregroundColor(.primary.opacity(0.92))
-                .textSelection(.enabled)
+                .copyOnlyTextSelection(for: row.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

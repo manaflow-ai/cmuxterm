@@ -419,12 +419,14 @@ extension Workspace {
     ) -> SessionPanelSnapshot? {
         guard let panel = panels[panelId] else { return nil }
 
+        let localTmuxStartCommand = (panel as? TerminalPanel).flatMap {
+            sessionRestorePolicy.localTmuxStartCommand($0.surface.debugTmuxStartCommand())
+        }
         let indexedRestorableAgent = restorableAgentObservation?.snapshot
         let compatibleIndexedRestorableAgent = indexedRestorableAgent.flatMap {
-            Self.restorableAgentForSessionRestore(
-                $0,
-                resumeBinding: resumeBinding
-            )
+            localTmuxStartCommand == nil
+                ? Self.restorableAgentForSessionRestore($0, resumeBinding: resumeBinding)
+                : nil
         }
         let reconciledIndexedRestorableAgent = restoredAgentLifecycle
             .reconcileSnapshotWithQueuedRestoreIntent(
@@ -463,21 +465,25 @@ extension Workspace {
             }
         }
         let hibernationState = (panel as? TerminalPanel)?.agentHibernationState
-        let effectiveHibernationState = hibernationState.flatMap { state in
-            Self.restorableAgentForSessionRestore(
-                state.agent,
-                resumeBinding: resumeBinding
-            ) == nil ? nil : state
-        }
+        let effectiveHibernationState = localTmuxStartCommand == nil
+            ? hibernationState.flatMap { state in
+                Self.restorableAgentForSessionRestore(
+                    state.agent,
+                    resumeBinding: resumeBinding
+                ) == nil ? nil : state
+            }
+            : nil
         let restoredAgentCompleted = restoredAgentResumeStatesByPanelId[panelId] == .completedAgentExit
-        let effectiveRestorableAgent = restoredAgentCompleted ? nil : Self.restorableAgentForSessionRestore(
-            restoredAgentLifecycle.reconcileSnapshotWithQueuedRestoreIntent(
-                panelId: panelId,
-                proposedSnapshot: effectiveHibernationState?.agent
-                    ?? restoredAgentSnapshotsByPanelId[panelId]
-            ),
-            resumeBinding: resumeBinding
-        )
+        let effectiveRestorableAgent = localTmuxStartCommand == nil && !restoredAgentCompleted
+            ? Self.restorableAgentForSessionRestore(
+                restoredAgentLifecycle.reconcileSnapshotWithQueuedRestoreIntent(
+                    panelId: panelId,
+                    proposedSnapshot: effectiveHibernationState?.agent
+                        ?? restoredAgentSnapshotsByPanelId[panelId]
+                ),
+                resumeBinding: resumeBinding
+            )
+            : nil
 
         let panelTitle = panelTitle(panelId: panelId)
         let customTitle = panelCustomTitles[panelId]
@@ -548,9 +554,10 @@ extension Workspace {
         switch panel.panelType {
         case .terminal:
             guard let terminalPanel = panel as? TerminalPanel else { return nil }
-            let restorableTmuxStartCommand = effectiveRestorableAgent == nil
-                ? sessionRestorePolicy.restorableTmuxStartCommand(terminalPanel.surface.debugTmuxStartCommand())
-                : nil
+            let restorableTmuxStartCommand = localTmuxStartCommand
+                ?? (effectiveRestorableAgent == nil
+                    ? sessionRestorePolicy.restorableTmuxStartCommand(terminalPanel.surface.debugTmuxStartCommand())
+                    : nil)
             let agentWasRunning: Bool? = {
                 // A queued cmux-authored selector is durable intent before any
                 // process can exist. Once shell activity starts, the ordinary
@@ -625,12 +632,14 @@ extension Workspace {
                         processPresence: agentProcessPresence
                     )
             }()
-            let resumeStartupInput = sessionRestorePolicy.surfaceResumeStartupInput(
-                resumeBinding,
-                autoResumeAgentSessions: AgentSessionAutoResumeSettings.isEnabled(defaults: agentSessionAutoResumeDefaults) && (agentWasRunning ?? true),
-                promptForApproval: false,
-                approvalStoreURL: SurfaceResumeApprovalStore.defaultURL()
-            )
+            let resumeStartupInput = localTmuxStartCommand == nil
+                ? sessionRestorePolicy.surfaceResumeStartupInput(
+                    resumeBinding,
+                    autoResumeAgentSessions: AgentSessionAutoResumeSettings.isEnabled(defaults: agentSessionAutoResumeDefaults) && (agentWasRunning ?? true),
+                    promptForApproval: false,
+                    approvalStoreURL: SurfaceResumeApprovalStore.defaultURL()
+                )
+                : nil
             let closeConfirmationRequired = Self.resolveCloseConfirmation(
                 shellActivityState: panelShellActivityStates[panelId],
                 fallbackNeedsConfirmClose: terminalPanel.needsConfirmClose()
@@ -685,17 +694,17 @@ extension Workspace {
                 scrollback: resolvedScrollback,
                 agent: effectiveRestorableAgent,
                 tmuxStartCommand: restorableTmuxStartCommand,
-                hibernation: effectiveHibernationState.map {
+                hibernation: localTmuxStartCommand == nil ? effectiveHibernationState.map {
                     SessionAgentHibernationSnapshot(
                         hibernatedAt: $0.hibernatedAt.timeIntervalSince1970,
                         lastActivityAt: $0.lastActivityAt.timeIntervalSince1970
                     )
-                },
-                resumeBinding: resumeBinding,
+                } : nil,
+                resumeBinding: localTmuxStartCommand == nil ? resumeBinding : nil,
                 textBoxDraft: terminalPanel.sessionTextBoxDraftSnapshot(),
                 isRemoteTerminal: activeRemoteTerminalSurfaceIds.contains(panelId),
                 remotePTYSessionID: remotePTYSessionIDForSnapshot(panelId: panelId),
-                wasAgentRunning: agentWasRunning
+                wasAgentRunning: localTmuxStartCommand == nil ? agentWasRunning : nil
             )
             browserSnapshot = nil
             markdownSnapshot = nil
@@ -1547,8 +1556,10 @@ extension Workspace {
                 restoresLegacyRemoteDirectoryWithoutProvenance(snapshot))
         switch snapshot.type {
         case .terminal:
-            let snapshotRestorableAgent = snapshot.terminal?.agent
-            let persistedResumeBinding = snapshot.terminal?.resumeBinding
+            let localTmuxStartCommand = sessionRestorePolicy
+                .localTmuxStartCommand(snapshot.terminal?.tmuxStartCommand)
+            let snapshotRestorableAgent = localTmuxStartCommand == nil ? snapshot.terminal?.agent : nil
+            let persistedResumeBinding = localTmuxStartCommand == nil ? snapshot.terminal?.resumeBinding : nil
             let restorableAgent = Self.restorableAgentForSessionRestore(
                 snapshotRestorableAgent,
                 resumeBinding: persistedResumeBinding
@@ -1721,11 +1732,11 @@ extension Workspace {
                     ?? workingDirectory
             }()
             let restoredBindingLaunch = unresolvedBindingLaunch
-            let restorableTmuxStartCommand = !restoreStartupBlocked &&
-                !stablePanelHasLiveProcess &&
-                restorableAgent == nil && restoredBindingLaunch == nil
-                ? sessionRestorePolicy.restorableTmuxStartCommand(snapshot.terminal?.tmuxStartCommand)
-                : nil
+            let restorableTmuxStartCommand = localTmuxStartCommand
+                ?? (!restoreStartupBlocked && !stablePanelHasLiveProcess &&
+                    restorableAgent == nil && restoredBindingLaunch == nil
+                    ? sessionRestorePolicy.restorableTmuxStartCommand(snapshot.terminal?.tmuxStartCommand)
+                    : nil)
             let restoredTmuxStartupScript = restorableTmuxStartCommand.flatMap {
                 OneShotTerminalLauncherStore().writeStartupCommand(
                     command: $0,
@@ -2474,7 +2485,7 @@ typealias ClosedBrowserPanelRestoreSnapshot = CmuxBrowser.ClosedBrowserPanelRest
 
 /// A cloud machine bound to a workspace through the cmux-tui remote daemon
 /// (`cmux vm shell`/`vm new`/`vm base open`). See `Workspace.cloudVMBinding`.
-nonisolated struct WorkspaceCloudVMBinding: Equatable, Sendable {
+struct WorkspaceCloudVMBinding: Equatable, Sendable {
     let vmID: String
     /// Base is the single persistent cloud workspace the sidebar cloud button reuses.
     let isBase: Bool
@@ -3025,6 +3036,26 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     private(set) var remoteDirectoryReportPanelIds: Set<UUID> = []
     var endedPersistentRemotePTYAttachSurfaceIds: Set<UUID> = []
     var remotePTYSessionIDsByPanelId: [UUID: String] = [:]
+    /// Daemon-side PTY sessions replaced by a respawn whose close is still
+    /// owed, keyed by session ID and bound to the persistent-PTY identity
+    /// that owned the session when it was replaced. A respawn issued while
+    /// the workspace is disconnected parks the replaced session here instead
+    /// of dropping it; the queue drains idempotently whenever a controller
+    /// matching the owning identity is available again, so a workspace that
+    /// has since been reconfigured onto a different host can neither close
+    /// nor discard another host's session.
+    var pendingRemotePTYSessionCleanups: [String: WorkspaceRemoteConfiguration] = [:]
+    /// In-flight daemon-side close operations from
+    /// ``drainPendingRemotePTYSessionCleanups()``, owned by the workspace so
+    /// deferred cleanup is observable rather than fire-and-forget. Entries
+    /// double as a per-session reentrancy guard; each task removes itself on
+    /// completion.
+    var remotePTYSessionCleanupTasksBySessionID: [String: Task<Void, Never>] = [:]
+    #if DEBUG
+    /// Test seam for ``drainPendingRemotePTYSessionCleanups()``: intercepts
+    /// the daemon-side close so tests can observe exactly-once semantics.
+    var remotePTYSessionCloseForTesting: ((String) throws -> Void)?
+    #endif
     private var remoteRelayWorkspaceIDAliases: [UUID: UUID] = [:]
     private var remoteRelaySurfaceIDAliases: [UUID: UUID] = [:]
     private var suppressRemoteTerminalStartupForSessionRestoreScaffold = false
@@ -5484,12 +5515,6 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         scheduleTerminalGeometryReconcile()
     }
 
-    func hasLoadedTerminalSurface() -> Bool {
-        let terminalPanels = panels.keys.flatMap { self.terminalPanels(projectedFromPanelID: $0) }
-        guard !terminalPanels.isEmpty else { return true }
-        return terminalPanels.contains { $0.surface.surface != nil }
-    }
-
     func panelTitle(panelId: UUID) -> String? {
         if let remotePane = remoteTmuxControlPane(surfaceID: panelId) {
             return remotePane.pane.title
@@ -7324,7 +7349,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     }
 
     nonisolated static func defaultSSHPTYSessionID(workspaceId: UUID, panelId: UUID) -> String {
-        "ssh-\(workspaceId.uuidString)-\(panelId.uuidString)"
+        RemotePTYRespawnPlanner.defaultSessionID(
+            workspaceID: workspaceId,
+            panelID: panelId
+        )
     }
 
     nonisolated static let remotePTYSessionEnvironmentKey = "CMUX_REMOTE_PTY_SESSION_ID"
@@ -7911,6 +7939,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         if state == .connected,
            (remoteSessionController != nil || !reconnectWasInFlight) {
             _ = reattachPersistentRemotePTYPanels()
+            drainPendingRemotePTYSessionCleanups()
         }
         applyBrowserRemoteWorkspaceStatusToPanels()
 
@@ -14660,6 +14689,11 @@ extension Workspace: BonsplitDelegate {
         case .toggleFullWidthTab:
             guard let panelId = panelIdFromSurfaceId(tab.id) else { return }
             toggleFullWidthTabMode(panelId: panelId)
+        case .disconnectRemote:
+            // Match the sidebar's non-destructive disconnect action: stop the
+            // current remote session while retaining its configuration for a
+            // later reconnect.
+            disconnectRemoteConnection(clearConfiguration: false)
         case .forkConversation,
              .forkConversationRight,
              .forkConversationLeft,

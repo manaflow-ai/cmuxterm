@@ -14,52 +14,6 @@ import LocalAuthentication
 import Security
 #endif
 
-struct CLIError: Error, CustomStringConvertible {
-    enum SocketFailureKind: Equatable {
-        case pathMissing
-        case pathInspectionFailed
-        case pathTypeConflict
-        case pathOwnershipConflict
-        case startupTimeout
-    }
-
-    let message: String
-    let exitCode: Int32
-    /// Structured v2 protocol error code when the failure came from a v2 error response.
-    let v2Code: String?
-    /// Whether this error was decoded directly from a socket v2 error response.
-    /// Local CLI sentinels may reuse ``v2Code`` for their own exit-status contract.
-    let isStructuredProtocolResponse: Bool
-    /// Cloud VM backend error code (e.g. "vm_create_failed") passed through the
-    /// v2 error's data payload, so callers can make idempotency decisions
-    /// structurally instead of parsing display text.
-    let vmBackendCode: String?
-    /// HTTP status from the Cloud VM backend, when the app forwarded an HTTP
-    /// failure through the local v2 socket.
-    let vmBackendHTTPStatus: Int?
-    let socketFailureKind: SocketFailureKind?
-
-    init(
-        message: String,
-        exitCode: Int32 = 1,
-        v2Code: String? = nil,
-        isStructuredProtocolResponse: Bool = false,
-        vmBackendCode: String? = nil,
-        vmBackendHTTPStatus: Int? = nil,
-        socketFailureKind: SocketFailureKind? = nil
-    ) {
-        self.message = message
-        self.exitCode = exitCode
-        self.v2Code = v2Code
-        self.isStructuredProtocolResponse = isStructuredProtocolResponse
-        self.vmBackendCode = vmBackendCode
-        self.vmBackendHTTPStatus = vmBackendHTTPStatus
-        self.socketFailureKind = socketFailureKind
-    }
-
-    var description: String { message }
-}
-
 struct WindowInfo {
     let index: Int
     let id: String
@@ -4965,6 +4919,11 @@ struct CMUXCLI {
         if normalizedCommand == "restore" || normalizedCommand == "fork" {
             return false
         }
+        if normalizedCommand == "local-tmux" || normalizedCommand == "tmux" {
+            // The local-tmux command owns its explicit --focus decision; do
+            // not activate a window as a side effect of global --window parsing.
+            return false
+        }
         if normalizedCommand == "read-screen" || normalizedCommand == "read-selection" {
             return false
         }
@@ -5213,6 +5172,27 @@ struct CMUXCLI {
                 return
             }
             throw unknownCommandError(command)
+        }
+
+        // Registry inspection, cleanup, and direct headless attach must keep
+        // working while the GUI is quit (including during an app update).
+        if command == "local-tmux" || command == "tmux" {
+            let invocation = try LocalTmuxInvocation.parse(commandArgs)
+            if command == "tmux", invocation.action != .attach {
+                throw CLIError(message: String(
+                    localized: "cli.localTmux.error.tmuxAliasAttachOnly",
+                    defaultValue: "the tmux alias only supports attach; use local-tmux for other session operations"
+                ))
+            }
+            if invocation.canRunWithoutCmux {
+                try runLocalTmuxOfflineCommand(
+                    commandArgs: commandArgs,
+                    jsonOutput: jsonOutput,
+                    idFormat: try resolvedIDFormat(jsonOutput: jsonOutput, raw: idFormatArg),
+                    windowOverride: windowId
+                )
+                return
+            }
         }
 
         if command == "help" { print(usage()); return }; if command == "remote-daemon-status" { try runRemoteDaemonStatus(commandArgs: commandArgs, jsonOutput: jsonOutput); return }
@@ -5596,7 +5576,7 @@ struct CMUXCLI {
                         resolvePath: {
                             socketResolver.resolve(
                                 requestedPath: socketPath,
-                                source: socketPathSource,
+                                source: socketPathSource
                             ).selectedPath ?? socketPath
                         },
                         timeout: Self.restoreSocketStartupTimeoutSeconds
@@ -7059,6 +7039,14 @@ struct CMUXCLI {
                 client: client,
                 jsonOutput: jsonOutput
             )
+        case "local-tmux", "tmux":
+            try runLocalTmuxCommand(
+                commandArgs: commandArgs,
+                client: client,
+                jsonOutput: jsonOutput,
+                idFormat: idFormat,
+                windowOverride: windowId
+            )
         case "ssh-pty-attach":
             let (requestedLifecycleID, attachArgsWithoutLifecycle) = parseOption(commandArgs, name: "--lifecycle-id")
             let stableLifecycleID = Self.normalizedEnvValue(requestedLifecycleID) ?? UUID().uuidString.lowercased()
@@ -7104,8 +7092,6 @@ struct CMUXCLI {
             try runVMPtyAttach(commandArgs: commandArgs, client: client)
         case "vm-tui-connect":
             try runVMTuiConnect(commandArgs: commandArgs, client: client)
-        case "vm-tui-approve":
-            try runVMTuiApprove(commandArgs: commandArgs, client: client)
         case "vm-ssh-attach":
             // Hidden compatibility alias for workspaces created before the split helper was
             // nested under `cmux vm`.
@@ -13299,7 +13285,7 @@ struct CMUXCLI {
             "window_id": opened.windowId ?? NSNull(),
             "transport": "cmux-remote",
             "session": opened.session,
-            "enrolling": opened.enrolling,
+            "trusted_carrier": opened.trustedCarrier,
             "terminal_id": opened.terminalId ?? NSNull(),
             "remote_workspace_id": opened.remoteWorkspaceId ?? NSNull(),
             "surface_id": opened.terminalSurfaceId ?? NSNull(),
@@ -19592,6 +19578,8 @@ struct CMUXCLI {
                 """
             )
             return "\(help)\n\n\(newWindowHelp)"
+        case "local-tmux", "tmux":
+            return LocalTmuxInvocation.usage
         case "ssh-session-list":
             return """
             Usage: cmux ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
@@ -41283,6 +41271,8 @@ export default CMUXSessionRestore;
           mosh <destination> [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus] [-- <remote-command-args>]
           mosh-tmux <destination> [--session <name>] [--name <title>] [--command <text>] [--port <n>] [--identity <path>] [-A|--forward-agent] [-a|--no-forward-agent] [--ssh-option <opt>] [--window <id|ref|index>] [--no-focus]
           ssh-tmux <destination> [--port <n>] [--identity <path>] [--no-focus] [--new-window]
+          local-tmux <start|attach|list|status|detach|close|cleanup> [session] [options]
+          tmux attach [session] [options]                         (local-tmux alias)
           ssh-session-list [--workspace <id|ref|index> | --all-workspaces]
           ssh-session-attach --session-id <id> [--workspace <id|ref|index>] [--pane <id|ref|index> | --split <left|right|up|down>]
           ssh-session-cleanup [--workspace <id|ref|index> | --all-workspaces] (--session-id <id> | --all)

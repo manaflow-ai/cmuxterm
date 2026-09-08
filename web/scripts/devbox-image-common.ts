@@ -20,6 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { VM_IMAGE_SIZES, VM_IMAGE_SIZE_NAMES, vmImageSizeRank, type VmImageSizeName } from "../services/vms/images/sizes";
+import { DEVBOX_HOSTNAME, DEVBOX_HOSTNAME_LOOPBACK, DEVBOX_PROVIDER_HOSTNAME } from "../services/vms/images/identity";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const webRoot = path.resolve(__dirname, "..");
@@ -37,6 +38,7 @@ export const DEVBOX_TEMPLATE_FILES = [
   "cmux-motd",
   "cmux-terminfo.sh",
   "cmux-terminfo.src",
+  "codex-managed.toml",
   "seed-history",
 ] as const;
 
@@ -238,6 +240,18 @@ export function devboxGhosttyDebUrl(dockerfile = readDevboxDockerfile()): string
  * recipes verify the downloaded bytes against it before dpkg runs as root, so
  * a moved or tampered release asset fails the bake instead of installing.
  */
+/**
+ * The Ghostty release the image is built against, from the .deb pin: the
+ * version panes export as TERM_PROGRAM_VERSION (cmux-devbox-boot reads it from
+ * /etc/cmux/ghostty-version). Base images ship no Ghostty binary, so the pin,
+ * not `ghostty +version`, is the source.
+ */
+export function devboxGhosttyVersion(dockerfile = readDevboxDockerfile()): string {
+  const version = /\/ghostty_(\d+\.\d+\.\d+)[-_]/.exec(devboxGhosttyDebUrl(dockerfile))?.[1];
+  if (!version) throw new Error("devbox Dockerfile's CMUX_IMAGE_GHOSTTY_DEB_URL carries no ghostty_<x.y.z> version");
+  return version;
+}
+
 export function devboxGhosttyDebSha256(dockerfile = readDevboxDockerfile()): string {
   const sha = /^ARG CMUX_IMAGE_GHOSTTY_DEB_SHA256=([0-9a-f]{64})$/m.exec(dockerfile)?.[1];
   if (!sha) throw new Error("devbox Dockerfile is missing a 64-hex ARG CMUX_IMAGE_GHOSTTY_DEB_SHA256");
@@ -339,6 +353,116 @@ export function bakePreflight(options: { desktop?: boolean } = {}): { sha: strin
   const state = head === main ? "== origin/main" : "!= origin/main (CMUX_BAKE_ALLOW_BRANCH=1)";
   console.log(`bake-preflight: HEAD ${head.slice(0, 10)} ${state}, devbox epoch ${epoch}`);
   return { sha: head, epoch };
+}
+
+// ---------------------------------------------------------------------------
+// Identity: the machine is `cmux` (services/vms/images/identity.ts). The bake
+// runs the install command once, early; the verifier and the size derive run
+// the check on machines booted from the snapshot.
+// ---------------------------------------------------------------------------
+
+/** The roots the residue audit walks: everything the machine speaks for itself from. */
+export const DEVBOX_IDENTITY_RESIDUE_ROOTS: readonly string[] = ["/etc", "/home", "/root", "/usr/local", "/opt"];
+
+/**
+ * Rewrites the loopback alias line of an /etc/hosts file so the machine's own
+ * name resolves: the first `127.0.1.1` line becomes `127.0.1.1<TAB><hostname>`,
+ * further ones are dropped, and one is appended when none exists. Every other
+ * line (localhost, the IPv6 entries, the provider's TLS-egress block) is kept
+ * byte for byte, and the file is rewritten in place through `cat >` so its
+ * inode (and a bind mount over it) survives. Portable awk only.
+ */
+export function devboxHostsAliasRewriteCommand(hostname = DEVBOX_HOSTNAME, hostsPath = "/etc/hosts"): string {
+  const program =
+    `BEGIN { done = 0 } ` +
+    `$1 == "${DEVBOX_HOSTNAME_LOOPBACK}" { if (!done) { print "${DEVBOX_HOSTNAME_LOOPBACK}\\t" h; done = 1 }; next } ` +
+    `{ print } ` +
+    `END { if (!done) print "${DEVBOX_HOSTNAME_LOOPBACK}\\t" h }`;
+  return `awk -v h=${hostname} '${program}' ${hostsPath} > ${hostsPath}.cmux-identity && cat ${hostsPath}.cmux-identity > ${hostsPath} && rm -f ${hostsPath}.cmux-identity`;
+}
+
+/**
+ * New SSH host keys under the machine's current name (the base's keys were
+ * generated when Freestyle built its rootfs and are shared by every VM booted
+ * from that base). They are generated into a staging dir on the same
+ * filesystem and moved over the old ones only once all of them exist, so a
+ * failed generation fails the step with the previous keys still in place;
+ * sshd loads keys at start, so it is restarted where systemd runs it and left
+ * alone where nothing does. cmux-devbox-boot does the same on every clone.
+ */
+export function devboxSshHostKeyRegenerateCommand(): string {
+  return [
+    'staging="$(mktemp -d /etc/ssh/.cmux-rekey.XXXXXX)"',
+    'mkdir -p "$staging/etc/ssh"',
+    'ssh-keygen -A -f "$staging" >/dev/null',
+    '[ -n "$(ls "$staging"/etc/ssh/ssh_host_*_key 2>/dev/null)" ]',
+    'for key in "$staging"/etc/ssh/ssh_host_*_key; do mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/ || exit 1; done',
+    'rm -rf "$staging"',
+    "{ [ ! -d /run/systemd/system ] || systemctl try-restart ssh; }",
+  ].join(" && ");
+}
+
+/**
+ * Fails when the provider's machine name survives as a whole word in any
+ * text file under `roots` (the `freestyle-vms` agent, units and resolver
+ * drop-in do not match). Package trees are skipped: a third-party module
+ * mentioning the name is not the machine speaking for itself, and walking
+ * the agents' node_modules would cost minutes.
+ */
+export function devboxProviderResidueCommand(
+  name = DEVBOX_PROVIDER_HOSTNAME,
+  roots: readonly string[] = DEVBOX_IDENTITY_RESIDUE_ROOTS,
+): string {
+  const skip = ["node_modules", "nvm", ".npm", ".cache", ".bun", "python", "python3"].map((dir) => `--exclude-dir=${dir}`).join(" ");
+  // `grep -l` exits 1 when nothing matches, which is the good case; the group
+  // keeps a failure of an earlier `&&` link from being reported as residue.
+  return `{ residue="$(grep -rIlE ${skip} '(^|[^[:alnum:]_-])${name}([^[:alnum:]_-]|$)' ${roots.join(" ")} 2>/dev/null || true)"; [ -z "$residue" ] || { printf '%s residue:\\n%s\\n' ${name} "$residue"; exit 1; }; }`;
+}
+
+/**
+ * Start the machine's log at its own name: archive and drop the journal files
+ * written under the provider's name (the base's boot, the bake's first steps).
+ */
+export const devboxJournalResetCommand = "journalctl --rotate >/dev/null 2>&1; journalctl --vacuum-time=1s >/dev/null 2>&1; true";
+
+/**
+ * Proves the identity from every angle a person or a program meets it: the
+ * kernel's hostname, the static one, `hostnamectl`, `$HOSTNAME` in a clean
+ * root login shell, the loopback alias resolving (exactly one alias line),
+ * sudo not warning about an unresolvable host, the SSH host keys' comment,
+ * and no provider residue (devboxProviderResidueCommand). Run as root.
+ */
+export function devboxIdentityCheckCommand(hostname = DEVBOX_HOSTNAME): string {
+  return [
+    `[ "$(hostname)" = ${hostname} ]`,
+    `[ "$(cat /proc/sys/kernel/hostname)" = ${hostname} ]`,
+    `[ "$(cat /etc/hostname)" = ${hostname} ]`,
+    `[ "$(hostnamectl --static 2>/dev/null || cat /etc/hostname)" = ${hostname} ]`,
+    `[ "$(env -i HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash -lc 'echo "$HOSTNAME"')" = ${hostname} ]`,
+    `getent hosts ${hostname} | grep -q '^${DEVBOX_HOSTNAME_LOOPBACK}[[:space:]]'`,
+    `[ "$(grep -c '^${DEVBOX_HOSTNAME_LOOPBACK}[[:space:]]' /etc/hosts)" = 1 ]`,
+    `! sudo -n true 2>&1 | grep -q 'unable to resolve host'`,
+    `[ "$(awk '{ print $3 }' /etc/ssh/ssh_host_ed25519_key.pub)" = root@${hostname} ]`,
+    devboxProviderResidueCommand(),
+    `echo identity-${hostname}-ok`,
+  ].join(" && ");
+}
+
+/**
+ * The bake's identity step, run as root right after the base inventory, before
+ * anything records the machine's name (SSH host keys, the ble.sh caches, the
+ * daemon, the journal): the static and live hostname (systemd-hostnamed
+ * activates over D-Bus on demand; an init without it gets the file plus
+ * sethostname), the loopback alias, fresh host keys, and the check.
+ */
+export function devboxIdentityInstallCommand(hostname = DEVBOX_HOSTNAME): string {
+  return [
+    `{ hostnamectl set-hostname ${hostname} 2>/dev/null || { printf '%s\\n' ${hostname} > /etc/hostname && hostname ${hostname}; }; }`,
+    `[ "$(cat /etc/hostname)" = ${hostname} ]`,
+    devboxHostsAliasRewriteCommand(hostname),
+    devboxSshHostKeyRegenerateCommand(),
+    devboxIdentityCheckCommand(hostname),
+  ].join(" && ");
 }
 
 /**
