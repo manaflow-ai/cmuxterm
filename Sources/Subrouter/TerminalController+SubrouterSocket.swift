@@ -30,7 +30,7 @@ extension TerminalController {
     private nonisolated static func subrouterConfigurationError(
         _ issue: SubrouterConfiguration.ConfigurationIssue
     ) -> TerminalController.V2CallResult {
-        let localization: (key: String, fallback: String) = switch issue {
+        let localization: (key: StaticString, fallback: String.LocalizationValue) = switch issue {
         case .invalidEndpoint:
             ("socket.subrouter.configuration.invalidEndpoint", "The configured subrouter endpoint is invalid. Set an http(s) URL or clear it to use the local daemon.")
         case .unreadableServerRegistry:
