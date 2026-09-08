@@ -24,7 +24,7 @@ public struct SettingsWindowRoot: View {
     /// the rest one per update pass. Window-scoped like the scroll state.
     @State var mountModel: SettingsSectionMountModel
     /// Sections exposed by the host's rollout policy.
-    private let visibleSections: Set<SettingsSectionID>
+    let visibleSections: Set<SettingsSectionID>
 
     static let selectedSectionDefaultsKey = "selectedSettingsSection"
     static let cloudMachinesBetaDefaultsKey = "cloud.beta.machines.enabled"
