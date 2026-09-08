@@ -1,185 +1,770 @@
 {
-  "agent.hermes.notification.body.approvalCommand": "price and plan literals",
-  "agent.kimi.displayName": "product and brand names",
-  "agent.ollama.displayName": "product and brand names",
-  "browser.designMode.copy.shortcut": "format-only strings or CLI syntax fragments",
-  "browser.import.complete.profileMapping": "product and brand names",
-  "cli.browser.designMode.help": "CLI syntax fragments",
-  "cli.browser.help.viewportUsage": "CLI syntax fragments",
-  "cli.browser.profile.option": "CLI syntax fragments",
-  "cli.claude-hook.notification.title": "product and brand names",
-  "cli.help.ios": "CLI syntax fragments",
-  "cli.help.simulator": "CLI syntax fragments",
-  "cli.sidebar.report.ok": "product and brand names",
-  "command.cloudVM.restore.prompt.placeholder": "product and brand names",
-  "command.cloudVM.result.title": "product and brand names",
-  "command.cmuxConfig.builtInSubtitle": "product and brand names",
-  "command.cmuxConfig.defaultClaudeCodeTitle": "product and brand names",
-  "command.cmuxConfig.defaultCodexTitle": "product and brand names",
-  "command.cmuxConfig.defaultOpenCodeTitle": "product and brand names",
-  "command.cmuxConfig.issue.schemaError.detail": "format-only strings or CLI syntax fragments",
-  "command.cmuxConfig.issue.subtitle": "product and brand names",
-  "command.toggleSetting.subtitle": "product and brand names",
-  "commandPalette.kind.cloudVMLoading": "product and brand names",
-  "commandPalette.kind.markdown": "product and brand names",
-  "commandPalette.subtitle.markdownWithName": "product and brand names",
-  "debug.bonsplitTabBarDebug.pixelsValue": "product and brand names",
-  "debug.tabBarBackdropLab.leftSidebar": "product and brand names",
-  "debug.tabBarBackdropLab.rightSidebar": "product and brand names",
-  "debug.tabBarBackdropLab.terminal.prompt": "product and brand names",
-  "debug.tabBarBackdropLab.titlebarSample": "product and brand names",
-  "dock.source.error": "product and brand names",
-  "dock.source.title": "product and brand names",
-  "feed.exitplan.mode.ultraplan": "product and brand names",
-  "feed.exitplan.ultraplan": "product and brand names",
-  "feed.notification.exitPlan.ultraplan": "product and brand names",
-  "feed.textEditorDebug.section.appkit": "product and brand names",
-  "feed.textEditorDebug.section.swiftui": "product and brand names",
-  "feed.textEditorDebug.variant.swiftUIMirror": "product and brand names",
-  "feed.textEditorDebug.variant.swiftUITextField": "product and brand names",
-  "globalSearch.kind.markdown": "product and brand names",
-  "markdown.fontSize.unit": "product and brand names",
-  "markdown.maxWidth.unit": "product and brand names",
-  "menu.help.claudeCodeTeams": "product and brand names",
-  "menu.help.dock": "product and brand names",
-  "menu.help.ohMyClaudeCode": "product and brand names",
-  "menu.help.ohMyCodex": "product and brand names",
-  "menu.help.ohMyOpenCode": "product and brand names",
-  "menu.help.ssh": "product and brand names",
-  "menu.history.recentlyClosed.panel.cloudVM": "product and brand names",
-  "paneMemoryGuardrail.banner.detail": "price and plan literals",
-  "panel.cloudVM.loading.title": "product and brand names",
-  "pricing.enterprise.f3": "technical acronyms and identifiers",
-  "pricing.native.compare.concurrent.free": "product and brand names",
-  "pricing.native.eyebrow": "product and brand names",
-  "pricing.native.free.price": "price and plan literals",
-  "pricing.native.metric.vm.value": "price and plan literals",
-  "pricing.native.plan.pro": "product and brand names",
-  "pricing.native.size.large.rate": "price and plan literals",
-  "pricing.native.size.medium.rate": "price and plan literals",
-  "pricing.native.size.small.rate": "price and plan literals",
-  "pricing.pro.name": "product and brand names",
-  "pricing.pro.workspace.title": "product and brand names",
-  "pricing.window.title": "product and brand names",
-  "rightSidebar.mode.dock": "product and brand names",
-  "rightSidebar.mode.feed": "product and brand names",
-  "rightSidebar.mode.sessions": "product and brand names",
-  "sessionIndex.agent.claude": "product and brand names",
-  "sessionIndex.agent.codex": "product and brand names",
-  "sessionIndex.agent.grok": "product and brand names",
-  "sessionIndex.agent.opencode": "product and brand names",
-  "sessionIndex.agent.pi": "product and brand names",
-  "sessionIndex.agent.rovodev": "product and brand names",
-  "settings.account.pro.title": "product and brand names",
-  "settings.betaFeatures.dock": "product and brand names",
-  "settings.betaFeatures.feed": "product and brand names",
-  "settings.config.source.cmux": "product and brand names",
-  "settings.fontSize.valuePoints": "product and brand names",
-  "settings.mobile.route.iroh": "product and brand names",
-  "settings.mobile.route.tailscale": "product and brand names",
-  "settings.mobile.route.websocket": "product and brand names",
-  "settings.networking.custom.summary": "price and plan literals",
-  "settings.notifications.command.placeholder": "product and brand names",
-  "settings.search.alias.section.customSidebars": "product and brand names",
-  "settings.search.alias.section.mobile": "product and brand names",
-  "settings.search.alias.section.networking": "product and brand names",
-  "settings.search.alias.section.sleepyMode": "product and brand names",
-  "settings.search.alias.setting.app.canvas-pane-gap": "product and brand names",
-  "settings.search.alias.setting.app.canvas-snapping": "product and brand names",
-  "settings.search.alias.setting.app.default-terminal": "product and brand names",
-  "settings.search.alias.setting.app.file-editor-word-wrap": "product and brand names",
-  "settings.search.alias.setting.app.markdown-font-family": "product and brand names",
-  "settings.search.alias.setting.app.markdown-font-size": "product and brand names",
-  "settings.search.alias.setting.app.markdown-max-width": "product and brand names",
-  "settings.search.alias.setting.app.show-workspace-description": "product and brand names",
-  "settings.search.alias.setting.app.supported-file-previews": "product and brand names",
-  "settings.search.alias.setting.app.warn-before-closing-tab": "product and brand names",
-  "settings.search.alias.setting.app.workspace-inherit-working-directory": "product and brand names",
-  "settings.search.alias.setting.automation.kiro": "product and brand names",
-  "settings.search.alias.setting.automation.kiro-notification-level": "product and brand names",
-  "settings.search.alias.setting.automation.ripgrep-path": "product and brand names",
-  "settings.search.alias.setting.betaFeatures.workspace-todo-controls": "product and brand names",
-  "settings.search.alias.setting.betaFeatures.workspace-todos-checklist-style": "product and brand names",
-  "settings.search.alias.setting.browser.ask-where-to-save-downloads": "product and brand names",
-  "settings.search.alias.setting.browser.hidden-webview-discard": "product and brand names",
-  "settings.search.alias.setting.browser.hidden-webview-discard-delay": "product and brand names",
-  "settings.search.alias.setting.mobile.artifactFolderAccess": "product and brand names",
-  "settings.search.alias.setting.mobile.iOSPairingDisplayName": "product and brand names",
-  "settings.search.alias.setting.mobile.iOSPairingHost": "product and brand names",
-  "settings.search.alias.setting.mobile.iOSPairingPort": "product and brand names",
-  "settings.search.alias.setting.networking.customRelays": "product and brand names",
-  "settings.search.alias.setting.networking.policy": "product and brand names",
-  "settings.search.alias.setting.networking.privateNetworks": "product and brand names",
-  "settings.search.alias.setting.networking.relayPreference": "product and brand names",
-  "settings.search.alias.setting.networking.status": "product and brand names",
-  "settings.search.alias.setting.networking.tailscaleCompatibility": "product and brand names",
-  "settings.search.alias.setting.sidebarAppearance.font-size": "product and brand names",
-  "settings.search.alias.setting.terminal.resume-commands": "product and brand names",
-  "settings.search.alias.setting.terminal.session-content-alignment": "product and brand names",
-  "settings.search.alias.setting.terminal.session-content-width": "product and brand names",
-  "settings.search.alias.setting.terminal.tab-bar-font-size": "product and brand names",
-  "settings.search.alias.setting.textBox.default-submit-action": "product and brand names",
-  "settings.section.settingsJSON": "product and brand names",
-  "settings.sidebarAppearance.fontSize.points": "product and brand names",
-  "settings.terminal.scrollSpeed.value": "format-only strings or CLI syntax fragments",
-  "settings.terminal.sessionContentWidth.unit": "product and brand names",
-  "settings.terminal.tabBarFontSize.points": "product and brand names",
-  "settings.textBox.submitAction.claude": "product and brand names",
-  "settings.textBox.submitAction.codex": "product and brand names",
-  "settings.textBox.submitAction.opencode": "product and brand names",
-  "settings.textBox.submitAction.pi": "product and brand names",
-  "shortcut.recorder.pendingChord": "product and brand names",
-  "sidebar.help.discord": "product and brand names",
-  "sidebar.help.feedback.emailPlaceholder": "product and brand names",
-  "sidebar.help.githubIssues": "product and brand names",
-  "sidebar.port.label": "product and brand names",
-  "sidebar.provider.default.subtitle": "product and brand names",
-  "sidebar.remote.badge": "product and brand names",
-  "sidebar.tree.group.remote.subtitle": "product and brand names",
-  "simulator.action.siri": "technical acronyms and identifiers",
-  "simulator.appearance.voiceOver": "technical acronyms and identifiers",
-  "simulator.application.reactNative": "product and brand names",
-  "simulator.dataNetwork.fiveG": "technical acronyms and identifiers",
-  "simulator.dataNetwork.fiveGPlus": "technical acronyms and identifiers",
-  "simulator.dataNetwork.fiveGUC": "technical acronyms and identifiers",
-  "simulator.dataNetwork.fiveGUWB": "technical acronyms and identifiers",
-  "simulator.dataNetwork.fourG": "product and brand names",
-  "simulator.dataNetwork.lte": "technical acronyms and identifiers",
-  "simulator.dataNetwork.lteAdvanced": "product and brand names",
-  "simulator.dataNetwork.ltePlus": "product and brand names",
-  "simulator.dataNetwork.threeG": "product and brand names",
-  "simulator.dataNetwork.wifi": "technical acronyms and identifiers",
-  "simulator.device.udid": "technical acronyms and identifiers",
-  "simulator.field.url": "technical acronyms and identifiers",
-  "simulator.privacy.faceID": "technical acronyms and identifiers",
-  "simulator.privacy.homeKit": "technical acronyms and identifiers",
-  "simulator.privacy.siri": "technical acronyms and identifiers",
-  "simulator.statusBar.wifiMode": "technical acronyms and identifiers",
-  "sleepyMode.glow.cmux": "product and brand names",
-  "sleepyMode.theme.cmux": "product and brand names",
-  "statusMenu.profiling.emailPlaceholder": "product and brand names",
-  "taskManager.agent.amp": "product and brand names",
-  "taskManager.agent.claudeCode": "product and brand names",
-  "taskManager.agent.codebuddy": "product and brand names",
-  "taskManager.agent.codex": "product and brand names",
-  "taskManager.agent.copilot": "product and brand names",
-  "taskManager.agent.cursor": "product and brand names",
-  "taskManager.agent.factory": "product and brand names",
-  "taskManager.agent.gemini": "product and brand names",
-  "taskManager.agent.grok": "product and brand names",
-  "taskManager.agent.hermesAgent": "product and brand names",
-  "taskManager.agent.opencode": "product and brand names",
-  "taskManager.agent.pi": "product and brand names",
-  "taskManager.agent.qoder": "product and brand names",
-  "taskManager.agent.rovodev": "product and brand names",
-  "taskManager.column.cpu": "technical acronyms and identifiers",
-  "taskManager.killProcess.target.pid": "product and brand names",
-  "taskManager.row.pid": "product and brand names",
-  "taskManager.row.webview": "technical acronyms and identifiers",
-  "taskManager.summary.cpu": "technical acronyms and identifiers",
-  "textbox.submitAction.claude": "product and brand names",
-  "textbox.submitAction.codex": "product and brand names",
-  "textbox.submitAction.opencode": "product and brand names",
-  "textbox.submitAction.pi": "product and brand names",
-  "workspace.cloudVM.defaultTitle": "product and brand names"
+  "cli.usage.readScreen": {
+    "class": "syntax",
+    "source": "read-screen [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>] [--selection]"
+  },
+  "cli.usage.readSelection": {
+    "class": "syntax",
+    "source": "read-selection [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]"
+  },
+  "about.appName": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "cli.codexMonitor.notification.title": {
+    "class": "syntax",
+    "source": "Codex"
+  },
+  "agent.hermes.notification.body.approvalCommand": {
+    "class": "format",
+    "source": "%1$@: %2$@"
+  },
+  "agent.kimi.displayName": {
+    "class": "brand",
+    "source": "Kimi Code"
+  },
+  "agent.ollama.displayName": {
+    "class": "brand",
+    "source": "Ollama"
+  },
+  "agentSession.provider.claude": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "agentSession.provider.codex": {
+    "class": "brand",
+    "source": "Codex"
+  },
+  "agentSession.provider.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "agentSession.renderer.react": {
+    "class": "brand",
+    "source": "React"
+  },
+  "agentSession.renderer.solid": {
+    "class": "brand",
+    "source": "Solid"
+  },
+  "agentSession.web.planSuggestion.shortcut": {
+    "class": "brand",
+    "source": "Shift + Tab"
+  },
+  "browser.designMode.copy.shortcut": {
+    "class": "format",
+    "source": "⌘↩"
+  },
+  "browser.dialog.clientCertificate.titleWithSubtitle": {
+    "class": "format",
+    "source": "%@ (%@)"
+  },
+  "browser.focusMode.helpWithShortcut.format": {
+    "class": "format",
+    "source": "%@ (%@)"
+  },
+  "browser.import.complete.profileMapping": {
+    "class": "format",
+    "source": "%@ -> %@"
+  },
+  "cli.browser.designMode.help": {
+    "class": "syntax",
+    "source": "browser design-mode enable|disable|toggle|status [--surface <id>]"
+  },
+  "cli.browser.help.viewportUsage": {
+    "class": "syntax",
+    "source": "viewport <width> <height> | reset"
+  },
+  "cli.browser.profile.option": {
+    "class": "syntax",
+    "source": "[--profile <name|uuid>]"
+  },
+  "cli.claude-hook.notification.title": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "cli.help.ios": {
+    "class": "syntax",
+    "source": "ios <subcommand> [args] [--surface <id|ref|index>]"
+  },
+  "cli.help.simulator": {
+    "class": "syntax",
+    "source": "simulator <subcommand> [args] [--surface <id|ref|index>]"
+  },
+  "clipboard.sshError.item": {
+    "class": "format",
+    "source": "%lld. %@ (%@): %@"
+  },
+  "cloudTree.terminal.badge.views": {
+    "class": "format",
+    "source": "×%d"
+  },
+  "command.cloudVM.restore.prompt.placeholder": {
+    "class": "syntax",
+    "source": "snapshot-id"
+  },
+  "command.cmuxConfig.builtInSubtitle": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "command.cmuxConfig.defaultClaudeCodeTitle": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "command.cmuxConfig.defaultCodexTitle": {
+    "class": "brand",
+    "source": "Codex"
+  },
+  "command.cmuxConfig.defaultOpenCodeTitle": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "command.cmuxConfig.issue.schemaError.detail": {
+    "class": "format",
+    "source": "%@"
+  },
+  "command.cmuxConfig.issue.subtitle": {
+    "class": "format",
+    "source": "%@: %@"
+  },
+  "command.cmuxConfig.subtitle": {
+    "class": "syntax",
+    "source": "cmux.json"
+  },
+  "command.mobileConnect.subtitle": {
+    "class": "brand",
+    "source": "Tailscale"
+  },
+  "commandPalette.kind.markdown": {
+    "class": "technical",
+    "source": "Markdown"
+  },
+  "debug.bonsplitTabBarDebug.pixelsValue": {
+    "class": "format",
+    "source": "%@ px"
+  },
+  "debug.tabBarBackdropLab.leftSidebar": {
+    "class": "format",
+    "source": "L"
+  },
+  "debug.tabBarBackdropLab.rightSidebar": {
+    "class": "format",
+    "source": "R"
+  },
+  "debug.tabBarBackdropLab.terminal.prompt": {
+    "class": "syntax",
+    "source": "lawrence in ~/cmux"
+  },
+  "debug.tabBarBackdropLab.titlebarSample": {
+    "class": "syntax",
+    "source": "workspace@lab:~"
+  },
+  "feed.buttonDebug.style.solid": {
+    "class": "brand",
+    "source": "Solid"
+  },
+  "feed.exitplan.mode.ultraplan": {
+    "class": "brand",
+    "source": "ultraplan"
+  },
+  "feed.exitplan.ultraplan": {
+    "class": "brand",
+    "source": "Ultraplan"
+  },
+  "feed.notification.exitPlan.ultraplan": {
+    "class": "brand",
+    "source": "Ultraplan"
+  },
+  "feed.textEditorDebug.section.appkit": {
+    "class": "technical",
+    "source": "AppKit"
+  },
+  "feed.textEditorDebug.section.swiftui": {
+    "class": "technical",
+    "source": "SwiftUI"
+  },
+  "globalSearch.kind.markdown": {
+    "class": "technical",
+    "source": "Markdown"
+  },
+  "machines.agent.claude": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "machines.agent.codex": {
+    "class": "brand",
+    "source": "Codex"
+  },
+  "machines.agent.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "machines.stats.cpu": {
+    "class": "technical",
+    "source": "CPU"
+  },
+  "machines.stats.provisioned": {
+    "class": "brand",
+    "source": "%@ GB"
+  },
+  "markdown.fontSize.unit": {
+    "class": "technical",
+    "source": "pt"
+  },
+  "markdown.maxWidth.unit": {
+    "class": "technical",
+    "source": "px"
+  },
+  "menu.help.claudeCodeTeams": {
+    "class": "brand",
+    "source": "Claude Code Teams"
+  },
+  "menu.help.ohMyClaudeCode": {
+    "class": "brand",
+    "source": "oh-my-claudecode"
+  },
+  "menu.help.ohMyCodex": {
+    "class": "brand",
+    "source": "oh-my-codex"
+  },
+  "menu.help.ohMyOpenCode": {
+    "class": "brand",
+    "source": "oh-my-opencode"
+  },
+  "menu.help.ssh": {
+    "class": "technical",
+    "source": "SSH"
+  },
+  "menu.history.focusedItemTitleFormat": {
+    "class": "format",
+    "source": "%1$@ - %2$@"
+  },
+  "menu.history.menuItemSubtitleFormat": {
+    "class": "format",
+    "source": "%1$@, %2$@"
+  },
+  "menu.history.recentlyClosed.menuItemFormat": {
+    "class": "format",
+    "source": "%1$@ (%2$@)"
+  },
+  "menu.history.recentlyClosed.panel.markdown": {
+    "class": "technical",
+    "source": "Markdown"
+  },
+  "mobile.pairing.target.appStore": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "pricing.enterprise.f3": {
+    "class": "technical",
+    "source": "SOC 2"
+  },
+  "pricing.native.compare.concurrent.free": {
+    "class": "format",
+    "source": "1"
+  },
+  "pricing.native.compare.concurrent.paid": {
+    "class": "price",
+    "source": "50"
+  },
+  "pricing.native.eyebrow": {
+    "class": "brand",
+    "source": "cmux Pro"
+  },
+  "pricing.native.free.price": {
+    "class": "price",
+    "source": "$0"
+  },
+  "pricing.native.metric.vm.value": {
+    "class": "price",
+    "source": "4 vCPU / 16 GB"
+  },
+  "pricing.native.pro.price": {
+    "class": "price",
+    "source": "$50"
+  },
+  "pricing.native.size.large.rate": {
+    "class": "price",
+    "source": "$0.80"
+  },
+  "pricing.native.size.medium.rate": {
+    "class": "price",
+    "source": "$0.40"
+  },
+  "pricing.native.size.small.rate": {
+    "class": "price",
+    "source": "$0.20"
+  },
+  "pricing.native.team.price": {
+    "class": "price",
+    "source": "$60"
+  },
+  "pricing.pro.name": {
+    "class": "brand",
+    "source": "cmux Pro"
+  },
+  "pricing.pro.workspace.title": {
+    "class": "brand",
+    "source": "cmux Pro"
+  },
+  "pricing.window.title": {
+    "class": "brand",
+    "source": "cmux Pro"
+  },
+  "remotePTYAttach.error.allocationDiagnostic": {
+    "class": "brand",
+    "source": "%@"
+  },
+  "remoteTmux.tab.windowPaneIndexed": {
+    "class": "format",
+    "source": "%1$@ [%2$@]"
+  },
+  "sessionIndex.agent.claude": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "sessionIndex.agent.codex": {
+    "class": "brand",
+    "source": "Codex"
+  },
+  "sessionIndex.agent.grok": {
+    "class": "brand",
+    "source": "Grok"
+  },
+  "sessionIndex.agent.hermesAgent": {
+    "class": "brand",
+    "source": "Hermes Agent"
+  },
+  "sessionIndex.agent.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "sessionIndex.agent.pi": {
+    "class": "brand",
+    "source": "Pi"
+  },
+  "sessionIndex.agent.rovodev": {
+    "class": "brand",
+    "source": "Rovo Dev"
+  },
+  "settings.account.pro.title": {
+    "class": "brand",
+    "source": "cmux Pro"
+  },
+  "settings.browser.defaultZoomLevel.percent": {
+    "class": "format",
+    "source": "%lld%%"
+  },
+  "settings.config.source.cmux": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "settings.fontSize.valuePoints": {
+    "class": "format",
+    "source": "%@ pt"
+  },
+  "settings.mobile.route.iroh": {
+    "class": "brand",
+    "source": "Iroh"
+  },
+  "settings.mobile.route.tailscale": {
+    "class": "brand",
+    "source": "Tailscale"
+  },
+  "settings.mobile.route.websocket": {
+    "class": "technical",
+    "source": "WebSocket"
+  },
+  "settings.notifications.command.placeholder": {
+    "class": "syntax",
+    "source": "say \"done\""
+  },
+  "settings.section.settingsJSON": {
+    "class": "technical",
+    "source": "cmux.json"
+  },
+  "settings.sidebar.rightMaxWidth.unit": {
+    "class": "technical",
+    "source": "pt"
+  },
+  "settings.sidebarAppearance.fontSize.points": {
+    "class": "format",
+    "source": "%@ pt"
+  },
+  "settings.terminal.scrollSpeed.value": {
+    "class": "format",
+    "source": "%.2f×"
+  },
+  "settings.terminal.sessionContentWidth.unit": {
+    "class": "technical",
+    "source": "pt"
+  },
+  "settings.terminal.tabBarFontSize.points": {
+    "class": "format",
+    "source": "%@ pt"
+  },
+  "settings.textBox.submitAction.codex": {
+    "class": "syntax",
+    "source": "Codex --yolo"
+  },
+  "settings.textBox.submitAction.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "settings.textBox.submitAction.pi": {
+    "class": "brand",
+    "source": "Pi"
+  },
+  "shortcut.recorder.pendingChord": {
+    "class": "format",
+    "source": "%@ …"
+  },
+  "sidebar.help.discord": {
+    "class": "brand",
+    "source": "Discord"
+  },
+  "sidebar.help.feedback.emailPlaceholder": {
+    "class": "syntax",
+    "source": "you@example.com"
+  },
+  "sidebar.port.label": {
+    "class": "format",
+    "source": ":%lld"
+  },
+  "sidebar.provider.default.subtitle": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "sidebar.remote.badge": {
+    "class": "technical",
+    "source": "SSH"
+  },
+  "sidebar.tree.group.remote.subtitle": {
+    "class": "technical",
+    "source": "SSH"
+  },
+  "simulator.action.siri": {
+    "class": "brand",
+    "source": "Siri"
+  },
+  "simulator.appearance.voiceOver": {
+    "class": "brand",
+    "source": "VoiceOver"
+  },
+  "simulator.application.reactNative": {
+    "class": "brand",
+    "source": "React Native"
+  },
+  "simulator.dataNetwork.fiveG": {
+    "class": "technical",
+    "source": "5G"
+  },
+  "simulator.dataNetwork.fiveGPlus": {
+    "class": "technical",
+    "source": "5G+"
+  },
+  "simulator.dataNetwork.fiveGUC": {
+    "class": "technical",
+    "source": "5G UC"
+  },
+  "simulator.dataNetwork.fiveGUWB": {
+    "class": "technical",
+    "source": "5G UWB"
+  },
+  "simulator.dataNetwork.fourG": {
+    "class": "technical",
+    "source": "4G"
+  },
+  "simulator.dataNetwork.lte": {
+    "class": "technical",
+    "source": "LTE"
+  },
+  "simulator.dataNetwork.lteAdvanced": {
+    "class": "technical",
+    "source": "LTE-A"
+  },
+  "simulator.dataNetwork.ltePlus": {
+    "class": "technical",
+    "source": "LTE+"
+  },
+  "simulator.dataNetwork.threeG": {
+    "class": "technical",
+    "source": "3G"
+  },
+  "simulator.dataNetwork.wifi": {
+    "class": "technical",
+    "source": "Wi-Fi"
+  },
+  "simulator.device.udid": {
+    "class": "technical",
+    "source": "UDID"
+  },
+  "simulator.field.url": {
+    "class": "technical",
+    "source": "URL"
+  },
+  "simulator.privacy.faceID": {
+    "class": "brand",
+    "source": "Face ID"
+  },
+  "simulator.privacy.homeKit": {
+    "class": "brand",
+    "source": "HomeKit"
+  },
+  "simulator.privacy.siri": {
+    "class": "brand",
+    "source": "Siri"
+  },
+  "simulator.statusBar.wifiMode": {
+    "class": "technical",
+    "source": "Wi-Fi"
+  },
+  "sleepyMode.glow.cmux": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "sleepyMode.theme.cmux": {
+    "class": "brand",
+    "source": "cmux"
+  },
+  "statusMenu.profiling.emailPlaceholder": {
+    "class": "syntax",
+    "source": "you@example.com"
+  },
+  "taskManager.agent.amp": {
+    "class": "brand",
+    "source": "Amp"
+  },
+  "taskManager.agent.claudeCode": {
+    "class": "brand",
+    "source": "Claude Code"
+  },
+  "taskManager.agent.codebuddy": {
+    "class": "brand",
+    "source": "CodeBuddy"
+  },
+  "taskManager.agent.codex": {
+    "class": "brand",
+    "source": "Codex"
+  },
+  "taskManager.agent.copilot": {
+    "class": "brand",
+    "source": "Copilot"
+  },
+  "taskManager.agent.cursor": {
+    "class": "brand",
+    "source": "Cursor"
+  },
+  "taskManager.agent.factory": {
+    "class": "brand",
+    "source": "Factory"
+  },
+  "taskManager.agent.gemini": {
+    "class": "brand",
+    "source": "Gemini"
+  },
+  "taskManager.agent.grok": {
+    "class": "brand",
+    "source": "Grok"
+  },
+  "taskManager.agent.hermesAgent": {
+    "class": "brand",
+    "source": "Hermes Agent"
+  },
+  "taskManager.agent.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "taskManager.agent.pi": {
+    "class": "brand",
+    "source": "Pi"
+  },
+  "taskManager.agent.qoder": {
+    "class": "brand",
+    "source": "Qoder"
+  },
+  "taskManager.agent.rovodev": {
+    "class": "brand",
+    "source": "Rovo Dev"
+  },
+  "taskManager.column.cpu": {
+    "class": "technical",
+    "source": "CPU"
+  },
+  "taskManager.killProcess.target.pid": {
+    "class": "format",
+    "source": "PID %lld"
+  },
+  "taskManager.row.pid": {
+    "class": "format",
+    "source": "PID %lld"
+  },
+  "taskManager.row.webview": {
+    "class": "technical",
+    "source": "WebView"
+  },
+  "taskManager.summary.cpu": {
+    "class": "technical",
+    "source": "CPU"
+  },
+  "textbox.submitAction.codex": {
+    "class": "syntax",
+    "source": "Codex --yolo"
+  },
+  "textbox.submitAction.opencode": {
+    "class": "brand",
+    "source": "OpenCode"
+  },
+  "textbox.submitAction.pi": {
+    "class": "brand",
+    "source": "Pi"
+  },
+  "update.error.details.url": {
+    "class": "technical",
+    "source": "URL"
+  },
+  "machines.new.size.gb": {
+    "class": "format",
+    "source": "%d GB"
+  },
+  "machines.new.size.mb": {
+    "class": "format",
+    "source": "%d MB"
+  },
+  "cli.readSelection.output.url": {
+    "class": "format",
+    "source": "URL: %@"
+  },
+  "computerUse.menu.sessionTitle": {
+    "class": "format",
+    "source": "%1$@ · %2$@"
+  },
+  "computerUse.menu.title": {
+    "class": "brand",
+    "source": "cmux Computer Use"
+  },
+  "debug.menu.notification.cli": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "debug.menu.notification.osc": {
+    "class": "technical",
+    "source": "OSC"
+  },
+  "about.github": {
+    "class": "brand",
+    "source": "GitHub"
+  },
+  "agentSession.panel.title": {
+    "class": "format",
+    "source": "%@ · %@"
+  },
+  "agentSession.web.shellLabel": {
+    "class": "technical",
+    "source": "Shell"
+  },
+  "browser.focusMode.shortcutHint": {
+    "class": "format",
+    "source": "Esc Esc"
+  },
+  "cli.error.clearNotificationsUsage": {
+    "class": "syntax",
+    "source": "clear_notifications [--tab=X] [--panel=ID] [--correlation-key=UUID]"
+  },
+  "cli.help.restore": {
+    "class": "syntax",
+    "source": "restore [--surface <id|ref>] <kind> <checkpoint-id> | restore --surface [id|ref]"
+  },
+  "cli.sessions.command": {
+    "class": "syntax",
+    "source": "sessions [list] [options]"
+  },
+  "cli.vm.tree.workspaces": {
+    "class": "syntax",
+    "source": "workspaces/"
+  },
+  "cli.vm.tree.terminals": {
+    "class": "syntax",
+    "source": "terminals/"
+  },
+  "cli.vm.tree.browsers": {
+    "class": "syntax",
+    "source": "browsers/"
+  },
+  "cli.vm.tree.displays": {
+    "class": "syntax",
+    "source": "VNC Displays/"
+  },
+  "cli.vm.tree.ports": {
+    "class": "syntax",
+    "source": "ports/"
+  },
+  "cloudTree.node.desktop.detail": {
+    "class": "technical",
+    "source": "noVNC"
+  },
+  "cloudTree.node.desktop.detail.screen": {
+    "class": "format",
+    "source": "%1$@ · %2$@"
+  },
+  "cloudTree.stats.cpu": {
+    "class": "format",
+    "source": "CPU %d%%"
+  },
+  "command.installCLI.subtitle": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "command.uninstallCLI.subtitle": {
+    "class": "technical",
+    "source": "CLI"
+  },
+  "ghostty.copy-mode.indicator": {
+    "class": "technical",
+    "source": "vim"
+  },
+  "machines.usage.line": {
+    "class": "format",
+    "source": "%1$@ · %2$@ tokens · %3$@"
+  },
+  "mobile.pairing.target.beta": {
+    "class": "brand",
+    "source": "cmux BETA"
+  },
+  "mobile.pairing.target.demo": {
+    "class": "brand",
+    "source": "cmux DEMO"
+  },
+  "mobile.pairing.target.dev": {
+    "class": "brand",
+    "source": "cmux DEV %@"
+  },
+  "mobile.pairing.target.internal": {
+    "class": "brand",
+    "source": "cmux INTERNAL"
+  },
+  "settings.notifications.sound.option.ping": {
+    "class": "brand",
+    "source": "Ping"
+  },
+  "settings.notifications.sound.option.pop": {
+    "class": "brand",
+    "source": "Pop"
+  },
+  "settings.notifications.sound.option.sosumi": {
+    "class": "brand",
+    "source": "Sosumi"
+  },
+  "shortcut.key.tab": {
+    "class": "brand",
+    "source": "Tab"
+  },
+  "sidebar.pathMenu.macintoshHD": {
+    "class": "brand",
+    "source": "Macintosh HD"
+  },
+  "cli.help.fork": {
+    "class": "syntax",
+    "source": "fork [--surface <id|ref>] <kind> <checkpoint-id> | fork --surface [id|ref]"
+  }
 }

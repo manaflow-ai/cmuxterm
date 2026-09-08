@@ -159,6 +159,9 @@ jobs:
       - name: Validate macOS localization parity
         run: python3 scripts/localization_catalog.py check
 
+      - name: Test macOS localization catalog tooling
+        run: python3 tests/test_localization_catalog.py
+
       - name: Validate TUI npm package artifact transfer
         run: python3 tests/test_tui_npm_package_artifact.py
 

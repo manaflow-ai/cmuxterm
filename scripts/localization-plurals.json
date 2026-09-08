@@ -1,43 +1,215 @@
 {
-  "browser.profile.automation.error.profileInUse": {},
-  "browser.screenshot.error.renderedContentMismatch": {},
-  "cli.localTmux.output.foundStale": {},
-  "cli.localTmux.output.removedStale": {},
-  "cli.localTmux.output.sessionRow": {},
-  "cli.localTmux.output.status": {},
-  "cli.memory.output.processCount.other": {},
-  "cli.sshPtyAttach.noProgressRetryLimitReached.other": {},
-  "cli.vm.list.planMeter.unlimited": {},
-  "cli.vm.list.planMeter": {},
-  "cli.vm.list.planMeter.single": {},
-  "cli.vm.tree.localSummary": {},
-  "dialog.saveWorkspaceLayout.skippedNote": {},
-  "feed.textEditorDebug.metrics": {},
-  "fileExplorer.search.limit": {},
-  "fileExplorer.search.matches": {},
-  "fileExplorer.search.searching": {},
-  "machines.empty.planIncludes": {},
-  "machines.empty.upgrade": {},
-  "machines.freeAccess.help": {},
-  "machines.meter.count": {},
-  "machines.meter.count.unlimited": {},
-  "machines.meter.count.single": {},
-  "machines.meter.help.atLimit": {},
-  "machines.row.daysLeft": {},
-  "memory.attribution.multipleWorkspaces": {},
-  "menu.history.recentlyClosed.window.workspaceCount": {},
-  "menu.history.recentlyClosed.window.workspaceCount.other": {},
-  "notifications.forwardToPhone.mode.subtitle": {},
-  "remoteTmux.error.controlSocketPathTooLong": {},
-  "settings.cloudMachines.plan.summary.unlimited": {},
-  "settings.cloudMachines.plan.summary": {},
-  "statusMenu.profiling.bodyFormat": {},
-  "statusMenu.profiling.remainingFormat": {},
-  "taskManager.aggregate.processCount.other": {},
-  "taskManager.killProcess.message.other": {},
-  "machines.new.plan.single": {},
-  "machines.new.plan.unlimited": {},
-  "machines.new.plan.multi": {},
-  "machines.new.plan.freeWindow": {},
-  "cloudTree.deleteWorkspace.message.other": {}
+  "browser.profile.automation.error.profileInUse": {
+    "source": "Cannot delete cmux browser profile '%@' while %d browser panel(s) are using it",
+    "arguments": [
+      2
+    ]
+  },
+  "browser.screenshot.error.renderedContentMismatch": {
+    "source": "The browser screenshot disagreed with rendered text at %1$@; %2$lld text probes were blank after %3$lld attempts.",
+    "arguments": [
+      2,
+      3
+    ]
+  },
+  "cli.localTmux.output.foundStale": {
+    "source": "Found %lld stale local tmux session(s); pass --prune to remove them",
+    "arguments": [
+      1
+    ]
+  },
+  "cli.localTmux.output.removedStale": {
+    "source": "Removed %lld stale local tmux session(s)",
+    "arguments": [
+      1
+    ]
+  },
+  "cli.memory.output.processCount.other": {
+    "source": "%lld processes",
+    "arguments": [
+      1
+    ]
+  },
+  "cli.vm.list.planMeter.unlimited": {
+    "source": "%1$d machines on the %2$@ plan, no limit",
+    "arguments": [
+      1
+    ]
+  },
+  "cli.vm.list.planMeter": {
+    "source": "%1$d of %2$d machines on the %3$@ plan",
+    "arguments": [
+      2
+    ]
+  },
+  "cli.vm.tree.localSummary": {
+    "source": "%1$d terminals · %2$d browsers",
+    "arguments": [
+      1,
+      2
+    ]
+  },
+  "dialog.saveWorkspaceLayout.skippedNote": {
+    "source": "%lld panels have no layout representation (previews, viewers, …) and will be left out.",
+    "arguments": [
+      1
+    ]
+  },
+  "feed.textEditorDebug.metrics": {
+    "source": "%lld lines · %lld chars",
+    "arguments": [
+      1,
+      2
+    ]
+  },
+  "fileExplorer.search.limit": {
+    "source": "First %d matches",
+    "arguments": [
+      1
+    ]
+  },
+  "fileExplorer.search.matches": {
+    "source": "%d matches",
+    "arguments": [
+      1
+    ]
+  },
+  "fileExplorer.search.searching": {
+    "source": "%d matches, searching",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.empty.planIncludes": {
+    "source": "Your plan includes %d machines",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.empty.upgrade": {
+    "source": "Upgrade to use more than %d machines",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.freeAccess.help": {
+    "source": "Free plans keep a machine reachable for %d days after it is created. Upgrade to Pro to keep using it.",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.meter.count": {
+    "source": "%1$d of %2$d machines",
+    "arguments": [
+      2
+    ]
+  },
+  "machines.meter.count.unlimited": {
+    "source": "%1$d machines",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.meter.help.atLimit": {
+    "source": "Your plan includes %d machines. Upgrade to create more.",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.row.daysLeft": {
+    "source": "%d days left",
+    "arguments": [
+      1
+    ]
+  },
+  "memory.attribution.multipleWorkspaces": {
+    "source": "%lld workspaces",
+    "arguments": [
+      1
+    ]
+  },
+  "menu.history.recentlyClosed.window.workspaceCount": {
+    "source": "%d workspaces",
+    "arguments": [
+      1
+    ]
+  },
+  "menu.history.recentlyClosed.window.workspaceCount.other": {
+    "source": "%d workspaces",
+    "arguments": [
+      1
+    ]
+  },
+  "notifications.forwardToPhone.mode.subtitle": {
+    "source": "Away means the screen is locked or asleep, the screensaver is running, or there has been no keyboard or mouse input for %lld minutes.",
+    "arguments": [
+      1
+    ]
+  },
+  "remoteTmux.error.controlSocketPathTooLong": {
+    "source": "SSH control socket path is too long for a Unix domain socket (%lld > %lld bytes); home directory path is too long",
+    "arguments": [
+      2
+    ]
+  },
+  "settings.cloudMachines.plan.summary.unlimited": {
+    "source": "%1$@ · %2$d machines, no limit",
+    "arguments": [
+      2
+    ]
+  },
+  "settings.cloudMachines.plan.summary": {
+    "source": "%1$@ · %2$d of %3$d machines",
+    "arguments": [
+      3
+    ]
+  },
+  "statusMenu.profiling.bodyFormat": {
+    "source": "Recording CPU, SwiftUI, memory, and system traces for %d seconds each. Finalizing may take longer.",
+    "arguments": [
+      1
+    ]
+  },
+  "statusMenu.profiling.remainingFormat": {
+    "source": "About %d seconds remaining",
+    "arguments": [
+      1
+    ]
+  },
+  "taskManager.aggregate.processCount.other": {
+    "source": "%lld processes",
+    "arguments": [
+      1
+    ]
+  },
+  "taskManager.killProcess.message.other": {
+    "source": "Ask %lld processes to terminate gracefully. cmux will force-kill remaining processes after a short grace period. PIDs: %@.",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.new.plan.unlimited": {
+    "source": "%1$d machines in use",
+    "arguments": [
+      1
+    ]
+  },
+  "machines.new.plan.multi": {
+    "source": "%1$d of %2$d machines in use",
+    "arguments": [
+      2
+    ]
+  },
+  "machines.new.plan.freeWindow": {
+    "source": "Free plan: this machine stays reachable for %d days. Upgrade to keep it.",
+    "arguments": [
+      1
+    ]
+  },
+  "cloudTree.deleteWorkspace.message.other": {
+    "source": "Its %d terminals are killed with it. To keep them, use “Close Workspace” instead — they move to the Terminals pool.",
+    "arguments": [
+      1
+    ]
+  }
 }
