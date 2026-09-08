@@ -971,71 +971,86 @@ describe("recordFoundersCheckoutCompletion", () => {
     expect(subscriptionInsert?.values.status).toBe("active");
   });
 
-  test("does not enroll or grant Founder access when a non-Founder VM override wins", async () => {
-    const update = mock(async () => undefined);
-    const user = {
-      id: "founder_override_free",
-      primaryEmail: "override@example.com",
-      primaryEmailVerified: true,
-      isAnonymous: false,
-      isRestricted: false,
-      clientReadOnlyMetadata: { cmuxVmPlan: "free" },
-      update,
-    };
-    const enroll = mock(async () => undefined);
-    selectResults = Array.from({ length: 30 }, () => []);
+  for (const [plan, eligible] of [
+    ["free", false],
+    ["unknown", false],
+    ["pro", true],
+    ["team", true],
+    [" PRO ", true],
+  ] as const) {
+    test(`honors the personal ${plan} override for Founder checkout eligibility (${eligible})`, async () => {
+      const update = mock(async () => undefined);
+      const user = {
+        id: "founder_override_free",
+        primaryEmail: "override@example.com",
+        primaryEmailVerified: true,
+        isAnonymous: false,
+        isRestricted: false,
+        clientReadOnlyMetadata: { cmuxVmPlan: plan },
+        update,
+      };
+      const enroll = mock(async () => undefined);
+      selectResults = Array.from({ length: 30 }, () => []);
 
-    const result = await recordFoundersCheckoutCompletion(
-      {
-        session: {
-          id: "cs_founder_override_free",
-          customer: "cus_founder_override_free",
-          customer_details: { email: "override@example.com" },
-          metadata: { founders_edition: "true" },
-          subscription: "sub_founder_override_free",
-        } as never,
-        subscription: {
-          id: "sub_founder_override_free",
-          customer: "cus_founder_override_free",
-          status: "active",
-          metadata: { founders_edition: "true" },
-          cancel_at_period_end: false,
-          items: { data: [] },
-        } as never,
-        customer: {
-          id: "cus_founder_override_free",
-          deleted: false,
-          email: "override@example.com",
-        } as never,
-      },
-      {
-        db: fakeDb() as never,
-        stackApp: {
-          getUser: async () => user,
-          listUsers: async () => [
-            {
-              id: user.id,
-              primaryEmail: user.primaryEmail,
-              primaryEmailVerified: true,
-              isAnonymous: false,
-              isRestricted: false,
-            },
-          ],
-        } as never,
-        testflight: { enrollTester: enroll },
-      },
-    );
+      const result = await recordFoundersCheckoutCompletion(
+        {
+          session: {
+            id: "cs_founder_override_free",
+            customer: "cus_founder_override_free",
+            customer_details: { email: "override@example.com" },
+            metadata: { founders_edition: "true" },
+            subscription: "sub_founder_override_free",
+          } as never,
+          subscription: {
+            id: "sub_founder_override_free",
+            customer: "cus_founder_override_free",
+            status: "active",
+            metadata: { founders_edition: "true" },
+            cancel_at_period_end: false,
+            items: { data: [] },
+          } as never,
+          customer: {
+            id: "cus_founder_override_free",
+            deleted: false,
+            email: "override@example.com",
+          } as never,
+        },
+        {
+          db: fakeDb() as never,
+          stackApp: {
+            getUser: async () => user,
+            listUsers: async () => [
+              {
+                id: user.id,
+                primaryEmail: user.primaryEmail,
+                primaryEmailVerified: true,
+                isAnonymous: false,
+                isRestricted: false,
+              },
+            ],
+          } as never,
+          testflight: { enrollTester: enroll },
+        },
+      );
 
-    expect(result).toEqual({
-      scope: "user",
-      stackUserId: user.id,
-      subscriptionId: "sub_founder_override_free",
+      expect(result).toEqual({
+        scope: "user",
+        stackUserId: user.id,
+        subscriptionId: "sub_founder_override_free",
+      });
+      if (eligible) {
+        expect(enroll).toHaveBeenCalledWith("override@example.com", undefined, undefined);
+        expect(update).toHaveBeenCalledWith({
+          clientReadOnlyMetadata: { cmuxVmPlan: plan, cmuxPlan: "pro" },
+        });
+      } else {
+        expect(enroll).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalledWith({
+          clientReadOnlyMetadata: { cmuxVmPlan: plan, cmuxPlan: "pro" },
+        });
+      }
     });
-    expect(enroll).not.toHaveBeenCalled();
-    expect(update).not.toHaveBeenCalledWith({
-      clientReadOnlyMetadata: { cmuxVmPlan: "free", cmuxPlan: "pro" },
-    });
-  });
+  }
 
   test("preserves a locally marked Founder entitlement on an unmarked event", async () => {
     const update = mock(async () => undefined);
@@ -3064,6 +3079,35 @@ describe("recordCheckoutCompletion", () => {
     );
     expect(update).toHaveBeenCalledWith({ clientReadOnlyMetadata: {} });
   });
+
+  for (const plan of ["pro", "team"]) {
+    test(`preserves personal ${plan} grants when a Stripe subscription lapses`, async () => {
+      const update = mock(async () => undefined);
+      const removeTester = mock(async () => undefined);
+      const user = {
+        id: "user_123",
+        primaryEmail: "buyer@example.com",
+        clientReadOnlyMetadata: { cmuxPlan: "pro", cmuxVmPlan: plan },
+        update,
+      };
+      selectResults = [[{ stackUserId: "user_123" }], [{ id: "sub_user" }]];
+
+      const result = await applySubscriptionUpdate(
+        userSubscriptionUpdate({ status: "canceled" }) as never,
+        {
+          db: fakeDb() as never,
+          stackApp: { getUser: async () => user } as never,
+          testflight: { isAscConfigured: () => true, removeTester },
+        },
+      );
+
+      expect(result).toEqual({ scope: "user", stackUserId: "user_123", isActive: false });
+      expect(removeTester).not.toHaveBeenCalled();
+      // The Stripe mirror must still lapse, so removing the independent operator
+      // grant later cannot expose a stale cmuxPlan: pro fallback.
+      expect(update).toHaveBeenCalledWith({ clientReadOnlyMetadata: { cmuxVmPlan: plan } });
+    });
+  }
 
   test("does not restore Pro metadata while removing recorded TestFlight ownership after a lapse", async () => {
     const metadataWrites: unknown[] = [];

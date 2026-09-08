@@ -641,6 +641,32 @@ describe("resolveProPlanStatus", () => {
 });
 
 describe("isTestflightEligible", () => {
+  for (const plan of ["pro", "team", " PRO "]) {
+    test(`includes the personal operator grant ${plan} without requiring Stripe`, async () => {
+      const user = metadataUser({ cmuxVmPlan: plan }, "operator-granted-testflight");
+
+      await expect(isTestflightEligible(user, {
+        hasActiveStripeSubscription: async () => false,
+      })).resolves.toBe(true);
+      await expect(isTestflightEligible(user, {
+        hasActiveStripeSubscription: async () => false,
+        hasActiveFounderSubscription: async () => true,
+      })).resolves.toBe(true);
+      expect(user.updates).toEqual([]);
+    });
+  }
+
+  for (const plan of ["pro", "team", "founders"]) {
+    test(`does not turn an unbacked ${plan} mirror into a TestFlight grant`, async () => {
+      const user = metadataUser({ cmuxPlan: plan }, "unbacked-testflight-mirror");
+
+      await expect(isTestflightEligible(user, {
+        hasActiveStripeSubscription: async () => false,
+      })).resolves.toBe(false);
+      expect(user.updates).toEqual([]);
+    });
+  }
+
   test("requires personal Pro without mutating Stack metadata or granting Team access", async () => {
     const user = metadataUser({ cmuxPlan: PRO_PLAN_ID }, "team-member") as MetadataUser & {
       selectedTeam: { id: string; clientReadOnlyMetadata: unknown };
