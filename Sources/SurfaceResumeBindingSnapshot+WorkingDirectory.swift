@@ -13,8 +13,7 @@ extension SurfaceResumeBindingSnapshot {
         retargeted.command = TerminalStartupWorkingDirectoryPrefix.replacingRequiredChangeDirectoryPrefix(
             in: command,
             previousWorkingDirectory: cwd,
-            workingDirectory: normalizedCwd,
-            agentKind: normalizedKind
+            workingDirectory: normalizedCwd
         )
         retargeted.cwd = normalizedCwd
         if var launchCommand = retargeted.launchCommand {
