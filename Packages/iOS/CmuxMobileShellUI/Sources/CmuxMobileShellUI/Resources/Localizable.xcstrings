@@ -12582,7 +12582,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "زجاج Liquid Glass لمنشئ المهام"
+            "value": "Liquid Glass لمنشئ المهام"
           }
         },
         "es": {
@@ -12771,7 +12771,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "匯出記錄"
+            "value": "匯出日誌"
           }
         },
         "zh-Hans": {
@@ -12806,7 +12806,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Protokolle konnten nicht exportiert werden. Prüfe den verfügbaren Speicher und versuche es erneut."
+            "value": "Protokolle konnten nicht exportiert werden. Prüfen Sie den verfügbaren Speicher und versuchen Sie es erneut."
           }
         },
         "fr": {
@@ -12830,7 +12830,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法匯出記錄。請檢查可用儲存空間後再試一次。"
+            "value": "無法匯出日誌。請檢查可用儲存空間後再試一次。"
           }
         },
         "zh-Hans": {
@@ -12865,7 +12865,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Protokolle konnten nicht gelöscht werden. Prüfe den verfügbaren Speicher und versuche es erneut."
+            "value": "Protokolle konnten nicht gelöscht werden. Prüfen Sie den verfügbaren Speicher und versuchen Sie es erneut."
           }
         },
         "fr": {
@@ -12889,7 +12889,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法清除記錄。請檢查可用儲存空間後再試一次。"
+            "value": "無法清除日誌。請檢查可用儲存空間後再試一次。"
           }
         },
         "zh-Hans": {

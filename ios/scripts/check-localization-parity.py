@@ -12,7 +12,10 @@ from pathlib import Path
 
 
 LOCALES = ("en", "de", "fr", "ar", "es", "zh-Hant", "zh-Hans", "ko", "ja")
-PLACEHOLDER = re.compile(r"%(?:\{[^}]+\})?(?:\d+\$)?(?:ll)?[A-Za-z@]")
+PLACEHOLDER = re.compile(
+    r"%(?:\{[^}]+\})?(?:\d+\$)?[-+ #0']*(?:\d+|\*)?(?:\.(?:\d+|\*))?"
+    r"(?:hh|h|ll|l|L|j|z|t|q)?[A-Za-z@]"
+)
 ALLOWLIST_NAME = "localization-identical-allowlist.json"
 
 
@@ -44,14 +47,6 @@ def string_units(node: object, path: tuple[str, ...] = ()) -> list[tuple[tuple[s
     return []
 
 
-def values(localization: object) -> list[str]:
-    return [
-        unit.get("value")
-        for _, unit in string_units(localization)
-        if isinstance(unit.get("value"), str)
-    ]
-
-
 def placeholder_map(localization: object) -> dict[tuple[str, ...], Counter[str]]:
     return {
         path: Counter(PLACEHOLDER.findall(unit.get("value", "")))
@@ -73,20 +68,40 @@ def expected_placeholders(
     return None
 
 
-def load_allowlist(root: Path) -> set[tuple[str, str, str]]:
+def load_allowlist(
+    root: Path,
+) -> tuple[set[tuple[str, str, str]], set[tuple[str, str, str, tuple[str, ...]]]]:
     path = root / "ios/scripts" / ALLOWLIST_NAME
     if not path.exists():
-        return set()
+        return set(), set()
     body = json.loads(path.read_text(encoding="utf-8"))
-    return {
+    entry_allowlist = {
         (catalog, key, locale)
         for catalog, keys in body.items()
+        if catalog != "unit_paths"
         for key, locales in keys.items()
         for locale in locales
     }
+    unit_allowlist = {
+        (
+            catalog,
+            key,
+            locale,
+            tuple(path.split("/")) if path != "default" else (),
+        )
+        for catalog, keys in body.get("unit_paths", {}).items()
+        for key, locales in keys.items()
+        for locale, paths in locales.items()
+        for path in paths
+    }
+    return entry_allowlist, unit_allowlist
 
 
-def check_catalog(root: Path, path: Path, allowlist: set[tuple[str, str, str]]) -> list[str]:
+def check_catalog(
+    root: Path,
+    path: Path,
+    allowlist: tuple[set[tuple[str, str, str]], set[tuple[str, str, str, tuple[str, ...]]]],
+) -> list[str]:
     relative_path = path.relative_to(root).as_posix()
     body = json.loads(path.read_text(encoding="utf-8"))
     strings = body.get("strings")
@@ -94,6 +109,7 @@ def check_catalog(root: Path, path: Path, allowlist: set[tuple[str, str, str]]) 
         return [f"{relative_path}: missing string catalog 'strings' object"]
 
     errors: list[str] = []
+    entry_allowlist, unit_allowlist = allowlist
     for key in sorted(strings):
         entry = strings[key]
         localizations = entry.get("localizations", {}) if isinstance(entry, dict) else {}
@@ -110,6 +126,7 @@ def check_catalog(root: Path, path: Path, allowlist: set[tuple[str, str, str]]) 
         if not source_units:
             errors.append(f"{relative_path}:{key}: English source has no string units")
             continue
+        source_by_path = {unit_path: unit for unit_path, unit in source_units}
         source_placeholders = placeholder_map(source)
 
         for locale in LOCALES:
@@ -137,11 +154,27 @@ def check_catalog(root: Path, path: Path, allowlist: set[tuple[str, str, str]]) 
                         f"{relative_path}:{key}:{locale}: placeholders do not match English "
                         f"at {'/'.join(unit_path) or 'default'} ({dict(actual)} != {dict(expected)})"
                     )
-            if locale != "en" and values(localization) == values(source):
-                identity = (relative_path, key, locale)
-                if identity not in allowlist:
+            if locale != "en":
+                whole_entry_identical = (
+                    {unit_path for unit_path, _ in units} == set(source_by_path)
+                    and all(
+                        unit.get("value") == source_by_path[unit_path].get("value")
+                        for unit_path, unit in units
+                    )
+                )
+                for unit_path, unit in units:
+                    source_unit = source_by_path.get(unit_path)
+                    if source_unit is None or unit.get("value") != source_unit.get("value"):
+                        continue
+                    identity = (relative_path, key, locale, unit_path)
+                    entry_identity = (relative_path, key, locale)
+                    if identity in unit_allowlist or (
+                        whole_entry_identical and entry_identity in entry_allowlist
+                    ):
+                        continue
                     errors.append(
-                        f"{relative_path}:{key}:{locale}: English-identical value is not allowlisted"
+                        f"{relative_path}:{key}:{locale}: English-identical value is not allowlisted "
+                        f"at {'/'.join(unit_path) or 'default'}"
                     )
     return errors
 
