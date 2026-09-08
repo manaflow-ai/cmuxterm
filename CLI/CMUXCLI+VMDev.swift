@@ -542,7 +542,7 @@ extension CMUXCLI {
         var terminals: [String: String] = [:]
         var applyPayload: [String: Any]?
         let existingInfo = existing
-            ? vmDevWorkspaceInfo(
+            ? try vmDevWorkspaceInfo(
                 resources: (catalog["resources"] as? [[String: Any]]) ?? [],
                 machine: machine,
                 remoteWorkspace: remoteWorkspace ?? ""
@@ -618,7 +618,7 @@ extension CMUXCLI {
         if jsonOutput {
             var payload: [String: Any] = [
                 "machine": machine,
-                "workspace_id": remoteWorkspace,
+                "workspace_id": Self.vmDevJSON(remoteWorkspace),
                 "workspace_name": workspaceName,
                 "existing": existing,
                 "local": localURL.path,
@@ -689,7 +689,7 @@ extension CMUXCLI {
         resources: [[String: Any]],
         machine: String,
         remoteWorkspace: String
-    ) -> (hasPanes: Bool, terminalIDs: [String: String])? {
+    ) throws -> (hasPanes: Bool, terminalIDs: [String: String])? {
         let terminalIDs = Self.vmDevTerminalIDs(
             fromCatalogResources: resources,
             machine: machine,
@@ -699,8 +699,10 @@ extension CMUXCLI {
         switch VMRemoteWorkspaceResolver().resolveVMRemoteWorkspaceTerminal(resources, machine: machine, workspaceID: remoteWorkspace) {
         case .resolved, .ambiguous:
             hasPanes = true
-        case .none, .unavailable:
+        case .none:
             hasPanes = false
+        case .unavailable(let selector):
+            throw CLIError(message: "vm dev: terminal placement for workspace \(remoteWorkspace) on \(machine) is unavailable (resource \(selector)); reconnect and retry")
         }
         return (hasPanes: hasPanes, terminalIDs: terminalIDs)
     }

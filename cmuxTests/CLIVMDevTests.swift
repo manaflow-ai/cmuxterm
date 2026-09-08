@@ -522,6 +522,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
         }
         XCTAssertEqual(jsonResult.status, 0, "stdout=\(jsonResult.stdout) stderr=\(jsonResult.stderr)")
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(jsonResult.stdout.utf8)) as? [String: Any])
+        XCTAssertEqual(json["workspace_id"] as? String, "ws_7")
         let jsonTerminals = try XCTUnwrap(json["terminals"] as? [String: Any])
         XCTAssertEqual(jsonTerminals["dev"] as? String, "term_dev")
         XCTAssertEqual(jsonTerminals["shell"] as? String, "term_shell")
@@ -543,6 +544,37 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(staged.status, 0, "stdout=\(staged.stdout) stderr=\(staged.stderr)")
         XCTAssertEqual(stagedLog.methods, ["vm.status", "vm.tree", "vm.exec"], stagedLog.methods.description)
         XCTAssertTrue(staged.stdout.contains("layout applied: 2 panes"), staged.stdout)
+    }
+
+    func testVMDevFailsClosedWhenExistingWorkspacePlacementIsUnavailable() throws {
+        let fixture = try vmDevFixture("app", files: ["package.json": #"{"scripts": {"dev": "next dev"}}"#])
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let (result, log) = try runVMDev(
+            "vm-dev-unavailable-placement",
+            arguments: ["vm", "dev", "brave-otter", fixture.project.path, "--no-sync", "--no-open"],
+            home: fixture.home
+        ) { method, _ in
+            switch method {
+            case "vm.status": return ["status": "running"]
+            case "vm.tree":
+                return [
+                    "machines": [["id": "brave-otter", "remote_workspaces": [["id": "ws_7", "name": "app"]]]],
+                    "resources": [[
+                        "id": "brave-otter/terminal/term_dev",
+                        "machine": "brave-otter",
+                        "kind": "terminal",
+                        "key": "term_dev",
+                        "lifecycle": "running",
+                        "remote_views": NSNull(),
+                    ]],
+                ]
+            default: return nil
+            }
+        }
+        XCTAssertNotEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("terminal placement for workspace ws_7 on brave-otter is unavailable"), result.stderr)
+        XCTAssertEqual(log.methods, ["vm.status", "vm.tree"], log.methods.description)
     }
 
     func testVMDevSyncPushesTheFolderBeforeBuildingTheWorkspace() throws {
