@@ -8,7 +8,7 @@
 /// runtime reproducible and prevents a page or a settings file from selecting
 /// an arbitrary executable.
 struct ChromiumRuntimeManifest: Sendable {
-    private static let productionVersion = "owl-chromium-7523a3a72320"
+    private static let productionVersion = "owl-chromium-66fc3593cef3"
 
     let version: String
     let artifacts: [String: ChromiumRuntimeArtifact]
@@ -24,8 +24,8 @@ struct ChromiumRuntimeManifest: Sendable {
             "arm64": ChromiumRuntimeArtifact(
                 version: productionVersion,
                 platform: "mac-arm64",
-                downloadURL: URL(string: "https://github.com/manaflow-ai/chromium/releases/download/owl-chromium-7523a3a72320/owl-chromium-runtime-macos-arm64-7523a3a72320.tar.gz")!,
-                sha256: "08f48d9c5a220b94a803d935a174ddc93303cd495de16b6474bd907faf62dee0"
+                downloadURL: URL(string: "https://github.com/manaflow-ai/chromium/releases/download/owl-chromium-66fc3593ce/owl-chromium-runtime-macos-arm64-66fc3593cef3.tar.gz")!,
+                sha256: "d412d1f2193b36900dcf0ea3a2436b5d8cf30cdc678503b68ebd86c9d73dd92b"
             ),
         ]
     )
