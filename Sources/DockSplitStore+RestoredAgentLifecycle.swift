@@ -39,6 +39,9 @@ extension DockSplitStore {
         switch (state, restoredAgentLifecycle.resumeStatesByPanelId[panelId]) {
         case (.commandRunning, .some(.awaitingAutoResumeCommand)):
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+            restoredAgentLifecycle.clearStartupInput(panelId: panelId)
+        case (.promptIdle, .some(.awaitingAutoResumeCommand)):
+            scheduleRestoredStartupInputResend(panelId: panelId)
         case (.commandRunning, .some(.manualResumeAvailable)):
             restoredAgentLifecycle.setSnapshot(nil, panelId: panelId)
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
@@ -198,6 +201,40 @@ extension DockSplitStore {
             )
         }
         return true
+    }
+
+    /// Dock twin of `Workspace.scheduleRestoredStartupInputResend(panelId:)`: a
+    /// login shell that discarded Ghostty's typeahead reports an idle prompt while
+    /// the launch still awaits its startup input, so replay it once after the
+    /// shared grace period (https://github.com/manaflow-ai/cmux/issues/5473).
+    func scheduleRestoredStartupInputResend(panelId: UUID) {
+        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else { return }
+        let grace = Workspace.restoredStartupInputResendGrace
+        DispatchQueue.main.asyncAfter(deadline: .now() + grace) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.resendRestoredStartupInputIfStillIdle(panelId: panelId)
+            }
+        }
+    }
+
+    func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
+        guard let terminal = panels[panelId] as? TerminalPanel,
+              let input = restoredAgentLifecycle.takeStartupInputForResend(
+                  panelId: panelId,
+                  shellState: terminal.shellActivity.state
+              ) else {
+            return
+        }
+        // The idle prompt came from a live runtime; never queue the selector
+        // for some future shell of this pane.
+        guard terminal.surface.surface != nil else { return }
+        let result = terminal.sendInputResult(input)
+#if DEBUG
+        cmuxDebugLog(
+            "session.restore.startupInput.resend dock=\(workspaceId.uuidString.prefix(5)) " +
+            "panel=\(panelId.uuidString.prefix(5)) result=\(result) bytes=\(input.utf8.count)"
+        )
+#endif
     }
 
     private func retireAgentHookResumeBinding(
@@ -680,10 +717,13 @@ extension DockSplitStore {
                 .awaitingAutoResumeCommand,
                 panelId: panelId
             )
+            let admittedInput = restore.remoteResumeCommandEmbedded ? nil : startupInput
+            restoredAgentLifecycle.registerStartupInput(admittedInput, panelId: panelId)
             let admitted = terminal.surface.admitStartupRestoreRuntime(
-                initialInput: restore.remoteResumeCommandEmbedded ? nil : startupInput
+                initialInput: admittedInput
             )
             if !admitted {
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 if let ownedClaim {
                     AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                         kind: ownedClaim.kind,

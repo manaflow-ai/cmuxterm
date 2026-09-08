@@ -312,6 +312,7 @@ extension Workspace {
             switch restoredAgentResumeStatesByPanelId[panelId] {
             case .some(.awaitingAutoResumeCommand):
                 restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
             case .some(.autoResumeCommandRunning), .some(.observedAgentCommandRunning),
                  .some(.completedAgentExit):
                 break
@@ -324,7 +325,9 @@ extension Workspace {
                 markRestoredAgentCompleted(panelId: panelId, snapshot: restoredAgent)
                 restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
                 retireAgentHookResumeBinding(panelId: panelId, matching: restoredAgent)
-            case .some(.awaitingAutoResumeCommand), .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
+            case .some(.awaitingAutoResumeCommand):
+                scheduleRestoredStartupInputResend(panelId: panelId)
+            case .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
                 break
             }
         case .unknown:
@@ -339,6 +342,9 @@ extension Workspace {
         switch (shellState, restoredAgentResumeStatesByPanelId[panelId]) {
         case (.commandRunning, .some(.awaitingAutoResumeCommand)):
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+            restoredAgentLifecycle.clearStartupInput(panelId: panelId)
+        case (.promptIdle, .some(.awaitingAutoResumeCommand)):
+            scheduleRestoredStartupInputResend(panelId: panelId)
         case (.promptIdle, .some(.autoResumeCommandRunning)),
              (.promptIdle, .some(.observedAgentCommandRunning)):
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
@@ -347,6 +353,48 @@ extension Workspace {
         default:
             break
         }
+    }
+
+    /// Grace period between a restored launch's shell settling at an idle prompt
+    /// and replaying its startup input. Long enough for a prompt-then-command
+    /// sequence to report `commandRunning`, short enough that a lost restore
+    /// still resumes before the user notices an empty shell.
+    static var restoredStartupInputResendGrace: TimeInterval = 2
+
+    /// Ghostty types a restored launch's startup input as soon as the PTY exists,
+    /// and a slow login shell can discard that typeahead while it initializes.
+    /// When shell integration then reports an idle prompt while the launch is
+    /// still `.awaitingAutoResumeCommand`, replay the retained input once after
+    /// the grace period (https://github.com/manaflow-ai/cmux/issues/5473).
+    func scheduleRestoredStartupInputResend(panelId: UUID) {
+        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else { return }
+        let grace = Self.restoredStartupInputResendGrace
+        DispatchQueue.main.asyncAfter(deadline: .now() + grace) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.resendRestoredStartupInputIfStillIdle(panelId: panelId)
+            }
+        }
+    }
+
+    func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
+        guard !isRetiredFromOwningTabManager,
+              let terminal = panels[panelId] as? TerminalPanel,
+              let input = restoredAgentLifecycle.takeStartupInputForResend(
+                  panelId: panelId,
+                  shellState: panelShellActivityStates[panelId] ?? .unknown
+              ) else {
+            return
+        }
+        // The idle prompt came from a live runtime; never queue the selector
+        // for some future shell of this pane.
+        guard terminal.surface.surface != nil else { return }
+        let result = terminal.sendInputResult(input)
+#if DEBUG
+        cmuxDebugLog(
+            "session.restore.startupInput.resend panel=\(panelId.uuidString.prefix(5)) " +
+            "result=\(result) bytes=\(input.utf8.count)"
+        )
+#endif
     }
 
     private func invalidateRestoredAgentSnapshot(
@@ -839,10 +887,13 @@ extension Workspace {
                 .awaitingAutoResumeCommand,
                 panelId: panelId
             )
+            let admittedInput = restore.remoteResumeCommandEmbedded ? nil : startupInput
+            restoredAgentLifecycle.registerStartupInput(admittedInput, panelId: panelId)
             let admitted = terminal.surface.admitStartupRestoreRuntime(
-                initialInput: restore.remoteResumeCommandEmbedded ? nil : startupInput
+                initialInput: admittedInput
             )
             if !admitted {
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 if let ownedClaim {
                     AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                         kind: ownedClaim.kind,

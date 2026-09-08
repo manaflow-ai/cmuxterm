@@ -2181,6 +2181,16 @@ extension Workspace {
                 panelId: terminalPanel.id,
                 internallySeededInput: restoredStartupInput
             )
+            if restoredAgentWillRunStartupInput,
+               restoredRemotePTYAttachCommand == nil,
+               !restoresRemoteWorkspaceTerminalSnapshot {
+                // Keep the typed local resume selector so the shell-state
+                // handler can replay it if the login shell drops the typeahead.
+                restoredAgentLifecycle.registerStartupInput(
+                    restoredStartupInput,
+                    panelId: terminalPanel.id
+                )
+            }
             return terminalPanel.id
         case .browser:
             if deferBrowserPanelsDuringSessionRestore,
