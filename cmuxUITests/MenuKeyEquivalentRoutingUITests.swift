@@ -116,11 +116,11 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
     }
 
     func testCmdShiftFOpensRightSidebarFindInsteadOfWebContentFindShortcut() {
-        let app = launchWithBrowserSetup(browserURL: makeBrowserHandledCmdFPageURL())
+        let app = launchWithBrowserSetup(browserURL: makeBrowserHandledDirectoryFindPageURL())
 
         XCTAssertTrue(
             waitForGotoSplitMatch(timeout: 10.0) { data in
-                data["browserPageTitle"] == "cmdf-pending"
+                data["browserPageTitle"] == "directory-find-pending"
             },
             "Expected the browser test page to finish loading before Cmd+Shift+F"
         )
@@ -139,7 +139,7 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
         )
         XCTAssertNotEqual(
             loadGotoSplit()?["browserPageTitle"],
-            "cmdf-handled",
+            "directory-find-handled",
             "Expected Cmd+Shift+F to stay out of browser page content. data=\(loadGotoSplit() ?? [:])"
         )
     }
@@ -544,13 +544,13 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
         browserToolbar(app).descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
-    private func makeBrowserHandledCmdFPageURL() -> String {
+    private func makeBrowserHandledDirectoryFindPageURL() -> String {
         let html = """
         <!doctype html>
         <html>
         <head>
           <meta charset="utf-8">
-          <title>cmdf-pending</title>
+          <title>directory-find-pending</title>
         </head>
         <body tabindex="-1">
           <main>Browser find shortcut passthrough</main>
@@ -560,9 +560,9 @@ final class MenuKeyEquivalentRoutingUITests: XCTestCase {
             });
             window.addEventListener('keydown', (event) => {
               const key = String(event.key || '').toLowerCase();
-              if (event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey && key === 'f') {
+              if (event.metaKey && event.shiftKey && !event.altKey && !event.ctrlKey && key === 'f') {
                 event.preventDefault();
-                document.title = 'cmdf-handled';
+                document.title = 'directory-find-handled';
                 document.body.dataset.cmdf = 'handled';
               }
             }, true);
