@@ -6374,12 +6374,14 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
     }
 
     func clearPanelRepositoryLink(panelId: UUID) {
-        if panelRepositoryLinks[panelId] != nil {
-            panelRepositoryLinks.removeValue(forKey: panelId)
-        }
-        if panelId == focusedPanelId, repositoryLink != nil {
-            repositoryLink = nil
-        }
+        let removedLink = panelRepositoryLinks.removeValue(forKey: panelId)
+        guard removedLink != nil || panelId == focusedPanelId else { return }
+
+        // `focusedPanelId` can change while panel teardown removes the panel
+        // and its surface mapping. Re-derive the workspace projection from
+        // the remaining per-panel links instead of only clearing it when the
+        // removed id still compares equal to the current focus.
+        repositoryLink = focusedPanelId.flatMap { panelRepositoryLinks[$0] }
     }
 
     func updatePanelPullRequest(
