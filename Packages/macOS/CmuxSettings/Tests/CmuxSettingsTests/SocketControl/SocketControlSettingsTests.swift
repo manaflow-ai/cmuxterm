@@ -109,31 +109,37 @@ import CmuxSettings
         #expect(path == "/tmp/cmux-custom.sock")
     }
 
-    @Test(arguments: ["com.cmuxterm.app.debug", "com.cmuxterm.app.debug.my-tag"], [false, true])
-    func taggedSocketOverrideUsesResolvedVariant(bundleIdentifier: String, allowsOverride: Bool) {
-        let override = "/tmp/cmux-custom.sock"
-        let environment = [
-            "CMUX_TAG": " My_Tag ",
-            "CMUX_SOCKET_PATH": override,
-            "CMUX_ALLOW_SOCKET_OVERRIDE": allowsOverride ? "1" : "0",
+    @Test func taggedSocketOverrideUsesResolvedVariant() {
+        let cases: [(bundleIdentifier: String, allowsOverride: Bool)] = [
+            ("com.cmuxterm.app.debug", false),
+            ("com.cmuxterm.app.debug.my-tag", true),
         ]
-        let defaultPath = SocketControlSettings.defaultSocketPath(
-            bundleIdentifier: bundleIdentifier,
-            environment: environment,
-            isDebugBuild: true,
-            currentUserID: 501,
-            probeStableDefaultPathEntry: { _ in .missing }
-        )
-        let path = SocketControlSettings.socketPath(
-            environment: environment,
-            bundleIdentifier: bundleIdentifier,
-            isDebugBuild: true,
-            currentUserID: 501,
-            probeStableDefaultPathEntry: { _ in .missing }
-        )
 
-        #expect(defaultPath != override)
-        #expect(path == (allowsOverride ? override : defaultPath))
+        for testCase in cases {
+            let override = "/tmp/cmux-custom.sock"
+            let environment = [
+                "CMUX_TAG": " My_Tag ",
+                "CMUX_SOCKET_PATH": override,
+                "CMUX_ALLOW_SOCKET_OVERRIDE": testCase.allowsOverride ? "1" : "0",
+            ]
+            let defaultPath = SocketControlSettings.defaultSocketPath(
+                bundleIdentifier: testCase.bundleIdentifier,
+                environment: environment,
+                isDebugBuild: true,
+                currentUserID: 501,
+                probeStableDefaultPathEntry: { _ in .missing }
+            )
+            let path = SocketControlSettings.socketPath(
+                environment: environment,
+                bundleIdentifier: testCase.bundleIdentifier,
+                isDebugBuild: true,
+                currentUserID: 501,
+                probeStableDefaultPathEntry: { _ in .missing }
+            )
+
+            #expect(defaultPath != override)
+            #expect(path == (testCase.allowsOverride ? override : defaultPath))
+        }
     }
 
     @Test func bareDebugXCTestLaunchUsesScopedSocketFallback() {
