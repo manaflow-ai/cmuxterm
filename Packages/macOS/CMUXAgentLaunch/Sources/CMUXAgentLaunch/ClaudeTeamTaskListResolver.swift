@@ -93,23 +93,14 @@ public struct ClaudeTeamTaskListResolver {
                 sessionID: normalizedSessionID,
                 agentID: normalizedAgentID
             ) {
-            case .matches(let refreshedBinding):
-                guard let currentConfigurationGeneration = try teamConfigurationGeneration(
-                    forTaskListID: provenBinding.taskListID
-                ) else {
-                    return ClaudeTeamTaskListResolution(
-                        binding: refreshedBinding,
-                        usesRetainedCleanupProof: true
-                    )
-                }
-                if provenBinding.teamConfigurationGeneration == currentConfigurationGeneration {
-                    return ClaudeTeamTaskListResolution(
-                        binding: refreshedBinding.withTeamConfigurationGeneration(
-                            currentConfigurationGeneration
-                        ),
-                        usesRetainedCleanupProof: false
-                    )
-                }
+            case .matches:
+                // A proven binding validates the canonical config, but it is
+                // not sufficient to skip the bounded root scan. A new or
+                // edited neighboring config can now claim the same identity
+                // without changing this list's own generation. Returning the
+                // proven binding here would silently choose one team instead
+                // of failing closed on ambiguous membership.
+                break
             case .missing:
                 canReuseProvenBindingAfterCleanup = true
             case .doesNotMatch:

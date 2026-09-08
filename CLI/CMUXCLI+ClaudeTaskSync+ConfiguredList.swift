@@ -71,16 +71,6 @@ extension CMUXCLI {
             telemetry.breadcrumb("claude-hook.task-sync.coalesced")
             return
         }
-        guard clearSupersededPersonalClaudeTaskChecklistOwnerIfNeeded(
-            currentRecord: currentRecord,
-            taskDirectoryName: snapshot.directoryName,
-            taskStoreIdentity: taskStoreIdentity,
-            currentWorkspaceID: resolvedTarget.workspaceId,
-            recordedWorkspaceIDs: [],
-            client: client,
-            telemetry: telemetry,
-            deadlineUptime: hookDeadlineUptime
-        ) else { return }
         guard try migrateLegacyClaudeTaskChecklistOwnerIfNeeded(
             currentRecord: currentRecord,
             sessionID: sessionID,
@@ -179,6 +169,21 @@ extension CMUXCLI {
         guard taskSyncIsLatest() else {
             telemetry.breadcrumb("claude-hook.task-sync.coalesced")
             return
+        }
+        // Publish the replacement before clearing a prior personal owner. If
+        // the replacement delivery fails, the old checklist remains visible
+        // and its durable proof can be retried by a later hook.
+        if !clearSupersededPersonalClaudeTaskChecklistOwnerIfNeeded(
+            currentRecord: currentRecord,
+            taskDirectoryName: snapshot.directoryName,
+            taskStoreIdentity: taskStoreIdentity,
+            currentWorkspaceID: resolvedTarget.workspaceId,
+            recordedWorkspaceIDs: [],
+            client: client,
+            telemetry: telemetry,
+            deadlineUptime: hookDeadlineUptime
+        ) {
+            telemetry.breadcrumb("claude-hook.task-sync.personal-owner-cleanup-deferred")
         }
         try persistClaudeTaskListDestinations(
             taskDirectoryName: snapshot.directoryName,

@@ -29,19 +29,6 @@ extension CMUXCLI {
             automaticTeamResolution.binding,
             workspaceId: resolvedTarget.workspaceId
         )
-        guard clearSupersededPersonalClaudeTaskChecklistOwnerIfNeeded(
-            currentRecord: currentRecord,
-            taskDirectoryName: snapshot.directoryName,
-            taskStoreIdentity: taskStoreIdentity,
-            currentWorkspaceID: resolvedTarget.workspaceId,
-            // Team transition destinations are owned by the shared
-            // team proof and are cleaned independently below. They
-            // are not prior personal destinations.
-            recordedWorkspaceIDs: [],
-            client: client,
-            telemetry: telemetry,
-            deadlineUptime: hookDeadlineUptime
-        ) else { return }
         for retiredRecord in transition.retiredRecords {
             let retiredWorkspaceIDs = retiredRecord.workspaceIDs.isEmpty
                 ? [resolvedTarget.workspaceId]
@@ -148,6 +135,24 @@ extension CMUXCLI {
         guard taskSyncIsLatest() else {
             telemetry.breadcrumb("claude-hook.task-sync.coalesced")
             return
+        }
+        // Publish the replacement before clearing a prior personal owner. If
+        // the replacement delivery fails, the old checklist remains visible
+        // and its durable proof can be retried by a later hook.
+        if !clearSupersededPersonalClaudeTaskChecklistOwnerIfNeeded(
+            currentRecord: currentRecord,
+            taskDirectoryName: snapshot.directoryName,
+            taskStoreIdentity: taskStoreIdentity,
+            currentWorkspaceID: resolvedTarget.workspaceId,
+            // Team transition destinations are owned by the shared
+            // team proof and are cleaned independently below. They
+            // are not prior personal destinations.
+            recordedWorkspaceIDs: [],
+            client: client,
+            telemetry: telemetry,
+            deadlineUptime: hookDeadlineUptime
+        ) {
+            telemetry.breadcrumb("claude-hook.task-sync.personal-owner-cleanup-deferred")
         }
         try sessionStore.retainClaudeTeamTaskBindingWorkspaces(
             delivery.retainedWorkspaceIDs,

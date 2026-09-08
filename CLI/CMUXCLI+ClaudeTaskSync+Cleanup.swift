@@ -126,7 +126,7 @@ extension CMUXCLI {
         ) else {
             return true
         }
-        if let startedAt = currentRecord?.startedAt, startedAt > retiredAt {
+        if let startedAt = currentRecord?.startedAt, startedAt >= retiredAt {
             return true
         }
         if let matchingTeamRecord,

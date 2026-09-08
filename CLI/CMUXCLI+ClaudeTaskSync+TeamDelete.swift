@@ -37,7 +37,8 @@ extension CMUXCLI {
             )
             let currentTeamBinding: ClaudeTeamTaskListBinding?
             if matchingRecord != nil
-                || destinationRecord?.taskStoreIdentity != nil {
+                || destinationRecord?.taskStoreIdentity != nil
+                || destinationRecord == nil {
                 currentTeamBinding = try teamTaskResolver.currentTaskListBinding(
                     forTaskListID: deletionTaskDirectoryName
                 )
@@ -64,8 +65,20 @@ extension CMUXCLI {
                 return
             }
             if matchingRecord == nil,
-               destinationRecord?.taskStoreIdentity != nil,
-               currentTeamBinding != nil {
+               let currentTeamBinding,
+               !currentTeamBinding.matches(sessionID: sessionID, agentID: agentID) {
+                // Automatic-team delivery is owned by the team proof, so a
+                // lost binding may leave only a destination proof—or no
+                // per-list proof at all. Rehydrate the live team's binding
+                // before refusing to clear its reused task directory.
+                let retainedWorkspaceIDs = destinationRecord?.workspaceIDs.isEmpty == false
+                    ? destinationRecord?.workspaceIDs ?? []
+                    : [resolvedTarget.workspaceId]
+                try sessionStore.commitClaudeTeamTaskListBinding(
+                    currentTeamBinding,
+                    workspaceIDs: retainedWorkspaceIDs,
+                    retiredRecords: []
+                )
                 telemetry.breadcrumb("claude-hook.task-sync.team-delete-reused")
                 return
             }
@@ -134,6 +147,13 @@ extension CMUXCLI {
                 )
             }
             if cleanupTaskStoreIdentities.isEmpty {
+                cleanupTaskStoreIdentities.insert(taskStoreIdentity)
+            }
+            if cleanupTaskStoreIdentities.contains(nil) {
+                // A legacy team proof has no namespace, but the deleting hook
+                // still knows the active Claude store. Clear that namespace's
+                // session fallback too so a pre-namespace binding cannot leave
+                // a modern session record pointing at the deleted list.
                 cleanupTaskStoreIdentities.insert(taskStoreIdentity)
             }
             // Legacy proofs have no namespace of their own. Keep

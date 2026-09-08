@@ -152,9 +152,24 @@ extension CMUXCLI {
             telemetry.breadcrumb("claude-hook.task-sync.task-directory-unresolved")
             return
         }
-        guard try !sessionStore.isClaudeTaskListRetired(
+        let personalTaskResolver = ClaudeTeamTaskListResolver(
+            teamsRootURL: operation.teamsRootURL,
+            taskStoreIdentity: taskStoreIdentity,
+            deadlineUptime: hookDeadlineUptime
+        )
+        let matchingTeamRecord = try sessionStore.claudeTeamTaskBindingRecord(
             taskListID: sessionSnapshot.directoryName,
             taskStoreIdentity: taskStoreIdentity
+        )
+        guard try canAdmitRetiredClaudeTaskList(
+            taskListID: sessionSnapshot.directoryName,
+            taskStoreIdentity: taskStoreIdentity,
+            currentRecord: currentRecord,
+            sessionID: sessionID,
+            agentID: agentID,
+            matchingTeamRecord: matchingTeamRecord,
+            sessionStore: sessionStore,
+            teamTaskResolver: personalTaskResolver
         ) else {
             telemetry.breadcrumb("claude-hook.task-sync.retired-task-directory")
             return

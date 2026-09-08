@@ -102,7 +102,22 @@ extension CMUXCLI {
             let recordedSurfaceId = nonEmptyClaudeHookIdentifier(mappedSession?.surfaceId)
             guard let invocationSurfaceId else { return nil }
             if let recordedSurfaceId, recordedSurfaceId != invocationSurfaceId {
-                guard let recordedWorkspaceId = nonEmptyClaudeHookIdentifier(mappedSession?.workspaceId),
+                // A task hook may observe a pane after it moved workspaces.
+                // Let the live identity probe establish that move before the
+                // stale recorded surface vetoes the invocation. If the probe
+                // cannot prove a cross-workspace move, retain the fail-closed
+                // guard for an invocation carrying a different live surface.
+                let recordedWorkspaceId = nonEmptyClaudeHookIdentifier(mappedSession?.workspaceId)
+                if let recordedWorkspaceId,
+                   case .resolved(let live) = liveAgentSurfaceDeliveryTarget(
+                       surfaceId: invocationSurfaceId,
+                       claimedWorkspaceId: recordedWorkspaceId,
+                       client: client
+                   ),
+                   live.workspaceId != recordedWorkspaceId {
+                    return live
+                }
+                guard let recordedWorkspaceId,
                       !claudeHookSurfaceIsListed(
                           recordedSurfaceId,
                           workspaceId: recordedWorkspaceId,
