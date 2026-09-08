@@ -165,7 +165,9 @@ jobs:
               suite_output=$(run_unit_suite "-only-testing:cmuxTests/$suite") || suite_status=$?
               printf '%s\n' "$suite_output"
               if [ "$suite_status" -ne 0 ]; then return "$suite_status"; fi
-              if ! printf '%s\n' "$suite_output" | grep -Eq 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests'; then
+              # grep -q may stop before a large log is written. Avoid a pipe
+              # whose producer can fail with SIGPIPE under pipefail.
+              if ! grep -Eq 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests' <<< "$suite_output"; then
                 echo "No tests executed for $suite" >&2
                 return 1
               fi
@@ -180,7 +182,7 @@ jobs:
           # SwiftPM binary artifact resolution can occasionally fail with
           # "Could not resolve package dependencies". Retry once after clearing
           # SwiftPM/DerivedData caches to recover from transient corruption.
-          if [ "$EXIT_CODE" -ne 0 ] && echo "$OUTPUT" | grep -q "Could not resolve package dependencies"; then
+          if [ "$EXIT_CODE" -ne 0 ] && grep -q "Could not resolve package dependencies" <<< "$OUTPUT"; then
             echo "SwiftPM package resolution failed, clearing caches and retrying once"
             rm -rf ~/Library/Caches/org.swift.swiftpm
             rm -rf ~/Library/Developer/Xcode/DerivedData/cmux-*
