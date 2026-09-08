@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -16,6 +17,59 @@ import Testing
 struct DevicesCloudTreeBuilderTests {
     private let studio = SurfaceDeviceInstanceID(deviceID: "22222222-2222-2222-2222-222222222222", tag: "default")
     private let laptop = SurfaceDeviceInstanceID(deviceID: "33333333-3333-3333-3333-333333333333", tag: "issue-8001")
+
+    @MainActor
+    @Test("A reveal waits for its device row, expands it once, and accepts a later Open request")
+    func revealWaitsForDeviceRow() throws {
+        let suiteName = "DevicesCloudTreeReveal-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let coordinator = CloudTreeOutlineView.Coordinator(
+            machineActions: MachineRowActions(
+                openShell: { _ in }, openDesktop: { _ in }, runCommand: { _, _ in },
+                confirmDelete: { _ in }, promptRename: { _, _ in }, resizeDisk: { _, _ in }, promptUpgrade: {}
+            ),
+            nodeActions: CloudTreeNodeActions(
+                project: { _, _, _ in }, projectRemoteView: { _, _, _, _ in },
+                projectInLocalWorkspace: { _, _ in }, projectRemoteViewInLocalWorkspace: { _, _, _ in },
+                newTerminal: { _, _ in }, openGroup: { _, _, _, _ in }, openGroupAsWorkspace: { _, _, _ in },
+                newWorkspace: { _ in }, closeTerminal: { _ in }, closeWorkspace: { _, _ in },
+                renameWorkspace: { _, _ in }, renameTerminal: { _, _ in },
+                selectLocalWorkspace: { _ in }, copyToPasteboard: { _ in }, refresh: {}
+            ),
+            expansionStore: CloudTreeExpansionStore(defaults: defaults),
+            tabDragTransferRegistry: { nil }
+        )
+        let container = CloudTreeContainerView(coordinator: coordinator)
+        let outline = try #require(coordinator.outlineView)
+        let request = CloudTreeRevealRequest.machine(.device(studio))
+        coordinator.reveal(request)
+
+        let snapshot = SurfaceCatalogSnapshot(
+            machines: [info(studio, name: "Studio", online: true, linkState: .connected)],
+            resources: [], projections: []
+        )
+        let nodes = CloudTreeNodeBuilder.nodes(
+            machines: [], snapshot: snapshot, localWorkspaces: [], includeLocalMachine: false, source: .devices
+        )
+        let device = try #require(nodes.first)
+        coordinator.apply(nodes: nodes)
+        outline.collapseItem(device)
+        coordinator.reveal(request)
+        #expect(outline.isItemExpanded(device))
+        #expect(outline.selectedRow == outline.row(forItem: device))
+
+        outline.collapseItem(device)
+        outline.deselectAll(nil)
+        coordinator.reveal(request)
+        #expect(!outline.isItemExpanded(device))
+        #expect(outline.selectedRow == -1)
+
+        coordinator.reveal(.machine(.device(studio)))
+        #expect(outline.isItemExpanded(device))
+        #expect(outline.selectedRow == outline.row(forItem: device))
+        _ = container
+    }
 
     private func presence(
         online: Bool,
