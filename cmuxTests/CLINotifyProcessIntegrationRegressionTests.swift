@@ -8663,9 +8663,16 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
 
         let sessionId = "codex-rejected-mapped-permissions-session"
         let transcriptURL = context.root.appendingPathComponent("codex-rollout.jsonl")
+        let capturedAt = Date().timeIntervalSince1970 - 10
+        let timestampFormatter = ISO8601DateFormatter()
+        timestampFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let priorTimestamp = timestampFormatter.string(
+            from: Date(timeIntervalSince1970: capturedAt - 1)
+        )
         try [
             #"{"type":"session_meta","payload":{"id":"codex-rejected-mapped-permissions-session"}}"#,
-            #"{"timestamp":"1970-01-01T00:01:30.000Z","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#,
+            #"{"timestamp":"__TIMESTAMP__","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
+                .replacingOccurrences(of: "__TIMESTAMP__", with: priorTimestamp),
         ].joined(separator: "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
         let storeURL = context.root.appendingPathComponent("codex-hook-sessions.json")
         let store: [String: Any] = [
@@ -8677,13 +8684,13 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
                     "surfaceId": context.surfaceId,
                     "cwd": context.root.path,
                     "transcriptPath": transcriptURL.path,
-                    "startedAt": 100,
-                    "updatedAt": 100,
+                    "startedAt": capturedAt,
+                    "updatedAt": capturedAt,
                     "launchCommand": [
                         "launcher": "codex",
                         "arguments": ["codex", "resume", sessionId],
                         "environment": ["CODEX_HOME": context.root.appendingPathComponent("codex-home").path],
-                        "capturedAt": 100,
+                        "capturedAt": capturedAt,
                         "source": "process",
                     ],
                 ],
@@ -8728,9 +8735,16 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
 
         let sessionId = "codex-rejected-empty-mapped-session"
         let transcriptURL = context.root.appendingPathComponent("codex-rollout.jsonl")
+        let capturedAt = Date().timeIntervalSince1970 - 10
+        let timestampFormatter = ISO8601DateFormatter()
+        timestampFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let priorTimestamp = timestampFormatter.string(
+            from: Date(timeIntervalSince1970: capturedAt - 1)
+        )
         try [
             #"{"type":"session_meta","payload":{"id":"codex-rejected-empty-mapped-session"}}"#,
-            #"{"timestamp":"1970-01-01T00:01:30.000Z","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#,
+            #"{"timestamp":"__TIMESTAMP__","type":"turn_context","payload":{"approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}}"#
+                .replacingOccurrences(of: "__TIMESTAMP__", with: priorTimestamp),
         ].joined(separator: "\n").write(to: transcriptURL, atomically: true, encoding: .utf8)
         let storeURL = context.root.appendingPathComponent("codex-hook-sessions.json")
         let store: [String: Any] = [
@@ -8742,13 +8756,13 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
                     "surfaceId": context.surfaceId,
                     "cwd": context.root.path,
                     "transcriptPath": transcriptURL.path,
-                    "startedAt": 100,
-                    "updatedAt": 100,
+                    "startedAt": capturedAt,
+                    "updatedAt": capturedAt,
                     "launchCommand": [
                         "launcher": "codex",
                         "arguments": [],
                         "environment": ["CODEX_HOME": context.root.appendingPathComponent("codex-home").path],
-                        "capturedAt": 100,
+                        "capturedAt": capturedAt,
                         "source": "environment",
                     ],
                 ],
