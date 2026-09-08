@@ -66,3 +66,44 @@ import Testing
     #expect(!state.retainedAcrossReconnect)
     #expect(state.requiresHydration(for: delivered))
 }
+
+/// Verifies a producer change after a matching zero-row replay cannot keep the
+/// old producer's scrollback baseline marked as hydrated.
+@Test func liveProducerChangeAfterRetainedReplayRequiresHydration() throws {
+    var state = MobileTerminalMirrorState()
+    let delivered = try MobileTerminalRenderGridFrame(
+        surfaceID: "surface",
+        stateSeq: 10,
+        renderEpoch: "epoch-1",
+        renderRevision: 1,
+        columns: 80,
+        rows: 4,
+        full: true,
+        rowSpans: [],
+        scrollbackRows: 20,
+        anchor: .screen,
+        historyRows: 20,
+        rowSpaceRevision: 1
+    )
+    state.record(delivered)
+    state.prepareForReconnect(hasDeliveredFrame: true)
+
+    var replay = delivered
+    replay.stateSeq = 11
+    replay.renderRevision = 2
+    replay.scrollbackRows = 0
+    replay.scrollbackSpans = []
+    state.record(replay)
+    #expect(!state.hydrationNeeded)
+
+    var replacement = replay
+    replacement.stateSeq = 12
+    replacement.renderRevision = 3
+    replacement.renderEpoch = "epoch-2"
+    replacement.historyRows = 21
+    replacement.rowSpaceRevision = 2
+    state.record(replacement)
+
+    #expect(state.hydrationNeeded)
+    #expect(state.requiresHydration(for: replacement))
+}

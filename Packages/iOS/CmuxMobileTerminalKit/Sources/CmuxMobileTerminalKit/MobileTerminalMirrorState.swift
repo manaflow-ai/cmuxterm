@@ -50,14 +50,26 @@ public struct MobileTerminalMirrorState: Sendable {
                 return
             }
         }
-        renderEpoch = frame.renderEpoch.isEmpty ? nil : frame.renderEpoch
-        historyRows = frame.historyRows
-        rowSpaceRevision = frame.rowSpaceRevision
         let hydrationSatisfied = retainedAcrossReconnect
             || frame.anchor != .screen
             || frame.scrollbackRows > 0
             || frame.historyRows == 0
             || frame.activeScreen == .alternate
+        if frame.full,
+           hasKnownProducerMetadata,
+           !matchesRetainedBaseline(frame),
+           !hydrationSatisfied {
+            // A producer change after a retained replay is still unsafe even
+            // after the replay cleared `retainedAcrossReconnect`. A live full
+            // frame without scrollback can paint the screen while leaving the
+            // local primary history owned by the retired producer. Invalidate
+            // that baseline so the next authoritative replay hydrates it.
+            invalidate()
+            return
+        }
+        renderEpoch = frame.renderEpoch.isEmpty ? nil : frame.renderEpoch
+        historyRows = frame.historyRows
+        rowSpaceRevision = frame.rowSpaceRevision
         if frame.full, hydrationSatisfied {
             hydrationNeeded = false
             retainedAcrossReconnect = false
@@ -89,5 +101,9 @@ public struct MobileTerminalMirrorState: Sendable {
         return renderEpoch == frame.renderEpoch
             && historyRows == frameHistoryRows
             && rowSpaceRevision == frameRowSpaceRevision
+    }
+
+    private var hasKnownProducerMetadata: Bool {
+        renderEpoch != nil || historyRows != nil || rowSpaceRevision != nil
     }
 }
