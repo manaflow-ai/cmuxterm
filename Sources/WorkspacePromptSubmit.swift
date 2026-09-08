@@ -168,6 +168,7 @@ extension TabManager {
         handleConversationMessage(
             workspaceId: workspaceId,
             message: message,
+            surfaceId: nil,
             iMessageModeEnabled: iMessageModeEnabled,
             kind: .assistantFinal,
             reorderWithoutMessage: false
@@ -192,29 +193,18 @@ extension TabManager {
         switch kind {
         case .promptSubmission:
             messageRecorded = workspace.recordSubmittedMessage(message)
-            if let preview = Workspace.conversationMessagePreview(from: message),
-               let target = surfaceId.flatMap({ workspace.terminalPanel(for: $0) })
-                    .map({ (surfaceID: $0.surface.id, panel: $0) })
-                    ?? workspace.focusedTerminalInputTarget() {
-                let promptAnchor = StickyPromptHeaderStore.shared.recordPrompt(
-                    surface: target.panel.surface,
-                    preview: preview
-                )
-                if messageRecorded {
-                    CmuxEventBus.shared.publishWorkspacePromptSubmitted(
-                        workspaceId: workspaceId,
-                        surfaceId: target.surfaceID,
-                        message: message,
-                        preview: preview,
-                        promptAnchor: promptAnchor
-                    )
-                }
+            let preview = Workspace.conversationMessagePreview(from: message)
+            let target = surfaceId.flatMap { workspace.terminalPanel(for: $0) }
+            let promptAnchor = preview.flatMap { preview in
+                target.flatMap { $0.hostedView.recordSubmittedPrompt(preview, surface: $0.surface) }
             }
             if messageRecorded {
                 CmuxEventBus.shared.publishWorkspacePromptSubmitted(
                     workspaceId: workspaceId,
+                    surfaceId: target?.id,
                     message: message,
-                    preview: Workspace.conversationMessagePreview(from: message)
+                    preview: preview,
+                    promptAnchor: promptAnchor
                 )
             }
         case .assistantFinal:
