@@ -1207,6 +1207,29 @@ struct MachinesPanelPaidPlanTests {
 /// providers are described entirely by their capability set — no provider
 /// name appears in any gate.
 struct VMCapabilitiesDecodingTests {
+    @Test(arguments: [VMMachineKind.base, .desktop])
+    func legacyStatsFollowMachineKind(kind: VMMachineKind) {
+        let response: [String: Any] = [
+            "kind": kind.rawValue,
+            "image": "snapshot-opaque",
+            "capabilities": ["snapshot": true, "fork": true],
+        ]
+        #expect(VMCapabilities(vmResponse: response).stats == kind.hasDesktop)
+    }
+
+    @Test func legacyStatsInferKindWhenMissing() {
+        #expect(!VMCapabilities(vmResponse: ["image": "cmux-devbox"]).stats)
+        #expect(VMCapabilities(vmResponse: ["image": "cmux-xfce"]).stats)
+    }
+
+    @Test(arguments: [true, false])
+    func explicitStatsOverrideLegacyKind(supported: Bool) {
+        for kind in VMMachineKind.allCases {
+            let response: [String: Any] = ["kind": kind.rawValue, "capabilities": ["stats": supported]]
+            #expect(VMCapabilities(vmResponse: response).stats == supported)
+        }
+    }
+
     @Test func fullServerObjectDecodes() {
         let caps = VMCapabilities(json: [
             "snapshot": true, "restore": true, "fork": false,

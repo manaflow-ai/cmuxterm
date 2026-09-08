@@ -441,19 +441,19 @@ struct VMCapabilities: Equatable, Sendable {
         self.attachTransports = attachTransports
     }
 
-    /// `{snapshot, restore, fork, ports}`; a missing object or flag reads as supported.
-    init(json: Any?) {
+    /// Missing flags preserve legacy support; stats can use the historical kind fallback.
+    init(json: Any?, legacyStatsSupported: Bool = true) {
         let dict = json as? [String: Any]
-        func flag(_ key: String) -> Bool {
+        func flag(_ key: String, fallback: Bool = true) -> Bool {
             if let value = dict?[key] as? Bool { return value }
             if let number = dict?[key] as? NSNumber { return number.boolValue }
-            return true
+            return fallback
         }
         let transports = (dict?["attachTransports"] as? [Any] ?? dict?["attach_transports"] as? [Any])?
             .compactMap { $0 as? String }
         self.init(
             snapshot: flag("snapshot"), restore: flag("restore"), fork: flag("fork"),
-            exec: flag("exec"), stats: flag("stats"), ports: flag("ports"),
+            exec: flag("exec"), stats: flag("stats", fallback: legacyStatsSupported), ports: flag("ports"),
             desktop: flag("desktop"), sizing: flag("sizing"),
             persistentHome: flag("persistentHome"), attachTransports: transports)
     }
@@ -466,6 +466,11 @@ struct VMCapabilities: Equatable, Sendable {
         ]
         if let attachTransports { object["attach_transports"] = attachTransports }
         return object
+    }
+
+    init(vmResponse: [String: Any]) {
+        let kind = VMMachineKind.resolved(kind: vmResponse["kind"], image: vmResponse["image"])
+        self.init(json: vmResponse["capabilities"], legacyStatsSupported: kind.hasDesktop)
     }
 }
 
@@ -849,7 +854,7 @@ actor VMClient {
                 ?? Int64((dict["createdAt"] as? Double) ?? 0)
             var summary = VMSummary(id: id, provider: provider, status: displayStatus, image: image, createdAt: createdAt, base: decodeBaseSummary(dict["base"]))
             summary.kind = Self.decodeKind(dict["kind"])
-            summary.capabilities = VMCapabilities(json: dict["capabilities"])
+            summary.capabilities = VMCapabilities(vmResponse: dict)
             if let label = dict["displayName"] as? String, !label.isEmpty {
                 summary.displayName = label
             }
@@ -1232,7 +1237,7 @@ actor VMClient {
         let displayStatus = rawStatus.flatMap { $0.isEmpty ? nil : $0 } ?? "running"
         var summary = VMSummary(id: id, provider: providerValue, status: displayStatus, image: imageValue, createdAt: createdAt, base: nil)
         summary.kind = Self.decodeKind(obj["kind"])
-        summary.capabilities = VMCapabilities(json: obj["capabilities"])
+        summary.capabilities = VMCapabilities(vmResponse: obj)
         summary.displayName = (obj["displayName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         summary.slug = (obj["slug"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         return summary
@@ -1278,7 +1283,7 @@ actor VMClient {
         let displayStatus = rawStatus.flatMap { $0.isEmpty ? nil : $0 } ?? "running"
         var summary = VMSummary(id: id, provider: providerValue, status: displayStatus, image: imageValue, createdAt: createdAt, base: decodeBaseSummary(obj["base"]))
         summary.kind = Self.decodeKind(obj["kind"])
-        summary.capabilities = VMCapabilities(json: obj["capabilities"])
+        summary.capabilities = VMCapabilities(vmResponse: obj)
         return summary
     }
 
@@ -1299,7 +1304,7 @@ actor VMClient {
         let displayStatus = rawStatus.flatMap { $0.isEmpty ? nil : $0 } ?? "unknown"
         var summary = VMSummary(id: id, provider: provider, status: displayStatus, image: image, createdAt: createdAt, base: decodeBaseSummary(obj["base"]))
         summary.kind = Self.decodeKind(obj["kind"])
-        summary.capabilities = VMCapabilities(json: obj["capabilities"])
+        summary.capabilities = VMCapabilities(vmResponse: obj)
         if let label = obj["displayName"] as? String, !label.isEmpty {
             summary.displayName = label
         }
@@ -1387,7 +1392,7 @@ actor VMClient {
             createdAt: createdAt,
             base: nil
         )
-        forked.capabilities = VMCapabilities(json: obj["capabilities"])
+        forked.capabilities = VMCapabilities(vmResponse: obj)
         return (
             snapshot: snapshotID.map { VMSnapshotResult(id: $0, name: nil, createdAt: Int64(Date().timeIntervalSince1970 * 1000)) },
             vm: forked
@@ -1416,7 +1421,7 @@ actor VMClient {
             ?? Int64((obj["createdAt"] as? Double) ?? 0)
         let status = (obj["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         var restored = VMSummary(id: id, provider: providerValue, status: status?.isEmpty == false ? status! : "running", image: image, createdAt: createdAt, base: nil)
-        restored.capabilities = VMCapabilities(json: obj["capabilities"])
+        restored.capabilities = VMCapabilities(vmResponse: obj)
         return restored
     }
 
