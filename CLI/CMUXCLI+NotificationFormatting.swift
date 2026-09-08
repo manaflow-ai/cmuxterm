@@ -1,6 +1,11 @@
 import Foundation
 import CmuxAgentHooks
 
+private func normalizedNotificationField(_ value: String) -> String {
+    let collapsed = value.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 extension AgentHookNotificationSummary {
     static let maxBodyLength = 180
 
@@ -71,7 +76,7 @@ extension AgentHookNotificationPolicy {
 
 extension CMUXCLI {
     func sanitizeNotificationField(_ value: String) -> String {
-        return normalizedSingleLine(value)
+        return normalizedNotificationField(value)
             .replacingOccurrences(of: "|", with: "¦")
     }
 

@@ -181,6 +181,7 @@ struct CloudMutationReceiptReconciliationTests {
     }
 
     @Test("Canonical cloud state survives a cursorless status refresh")
+    @MainActor
     func canonicalCloudStateSurvivesCursorlessStatusRefresh() throws {
         let machine = SurfaceMachineID.cloud("vivid-newt")
         let catalog = SurfaceCatalog()
@@ -211,7 +212,8 @@ struct CloudMutationReceiptReconciliationTests {
         ]
         catalog.updateMachine(staleInfo, from: provider)
 
-        #expect(catalog.snapshot.machines.first?.remoteWorkspaces == canonicalInfo.remoteWorkspaces)
+        let actualRemoteWorkspaces = catalog.snapshot.machines.first?.remoteWorkspaces
+        #expect(actualRemoteWorkspaces == canonicalInfo.remoteWorkspaces)
     }
 }
 
