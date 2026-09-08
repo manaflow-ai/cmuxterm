@@ -92,6 +92,10 @@ The checklist an agent runs through, each item a primitive (not a doc):
    shipped; the person's click reproduces the geometry.
 7. **Verification**: recipe `checks` in a durable terminal; the exit receipt is
    the proof the environment works — designed.
+9. **Identity**: a machine knows who it is — `cmux whoami` / `cmux reflect`
+   (exe.dev-style reflection on the edge-asserted route-token identity; shipped) —
+   and finds its peers itself (`/peers`, trusted-carrier routes). Scoped mutations
+   and git credentials for the machine principal are next (docs/vm-identity-edge-auth.md).
 8. **Handoff**: `vm handoff` (shipped), `cmux notify` from inside (this
    branch), peer links for multi-machine pipelines (`vm link`, shipped) — and,
    inside a machine, the Mac's own verbs for its session and its peers

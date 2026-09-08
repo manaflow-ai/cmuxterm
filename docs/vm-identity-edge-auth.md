@@ -1,6 +1,8 @@
 # VM identity at the TLS edge: automatic auth for machines, and machines talking to machines
 
-Status: proposal; the identity table and peer-grant broker below are not implemented by PR #11609. Owner: cloud VM control plane.
+Status: the identity table and peer-grant broker below are NOT implemented; instead,
+**machine identity + reflection shipped on `freestyle-vm-agent-primitives` (2026-09-06)**
+on top of the VM-bound route token — see "What shipped" below. Owner: cloud VM control plane.
 
 ## The problem
 
@@ -151,6 +153,46 @@ Two complementary layers, both already live at the provider:
   the static placeholder env, while the inline Freestyle rule injects the
   bearer and VM-binding headers on the wire. There is no guest-readable route
   credential or runtime feature flag to graduate.
+
+## What shipped: the machine principal is the route-token identity
+
+The model plane already gave every machine an edge-asserted identity: the Freestyle
+TLS rule for the alias host (`https://coderouter.cmux.internal`) injects the VM-bound
+route token and `x-cmux-vm-id` into every guest request, and
+`authenticateRequestRouteToken` rejects a token whose binding disagrees with the
+claimed id. Minting a second `cvt_` token for the same VM would only duplicate that
+row, so the control plane treats the VM-bound route-token identity as the **machine
+principal** (`web/services/vms/vmPrincipal.ts`): `{vm, userId, teamId}`, deny by
+default — only the reflection routes accept it, and no `/api/vm/*` route that accepts a
+user session accepts a VM.
+
+**Reflection** (modeled on exe.dev's Reflection integration) is how a machine learns
+who it is and what it can use, from inside, with no credential in the guest:
+
+```
+curl -s https://coderouter.cmux.internal/api/vm/reflection/     # or https://reflection.cmux.internal/
+{"name":"brave-otter","vm_id":"…","owner":{"email":"…"},"plan_id":"pro","paths":[
+  {"path":"/owner"},{"path":"/machine"},{"path":"/peers"},{"path":"/integrations"}]}
+```
+
+- `/` — the machine's own name at the top level (always), owner, team, plan, status,
+  and the index of paths.
+- `/owner`, `/machine` (size, image, private network addresses, desktop).
+- `/peers` — the owner's other live machines with their private addresses and the
+  daemon route (`ws://[ipv6]:1337/v1/link`). The daemon's private-network listener is a
+  trusted carrier (every member of the network is the owner's Mac or machine), so this
+  is discovery, not authorization: an in-VM `cmux vm exec <peer>` needs no Mac-written
+  route file — the shim resolves the peer through reflection.
+- `/integrations` — what the machine can use, each with a `help` one-liner (CodeRouter
+  models, the installed agents, notify, env, layouts, peers, the desktop when present).
+
+In the guest: `cmux whoami`, `cmux reflect [path]`, and `cmux auth status` (which now
+prints the identity). The vanity alias `reflection.cmux.internal` is a second edge rule
+on new machines; the path form under the coderouter alias works on every machine.
+
+What remains from the plan below: **mutation scopes** for a VM (`peers.exec` as an
+enforced grant rather than network membership, `self.notify` for push delivery without a
+Mac), **named internal services** (`vm expose`), and **edge-injected git credentials**.
 
 ## Phasing
 

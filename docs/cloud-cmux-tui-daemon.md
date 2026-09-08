@@ -614,6 +614,20 @@ linked peer as `cmux vm <verb> <peer> …`, and `cmux vm agent <peer> --agent <a
 shim and CodeRouter config. The trust boundary below is unchanged: links are
 granted only from the Mac, and no control-plane credential enters a machine.
 
+## Reflection: a machine's own identity (2026-09-06)
+
+`cmux whoami` / `cmux reflect [path]` in the guest read
+`https://coderouter.cmux.internal/api/vm/reflection/` (and, on new machines,
+`https://reflection.cmux.internal/`). The edge terminates the alias and injects the
+VM-bound route token and `x-cmux-vm-id`; `web/services/vms/vmPrincipal.ts` turns that
+into the machine principal (deny by default: only reflection accepts it). The index
+carries the machine's `name` at the top level, then `/owner`, `/machine`, `/peers`
+(the owner's other machines with their private daemon routes; the daemon's
+private-network listener is a trusted carrier, so a peer link needs the route and
+nothing else), and `/integrations` (what the machine can use, each with a `help`
+command). The shim resolves `cmux vm exec <peer>` through `/peers` when no route file
+exists. See docs/vm-identity-edge-auth.md.
+
 ## Notifications from a machine
 
 `cmux notify` inside a machine is the guest shim (`web/services/vms/guestCli.ts`)

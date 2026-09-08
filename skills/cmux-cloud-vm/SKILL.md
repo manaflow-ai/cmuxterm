@@ -140,6 +140,8 @@ cmux vm exec <m> -- sh -c 'cd work && git clone repo.bundle app'
 Every machine has its own `cmux` (a shim over its cmux-tui daemon). An agent running *in* the machine drives its own session with the Mac spellings — the target defaults to its own terminal (`$CMUX_TUI_TERMINAL_ID`):
 
 ```bash
+cmux whoami                             # who am I: name, vm id, owner, plan (reflection; no credential in the guest)
+cmux reflect peers                      # the owner's other machines and their routes; `reflect integrations` = what I can use, with help commands
 cmux tree --json                        # this machine's workspaces/terminals
 cmux new-workspace --name tests         # a workspace here
 cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
@@ -149,7 +151,7 @@ cmux env ls                             # the same env file
 cmux notify --title "done" --body "…"   # lands on the Mac pane showing this terminal
 ```
 
-To talk to **another** machine (a second agent, a service box), this build requires an existing peer-route file; it cannot create new peer grants. Inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only its previously configured peers.
+To talk to **another** machine (a second agent, a service box), a machine discovers its peers through reflection (`cmux reflect peers`; the owner's private network is the trust boundary, so no Mac step is needed — older Mac-written route files still work). Inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only machines of its own owner.
 
 ## CodeRouter and model credentials
 

@@ -133,6 +133,8 @@ cmux workspace current run -- bun test        # run a command in a durable termi
 cmux session current snapshot --json          # this machine's workspace/terminal tree
 ```
 
+A machine knows who it is: `cmux whoami` (name, vm id, owner, plan) and `cmux reflect <path>` (`owner`, `machine`, `peers`, `integrations`) read the reflection service through the edge, which asserts the identity — nothing in the guest is a credential. `cmux reflect integrations` lists what the machine can use with a help command each.
+
 The Mac spellings work there too, against the machine's own session (default target: the terminal you run them from, `$CMUX_TUI_TERMINAL_ID`):
 
 ```
@@ -143,10 +145,10 @@ cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
 cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
 ```
 
-`cmux vm …` inside a machine can use existing peer route files. The legacy Mac `vm link` enrollment broker is not available in this build; do not claim that it can create a new peer grant:
+`cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux reflect peers` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
 
 ```bash
-cmux vm ls                          # linked peers and their link state
+cmux vm ls                          # this machine, linked peers, and reachable peers from reflection
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
 cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>

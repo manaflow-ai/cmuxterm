@@ -49,8 +49,12 @@ cmux send [--terminal <id>] <text…> ; cmux send-key [--terminal <id>] <key…>
 cmux terminal send <id> [text] [--keys k1,k2] | read <id> | wait <id> --pattern <re> [--timeout <s>] | close <id>
 cmux layout export [--workspace <ws>] [--raw] | cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
 cmux env set KEY=VALUE… [--from-file <.env>] [-] | ls [--show] [--json] | rm KEY… | path
-cmux vm <verb> <peer> …                # any of the above on a linked peer machine (see "Machine-to-machine links")
+cmux vm <verb> <peer> …                # any of the above on a peer machine (see "Machine-to-machine links")
+cmux whoami [--json]                   # this machine's identity from reflection: name, vm id, owner, plan, status
+cmux reflect [<path>] [--json]         # raw reflection JSON: / (index), owner, machine, peers, integrations
 ```
+
+Reflection (`https://coderouter.cmux.internal/api/vm/reflection/`, also `https://reflection.cmux.internal/` on new machines) is how a machine identifies itself: the edge asserts the identity (the VM-bound route token), the guest holds no credential, and `/peers` lists the owner's other machines with their private routes so `cmux vm exec <peer>` works without any Mac step.
 
 Tree line shapes:
 
@@ -220,12 +224,15 @@ cmux vm restore <snapshot-id> [--detach]       # snapshot -> new tracked machine
 cmux vm promote-template <id>          # template-named snapshot for reuse
 ```
 
-## Existing machine-to-machine links
+## Machine-to-machine links
 
-This build cannot create new peer grants: the earlier `vm link` enrollment broker
-was superseded by the trusted private-network listener. Existing peer-route files
-remain supported. From inside a previously configured source
-machine, the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
+A machine discovers its peers itself: `cmux reflect peers` (or `cmux vm ls`) lists the
+owner's other machines with their private daemon routes, and the daemon's
+private-network listener is a trusted carrier (every member of the network is the
+owner's Mac or machine), so `cmux vm exec <dst> -- <command>` connects with the route
+alone — no Mac step, no enrollment, no credential in the guest. Peer route files written
+by the earlier `vm link` broker keep working and take precedence. From inside a
+machine the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
 `cmux vm tree <dst>`, `cmux vm terminal send|read|wait|close <dst> <term> …`,
 `cmux vm send-key <dst> <term> <keys…>`, `cmux vm workspace new|rename|close|rm <dst> …`,
 `cmux vm agent <dst> --agent <a> [--name <n>] [--cwd <dir>] -- <prompt>` (a durable
