@@ -10,9 +10,10 @@ import {
   KMSClient,
 } from "@aws-sdk/client-kms";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
-import type {
-  CodeRouterCredential,
-  CodeRouterProvider,
+import {
+  CODEROUTER_PROVIDERS,
+  type CodeRouterCredential,
+  type CodeRouterProvider,
 } from "./types";
 
 const ALGORITHM = "aes-256-gcm" as const;
@@ -257,7 +258,7 @@ function assertIdentity(input: {
   if (
     !input.accountId ||
     !input.teamId ||
-    !["codex", "opencode-go"].includes(input.provider) ||
+    !CODEROUTER_PROVIDERS.includes(input.provider) ||
     !Number.isSafeInteger(input.credentialRevision) ||
     input.credentialRevision < 1
   ) {

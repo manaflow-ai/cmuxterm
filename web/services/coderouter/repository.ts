@@ -505,6 +505,16 @@ function providerList(pool: ProviderPool): readonly CodeRouterProvider[] {
   return typeof pool === "string" ? [pool] : pool;
 }
 
+/**
+ * The provider under which a surface's session bindings are stored: the pool's
+ * first entry. One row per (team, surface, session) means a session that moves
+ * from a Codex sign-in to an API key replaces its binding instead of adding a
+ * second one that could later pull it back and drop its prompt cache.
+ */
+export function bindingProvider(pool: ProviderPool): CodeRouterProvider {
+  return providerList(pool)[0];
+}
+
 function providerMatch(column: ReturnType<typeof sql>, pool: ProviderPool) {
   const providers = providerList(pool);
   if (providers.length === 1) return sql`${column} = ${providers[0]}`;
@@ -593,7 +603,7 @@ async function findSessionAccountStatement(
       set "last_seen_at" = now()
       from "coderouter_accounts" as account
       where binding."team_id" = ${teamId}
-        and ${providerMatch(sql`binding."provider"`, provider)}
+        and binding."provider" = ${bindingProvider(provider)}
         and binding."session_key" = ${sessionKey}
         and account."id" = binding."account_id"
         -- 'refreshing' is a healthy account with a credential refresh in
@@ -817,11 +827,9 @@ export function createSessionAccountSelector(
     throwIfAborted(input.signal);
     if (!placed) return null;
     if (input.sessionKey) {
-      // The binding records the account's own provider, so a pooled surface
-      // (Codex sign-ins plus API keys) still finds it under any pool shape.
       await dependencies.bind(
         input.teamId,
-        placed.provider,
+        bindingProvider(input.provider),
         input.sessionKey,
         placed.id,
         input.signal,

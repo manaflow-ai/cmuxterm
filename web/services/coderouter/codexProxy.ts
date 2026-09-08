@@ -621,6 +621,10 @@ export function createCodexModelsProxy(dependencies: CodexModelsDependencies) {
         );
         continue;
       }
+      if (upstream.status === 401) {
+        await retireRejectedCredential(dependencies, identity.teamId, account);
+        continue;
+      }
       break;
     }
     if (!upstream) {
@@ -745,6 +749,27 @@ async function openRouterBody(request: Request): Promise<BodyInit | null> {
 
 export function openRouterModelId(model: string): string {
   return model.includes("/") ? model : `openai/${model}`;
+}
+
+/**
+ * A 401 on model discovery: force a refresh so an expired sign-in rotates and
+ * a rejected API key is marked broken, then let the loop pick another account.
+ */
+async function retireRejectedCredential(
+  dependencies: Pick<CodexModelsDependencies, "credential">,
+  teamId: string,
+  account: { readonly id: string; readonly vaultRevision: number },
+): Promise<void> {
+  try {
+    await dependencies.credential({
+      teamId,
+      accountId: account.id,
+      expectedRevision: account.vaultRevision,
+      force: true,
+    });
+  } catch {
+    // Busy or broken: either way this account is not used for this request.
+  }
 }
 
 function modelsRequest(

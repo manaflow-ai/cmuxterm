@@ -4,6 +4,14 @@ export type CodeRouterProvider =
   | "openai-apikey"
   | "openrouter-apikey";
 
+/** Every provider a coderouter account row may carry. Mirrors the DB CHECK. */
+export const CODEROUTER_PROVIDERS: readonly CodeRouterProvider[] = [
+  "codex",
+  "opencode-go",
+  "openai-apikey",
+  "openrouter-apikey",
+];
+
 /** Providers whose credentials are OAuth tokens that expire and refresh. */
 export type CodeRouterOAuthProvider = "codex" | "opencode-go";
 

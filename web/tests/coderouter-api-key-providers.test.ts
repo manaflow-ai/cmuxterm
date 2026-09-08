@@ -1,4 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { randomBytes } from "node:crypto";
+import {
+  decryptCredential,
+  encryptCredential,
+  type CredentialKeyService,
+} from "../services/coderouter/encryption";
+import { bindingProvider, createSessionAccountSelector } from "../services/coderouter/repository";
 import { apiKeyFingerprint, parseCredential } from "../services/coderouter/accounts";
 import {
   CodeRouterCredentialBroken,
@@ -109,7 +116,14 @@ const responses = createCodexResponsesProxy({
 const models = createCodexModelsProxy({
   authenticate,
   select: async () => nextAccount(),
-  credential: async () => credentialFor(),
+  credential: async (input) => {
+    const credential = credentialFor();
+    if (input.force) {
+      forcedRefreshes.push(input.accountId);
+      throw new CodeRouterCredentialBroken("provider rejected the API key");
+    }
+    return credential;
+  },
   cooldown: async () => {},
   providerRead: async (request) => await request(),
 });
@@ -213,6 +227,58 @@ describe("API key credentials", () => {
   });
 });
 
+describe("API key storage and placement", () => {
+  test("an API key credential round-trips through the KMS envelope", async () => {
+    const dataKey = randomBytes(32);
+    const keys: CredentialKeyService = {
+      async generateDataKey() {
+        return { plaintext: Buffer.from(dataKey), encrypted: Buffer.from(dataKey) };
+      },
+      async decryptDataKey() {
+        return Buffer.from(dataKey);
+      },
+    };
+    const encrypted = await encryptCredential({
+      accountId: "00000000-0000-4000-8000-000000000002",
+      teamId: "team-1",
+      provider: "openrouter-apikey",
+      credentialRevision: 1,
+      credential: openRouterKey,
+      keyId: "test-key",
+      keys,
+    });
+    expect(JSON.stringify(encrypted)).not.toContain(openRouterKey.apiKey);
+    expect(await decryptCredential(encrypted, keys)).toEqual(openRouterKey);
+  });
+
+  test("a pooled surface keeps one binding row per session under its first provider", async () => {
+    expect(bindingProvider(["codex", "openai-apikey", "openrouter-apikey"])).toBe("codex");
+    expect(bindingProvider("opencode-go")).toBe("opencode-go");
+    const bindCalls: unknown[][] = [];
+    const select = createSessionAccountSelector({
+      sweepLeases: async () => {},
+      findBound: async () => null,
+      claim: async () => ({
+        id: "acct-or",
+        provider: "openrouter-apikey" as const,
+        vaultRevision: 1,
+        credentialExpiresAt: null,
+      }),
+      bind: async (...args: unknown[]) => {
+        bindCalls.push(args);
+      },
+    });
+    await select({
+      teamId: "team-1",
+      provider: ["codex", "openai-apikey", "openrouter-apikey"],
+      sessionKey: "session-1",
+    });
+    // The placed account is an OpenRouter key, but the row is stored under the
+    // surface's provider so a later move back to Codex replaces it.
+    expect(bindCalls).toEqual([["team-1", "codex", "session-1", "acct-or", undefined]]);
+  });
+});
+
 describe("responses routing through API keys", () => {
   test("sends an OpenAI key to api.openai.com with a bearer header and no ChatGPT account header", async () => {
     accountsToServe = [{ id: "acct-openai", credential: openAiKey }];
@@ -264,6 +330,20 @@ describe("responses routing through API keys", () => {
     expect(forcedRefreshes).toEqual(["acct-or"]);
     expect(cooldowns).toEqual([]);
     expect(upstreamCalls.map((call) => new URL(call.url).host)).toEqual(["openrouter.ai", "chatgpt.com"]);
+  });
+
+  test("model discovery fails over when a key is rejected", async () => {
+    accountsToServe = [
+      { id: "acct-or", credential: openRouterKey },
+      { id: "acct-openai", credential: openAiKey },
+    ];
+    upstreamStatuses = [401, 200];
+    const listed = await models(new Request("https://coderouter.dev/v1/models", {
+      headers: { authorization: "Bearer crt_route" },
+    }));
+    expect(listed.status).toBe(200);
+    expect(forcedRefreshes).toEqual(["acct-or"]);
+    expect(upstreamCalls.map((call) => new URL(call.url).host)).toEqual(["openrouter.ai", "api.openai.com"]);
   });
 
   test("model discovery uses each provider's own catalog", async () => {
