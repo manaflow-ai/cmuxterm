@@ -1175,7 +1175,6 @@ struct SurfaceCatalogTests {
         #expect(provider.closedTerminals.isEmpty)
         #expect(provider.closedRemoteWorkspaces == ["ws_empty"])
     }
-
     @Test("Cloud mutation receipts reject stale and conflicting graphs")
     func cloudMutationReceiptsRejectStaleAndConflictingGraphs() {
         let receipt = CloudVMCursor(generation: "daemon-a", revision: 8)
