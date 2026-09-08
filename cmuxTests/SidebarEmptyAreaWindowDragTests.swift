@@ -31,7 +31,7 @@ struct SidebarEmptyAreaWindowDragTests {
             with: type,
             location: location,
             modifierFlags: [],
-            timestamp: ProcessInfo.processInfo.systemUptime,
+            timestamp: 1,
             windowNumber: window.windowNumber,
             context: nil,
             eventNumber: 1,
