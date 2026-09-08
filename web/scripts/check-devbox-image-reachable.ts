@@ -27,6 +27,7 @@ import { Freestyle, type FirewallSpec } from "freestyle";
 import { createHash } from "node:crypto";
 import { cmuxTuiWebsocketSmokeCommand, readImageManifest } from "./devbox-image-common";
 import { resolveCmuxTuiSource } from "../services/vms/drivers/cmuxTuiDaemon";
+import { pathToFileURL } from "node:url";
 
 const argValue = (name: string): string | undefined => {
   const index = process.argv.indexOf(name);
@@ -145,4 +146,9 @@ async function main(): Promise<void> {
   console.log(`REACHABLE ${kind}/${size} ${target} in ${elapsed()}`);
 }
 
-if (import.meta.main) await main();
+// Bun's `import.meta.main` is not typed under the web tsconfig (no bun types),
+// so detect a direct run by comparing this module's URL with the entry script;
+// the result is the same under bun and node, and imports from tests stay inert.
+const invokedDirectly =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) await main();
