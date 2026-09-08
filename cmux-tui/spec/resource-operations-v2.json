@@ -2453,6 +2453,21 @@
             "name": "boolean"
           }
         },
+        "read_by": {
+          "required": true,
+          "type": {
+            "kind": "array",
+            "min_items": 0,
+            "max_items": 256,
+            "items": {
+              "kind": "primitive",
+              "name": "string",
+              "min_length": 1,
+              "max_length": 128
+            }
+          },
+          "description": "Client ids that acknowledged this notification through notification.ack. Sorted, unique. Per-client read state; the shared unread marker is unaffected."
+        },
         "extra": {
           "required": false,
           "type": {
@@ -2463,6 +2478,47 @@
             }
           },
           "description": "Explicit forward-compatible data. Unknown sibling fields remain forbidden."
+        }
+      },
+      "extra": false
+    },
+    "NotificationAckResult": {
+      "kind": "object",
+      "fields": {
+        "client_id": {
+          "required": true,
+          "type": {
+            "kind": "primitive",
+            "name": "string",
+            "min_length": 1,
+            "max_length": 128
+          }
+        },
+        "acknowledged": {
+          "required": true,
+          "type": {
+            "kind": "array",
+            "min_items": 0,
+            "max_items": 256,
+            "items": {
+              "kind": "resource_id",
+              "resource": "notification"
+            }
+          },
+          "description": "Notification ids now recorded as read by client_id, including ids that were already read."
+        },
+        "unknown": {
+          "required": true,
+          "type": {
+            "kind": "array",
+            "min_items": 0,
+            "max_items": 256,
+            "items": {
+              "kind": "resource_id",
+              "resource": "notification"
+            }
+          },
+          "description": "Requested ids the session no longer retains. They are not an error: a bounded ledger may have evicted them."
         }
       },
       "extra": false
@@ -7237,6 +7293,73 @@
       },
       "errors": [
         "operation.failed",
+        "validation.invalid"
+      ]
+    },
+    "notification.ack": {
+      "class": "mutation",
+      "idempotency": "required",
+      "target": "notification",
+      "ancestors": [
+        "machine",
+        "session"
+      ],
+      "params": {
+        "selectors": {
+          "machine": "required",
+          "session": "required"
+        },
+        "fields": {
+          "client_id": {
+            "required": true,
+            "type": {
+              "kind": "primitive",
+              "name": "string",
+              "min_length": 1,
+              "max_length": 128
+            },
+            "description": "Durable identity of the acknowledging client install. ASCII graphic bytes only."
+          },
+          "notifications": {
+            "required": true,
+            "type": {
+              "kind": "array",
+              "min_items": 1,
+              "max_items": 256,
+              "items": {
+                "kind": "resource_id",
+                "resource": "notification"
+              }
+            }
+          },
+          "expected_revision": {
+            "required": false,
+            "type": {
+              "kind": "primitive",
+              "name": "decimal"
+            },
+            "description": "Optimistic concurrency cursor revision. Omit for no revision precondition."
+          }
+        },
+        "extra": false
+      },
+      "result": {
+        "kind": "apply",
+        "name": "MutationResult",
+        "arguments": [
+          {
+            "kind": "ref",
+            "name": "NotificationAckResult"
+          }
+        ]
+      },
+      "errors": [
+        "idempotency.conflict",
+        "operation.failed",
+        "revision.conflict",
+        "selector.ambiguous",
+        "selector.invalid",
+        "selector.not_found",
         "validation.invalid"
       ]
     },
