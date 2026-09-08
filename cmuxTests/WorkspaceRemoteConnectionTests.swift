@@ -286,6 +286,7 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
             exec "$executable" "$@"
             """
         )
+
         let script = RemoteInteractiveShellBootstrapBuilder.script(
             remoteRelayPort: 0,
             shellFeatures: ""
@@ -306,6 +307,7 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
             ],
             timeout: 5
         )
+
         XCTAssertFalse(result.timedOut, result.stderr)
         XCTAssertEqual(result.status, 0, result.stderr)
 
@@ -2359,8 +2361,6 @@ final class WorkspaceRemoteConnectionTests: XCTestCase {
             sessionID
         )
     }
-
-    @MainActor
 
     @MainActor
     func testDetachAttachDoesNotAdoptPersistentPTYSessionIDAcrossNilRelayWorkspaces() throws {
