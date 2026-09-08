@@ -546,7 +546,10 @@ env_collect_input() {
       -*) die "env set: unknown option \$1" 2 ;;
       *)
         case "\$1" in
-          *=*) printf '%s\\n' "\$1" | env_parse_dotenv >> "\$cmux_ec_file" ;;
+          *=*)
+            [ "\$(printf '%s' "\$1" | tr -d '\\r\\n')" = "\$1" ] || die_message 2 envSingleLineValue
+            printf '%s\\n' "\$1" >> "\$cmux_ec_file"
+            ;;
           *) die "env set: expected KEY=VALUE, got '\$1'" 2 ;;
         esac
         shift

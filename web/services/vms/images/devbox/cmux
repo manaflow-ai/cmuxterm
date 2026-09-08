@@ -73,6 +73,8 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
 ' "$@" ;;
     en/missingDaemon) printf 'cmux-tui daemon binary not found at %s
 ' "$@" ;;
+    en/envSingleLineValue) printf 'env set: values must be a single line
+' "$@" ;;
     en/routeToken) printf 'refusing a coderouter route token in the VM; use the Freestyle TLS edge
 ' "$@" ;;
     en/missingCodeRouter) printf 'CodeRouter is not configured in this VM (CMUX_CODEROUTER_URL is missing)
@@ -250,6 +252,8 @@ cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <di
     ja/workspaceMissingID) printf 'ピアからワークスペース ID が返されませんでした。コマンドは開始されていません。
 ' "$@" ;;
     ja/missingDaemon) printf 'マシンの接続プログラムが %s に見つかりません
+' "$@" ;;
+    ja/envSingleLineValue) printf 'env set: 値は1行で指定してください
 ' "$@" ;;
     ja/routeToken) printf 'マシン内の CodeRouter ルートトークンは使用できません。ホストが管理する認証ルートを使用してください
 ' "$@" ;;
@@ -887,7 +891,10 @@ env_collect_input() {
       -*) die "env set: unknown option $1" 2 ;;
       *)
         case "$1" in
-          *=*) printf '%s\n' "$1" | env_parse_dotenv >> "$cmux_ec_file" ;;
+          *=*)
+            [ "$(printf '%s' "$1" | tr -d '\r\n')" = "$1" ] || die_message 2 envSingleLineValue
+            printf '%s\n' "$1" >> "$cmux_ec_file"
+            ;;
           *) die "env set: expected KEY=VALUE, got '$1'" 2 ;;
         esac
         shift
