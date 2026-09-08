@@ -1420,7 +1420,8 @@ final class ClaudeHookSessionStore {
         guard !normalized.isEmpty else { return [] }
         return try withLockedState(deadline: deadline) { state in
             let now = Date().timeIntervalSince1970
-            let previousSurfaceId = state.sessions[normalized]?.surfaceId
+            let previousRecord = state.sessions[normalized]
+            let previousSurfaceId = previousRecord?.surfaceId
             let previousHadPending = state.sessions[normalized].map {
                 hasUnexpiredCursorShellApproval($0, now: now)
             } ?? false
@@ -1481,6 +1482,7 @@ final class ClaudeHookSessionStore {
                 superseded = []
             }
             state.sessions[normalized] = record
+            state.reconcileActiveOwnerAfterUpsert(previous: previousRecord, record: record)
             reconcileCursorPendingIndexAfterUpdate(
                 &state,
                 sessionId: normalized,
