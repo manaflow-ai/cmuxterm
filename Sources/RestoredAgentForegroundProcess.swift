@@ -17,13 +17,12 @@ enum RestoredAgentForegroundProcess {
     /// session checks the live agent index uses for hook-recorded PIDs, so a
     /// shell (or an unrelated command) never counts as the agent. Pi overwrites
     /// its argv with a bare title, so a foreground process that shows no
-    /// session identity is vouched for only while the session has registered
-    /// no process of its own, or when it is that registered process; once a
-    /// different process sits in the pane it must name this session in argv.
-    /// A contradicting session identity always rejects.
+    /// session identity is vouched for unless the caller names a still-living
+    /// process of this session that it is not; then it must name this session
+    /// in argv. A contradicting session identity always rejects.
     ///
-    /// - Parameter recordedProcessID: the hook-registered PID for `agent`'s
-    ///   session on this pane, if any.
+    /// - Parameter recordedProcessID: the session's own process on this pane
+    ///   when it still exists (`RestoredAgentLiveness` decides that), or `nil`.
     static func matches(
         _ agent: SessionRestorableAgentSnapshot,
         foregroundProcessID: Int?,

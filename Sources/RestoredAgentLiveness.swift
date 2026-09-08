@@ -31,6 +31,9 @@ enum RestoredAgentLiveness {
     ///   - liveIndex: the shared live agent index, if loaded.
     ///   - foregroundProcessID: the pane's foreground process.
     ///   - currentProcessIdentity: start-time identity for a PID that is alive.
+    ///   - processIsPresent: whether a PID still has a process-table entry.
+    ///   - foregroundProcessArguments: argv and environment for the foreground
+    ///     process.
     static func hasLiveProcess(
         _ agent: SessionRestorableAgentSnapshot,
         workspaceId: UUID,
@@ -38,7 +41,10 @@ enum RestoredAgentLiveness {
         recordedProcess: RecordedProcess?,
         liveIndex: RestorableAgentSessionIndex?,
         foregroundProcessID: Int?,
-        currentProcessIdentity: (pid_t) -> AgentPIDProcessIdentity? = { AgentPIDProcessIdentity(pid: $0) }
+        currentProcessIdentity: (pid_t) -> AgentPIDProcessIdentity? = { AgentPIDProcessIdentity(pid: $0) },
+        processIsPresent: (pid_t) -> Bool = { PIDPresence.current(pid: $0) != .absent },
+        foregroundProcessArguments: (Int) -> CmuxTopProcessArguments? =
+            CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for:)
     ) -> Bool {
         if agent.kind != .claude,
            let recordedProcess,
@@ -56,10 +62,21 @@ enum RestoredAgentLiveness {
         ) == true {
             return true
         }
+        // A bare foreground process is bound to the session's own process
+        // only while that process still exists. Once it is gone, the bare
+        // process in the pane is the session resumed in place (a hibernation
+        // resume, a manual `cmux restore`) far more often than a stranger, and
+        // a stranger's own session-start hook replaces the binding within a
+        // second, whereas a wrongly retired binding stays retired until the
+        // next prompt, the very failure #12084 reports.
+        let boundingProcessID: Int? = recordedProcess.flatMap { recorded in
+            recorded.pid > 0 && processIsPresent(recorded.pid) ? Int(recorded.pid) : nil
+        }
         return RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: foregroundProcessID,
-            recordedProcessID: recordedProcess.map { Int($0.pid) }
+            recordedProcessID: boundingProcessID,
+            processArguments: foregroundProcessArguments
         )
     }
 }

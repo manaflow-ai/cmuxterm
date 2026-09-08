@@ -372,4 +372,62 @@ struct RestoredAgentShellActivityLivenessTests {
             currentProcessIdentity: { _ in identity }
         ))
     }
+
+    /// A recorded process bounds bare foreground vouching only while it still
+    /// exists; once it is gone, the bare Pi in the pane is the session resumed
+    /// in place (hibernation resume, manual `cmux restore`) and must vouch.
+    @Test
+    func deadRecordedProcessDoesNotBlockForegroundVouching() {
+        let agent = SessionRestorableAgentSnapshot(
+            kind: .pi,
+            sessionId: Self.sessionID,
+            workingDirectory: Self.projectDirectory,
+            launchCommand: nil
+        )
+        let identity = AgentPIDProcessIdentity(pid: 4242, startSeconds: 100, startMicroseconds: 0)
+        let recorded = RestoredAgentLiveness.RecordedProcess(pid: 4242, identity: identity)
+        let barePi = CmuxTopProcessArguments(arguments: ["pi"], environment: [:])
+        let workspaceId = UUID()
+        let panelId = UUID()
+
+        // The recorded process exited; a bare replacement Pi in the foreground vouches.
+        #expect(RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: 9999,
+            currentProcessIdentity: { _ in nil },
+            processIsPresent: { _ in false },
+            foregroundProcessArguments: { _ in barePi }
+        ))
+        // The recorded PID still exists under another generation; a different
+        // bare process in the foreground does not vouch.
+        #expect(!RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: 9999,
+            currentProcessIdentity: { _ in
+                AgentPIDProcessIdentity(pid: 4242, startSeconds: 200, startMicroseconds: 0)
+            },
+            processIsPresent: { _ in true },
+            foregroundProcessArguments: { _ in barePi }
+        ))
+        // A shell in the foreground never vouches, dead recorded process or not.
+        #expect(!RestoredAgentLiveness.hasLiveProcess(
+            agent,
+            workspaceId: workspaceId,
+            panelId: panelId,
+            recordedProcess: recorded,
+            liveIndex: nil,
+            foregroundProcessID: 9999,
+            currentProcessIdentity: { _ in nil },
+            processIsPresent: { _ in false },
+            foregroundProcessArguments: { _ in CmuxTopProcessArguments(arguments: ["zsh", "-l"], environment: [:]) }
+        ))
+    }
 }
