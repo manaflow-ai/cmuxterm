@@ -31,6 +31,25 @@ public extension CodexHookScriptName {
     /// - Parameter command: The command field read from Codex hook configuration.
     /// - Returns: The underlying absolute path, or `nil` for malformed/non-path input.
     static func scriptPath(fromShellCommand command: String) -> String? {
+        parseScriptPath(command, allowingLegacyBareShellCharacters: false)
+    }
+
+    /// Decodes a generated hook path for ownership and cleanup compatibility.
+    ///
+    /// Before shell quoting was added, cmux persisted generated paths as bare
+    /// command strings. That representation can contain shell characters when a
+    /// user's home path does, even though it is still an exact filesystem path
+    /// in the stored configuration. Ownership checks may accept that legacy
+    /// form because they validate the generated directory and filename after
+    /// decoding; launch-argument sanitization should use `scriptPath` instead.
+    static func legacyScriptPath(fromShellCommand command: String) -> String? {
+        parseScriptPath(command, allowingLegacyBareShellCharacters: true)
+    }
+
+    private static func parseScriptPath(
+        _ command: String,
+        allowingLegacyBareShellCharacters: Bool
+    ) -> String? {
         guard !command.isEmpty else { return nil }
 
         let path: String
@@ -51,7 +70,7 @@ public extension CodexHookScriptName {
               !path.utf8.contains(0) else {
             return nil
         }
-        if !isCanonicalQuotedPath {
+        if !isCanonicalQuotedPath && !allowingLegacyBareShellCharacters {
             guard path.unicodeScalars.allSatisfy({
                 !CharacterSet.controlCharacters.contains($0)
             }),

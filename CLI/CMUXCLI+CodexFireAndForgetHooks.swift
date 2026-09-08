@@ -227,7 +227,7 @@ extension CMUXCLI {
     /// The command may be a legacy bare path or the shell-safe token emitted for
     /// paths containing spaces and other shell-significant characters.
     static func codexHookScriptPath(fromCommand command: String) -> String? {
-        guard let path = CodexHookScriptName.scriptPath(fromShellCommand: command) else {
+        guard let path = CodexHookScriptName.legacyScriptPath(fromShellCommand: command) else {
             return nil
         }
         let url = URL(fileURLWithPath: path, isDirectory: false)

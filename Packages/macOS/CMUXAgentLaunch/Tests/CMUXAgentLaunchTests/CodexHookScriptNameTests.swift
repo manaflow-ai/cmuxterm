@@ -62,6 +62,19 @@ struct CodexHookScriptNameTests {
         )
     }
 
+    @Test("Legacy bare paths with shell characters remain parseable for ownership")
+    func legacyBarePathsWithShellCharactersRemainParseableForOwnership() {
+        let paths = [
+            "/Users/O'Reilly/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
+            "/Users/Example $HOME/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
+            "/Users/Example;Name/.cmux/hooks/cmux-codex-hook-0123456789abcdef-stop.sh",
+        ]
+        for path in paths {
+            #expect(CodexHookScriptName.scriptPath(fromShellCommand: path) == nil)
+            #expect(CodexHookScriptName.legacyScriptPath(fromShellCommand: path) == path)
+        }
+    }
+
     @Test(
         "Empty or separator-only subcommands are rejected",
         arguments: ["", "/", "///", "---", "___"]
