@@ -2999,7 +2999,15 @@ mod tests {
         ];
 
         let candidates =
-            resolve_route_candidates(&routes, &BTreeMap::new(), &test_provider_registry()).unwrap();
+            resolve_route_candidates(&routes, &BTreeMap::new(), &test_provider_registry());
+        if !cfg!(feature = "iroh-transport") {
+            let message = candidates.expect_err("disabled Iroh routes must fail").to_string();
+            assert!(message.contains("iroh"));
+            assert!(!message.contains("first-relay"));
+            assert!(!message.contains("second-relay"));
+            return;
+        }
+        let candidates = candidates.unwrap();
 
         assert_eq!(candidates[0].endpoint.as_str(), "iroh://first");
         assert_eq!(candidates[0].routing[ROUTING_RELAY_URL], "https://first-relay.example");
