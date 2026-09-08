@@ -14,6 +14,31 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct SurfaceSocketCommandTests {
+    @Test(arguments: [
+        CloudEnvDelivery.DeliveryError.outdatedShim("test-machine"),
+        .receiverNotReady("starting"),
+        .receiverFailed("invalid-key TEST"),
+    ])
+    func environmentDeliveryErrorsRemainActionable(_ failure: CloudEnvDelivery.DeliveryError) async throws {
+        let response = await Task.detached {
+            TerminalController.shared.v2VmCall(id: "env-error", timeoutSeconds: 5) { throw failure }
+        }.value
+        let object = try #require(JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any])
+        let error = try Self.error(object)
+        #expect(error["code"] as? String == "vm_env_delivery_failed")
+        #expect(error["message"] as? String == failure.localizedDescription)
+    }
+
+    @Test func emptyWorkspaceHasARetryableSocketCode() async throws {
+        let response = await Task.detached {
+            TerminalController.shared.v2VmCall(id: "empty-workspace", timeoutSeconds: 5) {
+                throw SurfaceCatalogError.nothingToOpen("workspace ws_pending")
+            }
+        }.value
+        let object = try #require(JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any])
+        #expect(try Self.error(object)["code"] as? String == "not_ready")
+    }
+
     @Test func vmFailureDoesNotExposeBackendCredentialsOrResponseBodies() async throws {
         let response = await Task.detached {
             TerminalController.shared.v2VmCall(id: "private-error", timeoutSeconds: 5) {

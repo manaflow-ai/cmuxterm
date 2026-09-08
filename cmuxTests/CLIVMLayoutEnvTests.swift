@@ -500,7 +500,7 @@ extension CLINotifyProcessIntegrationRegressionTests {
             case "vm.workspace_open":
                 // The catalog has not seen the new workspace on the first try.
                 if openAttempts.next() == 1 {
-                    return self.v2Response(id: id, ok: false, error: ["code": "not_found", "message": "destinationNotFound(\"workspace ws_9 on brave-otter\")"])
+                    return self.v2Response(id: id, ok: false, error: ["code": "not_ready", "message": "Nothing to open: workspace ws_9 is empty."])
                 }
                 return self.v2Response(id: id, ok: true, result: [
                     "machine": "brave-otter",
