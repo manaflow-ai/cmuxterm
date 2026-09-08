@@ -392,6 +392,20 @@ struct CloudLoopbackPortForwardTests {
         await forwarder.closeAll()
     }
 
+    @Test("Copy Link refuses a machine with neither a private address nor preview support")
+    @MainActor
+    func unsupportedProviderLocalURL() async throws {
+        let catalog = SurfaceCatalog()
+        let links = CloudMachineLinkManager(clientURL: nil, hub: nil, hostThemeColors: { nil })
+        var summary = VMSummary(id: "vm-unsupported", provider: "unknown", status: "running", image: "cmux-devbox", createdAt: 0, base: nil)
+        summary.capabilities.ports = false
+        let provider = CmuxTuiSurfaceProvider(summary: summary, links: links, catalog: catalog)
+        #expect(!provider.capabilities.ports)
+        await #expect(throws: (any Error).self) {
+            _ = try await provider.localPortURL(port: 3000)
+        }
+    }
+
     @Test("one machine port keeps one local port; a new address retargets it; closing frees it")
     func forwarderKeepsStablePorts() async throws {
         let hub = try FakeSocksHub()

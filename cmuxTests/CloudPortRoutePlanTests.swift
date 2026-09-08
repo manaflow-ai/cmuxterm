@@ -56,6 +56,13 @@ struct CloudPortRoutePlanTests {
         #expect(local.absoluteString == "http://127.0.0.1:40000/app?x=1#frag")
     }
 
+    @Test("forwarded pages reject non-web schemes", arguments: [
+        "javascript:alert(1)", "file:///etc/passwd", "custom://machine/action"
+    ])
+    func rejectsNonWebURLs(_ remoteURL: String) {
+        #expect(CloudPortRoutePlan.localURL(rewriting: remoteURL, toLoopbackPort: 40_000) == nil)
+    }
+
     @Test("no private address but a preview capability asks the control plane")
     func controlPlaneFallback() {
         let resource = CmuxTuiSnapshotParser.portBrowser(machine: machine, port: 3000)
