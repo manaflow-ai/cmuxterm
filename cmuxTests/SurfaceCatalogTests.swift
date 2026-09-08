@@ -164,7 +164,7 @@ struct SurfaceCatalogTests {
     }
 
     @MainActor
-    private final class MaterializeGate {
+    final class MaterializeGate {
         private(set) var entered = false
         private var enteredContinuation: CheckedContinuation<Void, Never>?
         private var releaseContinuations: [CheckedContinuation<Void, Never>] = []
@@ -205,7 +205,7 @@ struct SurfaceCatalogTests {
         /// Every materialize makes a new pane, as real providers do; a fixed id would let
         /// the catalog's projection set collapse a deliberate second pane into the first.
         var nextPanel = UUID()
-        private var materializeGate: MaterializeGate?
+        var materializeGate: MaterializeGate?
 
         init(machine: SurfaceMachineID) {
             self.machine = machine

@@ -640,9 +640,15 @@ final class SurfaceCatalog {
         guard case .cloud = state.machine else { return [] }
         precondition(info.id == state.machine, "cloud state and machine info disagree")
 
+        retireCloudWorkspaceRenameIntents(for: state)
         var desired: [SurfaceResourceID: SurfaceResource] = [:]
-        desired.reserveCapacity(list.count)
-        for resource in list {
+        let effectiveList = cloudWorkspaceRenameEffectiveResources(
+            list,
+            machine: state.machine,
+            canonicalState: state
+        )
+        desired.reserveCapacity(effectiveList.count)
+        for resource in effectiveList {
             precondition(resource.machine == state.machine, "resource \(resource.id) reported by the wrong cloud state")
             precondition(
                 affectedResourceIDs.contains(resource.id),
@@ -668,7 +674,6 @@ final class SurfaceCatalog {
         // canonical resource map.
         rebuildResourceIndex(for: state.machine)
 
-        retireCloudWorkspaceRenameIntents(for: state)
         cloudStates[state.machine] = state
         cloudStateObservations[state.machine] = observation
         machines[state.machine] = machineInfoPreservingCanonicalCloudState(info, state: state)
@@ -687,9 +692,15 @@ final class SurfaceCatalog {
         guard case .cloud = state.machine else { return [] }
         precondition(info.id == state.machine, "cloud state and machine info disagree")
 
+        retireCloudWorkspaceRenameIntents(for: state)
         var desired: [SurfaceResourceID: SurfaceResource] = [:]
-        desired.reserveCapacity(list.count)
-        for resource in list {
+        let effectiveList = cloudWorkspaceRenameEffectiveResources(
+            list,
+            machine: state.machine,
+            canonicalState: state
+        )
+        desired.reserveCapacity(effectiveList.count)
+        for resource in effectiveList {
             precondition(resource.machine == state.machine, "resource \(resource.id) reported by the wrong cloud state")
             desired[resource.id] = resource
         }
@@ -706,7 +717,6 @@ final class SurfaceCatalog {
             }
         }
         rebuildResourceIndex(for: state.machine)
-        retireCloudWorkspaceRenameIntents(for: state)
         cloudStates[state.machine] = state
         cloudStateObservations[state.machine] = observation
         machines[state.machine] = machineInfoPreservingCanonicalCloudState(info, state: state)

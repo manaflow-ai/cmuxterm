@@ -21,6 +21,11 @@ struct CloudWorkspaceRenameIntent: Sendable {
     var receipt: CloudVMCursor?
 }
 
+struct CloudWorkspaceRenameRestoration: Sendable {
+    let key: CloudWorkspaceRenameKey
+    let baseName: String
+}
+
 struct CloudWorkspaceRenameToken: Hashable, Sendable {
     let id: UUID
     let key: CloudWorkspaceRenameKey
@@ -30,10 +35,13 @@ extension SurfaceCatalog {
     /// Keeps the accepted graph authoritative while retaining genuinely new pending rows.
     func machineInfoPreservingCanonicalCloudState(
         _ info: SurfaceMachineInfo,
-        state: CloudVMState? = nil
+        state: CloudVMState? = nil,
+        restoringRename: CloudWorkspaceRenameRestoration? = nil
     ) -> SurfaceMachineInfo {
         guard case .cloud = info.id else { return info }
-        guard let state = state ?? cloudStates[info.id] else { return cloudResourceCompatibilityMachineInfo(info) }
+        guard let state = state ?? cloudStates[info.id] else {
+            return cloudResourceCompatibilityMachineInfo(info, restoringRename: restoringRename)
+        }
         var adjusted = info
         let canonical = cloudWorkspaceRenameEffectiveWorkspaces(state.workspaces.map {
             SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
@@ -41,7 +49,8 @@ extension SurfaceCatalog {
         var seen = Set(canonical.map(\.id))
         let pending = cloudWorkspaceRenameEffectiveWorkspaces(
             (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted },
-            machine: info.id
+            machine: info.id,
+            restoringRename: restoringRename
         )
         adjusted.remoteWorkspaces = canonical + pending
         return adjusted
@@ -155,13 +164,15 @@ extension SurfaceCatalog {
     func rollbackCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken) {
         guard var intents = cloudWorkspaceRenameIntents[token.key],
               let index = intents.firstIndex(where: { $0.tokenID == token.id }) else { return }
+        let removedIntent = intents[index]
+        let restoration = CloudWorkspaceRenameRestoration(key: token.key, baseName: removedIntent.baseName)
         intents.remove(at: index)
         if intents.isEmpty {
             cloudWorkspaceRenameIntents[token.key] = nil
         } else {
             cloudWorkspaceRenameIntents[token.key] = intents
         }
-        applyCloudWorkspaceRenameOverlay(machine: token.key.machine)
+        applyCloudWorkspaceRenameOverlay(machine: token.key.machine, restoringRename: restoration)
     }
 
     func pendingCloudWorkspaceRenameName(machine: SurfaceMachineID, workspaceID: String) -> String? {
@@ -172,15 +183,21 @@ extension SurfaceCatalog {
 
     /// Called by the existing cursorless machine-update path. It preserves the last accepted
     /// workspace graph while still exposing the newest local optimistic name.
-    func cloudResourceCompatibilityMachineInfo(_ info: SurfaceMachineInfo) -> SurfaceMachineInfo {
+    func cloudResourceCompatibilityMachineInfo(
+        _ info: SurfaceMachineInfo,
+        restoringRename: CloudWorkspaceRenameRestoration? = nil
+    ) -> SurfaceMachineInfo {
         guard let state = cloudResourceCompatibility[info.id] else { return info }
         var adjusted = info
-        var workspaces = state.canonicalWorkspaces
-        var seen = Set(workspaces.map(\.id))
-        for workspace in info.remoteWorkspaces ?? [] where seen.insert(workspace.id).inserted {
-            workspaces.append(workspace)
-        }
-        adjusted.remoteWorkspaces = cloudWorkspaceRenameEffectiveWorkspaces(workspaces, machine: info.id)
+        let canonical = state.canonicalWorkspaces
+        var seen = Set(canonical.map(\.id))
+        let pending = (info.remoteWorkspaces ?? []).filter { seen.insert($0.id).inserted }
+        adjusted.remoteWorkspaces = cloudWorkspaceRenameEffectiveWorkspaces(canonical, machine: info.id)
+            + cloudWorkspaceRenameEffectiveWorkspaces(
+                pending,
+                machine: info.id,
+                restoringRename: restoringRename
+            )
         return adjusted
     }
 
@@ -246,50 +263,85 @@ extension SurfaceCatalog {
         )
     }
 
-    private func applyCloudWorkspaceRenameOverlay(machine: SurfaceMachineID) {
+    private func applyCloudWorkspaceRenameOverlay(
+        machine: SurfaceMachineID,
+        restoringRename: CloudWorkspaceRenameRestoration? = nil
+    ) {
         guard let info = snapshot.machines.first(where: { $0.id == machine }) else { return }
-        let effectiveInfo = machineInfoPreservingCanonicalCloudState(info)
+        let effectiveInfo = machineInfoPreservingCanonicalCloudState(
+            info,
+            restoringRename: restoringRename
+        )
         let effectiveResources = cloudWorkspaceRenameEffectiveResources(
             snapshot.resources(on: machine),
-            machine: machine
+            machine: machine,
+            restoringRename: restoringRename
         )
         _ = replaceResources(effectiveResources, on: machine, info: effectiveInfo)
     }
 
     private func cloudWorkspaceRenameEffectiveWorkspaces(
         _ workspaces: [SurfaceRemoteWorkspace],
-        machine: SurfaceMachineID
+        machine: SurfaceMachineID,
+        restoringRename: CloudWorkspaceRenameRestoration? = nil
     ) -> [SurfaceRemoteWorkspace] {
         workspaces.map { workspace in
             let key = CloudWorkspaceRenameKey(machine: machine, workspaceID: workspace.id)
-            guard let name = cloudWorkspaceRenameIntents[key]?.last?.name else { return workspace }
+            let name = cloudWorkspaceRenameIntents[key]?.last?.name
+                ?? (cloudWorkspaceRenameIntents[key] == nil && restoringRename?.key == key
+                    ? restoringRename?.baseName
+                    : nil)
+            guard let name else { return workspace }
             var adjusted = workspace
             adjusted.name = name
             return adjusted
         }
     }
 
-    private func cloudWorkspaceRenameEffectiveResources(
+    func cloudWorkspaceRenameEffectiveResources(
         _ resources: [SurfaceResource],
-        machine: SurfaceMachineID
+        machine: SurfaceMachineID,
+        canonicalState: CloudVMState? = nil,
+        restoringRename: CloudWorkspaceRenameRestoration? = nil
     ) -> [SurfaceResource] {
-        resources.map { resource in
+        let canonicalNames = cloudWorkspaceCanonicalNames(machine: machine, state: canonicalState)
+
+        func effectiveName(for key: CloudWorkspaceRenameKey) -> String? {
+            cloudWorkspaceRenameIntents[key]?.last?.name
+                ?? canonicalNames[key.workspaceID]
+                ?? (cloudWorkspaceRenameIntents[key] == nil && restoringRename?.key == key
+                    ? restoringRename?.baseName
+                    : nil)
+        }
+
+        return resources.map { resource in
             guard resource.machine == machine else { return resource }
             var adjusted = resource
             if let workspace = adjusted.remoteWorkspace {
                 let key = CloudWorkspaceRenameKey(machine: machine, workspaceID: workspace.id)
-                if let name = cloudWorkspaceRenameIntents[key]?.last?.name {
+                if let name = effectiveName(for: key) {
                     adjusted.remoteWorkspace?.name = name
                 }
             }
             adjusted.remoteViews = adjusted.remoteViews?.map { view in
                 let key = CloudWorkspaceRenameKey(machine: machine, workspaceID: view.workspace.id)
-                guard let name = cloudWorkspaceRenameIntents[key]?.last?.name else { return view }
+                guard let name = effectiveName(for: key) else { return view }
                 var adjustedView = view
                 adjustedView.workspace.name = name
                 return adjustedView
             }
             return adjusted
         }
+    }
+
+    private func cloudWorkspaceCanonicalNames(
+        machine: SurfaceMachineID,
+        state: CloudVMState?
+    ) -> [String: String] {
+        if let state = state ?? cloudStates[machine] {
+            return Dictionary(uniqueKeysWithValues: state.workspaces.map { ($0.id, $0.name) })
+        }
+        guard let compatibility = cloudResourceCompatibility[machine] else { return [:] }
+        return Dictionary(uniqueKeysWithValues: compatibility.canonicalWorkspaces.map { ($0.id, $0.name) })
     }
 }
