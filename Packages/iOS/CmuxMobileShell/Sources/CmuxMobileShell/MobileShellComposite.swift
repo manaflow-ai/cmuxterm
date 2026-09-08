@@ -48,7 +48,7 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     static let maxTerminalReplayFailureRetries = 2
     static let maxTerminalReplayBarrierFollowUps = 1
 
-    nonisolated enum TerminalOutputTransport: Equatable {
+    enum TerminalOutputTransport: Equatable {
         case hybrid
         case renderGrid
         case rawBytes
@@ -15219,7 +15219,7 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
                     // the normal barrier path once this task has settled.
                     _ = self.armTerminalReplayBarrierForViewportTransition(
                         surfaceID: surfaceID,
-                        token: replayBarrierTokenForRequest,
+                        token: replayBarrierTokenForRequest
                     )
                     MobileDebugLog.anchormux(
                         "CMUX_REPLAY defer_viewport_transition surface=\(surfaceID)"
