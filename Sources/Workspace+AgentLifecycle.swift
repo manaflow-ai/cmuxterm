@@ -792,19 +792,10 @@ extension Workspace {
                         cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                         continue
                     }
-                    let hasAuthoritativeAgentPolicy: Bool = if binding.isAgentHookBinding {
-                        if case .exact = binding.restoreWorkingDirectorySelection {
-                            true
-                        } else {
-                            false
-                        }
-                    } else {
-                        true
-                    }
-                    guard hasAuthoritativeAgentPolicy else {
-                        // An exact remote report is the only policy that may
-                        // replay an agent-hook command. Recorded-fallback,
-                        // missing, and unavailable policies remain transport-only.
+                    guard !binding.isAgentHookBinding ||
+                            binding.restoreWorkingDirectorySelection.map {
+                                if case .exact = $0 { true } else { false }
+                            } == true else {
                         cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                         continue
                     }
@@ -890,7 +881,6 @@ extension Workspace {
             }
         }
     }
-
     func removeDeferredAgentResumeRestore(panelId: UUID) {
         deferredAgentResumeRestoresByPanelId.removeValue(forKey: panelId)
         if let claim = deferredAgentResumeClaimsByPanelId.removeValue(forKey: panelId) {
@@ -900,7 +890,6 @@ extension Workspace {
             )
         }
     }
-
     func cancelDeferredAgentResumeRestore(
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
@@ -922,7 +911,6 @@ extension Workspace {
             restoredAgentLifecycle.setResumeState(.manualResumeAvailable, panelId: panelId)
         }
     }
-
     private func deferredAgentResumeRestoreMatchesCurrentSession(
         panelId: UUID,
         restore: DeferredAgentResumeRestore
@@ -974,7 +962,6 @@ extension Workspace {
         }
         return true
     }
-
     private func retireAgentHookResumeBinding(
         panelId: UUID,
         matching binding: SurfaceResumeBindingSnapshot
@@ -986,7 +973,6 @@ extension Workspace {
         }
         retireAgentHookResumeBinding(panelId: panelId)
     }
-
     func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
         deferredAgentResumeIndexTask?.cancel()
         deferredAgentResumeIndexTask = nil
@@ -1013,7 +999,6 @@ extension Workspace {
         }
         deferredAgentResumeRestoresByPanelId.removeAll()
     }
-
     func agentHibernationLifecycleState(
         panelId: UUID,
         fallback: AgentHibernationLifecycleState?
@@ -1023,7 +1008,6 @@ extension Workspace {
             fallback: fallback
         )
     }
-
     func agentLifecycleStateForTextBoxEscape(panelId: UUID) -> AgentHibernationLifecycleState {
         AgentHibernationLifecycleState.aggregateForTextBoxEscape(
             statusKeyedStates: agentLifecycleStatesByPanelId[panelId] ?? [:]

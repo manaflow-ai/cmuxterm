@@ -1945,8 +1945,8 @@ extension FileExplorerContainerView: NSSearchFieldDelegate, NSTableViewDataSourc
     func tableView(
         _ tableView: NSTableView,
         draggingSession session: NSDraggingSession,
-        endedAt screenPoint: NSPoint,
-        operation: NSDragOperation
+        endedAt _: NSPoint,
+        operation _: NSDragOperation
     ) {
         guard tableView === searchResultsView else { return }
         if searchResultsView.activeNativeDragSession === session {
@@ -1967,11 +1967,6 @@ extension FileExplorerContainerView: NSSearchFieldDelegate, NSTableViewDataSourc
             searchResultsView.activeNativeDragSession = nil
             coordinator.forgetTrackedNativeDrag(matching: session)
         }
-        // Keep the deferred callback's lifetime semantics explicit: AppKit's
-        // terminal callback remains the cleanup boundary even when the body
-        // has no other work after scheduling it.
-        _ = screenPoint
-        _ = operation
     }
 
     /// Reclaims a search drag whose native terminal callback was lost before a

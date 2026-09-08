@@ -343,42 +343,6 @@ extension TerminalSurface {
         )
     }
 
-    /// Retires callback userdata and output state when the native surface is
-    /// absent or cannot be freed safely. A failed or out-of-band realization
-    /// can still leave these handles alive, so they follow the same lane fence
-    /// as a native free before their retained references are released.
-    @MainActor
-    private func retireRuntimeResourcesWithoutSurface(reason: String) {
-        let callbackContext = surfaceCallbackContext
-        surfaceCallbackContext = nil
-        let manualIOContext = self.manualIOContext
-        self.manualIOContext = nil
-        let teeLease = mobileByteTeeLease
-        mobileByteTeeLease = nil
-        invalidateRuntimeClipboardRequests(
-            in: callbackContext,
-            completingNativeRequests: false
-        )
-        let retiredRemoteOutputLane = retireRemoteOutputLane()
-        byteTee.dropSurface(surfaceID: id)
-        let staleRuntimeResources = TerminalSurfaceStaleRuntimeResources(
-            callbackContext: callbackContext,
-            manualIOContext: manualIOContext,
-            byteTeeLease: teeLease
-        )
-        staleRuntimeResourceReleaseTicket = runtimeTeardown.enqueueRuntimeTeardownFence(
-            id: UUID(),
-            workspaceId: tabId,
-            reason: reason,
-            fence: {
-                await retiredRemoteOutputLane.drain()
-            },
-            onCompletion: {
-                staleRuntimeResources.release()
-            }
-        )
-    }
-
     /// Frees the runtime surface while keeping the model alive for an
     /// agent-hibernation resume.
     ///
@@ -394,37 +358,7 @@ extension TerminalSurface {
         // hibernation solely because both slots are occupied by unrelated
         // surfaces.
         if surface == nil {
-            let isNewHibernation = !runtimeSurfaceSuspendedForAgentHibernation
-            let hasRetainedRuntimeResources = surfaceCallbackContext != nil ||
-                manualIOContext != nil ||
-                mobileByteTeeLease != nil
-            if let reservation = agentHibernationRuntimeTeardownReservation {
-                agentHibernationRuntimeTeardownReservation = nil
-                runtimeTeardown.cancelIsolatedHibernationTeardown(reservation)
-            }
-            if isNewHibernation {
-                // Hibernation retires the terminal and portal generations even
-                // when there is no native surface. Delayed hook reports and
-                // queued portal-host retries must not target the dormant model.
-                advanceTerminalLifecycleForRuntimeReplacement()
-                portalLifecycleGeneration &+= 1
-                pendingSocketInputQueue.removeAll(keepingCapacity: false)
-                pendingSocketInputBytes = 0
-                desiredFocusState = false
-            }
-            activePortalHostLease = nil
-            portalHostAuthority = nil
-            clearPortalHostVacancyRetries()
-            runtimeSurfaceSuspendedForAgentHibernation = true
-            mobileViewportFontFitState = nil
-            backgroundSurfaceStartQueued = false
-            backgroundSurfaceStartSource = .normal
-            cancelAgentCommandShimInstallLifecycle()
-            closeHeadlessStartupWindowIfNeeded()
-            if isNewHibernation || hasRetainedRuntimeResources {
-                retireRuntimeResourcesWithoutSurface(reason: reason)
-            }
-            return true
+            return suspendRuntimeSurfaceWithoutNativeSurface(reason: reason)
         }
         guard let teardownReservation =
                 agentHibernationRuntimeTeardownReservation ??

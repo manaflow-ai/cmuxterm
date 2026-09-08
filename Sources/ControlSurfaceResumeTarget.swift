@@ -63,41 +63,6 @@ enum ControlSurfaceResumeTarget {
         }
     }
 
-    /// Resolves the built-in cwd-option identity available to a binding-only restore.
-    ///
-    /// Registry-owned spellings such as `kimi` may identify either a native
-    /// agent or a user Vault registration. A matching native snapshot is the
-    /// only safe evidence for enabling its provider-specific short option;
-    /// otherwise only non-overridable built-ins are unambiguous.
-    func builtInAgentKindForBindingSanitization(
-        binding: SurfaceResumeBindingSnapshot,
-        normalizedKind: String
-    ) -> String? {
-        let normalized = normalizedKind
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if let snapshot = restorableAgent,
-           snapshot.kind.rawValue
-               .trimmingCharacters(in: .whitespacesAndNewlines)
-               .lowercased() == normalized,
-           let checkpointID = binding.checkpointId?
-               .trimmingCharacters(in: .whitespacesAndNewlines),
-           !checkpointID.isEmpty,
-           ManagedAgentSessionIdentity.sessionIDsMatch(
-               kind: normalized,
-               lhs: checkpointID,
-               rhs: snapshot.sessionId
-           ),
-           let snapshotBuiltInKind = snapshot.workingDirectoryOptionPolicyBuiltInKind {
-            return snapshotBuiltInKind
-        }
-        // Without a matching native snapshot, the persisted kind may be a
-        // custom Vault registration reusing a built-in spelling.  Do not infer
-        // provider-specific cwd flags from the raw binding id; preserving an
-        // ambiguous option is safer than stripping a custom profile selector.
-        return nil
-    }
-
     @discardableResult
     func setBinding(_ binding: SurfaceResumeBindingSnapshot) -> Bool {
         switch self {
@@ -378,77 +343,6 @@ extension TerminalController {
                 ? nil
                 : controlSurfaceRestoreRecord(target: target, binding: binding),
             resumeClaimed: claimSucceeded
-        )
-    }
-
-    func controlSurfaceRestoreRecord(
-        target: ControlSurfaceResumeTarget,
-        binding: SurfaceResumeBindingSnapshot?
-    ) -> ControlSurfaceRestoreRecord? {
-        // Structured fields remain untouched; only the explicit legacy fallback
-        // receives restore-time provider refreshes that older records depended on.
-        let compatibilityBinding = binding.map {
-            Workspace.makeSessionRestorePolicyService()
-                .bindingForCompatibilityShellRestore($0)
-        }
-        // A persistent-SSH agent-hook binding without a stored cwd trust
-        // decision is legacy/unscoped state.  It may still contain a local
-        // launch recipe, so never let the control-surface fallback turn that
-        // missing policy into an executable restore record.  The authenticated
-        // hook refresh path can replace this binding with an explicit selection.
-        let isUnscopedRemoteAgentHook = binding?.isAgentHookBinding == true &&
-            binding?.launchFlavor.remoteContext != nil &&
-            binding?.restoreWorkingDirectorySelection == nil
-        guard !isUnscopedRemoteAgentHook else { return nil }
-        guard binding?.restoreWorkingDirectorySelection?.permitsResume != false else {
-            return nil
-        }
-        // A hook can replace the live binding after this surface was restored,
-        // while the restore-time agent snapshot still names the previous
-        // conversation. Reuse the session-restore identity gate so the record
-        // returned to the CLI always agrees with the binding that generated its
-        // typed `cmux restore`/`cmux fork` selector.
-        let restoredAgent = target.restorableAgent
-        let compatibleAgent: (
-            snapshot: SessionRestorableAgentSnapshot,
-            source: String,
-            restoredWorkingDirectory: String?
-        )?
-        if binding == nil || binding?.isAgentHookBinding == true {
-            if let restoredAgent = Workspace.restorableAgentForSessionRestore(
-                restoredAgent,
-                resumeBinding: binding
-            ) {
-                compatibleAgent = (
-                    restoredAgent,
-                    "session-snapshot",
-                    target.restoredResumeWorkingDirectory
-                )
-            } else {
-                compatibleAgent = nil
-            }
-        } else {
-            compatibleAgent = nil
-        }
-        if let compatibleAgent {
-            return controlSurfaceAgentContinuationRecord(
-                agent: compatibleAgent.snapshot,
-                source: compatibleAgent.source,
-                restoredWorkingDirectory: compatibleAgent.restoredWorkingDirectory,
-                binding: binding,
-                compatibilityBinding: compatibilityBinding
-            )
-        }
-        guard binding?.isAgentHookBinding != true ||
-                target.restorableAgent?.restoreWorkingDirectorySelection == nil else {
-            return nil
-        }
-        guard let binding else { return nil }
-        return controlSurfaceBindingContinuationRecord(
-            target: target,
-            binding: binding,
-            compatibilityBinding: compatibilityBinding,
-            restoredAgentExists: restoredAgent != nil && binding.isAgentHookBinding
         )
     }
 

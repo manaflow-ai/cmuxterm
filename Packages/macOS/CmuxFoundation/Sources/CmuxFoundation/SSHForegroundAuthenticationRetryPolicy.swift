@@ -2379,8 +2379,6 @@ public struct SSHForegroundAuthenticationRetryPolicy: Sendable {
     /// This keeps interactive prompts visible and terminal-aware without
     /// allowing a noisy remote command to grow memory or a diagnostic file.
     /// Temporary state is removed on normal completion and signals.
-    /// Cleanup signal handlers use the shell builtin so user-defined `kill`
-    /// functions cannot intercept termination and no cleanup-path fork is needed.
     ///
     /// The command must contain only the foreground authentication attempt and
     /// its required preflight, lock, and cleanup work. Callers execute unrelated

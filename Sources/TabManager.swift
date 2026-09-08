@@ -508,7 +508,6 @@ class TabManager: ObservableObject {
     private var debugPendingWorkspaceSwitchTarget: UUID?
     private var debugPreparedWorkspaceSwitchTarget: UUID?
 #endif
-
 #if DEBUG
     private var didSetupSplitCloseRightUITest = false
     private var didSetupUITestFocusShortcuts = false
@@ -516,7 +515,6 @@ class TabManager: ObservableObject {
     private var didSetupChildExitKeyboardUITest = false
     private var uiTestCancellables = Set<AnyCancellable>()
 #endif
-
     // Process-wide cap on concurrent sidebar git snapshot probes, shared by
     // every window's SidebarGitMetadataService. A static (not a per-instance
     // default) on purpose: the cap is per process, not per window, matching
@@ -533,7 +531,6 @@ class TabManager: ObservableObject {
     /// GitHub transport state injected process-wide by the app composition root.
     /// The fallback initializer is retained for isolated `TabManager` tests.
     let pullRequestProbeService: PullRequestProbeService
-
     init(
         initialWorkspaceTitle: String? = nil,
         initialWorkingDirectory: String? = nil,
@@ -1139,8 +1136,7 @@ class TabManager: ObservableObject {
             allowTextBoxFocusDefault: allowTextBoxFocusDefault,
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
-            closeTabWarningDefaults: closeTabWarningDefaults,
-            agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
+            closeTabWarningDefaults: closeTabWarningDefaults, agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
@@ -1161,8 +1157,7 @@ class TabManager: ObservableObject {
             configTemplate: configTemplate,
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
-            closeTabWarningDefaults: closeTabWarningDefaults,
-            agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
+            closeTabWarningDefaults: closeTabWarningDefaults, agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator,
@@ -1177,8 +1172,7 @@ class TabManager: ObservableObject {
             baseDirectoryProvider: { nil },
             remoteBrowserSettingsProvider: { .local },
             tabDragTransferRegistry: tabDragTransferRegistry,
-            settings: settings,
-            agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
+            settings: settings, agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
             fileContentChangeCoordinator: fileContentChangeCoordinator
         )
@@ -6318,7 +6312,6 @@ extension TabManager {
         hashAgentLaunchCommand(snapshot.launchCommand, into: &hasher)
         hasher.combine(snapshot.restoreWorkingDirectorySelection)
     }
-
     nonisolated private static func hashAgentLaunchCommand(
         _ launchCommand: AgentLaunchCommandSnapshot?,
         into hasher: inout Hasher
@@ -6327,7 +6320,6 @@ extension TabManager {
             hasher.combine(false)
             return
         }
-
         hasher.combine(true)
         hashOptionalString(launchCommand.launcher, into: &hasher)
         hashOptionalString(launchCommand.executablePath, into: &hasher)
@@ -6651,8 +6643,7 @@ extension TabManager {
                 portOrdinal: ordinal,
                 tabDragTransferRegistry: tabDragTransferRegistry,
                 settings: settings,
-                closeTabWarningDefaults: closeTabWarningDefaults,
-                agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
+                closeTabWarningDefaults: closeTabWarningDefaults, agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
@@ -6688,8 +6679,7 @@ extension TabManager {
                 portOrdinal: ordinal,
                 tabDragTransferRegistry: tabDragTransferRegistry,
                 settings: settings,
-                closeTabWarningDefaults: closeTabWarningDefaults,
-                agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
+                closeTabWarningDefaults: closeTabWarningDefaults, agentSessionAutoResumeDefaults: agentSessionAutoResumeDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
                 fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker

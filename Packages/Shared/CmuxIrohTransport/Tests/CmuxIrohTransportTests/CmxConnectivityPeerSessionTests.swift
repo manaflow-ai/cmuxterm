@@ -26,12 +26,10 @@ struct CmxConnectivityPeerSessionTests {
 
         _ = try await first.value
         _ = try await second.value
-
         #expect(await builder.callCount() == 1)
         #expect(await peer.snapshot().phase == .connected)
         #expect(await peer.snapshot().connectionGeneration == 1)
     }
-
     @Test
     func onePeerTraceUsesOneAliasAndOneEstablishedSessionEvent() async throws {
         let request = try Self.request()
@@ -44,7 +42,6 @@ struct CmxConnectivityPeerSessionTests {
             buildSession: { request in try await builder.build(request) },
             diagnosticLog: log
         )
-
         // The gated builder parks every dial until released. Awaiting the
         // dial before releasing the gate would deadlock this test.
         let dial = Task { try await peer.connectedSession(for: request) }
@@ -62,7 +59,6 @@ struct CmxConnectivityPeerSessionTests {
         #expect(lifecycle.compactMap(\.surface).count == lifecycle.count)
         #expect(Set(lifecycle.compactMap(\.surface)).count == 1)
     }
-
     @Test
     func nextControlOwnerWaitsAndReleaseClosesThePeerConnection() async throws {
         let request = try Self.request()
@@ -81,7 +77,6 @@ struct CmxConnectivityPeerSessionTests {
         )
         let firstOwner = UUID()
         let secondOwner = UUID()
-
         _ = try await peer.acquireControl(for: request, ownerID: firstOwner)
         let secondAcquire = Task {
             try await peer.acquireControl(for: routeVariant, ownerID: secondOwner)
