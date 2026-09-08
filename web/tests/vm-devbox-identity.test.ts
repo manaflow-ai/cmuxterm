@@ -127,6 +127,9 @@ describe("devbox identity contract (services/vms/images/identity.ts)", () => {
     expect(verify).toContain("devboxIdentityCheckCommand()");
     expect(verify).toContain("...IDENTITY_CHECKS");
     expect(verify).toContain("root-prompt-names-${DEVBOX_HOSTNAME}");
+    // The pty probes synchronize on the shell's own readiness signal, not a fixed delay.
+    expect(verify).toContain("PROMPT_COMMAND='tmux -L idroot wait-for -S prompt'");
+    expect(verify).toContain("PROMPT_COMMAND='tmux -L iduser wait-for -S prompt'");
     expect(verify).toContain("user-prompt-names-${DEVBOX_HOSTNAME}");
     expect(verify).toContain("journal-host-${DEVBOX_HOSTNAME}");
     expect(verify).toContain("share one SSH host key");
@@ -138,9 +141,17 @@ describe("devbox identity contract (services/vms/images/identity.ts)", () => {
 
   test("the boot supervisor gives every clone its own SSH host keys, off the daemon's start path", () => {
     expect(devboxBoot).toContain("rekey_ssh_host() {");
-    expect(devboxBoot).toContain("rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub");
-    expect(devboxBoot).toContain("ssh-keygen -A");
+    // Staged: the new keys exist before the old ones are replaced, a failed
+    // generation keeps the previous keys and says so, sshd restarts last.
+    expect(devboxBoot).toContain('ssh-keygen -A -f "$staging"');
+    expect(devboxBoot).toContain('mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/');
+    expect(devboxBoot).toContain("ssh host key generation failed; keeping the existing keys");
+    expect(devboxBoot).not.toContain("rm -f /etc/ssh/ssh_host_*_key");
     expect(devboxBoot).toContain("systemctl try-restart ssh");
+    const regenerate = devboxSshHostKeyRegenerateCommand();
+    expect(regenerate).toContain('ssh-keygen -A -f "$staging"');
+    expect(regenerate).toContain('mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/');
+    expect(regenerate).not.toContain("rm -f /etc/ssh/ssh_host_*_key");
     // Detached: a subshell backgrounds the job and exits, so the loop never
     // waits on it, the daemon starts in the same tick, and no zombie is left.
     expect(devboxBoot).toContain("( rekey_ssh_host & )");

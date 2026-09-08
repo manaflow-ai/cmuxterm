@@ -235,11 +235,14 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
 // live hostname, $HOSTNAME, the loopback alias, sudo, the host-key comment
 // and the residue audit; on top of that, the prompt a person sees in a real
 // pty names the machine for both accounts, and the journal of this boot knows
-// no other name (the bake started it over).
+// no other name (the bake started it over). The pty probes wait on a
+// readiness signal, not a delay: the shell's own PROMPT_COMMAND signals a tmux
+// channel each time it is about to draw a prompt, and after an Enter the
+// second signal means the first prompt line is fully on screen.
 const IDENTITY_CHECKS: readonly string[] = [
   devboxIdentityCheckCommand(),
-  `tmux -L idroot new-session -d -s login -x 120 -y 30 && sleep 3 && pane="$(tmux -L idroot capture-pane -pt login)"; tmux -L idroot kill-server 2>/dev/null; printf '%s\n' "$pane" | grep -q 'root@${DEVBOX_HOSTNAME} in' && echo root-prompt-names-${DEVBOX_HOSTNAME}`,
-  `sudo -n -u ${DEVBOX_DESKTOP_USER} env -i HOME=${DEVBOX_DESKTOP_HOME} USER=${DEVBOX_DESKTOP_USER} TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash -c 'tmux -L iduser new-session -d -s login -x 120 -y 30 && sleep 3 && pane="$(tmux -L iduser capture-pane -pt login)"; tmux -L iduser kill-server 2>/dev/null; printf "%s\n" "$pane" | grep -q "${DEVBOX_DESKTOP_USER}@${DEVBOX_HOSTNAME} in" && echo user-prompt-names-${DEVBOX_HOSTNAME}'`,
+  `env TERM=xterm-256color PROMPT_COMMAND='tmux -L idroot wait-for -S prompt' tmux -L idroot new-session -d -s login -x 120 -y 30 && timeout 20 tmux -L idroot wait-for prompt && tmux -L idroot send-keys -t login Enter && timeout 20 tmux -L idroot wait-for prompt && pane="$(tmux -L idroot capture-pane -pt login)"; tmux -L idroot kill-server 2>/dev/null; printf '%s\n' "$pane" | grep -q 'root@${DEVBOX_HOSTNAME} in' && echo root-prompt-names-${DEVBOX_HOSTNAME}`,
+  `sudo -n -u ${DEVBOX_DESKTOP_USER} env -i HOME=${DEVBOX_DESKTOP_HOME} USER=${DEVBOX_DESKTOP_USER} TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin PROMPT_COMMAND='tmux -L iduser wait-for -S prompt' bash -c 'tmux -L iduser new-session -d -s login -x 120 -y 30 && timeout 20 tmux -L iduser wait-for prompt && tmux -L iduser send-keys -t login Enter && timeout 20 tmux -L iduser wait-for prompt && pane="$(tmux -L iduser capture-pane -pt login)"; tmux -L iduser kill-server 2>/dev/null; printf "%s\n" "$pane" | grep -q "${DEVBOX_DESKTOP_USER}@${DEVBOX_HOSTNAME} in" && echo user-prompt-names-${DEVBOX_HOSTNAME}'`,
   `[ "$(journalctl -b -o json --no-pager 2>/dev/null | jq -r '._HOSTNAME // empty' | sort -u | tr '\n' ' ')" = '${DEVBOX_HOSTNAME} ' ] && echo journal-host-${DEVBOX_HOSTNAME}`,
 ];
 

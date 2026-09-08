@@ -369,14 +369,24 @@ export function devboxHostsAliasRewriteCommand(hostname = DEVBOX_HOSTNAME, hosts
 }
 
 /**
- * New SSH host keys under the machine's current name. `ssh-keygen -A` only
- * creates keys that are missing, so the old ones go first (the base's keys
- * were generated when Freestyle built its rootfs and are shared by every VM
- * booted from that base); sshd loads keys at start, so it is restarted where
- * systemd runs it and left alone where nothing does.
+ * New SSH host keys under the machine's current name (the base's keys were
+ * generated when Freestyle built its rootfs and are shared by every VM booted
+ * from that base). They are generated into a staging dir on the same
+ * filesystem and moved over the old ones only once all of them exist, so a
+ * failed generation fails the step with the previous keys still in place;
+ * sshd loads keys at start, so it is restarted where systemd runs it and left
+ * alone where nothing does. cmux-devbox-boot does the same on every clone.
  */
 export function devboxSshHostKeyRegenerateCommand(): string {
-  return "rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub && ssh-keygen -A >/dev/null && { [ ! -d /run/systemd/system ] || systemctl try-restart ssh; }";
+  return [
+    'staging="$(mktemp -d /etc/ssh/.cmux-rekey.XXXXXX)"',
+    'mkdir -p "$staging/etc/ssh"',
+    'ssh-keygen -A -f "$staging" >/dev/null',
+    '[ -n "$(ls "$staging"/etc/ssh/ssh_host_*_key 2>/dev/null)" ]',
+    'for key in "$staging"/etc/ssh/ssh_host_*_key; do mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/ || exit 1; done',
+    'rm -rf "$staging"',
+    "{ [ ! -d /run/systemd/system ] || systemctl try-restart ssh; }",
+  ].join(" && ");
 }
 
 /**
