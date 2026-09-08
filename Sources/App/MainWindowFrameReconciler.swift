@@ -2,8 +2,8 @@ import AppKit
 import CmuxWindowing
 
 /// Repairs main-window geometry after AppKit or the display system changes it.
-/// The presentation mode chooses whether a window belongs in a visible frame or
-/// a full display frame, so display changes and activation use the same policy.
+/// Display changes, activation, and restoration share one policy: recover
+/// ordinary and zoomed windows while leaving fullscreen layouts to AppKit.
 @MainActor
 final class MainWindowFrameReconciler {
     private let fitCore: MainWindowVisibleFrameFitCore
@@ -43,6 +43,8 @@ final class MainWindowFrameReconciler {
         for window in mainWindows {
             let mode: MainWindowFrameFitMode?
             if window.styleMask.contains(.fullScreen) {
+                // Split View also sets this style; the core must not replace
+                // AppKit's tile with an entire display or a zoomed frame.
                 mode = .nativeFullscreen
             } else if window.cmuxWantsZoomedFrame {
                 mode = .zoomed

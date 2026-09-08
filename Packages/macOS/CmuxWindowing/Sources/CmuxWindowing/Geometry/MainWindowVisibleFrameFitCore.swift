@@ -6,7 +6,7 @@ public enum MainWindowFrameFitMode: Sendable {
     case visibleFrame
     /// Restore an AppKit-zoomed window to the target display's visible frame.
     case zoomed
-    /// Restore a native-fullscreen window to the target display's full frame.
+    /// Leave native fullscreen and Split View geometry under AppKit's control.
     case nativeFullscreen
 }
 
@@ -118,10 +118,18 @@ public struct MainWindowVisibleFrameFitCore: Sendable {
 
     /// Returns the frame required by the requested window presentation mode.
     ///
-    /// `visibleFrame` retains the existing recoverable-window behavior. The
-    /// other modes intentionally return the target display's exact bounds: a
-    /// zoomed window is defined by the visible frame, while native fullscreen
-    /// owns the entire display frame, including the menu-bar area.
+    /// `visibleFrame` retains the existing recoverable-window behavior, and
+    /// `zoomed` restores the target display's visible frame. Native fullscreen
+    /// returns no repair: AppKit uses the same fullscreen style for exclusive
+    /// fullscreen and Split View, whose tile may occupy only part of a display.
+    ///
+    /// - Parameters:
+    ///   - frame: Window frame in global screen coordinates.
+    ///   - displays: Current display geometry snapshots.
+    ///   - minimumWidth: Minimum width to enforce for ordinary-window repairs.
+    ///   - minimumHeight: Minimum height to enforce for ordinary-window repairs.
+    ///   - mode: The presentation whose geometry ownership must be respected.
+    /// - Returns: A repaired frame, or `nil` when no frame change is permitted or needed.
     public func repairedFrame(
         for frame: CGRect,
         displays: [SessionDisplayGeometry],
@@ -138,28 +146,21 @@ public struct MainWindowVisibleFrameFitCore: Sendable {
                 minimumHeight: minimumHeight
             )
         case .zoomed:
-            return exactDisplayBounds(
+            return zoomedFrame(
                 for: frame,
-                displays: displays,
-                useVisibleFrame: true
+                displays: displays
             )
         case .nativeFullscreen:
-            return exactDisplayBounds(
-                for: frame,
-                displays: displays,
-                useVisibleFrame: false
-            )
+            return nil
         }
     }
 
     private func targetDisplay(
         for frame: CGRect,
-        in displays: [SessionDisplayGeometry],
-        useVisibleFrame: Bool = true
+        in displays: [SessionDisplayGeometry]
     ) -> SessionDisplayGeometry? {
         let overlaps = displays.map { display in
-            let targetFrame = useVisibleFrame ? display.visibleFrame : display.frame
-            return (display: display, area: intersectionArea(frame, targetFrame))
+            (display: display, area: intersectionArea(frame, display.visibleFrame))
         }
         if let best = overlaps.max(by: { $0.area < $1.area }), best.area > 0 {
             return best.display
@@ -167,34 +168,28 @@ public struct MainWindowVisibleFrameFitCore: Sendable {
 
         let center = CGPoint(x: frame.midX, y: frame.midY)
         return displays.min { lhs, rhs in
-            let lhsFrame = useVisibleFrame ? lhs.visibleFrame : lhs.frame
-            let rhsFrame = useVisibleFrame ? rhs.visibleFrame : rhs.frame
-            return distanceSquared(from: center, to: lhsFrame)
-                < distanceSquared(from: center, to: rhsFrame)
+            distanceSquared(from: center, to: lhs.visibleFrame)
+                < distanceSquared(from: center, to: rhs.visibleFrame)
         }
     }
 
-    private func exactDisplayBounds(
+    /// Restores zoomed geometry without applying ordinary-window size limits.
+    private func zoomedFrame(
         for frame: CGRect,
-        displays: [SessionDisplayGeometry],
-        useVisibleFrame: Bool
+        displays: [SessionDisplayGeometry]
     ) -> CGRect? {
         let standardizedFrame = frame.standardized
         guard isUsableRect(standardizedFrame) else { return nil }
 
-        let usableDisplays = displays.filter {
-            let bounds = useVisibleFrame ? $0.visibleFrame : $0.frame
-            return isUsableRect(bounds)
-        }
+        let usableDisplays = displays.filter { isUsableRect($0.visibleFrame) }
         guard let targetDisplay = targetDisplay(
             for: standardizedFrame,
-            in: usableDisplays,
-            useVisibleFrame: useVisibleFrame
+            in: usableDisplays
         ) else {
             return nil
         }
 
-        let targetBounds = useVisibleFrame ? targetDisplay.visibleFrame : targetDisplay.frame
+        let targetBounds = targetDisplay.visibleFrame
         return rectApproximatelyEqual(targetBounds, standardizedFrame) ? nil : targetBounds
     }
 

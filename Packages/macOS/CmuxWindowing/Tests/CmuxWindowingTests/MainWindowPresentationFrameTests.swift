@@ -14,11 +14,11 @@ struct MainWindowPresentationFrameTests {
     )
 
     @Test(arguments: [
-        CGRect(x: 0, y: 0, width: 752, height: 982),
-        CGRect(x: 760, y: 0, width: 752, height: 982),
-        CGRect(x: 0, y: 0, width: 504, height: 982),
-        CGRect(x: 512, y: 0, width: 1_000, height: 982),
-    ], [false, true])
+        (CGRect(x: 0, y: 0, width: 752, height: 982), false),
+        (CGRect(x: 760, y: 0, width: 752, height: 982), false),
+        (CGRect(x: 0, y: 0, width: 504, height: 982), true),
+        (CGRect(x: 512, y: 0, width: 1_000, height: 982), true),
+    ])
     func splitViewRemainsSystemOwned(frame: CGRect, displayChanged: Bool) {
         let currentDisplay = displayChanged ? SessionDisplayGeometry(
             displayID: 77,
