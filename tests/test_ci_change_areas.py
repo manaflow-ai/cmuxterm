@@ -856,30 +856,34 @@ def test_app_host_batch_watchdog_kills_hung_runner_tree_and_fails_fast() -> None
     # console-session launcher, kept the tee pipe open, and the step idled from
     # "timeout after 1800s; terminating" to the 75-minute job timeout. The runner
     # here hangs after one real line and leaves a grandchild that keeps the
-    # inherited stdout open; the step must still return 124 promptly and the
-    # grandchild must be dead (tree kill), not merely orphaned.
+    # inherited stdout open; the step must still return 124 and the grandchild
+    # must be dead (tree kill), not merely orphaned. The decoy "(0 unexpected)"
+    # summary mimics an earlier attempt's output left in the capture: a
+    # watchdog kill must stay terminal instead of being normalized to success.
     with tempfile.TemporaryDirectory() as temp_dir:
         orphan_pid_file = Path(temp_dir) / "orphan.pid"
         hung_runner = f"""
 #!/bin/bash
 printf 'invoked\\n' > "${{CMUX_TEST_RUNNER_MARKER:?}}"
 echo "Test Case '-[cmuxTests.HungTests testForever]' started."
+echo "Executed 2 tests, with 2 failures (0 unexpected) in 0.5 (0.5) seconds"
 /bin/sleep 300 &
 echo $! > "{orphan_pid_file}"
 /bin/sleep 300
 """
-        started = time.monotonic()
+        # The harness's 120s subprocess timeout is the only wall-clock bound: a
+        # runaway step raises TimeoutExpired there instead of tripping a timing
+        # assertion under scheduler delay.
         result, runner_invoked = run_app_host_unit_test_step(
             console_runner_script=hung_runner.lstrip(),
             extra_env={"CMUX_UNIT_TEST_TIMEOUT_SECONDS": "1"},
         )
-        elapsed = time.monotonic() - started
 
         assert runner_invoked
         assert result.returncode == 124, (result.returncode, result.stdout, result.stderr)
         assert "timeout after 1s; terminating" in result.stdout, result.stdout
+        assert "All failures in app-host batch" not in result.stdout, result.stdout
         assert "App-host unit-test batch failed with status 124" in result.stdout, result.stdout
-        assert elapsed < 60, elapsed
         orphan_pid = int(orphan_pid_file.read_text().strip())
         for _ in range(50):
             try:

@@ -1273,7 +1273,10 @@ jobs:
             kill "$tail_pid" 2>/dev/null || true
             wait "$tail_pid" 2>/dev/null || true
 
-            if [ "$batch_status" -ne 0 ]; then
+            # A watchdog kill (124) is terminal: the capture may still hold an
+            # earlier attempt's "(0 unexpected)" summary, which must not turn a
+            # terminated batch into a pass.
+            if [ "$batch_status" -ne 0 ] && [ "$batch_status" -ne 124 ]; then
               local batch_summary
               batch_summary="$(grep "Executed.*tests.*with.*failures" "$batch_output" | tail -1 || true)"
               if echo "$batch_summary" | grep -q "(0 unexpected)"; then
