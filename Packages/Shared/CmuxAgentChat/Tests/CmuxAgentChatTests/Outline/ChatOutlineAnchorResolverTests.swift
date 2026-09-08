@@ -78,6 +78,23 @@ struct ChatOutlineAnchorResolverTests {
         #expect(secondRow == nil)
     }
 
+    @Test("matches prompts wrapped in the middle of a word")
+    func matchesPromptWrappedInTheMiddleOfAWord() {
+        let entry = ChatOutlineEntry(
+            id: "wrapped",
+            seq: 1,
+            timestamp: Date(timeIntervalSince1970: 1),
+            title: "Review the login flow",
+            hasAlert: false
+        )
+
+        #expect(ChatOutlineAnchorResolver().row(
+            for: entry,
+            among: [entry],
+            in: "❯ Review the lo\ngin flow\n"
+        ) == 0)
+    }
+
     @Test("anchors start at prompt rows and support clipped titles")
     func anchorsStartAtPromptRowsAndSupportClippedTitles() {
         let title = String(repeating: "a  ", count: 53) + "b"

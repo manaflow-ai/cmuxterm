@@ -55,16 +55,23 @@ public struct ChatOutlineAnchorResolver: Sendable {
         guard let prefix = Self.promptPrefixes.first(where: { rows[row].hasPrefix($0) }) else {
             return false
         }
-        var candidate = String(rows[row].dropFirst(prefix.count))
-        if matchesPromptContent(candidate, target: target, allowsClippedMatch: allowsClippedMatch) {
+        var candidates = [String(rows[row].dropFirst(prefix.count))]
+        if matchesPromptContent(candidates[0], target: target, allowsClippedMatch: allowsClippedMatch) {
             return true
         }
         for nextRow in rows.dropFirst(row + 1) {
             guard !nextRow.isEmpty, !isPromptRow(nextRow) else { return false }
-            candidate += " " + nextRow
-            if matchesPromptContent(candidate, target: target, allowsClippedMatch: allowsClippedMatch) {
+            candidates = candidates
+                .flatMap { candidate in
+                    [candidate + " " + nextRow, candidate + nextRow]
+                }
+                .filter { target.hasPrefix($0) || $0.hasPrefix(target) }
+            if candidates.contains(where: {
+                matchesPromptContent($0, target: target, allowsClippedMatch: allowsClippedMatch)
+            }) {
                 return true
             }
+            if candidates.isEmpty { return false }
         }
         return false
     }
