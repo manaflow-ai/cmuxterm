@@ -240,9 +240,13 @@ final class SurfaceCatalog {
         fileprivate let machine: SurfaceMachineID
         fileprivate let workspaceID: String
         fileprivate let previousName: String
+
+        fileprivate var key: CloudRenameCoordinator.Key {
+            .workspace(machine: machine, id: workspaceID)
+        }
     }
     private var compatibilityCloudRenames: [CloudWorkspaceRenameToken: String] = [:]
-    private var compatibilityCloudRenameByWorkspace: [String: CloudWorkspaceRenameToken] = [:]
+    private var compatibilityCloudRenameByWorkspace: [CloudRenameCoordinator.Key: CloudWorkspaceRenameToken] = [:]
     private var providers: [SurfaceMachineID: any SurfaceProvider] = [:]
     /// The process-wide ordering owner for remote rename intents. A remote identity can
     /// have projections in several local windows, so this cannot live in a TabManager.
@@ -537,7 +541,7 @@ final class SurfaceCatalog {
         for token in compatibilityCloudRenames.keys where token.machine == machine {
             if info.remoteWorkspaces?.first(where: { $0.id == token.workspaceID })?.name == compatibilityCloudRenames[token] {
                 compatibilityCloudRenames[token] = nil
-                compatibilityCloudRenameByWorkspace[token.workspaceID] = nil
+                compatibilityCloudRenameByWorkspace[token.key] = nil
             }
         }
         return true
@@ -549,26 +553,30 @@ final class SurfaceCatalog {
         guard let previous = machines[machine]?.remoteWorkspaces?.first(where: { $0.id == workspaceID }) else {
             throw SurfaceCatalogError.destinationNotFound("workspace \(workspaceID) on \(machine.rawValue)")
         }
-        let token = CloudWorkspaceRenameToken(id: UUID(), machine: machine, workspaceID: workspaceID, previousName: previous.name)
+        let key = CloudRenameCoordinator.Key.workspace(machine: machine, id: workspaceID)
+        let superseded = compatibilityCloudRenameByWorkspace[key]
+        let token = CloudWorkspaceRenameToken(id: UUID(), machine: machine, workspaceID: workspaceID, previousName: superseded?.previousName ?? previous.name)
+        if let superseded { compatibilityCloudRenames[superseded] = nil }
         compatibilityCloudRenames[token] = name
-        compatibilityCloudRenameByWorkspace[workspaceID] = token
+        compatibilityCloudRenameByWorkspace[key] = token
         applyCloudWorkspaceRename(machine: machine, workspaceID: workspaceID, name: name)
         return token
     }
 
     func commitCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken, receipt: CloudVMCursor) {
+        guard compatibilityCloudRenameByWorkspace[token.key] == token else { return }
         compatibilityCloudCursors[token.machine] = receipt
     }
 
     func rollbackCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken) {
-        guard compatibilityCloudRenames[token] != nil, compatibilityCloudRenameByWorkspace[token.workspaceID] == token else { return }
+        guard compatibilityCloudRenames[token] != nil, compatibilityCloudRenameByWorkspace[token.key] == token else { return }
         compatibilityCloudRenames[token] = nil
-        compatibilityCloudRenameByWorkspace[token.workspaceID] = nil
+        compatibilityCloudRenameByWorkspace[token.key] = nil
         applyCloudWorkspaceRename(machine: token.machine, workspaceID: token.workspaceID, name: token.previousName)
     }
 
     func pendingCloudWorkspaceRenameName(machine: SurfaceMachineID, workspaceID: String) -> String? {
-        guard let token = compatibilityCloudRenameByWorkspace[workspaceID], token.machine == machine else { return nil }
+        guard let token = compatibilityCloudRenameByWorkspace[.workspace(machine: machine, id: workspaceID)] else { return nil }
         return compatibilityCloudRenames[token]
     }
 

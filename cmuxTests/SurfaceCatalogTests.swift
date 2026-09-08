@@ -1439,5 +1439,13 @@ struct SurfaceCatalogTests {
         catalog.rollbackCloudWorkspaceRename(second)
         #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == nil)
         #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "main")
+        #expect(catalog.replaceCloudResources(
+            [resource],
+            on: machine,
+            info: info,
+            cursor: CloudVMCursor(generation: "g", revision: 1)
+        ))
+        catalog.rollbackCloudWorkspaceRename(first)
+        #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "main")
     }
 }
