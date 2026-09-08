@@ -157,6 +157,20 @@ struct MobileSettingsView: View {
                                 .accessibilityIdentifier("MobileSettingsActiveTransport")
                             }
                         }
+                        if let store, store.connectionState == .connected {
+                            LabeledContent(
+                                L10n.string(
+                                    "mobile.settings.activeTransport",
+                                    defaultValue: "Active Transport"
+                                ),
+                                value: store.activeTransportPath.mobileStatusDisplayValue
+                                    ?? L10n.string(
+                                        "mobile.settings.activeTransport.unavailable",
+                                        defaultValue: "Transport unavailable"
+                                    )
+                            )
+                            .accessibilityIdentifier("MobileSettingsActiveTransport")
+                        }
                         if showComputers != nil {
                             Button {
                                 showComputers?()
@@ -590,16 +604,6 @@ struct MobileSettingsView: View {
                 SetupHelpView(highlight: setupHelpHighlight) { showingSetupHelp = false }
             }
         }
-        .onChange(of: connectionMethodStore?.method) { oldMethod, newMethod in
-            guard oldMethod != newMethod, store != nil else { return }
-            let stackUserID = authManager.currentUser?.id
-            Task {
-                _ = await store?.retryActiveMacReconnect(
-                    stackUserID: stackUserID,
-                    force: true
-                )
-            }
-        }
         .accessibilityIdentifier("MobileSettingsView")
         .onAppear {
             diagnosticLog?.recordAppEvent(.settingsOpened)
@@ -646,6 +650,11 @@ struct MobileSettingsView: View {
 
     private func transportName(_ kind: CmxAttachTransportKind) -> String {
         switch kind {
+        case .lan:
+            L10n.string(
+                "mobile.connections.method.lan",
+                defaultValue: "LAN"
+            )
         case .tailscale:
             L10n.string(
                 "mobile.settings.activeTransport.tailscale",
