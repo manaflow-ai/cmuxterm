@@ -150,9 +150,7 @@ enum KeyboardShortcutSettings {
         case newSurface
         case toggleTerminalCopyMode
         case focusTextBoxInput, cycleTextBoxSubmitAction, attachTextBoxFile
-        case sendCtrlFToTerminal
-        case clearScreenKeepScrollback
-
+        case sendCtrlFToTerminal, clearScreenKeepScrollback, toggleSessionOutline
         // Panes / splits
         case focusLeft
         case focusRight
@@ -309,6 +307,7 @@ enum KeyboardShortcutSettings {
             case .attachTextBoxFile: return String(localized: "shortcut.attachTextBoxFile.label", defaultValue: "Attach File to TextBox Input")
             case .sendCtrlFToTerminal: return String(localized: "shortcut.sendCtrlFToTerminal.label", defaultValue: "Send Ctrl-F to Terminal")
             case .clearScreenKeepScrollback: return String(localized: "shortcut.clearScreenKeepScrollback.label", defaultValue: "Clear Screen (Keep Scrollback)")
+            case .toggleSessionOutline: return String(localized: "shortcut.toggleSessionOutline.label", defaultValue: "Toggle Session Outline")
             case .focusLeft: return String(localized: "shortcut.focusPaneLeft.label", defaultValue: "Focus Pane Left")
             case .focusRight: return String(localized: "shortcut.focusPaneRight.label", defaultValue: "Focus Pane Right")
             case .focusUp: return String(localized: "shortcut.focusPaneUp.label", defaultValue: "Focus Pane Up")
@@ -612,6 +611,7 @@ enum KeyboardShortcutSettings {
                 // which also wipes scrollback. Shift+K is unbound in both Ghostty defaults and
                 // cmux, and sits next to the full-clear chord. Rebindable in Settings → Keyboard Shortcuts.
                 return StoredShortcut(key: "k", command: true, shift: true, option: false, control: false)
+            case .toggleSessionOutline: return StoredShortcut(key: "o", command: true, shift: false, option: true, control: false)
             case .selectWorkspaceByNumber:
                 return StoredShortcut(key: "1", command: true, shift: false, option: false, control: false)
             case .moveWorkspaceUp: return StoredShortcut(key: "[", command: true, shift: false, option: true, control: true)

@@ -7316,10 +7316,8 @@ struct ContentView: View {
                 )
             }
         }
-
         var contributions: [CommandPaletteCommandContribution] = []
         contributions.append(contentsOf: Self.commandPaletteCloudCommandContributions())
-
         contributions.append(
             CommandPaletteCommandContribution(
                 commandId: "palette.newWorkspace",
@@ -8280,6 +8278,7 @@ struct ContentView: View {
                 when: { $0.bool(CommandPaletteContextKeys.panelIsTerminal) }
             )
         )
+        contributions.append(Self.sessionOutlineCommandPaletteContribution())
         contributions.append(
             CommandPaletteCommandContribution(
                 commandId: "palette.terminalSplitRight",
@@ -9213,6 +9212,7 @@ struct ContentView: View {
                 NSSound.beep()
             }
         }
+        registerSessionOutlineCommandPaletteHandler(&registry, tabManager: tabManager)
         registry.register(commandId: "palette.terminalSplitRight") {
             if !executeConfiguredAction(id: CmuxSurfaceTabBarBuiltInAction.splitRight.configID) {
                 tabManager.createSplit(direction: .right)

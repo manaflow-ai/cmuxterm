@@ -20,9 +20,9 @@ final class TerminalPanel: Panel, ObservableObject {
     let id: UUID
     let stableSurfaceIdentity = PanelStableSurfaceIdentity()
     let panelType: PanelType = .terminal
-
     /// The underlying terminal surface
     let surface: TerminalSurface
+    let sessionOutlineModel = SessionOutlineModel()
     var fontSizePanelTransfer:
         WorkspaceTerminalFontSizePanelTransfer?
 

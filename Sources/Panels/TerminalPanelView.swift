@@ -117,6 +117,13 @@ struct TerminalPanelView: View {
                 },
                 onTriggerFlash: onTriggerFlash
             )
+            .overlay(alignment: .topTrailing) {
+                SessionOutlineTerminalOverlay(
+                    panel: panel,
+                    transcriptService: TerminalController.shared.agentChatTranscriptService,
+                    model: panel.sessionOutlineModel
+                )
+            }
             // Keep the NSViewRepresentable identity stable across bonsplit structural updates.
             // This prevents transient teardown/recreate that can momentarily detach the hosted terminal view.
             .id(panel.id)

@@ -112,6 +112,7 @@ final class AgentChatTranscriptService {
 
     let registry: AgentChatSessionRegistry
     let resolver: AgentChatTranscriptResolver
+    let sessionOutlineState = SessionOutlineState()
     private var tailers: [String: AgentChatTranscriptTailer] = [:]
     private let hasEventSubscribers: @MainActor () -> Bool
     private let emitEventPayload: @MainActor ([String: Any]) -> Void
@@ -556,7 +557,11 @@ final class AgentChatTranscriptService {
     }
 
     private func publishBatch(_ batch: AgentChatTranscriptTailer.Batch, sessionID: String) {
-        #if DEBUG
+        sessionOutlineState.invalidate(
+            sessionID: sessionID,
+            surfaceID: registry.record(sessionID: sessionID)?.surfaceID
+        )
+#if DEBUG
         cmuxDebugLog(
             "agentChat.transcript.batch session=\(sessionID.prefix(8)) "
             + "appended=\(batch.appended.count) updated=\(batch.updated.count) "
@@ -605,25 +610,8 @@ final class AgentChatTranscriptService {
         latestTranscriptSeqBySessionID[sessionID] = max(latestTranscriptSeqBySessionID[sessionID] ?? -1, maxSeq)
     }
 
-    private static func completedAssistantTurnTimestamp(in messages: [ChatMessage]) -> Date? {
-        guard !messages.isEmpty else { return nil }
-        var completedAt: Date?
-        for message in messages where message.role == .agent {
-            switch message.kind {
-            case .prose, .thought, .unsupported:
-                completedAt = max(completedAt ?? message.timestamp, message.timestamp)
-            case .toolUse, .terminal, .fileEdit, .permissionRequest, .question:
-                return nil
-            case .status:
-                break
-            case .attachment:
-                break
-            }
-        }
-        return completedAt
-    }
-
     private func handleRecordChange(_ record: AgentChatSessionRecord, previous: AgentChatSessionRecord?) {
+        sessionOutlineState.yield(surfaceIDs: [previous?.surfaceID, record.surfaceID])
         let endedRecordIsListable: Bool
         if record.state == .ended {
             endedRecordIsListable = record.agentKind == .codex
@@ -673,6 +661,7 @@ final class AgentChatTranscriptService {
     }
 
     private func handleRecordRemoval(_ record: AgentChatSessionRecord) {
+        sessionOutlineState.remove(sessionID: record.sessionID, surfaceID: record.surfaceID)
         fallbackResolutionCoordinator.cancel(sessionID: record.sessionID)
         endProseTurn(sessionID: record.sessionID)
         latestTranscriptSeqBySessionID[record.sessionID] = nil

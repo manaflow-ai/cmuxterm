@@ -27,8 +27,7 @@ enum DockShortcutCommand {
     case toggleTerminalCopyMode
     case focusTextBoxInput
     case attachTextBoxFile
-    case sendCtrlFToTerminal
-    case clearScreenKeepScrollback
+    case sendCtrlFToTerminal, clearScreenKeepScrollback, toggleSessionOutline
     case startFind
     case findNext
     case findPrevious
@@ -138,6 +137,7 @@ extension DockSplitStore {
                 )
             }
             return didClear
+        case .toggleSessionOutline: return focusedDockTerminalPanel?.sessionOutlineModel.togglePresentation() ?? false
         case .startFind:
             return startDockFind()
         case .findNext:

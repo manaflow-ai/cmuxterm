@@ -1,6 +1,41 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "command.terminalToggleSessionOutline.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Toggle Session Outline"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "セッション概要を切り替え"}}
+      }
+    },
+    "sessionOutline.actionRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Action required"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "対応が必要です"}}
+      }
+    },
+    "sessionOutline.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Session Outline"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "セッション概要"}}
+      }
+    },
+    "sessionOutline.toggle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Session Outline"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "セッション概要"}}
+      }
+    },
+    "shortcut.toggleSessionOutline.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Toggle Session Outline"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "セッション概要を切り替え"}}
+      }
+    },
   "cloudTree.error.invalidPreviewURL": {
     "extractionState": "manual",
     "localizations": {

@@ -1,0 +1,151 @@
+import Foundation
+
+/// Locates an outline prompt in captured terminal history.
+public struct ChatOutlineAnchorResolver: Sendable {
+    private static let promptPrefixes = ["❯ ", "› ", "> ", "$ ", "% ", "# ", ">>> "]
+
+    /// Creates an anchor resolver.
+    public init() {}
+
+    /// Returns the zero-based terminal row containing an outline prompt.
+    ///
+    /// - Parameters:
+    ///   - entry: The prompt to locate.
+    ///   - entries: The complete visible outline, used to disambiguate equal
+    ///     prompt titles.
+    ///   - history: Physical terminal rows in top-to-bottom order.
+    /// - Returns: The matching row, or `nil` when terminal history no longer
+    ///   contains the prompt.
+    public func row(
+        for entry: ChatOutlineEntry,
+        among entries: [ChatOutlineEntry],
+        in history: String
+    ) -> Int? {
+        let target = normalized(entry.title)
+        guard !target.isEmpty else { return nil }
+        let allowsClippedMatch = entry.title.count == 160
+        let occurrence = entries
+            .prefix { $0.id != entry.id }
+            .filter { normalized($0.title) == target }
+            .count
+
+        let rows = history
+            .components(separatedBy: .newlines)
+            .map(normalized)
+        var matchingOccurrence = 0
+        for row in rows.indices {
+            guard matches(
+                target: target,
+                startingAt: row,
+                in: rows,
+                allowsClippedMatch: allowsClippedMatch
+            ) else { continue }
+            if matchingOccurrence == occurrence { return row }
+            matchingOccurrence += 1
+        }
+        return nil
+    }
+
+    private func matches(
+        target: String,
+        startingAt row: Int,
+        in rows: [String],
+        allowsClippedMatch: Bool
+    ) -> Bool {
+        guard let prefix = Self.promptPrefixes.first(where: { rows[row].hasPrefix($0) }) else {
+            return false
+        }
+        var candidates = [String(rows[row].dropFirst(prefix.count))]
+        if matchesPromptContent(candidates[0], target: target, allowsClippedMatch: allowsClippedMatch) {
+            return true
+        }
+        for nextRow in rows.dropFirst(row + 1) {
+            guard !nextRow.isEmpty, !isPromptRow(nextRow) else { return false }
+            candidates = candidates
+                .flatMap { candidate in
+                    [candidate + " " + nextRow, candidate + nextRow]
+                }
+                .filter { target.hasPrefix($0) || (allowsClippedMatch && $0.hasPrefix(target)) }
+            if candidates.contains(where: {
+                matchesPromptContent($0, target: target, allowsClippedMatch: allowsClippedMatch)
+            }) {
+                return true
+            }
+            if candidates.isEmpty { return false }
+        }
+        return false
+    }
+
+    private func isPromptRow(_ row: String) -> Bool {
+        Self.promptPrefixes.contains { row.hasPrefix($0) }
+    }
+
+    private func matchesPromptContent(
+        _ candidate: String,
+        target: String,
+        allowsClippedMatch: Bool
+    ) -> Bool {
+        candidate == target || (allowsClippedMatch && candidate.hasPrefix(target))
+    }
+
+    private func normalized(_ text: String) -> String {
+        enum EscapeState {
+            case none
+            case afterEscape
+            case csi
+            case osc
+            case oscEscape
+        }
+
+        var result = ""
+        var escapeState = EscapeState.none
+        var needsSpace = false
+
+        for scalar in text.unicodeScalars {
+            switch escapeState {
+            case .afterEscape:
+                if scalar == "[" {
+                    escapeState = .csi
+                } else if scalar == "]" {
+                    escapeState = .osc
+                } else {
+                    escapeState = .none
+                }
+                continue
+            case .csi:
+                if (0x40...0x7E).contains(scalar.value) {
+                    escapeState = .none
+                } else if scalar.value == 0x1B {
+                    escapeState = .afterEscape
+                }
+                continue
+            case .osc:
+                if scalar.value == 0x07 {
+                    escapeState = .none
+                } else if scalar.value == 0x1B {
+                    escapeState = .oscEscape
+                }
+                continue
+            case .oscEscape:
+                escapeState = scalar == "\\" ? .none : .osc
+                continue
+            case .none:
+                if scalar.value == 0x1B {
+                    escapeState = .afterEscape
+                    continue
+                }
+            }
+
+            if CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                needsSpace = !result.isEmpty
+                continue
+            }
+            if needsSpace {
+                result.append(" ")
+                needsSpace = false
+            }
+            result.unicodeScalars.append(scalar)
+        }
+        return result.lowercased()
+    }
+}
