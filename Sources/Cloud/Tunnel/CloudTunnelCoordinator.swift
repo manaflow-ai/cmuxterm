@@ -8,18 +8,22 @@ nonisolated private let logger = Logger(subsystem: "com.cmuxterm.app", category:
 ///
 /// The policy, in one place:
 ///
-/// - **Off until a Cloud browser is opened.** Terminal and metadata traffic
-///   uses ``CloudWireGuardHub``. Browser navigation calls
-///   ``requirePrivateNetworkUse(_:)``, saves the VPN configuration, and waits
-///   until the system route is ready. It fails closed on error.
-/// - **Idle stop.** While up, an idle timer restarts on every Cloud use. When
-///   it fires and no consumer is live (``CloudTunnelConsumerSource``), the
-///   tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
+/// - **Off until asked for explicitly.** Terminals, Ports, and Desktop reach
+///   machines through ``CloudWireGuardHub`` and never start this tunnel, so
+///   nothing the app opens can trigger the one-time extension approval. The
+///   system-wide route exists for `cmux vpn up` (other apps on this Mac,
+///   `.internal` hostnames) and for a caller that asks through
+///   ``requirePrivateNetworkUse(_:)``; a start that needs approval reports
+///   `.awaitingApproval`, which the Machines panel shows with a link to
+///   System Settings.
+/// - **Idle stop.** While up and unpinned, an idle timer restarts on every use.
+///   When it fires and no consumer is live (``CloudTunnelConsumerSource``),
+///   the tunnel stops. `cmux vpn up` pins it until `cmux vpn down`.
 /// - **Stops with the session.** Sign-out, revoke, and app termination stop it.
 /// - macOS never auto-connects it: no NetworkExtension on-demand rules are set.
 ///
-/// An unavailable backend rejects browser navigation before a private URL is
-/// loaded. It does not run a command-line fallback.
+/// An unavailable backend fails closed for these callers. It does not run a
+/// command-line fallback.
 actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     let backend: CloudTunnelBackend
     private let controller: any CloudTunnelControlling
@@ -92,8 +96,8 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
         }
     }
 
-    /// Browser navigation must not race or bypass the Network Extension. The
-    /// pane stays on its connecting screen until this returns successfully.
+    /// A caller that needs the system-wide route waits here until it is up;
+    /// the wait includes the user's one-time extension approval.
     func requirePrivateNetworkUse(_ use: CloudPrivateNetworkUse) async throws {
         guard case .networkExtension = backend else {
             throw CloudTunnelError.backendUnavailable(backend.unavailableReason ?? .entitlementMissing)
