@@ -41,6 +41,8 @@ struct MachineSnapshot: Equatable, Identifiable {
     let createdAt: Date?
     /// User-chosen label; nil when the machine has no label.
     let label: String?
+    /// Server-generated three-word name; nil for machines older than naming.
+    var slug: String? = nil
     /// Free-plan access window position; `.unrestricted` on paid plans.
     var freeAccess: FreeAccessState = .unrestricted
     /// Latest activity reading; nil until the first sample lands.
@@ -53,7 +55,16 @@ struct MachineSnapshot: Equatable, Identifiable {
     /// anywhere), v6 is the fallback.
     var privateAddress: String?
 
-    var displayName: String { label?.isEmpty == false ? label! : id }
+    /// The label when set, else the generated name, else the machine id.
+    var displayName: String {
+        if let label, !label.isEmpty { return label }
+        if let slug, !slug.isEmpty { return slug }
+        return id
+    }
+
+    /// True when the row shows something other than the id, so the id still
+    /// needs a home on the second line (CLI verbs and URLs use it).
+    var showsName: Bool { displayName != id }
 
     var kindLabel: String {
         isDesktop
@@ -182,6 +193,7 @@ enum MachineSnapshotBuilder {
             activity: activity(fromStatus: summary.status),
             createdAt: createdAt,
             label: summary.displayName,
+            slug: summary.slug,
             freeAccess: freeAccess,
             stats: nil,
             privateAddress: summary.preferredPrivateAddress
@@ -395,6 +407,10 @@ final class MachinesPanelViewModel: ObservableObject {
     /// Local workspaces in sidebar order, so this Mac's terminals group under
     /// the workspace that shows them (titles resolved here, above the outline).
     @Published private(set) var localWorkspaces: [CloudTreeLocalWorkspace] = []
+    /// Machine id to terminal ids with a notification this Mac has not read,
+    /// from the per-machine notification syncs.
+    @Published private(set) var unreadTerminalIDs: [String: Set<String>] = [:]
+    private var unreadObserver: NSObjectProtocol?
     /// Last failure from a tree verb (open, new terminal, …); shown in the
     /// control bar's help text, cleared by the next successful refresh.
     @Published private(set) var treeErrorDescription: String?
@@ -437,8 +453,9 @@ final class MachinesPanelViewModel: ObservableObject {
     /// Last plan limits the list returned; the banner countdown re-derives from
     /// these on every local recompute without another round trip.
     private var lastLimits: VMPlanLimits?
-    /// Which image each kind provisions, from the last list; empty until then.
+    /// Legacy image-kind data for older callers; the current sheet is base-only.
     var imageKinds: [VMImageKindOption] { lastLimits?.imageKinds ?? [] }
+    var memoryOptionsMb: [Int] { lastLimits?.memoryOptionsMb ?? [] }
     private var authSignOutObserver: NSObjectProtocol?
     private var treeChangeObserver: NSObjectProtocol?
     private var createChangeObserver: NSObjectProtocol?
@@ -446,17 +463,16 @@ final class MachinesPanelViewModel: ObservableObject {
     private static let statsInterval: Duration = .seconds(20)
 
     init(createCoordinator: MachineCreateCoordinator? = nil) {
-        // `.shared` is main-actor-isolated, so it cannot be a default argument
-        // (default values evaluate in a nonisolated context); resolve it here.
         let createCoordinator = createCoordinator ?? .shared
         self.createCoordinator = createCoordinator
         pendingCreates = createCoordinator.operations
+        let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
             object: createCoordinator,
             queue: .main
         ) { [weak self] notification in
-            let finished = notification.userInfo?[MachineCreateCoordinator.finishedUserInfoKey] as? MachineCreateCoordinator.Finished
+            let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
             MainActor.assumeIsolated { self?.createsDidChange(finished: finished) }
         }
         authSignOutObserver = NotificationCenter.default.addObserver(
@@ -479,6 +495,15 @@ final class MachinesPanelViewModel: ObservableObject {
             // Delivered on the main queue (`queue: .main`), which is the main actor.
             MainActor.assumeIsolated { self?.scheduleCatalogRead() }
         }
+        if let unreadObserver { NotificationCenter.default.removeObserver(unreadObserver) }
+        unreadObserver = NotificationCenter.default.addObserver(
+            forName: .cmuxCloudNotificationUnreadDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.readUnreadTerminalIDs() }
+        }
+        readUnreadTerminalIDs()
     }
 
     /// Catalog changes arrive in bursts (a link snapshot upserts dozens of resources, a
@@ -519,6 +544,9 @@ final class MachinesPanelViewModel: ObservableObject {
         if let treeChangeObserver {
             NotificationCenter.default.removeObserver(treeChangeObserver)
         }
+        if let unreadObserver {
+            NotificationCenter.default.removeObserver(unreadObserver)
+        }
         if let createChangeObserver {
             NotificationCenter.default.removeObserver(createChangeObserver)
         }
@@ -548,6 +576,18 @@ final class MachinesPanelViewModel: ObservableObject {
     func readCatalog() {
         catalog = SurfaceCatalog.shared.snapshot
         localWorkspaces = localWorkspacesProvider()
+        // The unread index and the catalog change on the same accepted daemon
+        // state, so a catalog read also refreshes it. Cheap: a dictionary read.
+        readUnreadTerminalIDs()
+    }
+
+    private func readUnreadTerminalIDs() {
+        let unread = CloudNotificationSyncHub.shared.unreadTerminalIDs
+        guard unread != unreadTerminalIDs else { return }
+        #if DEBUG
+        cmuxDebugLog("cloud.notifications.panelUnread machines=\(unread.count) terminals=\(unread.values.reduce(0) { $0 + $1.count })")
+        #endif
+        unreadTerminalIDs = unread
     }
 
     /// The explicit Refresh verb: asks every provider to re-sync (machine list,
@@ -571,11 +611,13 @@ final class MachinesPanelViewModel: ObservableObject {
         refreshTree(force: forceTree)
     }
 
-    /// Samples every machine's CPU/memory/disk. Sleeping machines report
+    /// Samples every desktop machine's CPU/memory/disk. Sleeping machines report
     /// `asleep` without being woken, so polling never costs the user anything.
+    /// Shell-only (`base`) machines serve no stats endpoint (501 on every poll),
+    /// so they are left out rather than asked every cycle.
     func refreshStats() {
         statsTask?.cancel()
-        let ids = machines.map(\.id)
+        let ids = machines.filter(\.isDesktop).map(\.id)
         guard !ids.isEmpty else { return }
         statsTask = Task { [weak self] in
             await withTaskGroup(of: (String, VMStats?).self) { group in

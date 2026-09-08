@@ -3,7 +3,7 @@
  * Build the cmux Cloud devbox Freestyle snapshot on the public platform
  * (freestyle@0.2.x; api.freestyle.sh) on top of the `freestyle/ubuntu` base,
  * plus the desktop layer (web/services/vms/images/devbox/desktop, ported
- * from the retired Blaxel cmux-devbox image): an openbox/TigerVNC desktop
+ * from the legacy cmux-devbox image): an openbox/TigerVNC desktop
  * with a tint2 dock, Ghostty, Chrome, Thunar, and noVNC on 6901.
  *
  * Usage:
@@ -56,7 +56,8 @@
  * (web/services/vms/drivers/freestyle.ts) therefore runs no install, start, or
  * readiness exec at create; it writes the model-plane env file and returns.
  * The unit binds the listener dual-stack (CMUX_TUI_REMOTE_WS_BIND=[::]:1337)
- * because the driver routes attaches to the VM's stable public IPv6. The
+ * because the driver routes attaches to a private VPC address by default and
+ * to the stable public IPv6 for legacy public-network machines. The
  * daemon still runs as root until the driver adopts the ubuntu user for
  * sessions.
  *
@@ -67,6 +68,15 @@
  * desktop packages, files and the Ghostty .deb come from the Dockerfile
  * (devbox-image-common.ts reads them), so the container recipe and this bake
  * cannot drift.
+ *
+ * Identity contract (web/services/vms/images/identity.ts): the machine is
+ * `cmux`, not the base's `freestyle-vm`. The first step after the inventory
+ * sets the static and live hostname, the 127.0.1.1 alias in /etc/hosts, and
+ * regenerates the SSH host keys under that name; the last step before the
+ * stamp re-checks all of it plus a whole-word residue audit, and the cleanup
+ * starts the journal over so a machine's log begins under its own name. The
+ * provider's `freestyle-vms` agent, units, and resolver drop-in stay: the
+ * exec/fs API runs on them.
  */
 import { Freestyle } from "freestyle";
 import { fileURLToPath } from "node:url";
@@ -79,6 +89,7 @@ import {
 } from "../services/vms/drivers/cmuxTuiDaemon";
 import {
   DEVBOX_DESKTOP_INSTALLS,
+  devboxTerminfoInstallCommand,
   DEVBOX_INSTANCE_ID_COMMAND,
   bakeMetadata,
   bakePreflight,
@@ -88,7 +99,12 @@ import {
   devboxFileBytes,
   devboxGhosttyDebSha256,
   devboxGhosttyDebUrl,
+  devboxGhosttyVersion,
+  devboxIdentityCheckCommand,
+  devboxIdentityInstallCommand,
+  devboxJournalResetCommand,
   devboxParkDaemonCommand,
+  cmuxTuiWebsocketSmokeCommand,
   emitBakeResult,
   hasFlag,
   manifestEntrySkeleton,
@@ -105,6 +121,7 @@ import {
   DEVBOX_DESKTOP_UNIT,
   DEVBOX_DESKTOP_USER,
 } from "../services/vms/images/desktop";
+import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 
 const apiKey = process.env.FREESTYLE_API_KEY;
 const stackToken = process.env.FREESTYLE_STACK_ACCESS_TOKEN;
@@ -227,6 +244,10 @@ try {
     `id ${WORK_USER} && [ "$(id -u ${WORK_USER})" = 1000 ] && sudo -n -u ${WORK_USER} sudo -n true && node --version && npm --version && bun --version && python3 --version && uv --version && docker --version && test -L /usr/local/bin/node && readlink /usr/local/bin/node | grep -q /usr/local/nvm/ && echo base-ok`,
   );
 
+  // The machine's name, before anything records it (host keys, caches, the
+  // daemon, the journal): see the identity contract in the header.
+  await step("identity", devboxIdentityInstallCommand());
+
   await step(
     "apt-devtools",
     "apt-get update -q && apt-get install -y --no-install-recommends git ripgrep build-essential curl ca-certificates unzip zip xz-utils zstd procps iproute2 openssh-client pkg-config jq fd-find fzf sqlite3 tmux less rsync file tree nano vim sudo util-linux && rm -rf /var/lib/apt/lists/* && ln -sf $(command -v fdfind) /usr/local/bin/fd && echo 'LANG=C.UTF-8' > /etc/default/locale && fd --version && jq --version && fzf --version && sqlite3 --version && tmux -V",
@@ -274,7 +295,16 @@ try {
 
   await step(
     "claude-managed-settings",
-    `mkdir -p /etc/claude-code && echo '{ "cleanupPeriodDays": 99999 }' > /etc/claude-code/managed-settings.json && node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))'`,
+    `mkdir -p /etc/claude-code && echo '{ "cleanupPeriodDays": 99999, "skipDangerousModePermissionPrompt": true }' > /etc/claude-code/managed-settings.json && node -e 'JSON.parse(require("fs").readFileSync("/etc/claude-code/managed-settings.json","utf8"))'`,
+  );
+  // codex managed defaults: folder trust for /root and the work HOME
+  // (codex-managed.toml); cloned repos are trusted per launch by the codex()
+  // wrapper in agent-config.sh.
+  await step("codex-etc", "mkdir -p /etc/codex");
+  await put("codex-managed.toml", "/etc/codex/managed_config.toml", 0o644);
+  await step(
+    "codex-managed-config",
+    `python3 -c 'import tomllib; d = tomllib.load(open("/etc/codex/managed_config.toml", "rb")); assert d["projects"]["/root"]["trust_level"] == "trusted"; assert d["projects"]["${WORK_HOME}"]["trust_level"] == "trusted"'`,
   );
 
   // devshell replays the Dockerfile devshell + ble.sh tput cache bake (same
@@ -283,6 +313,9 @@ try {
   await step("cmux-etc", "mkdir -p /etc/cmux /etc/skel");
   await put("cmux-bashrc", "/etc/cmux/bashrc");
   await put("seed-history", "/etc/cmux/seed-history");
+  await put("cmux-terminfo.sh", "/etc/profile.d/cmux-terminfo.sh");
+  await put("cmux-terminfo.src", "/etc/cmux/terminfo.src");
+  await step("terminfo", devboxTerminfoInstallCommand);
   await step(
     "devshell",
     `curl -fsSL https://github.com/akinomyoga/ble.sh/releases/download/nightly/ble-nightly.tar.xz -o /tmp/ble.tar.xz && tar xJf /tmp/ble.tar.xz -C /tmp && rm -rf /usr/local/share/blesh && mv /tmp/ble-nightly /usr/local/share/blesh && rm -f /tmp/ble.tar.xz && test -f /usr/local/share/blesh/ble.sh && bash -n /etc/cmux/bashrc && ${rcFiles.map((rc) => `echo '[ -f /etc/cmux/bashrc ] && . /etc/cmux/bashrc' >> ${rc}`).join(" && ")} && echo 'set -g default-shell /bin/bash' >> /etc/tmux.conf && bash -ic 'head -2 $HOME/.bash_history' && mkdir -p /etc/cmux/blesh-cache-seed /tmp/blesh-seed-home && echo '[ -f /etc/cmux/bashrc ] && . /etc/cmux/bashrc' > /tmp/blesh-seed-home/.bashrc && for term in xterm-256color screen-256color tmux-256color linux xterm-ghostty; do echo exit | TERM="$term" HOME=/tmp/blesh-seed-home XDG_CACHE_HOME=/etc/cmux/blesh-cache-seed script -qec 'bash -i' /dev/null >/dev/null 2>&1 || true; done && rm -rf /tmp/blesh-seed-home && chmod -R a+rX /etc/cmux/blesh-cache-seed && test -s /etc/cmux/blesh-cache-seed/blesh/*/term.xterm-256color && test -s /etc/cmux/blesh-cache-seed/blesh/*/term.screen-256color && test -s /etc/cmux/blesh-cache-seed/blesh/*/term.tmux-256color && test -s /etc/cmux/blesh-cache-seed/blesh/*/term.linux && test -s /etc/cmux/blesh-cache-seed/blesh/*/term.xterm-ghostty && mkdir -p /usr/local/share/blesh/cache.d/0 /usr/local/share/blesh/cache.d/1000 && chmod a+rwxt /usr/local/share/blesh/cache.d && cp /etc/cmux/blesh-cache-seed/blesh/*/term.* /usr/local/share/blesh/cache.d/0/ && cp /etc/cmux/blesh-cache-seed/blesh/*/term.* /usr/local/share/blesh/cache.d/1000/ && chmod 700 /usr/local/share/blesh/cache.d/0 /usr/local/share/blesh/cache.d/1000 && chown -R 1000:1000 /usr/local/share/blesh/cache.d/1000`,
@@ -291,7 +324,7 @@ try {
   await put("agent-config.sh", "/etc/cmux/agent-config.sh");
   await step(
     "agent-config",
-    `bash -n /etc/cmux/agent-config.sh && echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' > /etc/profile.d/cmux-agents.sh && ${rcFiles.map((rc) => `echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' >> ${rc}`).join(" && ")} && mkdir -p /tmp/agent-config-check && env HOME=/tmp/agent-config-check OPENAI_BASE_URL=https://example.invalid/v1 OPENAI_API_KEY=cmux-vm-edge-placeholder CMUX_CODEROUTER_URL=https://example.invalid ANTHROPIC_BASE_URL=https://example.invalid ANTHROPIC_API_KEY=cmux-vm-edge-placeholder CMUX_VM_ID=vm-check bash -lc 'true' && grep -q 'model_provider = "cmux"' /tmp/agent-config-check/.codex/config.toml && grep -q 'wire_api = "responses"' /tmp/agent-config-check/.codex/config.toml && grep -q 'supports_websockets = false' /tmp/agent-config-check/.codex/config.toml && grep -q "export OPENAI_API_KEY='cmux-vm-edge-placeholder'" /tmp/agent-config-check/.config/cmux/model-plane.env && grep -q "export ANTHROPIC_BASE_URL='https://example.invalid'" /tmp/agent-config-check/.config/cmux/model-plane.env && grep -q "export CMUX_VM_ID='vm-check'" /tmp/agent-config-check/.config/cmux/model-plane.env && [ "$(stat -c %a /tmp/agent-config-check/.config/cmux/model-plane.env)" = "600" ] && grep -qF '"apiKey": "e30.' /tmp/agent-config-check/.pi/agent/models.json && ! grep -q x-coderouter-route-token /tmp/agent-config-check/.pi/agent/models.json && ! grep -q crt_ /tmp/agent-config-check/.pi/agent/models.json && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json && rm -rf /tmp/agent-config-check && test ! -e /root/.codex/config.toml && test ! -e /root/.pi/agent/models.json && test ! -e /root/.config/opencode/opencode.json && test ! -e ${WORK_HOME}/.codex/config.toml`,
+    `bash -n /etc/cmux/agent-config.sh && echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' > /etc/profile.d/cmux-agents.sh && ${rcFiles.map((rc) => `echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' >> ${rc}`).join(" && ")} && rm -rf /tmp/agent-config-check && mkdir -p /tmp/agent-config-check && env HOME=/tmp/agent-config-check OPENAI_BASE_URL=https://example.invalid/v1 OPENAI_API_KEY=cmux-vm-edge-placeholder CMUX_CODEROUTER_URL=https://example.invalid ANTHROPIC_BASE_URL=https://example.invalid ANTHROPIC_API_KEY=cmux-vm-edge-placeholder CMUX_VM_ID=vm-check bash -lc 'true' && grep -q 'model_provider = "cmux"' /tmp/agent-config-check/.codex/config.toml && grep -q 'wire_api = "responses"' /tmp/agent-config-check/.codex/config.toml && grep -q 'supports_websockets = false' /tmp/agent-config-check/.codex/config.toml && grep -q "export OPENAI_API_KEY='cmux-vm-edge-placeholder'" /tmp/agent-config-check/.config/cmux/model-plane.env && grep -q "export ANTHROPIC_BASE_URL='https://example.invalid'" /tmp/agent-config-check/.config/cmux/model-plane.env && grep -q "export CMUX_VM_ID='vm-check'" /tmp/agent-config-check/.config/cmux/model-plane.env && [ "$(stat -c %a /tmp/agent-config-check/.config/cmux/model-plane.env)" = "600" ] && grep -qF '"apiKey": "e30.' /tmp/agent-config-check/.pi/agent/models.json && ! grep -q x-coderouter-route-token /tmp/agent-config-check/.pi/agent/models.json && ! grep -q crt_ /tmp/agent-config-check/.pi/agent/models.json && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding === true && j.bypassPermissionsModeAccepted === true && j.projects["/"].hasTrustDialogAccepted === true && Array.isArray(j.customApiKeyResponses.approved) && j.customApiKeyResponses.approved.includes("-vm-edge-placeholder"))) process.exit(1)' && [ "$(stat -c %a /tmp/agent-config-check/.claude.json)" = "600" ] && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX:$DISABLE_AUTOUPDATER')" = "1:1:1" ] && rm -rf /tmp/agent-config-check && test ! -e /root/.codex/config.toml && test ! -e /root/.pi/agent/models.json && test ! -e /root/.config/opencode/opencode.json && test ! -e ${WORK_HOME}/.codex/config.toml`,
   );
 
   // Login banner: pam_motd renders /etc/update-motd.d on SSH logins. The
@@ -396,6 +429,13 @@ try {
     `${cmuxTuiPinCheckCommand(cmuxTuiSource)} && mkdir -p /etc/cmux /root/.config/cmux && printf '%s %s\n' ${cmuxTuiSource.sha256} ${cmuxTuiSource.commit} > /etc/cmux/cmux-tui-pin && cat /etc/cmux/cmux-tui-pin`,
   );
 
+  // The Ghostty generation panes announce as TERM_PROGRAM_VERSION (the
+  // supervisor exports it next to TERM_PROGRAM=ghostty; see cmux-devbox-boot).
+  await step(
+    "ghostty-version",
+    `mkdir -p /etc/cmux && printf '%s\n' ${devboxGhosttyVersion()} > /etc/cmux/ghostty-version && cat /etc/cmux/ghostty-version`,
+  );
+
   // The cmux-tui daemon supervisor + its systemd unit (see the header).
   const service = [
     "[Unit]",
@@ -405,8 +445,9 @@ try {
     "[Service]",
     "Type=simple",
     "User=root",
-    // Freestyle machines are reached at their stable public IPv6, so the
-    // daemon listens dual-stack ([::] accepts IPv4 too). cmux-devbox-boot
+    // Freestyle machines are reached at a private VPC address by default, or
+    // their stable public IPv6 on the legacy public-network path, so the daemon
+    // listens dual-stack ([::] accepts IPv4 too). cmux-devbox-boot
     // defaults to 0.0.0.0 for the container providers, whose runtimes may have
     // IPv6 disabled entirely.
     "Environment=CMUX_TUI_REMOTE_WS_BIND=[::]:1337",
@@ -432,6 +473,9 @@ try {
     "cmux-tui-daemon-up",
     `for i in $(seq 1 30); do env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} >/dev/null 2>&1 && grep -qi ':0539 ' /proc/net/tcp6 && break; sleep 1; done && env HOME=/root /root/.cmux/bin/cmux-tui server status --session ${CMUX_TUI_SESSION} && grep -qi ':0539 ' /proc/net/tcp6 && test "$(cat /etc/cmux/daemon-instance-id)" = "$(${instanceIdCommand})" && echo daemon-up-bound-to-builder`,
   );
+  // Wait after the daemon first reports ready, then exercise the real
+  // WebSocket/Noise/RPC/PTY path before this machine can become a snapshot.
+  await step("cmux-tui-websocket-smoke", `sleep 30 && ${cmuxTuiWebsocketSmokeCommand()}`);
   // Park it (devboxParkDaemonCommand): the supervisor stops the daemon while
   // the machine's id equals the recorded bake id, its identity and session
   // state are wiped, and a clone (different id) starts fresh within one tick.
@@ -460,6 +504,9 @@ try {
   // shell materializes the harness configs, and the image must carry none.
   await vm.fs.writeFile(VM_GUEST_MODEL_PLANE_ENV_PATH, renderVmGuestModelPlaneEnvFile(vmGuestModelPlaneEnv()), { mode: 0o644 });
   await step("model-plane-env", `sh -n ${VM_GUEST_MODEL_PLANE_ENV_PATH} && grep -q "^export OPENAI_BASE_URL='https://" ${VM_GUEST_MODEL_PLANE_ENV_PATH} && ! grep -q crt_ ${VM_GUEST_MODEL_PLANE_ENV_PATH} && env -i HOME=/tmp/mp-check bash -c '. /etc/cmux/agent-config.sh; echo $OPENAI_BASE_URL' | grep -q '^https://' && rm -rf /tmp/mp-check && echo model-plane-env-baked`);
+  // The identity survived every layer above, and none of them wrote the
+  // provider's machine name anywhere the machine speaks for itself.
+  await step("identity-final", devboxIdentityCheckCommand());
   // Stamp last: its presence tells the driver and the verifier every layer
   // above baked successfully, and which layers the image carries.
   await step(
@@ -467,7 +514,15 @@ try {
     `mkdir -p /etc/cmux && echo "cmux-devbox ${preflight.epoch}${withDesktop ? " desktop" : ""}" > /etc/cmux/image-stamp && cat /etc/cmux/image-stamp`,
   );
 
-  await step("clean", `rm -rf /var/lib/apt/lists/* /root/.npm/_cacache ${WORK_HOME}/.npm/_cacache 2>/dev/null; sync; true`);
+  // The journal starts over so a machine's log begins under its own name,
+  // not with the base's boot as `freestyle-vm`.
+  // The interactive bake probes above ran login shells for root and the work
+  // user before the model-plane env was baked, so their ~/.claude.json seeds
+  // lack the placeholder key approval. Drop them: each machine's first shell
+  // seeds its own from the env. (The static codex config those shells wrote
+  // is the same bytes on every machine and stays; the verifier checks it.)
+  await step("clean", `rm -rf /var/lib/apt/lists/* /root/.npm/_cacache ${WORK_HOME}/.npm/_cacache 2>/dev/null; rm -f /root/.claude.json ${WORK_HOME}/.claude.json; ${devboxJournalResetCommand}; sync; true`);
+  await step("no-stale-claude-seed", `test ! -e /root/.claude.json && test ! -e ${WORK_HOME}/.claude.json && echo no-stale-claude-seed`);
 } catch (error) {
   console.error(`bake failed: ${String(error)}`);
   await deleteBuilder();
@@ -520,8 +575,8 @@ emitBakeResult({
       "FREESTYLE_SANDBOX_SNAPSHOT",
       metadata,
       withDesktop
-        ? `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner, and the desktop layer (openbox/TigerVNC 5901, noVNC 6901, Ghostty, Chrome, Thunar) run by the cmux-desktop systemd unit as ubuntu; ubuntu (uid 1000, NOPASSWD sudo) is the work user; baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`
-        : `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner; ubuntu (uid 1000, NOPASSWD sudo) is the work user; baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`,
+        ? `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner, and the desktop layer (openbox/TigerVNC 5901, noVNC 6901, Ghostty, Chrome, Thunar) run by the cmux-desktop systemd unit as ubuntu; ubuntu (uid 1000, NOPASSWD sudo) is the work user; hostname ${DEVBOX_HOSTNAME} (static, live, 127.0.1.1 alias; SSH host keys regenerated under it; journal reset); baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`
+        : `Devbox on the Freestyle public platform (api.freestyle.sh) from ${builderSnapshot}: the base's Node/Bun/Python/uv/Docker plus pinned agents, devtools, Chrome + cua-driver, ble.sh devshell, cmux login banner; ubuntu (uid 1000, NOPASSWD sudo) is the work user; hostname ${DEVBOX_HOSTNAME} (static, live, 127.0.1.1 alias; SSH host keys regenerated under it; journal reset); baked cmux-tui daemon ${cmuxTuiSource.commit.slice(0, 10)}, identity bound to the instance id, no create-time bootstrap.`,
       withDesktop ? "desktop" : "base",
     ),
     cmuxTuiCommit: cmuxTuiSource.commit,

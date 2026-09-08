@@ -82,7 +82,7 @@ async function createActivePublication(input: {
   readonly ownerUserId?: string;
   readonly accessMode?: "personal" | "team" | "public";
   readonly teamId?: string | null;
-}): Promise<CloudVmPublicationTarget> {
+}): Promise<CloudVmPublicationTarget & { readonly domain: NonNullable<CloudVmPublicationTarget["domain"]> }> {
   const repo = requiredRepository();
   const ownerUserId = input.ownerUserId ?? `owner-${input.suffix}`;
   const accessMode = input.accessMode ?? "personal";
@@ -294,7 +294,6 @@ describe("Cloud VM publication persistence", () => {
 
       const resolved = await runRepository(
         repo.findActivePublicationForRequest({
-          hostname: "OWNERSHIP.PREVIEW.EXAMPLE.TEST",
           providerTlsRuleId: "tls-rule-ownership",
         }),
       );
@@ -302,7 +301,6 @@ describe("Cloud VM publication persistence", () => {
       expect(
         await runRepository(
           repo.findActivePublicationForRequest({
-            hostname: target.publication.hostname,
             providerTlsRuleId: "tls-rule-not-this-publication",
           }),
         ),

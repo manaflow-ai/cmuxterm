@@ -454,7 +454,7 @@ class GhosttyApp {
     /// to load; it performs no `ghostty_config_t` mutation itself.
     private static let configDiscovery = GhosttyConfigDiscovery()
     private static let fallbackAppearanceConfig = GhosttyConfig()
-    private static let initializationLogger = Logger(
+    static let initializationLogger = Logger(
         subsystem: releaseBundleIdentifier,
         category: "ghostty.initialization"
     )
@@ -486,10 +486,40 @@ class GhosttyApp {
     private var nativeReloadActionSuppressionDepth = 0
     typealias ConfigurationReloadCompletion =
         @MainActor () -> Void
+    typealias ConfigurationReloadCommitCompletion =
+        @MainActor (Bool) -> Void
     private let configurationReloadCoordinator =
         TerminalConfigurationReloadCoordinator()
-    private let terminalFontConfigurationReloadReconciler =
-        TerminalFontConfigurationReloadReconciler()
+    @MainActor
+    lazy var terminalConfigurationApplyScheduler =
+        TerminalConfigurationApplyScheduler<
+            UUID,
+            TerminalConfigurationApplySnapshot
+        >(
+            maximumVisitsPerDrain: 1
+        )
+    private typealias DeferredConfigurationSurfaceCreation =
+        @MainActor () -> Void
+    private static let maximumDeferredConfigurationSurfaceCreations = 256
+    private static let maximumDeferredConfigurationSurfaceCreationsPerTurn = 8
+    @MainActor
+    private lazy var deferredConfigurationSurfaceCreationScheduler =
+        MainActorDeferredActionScheduler()
+    private var deferredConfigurationSurfaceCreationOrder: [UUID] = []
+    private var deferredConfigurationSurfaceCreations:
+        [UUID: DeferredConfigurationSurfaceCreation] = [:]
+    /// Set when more unique surfaces arrive than fit in the coalescing map.
+    /// Overflow is revisited through the registry after the gate instead of
+    /// allowing a caller to create a native surface synchronously.
+    private var deferredConfigurationSurfaceCreationOverflowPending = false
+    private var deferredConfigurationSurfaceCreationOverflowTraversal:
+        TerminalSurfaceRegistryIncrementalTraversal?
+    private var configurationSurfaceCreationGateGeneration: UInt64 = 0
+    private var activeConfigurationSurfaceCreationGateGeneration: UInt64?
+    private var appliedConfigurationContentIdentity:
+        GhosttyConfigurationContentIdentity?
+    var terminalConfigurationPresentationMetrics:
+        TerminalConfigurationPresentationMetrics?
     private(set) var appliedGlobalFontMagnificationPercent =
         GlobalFontMagnification.storedPercent
     private(set) var terminalFontConfigurationGeneration: UInt64 = 0
@@ -550,15 +580,104 @@ class GhosttyApp {
 
     @MainActor
     func deferRuntimeSurfaceCreationForConfigurationReload(
+        surfaceID: UUID,
         _ action: @escaping @MainActor () -> Void
     ) -> Bool {
-        terminalFontConfigurationReloadReconciler
-            .enqueuePostConfigurationWork(
-                .init(attempt: {
-                    action()
-                    return true
-                })
-            )
+        guard activeConfigurationSurfaceCreationGateGeneration != nil else {
+            return false
+        }
+        if deferredConfigurationSurfaceCreations[surfaceID] == nil {
+            guard deferredConfigurationSurfaceCreations.count
+                    < Self.maximumDeferredConfigurationSurfaceCreations else {
+                // Keep the caller behind the reload gate. The surface model is
+                // already registered, so the post-gate overflow sweep can
+                // recover it without retaining another closure here.
+                deferredConfigurationSurfaceCreationOverflowPending = true
+                return true
+            }
+            deferredConfigurationSurfaceCreationOrder.append(surfaceID)
+        }
+        deferredConfigurationSurfaceCreations[surfaceID] = action
+        return true
+    }
+
+    @MainActor
+    func beginConfigurationSurfaceCreationGate() -> UInt64 {
+        configurationSurfaceCreationGateGeneration &+= 1
+        activeConfigurationSurfaceCreationGateGeneration =
+            configurationSurfaceCreationGateGeneration
+        return configurationSurfaceCreationGateGeneration
+    }
+
+    @MainActor
+    func finishConfigurationSurfaceCreationGate(generation: UInt64) {
+        guard activeConfigurationSurfaceCreationGateGeneration == generation else {
+            return
+        }
+        activeConfigurationSurfaceCreationGateGeneration = nil
+        if deferredConfigurationSurfaceCreationOverflowPending {
+            // Start a fresh weak traversal so surfaces registered during a
+            // replacement gate are included even when an older overflow sweep
+            // was already in progress.
+            deferredConfigurationSurfaceCreationOverflowTraversal =
+                Self.terminalSurfaceRegistry.makeIncrementalTraversal()
+            deferredConfigurationSurfaceCreationOverflowPending = false
+        }
+        scheduleDeferredConfigurationSurfaceCreations()
+    }
+
+    @MainActor
+    private func scheduleDeferredConfigurationSurfaceCreations() {
+        guard (!deferredConfigurationSurfaceCreationOrder.isEmpty
+            || deferredConfigurationSurfaceCreationOverflowTraversal != nil),
+              !deferredConfigurationSurfaceCreationScheduler.isScheduled else {
+            return
+        }
+        deferredConfigurationSurfaceCreationScheduler.schedule(
+            zeroDelayPolicy: .yieldOnce
+        ) { [weak self] in
+            self?.drainDeferredConfigurationSurfaceCreations()
+        }
+    }
+
+    @MainActor
+    private func drainDeferredConfigurationSurfaceCreations() {
+        // A replacement reload can start before an earlier completion callback
+        // drains this queue. Leave all creations deferred until the newest gate
+        // has committed as well.
+        guard activeConfigurationSurfaceCreationGateGeneration == nil else {
+            return
+        }
+        var drained = 0
+        while drained < Self.maximumDeferredConfigurationSurfaceCreationsPerTurn,
+              activeConfigurationSurfaceCreationGateGeneration == nil {
+            if !deferredConfigurationSurfaceCreationOrder.isEmpty {
+                let surfaceID = deferredConfigurationSurfaceCreationOrder.removeFirst()
+                guard let action = deferredConfigurationSurfaceCreations
+                        .removeValue(forKey: surfaceID) else {
+                    continue
+                }
+                drained += 1
+                action()
+                continue
+            }
+
+            guard let traversal = deferredConfigurationSurfaceCreationOverflowTraversal else {
+                break
+            }
+            guard let visit = traversal.nextVisit() else {
+                deferredConfigurationSurfaceCreationOverflowTraversal = nil
+                continue
+            }
+            drained += 1
+            (visit.surface as? TerminalSurface)?
+                .resumeDeferredRuntimeSurfaceCreationAfterConfigurationReloadIfNeeded()
+        }
+        if activeConfigurationSurfaceCreationGateGeneration == nil,
+           (!deferredConfigurationSurfaceCreationOrder.isEmpty
+            || deferredConfigurationSurfaceCreationOverflowTraversal != nil) {
+            scheduleDeferredConfigurationSurfaceCreations()
+        }
     }
 
     static func retainTickNotifications() -> () -> Void {
@@ -607,6 +726,12 @@ class GhosttyApp {
     private var backgroundEventCounter: UInt64 = 0
     private var defaultBackgroundUpdateScope: GhosttyDefaultBackgroundUpdateScope = .unscoped
     private var defaultBackgroundScopeSource: String = "initialize"
+    private var deferredDefaultBackgroundNotificationSource: String?
+    /// A committed reload defers the legacy global notification until its
+    /// surface fan-out settles. Keep that obligation across a queued
+    /// replacement so a replacement that fails to commit cannot strand the
+    /// previously committed configuration without its final notification.
+    private var configurationReloadNotificationPending = false
     private var lastAppearanceColorScheme: GhosttyConfig.ColorSchemePreference?
     @MainActor private lazy var defaultBackgroundNotificationDispatcher: GhosttyDefaultBackgroundNotificationDispatcher =
         // Theme chrome should track terminal theme changes in the same frame.
@@ -1003,6 +1128,21 @@ class GhosttyApp {
             self.config = fallbackConfig
             Self.registerRuntimeApp(self, for: created)
         }
+
+        if let config {
+            appliedConfigurationContentIdentity =
+                GhosttyConfigurationContentIdentity(config)
+        }
+        terminalConfigurationPresentationMetrics =
+            TerminalConfigurationPresentationMetrics.capture(
+                configuration: GhosttyConfig.loadForCmux(
+                    preferredColorScheme: initialColorScheme,
+                    globalFontMagnificationPercent:
+                        appliedGlobalFontMagnificationPercent
+                ),
+                usesHostLayerBackground:
+                    usesHostLayerBackground
+            )
 
         // Notify observers that a usable config is available (initial load).
         synchronizeGhosttyRuntimeColorScheme(effectiveTerminalColorSchemePreference, source: "initialize")
@@ -1764,14 +1904,16 @@ class GhosttyApp {
         source: String = "unspecified",
         reloadSettingsFromFile: Bool = true,
         preferredColorScheme: GhosttyConfig.ColorSchemePreference? = nil,
-        completion: ConfigurationReloadCompletion? = nil
+        completion: ConfigurationReloadCompletion? = nil,
+        commitCompletion: ConfigurationReloadCommitCompletion? = nil
     ) -> Bool {
         let request = TerminalPendingConfigurationReload(
             soft: soft,
             source: source,
             reloadSettingsFromFile: reloadSettingsFromFile,
             preferredColorScheme: preferredColorScheme,
-            completions: completion.map { [$0] } ?? []
+            completions: completion.map { [$0] } ?? [],
+            commitCompletions: commitCompletion.map { [$0] } ?? []
         )
         return enqueueConfigurationReload(request)
     }
@@ -1782,6 +1924,9 @@ class GhosttyApp {
     ) -> Bool {
         let result =
             configurationReloadCoordinator.enqueue(request)
+        // Let an already-committed fanout finish before the queued replacement
+        // starts. Canceling it here would strand offscreen surfaces on the old
+        // native configuration if the replacement later fails to commit.
         if result.needsFontWorkBarrier {
             schedulePendingConfigurationReload()
         }
@@ -1824,7 +1969,18 @@ class GhosttyApp {
             completion()
             return
         }
-        performConfigurationReload(request) { [weak self] in
+        var didCommitConfiguration = false
+        performConfigurationReload(
+            request,
+            didCommit: { [weak self] in
+                didCommitConfiguration = true
+                self?.configurationReloadNotificationPending = true
+                request.commitCompletions.forEach { $0(true) }
+            },
+            didFailToCommit: {
+                request.commitCompletions.forEach { $0(false) }
+            }
+        ) { [weak self] in
             guard let self else {
                 request.completions.forEach { $0() }
                 completion()
@@ -1833,8 +1989,25 @@ class GhosttyApp {
             let shouldScheduleNext =
                 self.configurationReloadCoordinator
                     .finishReload()
-            self.drainPendingAppearanceSynchronization()
+            // Keep the long-standing reload notification as a post-fanout
+            // boundary. Mobile render-grid observers treat it as permission
+            // to invalidate every cached theme; publishing it while the
+            // bounded scheduler is still applying surfaces can emit a newer
+            // revision for a surface that still has the previous native theme.
+            // A superseded transaction must not publish this event: its
+            // replacement owns the final notification after its own fanout.
+            if !shouldScheduleNext,
+               (didCommitConfiguration
+                || self.configurationReloadNotificationPending) {
+                NotificationCenter.default.post(
+                    name: .ghosttyConfigDidReload,
+                    object: nil
+                )
+                flushDeferredDefaultBackgroundNotification()
+                self.configurationReloadNotificationPending = false
+            }
             request.completions.forEach { $0() }
+            self.drainPendingAppearanceSynchronization()
             if shouldScheduleNext {
                 self.schedulePendingConfigurationReload()
             }
@@ -1845,6 +2018,8 @@ class GhosttyApp {
     @MainActor
     private func performConfigurationReload(
         _ request: TerminalPendingConfigurationReload,
+        didCommit: @escaping @MainActor () -> Void,
+        didFailToCommit: @escaping @MainActor () -> Void,
         completion: @escaping @MainActor () -> Void
     ) {
         let requestedSoft = request.soft
@@ -1878,6 +2053,7 @@ class GhosttyApp {
         let reloadColorScheme = preferredColorScheme ?? appearanceBackedColorSchemePreference()
         guard let app else {
             logThemeAction("reload skipped source=\(source) soft=\(soft) reason=no_app")
+            didFailToCommit()
             completion()
             return
         }
@@ -1898,20 +2074,74 @@ class GhosttyApp {
         logThemeAction("reload begin source=\(source) soft=\(soft)")
         resetDefaultBackgroundUpdateScope(source: "reloadConfiguration(source=\(source))")
         if soft, let config {
-            let effectiveReloadColorScheme = effectiveTerminalColorSchemePreference
-            synchronizeGhosttyRuntimeColorScheme(effectiveReloadColorScheme, source: "reloadConfiguration:\(source):resolved")
-            suppressGhosttyReloadActions {
-                ghostty_app_update_config(app, config)
-            }
-            lastAppearanceColorScheme = reloadColorScheme
-            GhosttyConfig.invalidateLoadCache()
-            NotificationCenter.default.post(name: .ghosttyConfigDidReload, object: nil)
-            refreshSurfacesAfterConfigurationReload(
-                source: source,
-                preferredColorScheme: effectiveReloadColorScheme
+            let effectiveReloadColorScheme =
+                effectiveTerminalColorSchemePreference
+            synchronizeGhosttyRuntimeColorScheme(
+                effectiveReloadColorScheme,
+                source:
+                    "reloadConfiguration:\(source):resolved"
             )
-            logThemeAction("reload end source=\(source) soft=\(soft) mode=soft")
-            completion()
+            // Capture presentation values before mutating the runtime config.
+            // The reload acknowledgement and metrics must describe one disk
+            // snapshot; do not perform a second uncached read after the C
+            // runtime has been updated.
+            GhosttyConfig.invalidateLoadCache()
+            let presentationConfiguration = GhosttyConfig.loadForCmux(
+                preferredColorScheme:
+                    effectiveReloadColorScheme,
+                useCache: false,
+                globalFontMagnificationPercent:
+                    reloadMagnificationPercent
+            )
+            suppressGhosttyReloadActions {
+                ghostty_app_update_config_without_surface_propagation(
+                    app,
+                    config
+                )
+            }
+            let terminalFontConfiguration =
+                terminalFontConfigurationSnapshot(
+                    config: config,
+                    magnificationPercent:
+                        reloadMagnificationPercent
+                )
+            AppDelegate.shared?
+                .workspaceTerminalFontSizeArbiter
+                .setCurrentFontSizeWorkIdleBarrierProjectionConfiguration(
+                    terminalFontConfiguration
+                )
+            configurationReloadCoordinator.beginReconciliation()
+            appliedGlobalFontMagnificationPercent =
+                reloadMagnificationPercent
+            terminalFontConfigurationGeneration &+= 1
+            lastAppearanceColorScheme = reloadColorScheme
+            publishConfigurationPresentationMetrics(
+                configuration: presentationConfiguration
+            )
+#if DEBUG
+            cmuxDebugLog(
+                "reload.config.commit source=\(source) mode=soft contentChanged=1"
+            )
+#endif
+            let snapshot = TerminalConfigurationApplySnapshot(
+                source: source,
+                preferredColorScheme:
+                    effectiveReloadColorScheme,
+                previousMagnificationPercent:
+                    fontTransaction
+                        .previousMagnificationPercent,
+                terminalFontConfiguration:
+                    terminalFontConfiguration
+            )
+            scheduleConfigurationApply(
+                snapshot,
+                didCommit: didCommit
+            ) { [weak self] in
+                self?.logThemeAction(
+                    "reload end source=\(source) soft=\(soft) mode=soft"
+                )
+                completion()
+            }
             return
         }
 
@@ -1926,6 +2156,7 @@ class GhosttyApp {
                 )
             }
             logThemeAction("reload skipped source=\(source) soft=\(soft) reason=config_alloc_failed")
+            didFailToCommit()
             completion()
             return
         }
@@ -1947,6 +2178,16 @@ class GhosttyApp {
                     stagedResolvedAppearance
                         .backgroundColor
             )
+        // Keep presentation metrics tied to the same resolved read that was
+        // captured before committing the new runtime configuration. A second
+        // uncached read after the commit could observe a file edit mid-reload.
+        let presentationConfiguration = GhosttyConfig.loadForCmux(
+            preferredColorScheme:
+                effectiveReloadColorScheme,
+            useCache: false,
+            globalFontMagnificationPercent:
+                reloadMagnificationPercent
+        )
         // Ghostty consults its runtime scheme while loading conditional
         // themes. Restore the applied scheme before incremental capture so
         // neither the renderer nor surrounding UI exposes the staged theme.
@@ -1970,148 +2211,94 @@ class GhosttyApp {
             .setCurrentFontSizeWorkIdleBarrierProjectionConfiguration(
                 terminalFontConfiguration
             )
-        let registryTraversal =
-            Self.terminalSurfaceRegistry
-                .makeIncrementalTraversal()
-        configurationReloadCoordinator
-            .beginReconciliation()
-        terminalFontConfigurationReloadReconciler
-            .reconcileIncrementally(
-                captureNextWork: {
-                    guard let visit =
-                            registryTraversal.nextVisit() else {
-                        return nil
-                    }
-                    guard let surface =
-                            visit.surface as? TerminalSurface else {
-                        return .init(attempt: { true })
-                    }
-                    let reloadState =
-                        surface
-                            .captureFontSizeConfigurationReloadState(
-                                magnificationPercent:
-                                    fontTransaction
-                                        .previousMagnificationPercent,
-                                targetConfiguredRuntimePoints:
-                                    terminalFontConfiguration
-                                        .configuredRuntimePoints,
-                                targetMagnificationPercent:
-                                    terminalFontConfiguration
-                                        .magnificationPercent
-                            )
-                    return .init(
-                        attempt: { [weak surface] in
-                            guard let surface else {
-                                return true
-                            }
-                            guard Self.terminalSurfaceRegistry
-                                    .isRegistered(surface) else {
-                                surface
-                                    .abandonFontSizeConfigurationReloadReconciliation(
-                                        from: reloadState,
-                                        magnificationPercent:
-                                            terminalFontConfiguration
-                                                .magnificationPercent
-                                    )
-                                return true
-                            }
-                            let outcome =
-                                surface
-                                    .reconcileFontSizeAfterConfigurationReload(
-                                        from: reloadState,
-                                        configuredRuntimePoints:
-                                            terminalFontConfiguration
-                                                .configuredRuntimePoints,
-                                        magnificationPercent:
-                                            terminalFontConfiguration
-                                                .magnificationPercent
-                                    )
-                            if outcome == .failed {
-                                Self.initializationLogger.error(
-                                    "Terminal font reconciliation attempt failed after config reload surface=\(surface.id.uuidString, privacy: .public)"
-                                )
-                            }
-                            return outcome.didSucceed
-                        },
-                        abandon: { [weak surface] in
-                            guard let surface else { return }
-                            surface
-                                .abandonFontSizeConfigurationReloadReconciliation(
-                                    from: reloadState,
-                                    magnificationPercent:
-                                        terminalFontConfiguration
-                                            .magnificationPercent
-                                )
-                            Self.initializationLogger.error(
-                                "Terminal font reconciliation rolled back after retry exhaustion surface=\(surface.id.uuidString, privacy: .public)"
-                            )
-                        }
-                    )
-                },
-                applyConfiguration: {
-                    self.suppressGhosttyReloadActions {
-                        ghostty_app_update_config(
-                            app,
-                            newConfig
-                        )
-                    }
-                    self.appliedGlobalFontMagnificationPercent =
-                        reloadMagnificationPercent
-                    self.terminalFontConfigurationGeneration &+= 1
-                    if let oldConfig = self.config {
-                        ghostty_config_free(oldConfig)
-                    }
-                    self.config = newConfig
-                    let appearanceSource =
-                        "reloadConfiguration(source=\(source))"
-                    self.applyDefaultBackground(
-                        stagedBaselineAppearance,
-                        source: appearanceSource,
-                        scope: .unscoped,
-                        forceNotify:
-                            renderingModeChanged
-                    )
-                    self.applyDefaultBackground(
-                        stagedResolvedAppearance,
-                        source:
-                            "\(appearanceSource).resolvedGhosttyConfig",
-                        scope: .unscoped,
-                        forceNotify:
-                            renderingModeChanged
-                    )
-                    self.synchronizeGhosttyRuntimeColorScheme(
-                        effectiveReloadColorScheme,
-                        source:
-                            "reloadConfiguration:\(source):resolved"
-                    )
-                    Task { @MainActor [weak self] in
-                        self?.applyBackgroundToKeyWindow()
-                    }
-                }
-            ) { [weak self] in
-                guard let self else {
-                    completion()
-                    return
-                }
-                self.lastAppearanceColorScheme = reloadColorScheme
-                NotificationCenter.default.post(
-                    name: .ghosttyConfigDidReload,
-                    object: nil
+        let nextContentIdentity =
+            GhosttyConfigurationContentIdentity(newConfig)
+        let configurationChanged =
+            nextContentIdentity == nil
+            || nextContentIdentity
+                != appliedConfigurationContentIdentity
+        // Keep the bounded traversal for an unchanged serialized config: a
+        // surface may have been replaced, detached, or left with an exhausted
+        // font reconciliation attempt by an earlier transaction. Re-running
+        // the lifecycle-bound apply is the recovery path; skipping it would
+        // leave those surfaces permanently stale.
+
+        configurationReloadCoordinator.beginReconciliation()
+        if configurationChanged {
+            suppressGhosttyReloadActions {
+                ghostty_app_update_config_without_surface_propagation(
+                    app,
+                    newConfig
                 )
-                self.refreshSurfacesAfterConfigurationReload(
-                    source: source,
-                    preferredColorScheme:
-                        effectiveReloadColorScheme
-                )
-                self.logThemeAction(
-                    "reload end source=\(source) soft=\(soft) mode=full"
-                )
-                completion()
             }
+            let oldConfig = config
+            config = newConfig
+            appliedConfigurationContentIdentity =
+                nextContentIdentity
+            if let oldConfig {
+                ghostty_config_free(oldConfig)
+            }
+        } else {
+            ghostty_config_free(newConfig)
+        }
+        appliedGlobalFontMagnificationPercent =
+            reloadMagnificationPercent
+        terminalFontConfigurationGeneration &+= 1
+        let appearanceSource =
+            "reloadConfiguration(source=\(source))"
+        applyDefaultBackground(
+            stagedBaselineAppearance,
+            source: appearanceSource,
+            scope: .unscoped,
+            forceNotify: renderingModeChanged,
+            deferNotification: true
+        )
+        applyDefaultBackground(
+            stagedResolvedAppearance,
+            source:
+                "\(appearanceSource).resolvedGhosttyConfig",
+            scope: .unscoped,
+            forceNotify: renderingModeChanged,
+            deferNotification: true
+        )
+        synchronizeGhosttyRuntimeColorScheme(
+            effectiveReloadColorScheme,
+            source:
+                "reloadConfiguration:\(source):resolved"
+        )
+        lastAppearanceColorScheme = reloadColorScheme
+        publishConfigurationPresentationMetrics(
+            configuration: presentationConfiguration
+        )
+#if DEBUG
+        cmuxDebugLog(
+            "reload.config.commit source=\(source) mode=full contentChanged=\(configurationChanged ? 1 : 0)"
+        )
+#endif
+        applyBackgroundToKeyWindow()
+
+        let snapshot = TerminalConfigurationApplySnapshot(
+            source: source,
+            preferredColorScheme:
+                effectiveReloadColorScheme,
+            previousMagnificationPercent:
+                fontTransaction.previousMagnificationPercent,
+            terminalFontConfiguration:
+                terminalFontConfiguration
+        )
+        scheduleConfigurationApply(
+            snapshot,
+            didCommit: didCommit
+        ) { [weak self] in
+            self?.logThemeAction(
+                "reload end source=\(source) soft=\(soft) mode=full changed=\(configurationChanged)"
+            )
+            completion()
+        }
     }
 
     @MainActor
-    private func suppressGhosttyReloadActions<Result>(
+    func suppressGhosttyReloadActions<Result>(
         _ body: () -> Result
     ) -> Result {
         nativeReloadActionSuppressionDepth += 1
@@ -2119,17 +2306,6 @@ class GhosttyApp {
             nativeReloadActionSuppressionDepth -= 1
         }
         return body()
-    }
-
-    @MainActor
-    private func refreshSurfacesAfterConfigurationReload(
-        source: String,
-        preferredColorScheme: GhosttyConfig.ColorSchemePreference
-    ) {
-        AppDelegate.shared?.refreshTerminalSurfacesAfterGhosttyConfigReload(
-            source: source,
-            preferredColorScheme: preferredColorScheme
-        )
     }
 
     @MainActor
@@ -2717,7 +2893,8 @@ class GhosttyApp {
         _ values: DefaultBackgroundValues,
         source: String,
         scope: GhosttyDefaultBackgroundUpdateScope,
-        forceNotify: Bool = false
+        forceNotify: Bool = false,
+        deferNotification: Bool = false
     ) {
         applyDefaultBackground(
             color: values.backgroundColor,
@@ -2730,7 +2907,8 @@ class GhosttyApp {
             selectionForeground: values.selectionForeground,
             source: source,
             scope: scope,
-            forceNotify: forceNotify
+            forceNotify: forceNotify,
+            deferNotification: deferNotification
         )
     }
 
@@ -2745,7 +2923,8 @@ class GhosttyApp {
         selectionForeground: NSColor? = nil,
         source: String,
         scope: GhosttyDefaultBackgroundUpdateScope,
-        forceNotify: Bool = false
+        forceNotify: Bool = false,
+        deferNotification: Bool = false
     ) {
         let previousScope = defaultBackgroundUpdateScope
         let previousScopeSource = defaultBackgroundScopeSource
@@ -2802,7 +2981,11 @@ class GhosttyApp {
             previousSelectionForegroundHex != defaultSelectionForeground.hexString() ||
             previousColorScheme != effectiveTerminalColorSchemePreference
         if hasChanged {
-            notifyDefaultBackgroundDidChange(source: source)
+            if deferNotification {
+                deferredDefaultBackgroundNotificationSource = source
+            } else {
+                notifyDefaultBackgroundDidChange(source: source)
+            }
         }
         if backgroundLogEnabled {
             logBackground(
@@ -2839,6 +3022,15 @@ class GhosttyApp {
                 signal()
             }
         }
+    }
+
+    @MainActor
+    private func flushDeferredDefaultBackgroundNotification() {
+        guard let source = deferredDefaultBackgroundNotificationSource else {
+            return
+        }
+        deferredDefaultBackgroundNotificationSource = nil
+        notifyDefaultBackgroundDidChange(source: source)
     }
 
     private func logThemeAction(_ message: String) {
@@ -3955,19 +4147,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
     private let scrollSpeedAccumulator = TerminalScrollSpeedAccumulator()
     private var visibleInUI: Bool = true
     private var pendingSurfaceSize: CGSize?
-    /// Portal geometry follows every window-resize tick, but the renderer's
-    /// drawable/grid must remain on the last committed epoch until the end
-    /// pass. The parent portal owns this phase and re-enables updates once the
-    /// final pane frame is installed.
-    private var defersSurfaceSizeDuringWindowLiveResize = false
-    /// A portal-owned phase overrides AppKit's native signal for hosted views.
-    /// `nil` means this view is not currently owned by a portal and should
-    /// retain the native `inLiveResize` fallback used by standalone surfaces.
-    private var portalWindowLiveResizeState: Bool?
-    /// Holds PTY/renderer sizing while a newly visible portal entry settles its
-    /// frame across AppKit layout passes. This phase is independent of the
-    /// window live-resize phase and must be released only after geometry is
-    /// stable.
     private var deferSurfaceSizeForPortalGeometrySettlement = false
     private var deferredSurfaceSizeRetryQueued = false, needsSurfaceSizeRetryAfterMetalLayerRealizes = false
     private var deferredSurfaceSizeNonMetalRetryCount = 0
@@ -4032,25 +4211,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         visibleInUI = visible
     }
 
-    /// Holds renderer/drawable updates while the portal is committing a live
-    /// window resize. The view frame may move with its pane, but Ghostty must
-    /// not publish a surface for a size that no longer matches that frame.
-    fileprivate func setWindowLiveResizeActive(_ active: Bool) {
-        portalWindowLiveResizeState = active
-        defersSurfaceSizeDuringWindowLiveResize = active
-        terminalSurface?.setSurfaceSizeUpdatesDeferred(active)
-        clipsToBounds = true
-        layer?.masksToBounds = true
-    }
-
-    /// Releases portal ownership so a detached surface can use AppKit's native
-    /// live-resize signal again when it is hosted outside the portal.
-    fileprivate func clearWindowLiveResizeStateForPortal() {
-        portalWindowLiveResizeState = nil
-        defersSurfaceSizeDuringWindowLiveResize = false
-        terminalSurface?.setSurfaceSizeUpdatesDeferred(false)
-    }
-
     override init(frame frameRect: NSRect) {
         imageTransferPreparation = nil
         super.init(frame: frameRect)
@@ -4090,13 +4250,11 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         return metalLayer
     }
 
-    /// Installs the layer-backed terminal view and its input/drag plumbing.
     private func setup() {
         selectionAccessibilityNotifier = TerminalSelectionAccessibilityNotifier(element: self, events: selectionAccessibilitySignal.events)
         // GhosttyMetalLayer provides render stats and opt-in frame notifications for
         // input sequencing that needs to wait for terminal redraws.
         wantsLayer = true
-        clipsToBounds = true
         layer?.masksToBounds = true
         setupKeyboardCopyModeCursorOverlay()
         installEventMonitor()
@@ -4439,8 +4597,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         removeContextMenuEndObserver()
     }
 
-    /// Attaches the runtime surface and applies the current portal resize phase
-    /// before any initial geometry reconciliation can publish a drawable.
     func attachSurface(_ surface: TerminalSurface) {
         let isSameSurface = terminalSurface === surface
         let isAlreadyAttached = surface.isAttached(to: self)
@@ -4481,7 +4637,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
         terminalSurface = surface
         tabId = surface.tabId
-        surface.setSurfaceSizeUpdatesDeferred(defersSurfaceSizeDuringWindowLiveResize)
         if !isAlreadyAttached {
             surface.attachToView(self)
         } else {
@@ -5008,8 +5163,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
 
     override var isOpaque: Bool { false }
 
-    /// Resolves an explicit candidate size, current bounds, or the latest
-    /// pending size in that order.
     private func resolvedSurfaceSize(preferred size: CGSize?) -> CGSize {
         if let size,
            size.width > 0,
@@ -5028,15 +5181,11 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         return currentBounds
     }
 
-    /// Reports whether the current drag pasteboard carries a live internal
-    /// tab-transfer payload.
     private static func hasTabDragPasteboardTypes() -> Bool {
         let pasteboard = NSPasteboard(name: .drag)
         return hasLiveInternalDrag(in: pasteboard)
     }
 
-    /// Identifies pointer-drag events that may temporarily defer surface size
-    /// work while a tab transfer is active.
     private static func isDragResizeEvent(_ eventType: NSEvent.EventType?) -> Bool {
         switch eventType {
         case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged:
@@ -5046,7 +5195,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
     }
 
-    /// Determines whether a live native tab drag owns this resize callback.
     private static func shouldDeferSurfaceResizeForActiveDrag(in window: NSWindow?) -> Bool {
         // The drag pasteboard can retain tab-transfer UTIs briefly after a split command
         // or other layout churn. Only defer terminal resizes while an actual drag event
@@ -5060,24 +5208,16 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         return isDragResizeEvent(NSApp.currentEvent?.type)
     }
 
-    /// Returns the non-window interaction that currently defers a surface
-    /// resize, if any.
     private func activeSurfaceResizeDeferralReason() -> String? {
         if isWindowLiveResizeActive { return nil }
         if deferSurfaceSizeForPortalGeometrySettlement { return "portalGeometrySettlement" }
         return Self.shouldDeferSurfaceResizeForActiveDrag(in: window) ? "tabDrag" : nil
     }
 
-    /// Whether a live window resize is active for this surface. Portal-owned
-    /// views use the explicit propagated state; detached/standalone views keep
-    /// AppKit's native signal as a fallback.
     private var isWindowLiveResizeActive: Bool {
-        portalWindowLiveResizeState
-            ?? (inLiveResize || window?.inLiveResize == true)
+        inLiveResize || window?.inLiveResize == true
     }
 
-    /// Schedules one retry when AppKit has not realized a usable terminal
-    /// backing layer yet.
     @discardableResult private func scheduleDeferredSurfaceSizeRetryIfNeeded() -> Bool {
         guard window != nil, !deferredSurfaceSizeRetryQueued else { return false }
         deferredSurfaceSizeRetryQueued = true
@@ -5085,11 +5225,8 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         return true
     }
 
-    /// Retries a size update after Ghostty's Metal layer has been attached.
     @MainActor fileprivate func reconcileSurfaceSizeAfterMetalLayerAttachIfNeeded() { guard needsSurfaceSizeRetryAfterMetalLayerRealizes else { return }; deferredSurfaceSizeNonMetalRetryCount = 0; _ = updateSurfaceSize() }
 
-    /// Applies the current logical bounds to the Ghostty layer and runtime,
-    /// unless an active live-resize phase is holding the last committed size.
     @discardableResult
     private func updateSurfaceSize(
         size: CGSize? = nil, bypassLiveResizeCoalescing: Bool = false, caller: StaticString = #function
@@ -5112,25 +5249,6 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         }
         if pendingSurfaceSize != size { deferredSurfaceSizeNonMetalRetryCount = 0 }
         pendingSurfaceSize = size
-        clipsToBounds = true
-        layer?.masksToBounds = true
-        // The portal gate owns publication ordering. The end-live-resize
-        // callback passes bypass=true to disable pixel-only coalescing, but it
-        // must still wait for the portal's final pane geometry commit before
-        // touching the drawable or renderer.
-        if defersSurfaceSizeDuringWindowLiveResize {
-#if DEBUG
-            let signature = "windowLiveResize-\(Int(size.width.rounded()))x\(Int(size.height.rounded()))"
-            if lastSizeSkipSignature != signature {
-                cmuxDebugLog(
-                    "surface.size.defer surface=\(terminalSurface.id.uuidString.prefix(5)) " +
-                    "reason=windowLiveResize size=\(String(format: "%.1fx%.1f", size.width, size.height))"
-                )
-                lastSizeSkipSignature = signature
-            }
-#endif
-            return false
-        }
         if let deferralReason = activeSurfaceResizeDeferralReason() {
             scheduleDeferredSurfaceSizeRetryIfNeeded()
 #if DEBUG
@@ -6962,7 +7080,7 @@ class GhosttyNSView: NSView, NSUserInterfaceValidations {
         return handled
     }
 
-    private func sendGhosttyMouseButton(
+    func sendGhosttyMouseButton(
         _ surface: ghostty_surface_t,
         state: ghostty_input_mouse_state_e,
         button: ghostty_input_mouse_button_e,
@@ -9771,12 +9889,6 @@ final class GhosttySurfaceScrollView: NSView {
     private var activeDropZone: DropZone?
     private var pendingDropZone: DropZone?
     private var sessionContentWidthPresentation = SessionContentWidthPresentation.disabled
-    /// The pane frame follows live window-resize ticks, while this committed
-    /// inner size remains stable until the renderer can consume the final
-    /// drawable dimensions without racing an older IOSurface presentation.
-    private var committedRendererSize: CGSize?
-    /// Whether the pane is in the explicit window live-resize phase.
-    private var windowLiveResizeActive = false
     private var dropZoneOverlayAnimationGeneration: UInt64 = 0
     private var pendingAutomaticFirstResponderApply = false
     private var pendingAutomaticFirstResponderFocusTransactionId: UUID?
@@ -9973,29 +10085,6 @@ final class GhosttySurfaceScrollView: NSView {
         )
     }
 
-    /// Marks the explicit window live-resize phase owned by
-    /// ``WindowTerminalPortal``. The outer pane frame remains live, while the
-    /// inner renderer frame/drawable stays at ``committedRendererSize`` until
-    /// the phase ends. This makes stale asynchronous presents harmless: they
-    /// are still inside a clipped pane and still match the renderer layer's
-    /// last committed size.
-    func setWindowLiveResizeActive(_ active: Bool) {
-        windowLiveResizeActive = active
-        surfaceView.setWindowLiveResizeActive(active)
-        clipsToBounds = true
-        layer?.masksToBounds = true
-        surfaceView.clipsToBounds = true
-        surfaceView.layer?.masksToBounds = true
-    }
-
-    /// Releases portal ownership when this hosted pane is detached, restoring
-    /// the surface's native live-resize fallback for any later host.
-    func clearWindowLiveResizeStateForPortal() {
-        windowLiveResizeActive = false
-        surfaceView.clearWindowLiveResizeStateForPortal()
-    }
-
-    /// Creates the pane host around a Ghostty surface view.
     init(surfaceView: GhosttyNSView) {
         #if DEBUG
         dispatchPrecondition(condition: .onQueue(.main))
@@ -10031,17 +10120,12 @@ final class GhosttySurfaceScrollView: NSView {
         scrollView.surfaceView = surfaceView
 
         documentView = NSView(frame: .zero)
-        surfaceView.autoresizingMask = []
-        surfaceView.translatesAutoresizingMaskIntoConstraints = true
         scrollView.documentView = documentView
         documentView.addSubview(surfaceView)
 
         super.init(frame: .zero)
         wantsLayer = true
-        clipsToBounds = true
         layer?.masksToBounds = true
-        scrollView.clipsToBounds = true
-        documentView.clipsToBounds = true
 
         backgroundView.wantsLayer = true
         backgroundView.layer?.backgroundColor = NSColor.clear.cgColor
@@ -10494,34 +10578,11 @@ final class GhosttySurfaceScrollView: NSView {
         surfaceView.terminalSurface?.forceRefresh(reason: reason)
     }
 
-    /// Resolves the renderer frame during a deferred resize, rejecting a
-    /// degenerate committed size so an early pre-layout pass cannot collapse
-    /// the terminal during a scrollbar-style update.
-    private func resolvedDeferredRendererSize(deferred: Bool, fallback: CGSize) -> CGSize {
-        guard deferred,
-              let committedRendererSize,
-              committedRendererSize.width > 0,
-              committedRendererSize.height > 0 else {
-            return fallback
-        }
-        return committedRendererSize
-    }
-
-    /// Synchronizes pane overlays, viewport geometry, and the renderer frame;
-    /// live window resize keeps the renderer on its committed inner size.
     @discardableResult
     private func synchronizeGeometryAndContent(
         forceViewportSync: Bool? = nil,
         preservedReviewOriginY: CGFloat? = nil
     ) -> Bool {
-        clipsToBounds = true
-        layer?.masksToBounds = true
-        scrollView.clipsToBounds = true
-        scrollView.contentView.clipsToBounds = true
-        surfaceView.clipsToBounds = true
-        surfaceView.layer?.masksToBounds = true
-        surfaceView.autoresizingMask = []
-        let deferRendererResize = windowLiveResizeActive
         let preservedReviewOriginY = preservedReviewOriginY ?? {
             guard scrollbackViewportIntent.preservesViewportDuringPendingSync else { return nil }
             return max(scrollView.contentView.bounds.origin.y, 0)
@@ -10542,11 +10603,7 @@ final class GhosttySurfaceScrollView: NSView {
 #if DEBUG
         logLayoutDuringActiveDrag(targetSize: targetSize)
 #endif
-        let rendererSize = resolvedDeferredRendererSize(
-            deferred: deferRendererResize,
-            fallback: targetSize
-        )
-        let targetSurfaceFrame = CGRect(origin: surfaceView.frame.origin, size: rendererSize)
+        let targetSurfaceFrame = CGRect(origin: surfaceView.frame.origin, size: targetSize)
         _ = setFrameIfNeeded(surfaceView, to: targetSurfaceFrame)
         let targetDocumentFrame = CGRect(
             origin: documentView.frame.origin,
@@ -10592,17 +10649,6 @@ final class GhosttySurfaceScrollView: NSView {
             scrollView.tile()
         }
         scrollView.layoutSubtreeIfNeeded()
-        // NSScrollView may reapply autoresizing/layout state to its document
-        // view during tiling. Reassert the renderer frame after that layout;
-        // otherwise a child can briefly grow to the live pane size before the
-        // clipping boundary gets a chance to contain it.
-        let settledTargetSize = scrollView.bounds.size
-        let settledRendererSize = resolvedDeferredRendererSize(
-            deferred: deferRendererResize,
-            fallback: settledTargetSize
-        )
-        let committedRendererFrame = CGRect(origin: surfaceView.frame.origin, size: settledRendererSize)
-        _ = setFrameIfNeeded(surfaceView, to: committedRendererFrame)
         updateNotificationRingPath()
         updateFlashPath(style: lastFlashStyle)
         updateFlashAppearance(style: lastFlashStyle)
@@ -10611,11 +10657,8 @@ final class GhosttySurfaceScrollView: NSView {
             preservedReviewOriginY: preservedReviewOriginY
         )
         synchronizeSurfaceView()
-        let didCoreSurfaceChange = deferRendererResize ? false : synchronizeCoreSurface()
-        if !deferRendererResize {
-            committedRendererSize = surfaceView.frame.size
-        }
-        return !sizeApproximatelyEqual(previousSurfaceSize, surfaceView.frame.size) || didCoreSurfaceChange
+        let didCoreSurfaceChange = synchronizeCoreSurface()
+        return !sizeApproximatelyEqual(previousSurfaceSize, targetSize) || didCoreSurfaceChange
     }
 
     /// Updates terminal content geometry without shrinking pane-level overlays.
@@ -13349,17 +13392,10 @@ final class GhosttySurfaceScrollView: NSView {
         synchronizeTerminalGeometryAfterScrollerStyleChange()
     }
 
-    /// Retiles terminal content after the system scrollbar preference changes,
-    /// preserving the same live-resize renderer ordering contract.
     private func synchronizeTerminalGeometryAfterScrollerStyleChange() {
         scrollView.layoutSubtreeIfNeeded()
         let targetSize = scrollView.contentView.bounds.size
-        let deferRendererResize = windowLiveResizeActive
-        let rendererSize = resolvedDeferredRendererSize(
-            deferred: deferRendererResize,
-            fallback: targetSize
-        )
-        let targetSurfaceFrame = CGRect(origin: surfaceView.frame.origin, size: rendererSize)
+        let targetSurfaceFrame = CGRect(origin: surfaceView.frame.origin, size: targetSize)
         _ = setFrameIfNeeded(surfaceView, to: targetSurfaceFrame)
         let targetDocumentFrame = CGRect(
             origin: documentView.frame.origin,
@@ -13367,10 +13403,7 @@ final class GhosttySurfaceScrollView: NSView {
         )
         _ = setFrameIfNeeded(documentView, to: targetDocumentFrame)
         synchronizeSurfaceView()
-        if !deferRendererResize {
-            _ = synchronizeCoreSurface()
-            committedRendererSize = surfaceView.frame.size
-        }
+        _ = synchronizeCoreSurface()
     }
 
     private func handleTerminalScrollBarPreferenceChange() {
