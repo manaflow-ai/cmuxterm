@@ -311,8 +311,10 @@ public final class DeclarativeTerminalConfigurationModel:
         let reader = self.reader
         fixedPathObservationTasks.replaceOnMainActor("fixedPath") { [weak self, watcher, reader] in
             let isInitiallyUsable = await reader.validateFixedPath(desiredPath)
-            guard !Task.isCancelled, let self else { return }
-            self.applyFixedPathValidation(isInitiallyUsable, for: desiredPath)
+            guard !Task.isCancelled else { return }
+            if let self {
+                self.applyFixedPathValidation(isInitiallyUsable, for: desiredPath)
+            }
             for await _ in watcher.events {
                 guard !Task.isCancelled else { return }
                 let isUsable = await reader.validateFixedPath(desiredPath)
