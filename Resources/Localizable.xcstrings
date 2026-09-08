@@ -127185,40 +127185,6 @@
         }
       }
     },
-    "featureFlags.cloudVM.description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows Cloud VM entrypoints in the new-workspace dropdown and command palette."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新規ワークスペースのドロップダウンとコマンドパレットにクラウドVMのエントリーポイントを表示します。"
-          }
-        }
-      }
-    },
-    "featureFlags.cloudVM.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cloud VM UI"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドVM UI"
-          }
-        }
-      }
-    },
     "featureFlags.column.current": {
       "extractionState": "manual",
       "localizations": {
@@ -187420,13 +187386,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hides every Cloud Machines surface unless remote rollout enables it."
+            "value": "Hides every Cloud Machines surface, and keeps the Cloud tunnel and fleet polling off, until you enable it here."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモートロールアウトで有効化されない限り、クラウドマシンのすべての画面を非表示にします。"
+            "value": "ここで有効にするまで、クラウドマシンのすべての画面を非表示にし、クラウドトンネルとフリートのポーリングもオフのままにします。"
           }
         }
       }
