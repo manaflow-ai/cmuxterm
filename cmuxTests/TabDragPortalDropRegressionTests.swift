@@ -10,7 +10,7 @@ import WebKit
 #endif
 
 @MainActor
-private enum TestPaneDropTargetRegistryStore {
+enum TestPaneDropTargetRegistryStore {
     private static var associationKey: UInt8 = 0
 
     static func registry(for window: NSWindow) -> PaneDropTargetRegistry {
@@ -147,6 +147,24 @@ extension WindowBrowserPortal {
     convenience init(window: NSWindow) {
         self.init(
             window: window,
+            paneDropTargetRegistry: TestPaneDropTargetRegistryStore.registry(for: window)
+        )
+    }
+
+    func bind(
+        webView: WKWebView,
+        to anchorView: NSView,
+        visibleInUI: Bool,
+        zPriority: Int = 0,
+        paneDropContext: BrowserPaneDropContext? = nil
+    ) {
+        guard let window = anchorView.window else { return }
+        bind(
+            webView: webView,
+            to: anchorView,
+            visibleInUI: visibleInUI,
+            zPriority: zPriority,
+            paneDropContext: paneDropContext,
             paneDropTargetRegistry: TestPaneDropTargetRegistryStore.registry(for: window)
         )
     }
