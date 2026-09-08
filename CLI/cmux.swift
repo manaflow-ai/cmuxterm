@@ -1343,10 +1343,10 @@ final class ClaudeHookSessionStore {
             record.autoNameInFlightObservedLineCount ?? lineCount
         )
         record.autoNameLastLineCount = reconciledLineCount
-        record.autoNameLastObservedLineCount = max(
-            reconciledLineCount,
-            record.autoNameLastObservedLineCount ?? 0
-        )
+        // A transcript shrink establishes a new baseline. Retaining the
+        // pre-compaction high-water would make every later Stop look like
+        // another shrink until the transcript grows past the old size.
+        record.autoNameLastObservedLineCount = reconciledLineCount
         record.autoNameLastNamedAt = now
         record.autoNameLastAttemptAt = now
     }

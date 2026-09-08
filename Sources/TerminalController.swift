@@ -4653,12 +4653,26 @@ class TerminalController {
                     if panelSource == .auto {
                         // A different auto title belongs to a newer naming
                         // pass and wins the compare-and-set.
-                        panelApplySkipped = panelCustomTitle != expectedPanelTitle
+                        if panelCustomTitle == expectedPanelTitle {
+                            panelApplied = workspace.setPanelCustomTitle(
+                                panelId: resolvedPanelId,
+                                title: title,
+                                source: .auto
+                            )
+                        } else {
+                            panelApplySkipped = true
+                        }
                     } else if hasStoredPanelProjection {
                         // Existing non-auto provenance is authoritative. A
                         // completely missing local projection is the one safe
                         // case for reconciliation to recreate.
                         panelApplySkipped = true
+                    } else {
+                        panelApplied = workspace.setPanelCustomTitle(
+                            panelId: resolvedPanelId,
+                            title: title,
+                            source: .auto
+                        )
                     }
                 } else if let expectedPanelTitle,
                           workspace.panelTitle(panelId: resolvedPanelId) != expectedPanelTitle {
