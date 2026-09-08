@@ -12,6 +12,36 @@ import Testing
 @Suite("Prefix chord hot-path matching")
 @MainActor
 struct PrefixChordHotPathTests {
+    @Test(arguments: [NSEvent.EventType.systemDefined, .applicationDefined], [Int16(0), 8])
+    func nonKeyEventsPassThroughWithoutReadingKeyboardOnlyFields(
+        eventType: NSEvent.EventType,
+        subtype: Int16
+    ) throws {
+        _ = NSApplication.shared
+        let owner = AppDelegate()
+        let coordinator = ShortcutPrefixChordCoordinator(owner: owner)
+        let event = try #require(NSEvent.otherEvent(
+            with: eventType,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 1,
+            windowNumber: 0,
+            context: nil,
+            subtype: subtype,
+            data1: (16 << 16) | (0xA << 8),
+            data2: 0
+        ))
+
+        // The coordinator holds its owner weakly; retain it through dispatch
+        // so this exercises the event adapter instead of the missing-owner guard.
+        let result = withExtendedLifetime(owner) { coordinator.offer(event) }
+        if case .passThrough = result {
+            // An unarmed layer must leave media and unrelated system events alone.
+        } else {
+            Issue.record("An unarmed prefix consumed a non-key event")
+        }
+    }
+
     @Test func customMatcherSeesChordSuffixWithDifferentModifiers() {
         let chord = StoredShortcut(
             first: ShortcutStroke(key: "b", control: true),
