@@ -16,7 +16,69 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
+def unit(value):
+    return {"stringUnit": {"state": "translated", "value": value}}
+
+
+def counted(parent, one, other, specifier="d"):
+    return {
+        **unit(parent),
+        "substitutions": {
+            "count": {
+                "argNum": 1,
+                "formatSpecifier": specifier,
+                "variations": {"plural": {"one": one, "other": other}},
+            }
+        },
+    }
+
+
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_japanese_invariant_requires_entry_but_allows_literal(self):
+        entry = MODULE.Member("brand", {"localizations": {"en": unit("cmux"), "ja": unit("cmux")}}, 0, 0)
+        omissions = {"brand": {"source": "cmux", "class": "brand"}}
+        self.assertEqual(MODULE.check_entry(entry, "ja", omissions, {}), [])
+        del entry.value["localizations"]["ja"]
+        self.assertIn("missing locale entry", MODULE.check_entry(entry, "ja", omissions, {}))
+
+    def test_english_substitutions_and_plural_metadata_validate(self):
+        english = counted("%#@count@", unit("%d match"), unit("%d matches"))
+        german = counted("%#@count@", unit("%d Treffer"), unit("%d Treffer"))
+        entry = MODULE.Member("matches", {"localizations": {"en": english, "de": german}}, 0, 0)
+        counts = {"matches": {"source": "%d matches", "arguments": [1]}}
+        for locale in ("en", "de"):
+            with self.subTest(locale=locale):
+                self.assertEqual(MODULE.check_entry(entry, locale, {}, counts), [])
+
+    def test_each_required_plural_leaf_needs_text(self):
+        for bad_leaf in ({}, {"stringUnit": {"state": "translated", "value": ""}}):
+            for position in ("one", "other"):
+                with self.subTest(leaf=bad_leaf, position=position):
+                    german = counted("%#@count@ Treffer", unit("%d"), unit("%d"))
+                    german["substitutions"]["count"]["variations"]["plural"][position] = bad_leaf
+                    self.assertTrue(MODULE.validate_localization("%d matches", german, "de"))
+
+    def test_substitution_cannot_hide_copied_english(self):
+        german = counted("Treffer: %#@count@", unit("%d matches"), unit("%d matches"))
+        self.assertTrue(MODULE.validate_localization("%d matches", german, "de"))
+
+    def test_plural_only_numeric_leaves_are_valid_when_parent_is_translated(self):
+        german = counted("%#@count@ Treffer", unit("%d"), unit("%d"))
+        self.assertEqual(MODULE.validate_localization("%d matches", german, "de"), [])
+
+    def test_unused_substitutions_cannot_satisfy_count_metadata(self):
+        german = counted("%d Treffer", unit("%d"), unit("%d"))
+        entry = MODULE.Member("matches", {"localizations": {"en": unit("%d matches"), "de": german}}, 0, 0)
+        counts = {"matches": {"source": "%d matches", "arguments": [1]}}
+        self.assertTrue(MODULE.check_entry(entry, "de", {}, counts))
+
+    def test_arabic_requires_all_six_nonempty_categories(self):
+        variants = {category: unit("%d نتائج") for category in ("zero", "one", "two", "few", "many", "other")}
+        arabic = {"variations": {"plural": variants}}
+        self.assertEqual(MODULE.validate_localization("%d matches", arabic, "ar"), [])
+        variants["few"] = {}
+        self.assertTrue(MODULE.validate_localization("%d matches", arabic, "ar"))
+
     def test_info_plist_duplicate_records_remain_lossless(self):
         path = ROOT / "Resources/InfoPlist.xcstrings"
         text = path.read_text(encoding="utf-8")
