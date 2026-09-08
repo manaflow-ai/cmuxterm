@@ -11,4 +11,3 @@ enum CLIIDFormat: String {
         return parsed
     }
 }
-

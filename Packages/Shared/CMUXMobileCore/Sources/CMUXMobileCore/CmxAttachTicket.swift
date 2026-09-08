@@ -201,4 +201,3 @@ public struct CmxAttachTicket: Codable, Equatable, Sendable {
         return orderedRoutes.first { supportedKinds.contains($0.kind) }
     }
 }
-

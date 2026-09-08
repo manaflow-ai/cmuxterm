@@ -4,4 +4,3 @@ public extension CmxAttachTransportKind {
         DiagnosticTransportKind(self)
     }
 }
-

@@ -46,4 +46,3 @@ struct CmuxExtensionWorktreeCreationResult: Sendable {
         self.setupCommand = setupCommand
     }
 }
-

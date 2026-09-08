@@ -8,4 +8,3 @@ public enum MobileTailscaleSetupStatus: Equatable, Sendable {
     case pairingRequired
     case authorized
 }
-
