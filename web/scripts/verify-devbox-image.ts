@@ -33,6 +33,7 @@ import {
   DEVBOX_INSTANCE_ID_COMMAND,
   devboxAgentPins,
   devboxDir,
+  devboxGhosttyVersion,
   devboxIdentityCheckCommand,
   devboxTerminfoCheckCommand,
   cmuxTuiWebsocketSmokeCommand,
@@ -204,6 +205,9 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   // would itself leave root-owned state dirs behind.
   ...pins.map((pin) => `sudo -n -u ubuntu env -i HOME=/home/ubuntu USER=ubuntu TERM=xterm PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ${pin.binary} --version | grep -F '${pin.version}' >/dev/null && echo ${pin.binary}-nonlogin-pin-ok`),
   "systemctl show cmux-tui-daemon -p Environment | grep -q 'PATH=/usr/local/sbin:/usr/local/bin:' && echo daemon-env-path-ok",
+  // Every pane inherits the daemon's terminal identity (cmux-devbox-boot):
+  // TERM_PROGRAM=ghostty and the baked Ghostty version.
+  `pid=$(pgrep -f 'cmux-tui server [s]tart' | head -1) && tr '\\0' '\\n' < /proc/$pid/environ > /tmp/daemon-env && grep -qx TERM=xterm-256color /tmp/daemon-env && grep -qx TERM_PROGRAM=ghostty /tmp/daemon-env && grep -qx "TERM_PROGRAM_VERSION=${devboxGhosttyVersion()}" /tmp/daemon-env && test "$(cat /etc/cmux/ghostty-version)" = ${devboxGhosttyVersion()} && rm -f /tmp/daemon-env && echo daemon-terminal-identity-ok`,
   devboxTerminfoCheckCommand,
   "sudo -n -u ubuntu env -i HOME=/home/ubuntu TERM=xterm-256color PATH=/usr/bin:/bin sh -c 'tput setaf 8 | od -An -tx1 | tr -d \" \\n\"' | grep -qx 1b5b33383b353b386d && echo ubuntu-terminfo-ok",
   "grep -qx 'unset TERMINFO' /etc/profile.d/cmux-terminfo.sh && grep -qx 'export TERMINFO_DIRS=/etc/terminfo:' /etc/profile.d/cmux-terminfo.sh && echo terminfo-search-path-ok",

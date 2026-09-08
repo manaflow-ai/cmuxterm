@@ -3228,8 +3228,7 @@ private struct SidebarFooterHoverIntensityPreview: View {
             .accessibilityLabel(accessibilityLabel)
 
             Button(action: {}) {
-                CmuxSystemSymbolImage(systemName: "iphone", pointSize: CGFloat(mobileSize), weight: .medium)
-                    .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+                CmuxSystemSymbolImage(systemName: "iphone", pointSize: CGFloat(mobileSize), weight: .medium, tint: Color(nsColor: .secondaryLabelColor))
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(SidebarFooterIconButtonStyle())
@@ -3379,8 +3378,7 @@ private struct SidebarFooterMobileIconReference: View {
     let size: Double
 
     var body: some View {
-        CmuxSystemSymbolImage(systemName: "iphone", pointSize: CGFloat(size), weight: .medium)
-            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+        CmuxSystemSymbolImage(systemName: "iphone", pointSize: CGFloat(size), weight: .medium, tint: Color(nsColor: .secondaryLabelColor))
             .frame(width: 22, height: 22)
     }
 }

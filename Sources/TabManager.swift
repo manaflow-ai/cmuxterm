@@ -496,6 +496,9 @@ class TabManager: ObservableObject {
     let closeTabWarningDefaults: UserDefaults
     let vaultHistoryEventLog: VaultHistoryEventLog?
     let tabDragTransferRegistry: TabDragTransferRegistry
+    /// File-backed panels in every workspace and Dock owned by this window
+    /// share this injected invalidation pipeline.
+    let fileContentChangeCoordinator: FileContentChangeCoordinator
     var confirmCloseHandler: ((String, String, Bool) -> Bool)?
     private var agentPIDSweepTimer: DispatchSourceTimer?
 #if DEBUG
@@ -563,7 +566,8 @@ class TabManager: ObservableObject {
         closeTabWarningDefaults: UserDefaults = .standard,
         windowId: UUID? = nil,
         vaultHistoryEventLog: VaultHistoryEventLog? = nil,
-        initialWorkspaceHistoryContext: VaultHistoryWorkspaceCreationContext = .bootstrap
+        initialWorkspaceHistoryContext: VaultHistoryWorkspaceCreationContext = .bootstrap,
+        fileContentChangeCoordinator: FileContentChangeCoordinator? = nil
     ) {
         let tabDragTransferRegistry = tabDragTransferRegistry ?? TabDragTransferRegistry()
         self.settings = settings
@@ -585,6 +589,8 @@ class TabManager: ObservableObject {
         self.windowId = windowId
         self.vaultHistoryEventLog = vaultHistoryEventLog
         self.tabDragTransferRegistry = tabDragTransferRegistry
+        self.fileContentChangeCoordinator =
+            fileContentChangeCoordinator ?? FileContentChangeCoordinator()
         workspaceReordering = WorkspaceReorderCoordinator(model: workspaces)
         workspaceGrouping = WorkspaceGroupCoordinator(model: workspaces)
 #if DEBUG
@@ -1140,6 +1146,7 @@ class TabManager: ObservableObject {
             settings: settings,
             closeTabWarningDefaults: closeTabWarningDefaults,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1161,6 +1168,7 @@ class TabManager: ObservableObject {
             closeTabWarningDefaults: closeTabWarningDefaults,
             initialDetachedSurface: detachedSurface,
             agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator,
             nativeSSHConnectionBroker: nativeSSHConnectionBroker
         )
     }
@@ -1173,7 +1181,8 @@ class TabManager: ObservableObject {
             remoteBrowserSettingsProvider: { .local },
             tabDragTransferRegistry: tabDragTransferRegistry,
             settings: settings,
-            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder
+            agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+            fileContentChangeCoordinator: fileContentChangeCoordinator
         )
         windowDockTitleRoutingStores.setObject(
             store,
@@ -6659,6 +6668,7 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             workspace.owningTabManager = self
@@ -6694,6 +6704,7 @@ extension TabManager {
                 settings: settings,
                 closeTabWarningDefaults: closeTabWarningDefaults,
                 agentChatResumeIntentRecorder: agentChatResumeIntentRecorder,
+                fileContentChangeCoordinator: fileContentChangeCoordinator,
                 nativeSSHConnectionBroker: nativeSSHConnectionBroker
             )
             fallback.owningTabManager = self
