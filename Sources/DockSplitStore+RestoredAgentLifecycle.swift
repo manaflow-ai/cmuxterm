@@ -856,6 +856,12 @@ extension DockSplitStore {
                 records: nextAuthoritativeRecords
             )
         }
+        if updatesAgentAttention {
+            syncAgentNeedsInputAttention(
+                panelId: panelId,
+                runtime: nextRuntime
+            )
+        }
     }
 
     /// Replaces one Dock runtime while keeping PID-key ownership O(1).
@@ -909,12 +915,6 @@ extension DockSplitStore {
         if var transfer = detachedSurfaceTransfersByPanelId[panelId] {
             transfer.agentRuntime = runtime
             detachedSurfaceTransfersByPanelId[panelId] = transfer
-        }
-        if updatesAgentAttention {
-            syncAgentNeedsInputAttention(
-                panelId: panelId,
-                runtime: shouldKeep ? runtime : nil
-            )
         }
     }
 
