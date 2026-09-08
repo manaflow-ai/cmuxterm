@@ -54,7 +54,13 @@ struct SidebarWorkspaceRowSuspensionTests {
             checklistItems: checklistItems,
             checklistCompletedCount: checklistItems.filter { $0.state == .completed }.count,
             checklistTotalCount: checklistItems.count,
-            checklistFirstUncheckedText: checklistItems.first { $0.state != .completed }?.text
+            checklistFirstUncheckedText: checklistItems.first { $0.state != .completed }?.text,
+            remoteReconnectHelpText: "",
+            loadingTooltip: "",
+            taskStatusCompactLabel: manualTaskStatus.map(SidebarWorkspaceRowLocalizedStrings.statusCompactLabel),
+            taskStatusTooltip: manualTaskStatus.map {
+                SidebarWorkspaceRowLocalizedStrings.statusTooltip(status: $0, hasOverride: true)
+            }
         )
     }
 

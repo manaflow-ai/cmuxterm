@@ -128,7 +128,8 @@ struct SidebarWorkspaceContextMenuWindowTargetsTests {
                 hasLatestNotification: false,
                 allNotificationsMuted: false,
                 notifications: []
-            )
+            ),
+            accessibilityTitle: "Workspace, workspace 1 of 1"
         )
     }
 

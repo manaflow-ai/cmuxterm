@@ -223,7 +223,11 @@ import Testing
             checklistItems: [],
             checklistCompletedCount: 0,
             checklistTotalCount: 0,
-            checklistFirstUncheckedText: nil
+            checklistFirstUncheckedText: nil,
+            remoteReconnectHelpText: "",
+            loadingTooltip: "",
+            taskStatusCompactLabel: nil,
+            taskStatusTooltip: nil
         )
     }
 
