@@ -846,7 +846,7 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
             coalescer.cancel()
             gate.release()
         }
-        func waitUntil(_ predicate: @MainActor () -> Bool) async throws {
+        @MainActor func waitUntil(_ predicate: @MainActor () -> Bool) async throws {
             let deadline = ContinuousClock.now.advanced(by: .seconds(10))
             while !predicate() {
                 try #require(ContinuousClock.now < deadline, "coalescer did not reach the expected state")
