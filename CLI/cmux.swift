@@ -39195,9 +39195,16 @@ export default CMUXSessionRestore;
         ) else { return }
         let evidence = Self.semanticAttentionContext(eventDict)
         if classification.clearsNativeApprovalPrompt {
-            guard evidence.requestIdentity != nil,
-                  let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
+            guard let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
                   let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }
+            guard evidence.requestIdentity != nil else {
+                _ = try? activeClient.send(
+                    command: attentionLine,
+                    responseTimeout: remainingBudget(),
+                    deadline: deadline
+                )
+                return
+            }
             emitAgentJournalEvent(
                 client: activeClient,
                 kind: .attentionResolved,
