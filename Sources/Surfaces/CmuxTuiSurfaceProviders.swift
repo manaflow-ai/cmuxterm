@@ -55,6 +55,9 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     private(set) var info: SurfaceMachineInfo
 
     private var summary: VMSummary
+    /// This machine's notification sync: VM rows in, local notifications and
+    /// `notification.ack` round trips out. Fed after every accepted state.
+    private(set) var notificationSync: CloudNotificationSync?
     let links: CloudMachineLinkManager
     unowned let catalog: SurfaceCatalog
     /// Invalidates suspended work when this provider is stopped or replaced.
@@ -144,6 +147,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         self.summary = summary
         self.links = links
         self.catalog = catalog
+        installNotificationSync()
         info = Self.info(from: summary, linkState: summary.status == "running" ? .connecting : .asleep, linkError: nil, stats: nil)
     }
 
@@ -183,6 +187,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func stop() {
         lifecycleGeneration &+= 1
         refreshGeneration &+= 1
+        CloudNotificationSyncHub.shared.unregister(machineID: machineID)
+        notificationSync = nil
         changeWatcher?.cancel()
         changeWatcher = nil
         watchedLink = nil
@@ -446,6 +452,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 reconcileTitles: snapshotEstablishedCurrentGraph,
                 observation: observation
             )
+            syncNotifications(from: cloudState)
         } else {
             let resources = resourcesWithPendingCreations(
                 hasDesktop ? [desktopDisplayResource()] : [],
@@ -1760,6 +1767,98 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         return ports
     }
 
+    // MARK: Notifications
+
+    private func installNotificationSync() {
+        guard !ManagedDevicePolicy().isEnforced(.disableCloud) else { return }
+        let machineID = self.machineID
+        let clientID = CloudTuiClientPaths().notificationClientID()
+        let sync = CloudNotificationSync(
+            machineID: machineID,
+            clientID: clientID,
+            resolveTarget: { [weak self] row in self?.notificationDeliveryTarget(for: row) },
+            deliver: { [weak self] row, target in self?.deliverNotification(row, to: target) },
+            send: { [weak self] batch in
+                guard let self else { return }
+                let connected = try await self.links.connected(machineID: machineID)
+                guard let link = await self.links.link(machineID: machineID) else {
+                    throw ProviderError.machineAsleep(machineID)
+                }
+                _ = try await link.run(arguments: CloudTuiCommandLine.notificationAckArguments(
+                    socketPath: connected.socketPath,
+                    clientID: clientID,
+                    notificationIDs: batch.ids,
+                    idempotencyKey: batch.key
+                ))
+            },
+            unreadChanged: { terminalIDs in
+                CloudNotificationSyncHub.shared.setUnread(terminalIDs, machineID: machineID)
+            }
+        )
+        notificationSync = sync
+        CloudNotificationSyncHub.shared.register(sync)
+    }
+
+    private func syncNotifications(from state: CloudVMState) {
+        notificationSync?.apply(rows: CloudVMNotificationRow.rows(from: state))
+    }
+
+    /// The pane showing the terminal when one is open on this Mac, else the
+    /// local workspace bound to the terminal's remote workspace, else any
+    /// local workspace bound to the machine. No local placement means the row
+    /// stays undelivered until one exists; the Cloud tree still shows the dot.
+    private func notificationDeliveryTarget(for row: CloudVMNotificationRow) -> CloudNotificationDeliveryTarget? {
+        if let terminalID = row.terminalID {
+            let resourceID = SurfaceResourceID(machine: machine, kind: .terminal, key: terminalID)
+            if let projection = catalog.projections(of: resourceID).first {
+                return CloudNotificationDeliveryTarget(workspaceID: projection.workspaceID, panelID: projection.panelID)
+            }
+        }
+        let remoteWorkspaceID = row.terminalID.flatMap { terminalID -> String? in
+            guard let state = cloudState else { return nil }
+            for tab in state.tabs where tab.contentID == terminalID {
+                guard let pane = state.lookupIndex.pane(id: tab.paneID),
+                      let screen = state.lookupIndex.screen(id: pane.screenID) else { continue }
+                return screen.workspaceID
+            }
+            return nil
+        }
+        let bound = (AppDelegate.shared?.tabManager?.tabs ?? []).filter { $0.cloudVMBinding?.vmID == machineID }
+        if let remoteWorkspaceID,
+           let exact = bound.first(where: { $0.cloudVMBinding?.remoteWorkspaceID == remoteWorkspaceID }) {
+            return CloudNotificationDeliveryTarget(workspaceID: exact.id, panelID: nil)
+        }
+        if let any = bound.first {
+            return CloudNotificationDeliveryTarget(workspaceID: any.id, panelID: nil)
+        }
+        return nil
+    }
+
+    private func deliverNotification(_ row: CloudVMNotificationRow, to target: CloudNotificationDeliveryTarget) {
+        guard let store = AppDelegate.shared?.notificationStore else { return }
+        let terminalTitle = row.terminalID.flatMap { cloudState?.lookupIndex.terminal(id: $0)?.title } ?? ""
+        let machineName = machineID
+        let subtitle: String
+        if terminalTitle.isEmpty {
+            subtitle = machineName
+        } else {
+            subtitle = String(
+                format: String(localized: "cloudNotification.subtitle.machine", defaultValue: "%@ on %@"),
+                terminalTitle,
+                machineName
+            )
+        }
+        _ = store.addNotification(
+            tabId: target.workspaceID,
+            surfaceId: target.panelID,
+            title: row.title,
+            subtitle: subtitle,
+            body: row.body,
+            retargetsToLiveSurfaceOwner: target.panelID != nil,
+            correlationKey: CloudNotificationCorrelation.key(machineID: machineID, notificationID: row.id)
+        )
+    }
+
     private func watchChanges(link: CloudMachineLink, generation: UInt64) {
         guard generation == lifecycleGeneration else { return }
         if let watchedLink, watchedLink === link, changeWatcher != nil { return }
@@ -1795,6 +1894,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         switch change {
         case .connected:
             if cloudState == nil { scheduleRefresh() }
+            notificationSync?.linkDidConnect()
 
         case .snapshot(let cursor, _, let payload):
             guard let object = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
@@ -1820,6 +1920,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 info.linkError = nil
                 publish(incoming, ports: portsCache?.ports ?? [])
                 reprojectRestoredPanes(generation: lifecycleGeneration)
+                syncNotifications(from: incoming)
             }
 
         case .delta(let cursor, let previousRevision, let revision, let payload):
@@ -1873,6 +1974,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                     ports: portsCache?.ports ?? [],
                     reconcileTitles: titlesChanged
                 )
+                syncNotifications(from: next)
             }
 
         case .streamEnded(let reason, _):

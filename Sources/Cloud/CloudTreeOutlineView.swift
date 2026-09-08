@@ -16,6 +16,8 @@ struct CloudTreeOutlineView: NSViewRepresentable {
     var pendingCreates: [MachineCreateOperation] = []
     let snapshot: SurfaceCatalogSnapshot
     let localWorkspaces: [CloudTreeLocalWorkspace]
+    /// Machine id to terminal ids with a notification this Mac has not read.
+    var unreadTerminalIDs: [String: Set<String>] = [:]
     let machineActions: MachineRowActions
     let nodeActions: CloudTreeNodeActions
     let expansionStore: CloudTreeExpansionStore
@@ -65,7 +67,8 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             machines: machines,
             pendingCreates: pendingCreates,
             snapshot: snapshot,
-            localWorkspaces: localWorkspaces
+            localWorkspaces: localWorkspaces,
+            unreadTerminalIDs: unreadTerminalIDs
         ))
     }
 

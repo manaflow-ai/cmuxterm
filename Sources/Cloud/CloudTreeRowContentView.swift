@@ -421,6 +421,16 @@ struct CloudTreeTerminalRowContent: View {
             titleDimmed: terminal.lifecycle == .exited || showsDetachedState,
             detail: terminal.detail.flatMap { $0.isEmpty ? nil : Self.abbreviated($0) }
         ) {
+            if row.hasUnreadNotification {
+                // Per-client attention from the machine: this Mac has not read
+                // a notification for the terminal. Reading it here or on any
+                // pane showing the terminal acknowledges it on the machine.
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: max(style.iconSize * 0.5, 6), height: max(style.iconSize * 0.5, 6))
+                    .help(String(localized: "cloudTree.terminal.unread.help", defaultValue: "This terminal has a notification you have not read on this Mac"))
+                    .accessibilityLabel(String(localized: "cloudTree.terminal.unread.help", defaultValue: "This terminal has a notification you have not read on this Mac"))
+            }
             if let agent = agentLabel {
                 Image(systemName: "sparkle")
                     .font(.system(size: max(style.iconSize - 1, 8), weight: .regular))

@@ -68525,6 +68525,23 @@
         }
       }
     },
+    "cloudNotification.subtitle.machine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ on %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ の %1$@"
+          }
+        }
+      }
+    },
     "cloudPane.newTerminalFailed.ok": {
       "extractionState": "manual",
       "localizations": {
@@ -69728,6 +69745,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "メモリ %@/%@ GB"
+          }
+        }
+      }
+    },
+    "cloudTree.terminal.unread.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This terminal has a notification you have not read on this Mac"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このターミナルには、このMacでまだ読んでいない通知があります"
           }
         }
       }

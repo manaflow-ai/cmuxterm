@@ -443,6 +443,7 @@ struct MachinesPanelView: View {
             pendingCreates: viewModel.pendingCreates,
             snapshot: viewModel.catalog,
             localWorkspaces: viewModel.localWorkspaces,
+            unreadTerminalIDs: viewModel.unreadTerminalIDs,
             machineActions: machineActions,
             nodeActions: nodeActions,
             expansionStore: expansionStore,
