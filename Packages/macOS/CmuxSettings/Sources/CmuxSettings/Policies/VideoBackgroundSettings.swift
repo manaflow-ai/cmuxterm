@@ -97,10 +97,7 @@ public struct VideoBackgroundSettings: Sendable {
 
     /// Reads whether the video background is enabled from a UserDefaults suite.
     public func isEnabled(defaults: UserDefaults) -> Bool {
-        decodeBoolean(
-            defaults.object(forKey: Self.enabledKey),
-            fallback: Self.defaultEnabled
-        )
+        Self.decodeBoolean(defaults.object(forKey: Self.enabledKey)) ?? Self.defaultEnabled
     }
 
     /// Reads whether the video background must stay silent from a UserDefaults suite.
@@ -108,10 +105,7 @@ public struct VideoBackgroundSettings: Sendable {
     /// Even when `false`, only one window (the most recently active one) plays
     /// audio, and audio always stops with the video.
     public func isMuted(defaults: UserDefaults) -> Bool {
-        decodeBoolean(
-            defaults.object(forKey: Self.mutedKey),
-            fallback: Self.defaultMuted
-        )
+        Self.decodeBoolean(defaults.object(forKey: Self.mutedKey)) ?? Self.defaultMuted
     }
 
     /// Reads the ordered queue from a UserDefaults suite, trimming whitespace
@@ -190,14 +184,14 @@ public struct VideoBackgroundSettings: Sendable {
         normalizedDimOpacity(Double.decodeFromUserDefaults(defaults.object(forKey: Self.dimOpacityKey)))
     }
 
-    private func decodeBoolean(_ rawValue: Any?, fallback: Bool) -> Bool {
+    static func decodeBoolean(_ rawValue: Any?) -> Bool? {
         // `NSNumber as? Bool` bridges integer NSNumber values on Darwin, so
         // verify the Core Foundation type before delegating to the shared
         // decoder. This keeps malformed persisted numbers from becoming flags.
         guard let number = rawValue as? NSNumber,
               CFGetTypeID(number) == CFBooleanGetTypeID() else {
-            return fallback
+            return nil
         }
-        return Bool.decodeFromUserDefaults(number) ?? fallback
+        return Bool.decodeFromUserDefaults(number)
     }
 }

@@ -179,10 +179,10 @@ public struct VideoBackgroundConfigEditor: Sendable {
 
     private func snapshot(from root: [String: Any]) -> Snapshot {
         let video = (root["terminal"] as? [String: Any])?["videoBackground"] as? [String: Any]
-        let enabled = video?["enabled"] as? Bool
+        let enabled = VideoBackgroundSettings.decodeBoolean(video?["enabled"])
         let source = video?["source"] as? String
         let queue = video?["queue"] as? [String]
-        let muted = video?["muted"] as? Bool
+        let muted = VideoBackgroundSettings.decodeBoolean(video?["muted"])
         let quality = (video?["quality"] as? String).map { VideoBackgroundSettings().normalizedQuality($0) }
         let volume: Double? = (video?["volume"] as? NSNumber).flatMap { (value: NSNumber) -> Double? in
             guard CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }

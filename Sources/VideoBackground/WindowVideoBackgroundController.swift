@@ -65,26 +65,45 @@ final class VideoBackgroundPlaybackCoordinator {
         self.now = now
     }
 
-    /// Replaces the shared queue when settings change and returns its current
-    /// snapshot. Identical queues/quality leave the current item and playhead
-    /// untouched so a settings notification cannot restart every window.
-    func configure(sourceTexts: [String], quality: String) -> Snapshot {
+    /// Reconciles settings while preserving the surviving current occurrence.
+    /// Explicit queue selection can restart at the first configured entry.
+    func configure(sourceTexts: [String], quality: String, restart: Bool = false) -> Snapshot {
         let normalizedQuality = VideoBackgroundSettings().normalizedQuality(quality)
         let parsedSources = sourceTexts.compactMap(VideoBackgroundSource.parse)
-        guard parsedSources != sources || normalizedQuality != self.quality else {
+        guard restart || parsedSources != sources || normalizedQuality != self.quality else {
             return snapshot()
         }
 
+        let preservedIndex = restart ? nil : remappedIndex(index, in: parsedSources)
+        let needsReplacement = preservedIndex == nil
+            || normalizedQuality != self.quality
+            || (sources.count <= 1) != (parsedSources.count <= 1)
+        let preservedFailures = Set(failedIndices.compactMap { remappedIndex($0, in: parsedSources) })
+        if needsReplacement {
+            freezeClock()
+            runningTokens.removeAll()
+            generation &+= 1
+        }
+        if preservedIndex == nil {
+            resetClock()
+        }
         sources = parsedSources
         self.quality = normalizedQuality
-        failedIndices.removeAll()
+        failedIndices = preservedIndex == nil ? [] : preservedFailures
         isExhausted = false
-        index = 0
-        generation &+= 1
-        resetClock()
+        index = preservedIndex ?? 0
         let next = snapshot()
         notify(next)
         return next
+    }
+
+    private func remappedIndex(_ oldIndex: Int, in newSources: [VideoBackgroundSource]) -> Int? {
+        guard sources.indices.contains(oldIndex) else { return nil }
+        let source = sources[oldIndex]
+        let occurrence = sources[..<oldIndex].filter { $0 == source }.count
+        let matches = newSources.indices.filter { newSources[$0] == source }
+        guard !matches.isEmpty else { return nil }
+        return matches[min(occurrence, matches.count - 1)]
     }
 
     /// Registers one controller callback and returns its token plus the latest

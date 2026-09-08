@@ -385,6 +385,29 @@ struct WindowVideoBackgroundControllerTests {
     }
 
     @Test
+    func explicitSelectionRestartsAfterAPersistedQueueRotation() {
+        var clock: CFTimeInterval = 100
+        let coordinator = VideoBackgroundPlaybackCoordinator(now: { clock })
+        let initial = coordinator.configure(sourceTexts: ["/tmp/first.mp4", "/tmp/second.mp4"], quality: "1080p")
+        let registration = coordinator.register { _ in }
+        coordinator.setPlayerRunning(true, for: registration.token)
+        clock += 5
+        let rotated = coordinator.configure(sourceTexts: ["/tmp/second.mp4", "/tmp/first.mp4"], quality: "1080p")
+        #expect(rotated.currentSource == initial.currentSource)
+        #expect(rotated.position == 5)
+
+        let selected = coordinator.configure(
+            sourceTexts: ["/tmp/second.mp4", "/tmp/first.mp4"], quality: "1080p", restart: true
+        )
+        #expect(selected.currentSource == rotated.sources.first)
+        #expect(selected.index == 0)
+        #expect(selected.position == 0)
+        #expect(selected.generation != initial.generation)
+        coordinator.advance(after: initial.generation)
+        #expect(coordinator.synchronizedSnapshot() == selected)
+    }
+
+    @Test
     func staleFailureGenerationCannotAffectAReplacementQueue() {
         let coordinator = VideoBackgroundPlaybackCoordinator()
         let old = coordinator.configure(sourceTexts: ["dQw4w9WgXcQ"], quality: "1080p")

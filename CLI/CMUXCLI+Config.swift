@@ -342,7 +342,8 @@ extension CMUXCLI {
 
     private func reloadConfigAfterFontSizeSet(
         socketPath: String?,
-        explicitPassword: String?
+        explicitPassword: String?,
+        restartVideoBackground: Bool = false
     ) -> (status: String, message: String?) {
         guard let socketPath else {
             return ("skipped", nil)
@@ -354,7 +355,8 @@ extension CMUXCLI {
                 launchIfNeeded: false
             )
             defer { client.close() }
-            let response = try client.send(command: "reload_config")
+            let command = restartVideoBackground ? "reload_config --restart-video-background" : "reload_config"
+            let response = try client.send(command: command)
             if response.hasPrefix("ERROR:") {
                 return ("failed", response)
             }
@@ -1153,7 +1155,11 @@ extension CMUXCLI {
         explicitPassword: String?,
         jsonOutput: Bool
     ) throws {
-        let reload = reloadConfigAfterFontSizeSet(socketPath: socketPath, explicitPassword: explicitPassword)
+        let reload = reloadConfigAfterFontSizeSet(
+            socketPath: socketPath,
+            explicitPassword: explicitPassword,
+            restartVideoBackground: ["set", "play", "next"].contains(action)
+        )
         if jsonOutput {
             print(jsonString([
                 "ok": true,
