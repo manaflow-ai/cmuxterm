@@ -1,3 +1,4 @@
+public import Darwin
 public import Foundation
 public import GhosttyKit
 
@@ -30,6 +31,10 @@ public struct GhosttyRuntimeCInterop {
 
         if let initializationResult {
             return initializationResult
+        }
+
+        if getenv("NO_COLOR") != nil {
+            unsetenv("NO_COLOR")
         }
 
         let result = ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv)
