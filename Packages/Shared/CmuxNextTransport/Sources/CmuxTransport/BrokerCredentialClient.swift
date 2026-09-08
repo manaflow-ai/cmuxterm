@@ -25,7 +25,7 @@ public struct BrokerCredentialClient: Sendable {
     }
 
     /// One HTTP round trip. Injectable so package tests can script the
-    /// broker offline; production uses the shared session.
+    /// broker offline; production owns one session per client.
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     private let baseUrl: String
@@ -43,7 +43,7 @@ public struct BrokerCredentialClient: Sendable {
     /// `NextTransportEnvironment` + `.password`; this initializer is
     /// retained for source compatibility with existing call sites.
     public init(config: Config, identity: PeerIdentity) {
-        self.init(config: config, identity: identity, transport: Self.liveTransport)
+        self.init(config: config, identity: identity, transport: Self.liveTransport())
     }
 
     init(config: Config, identity: PeerIdentity, transport: @escaping Transport) {
@@ -73,7 +73,7 @@ public struct BrokerCredentialClient: Sendable {
     ) {
         self.init(
             sessionConfig: sessionConfig, tokens: tokens, identity: identity,
-            transport: Self.liveTransport)
+            transport: Self.liveTransport())
     }
 
     init(
@@ -110,7 +110,7 @@ public struct BrokerCredentialClient: Sendable {
         self.init(
             environment: environment, identity: identity, auth: auth,
             deviceId: deviceId, appInstanceId: appInstanceId, tag: tag,
-            platform: platform, transport: Self.liveTransport)
+            platform: platform, transport: Self.liveTransport())
     }
 
     init(
@@ -157,8 +157,9 @@ public struct BrokerCredentialClient: Sendable {
         #endif
     }
 
-    private static let liveTransport: Transport = { request in
-        try await URLSession.shared.data(for: request)
+    static func liveTransport(configuration: URLSessionConfiguration = .default) -> Transport {
+        let session = URLSession(configuration: configuration)
+        return { request in try await session.data(for: request) }
     }
 
     /// Compact mode name for diagnostics.
