@@ -222,14 +222,20 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         }
     }
 
-    /// Hides the preview find bar after yielding its AppKit responder.
+    /// Hides the preview find bar without changing focus owned by its document.
     func hideFind() {
-        // Release the field editor while searchState still identifies the
-        // overlay as this panel's responder. Clearing the state first would
-        // make the hidden find field indistinguishable from another pane's
-        // responder during the teardown transaction.
-        unfocus()
-        searchState = nil
+        guard let searchState else { return }
+        let window = windowOwningPreviewFocus()
+        let findResponder = window?.firstResponder.flatMap { cmuxFindTextFieldOwner(for: $0) }
+        let shouldRestorePreviewFocus = findResponder?.window === window &&
+            findResponder?.cmuxSelectionOwner === searchState
+        if shouldRestorePreviewFocus {
+            _ = window?.makeFirstResponder(nil)
+        }
+        self.searchState = nil
+        if shouldRestorePreviewFocus {
+            focus()
+        }
     }
 
     /// Whether an async find-field focus request for `generation` may still
@@ -468,7 +474,7 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         invalidateSearchFocusRequests()
 
         guard let window = windowOwningPreviewFocus() else { return }
-        _ = yieldOwnedKeyboardResponder(in: window)
+        _ = yieldFocusIntent(.panel, in: window)
     }
 
     /// Identifies a responder currently owned by this Markdown panel.
@@ -540,15 +546,6 @@ final class MarkdownPanel: Panel, ObservableObject, FilePreviewTextEditingPanel 
         }
 
         return false
-    }
-
-    /// Resigns the panel-owned first responder in the supplied window.
-    private func yieldOwnedKeyboardResponder(in window: NSWindow) -> Bool {
-        guard let firstResponder = window.firstResponder,
-              ownsKeyboardResponder(firstResponder, in: window) else {
-            return false
-        }
-        return window.makeFirstResponder(nil)
     }
 
     /// Checks a bounded AppKit responder chain for a target view.
