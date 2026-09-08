@@ -89,14 +89,14 @@ final class SessionOutlineModel {
             geometry.scrollbar.len
         ))
         let targetRow = min(max(row, 0), lastTopRow)
-        let previousIntent = surfaceView.prepareExplicitViewportRestore(
+        let previousIntent = panel.hostedView.prepareExplicitViewportRestore(
             isAtBottom: targetRow >= lastTopRow
         )
         guard surfaceView.scrollToRow(
             targetRow,
             ifRowSpaceRevisionMatches: geometry.rowSpaceRevision
         ) != nil else {
-            surfaceView.rollbackExplicitViewportRestore(to: previousIntent)
+            panel.hostedView.rollbackExplicitViewportRestore(to: previousIntent)
             return false
         }
         return true

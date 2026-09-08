@@ -27,7 +27,8 @@ struct SessionOutlineTerminalOverlay: View {
                         CmuxSystemSymbolImage(
                             systemName: "list.bullet.rectangle",
                             pointSize: 13,
-                            weight: .medium
+                            weight: .medium,
+                            tint: .primary
                         )
                         .frame(width: 28, height: 28)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
@@ -65,7 +66,7 @@ struct SessionOutlinePanelView: View {
                     .cmuxFont(size: 13, weight: .semibold)
                 Spacer(minLength: 8)
                 Button(action: onDismiss) {
-                    CmuxSystemSymbolImage(systemName: "xmark", pointSize: 10, weight: .semibold)
+                    CmuxSystemSymbolImage(systemName: "xmark", pointSize: 10, weight: .semibold, tint: .primary)
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
@@ -87,7 +88,8 @@ struct SessionOutlinePanelView: View {
                 .padding(6)
             }
         }
-        .frame(width: 300, maxHeight: 430)
+        .frame(width: 300)
+        .frame(maxHeight: 430)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9))
         .overlay {
             RoundedRectangle(cornerRadius: 9)
@@ -120,9 +122,9 @@ private struct SessionOutlineEntryRow: View {
                     CmuxSystemSymbolImage(
                         systemName: "exclamationmark.circle.fill",
                         pointSize: 11,
-                        weight: .medium
+                        weight: .medium,
+                        tint: .orange
                     )
-                    .foregroundStyle(.orange)
                     .accessibilityLabel(Text(String(
                         localized: "sessionOutline.actionRequired",
                         defaultValue: "Action required"

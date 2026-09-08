@@ -29,7 +29,7 @@ final class SessionOutlineChangeBus {
     }
 
     func yield(surfaceIDs: [String?]) {
-        let surfaceIDs = Set(surfaceIDs.compactMap { surfaceID in
+        let surfaceIDs = Set(surfaceIDs.compactMap { surfaceID -> String? in
             guard let surfaceID, !surfaceID.isEmpty else { return nil }
             return surfaceID
         })
