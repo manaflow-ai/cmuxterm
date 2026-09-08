@@ -9553,7 +9553,9 @@ impl Mux {
             let ledger = self.notification_ledger.lock().unwrap();
             ledger
                 .iter()
-                .filter(|entry| terminal_id.is_none_or(|wanted| entry.terminal_id.as_ref() == Some(wanted)))
+                .filter(|entry| {
+                    terminal_id.is_none_or(|wanted| entry.terminal_id.as_ref() == Some(wanted))
+                })
                 .map(|entry| entry.id.clone())
                 .collect()
         };
@@ -23239,11 +23241,41 @@ mod tests {
         let first = mux.new_workspace(None, None).unwrap();
         let second = mux.new_workspace(None, None).unwrap();
         let first_terminal = first.terminal_public_id().cloned().unwrap();
-        mux.create_durable_notification("n-a", "a".into(), Some("sub".into()), "".into(), NotificationLevel::Info, Some(first.id)).unwrap();
-        mux.create_durable_notification("n-b", "b".into(), None, "".into(), NotificationLevel::Info, Some(second.id)).unwrap();
-        mux.create_durable_notification("n-c", "c".into(), None, "".into(), NotificationLevel::Info, Some(first.id)).unwrap();
+        mux.create_durable_notification(
+            "n-a",
+            "a".into(),
+            Some("sub".into()),
+            "".into(),
+            NotificationLevel::Info,
+            Some(first.id),
+        )
+        .unwrap();
+        mux.create_durable_notification(
+            "n-b",
+            "b".into(),
+            None,
+            "".into(),
+            NotificationLevel::Info,
+            Some(second.id),
+        )
+        .unwrap();
+        mux.create_durable_notification(
+            "n-c",
+            "c".into(),
+            None,
+            "".into(),
+            NotificationLevel::Info,
+            Some(first.id),
+        )
+        .unwrap();
         let snapshot = crate::resource_api::public_session_snapshot(&mux).unwrap();
-        let row_a = snapshot["notifications"].as_array().unwrap().iter().find(|row| row["title"] == "a").cloned().unwrap();
+        let row_a = snapshot["notifications"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["title"] == "a")
+            .cloned()
+            .unwrap();
         assert_eq!(row_a["subtitle"], "sub", "subtitle rides the row");
         let mutation = WorkspaceMutation::new("ack-a", "test").unwrap();
         let ledger = mux.resource_notifications(8);
@@ -23257,18 +23289,36 @@ mod tests {
         assert!(!commit.replayed);
         assert_eq!(commit.result["cleared"].as_array().unwrap().len(), 2);
         let remaining = mux.resource_notifications(8);
-        assert_eq!(remaining.iter().map(|entry| entry.title.as_str()).collect::<Vec<_>>(), vec!["b"]);
-        assert!(mux.surface_notification(first.id).is_none(), "console marker dropped with the rows");
+        assert_eq!(
+            remaining.iter().map(|entry| entry.title.as_str()).collect::<Vec<_>>(),
+            vec!["b"]
+        );
+        assert!(
+            mux.surface_notification(first.id).is_none(),
+            "console marker dropped with the rows"
+        );
         let page = mux.resource_events_after(revision_before).unwrap();
-        let batch = page.batches.iter().find(|batch| batch.revision == revision_before + 1).unwrap();
-        assert!(batch.changes.as_array().unwrap().iter().all(|change| change["kind"] == "delete" && change["resource"] == "notification"));
+        let batch =
+            page.batches.iter().find(|batch| batch.revision == revision_before + 1).unwrap();
+        assert!(
+            batch
+                .changes
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|change| change["kind"] == "delete" && change["resource"] == "notification")
+        );
         // Replay is a no-op.
         let replay = mux.clear_notifications(&clear, None, Some(&first_terminal)).unwrap();
         assert!(replay.replayed);
         drop(mux);
 
         let mux = open();
-        let titles = mux.resource_notifications(8).iter().map(|entry| entry.title.clone()).collect::<Vec<_>>();
+        let titles = mux
+            .resource_notifications(8)
+            .iter()
+            .map(|entry| entry.title.clone())
+            .collect::<Vec<_>>();
         assert_eq!(titles, vec!["b"], "cleared rows must not come back from the receipts");
         assert_eq!(mux.notification_read_by(&id_b), vec!["mac-a".to_string()]);
         // Clear everything.

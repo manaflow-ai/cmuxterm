@@ -1424,7 +1424,10 @@ fn parse_notify(words: &[String], flags: &mut Flags) -> Result<CommandPlan, Usag
     }
     let mut params = Map::new();
     if flags.boolean("clear") {
-        if flags.take("title").is_some() || flags.take("subtitle").is_some() || flags.take("body").is_some() {
+        if flags.take("title").is_some()
+            || flags.take("subtitle").is_some()
+            || flags.take("body").is_some()
+        {
             return Err(UsageError::new("--clear does not take --title, --subtitle, or --body"));
         }
         if let Some(surface) = surface {
@@ -3340,7 +3343,21 @@ mod tests {
     #[test]
     fn notify_matches_the_local_cmux_notify_signature() {
         const TERMINAL: &str = "term_00000000000000000000000000000041";
-        let plain = protocol(&["notify", "--title", "Build done", "--subtitle", "api", "--body", "ok", "--surface", TERMINAL, "--id-format", "both", "--window", "1"]);
+        let plain = protocol(&[
+            "notify",
+            "--title",
+            "Build done",
+            "--subtitle",
+            "api",
+            "--body",
+            "ok",
+            "--surface",
+            TERMINAL,
+            "--id-format",
+            "both",
+            "--window",
+            "1",
+        ]);
         assert_eq!(plain.operation.name().unwrap(), "notification.create");
         assert_eq!(plain.params["title"], "Build done");
         assert_eq!(plain.params["subtitle"], "api");
@@ -3359,9 +3376,15 @@ mod tests {
         let clear_all = protocol(&["notify", "--clear", "--workspace", "current"]);
         assert!(clear_all.params.get("terminal_id").is_none());
 
-        assert!(parse(&strings(&["notify", "--reply", "--title", "x"])).is_err(), "no reply channel across the link");
+        assert!(
+            parse(&strings(&["notify", "--reply", "--title", "x"])).is_err(),
+            "no reply channel across the link"
+        );
         assert!(parse(&strings(&["notify", "--title", ""])).is_err());
-        assert!(parse(&strings(&["notify", "--surface", "not-a-terminal"])).is_err(), "only this session's terminal ids");
+        assert!(
+            parse(&strings(&["notify", "--surface", "not-a-terminal"])).is_err(),
+            "only this session's terminal ids"
+        );
         assert!(parse(&strings(&["notify", "extra"])).is_err());
         let long = "x".repeat(4097);
         assert!(parse(&strings(&["notify", "--body", &long])).is_err());
@@ -4684,7 +4707,12 @@ mod tests {
                 "notification.ack",
             ),
             (
-                vec!["notification", "clear", "--terminal", "term_00000000000000000000000000000041"],
+                vec![
+                    "notification",
+                    "clear",
+                    "--terminal",
+                    "term_00000000000000000000000000000041",
+                ],
                 "notification.clear",
             ),
         ];
