@@ -1012,6 +1012,7 @@ final class BonsplitTabDragUITests: XCTestCase {
         // optional titlebar control as hidden in the shared test account.
         app.launchArguments += [
             "-rightSidebar.showTitlebarToggle", "YES",
+            "-rightSidebar.showOpenAsPaneButton", "YES",
             "-workspacePresentationMode", presentationMode.rawValue,
         ]
         if let rightSidebarMode {

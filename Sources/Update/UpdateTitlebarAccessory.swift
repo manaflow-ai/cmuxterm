@@ -2872,8 +2872,12 @@ final class UpdateTitlebarAccessoryController {
     }
 
     private func attachToExistingWindows() {
-        for window in NSApp.windows {
-            attachIfNeeded(to: window)
+        // The snapshot keeps the batch path linear. `attachIfNeeded(to:)` also
+        // serves single-window notifications, where checking that the window
+        // is still live protects against stale notification payloads.
+        let liveWindows = NSApp.windows
+        for window in liveWindows {
+            attachIfNeeded(to: window, knownLiveWindow: true)
         }
     }
 
@@ -2901,8 +2905,8 @@ final class UpdateTitlebarAccessoryController {
         }
     }
 
-    private func attachIfNeeded(to window: NSWindow) {
-        guard NSApp.windows.contains(where: { $0 === window }) else {
+    private func attachIfNeeded(to window: NSWindow, knownLiveWindow: Bool = false) {
+        guard knownLiveWindow || NSApp.windows.contains(where: { $0 === window }) else {
             pendingAttachRetries.removeValue(forKey: ObjectIdentifier(window))
             return
         }
