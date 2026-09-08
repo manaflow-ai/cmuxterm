@@ -46,6 +46,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder al contenido de otras aplicaciones."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取其他應用程式的內容。"
+          }
         }
       }
     },
@@ -92,6 +98,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a datos de otras aplicaciones."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取其他應用程式的資料。"
           }
         }
       }
@@ -140,6 +152,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea utilizar AppleScript."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要使用 AppleScript。"
+          }
         }
       }
     },
@@ -186,6 +204,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea utilizar Bluetooth para detectar llaves de acceso y llaves de seguridad."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要使用藍牙來偵測通行金鑰與安全性金鑰。"
           }
         }
       }
@@ -234,6 +258,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea leer y escribir en tus calendarios."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要讀取和寫入您的行事曆。"
+          }
         }
       }
     },
@@ -280,6 +310,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea añadir eventos a tus calendarios."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要新增行程至您的行事曆。"
           }
         }
       }
@@ -328,6 +364,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea utilizar tu cámara."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要使用您的相機。"
+          }
         }
       }
     },
@@ -374,6 +416,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Escritorio."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取您「桌面」資料夾中的檔案。"
           }
         }
       }
@@ -422,6 +470,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Documentos."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取您「文件」資料夾中的檔案。"
+          }
         }
       }
     },
@@ -468,6 +522,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de tu carpeta Descargas."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取您「下載」資料夾中的檔案。"
           }
         }
       }
@@ -516,6 +576,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos gestionados por un proveedor de archivos."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取由檔案提供者管理的檔案。"
+          }
         }
       }
     },
@@ -556,6 +622,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea buscar dispositivos en tu red local."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要尋找您區域網路上的裝置。"
           }
         }
       }
@@ -603,6 +675,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a tu ubicación."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取您的位置資訊。"
           }
         }
       }
@@ -764,6 +842,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los datos de movimiento."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取動作資料。"
+          }
         }
       }
     },
@@ -810,6 +894,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de un volumen de red."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取網路卷宗上的檔案。"
           }
         }
       }
@@ -858,6 +948,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea leer y escribir en tus recordatorios."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要讀取和寫入您的提醒事項。"
+          }
         }
       }
     },
@@ -904,6 +1000,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea acceder a los archivos de un volumen extraíble."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要存取卸除式卷宗上的檔案。"
           }
         }
       }
@@ -952,6 +1054,12 @@
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea utilizar el reconocimiento de voz."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要使用語音辨識。"
+          }
         }
       }
     },
@@ -992,6 +1100,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un programa que se ejecuta dentro de cmux desea realizar tareas de administración del sistema."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中執行的程式想要執行系統管理工作。"
           }
         }
       }
@@ -2150,7 +2264,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 cmux 中執行的程式想要存取動態資料。"
+            "value": "在 cmux 中執行的程式想要存取動作資料。"
           }
         },
         "ko": {
@@ -2395,6 +2509,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "cmux instala una extensión de red para que este Mac pueda conectarse a tus máquinas Cloud en su red privada. Solo se ejecuta mientras usas cmux Cloud."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux 會安裝網路延伸功能，以便此 Mac 可透過私人網路連線至您的 Cloud 虛擬主機。此功能僅在您使用 cmux Cloud 時執行。"
           }
         }
       }

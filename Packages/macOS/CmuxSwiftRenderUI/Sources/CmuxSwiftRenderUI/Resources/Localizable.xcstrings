@@ -45,6 +45,12 @@
             "state": "translated",
             "value": "Error de la barra lateral"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "側邊欄錯誤"
+          }
         }
       }
     },
@@ -92,6 +98,12 @@
             "state": "translated",
             "value": "El archivo de la barra lateral está vacío o falta."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "側邊欄檔案為空或遺失。"
+          }
         }
       }
     },
@@ -138,6 +150,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se encontró ninguna vista de SwiftUI compatible."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到支援的 SwiftUI 檢視。"
           }
         }
       }

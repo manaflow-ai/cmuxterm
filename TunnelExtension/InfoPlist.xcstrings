@@ -39,6 +39,12 @@
             "state": "translated",
             "value": "cmux Cloud Tunnel"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cmux Cloud Tunnel"
+          }
         }
       }
     }

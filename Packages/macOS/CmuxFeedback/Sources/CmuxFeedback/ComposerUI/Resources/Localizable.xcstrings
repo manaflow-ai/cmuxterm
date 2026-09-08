@@ -52,6 +52,12 @@
             "state": "translated",
             "value": "Adjuntar"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加"
+          }
         }
       }
     },
@@ -104,6 +110,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adjuntar imágenes"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加圖片"
           }
         }
       }
@@ -158,6 +170,12 @@
             "state": "translated",
             "value": "Adjuntar imágenes"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加圖片"
+          }
         }
       }
     },
@@ -210,6 +228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hasta 10 imágenes."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 10 張圖片。"
           }
         }
       }
@@ -329,6 +353,12 @@
             "state": "translated",
             "value": "No se pudieron enviar los comentarios. Comprueba la conexión e inténtalo de nuevo."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法傳送意見反應。請檢查您的連線並重試。"
+          }
         }
       }
     },
@@ -447,6 +477,12 @@
             "state": "translated",
             "value": "Tu correo electrónico"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的電子郵件"
+          }
         }
       }
     },
@@ -499,6 +535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "tu@ejemplo.com"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@example.com"
           }
         }
       }
@@ -553,6 +595,12 @@
             "state": "translated",
             "value": "Escribe un mensaje antes de enviar."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送前請先輸入訊息。"
+          }
         }
       }
     },
@@ -605,6 +653,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Los comentarios no están disponibles en este momento. Envía un correo a founders@manaflow.com en su lugar."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前無法使用意見反應功能。請改為傳送電子郵件至 founders@manaflow.com。"
           }
         }
       }
@@ -659,6 +713,12 @@
             "state": "translated",
             "value": "No se pudieron enviar los comentarios. Inténtalo de nuevo."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法傳送意見反應。請重試。"
+          }
         }
       }
     },
@@ -712,6 +772,12 @@
             "state": "translated",
             "value": "Introduce una dirección de correo electrónico válida."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請輸入有效的電子郵件地址。"
+          }
         }
       }
     },
@@ -764,6 +830,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo adjuntar uno de los archivos seleccionados."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法附加其中一個選取的檔案。"
           }
         }
       }
@@ -883,6 +955,12 @@
             "state": "translated",
             "value": "Comparte comentarios, solicitudes de funciones o problemas."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享意見反應、功能需求或問題。"
+          }
         }
       }
     },
@@ -935,6 +1013,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tu mensaje es demasiado largo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的訊息過長。"
           }
         }
       }
@@ -989,6 +1073,12 @@
             "state": "translated",
             "value": "También puedes contactarnos en founders@manaflow.com."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您也可以透過 founders@manaflow.com 與我們聯絡。"
+          }
         }
       }
     },
@@ -1042,6 +1132,12 @@
             "state": "translated",
             "value": "Demasiados intentos de envío. Inténtalo de nuevo más tarde."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "嘗試傳送意見反應的次數過多。請稍後重試。"
+          }
         }
       }
     },
@@ -1094,6 +1190,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "إزالة"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
           }
         }
       }
@@ -1213,6 +1315,12 @@
             "state": "translated",
             "value": "También puedes contactarnos en founders@manaflow.com."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您也可以透過 founders@manaflow.com 與我們聯絡。"
+          }
         }
       }
     },
@@ -1265,6 +1373,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gracias por tus comentarios."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "感謝您的意見反應。"
           }
         }
       }
@@ -1384,6 +1498,12 @@
             "state": "translated",
             "value": "Puedes adjuntar hasta 10 imágenes."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您最多可以附加 10 張圖片。"
+          }
         }
       }
     },
@@ -1437,6 +1557,12 @@
             "state": "translated",
             "value": "Estas imágenes son demasiado grandes para enviarse juntas. Elimina algunas e inténtalo de nuevo."
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這些圖片過大，無法同時傳送。請移除幾張圖片後重試。"
+          }
         }
       }
     },
@@ -1489,6 +1615,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comprueba tu mensaje y los archivos adjuntos, e inténtalo de nuevo."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請檢查您的訊息與附件，然後重試。"
           }
         }
       }

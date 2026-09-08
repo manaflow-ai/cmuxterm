@@ -40,6 +40,12 @@
             "state": "translated",
             "value": "La lista de permitidos del visor de diferencias es demasiado grande"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 檢視器允許清單過大"
+          }
         }
       }
     },
@@ -80,6 +86,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entrada duplicada en la lista de permitidos del visor de diferencias"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重複的 Diff 檢視器允許清單項目"
           }
         }
       }
@@ -122,6 +134,12 @@
             "state": "translated",
             "value": "La lista de permitidos del visor de diferencias está vacía"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 檢視器允許清單為空"
+          }
         }
       }
     },
@@ -162,6 +180,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entrada no válida en la lista de permitidos del visor de diferencias"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無效的 Diff 檢視器允許清單項目"
           }
         }
       }
@@ -204,6 +228,12 @@
             "state": "translated",
             "value": "Manifiesto del visor de diferencias no válido"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無效的 Diff 檢視器 Manifest"
+          }
         }
       }
     },
@@ -244,6 +274,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Token del visor de diferencias no válido"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無效的 Diff 檢視器 Token"
           }
         }
       }
@@ -286,6 +322,12 @@
             "state": "translated",
             "value": "El manifiesto del visor de diferencias es demasiado grande"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 檢視器 Manifest 過大"
+          }
         }
       }
     },
@@ -327,6 +369,12 @@
             "state": "translated",
             "value": "El archivo del visor de diferencias no es legible"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 檢視器檔案無法讀取"
+          }
         }
       }
     },
@@ -367,6 +415,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "El directorio de confianza del visor de diferencias no es seguro"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 檢視器信任的目錄不安全"
           }
         }
       }
