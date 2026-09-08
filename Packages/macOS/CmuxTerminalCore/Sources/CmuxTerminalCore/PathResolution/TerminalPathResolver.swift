@@ -31,8 +31,9 @@ public struct TerminalPathResolver: Sendable {
     ///
     /// Candidates are derived from the raw text (as-is, shell-unescaped,
     /// shell-unquoted, and trailing-punctuation-trimmed variants), expanded
-    /// for `~`, resolved against `cwd` when relative, standardized, and probed
-    /// in order. The first existing path wins.
+    /// for `~`, resolved against `cwd` and then each ancestor up to the
+    /// enclosing repository root when relative, standardized, and probed in
+    /// order. The first existing path wins.
     ///
     /// - Parameters:
     ///   - rawText: The raw text under the cursor or selection.
@@ -48,22 +49,51 @@ public struct TerminalPathResolver: Sendable {
             guard !normalizedToken.isEmpty else { continue }
 
             let expandedToken = (normalizedToken as NSString).expandingTildeInPath
-            let candidatePath: String
+            let candidatePaths: [String]
             if expandedToken.hasPrefix("/") {
-                candidatePath = expandedToken
+                candidatePaths = [expandedToken]
             } else {
                 guard let cwd, !cwd.isEmpty else { continue }
-                candidatePath = (cwd as NSString).appendingPathComponent(expandedToken)
+                candidatePaths = relativeResolutionBases(cwd: cwd).map { base in
+                    (base as NSString).appendingPathComponent(expandedToken)
+                }
             }
 
-            let standardizedPath = (candidatePath as NSString).standardizingPath
-            guard seenPaths.insert(standardizedPath).inserted else { continue }
-            if fileExists(standardizedPath) {
-                return standardizedPath
+            for candidatePath in candidatePaths {
+                let standardizedPath = (candidatePath as NSString).standardizingPath
+                guard seenPaths.insert(standardizedPath).inserted else { continue }
+                if fileExists(standardizedPath) {
+                    return standardizedPath
+                }
             }
         }
 
         return nil
+    }
+
+    /// Directories a relative candidate is resolved against, nearest first.
+    ///
+    /// Tools print paths relative to the repository root regardless of the
+    /// shell's working directory (a linter run from `frontend/` names
+    /// `.agents/skills/x.md`), so after `cwd` every ancestor up to and
+    /// including the repository root is probed. The walk stops at the first
+    /// directory that contains a `.git` entry (a directory in a primary
+    /// checkout, a file in a worktree); outside any repository only `cwd`
+    /// is used, so a stray `src/main.swift` never resolves against an
+    /// unrelated project higher up the tree.
+    private func relativeResolutionBases(cwd: String) -> [String] {
+        var bases: [String] = []
+        var directory = (cwd as NSString).standardizingPath
+        while true {
+            bases.append(directory)
+            if fileExists((directory as NSString).appendingPathComponent(".git")) {
+                return bases
+            }
+            let parent = (directory as NSString).deletingLastPathComponent
+            guard parent != directory, !parent.isEmpty else { break }
+            directory = parent
+        }
+        return [bases[0]]
     }
 
     /// Resolves the path token under a column of a visible terminal line.

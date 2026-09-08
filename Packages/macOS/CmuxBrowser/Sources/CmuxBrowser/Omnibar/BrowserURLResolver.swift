@@ -57,6 +57,7 @@ public struct BrowserURLResolver: Sendable {
         if BrowserAppWebOrigin.isLoopbackHost(bareHost) {
             return URL(string: "http://\(trimmed)")
         }
+        guard hasNavigableHostLabels(bareHost) else { return nil }
 
         if let url = URL(string: trimmed), let scheme = url.scheme?.lowercased() {
             if scheme == "file", url.isFileURL, url.path.hasPrefix("/") {
@@ -210,6 +211,19 @@ public struct BrowserURLResolver: Sendable {
             components.query != nil ||
             components.fragment != nil
         return hasPathQueryOrFragment || components.port != nil
+    }
+
+    /// Whether a scheme-less host candidate could name a host at all.
+    ///
+    /// A dotted label sequence with an empty label (`.agents/x`, `a..b`,
+    /// `foo.`) is never a hostname; such text is a relative file path or a
+    /// sentence fragment, and promoting it to `https://` only produces a
+    /// navigation error. Bracketed IPv6 literals and the empty candidate
+    /// (which later branches already reject) are passed through unchanged.
+    private func hasNavigableHostLabels(_ bareHost: String) -> Bool {
+        guard !bareHost.isEmpty, !bareHost.hasPrefix("[") else { return true }
+        return !bareHost.split(separator: ".", omittingEmptySubsequences: false)
+            .contains(where: \.isEmpty)
     }
 
     private func bareHostCandidate(_ lowercasedInput: String) -> String {
