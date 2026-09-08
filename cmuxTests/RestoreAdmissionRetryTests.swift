@@ -1,5 +1,6 @@
 import CMUXAgentLaunch
 import Foundation
+import os
 import Testing
 
 #if canImport(cmux_DEV)
@@ -152,5 +153,106 @@ import Testing
         #expect(index == nil)
         #expect(refreshes == 1)
         #expect(SharedLiveAgentIndex.deferredRestoreSettleAttempts > 1)
+    }
+}
+
+/// An ownership-sensitive refresh scoped to the agent kind being restored
+/// settles on that kind's hook store alone. Every agent on the Mac writes its
+/// own hook store into the same directory, so whole-directory quiescence
+/// almost never holds on a busy machine and failed every restore closed
+/// (#12084).
+@MainActor
+@Suite(.serialized)
+struct LiveAgentIndexRelevantChurnTests {
+    private static func makeHookStoreDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-relevant-churn-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    /// An index whose loader rewrites `churnedFilename` on every load, the way
+    /// a hook landing mid-scan does.
+    private static func makeChurningIndex(
+        directory: URL,
+        churnedFilename: String,
+        loadCount: OSAllocatedUnfairLock<Int>
+    ) -> SharedLiveAgentIndex {
+        let churnedFile = directory.appendingPathComponent(churnedFilename)
+        return SharedLiveAgentIndex(
+            indexLoader: {
+                let count = loadCount.withLock { $0 += 1; return $0 }
+                try? Data("{\"version\":1,\"sessions\":{},\"load\":\(count)}".utf8)
+                    .write(to: churnedFile, options: .atomic)
+                return (
+                    index: RestorableAgentSessionIndex.empty,
+                    liveAgentProcessFingerprint: [],
+                    processScopeFingerprint: [],
+                    forkValidatedPanels: []
+                )
+            },
+            hookStoreDirectoryProvider: { directory.path }
+        )
+    }
+
+    @Test
+    func unrelatedHookStoreChurnDoesNotFailAScopedRefreshClosed() async throws {
+        let directory = try Self.makeHookStoreDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let loadCount = OSAllocatedUnfairLock(initialState: 0)
+        let index = Self.makeChurningIndex(
+            directory: directory,
+            churnedFilename: "claude-hook-sessions.json",
+            loadCount: loadCount
+        )
+
+        let refreshed = await index.indexRefreshingNow(relevantKinds: ["pi"])
+
+        #expect(refreshed != nil)
+        #expect(loadCount.withLock { $0 } == 1)
+    }
+
+    @Test
+    func relevantHookStoreChurnStillFailsClosed() async throws {
+        let directory = try Self.makeHookStoreDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let loadCount = OSAllocatedUnfairLock(initialState: 0)
+        let index = Self.makeChurningIndex(
+            directory: directory,
+            churnedFilename: "pi-hook-sessions.json",
+            loadCount: loadCount
+        )
+
+        let refreshed = await index.indexRefreshingNow(relevantKinds: ["pi"])
+
+        #expect(refreshed == nil)
+        #expect(loadCount.withLock { $0 } == 2)
+    }
+
+    @Test
+    func hookStoreFilenamesCoverBuiltInAndCustomKinds() {
+        let filenames = SharedLiveAgentIndex.hookStoreFilenames(forKinds: ["pi", "my-agent"])
+        #expect(filenames == ["pi-hook-sessions.json", "my-agent-hook-sessions.json"])
+    }
+
+    @Test
+    func fingerprintsTrackPresenceAndRewrites() throws {
+        let directory = try Self.makeHookStoreDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let filename = "pi-hook-sessions.json"
+        let file = directory.appendingPathComponent(filename)
+
+        #expect(SharedLiveAgentIndex.hookStoreFingerprints(directory: directory.path)[filename] == nil)
+        try Data("{}".utf8).write(to: file, options: .atomic)
+        let first = SharedLiveAgentIndex.hookStoreFingerprints(directory: directory.path)[filename]
+        try Data("{\"sessions\":{}}".utf8).write(to: file, options: .atomic)
+        let second = SharedLiveAgentIndex.hookStoreFingerprints(
+            directory: directory.path,
+            filenames: [filename]
+        )[filename]
+
+        #expect(first != nil)
+        #expect(second != nil)
+        #expect(first != second)
     }
 }
