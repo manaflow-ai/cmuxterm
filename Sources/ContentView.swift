@@ -7316,10 +7316,8 @@ struct ContentView: View {
                 )
             }
         }
-
         var contributions: [CommandPaletteCommandContribution] = []
         contributions.append(contentsOf: Self.commandPaletteCloudCommandContributions())
-
         contributions.append(
             CommandPaletteCommandContribution(
                 commandId: "palette.newWorkspace",
@@ -8280,15 +8278,7 @@ struct ContentView: View {
                 when: { $0.bool(CommandPaletteContextKeys.panelIsTerminal) }
             )
         )
-        contributions.append(
-            CommandPaletteCommandContribution(
-                commandId: "palette.terminalToggleSessionOutline",
-                title: constant(String(localized: "command.terminalToggleSessionOutline.title", defaultValue: "Toggle Session Outline")),
-                subtitle: terminalPanelSubtitle,
-                keywords: ["terminal", "session", "outline", "transcript", "conversation", "toc", "jump", "agent"],
-                when: { $0.bool(CommandPaletteContextKeys.panelIsTerminal) }
-            )
-        )
+        contributions.append(Self.sessionOutlineCommandPaletteContribution())
         contributions.append(
             CommandPaletteCommandContribution(
                 commandId: "palette.terminalSplitRight",
@@ -9222,11 +9212,7 @@ struct ContentView: View {
                 NSSound.beep()
             }
         }
-        registry.register(commandId: "palette.terminalToggleSessionOutline") {
-            if !tabManager.toggleFocusedSessionOutline() {
-                NSSound.beep()
-            }
-        }
+        registerSessionOutlineCommandPaletteHandler(&registry, tabManager: tabManager)
         registry.register(commandId: "palette.terminalSplitRight") {
             if !executeConfiguredAction(id: CmuxSurfaceTabBarBuiltInAction.splitRight.configID) {
                 tabManager.createSplit(direction: .right)

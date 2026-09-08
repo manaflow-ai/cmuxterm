@@ -7304,7 +7304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return "id=\(String(context.windowId.uuidString.prefix(8))) mgr=\(debugManagerToken(context.tabManager)) tabs=\(context.tabManager.tabs.count) selected=\(selected) hasWindow=\(hasWindow)"
     }
 
-    private func debugShortcutRouteSnapshot(event: NSEvent? = nil) -> String {
+    func debugShortcutRouteSnapshot(event: NSEvent? = nil) -> String {
         let activeManager = tabManager
         let activeWindowId = activeManager.flatMap { windowId(for: $0) }.map { String($0.uuidString.prefix(8)) } ?? "nil"
         let selectedWorkspace = activeManager?.selectedTabId.map { String($0.uuidString.prefix(5)) } ?? "nil"
@@ -15277,26 +15277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             // Only consume when a focused terminal actually performed the clear.
             return handled
         }
-
-        if matchConfiguredShortcut(event: event, action: .toggleSessionOutline) {
-            if performFocusedDockShortcut(
-                .toggleSessionOutline,
-                action: .toggleSessionOutline,
-                event: event
-            ) {
-                return true
-            }
-            let routedManager = preferredMainWindowContextForShortcutRouting(event: event)?.tabManager ?? tabManager
-            let handled = routedManager?.toggleFocusedSessionOutline() ?? false
-#if DEBUG
-            cmuxDebugLog(
-                "shortcut.action name=toggleSessionOutline handled=\(handled ? 1 : 0) " +
-                "\(debugShortcutRouteSnapshot(event: event))"
-            )
-#endif
-            return handled
-        }
-
+        if let handled = handleSessionOutlineShortcut(event: event) { return handled }
         // Workspace navigation: Cmd+Ctrl+] / Cmd+Ctrl+[
         if matchConfiguredShortcut(event: event, action: .nextSidebarTab) {
 #if DEBUG

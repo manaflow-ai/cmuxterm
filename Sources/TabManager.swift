@@ -1003,11 +1003,6 @@ class TabManager: ObservableObject {
         return panel.surface.toggleKeyboardCopyMode()
     }
 
-    @discardableResult
-    func toggleFocusedSessionOutline() -> Bool {
-        selectedTerminalPanel?.sessionOutlineModel.togglePresentation() ?? false
-    }
-
     /// Forwards a single Ctrl-F (`^F`) key press to the focused terminal surface,
     /// faithfully encoded through Ghostty so it matches whatever the running TUI
     /// would receive from a real keystroke.

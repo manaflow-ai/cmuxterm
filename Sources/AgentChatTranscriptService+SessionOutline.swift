@@ -36,7 +36,7 @@ struct SessionOutlineCache {
 
 extension AgentChatTranscriptService {
     func sessionOutlineChanges(for surfaceID: UUID) -> AsyncStream<Void> {
-        sessionOutlineChangeBus.stream(surfaceID: surfaceID.uuidString)
+        sessionOutlineState.changeBus.stream(surfaceID: surfaceID.uuidString)
     }
 
     func sessionOutline(for surfaceID: UUID) async -> [ChatOutlineEntry]? {
@@ -46,8 +46,8 @@ extension AgentChatTranscriptService {
             return nil
         }
         let sessionID = record.sessionID
-        let revision = sessionOutlineCache.revision(for: sessionID)
-        if let cached = sessionOutlineCache.value(for: sessionID, revision: revision) {
+        let revision = sessionOutlineState.cache.revision(for: sessionID)
+        if let cached = sessionOutlineState.cache.value(for: sessionID, revision: revision) {
             return cached
         }
         guard let page = await history(
@@ -61,10 +61,10 @@ extension AgentChatTranscriptService {
         let entries = await Task.detached(priority: .userInitiated) {
             ChatOutlineBuilder().entries(from: messages)
         }.value
-        guard sessionOutlineCache.revision(for: sessionID) == revision else {
+        guard sessionOutlineState.cache.revision(for: sessionID) == revision else {
             return entries
         }
-        sessionOutlineCache.store(entries, for: sessionID, revision: revision)
+        sessionOutlineState.cache.store(entries, for: sessionID, revision: revision)
         return entries
     }
 }
