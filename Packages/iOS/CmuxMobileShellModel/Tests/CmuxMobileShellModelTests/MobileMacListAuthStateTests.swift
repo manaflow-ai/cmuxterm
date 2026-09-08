@@ -26,7 +26,7 @@ struct MobileMacListAuthStateTests {
     }
 
     @Test
-    func missingVersionWarnsButMalformedVersionStaysInformational() {
+    func missingOrMalformedVersionWarns() {
         let unknown = MobileMacListAuthState.Entry(
             status: "active",
             revoked: false,
@@ -43,7 +43,7 @@ struct MobileMacListAuthStateTests {
             appVersion: "nightly",
             minimumSupportedVersion: "0.64.20"
         )
-        #expect(!malformed.isOutdated)
+        #expect(malformed.isOutdated)
     }
 
     @Test

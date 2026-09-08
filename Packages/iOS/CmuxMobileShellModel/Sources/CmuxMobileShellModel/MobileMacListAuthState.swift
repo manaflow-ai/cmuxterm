@@ -55,15 +55,16 @@ public final class MobileMacListAuthState {
             self.minimumSupportedVersion = minimumSupportedVersion
         }
 
-        /// True when the server floor is valid and the Mac is either missing a
-        /// build version or is below that floor. A malformed reported version
-        /// stays informational because it cannot be safely compared.
+        /// True when the server floor is valid and the Mac is either missing
+        /// or has an unparsable build version, or is below that floor. An
+        /// unusable reported version cannot establish compatibility, so it is
+        /// treated as possibly too old until a valid hello arrives.
         public var isOutdated: Bool {
             guard let minimumSupportedVersion,
                   let required = Self.numericVersion(minimumSupportedVersion)
             else { return false }
             guard let appVersion else { return true }
-            guard let installed = Self.numericVersion(appVersion) else { return false }
+            guard let installed = Self.numericVersion(appVersion) else { return true }
             return installed.lexicographicallyPrecedes(required)
         }
 
