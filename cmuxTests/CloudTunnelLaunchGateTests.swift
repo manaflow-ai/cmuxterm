@@ -423,6 +423,48 @@ struct CloudTunnelLaunchGateTests {
         #expect(enroller.discardCount == 0)
     }
 
+    @Test("a newer start that inherits a superseded start's refused configuration discards it when it ends without installing")
+    @MainActor
+    func inheritedConfigurationIsDiscardedByAStartThatDoesNotInstall() async throws {
+        let controller = FakeTunnelController()
+        controller.holdInstallForApproval = true
+        let enroller = FakeTunnelEnroller()
+        let gate = Gate(nil)
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, gate: gate)
+        let first = Task { try await coordinator.requestUp(pin: false) }
+        _ = await coordinator.waitForState(timeout: .seconds(5)) { $0 == .awaitingApproval }
+
+        // Opt-out cancels the first start; opt back in schedules a second.
+        gate.refusal = .cloudMachinesOff
+        await coordinator.requestDown()
+        gate.refusal = nil
+        // While the second start is enrolling, the first start's late
+        // approval resolves and the policy refuses again: the second start
+        // inherits the first start's saved configuration and, refused before
+        // it installs anything, must discard it.
+        enroller.onEnroll = {
+            controller.approve()
+            _ = try? await first.value
+            gate.refusal = .cloudMachinesOff
+        }
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await coordinator.requestUp(pin: false)
+        }
+        #expect(controller.calls == ["install", "stop", "remove"])
+        #expect(controller.installedConfigurations.isEmpty)
+        #expect(enroller.discardCount == 1)
+        #expect(await coordinator.state == .off)
+
+        // The obligation is gone: a later admitted start behaves normally.
+        gate.refusal = nil
+        enroller.onEnroll = nil
+        controller.holdInstallForApproval = false
+        try await coordinator.requestUp(pin: false)
+        #expect(await coordinator.state == .up)
+        #expect(controller.calls == ["install", "stop", "remove", "install", "start"])
+        #expect(enroller.discardCount == 1)
+    }
+
     @Test("a start that is refused after being scheduled ends off, without failure backoff, and its waiters get the real reason")
     func refusalAfterSchedulingEndsOff() async {
         let controller = FakeTunnelController()
