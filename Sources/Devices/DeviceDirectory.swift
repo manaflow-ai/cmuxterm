@@ -43,7 +43,7 @@ final class DeviceDirectory {
     private let pairing: any DeviceLinkAuthorizationSource
     private let registryClient: DeviceRegistryDirectoryClient
     private let makeSubscriber: @Sendable (URL, @escaping @Sendable () async throws -> DevicePresenceSubscriber.Credentials?) -> DevicePresenceSubscriber
-    private let serviceURL: @Sendable () -> URL?
+    private let serviceURL: @MainActor @Sendable () -> URL?
     private let selfInstance: SurfaceDeviceInstanceID
     private let clock: any Clock<Duration>
 
@@ -67,7 +67,7 @@ final class DeviceDirectory {
         teamID: String?,
         pairing: any DeviceLinkAuthorizationSource,
         registryClient: DeviceRegistryDirectoryClient? = nil,
-        serviceURL: @escaping @Sendable () -> URL? = { PresenceHeartbeatClient.resolvedServiceURL() },
+        serviceURL: @escaping @MainActor @Sendable () -> URL? = { PresenceHeartbeatClient.resolvedServiceURL() },
         makeSubscriber: @escaping @Sendable (URL, @escaping @Sendable () async throws -> DevicePresenceSubscriber.Credentials?) -> DevicePresenceSubscriber = { url, credentials in
             DevicePresenceSubscriber(serviceBaseURL: url, credentials: credentials)
         },
