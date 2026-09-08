@@ -22,7 +22,8 @@ public struct SocketCredentialResolutionAttempt: Sendable {
     /// Resolves a credential without admitting work after its deadline.
     ///
     /// The synchronous provider cannot be forcibly cancelled. An over-deadline
-    /// result is not available for authentication in the expired operation.
+    /// result is not available for authentication in the expired operation,
+    /// but leaves the attempt eligible for a later operation's fresh deadline.
     ///
     /// - Parameters:
     ///   - provider: The source resolver shared by clients on this socket route.
@@ -34,9 +35,9 @@ public struct SocketCredentialResolutionAttempt: Sendable {
     ) -> String? {
         guard !isCompleted else { return nil }
         if let deadline, now() >= deadline { return nil }
-        isCompleted = true
         let password = provider(deadline)
         if let deadline, now() >= deadline { return nil }
+        isCompleted = true
         return password
     }
 }
