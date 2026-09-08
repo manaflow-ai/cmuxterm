@@ -12,6 +12,20 @@ extension LocalArtifactRepository {
         )
     }
 
+    /// Returns the request with ownership normalized the same way persisted
+    /// rows are, so identity keys derived from it survive a reload.
+    func normalizedRequest(_ request: ArtifactIngestRequest) -> ArtifactIngestRequest {
+        ArtifactIngestRequest(
+            input: request.input,
+            kind: request.kind,
+            ownership: normalizedOwnership(request.ownership),
+            source: request.source,
+            title: request.title,
+            metadata: request.metadata,
+            authorization: request.authorization
+        )
+    }
+
     func normalizedRecord(_ record: ArtifactRecord) -> ArtifactRecord {
         let ownership = normalizedOwnership(record.ownership)
         return ArtifactRecord(

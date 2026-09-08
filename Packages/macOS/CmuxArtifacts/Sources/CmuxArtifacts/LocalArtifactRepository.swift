@@ -85,6 +85,11 @@ public actor LocalArtifactRepository: ArtifactStoring {
            case .automatic = request.authorization {
             throw ArtifactStoreError.unsupportedKind("capture disabled")
         }
+        // Normalize ownership before deriving the identity key. The key must
+        // come from the same ownership that is stored on the row; otherwise
+        // the next reload recomputes it with the derived project id and the
+        // URL stops deduplicating against its persisted record.
+        let request = normalizedRequest(request)
         let prepared = try prepare(request, capturedAt: capturedAt)
         if let existing = recordsByIdentity[prepared.identityKey] {
             let merged = existing.merging(
@@ -103,7 +108,7 @@ public actor LocalArtifactRepository: ArtifactStoring {
         let record = ArtifactRecord(
             kind: prepared.kind,
             identityKey: prepared.identityKey,
-            ownership: normalizedOwnership(request.ownership),
+            ownership: request.ownership,
             source: request.source,
             createdAt: capturedAt,
             lastSeenAt: capturedAt,
