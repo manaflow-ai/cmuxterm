@@ -2432,12 +2432,8 @@ actor MachineUsageClient {
         return nil
     }
 
-    // Date.ISO8601FormatStyle is a Sendable value type, so decoding can stay
-    // nonisolated without sharing mutable ISO8601DateFormatter instances.
-    private nonisolated static let iso8601WithFractions = Date.ISO8601FormatStyle(
-        includingFractionalSeconds: true
-    )
-
+    // ISO8601FormatStyle is Sendable, so decoding stays nonisolated without mutable formatters.
+    private nonisolated static let iso8601WithFractions = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
     private nonisolated static let iso8601 = Date.ISO8601FormatStyle()
 
     /// `null`/absent is nil; an unparseable string is nil too, since the date

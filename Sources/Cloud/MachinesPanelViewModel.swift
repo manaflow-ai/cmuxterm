@@ -463,15 +463,13 @@ final class MachinesPanelViewModel: ObservableObject {
     private static let statsInterval: Duration = .seconds(20)
 
     init(createCoordinator: MachineCreateCoordinator? = nil) {
-        // `.shared` is main-actor-isolated, so it cannot be a default argument
-        // (default values evaluate in a nonisolated context); resolve it here.
-        let createCoordinator = createCoordinator ?? .shared
-        self.createCoordinator = createCoordinator
-        pendingCreates = createCoordinator.operations
+        // Resolve the main-actor-isolated `.shared` in the initializer body.
+        self.createCoordinator = createCoordinator ?? .shared
+        pendingCreates = self.createCoordinator.operations
         let finishedUserInfoKey = MachineCreateCoordinator.finishedUserInfoKey
         createChangeObserver = NotificationCenter.default.addObserver(
             forName: MachineCreateCoordinator.didChangeNotification,
-            object: createCoordinator,
+            object: self.createCoordinator,
             queue: .main
         ) { [weak self] notification in
             let finished = notification.userInfo?[finishedUserInfoKey] as? MachineCreateCoordinator.Finished
