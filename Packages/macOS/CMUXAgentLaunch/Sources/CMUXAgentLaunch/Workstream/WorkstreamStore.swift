@@ -142,10 +142,10 @@ public final class WorkstreamStore {
     /// Applies an inbound wire frame. Creates or updates a
     /// `WorkstreamItem`, enforces the ring-buffer cap, and appends to
     /// the JSONL log.
-    func ingestPrepared(_ item: WorkstreamItem) {
+    func ingestPrepared(_ item: WorkstreamItem, isTransient: Bool = false) {
         insert(item)
         updateContextIndex(with: item)
-        if let persistence, !event.isTransient {
+        if let persistence, !isTransient {
             Task { [persistence, item] in
                 try? await persistence.append(item)
             }

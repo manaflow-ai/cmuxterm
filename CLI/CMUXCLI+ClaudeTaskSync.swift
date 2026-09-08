@@ -921,6 +921,20 @@ extension CMUXCLI {
                     binding: ClaudeTeamTaskListBinding,
                     workspaceIDs: [String]
                 )?
+                // A superseded hook must not clear the live Feed projection
+                // while it is preparing cleanup for an older automatic team.
+                // Prove this hook still owns the visible mutation before any
+                // empty cleanup snapshot is sent.
+                guard shouldApplyClaudeHookVisibleMutation(
+                    sessionStore: sessionStore,
+                    parsedInput: parsedInput,
+                    workspaceId: resolvedTarget.workspaceId,
+                    surfaceId: resolvedTarget.isAuthoritative ? resolvedTarget.surfaceId : nil,
+                    telemetry: telemetry
+                ) else {
+                    telemetry.breadcrumb("claude-hook.task-sync.stale")
+                    return
+                }
                 if let automaticTeamResolution {
                     cleanupTaskDirectoryName = automaticTeamResolution.binding.taskListID
                     let cleanupWorkspaceIDs: [String]
@@ -975,17 +989,6 @@ extension CMUXCLI {
                     telemetry.breadcrumb("claude-hook.task-sync.unproven-agent")
                     return
                 }
-                guard shouldApplyClaudeHookVisibleMutation(
-                    sessionStore: sessionStore,
-                    parsedInput: parsedInput,
-                    workspaceId: resolvedTarget.workspaceId,
-                    surfaceId: resolvedTarget.isAuthoritative ? resolvedTarget.surfaceId : nil,
-                    telemetry: telemetry
-                ) else {
-                    telemetry.breadcrumb("claude-hook.task-sync.stale")
-                    return
-                }
-
                 let taskBindingSource = currentRecord?.claudeTaskBindingSource
                 let taskBindingBelongsToCurrentGeneration = currentRecord.map { record in
                     if let bindingStartedAt = record.claudeTaskBindingStartedAt {
@@ -1500,10 +1503,30 @@ extension CMUXCLI {
             workspaceIDs: workspaceIDs,
             deadlineUptime: deadlineUptime
         )
+        let retryWorkspaceIDs: [String]
+        if cleanup.succeeded {
+            retryWorkspaceIDs = cleanup.retainedWorkspaceIDs
+        } else if cleanup.retainedWorkspaceIDs.isEmpty {
+            // A transport/protocol failure can occur before the response is
+            // decoded. Keep the original destinations as the durable retry
+            // proof instead of dropping the binding with an empty set.
+            retryWorkspaceIDs = workspaceIDs
+        } else {
+            retryWorkspaceIDs = cleanup.retainedWorkspaceIDs
+        }
         try sessionStore.retainClaudeTeamTaskBindingWorkspaces(
-            cleanup.retainedWorkspaceIDs,
+            retryWorkspaceIDs,
             for: binding
         )
+        if !cleanup.succeeded {
+            // Retired team records are the SessionEnd retry owner. Mark the
+            // binding retired even when the first external cleanup attempt
+            // fails; the binding itself remains until a retry succeeds.
+            try sessionStore.retireClaudeTaskList(
+                taskListID: binding.taskListID,
+                taskStoreIdentity: retirementTaskStoreIdentity
+            )
+        }
         if cleanup.succeeded {
             try sessionStore.clearClaudeTaskDirectoryBindings(
                 directoryName: binding.taskListID,
