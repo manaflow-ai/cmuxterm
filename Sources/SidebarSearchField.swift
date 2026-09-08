@@ -33,6 +33,30 @@ class SidebarSearchField: NSSearchField {
         font = GlobalFontMagnification.systemFont(ofSize: 13, weight: .regular)
     }
 
+    override var searchButtonBounds: NSRect {
+        Self.alignedSearchButtonRect(super.searchButtonBounds, in: bounds)
+    }
+
+    override var searchTextBounds: NSRect {
+        Self.alignedSearchTextRect(super.searchTextBounds, in: bounds)
+    }
+
+    static func alignedSearchButtonRect(_ nativeRect: NSRect, in bounds: NSRect) -> NSRect {
+        var rect = nativeRect
+        rect.size.width = RightSidebarChromeMetrics.contentIconFrameSize
+        rect.origin.x = bounds.minX + RightSidebarChromeMetrics.contentIconCenter - leadingPadding - rect.width / 2
+        return rect
+    }
+
+    static func alignedSearchTextRect(_ nativeRect: NSRect, in bounds: NSRect) -> NSRect {
+        var rect = nativeRect
+        // Native text drawing and the field editor both add this inner inset.
+        let leading = bounds.minX + RightSidebarChromeMetrics.contentTextLeadingPadding - leadingPadding - 2
+        rect.origin.x = min(leading, nativeRect.maxX)
+        rect.size.width = max(0, nativeRect.maxX - rect.minX)
+        return rect
+    }
+
     override func resetCursorRects() {
         super.resetCursorRects()
         guard isEnabled, isEditable else { return }

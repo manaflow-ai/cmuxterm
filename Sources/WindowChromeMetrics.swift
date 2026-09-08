@@ -47,6 +47,10 @@ enum RightSidebarChromeMetrics {
     static let controlHorizontalPadding: CGFloat = 8
     static let contentIconLeadingPadding: CGFloat = 12
     static let contentIconFrameSize: CGFloat = 14
+    static let contentIconTextSpacing: CGFloat = 4
+    static var contentTextLeadingPadding: CGFloat {
+        contentIconLeadingPadding + contentIconFrameSize + contentIconTextSpacing
+    }
     static var contentIconCenter: CGFloat {
         contentIconLeadingPadding + contentIconFrameSize / 2
     }

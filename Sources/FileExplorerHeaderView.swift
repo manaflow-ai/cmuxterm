@@ -43,7 +43,7 @@ final class FileExplorerHeaderView: NSView {
             iconView.widthAnchor.constraint(equalToConstant: RightSidebarChromeMetrics.contentIconFrameSize),
             iconView.heightAnchor.constraint(equalToConstant: RightSidebarChromeMetrics.contentIconFrameSize),
 
-            pathLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 4),
+            pathLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: RightSidebarChromeMetrics.contentIconTextSpacing),
             pathLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
             pathLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
         ])

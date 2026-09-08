@@ -608,7 +608,7 @@ private struct GroupingButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: RightSidebarChromeMetrics.contentIconTextSpacing) {
                 CmuxSystemSymbolImage(
                     magnified: mode.symbolName,
                     pointSize: RightSidebarChromeControlStyle.secondaryIconSize,

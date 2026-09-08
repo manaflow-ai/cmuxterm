@@ -5,10 +5,11 @@ import SwiftUI
 @MainActor
 final class SidebarSearchFieldCell: NSSearchFieldCell {
     override func searchButtonRect(forBounds rect: NSRect) -> NSRect {
-        var buttonRect = super.searchButtonRect(forBounds: rect)
-        let center = RightSidebarChromeMetrics.contentIconCenter - SidebarSearchField.leadingPadding
-        buttonRect.origin.x = rect.minX + center - buttonRect.width / 2
-        return buttonRect
+        SidebarSearchField.alignedSearchButtonRect(super.searchButtonRect(forBounds: rect), in: rect)
+    }
+
+    override func searchTextRect(forBounds rect: NSRect) -> NSRect {
+        SidebarSearchField.alignedSearchTextRect(super.searchTextRect(forBounds: rect), in: rect)
     }
 
     override func draw(withFrame frame: NSRect, in controlView: NSView) {

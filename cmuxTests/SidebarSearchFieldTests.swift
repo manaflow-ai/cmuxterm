@@ -57,7 +57,8 @@ import Testing
         field.placeholderString = "Search"
         window.contentView?.addSubview(field)
         let expectedLeading: CGFloat = 30
-        #expect(field.frame.minX + field.searchTextBounds.minX == expectedLeading)
+        let placeholderRect = field.cell!.titleRect(forBounds: field.bounds)
+        #expect(field.frame.minX + placeholderRect.minX + 2 == expectedLeading)
         field.stringValue = "alpha beta"
         #expect(window.makeFirstResponder(field))
         let editor = try #require(field.currentEditor() as? NSTextView)
