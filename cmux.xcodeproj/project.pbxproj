@@ -1076,7 +1076,9 @@
 		906901000000000000000006 /* CmuxTaskManagerMemoryGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906901000000000000000005 /* CmuxTaskManagerMemoryGroup.swift */; };
 		90690100000000000000000C /* CmuxTaskManagerMemoryGroupAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90690100000000000000000B /* CmuxTaskManagerMemoryGroupAttribution.swift */; };
 		C750500000000000000000A3 /* CmuxTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = C750500000000000000000A2 /* CmuxTerminal */; };
+		C750500000000000000000A4 /* CmuxTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = C750500000000000000000A2 /* CmuxTerminal */; };
 		C750200000000000000000A3 /* CmuxTerminalCore in Frameworks */ = {isa = PBXBuildFile; productRef = C750200000000000000000A2 /* CmuxTerminalCore */; };
+		C750200000000000000000A4 /* CmuxTerminalCore in Frameworks */ = {isa = PBXBuildFile; productRef = C750200000000000000000A2 /* CmuxTerminalCore */; };
 		CFF12E0000000000000000A3 /* CmuxTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CFF12E0000000000000000A2 /* CmuxTestSupport */; };
 		A2977C204AD69CF268D38EE3 /* CmuxTestWindowReleaseGuard.m in Sources */ = {isa = PBXBuildFile; fileRef = EA9B442F20273D64D2BA1FC5 /* CmuxTestWindowReleaseGuard.m */; };
 		906900000000000000000002 /* CmuxTopMemoryAttributionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906900000000000000000001 /* CmuxTopMemoryAttributionTests.swift */; };
@@ -6871,6 +6873,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				F0C0A1000000000000000004 /* CmuxPhonePush in Frameworks */,
 				C0DE4A000000000000000005 /* CmuxSidebarProviderKit in Frameworks */,
 				C01E00AA00000000000000A4 /* CmuxSyntaxHighlighting in Frameworks */,
+				C750500000000000000000A4 /* CmuxTerminal in Frameworks */,
+				C750200000000000000000A4 /* CmuxTerminalCore in Frameworks */,
 				730600040000000000000001 /* CmuxWindowing in Frameworks */,
 				5E2701040000000000000003 /* Sentry in Frameworks */,
 			);
@@ -10465,7 +10469,6 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A5B00002A1B2C3D4E5F60718 /* CMUXAgentLaunch */,
 				A77A0002A1B2C3D4E5F60001 /* CmuxAgentJournal */,
 				C750100000000000000000A2 /* CmuxControlSocket */,
-				C750500000000000000000A2 /* CmuxTerminal */,
 				1A0B0C0D0E0F101112132012 /* CmuxIrohTransport */,
 				1A0B0C0D0E0F101112132112 /* CmuxIrxTransport */,
 				C1A072000000000000000002 /* CmuxMobileRPC */,
