@@ -342,13 +342,12 @@ def test_no_fallback_workflow_can_publish_the_required_ci_status_context() -> No
     assert not fallback.exists()
 
 
-def test_ci_status_remains_the_compile_aggregate_and_trusted_watcher_owns_browser_gate() -> None:
+def test_ci_status_remains_the_compile_aggregate_and_required_workflow_owns_browser_gate() -> None:
     workflow = CI_WORKFLOW.read_text(encoding="utf-8")
     status = workflow.split("\n  ci-status:\n", 1)[1]
     assert "browser-engine-e2e" not in status
     required_ci = (ROOT / ".github" / "workflows" / "required-ci.yml").read_text(encoding="utf-8")
     assert "required-browser-runtime" in required_ci
-    assert "required CI verification failed" in required_ci
 
 
 def test_browser_smoke_execution_guard_rejects_missing_or_zero_test_evidence() -> None:

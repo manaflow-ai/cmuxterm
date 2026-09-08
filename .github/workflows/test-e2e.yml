@@ -90,7 +90,7 @@ on:
         type: boolean
 
 concurrency:
-  group: e2e-${{ (!inputs.runner || inputs.runner == 'auto') && (vars.MACOS_RUNNER_15 || 'blacksmith-6vcpu-macos-15') || inputs.runner }}-${{ inputs.ref || github.ref_name }}-${{ inputs.test_filter }}
+  group: e2e-${{ github.workflow_ref }}-${{ (!inputs.runner || inputs.runner == 'auto') && (vars.MACOS_RUNNER_15 || 'blacksmith-6vcpu-macos-15') || inputs.runner }}-${{ inputs.ref || github.ref_name }}-${{ inputs.test_filter }}
   cancel-in-progress: true
 
 jobs:
@@ -261,12 +261,21 @@ jobs:
             echo "::error::source ref has no valid Ghostty submodule revision"
             exit 1
           }
+          # Pins are PR source DATA, not executable build tooling. Read them
+          # from the same immutable tree as the submodule so a Ghostty bump
+          # need not already exist in the base pin file. The trusted downloader
+          # still fixes the release origin and validates the archive/digest.
+          gh api --header 'Accept: application/vnd.github.raw+json' \
+            "repos/$SOURCE_REPOSITORY/contents/scripts/ghosttykit-checksums.txt?ref=$source_commit" \
+            > "$RUNNER_TEMP/cmux-source-ghosttykit-checksums.txt"
+          test -s "$RUNNER_TEMP/cmux-source-ghosttykit-checksums.txt"
           echo "sha=$ghostty_sha" >> "$GITHUB_OUTPUT"
 
       - name: Download GhosttyKit with trusted tooling
         env:
           GHOSTTY_SHA: ${{ steps.source_ghostty.outputs.sha }}
           GHOSTTYKIT_OUTPUT_DIR: ${{ runner.temp }}/GhosttyKit.xcframework
+          GHOSTTYKIT_CHECKSUMS_FILE: ${{ runner.temp }}/cmux-source-ghosttykit-checksums.txt
         run: |
           set -euo pipefail
           "$RUNNER_TEMP/cmux-trusted-browser-verifier/scripts/download-prebuilt-ghosttykit.sh"

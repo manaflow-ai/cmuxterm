@@ -1,11 +1,13 @@
-name: Required CI watcher
+name: Required CI
 
-# This workflow is intentionally pull_request_target-only. GitHub evaluates it
-# from the base branch, so a pull request cannot remove or weaken the watcher by
-# editing its own CI YAML. It routes browser changes to the trusted reusable E2E
-# workflow, then verifies both that evidence and the exact PR-head CI aggregate.
+# Enforce this workflow by identity using an ORGANIZATION required-workflows
+# ruleset, sourced from this repository's protected main branch. Requiring a
+# check NAME is not sufficient: a PR can publish a no-op check with that name.
+# Ruleset execution supplies trusted YAML while pull_request keeps fork code
+# under the normal read-only token, secret, cache, and approval boundaries.
+# See docs/required-browser-ci.md for the mandatory activation/negative test.
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - main
     types: [opened, edited, synchronize, reopened, ready_for_review]
@@ -16,7 +18,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: required-ci-${{ github.event.pull_request.number }}
+  group: required-ci-${{ github.workflow_ref }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -30,7 +32,7 @@ jobs:
       - name: Checkout trusted verifier
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.workflow_sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
@@ -60,7 +62,7 @@ jobs:
             exit 0
           fi
           # These guards are themselves the trust boundary. Keep this check in
-          # the base-controlled shell so a PR cannot weaken its detector and
+          # the ruleset-controlled shell so a PR cannot weaken its detector and
           # then classify the detector change as a cheap, unverified edit.
           if grep -Eq '^(\.github/|scripts/)' "$files"; then
             echo "Browser/build control-plane changed; running browser verification."
@@ -71,13 +73,23 @@ jobs:
             --event-name pull_request \
             --files-from "$files"
 
+  build-and-test:
+    name: required-build-and-test
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ github.event.pull_request.head.sha }}
+      source_repository: ${{ github.event.pull_request.head.repo.full_name }}
+      trusted_ref: ${{ github.workflow_sha }}
+    # No inherited secrets. The enforced reusable workflow, not the PR's
+    # ci-status job or workflow_runs.pull_requests metadata, owns this result.
+
   browser-runtime:
     name: required-browser-runtime
     needs: route
     if: ${{ needs.route.result == 'success' && needs.route.outputs.browser_engine == 'true' }}
     uses: ./.github/workflows/test-e2e.yml
     with:
-      trusted_ref: ${{ github.event.pull_request.base.sha }}
+      trusted_ref: ${{ github.workflow_sha }}
       ref: ${{ github.event.pull_request.head.sha }}
       test_filter: cmuxUITests/BrowserReliabilityRegressionUITests/testBrowserEngineSmokeRendersEvaluatesScreenshotsAndReopens
       test_timeout: "180"
@@ -90,37 +102,34 @@ jobs:
     name: required-ci
     needs:
       - route
+      - build-and-test
       - browser-runtime
     if: ${{ always() }}
-    runs-on: ubuntu-24.04 # github-hosted-required: trusted watcher must not be redirected
-    timeout-minutes: 95
+    runs-on: ubuntu-24.04 # github-hosted-required: trusted result gate must not be redirected
+    timeout-minutes: 10
     steps:
       - name: Checkout trusted verifier
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.workflow_sha }}
           path: trusted
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify exact CI run and aggregate gate
+      - name: Verify trusted job results and exact source identity
         env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
-          EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
-          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_SHA: ${{ needs.build-and-test.outputs.source_sha }}
+          CI_RESULT: ${{ needs.build-and-test.result }}
           BROWSER_REQUIRED: ${{ needs.route.outputs.browser_engine || 'unknown' }}
           BROWSER_RESULT: ${{ needs.browser-runtime.result }}
           ROUTE_RESULT: ${{ needs.route.result }}
         run: |
           set -euo pipefail
-          if [ "$ROUTE_RESULT" != "success" ]; then
-            echo "::error::required CI verification failed"
-            exit 1
-          fi
           python3 trusted/scripts/ci/verify_required_ci_run.py \
+            --expected-sha "$EXPECTED_SHA" \
+            --ci-sha "$CI_SHA" \
+            --ci-result "$CI_RESULT" \
+            --route-result "$ROUTE_RESULT" \
             --browser-required "$BROWSER_REQUIRED" \
-            --browser-result "$BROWSER_RESULT" \
-            --pr-number "$EXPECTED_PR_NUMBER" \
-            --base-sha "$EXPECTED_BASE_SHA"
+            --browser-result "$BROWSER_RESULT"

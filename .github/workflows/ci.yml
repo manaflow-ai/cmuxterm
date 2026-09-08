@@ -6,12 +6,31 @@ on:
   # entire required CI check for an app-source PR before the router runs.
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact PR head to build under the required workflow
+        type: string
+        required: true
+      source_repository:
+        description: Repository containing that exact PR head (including forks)
+        type: string
+        required: true
+      trusted_ref:
+        description: Immutable ruleset workflow revision
+        type: string
+        required: true
+    outputs:
+      source_sha:
+        description: Source commit checked out before any PR code executes
+        value: ${{ jobs.changes.outputs.source_sha }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Candidate and organization-enforced workflows must never cancel each other.
+  group: ci-${{ github.workflow_ref }}-${{ inputs.source_sha && 'required' || 'candidate' }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -19,6 +38,7 @@ jobs:
     runs-on: ${{ vars.LINUX_RUNNER || 'blacksmith-4vcpu-ubuntu-2404' }}
     timeout-minutes: 5
     outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
       macos: ${{ steps.detect.outputs.macos }}
       web: ${{ steps.detect.outputs.web }}
       agent_session_web: ${{ steps.detect.outputs.agent_session_web }}
@@ -26,7 +46,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
           fetch-depth: 2
+
+      - name: Capture exact source identity
+        id: source
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          if [ -n "$EXPECTED_SOURCE_SHA" ]; then
+            [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$actual_sha" == "$EXPECTED_SOURCE_SHA" ]]
+          fi
+          echo "sha=$actual_sha" >> "$GITHUB_OUTPUT"
 
       - name: Detect CI change areas
         id: detect
@@ -35,6 +71,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_SHA: ${{ github.sha }}
+          CI_SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
           emit_all_areas() {
@@ -44,6 +81,14 @@ jobs:
               echo "agent_session_web=true"
             } >> "$GITHUB_OUTPUT"
           }
+
+          # The ruleset lane must not let a PR-editable router skip a required
+          # workload. Run every area under the enforced workflow definition.
+          # Ordinary candidate CI retains the inexpensive change-area router.
+          if [ -n "${CI_SOURCE_SHA:-}" ]; then
+            emit_all_areas
+            exit 0
+          fi
 
           if [ "$EVENT_NAME" = "pull_request" ]; then
             # Checkout depth 2 contains the synthetic merge commit and its
@@ -131,6 +176,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
           persist-credentials: false
 
       - name: Validate macOS runner guards
@@ -383,7 +430,7 @@ jobs:
     name: GhosttyKit release check
     permissions:
       contents: read
-    # The pull_request trigger is path-scoped to GhosttyKit provenance inputs;
+    # The pull_request trigger also covers GhosttyKit provenance inputs;
     # workflow_dispatch keeps the same guard available for explicit CI runs.
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ vars.LINUX_RUNNER || 'blacksmith-4vcpu-ubuntu-2404' }}
@@ -392,6 +439,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
           persist-credentials: false
 
       - name: Read pinned Ghostty SHA
@@ -420,6 +469,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -458,6 +511,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -494,6 +551,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
           persist-credentials: false
 
       - name: Install Rust
@@ -546,6 +605,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -630,6 +693,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
           submodules: recursive
 
       - name: Select Xcode
@@ -1541,6 +1607,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
           submodules: recursive
 
       - name: Select helper Xcode
@@ -1779,6 +1848,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -1927,6 +2000,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
+          persist-credentials: false
           submodules: recursive
 
       - name: Select Xcode
@@ -2241,6 +2317,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repository || github.repository }}
+          ref: ${{ inputs.source_sha || github.ref }}
           submodules: recursive
           persist-credentials: false
 
@@ -2251,7 +2329,7 @@ jobs:
           # Pull requests must verify with the immutable base policy; push and
           # manual lanes use the workflow's own commit. The PR source checkout
           # above is never allowed to supply this verifier.
-          ref: ${{ github.event.pull_request.base.sha || github.workflow_sha }}
+          ref: ${{ inputs.trusted_ref || github.event.pull_request.base.sha || github.workflow_sha }}
           path: trusted-browser-verifier
           sparse-checkout: |
             scripts/ci/verify_browser_runtime_artifact.py
@@ -2337,12 +2415,14 @@ jobs:
           cache: false
 
       - name: Build universal app (Release)
+        env:
+          CMUX_BUILD_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
         run: |
           set -euo pipefail
           CMUX_CEF_ALLOW_DOWNLOAD=1 CMUX_CEF_REQUIRED=1 CMUX_SKIP_ZIG_BUILD=1 xcodebuild -project cmux.xcodeproj -scheme cmux -configuration Release -derivedDataPath build-universal \
             -destination 'generic/platform=macOS' \
             -clonedSourcePackagesDirPath .spm-cache \
-            CMUXBuildSourceSHA="$GITHUB_SHA" \
+            CMUXBuildSourceSHA="$CMUX_BUILD_SOURCE_SHA" \
             ARCHS="arm64 x86_64" \
             ONLY_ACTIVE_ARCH=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES \
@@ -2410,7 +2490,7 @@ jobs:
 
       - name: Verify browser runtime artifact
         env:
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ inputs.source_sha || github.sha }}
         run: |
           set -euo pipefail
           verifier="$GITHUB_WORKSPACE/trusted-browser-verifier/scripts/ci/verify_browser_runtime_artifact.py"

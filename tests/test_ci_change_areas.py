@@ -337,6 +337,8 @@ def linux_preflight_needs(
 def run_detect_step_for_paths(
     paths: list[str],
     workflow_path: Path = CI_WORKFLOW,
+    *,
+    required_source: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     script = detect_step_script(workflow_path)
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -370,6 +372,7 @@ def run_detect_step_for_paths(
             "BASE_SHA": base_sha,
             "HEAD_SHA": head_sha,
             "MERGE_SHA": head_sha,
+            "CI_SOURCE_SHA": head_sha if required_source else "",
             "GITHUB_OUTPUT": str(output_path),
         }
         result = subprocess.run(
@@ -382,6 +385,22 @@ def run_detect_step_for_paths(
             check=True,
         )
         return result, output_path.read_text(encoding="utf-8").splitlines()
+
+
+def test_required_workflow_does_not_delegate_routing_to_pr_owned_detector() -> None:
+    # Replace the detector with invalid source. The enforced YAML must select
+    # every workload without executing/importing that PR-owned detector.
+    _, outputs = run_detect_step_for_paths(
+        ["scripts/ci/detect_ci_change_areas.py"], required_source=True,
+    )
+    assert outputs == ["macos=true", "web=true", "agent_session_web=true"]
+
+
+def test_required_workflow_cannot_take_the_candidate_provenance_only_shortcut() -> None:
+    _, outputs = run_detect_step_for_paths(
+        ["scripts/ghosttykit-checksums.txt"], required_source=True,
+    )
+    assert outputs == ["macos=true", "web=true", "agent_session_web=true"]
 
 
 def test_workflow_self_change_guard_runs_before_detector_imports() -> None:
