@@ -139,11 +139,11 @@ public final class GhosttySurfaceView: UIView, TerminalSurfaceHosting {
     private static let maximumRenderPresentationRetries: UInt8 = 3
     /// Value-only render metadata captured by the serial surface queue.
     ///
-    /// This type is explicitly nonisolated because its instances cross from
-    /// the main-actor admission path into `GhosttySurfaceWorkQueue.async`.
-    /// The raw surface pointer is valid for the matching generation, and the
-    /// owning view resets that generation before teardown; no UIKit state is
-    /// accessed from the queue closure.
+    /// Instances cross from the main-actor admission path into
+    /// `GhosttySurfaceWorkQueue.async`, so the type stays free of actor
+    /// isolation and value-only. The raw surface pointer is valid for the
+    /// matching generation, and the owning view resets that generation before
+    /// teardown; no UIKit state is accessed from the queue closure.
     struct RenderSubmission: @unchecked Sendable {
         let token: UInt64
         let generation: UInt64
@@ -5835,7 +5835,7 @@ private struct CopyableTextRead: @unchecked Sendable {
     let cancellation: SurfaceOperationCancellationToken
 }
 
-nonisolated private final class SurfaceOperationCancellationToken: Sendable {
+private final class SurfaceOperationCancellationToken: Sendable {
     // lint:allow lock - tiny cross-queue cancellation flag for already-enqueued
     // libghostty work; actor hops would put the serial surface queue back behind
     // the main actor and defeat the stale-read fast path.
