@@ -589,6 +589,13 @@ jobs:
             exit 1
           fi
           ./scripts/sparkle_generate_appcast.sh cmux-macos.dmg "$GITHUB_REF_NAME" appcast.xml
+          # macOS /bin/bash 3.2 can report "unbound variable" from a script with
+          # an EXIT trap and still exit 0; dry run 34227505375 (2026-09-08)
+          # uploaded a DMG with no appcast that way. The feed must exist, carry
+          # an EdDSA signature and point at this DMG before anything uploads it.
+          test -s appcast.xml
+          grep -q 'sparkle:edSignature' appcast.xml
+          grep -q 'cmux-macos.dmg' appcast.xml
 
       - name: Upload build artifacts (dry-run)
         if: steps.guard_release_assets.outputs.skip_upload != 'true' && github.event_name == 'workflow_dispatch'
