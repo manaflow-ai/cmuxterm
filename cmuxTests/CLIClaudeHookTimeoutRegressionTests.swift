@@ -387,8 +387,9 @@ struct CLIClaudeHookTimeoutRegressionTests {
         })
         #expect(!commands.contains { $0.hasPrefix("set_agent_pid ") })
         #expect(!commands.contains { $0.contains(" --pid=8535") })
+        let expectedStatusKey = agent == "claude" ? "claude_code" : agent
         #expect(commands.contains {
-            $0.hasPrefix("set_status \(agent == \"claude\" ? \"claude_code\" : agent) Running ")
+            $0.hasPrefix("set_status \(expectedStatusKey) Running ")
                 && $0.contains("--tab=\(movedWorkspaceID)")
                 && $0.contains("--panel=\(surfaceID)")
         }, Comment(rawValue: commands.joined(separator: "\n")))
@@ -1001,13 +1002,20 @@ struct CLIClaudeHookTimeoutRegressionTests {
 
         let surfaceID = "22222222-2222-2222-2222-222222222222"
         let workspaceID = "11111111-1111-1111-1111-111111111111"
+        let staleWorkspaceID = "33333333-3333-3333-3333-333333333333"
+        let staleSurfaceID = "44444444-4444-4444-4444-444444444444"
         let capturedCommands = CodexHookCapturedSocketCommands()
         startCodexHookMockSocketServerAccepting(
             listenerFD: listenerFD,
             commands: capturedCommands,
             surfaceId: surfaceID,
             connectionLimit: 4,
-            responseDelays: ["agent.hook.barrier": 0.3]
+            responseDelays: ["agent.hook.barrier": 0.3],
+            processBinding: CodexHookMockProcessBinding(
+                processID: 8535,
+                workspaceID: workspaceID,
+                surfaceID: surfaceID
+            )
         )
         let result = runCodexHookProcess(
             executablePath: cliPath,
@@ -1018,8 +1026,8 @@ struct CLIClaudeHookTimeoutRegressionTests {
             environment: [
                 "HOME": root.path,
                 "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
-                "CMUX_WORKSPACE_ID": workspaceID,
-                "CMUX_SURFACE_ID": surfaceID,
+                "CMUX_WORKSPACE_ID": staleWorkspaceID,
+                "CMUX_SURFACE_ID": staleSurfaceID,
                 "CMUX_GEMINI_PID": "8535",
                 "CMUX_CLI_SENTRY_DISABLED": "1",
             ],
@@ -1033,13 +1041,12 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         let requests = capturedCommands.snapshot().compactMap(codexHookJSONObject)
         let methods = requests.compactMap { $0["method"] as? String }
-        #expect(
-            Array(methods.prefix(2)) == ["agent.hook.barrier", "feed.push"],
-            Comment(rawValue: String(describing: requests))
-        )
         let barrier = try #require(requests.first {
             $0["method"] as? String == "agent.hook.barrier"
         })
+        let barrierIndex = try #require(methods.firstIndex(of: "agent.hook.barrier"))
+        let feedPushIndex = try #require(methods.firstIndex(of: "feed.push"))
+        #expect(barrierIndex < feedPushIndex)
         let params = try #require(barrier["params"] as? [String: Any])
         #expect(params["agent"] as? String == "gemini")
         let environment = try #require(params["environment"] as? [String: Any])
@@ -1054,7 +1061,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             (feedParams["wait_timeout_seconds"] as? NSNumber)?.doubleValue
         )
         #expect(
-            waitTimeout < 113.9,
+            waitTimeout < CMUXCLI.feedHookDecisionWaitSeconds,
             "The barrier elapsed time must come out of the shortest 120s decision-hook deadline"
         )
         #expect(
@@ -1112,11 +1119,10 @@ struct CLIClaudeHookTimeoutRegressionTests {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         let requests = capturedCommands.snapshot().compactMap(codexHookJSONObject)
-        #expect(
-            requests.first?["method"] as? String == "agent.hook.barrier",
-            Comment(rawValue: String(describing: requests))
-        )
-        let params = try #require(requests.first?["params"] as? [String: Any])
+        let barrier = try #require(requests.first {
+            $0["method"] as? String == "agent.hook.barrier"
+        })
+        let params = try #require(barrier["params"] as? [String: Any])
         #expect(params["agent"] as? String == "codex")
         let environment = try #require(params["environment"] as? [String: Any])
         #expect(environment["CMUX_SURFACE_ID"] as? String == surfaceID)

@@ -39916,6 +39916,7 @@ export default CMUXSessionRestore;
 
         var ownedClient: SocketClient?
         defer { ownedClient?.close() }
+        let decisionWaitStartedAt = Date()
         let clientDeadline = Date().addingTimeInterval(
             shouldAwaitTelemetryIngestion ? 4 : Self.feedHookClientDeadlineSeconds
         )
@@ -39968,9 +39969,16 @@ export default CMUXSessionRestore;
                 ),
                 deadline: clientDeadline
             )
+            let decisionWaitElapsed = max(
+                0,
+                Date().timeIntervalSince(decisionWaitStartedAt)
+            )
             waitTimeout = max(
                 0,
-                min(Self.feedHookDecisionWaitSeconds, clientDeadline.timeIntervalSinceNow)
+                min(
+                    Self.feedHookDecisionWaitSeconds - decisionWaitElapsed,
+                    clientDeadline.timeIntervalSinceNow
+                )
             )
             request["params"] = [
                 "event": eventDict,
