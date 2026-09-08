@@ -344,6 +344,16 @@ extension MobileShellComposite {
                 terminalReplayBarrierDroppedOutputCountsBySurfaceID[renderGrid.surfaceID] ?? 0
         }
         let retainedMirrorNeedsHydration = recordTerminalRenderGridDelivery(renderGrid)
+        markTerminalBytesDelivered(
+            surfaceID: renderGrid.surfaceID,
+            endSeq: renderGrid.stateSeq,
+            // A retained mirror's changed-producer frame paints the current
+            // screen but is not a trustworthy scrollback replacement. Keeping
+            // it out of the full-replacement generation prevents the
+            // same-sequence hydration replay from being rejected as stale.
+            fullReplacement: renderGrid.full && !retainedMirrorNeedsHydration
+        )
+        recordTerminalRenderGridHistoryContinuity(renderGrid)
         if source == "event",
            retainedMirrorNeedsHydration,
            terminalReplayBarrierTokensBySurfaceID[renderGrid.surfaceID] == nil {
@@ -352,12 +362,6 @@ extension MobileShellComposite {
             // full replay barrier so its old local scrollback is not trusted.
             terminalOutputNeedsReplay(surfaceID: renderGrid.surfaceID)
         }
-        markTerminalBytesDelivered(
-            surfaceID: renderGrid.surfaceID,
-            endSeq: renderGrid.stateSeq,
-            fullReplacement: renderGrid.full
-        )
-        recordTerminalRenderGridHistoryContinuity(renderGrid)
         #if DEBUG
         MobileLatencyTrace.stamp(
             "gate",
