@@ -21,6 +21,11 @@ public actor LocalArtifactRepository: ArtifactStoring {
     let pathPolicy = ArtifactPathPolicy()
     /// Shared with terminal link capture so both apply one ignore-list contract.
     let hostPolicy = NetworkHostKeyPolicy()
+    /// Upper bound on rows accepted from one catalog decode or snapshot import.
+    ///
+    /// This is a corruption and abuse guard, not a retention policy: the
+    /// per-workspace retention limit runs after every load and import.
+    static let maximumRestoredRecords = 100_000
     var recordsByIdentity: [String: ArtifactRecord] = [:]
     var loaded = false
     var loadFailure: ArtifactStoreError?
@@ -212,7 +217,11 @@ public actor LocalArtifactRepository: ArtifactStoring {
     ) async throws -> [ArtifactRecord] {
         try ensureLoaded()
         var imported: [ArtifactRecord] = []
-        for link in links.prefix(configuration.maximumBatchCount) {
+        // `maximumBatchCount` bounds one producer burst. A snapshot upgrade is
+        // a one-time import of the old per-workspace history (up to the Links
+        // retention limit), so cap it by the catalog envelope instead and let
+        // per-workspace retention decide what stays.
+        for link in links.prefix(Self.maximumRestoredRecords) {
             try Task.checkCancellation()
             let rawURL = link.url.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let parsedURL = URL(string: rawURL) else { continue }

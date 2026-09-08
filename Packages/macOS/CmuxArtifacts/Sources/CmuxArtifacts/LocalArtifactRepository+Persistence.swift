@@ -34,7 +34,7 @@ extension LocalArtifactRepository {
             // Decode a bounded global envelope, then apply the per-workspace
             // retention policy. Prefixing by the per-workspace limit here would
             // silently discard records from later workspaces on restart.
-            for record in decoded.prefix(100_000) {
+            for record in decoded.prefix(Self.maximumRestoredRecords) {
                 let normalized = normalizedRecord(record)
                 if let existing = recordsByIdentity[normalized.identityKey] {
                     recordsByIdentity[normalized.identityKey] = merge(existing, normalized)
