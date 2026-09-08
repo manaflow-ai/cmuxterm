@@ -50,7 +50,7 @@ Rules that keep it 1:1:
 - Ports are a first-class group in the tree when a machine exposes listening ports; the CLI and sidebar use the same port-open path. A canonical `browser/port:<n>` resource stays in the owning machine's Ports group even when the daemon also reports it inside a cloud workspace, where the workspace pointer uses the same resource id.
 - Agent-only primitives (`cmux vm terminal send|read|wait` → `vm.terminal_write|read|wait`, plus `exec`, `push`, `pull`, `route`, `run`, `agent`) have no sidebar verb by design: a person does those things by typing into a pane. They still go through the machine's `CmuxTuiSurfaceProvider`, so what an agent types headlessly shows up in every pane projecting that terminal.
 
-Machine-to-machine links are intentionally agent-only: `cmux vm link <src> <dst>`
-grants a scoped peer route and enrollment invitation, and the source machine's
-in-VM `cmux vm` shim uses the same remote-daemon verbs without exposing a
-control-plane credential.
+Existing machine-to-machine links are agent-only: the source machine's in-VM
+`cmux vm` shim uses the remote-daemon verbs without a control-plane credential.
+This build cannot create new peer grants; the old `vm link` enrollment broker
+is not part of the trusted private-network listener flow.

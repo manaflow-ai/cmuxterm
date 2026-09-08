@@ -718,21 +718,21 @@ extension CMUXCLI {
             }
         }
 
-        let focusedFirst = candidates.sorted { lhs, rhs in
+        let preferred = candidates.min { lhs, rhs in
             if lhs.focused != rhs.focused { return lhs.focused && !rhs.focused }
             if lhs.sortID != rhs.sortID { return lhs.sortID < rhs.sortID }
             return (lhs.tabID ?? "") < (rhs.tabID ?? "")
         }
-        if let pick = focusedFirst.first {
+        if let pick = preferred {
             return .resolved(terminalID: pick.terminalID, tabID: pick.tabID)
         }
         // An unavailable catalog is less actionable than a placement ambiguity:
         // tell the caller to reconnect instead of asking it to choose from stale
         // rows. Both are reported only after every live row proved unsafe.
-        if let selector = unavailableSelectors.sorted().first {
+        if let selector = unavailableSelectors.min() {
             return .unavailable(selector: selector)
         }
-        if let selector = ambiguousSelectors.sorted().first {
+        if let selector = ambiguousSelectors.min() {
             return .ambiguous(selector: selector)
         }
         return .none

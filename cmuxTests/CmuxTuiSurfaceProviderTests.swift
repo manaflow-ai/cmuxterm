@@ -816,7 +816,7 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
         #expect(CmuxTuiSurfaceProvider.availableWorkspaceName(takenNames: ["main", "workspace-3"]) == "workspace-4")
     }
 
-    @Test(.timeLimit(.minutes(1))) @MainActor func snapshotRereadsCoalesceWithoutTimersAndAreNeverStarved() async {
+    @Test(.timeLimit(.minutes(1))) @MainActor func snapshotRereadsCoalesceWithoutTimersAndAreNeverStarved() async throws {
         // One pass in flight, at most one queued behind it, no delay anywhere: a burst
         // of deltas costs two passes, and a burst that arrives DURING a pass still gets
         // exactly one follow-up (the tree is never starved by a restarted window).
@@ -842,36 +842,48 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
         }
         let gate = Gate()
         let coalescer = SurfaceRefreshCoalescer { await gate.enter() }
+        defer {
+            coalescer.cancel()
+            gate.release()
+        }
+        func waitUntil(_ predicate: @MainActor () -> Bool) async throws {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while !predicate() {
+                try #require(ContinuousClock.now < deadline, "coalescer did not reach the expected state")
+                try Task.checkCancellation()
+                await Task.yield()
+            }
+        }
         coalescer.request()
         coalescer.request()
         coalescer.request()
         // Let the loop start its first pass.
-        while gate.enteredCount() < 1 { await Task.yield() }
+        try await waitUntil { gate.enteredCount() >= 1 }
         #expect(gate.enteredCount() == 1, "a burst before the first pass starts is one pass")
         #expect(coalescer.isRunning)
         // Deltas during the pass queue exactly one follow-up.
         coalescer.request()
         coalescer.request()
         gate.release()
-        while gate.enteredCount() < 2 { await Task.yield() }
+        try await waitUntil { gate.enteredCount() >= 2 }
         #expect(gate.enteredCount() == 2)
         gate.release()
-        while coalescer.isRunning { await Task.yield() }
+        try await waitUntil { !coalescer.isRunning }
         #expect(gate.enteredCount() == 2, "a quiet coalescer stops; nothing runs on a timer")
         // A cancelled coalescer drops its queued follow-up.
         coalescer.request()
-        while gate.enteredCount() < 3 { await Task.yield() }
+        try await waitUntil { gate.enteredCount() >= 3 }
         coalescer.request()
         coalescer.cancel()
         coalescer.request()
         #expect(gate.enteredCount() == 3)
         gate.release()
-        while gate.enteredCount() < 4 { await Task.yield() }
+        try await waitUntil { gate.enteredCount() >= 4 }
         #expect(gate.enteredCount() == 4)
         #expect(gate.maximumActive == 1)
         #expect(coalescer.isRunning)
         gate.release()
-        while coalescer.isRunning { await Task.yield() }
+        try await waitUntil { !coalescer.isRunning }
         #expect(gate.enteredCount() == 4)
         #expect(gate.maximumActive == 1)
     }

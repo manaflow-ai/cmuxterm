@@ -168,14 +168,11 @@ cmux vm restore <snapshot-id> [--detach]       # snapshot -> new tracked machine
 cmux vm promote-template <id>          # template-named snapshot for reuse
 ```
 
-## Machine-to-machine links (`vm link`)
+## Existing machine-to-machine links
 
-```bash
-cmux vm link <src> <dst>               # grant <src> a cmux-remote link to <dst>
-```
-
-The Mac brokers the destination route and a single-use enrollment invitation,
-then writes only that scoped peer grant into `<src>`. From inside the source
+This build cannot create new peer grants: the earlier `vm link` enrollment broker
+was superseded by the trusted private-network listener. Existing peer-route files
+remain supported. From inside a previously configured source
 machine, the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
 `cmux vm tree <dst>`, and other peer verbs; no control-plane credential enters a
 machine.

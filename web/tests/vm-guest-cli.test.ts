@@ -73,7 +73,7 @@ esac
       const result = spawnSync("sh", [shim, "vm", "exec", "peer", "--", "printf", "hello"], {
         encoding: "utf8",
         timeout: 10_000,
-        env: { PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
+        env: { NODE_ENV: "test", PATH: process.env.PATH, HOME: directory, CMUX_TUI_BIN: daemon, MODE: mode },
       });
       const calls = readFileSync(join(directory, "calls"), "utf8");
       expect(calls).toContain("workspace current show");
