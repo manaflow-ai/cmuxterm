@@ -287,7 +287,7 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains { $0.contains("\"kind\":\"agent.turn.started\"") })
+        #expect(commands.contains { $0.contains("\"kind\":\"agent.state.changed\"") })
         #expect(commands.contains { $0.hasPrefix("set_status claude_code Running ") && $0.contains("--tab=\(newWorkspaceId)") })
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
