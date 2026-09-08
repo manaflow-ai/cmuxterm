@@ -443,8 +443,9 @@ struct CloudTreeOneMachineManyWorkspacesTests {
             "kind": "delta", "previous_revision": "1", "revision": "2",
             "changes": [["kind": "upsert", "resource": "tab", "id": "tab_b", "value": renamedTab]],
         ]
+        let deltaData = try JSONSerialization.data(withJSONObject: delta)
         let next = try #require(CmuxTuiSnapshotParser.applying(
-            deltaPayload: JSONSerialization.data(withJSONObject: delta),
+            deltaPayload: deltaData,
             cursor: CloudVMCursor(generation: "layout-test", revision: 2), to: state
         ))
         let updated = try #require(CmuxTuiSnapshotParser.resources(
@@ -461,7 +462,7 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(before.children.count == 1)
         #expect(before.children.first?.id.contains("term_a") == true)
         #expect(after.children.map(\.id) == before.children.map(\.id))
-        #expect(after.children.flatMap(\.children).map(\.id) == before.children.flatMap(\.children).map(\.id))
+        #expect(after.children.flatMap { $0.children }.map(\.id) == before.children.flatMap { $0.children }.map(\.id))
         #expect(refreshed.children.map(\.id) == after.children.map(\.id))
         #expect(updated.remoteViews?.first?.name == "renamed")
     }
