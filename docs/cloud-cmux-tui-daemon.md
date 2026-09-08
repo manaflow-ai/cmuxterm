@@ -518,7 +518,7 @@ Socket methods (the CLI, the sidebar tree, and agents all go through them):
 | `vm.terminal_open` | `{id, terminal_id, remote_workspace_id?, remote_tab_id?, workspace_id?, placement?, focus?}` | `{surface_id, workspace_id, reused}` — exact remote placement is preserved; an existing pane with the same IDs is focused instead of duplicated |
 | `vm.terminal_new` | `{id, workspace_id?: ws_…, command?: [string], cwd?, name?, open?}` | `{terminal_id, workspace_id, surface_id?}` — a detached terminal in the machine's session |
 | `vm.desktop_open` | `{id, workspace_id?, focus?}` | `{surface_id, url}` |
-| `vm.port_open` | `{id, port, workspace_id?}` | `{surface_id, url}` |
+| `vm.port_open` | `{id, port, workspace_id?}` | `{surface_id, url, private_url}`: `url` is the loopback forward the pane loads (works from any app on this Mac), `private_url` the machine's `http://<private ip>:<port>` |
 | `vm.link_socket` | `{id}` | `{socket_path, session}` — the headless link's local mux socket |
 | `vm.tab_rename` | `{id, tab_id, name}` | Renames one exact remote tab placement and publishes the resulting daemon event. `name: ""` clears its custom label. |
 | `vm.terminal_rename` | `{id, terminal_id, name}` | Explicit compatibility fan-out that renames every tab view of one terminal. `name: ""` clears the custom label on every view. |

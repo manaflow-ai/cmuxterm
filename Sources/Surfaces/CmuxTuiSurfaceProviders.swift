@@ -15,6 +15,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         case snapshotOnly(String)
         case stateUnavailable(String)
         case badURL(String)
+        /// No user-space WireGuard hub in this build (no bundled cmux-tui client).
+        case hubUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -46,6 +48,11 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 )
             case .badURL(let url):
                 return "The control plane returned an unusable URL: \(url)"
+            case .hubUnavailable:
+                return String(
+                    localized: "cloudTree.error.hubUnavailable",
+                    defaultValue: "This cmux build has no user-space WireGuard hub, so it cannot reach ports on Cloud machines."
+                )
             }
         }
     }
@@ -57,6 +64,9 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     private var summary: VMSummary
     let links: CloudMachineLinkManager
     unowned let catalog: SurfaceCatalog
+    /// Loopback forwards into this machine's private address over the hub; nil
+    /// when the build has no hub. Owned by the registry, shared by every provider.
+    let portForwards: CloudHubPortForwarder?
     /// Invalidates suspended work when this provider is stopped or replaced.
     private var lifecycleGeneration: UInt64 = 0
     /// Invalidates an older refresh before it can publish over a newer one.
@@ -138,12 +148,14 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     init(
         summary: VMSummary,
         links: CloudMachineLinkManager,
-        catalog: SurfaceCatalog
+        catalog: SurfaceCatalog,
+        portForwards: CloudHubPortForwarder? = nil
     ) {
         machineID = summary.id
         self.summary = summary
         self.links = links
         self.catalog = catalog
+        self.portForwards = portForwards
         info = Self.info(from: summary, linkState: summary.status == "running" ? .connecting : .asleep, linkError: nil, stats: nil)
     }
 
@@ -1039,41 +1051,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             )
             created = (manual.workspaceID, manual.panelID)
         case .display, .browser:
-            let desktop = resource.kind == .display
-            guard let port = resource.id.forwardedPort ?? resource.port ?? (desktop ? CmuxTuiSnapshotParser.desktopPort : nil) else {
-                throw SurfaceCatalogError.unsupported("browser \(resource.id) has no port")
-            }
-            guard let rawURL = resource.url, let directURL = URL(string: rawURL) else {
-                throw SurfaceCatalogError.unsupported("browser \(resource.id) has no private URL")
-            }
-            // Create the pane immediately, but do not navigate to any private
-            // address until the Network Extension is connected. This is the
-            // only action that can cause the one-time macOS approval request.
-            let label = Self.paneLabel(machineID: machineID, port: port, desktop: desktop)
-            let machineWasAwake = isAwake
-            created = try SurfacePaneFactory.makeBrowserPane(url: SurfacePaneFactory.blankURL, at: destination, focus: focus)
-            SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: created.panelID, in: created.workspaceID)
-            let pane = created
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                do {
-                    guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
-                    try await client.requireCloudBrowserAccess(machineID: self.machineID)
-                    if !machineWasAwake {
-                        // Waking a paused machine is an explicit management
-                        // operation. Ignore the returned URL and keep the
-                        // private address captured above.
-                        _ = try await client.openPort(id: self.machineID, port: port)
-                    }
-                    SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: directURL)
-                } catch {
-                    let text = CloudMachineLink.errorText(error)
-                    SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.failed(label, error: text), panelID: pane.panelID, in: pane.workspaceID)
-                    #if DEBUG
-                    cmuxDebugLog("cloud.provider.endpointFailed machine=\(self.machineID) port=\(port) error=\(String(reflecting: error))")
-                    #endif
-                }
-            }
+            // Ports and the desktop are reached through the user-space
+            // WireGuard hub on a loopback forward: no system VPN, no
+            // extension approval, on every build (`CloudPortRoutePlan`).
+            created = try await materializeBrowserPane(resource, at: destination, focus: focus)
         }
         materializedPanels.insert(created.panelID)
         let selectedView = remoteView ?? Self.defaultRemoteView(for: resource)

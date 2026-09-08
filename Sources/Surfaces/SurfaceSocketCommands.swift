@@ -310,9 +310,16 @@ extension TerminalController {
                 reuseExisting: false
             )
             var payload = Self.surfaceProjectPayload(opened.projection, reused: opened.reused)
-            let url = await catalog.resources[resource]?.url ?? ""
+            // `url` is what the pane loads and what works from any app on this
+            // Mac: the loopback forward over the user-space hub. The machine's
+            // private address stays available as `private_url` for callers
+            // with their own route into the network (`cmux vpn up`).
+            let privateURL = await catalog.resources[resource]?.url
+            let localURL = try? await (catalog.provider(for: resource.machine) as? CmuxTuiSurfaceProvider)?.localPortURL(port: port)
+            let url = localURL ?? privateURL ?? ""
             payload["url"] = url
             payload["open_url"] = url
+            payload["private_url"] = privateURL ?? NSNull()
             return payload
         }
     }

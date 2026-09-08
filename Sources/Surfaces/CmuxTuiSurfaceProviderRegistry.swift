@@ -16,6 +16,10 @@ final class CmuxTuiSurfaceProviderRegistry {
     /// The app's one WireGuard hub for private-network machines; nil when no cmux-tui
     /// client is bundled (then no link can be made at all).
     let wireGuardHub: CloudWireGuardHub?
+    /// Loopback forwards to VM ports over the hub (Ports and Desktop rows); nil
+    /// without a hub. One table for the fleet so a (machine, port) keeps its
+    /// local port until the machine leaves the fleet or the account signs out.
+    let portForwards: CloudHubPortForwarder?
     private var pollTask: Task<Void, Never>?
     private var accessObserver: NSObjectProtocol?
     private var themeObserver: NSObjectProtocol?
@@ -30,6 +34,7 @@ final class CmuxTuiSurfaceProviderRegistry {
     init(links: CloudMachineLinkManager, wireGuardHub: CloudWireGuardHub?) {
         self.links = links
         self.wireGuardHub = wireGuardHub
+        portForwards = wireGuardHub.map { CloudHubPortForwarder(dialer: CloudWireGuardHubDialer(hub: $0)) }
     }
 
     /// The production registry: one hub over the bundled client, shared by every link.
@@ -133,6 +138,7 @@ final class CmuxTuiSurfaceProviderRegistry {
         providers[id] = nil
         catalog?.unregister(machine: .cloud(id))
         Task { await links.disconnect(machineID: id) }
+        Task { await portForwards?.close(machineID: id) }
     }
 
     /// The headless link's local mux socket for a machine, connecting if needed.
@@ -163,6 +169,7 @@ final class CmuxTuiSurfaceProviderRegistry {
             providers[id]?.stop()
             providers[id] = nil
             catalog.unregister(machine: .cloud(id))
+            await portForwards?.close(machineID: id)
         }
         await links.retain(machineIDs: seen)
         guard generation == refreshGeneration else { return false }
@@ -171,7 +178,7 @@ final class CmuxTuiSurfaceProviderRegistry {
             if let provider = providers[summary.id] {
                 provider.update(summary: summary)
             } else {
-                let provider = CmuxTuiSurfaceProvider(summary: summary, links: links, catalog: catalog)
+                let provider = CmuxTuiSurfaceProvider(summary: summary, links: links, catalog: catalog, portForwards: portForwards)
                 providers[summary.id] = provider
                 catalog.register(provider)
             }
@@ -188,6 +195,7 @@ final class CmuxTuiSurfaceProviderRegistry {
         for provider in providers.values { provider.stop() }
         for id in providers.keys { catalog?.unregister(machine: .cloud(id)) }
         providers.removeAll()
+        await portForwards?.closeAll()
         await links.disconnectAll()
         // Signing out drops the tunnel too: the next account enrolls its own.
         await wireGuardHub?.stop()
