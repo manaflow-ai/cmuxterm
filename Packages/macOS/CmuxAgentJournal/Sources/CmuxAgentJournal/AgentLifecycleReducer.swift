@@ -59,18 +59,26 @@ public struct AgentLifecycleReducer: Sendable {
             // lifecycle-bearing event alone, independent of delivery order.
             return false
         }
-        if let previous, event.draft.occurredAtMs < previous.lastOccurredAtMs
-            || (event.draft.occurredAtMs == previous.lastOccurredAtMs && event.sequence <= previous.lastSequence) {
+        if let previous, event.sequence <= previous.lastSequence {
             // Duplicate or out-of-order stale arrival: the newest
             // lifecycle-bearing event by journal sequence already governs
             // this session.
+            return false
+        }
+        if let previous, event.draft.kind != .stateChanged,
+           event.draft.occurredAtMs < previous.lastOccurredAtMs {
+            // A raw lifecycle event that happened before the session's newest
+            // applied event is a late arrival, not a transition. An explicit
+            // phase assertion is exempt: corrections restore a known-good
+            // phase by journal order, so clock skew between the producer and
+            // the app cannot strand a session behind a skewed timestamp.
             return false
         }
         let next = AgentSessionLifecycleState(
             phase: transition.phase,
             ended: transition.ended,
             lastSequence: event.sequence,
-            lastOccurredAtMs: event.draft.occurredAtMs
+            lastOccurredAtMs: max(previous?.lastOccurredAtMs ?? 0, event.draft.occurredAtMs)
         )
         let combinedBefore = state.combinedPhase(surfaceId: surfaceId, agentKey: agentKey)
         state.updateSession(

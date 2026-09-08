@@ -29,6 +29,20 @@ public struct AgentNotificationReconciler: Sendable {
         var starts: Set<String> = []
         var resolvedRequests: Set<String> = []
         var completionTurns: [String: String] = [:]
+
+        /// The agent continues after the user's decision: a settled turn is live again.
+        mutating func resumeWork() {
+            rootStopped = false
+            pendingCompletion = nil
+            phase = .running
+        }
+
+        /// Retires one pending blocking request, returning its producer dismissal handle.
+        mutating func retireAttention(_ identity: String) -> String? {
+            attentionIdentities.remove(identity)
+            if let request = attentionRequestIDs.removeValue(forKey: identity) { resolvedRequests.insert(request) }
+            return delivered.removeValue(forKey: identity)
+        }
     }
     private var sessions: [String: Session] = [:]
 
@@ -60,23 +74,28 @@ public struct AgentNotificationReconciler: Sendable {
         if isResolution {
             // A work observation is not a resolution. Only this explicit semantic
             // event can retire an immutable request/child ID behind a newer watermark.
+            // A late reply still retires its own request, but it never reopens a
+            // turn that settled after it.
+            let fresh = draft.occurredAtMs >= session.occurredAtMs
             if let request = context?.requestIdentity {
                 if draft.kind == .attentionResolved {
                     let wasResolved = session.resolvedRequests.contains(request)
                     session.resolvedRequests.insert(request)
-                    if draft.pendingWork && !wasResolved {
-                        session.rootStopped = false
-                        session.pendingCompletion = nil
-                        session.phase = .running
-                    }
                     let identity = Self.key([sessionKey, Self.key(["attention", request])])
-                    if let key = session.delivered.removeValue(forKey: identity) { requestInvalidations.append(key) }
-                    session.attentionIdentities.remove(identity)
-                    session.attentionRequestIDs.removeValue(forKey: identity)
+                    if let key = session.retireAttention(identity) { requestInvalidations.append(key) }
+                    if draft.pendingWork && !wasResolved && fresh { session.resumeWork() }
                 } else {
                     session.finishedChildren.insert(request)
                     session.children.remove(request)
                 }
+            } else if draft.kind == .attentionResolved, fresh,
+                      context?.turnIdentity == session.nativeTurn,
+                      session.attentionIdentities.count == 1,
+                      let identity = session.attentionIdentities.first {
+                // An identity-less reply answers only the one request pending on
+                // its own turn. An ambiguous or older reply keeps the wait.
+                if let key = session.retireAttention(identity) { requestInvalidations.append(key) }
+                if draft.pendingWork { session.resumeWork() }
             }
             if !session.attentionIdentities.isEmpty {
                 session.phase = .needsInput

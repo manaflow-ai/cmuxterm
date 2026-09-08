@@ -76,10 +76,12 @@ final class FeedWaiterRegistry: Sendable {
         }
     }
 
+    /// Records a delivery failure unless the user already decided: a decision made
+    /// in the store-commit gap outranks any later failure.
     func fail(_ registration: Registration, result: FeedCoordinator.IngestBlockingResult) {
         groups.withLock { groups in
             guard var group = groups[registration.requestID], group.id == registration.groupID else { return }
-            guard group.decision == nil || group.itemID == nil else { return }
+            guard group.decision == nil else { return }
             group.terminalResult = result
             group.replyStored = true
             groups[registration.requestID] = group
