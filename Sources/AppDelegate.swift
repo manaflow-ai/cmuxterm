@@ -5808,7 +5808,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @discardableResult
     func moveWorkspaceToNewWindow(workspaceId: UUID, focus: Bool = true) -> UUID? {
-        let windowId = createMainWindow()
+        let windowId = createMainWindow(initialWorkspaceHistoryContext: .bootstrap)
         guard let destinationManager = tabManagerFor(windowId: windowId) else { return nil }
         let bootstrapWorkspaceId = destinationManager.tabs.first?.id
 
@@ -8648,16 +8648,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 chosenContext: nil
             )
 #endif
-            let windowId = createMainWindow()
+            let windowId = createMainWindow(initialWorkspaceHistoryContext: .bootstrap)
             if let context = mainWindowContexts.values.first(where: { $0.windowId == windowId }) {
                 let initialWorkspace = context.tabManager.selectedWorkspace
                 switch initialSurface {
                 case .terminal:
-                    _ = executeConfiguredNewWorkspaceActionIfAvailable(
+                    let didExecute = executeConfiguredNewWorkspaceActionIfAvailable(
                         in: context,
                         debugSource: debugSource,
                         replacingInitialWorkspace: initialWorkspace
                     )
+                    if !didExecute, let initialWorkspace {
+                        context.tabManager.recordVaultHistoryWorkspaceCreated(initialWorkspace)
+                    }
                 case .browser:
                     // The fresh window boots with a terminal workspace; add the
                     // browser workspace and close that initial one so the
@@ -9358,13 +9361,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 workspaceId: completion.succeeded ? completion.workspaceId : nil
             )
         }
-        return executeConfiguredCmuxAction(
+        let didExecute = executeConfiguredCmuxAction(
             action,
             context: context,
             preferredWindow: window,
             onExecuted: onExecuted,
             onCloudVMCompletion: onCloudVMCompletion
         )
+        // Actions that operate inside the initial workspace keep it as their
+        // user-visible result. Workspace-producing actions retire it instead,
+        // possibly asynchronously, so their placeholder must stay unrecorded.
+        if didExecute, !actionCreatesWorkspace, let initialWorkspace {
+            context.tabManager.recordVaultHistoryWorkspaceCreated(initialWorkspace)
+        }
+        return didExecute
     }
 
     private func workspaceGroupNewWorkspaceTarget(in context: MainWindowContext) -> WorkspaceGroupNewWorkspaceTarget? {
@@ -10163,6 +10173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         initialWorkspaceTitle: String? = nil,
         initialWorkingDirectory: String? = nil,
         initialTerminalInput: String? = nil,
+        initialWorkspaceHistoryContext: VaultHistoryWorkspaceCreationContext = .semanticCreation,
         sessionWindowSnapshot: SessionWindowSnapshot? = nil,
         preferredWindowId: UUID? = nil,
         shouldActivate: Bool = true,
@@ -10198,7 +10209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             windowId: windowId,
             vaultHistoryEventLog: vaultHistoryEventLog,
             initialWorkspaceHistoryContext: sessionWindowSnapshot == nil
-                ? .semanticCreation
+                ? initialWorkspaceHistoryContext
                 : .restoration
         )
         tabManager.windowId = windowId

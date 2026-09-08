@@ -56,7 +56,10 @@ extension RemoteTmuxController {
         let targetManager: TabManager
         let bootstrapWorkspaceId: UUID?
         if windowTarget == .dedicatedNewWindow {
-            resolvedWindowId = appDelegate.createMainWindow(shouldActivate: false)
+            resolvedWindowId = appDelegate.createMainWindow(
+                initialWorkspaceHistoryContext: .bootstrap,
+                shouldActivate: false
+            )
             guard let newWindowManager = appDelegate.tabManagerFor(windowId: resolvedWindowId) else {
                 appDelegate.discardMainWindowWithoutClosedHistory(windowId: resolvedWindowId)
                 cleanUpTransportAfterFailedMirror(host: host)
