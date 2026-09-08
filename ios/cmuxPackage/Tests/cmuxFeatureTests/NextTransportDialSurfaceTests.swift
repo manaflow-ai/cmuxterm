@@ -87,10 +87,10 @@ struct NextTransportDialSurfaceTests {
                 MobileShellConnectionError.connectionClosed))
     }
 
-    @Test("a code-less rpcError still matches on the message")
+    @Test("a code-less rpcError remains inconclusive regardless of its message")
     func probeClassifierMessageFallback() {
         let error = MobileShellConnectionError.rpcError(nil, "Method not found: mobile.next_transport.pair")
-        #expect(NextTransportProbeErrorClassifier().isMethodNotFound(error))
+        #expect(!NextTransportProbeErrorClassifier().isMethodNotFound(error))
     }
 
     // MARK: configure() atomicity
