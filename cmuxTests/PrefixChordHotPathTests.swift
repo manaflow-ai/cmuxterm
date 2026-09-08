@@ -44,8 +44,8 @@ struct PrefixChordHotPathTests {
 
     @Test func customMatcherSeesChordSuffixWithDifferentModifiers() {
         let chord = StoredShortcut(
-            first: ShortcutStroke(key: "b", control: true),
-            second: ShortcutStroke(key: "n", command: true)
+            first: ShortcutStroke(key: "b", command: false, shift: false, option: false, control: true),
+            second: ShortcutStroke(key: "n", command: true, shift: false, option: false, control: false)
         )
         let matcher = RightSidebarModeShortcutMatcher(
             shortcutProvider: { action in
