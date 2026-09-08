@@ -86,6 +86,43 @@ import Testing
         #expect(events == (fail ? ["terminal receiver"] : ["terminal receiver", "workspace"]))
     }
 
+    @MainActor @Test(arguments: [false, true])
+    func receiverCleanupUsesKnownReceiptWithoutCatalogRefresh(refreshWouldFail: Bool) async throws {
+        var events: [String] = []
+        try await CloudEnvDelivery.removeReceiverResources(
+            terminalIDs: ["owned-receiver"],
+            discoverTerminalIDs: {
+                events.append("refresh")
+                if refreshWouldFail { throw CancellationError() }
+                return []
+            },
+            closeTerminal: { events.append("terminal \($0)") },
+            closeWorkspace: { events.append("workspace") }
+        )
+        #expect(events == ["terminal owned-receiver", "workspace"])
+    }
+
+    @MainActor @Test(arguments: [false, true])
+    func receiverCleanupWithoutReceiptRequiresAuthoritativeDiscovery(refreshFails: Bool) async {
+        var events: [String] = []
+        do {
+            try await CloudEnvDelivery.removeReceiverResources(
+                terminalIDs: [],
+                discoverTerminalIDs: {
+                    events.append("refresh")
+                    if refreshFails { throw CancellationError() }
+                    return ["discovered-receiver"]
+                },
+                closeTerminal: { events.append("terminal \($0)") },
+                closeWorkspace: { events.append("workspace") }
+            )
+            #expect(!refreshFails)
+        } catch {
+            #expect(refreshFails)
+        }
+        #expect(events == (refreshFails ? ["refresh"] : ["refresh", "terminal discovered-receiver", "workspace"]))
+    }
+
     @MainActor @Test(arguments: [
         CloudEnvDelivery.DeliveryError.receiverFailed("refused-marker"),
         .outdatedShim("machine-marker"),
