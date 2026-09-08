@@ -39,10 +39,14 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
         addKeptScreenshot(app.windows.firstMatch.screenshot(), name: "vault-sessions-before")
 
         history.click()
+        // macOS exposes the Menu's visible text as its AXTitle, not its
+        // AXDescription (XCUIElement.label). Keep both attributes in the query
+        // so it follows the visible grouping across supported macOS versions.
+        let groupings = ["Date", "Workspace", "Window", "Agent", "Type"]
         let picker = app.menuButtons.matching(
-            NSPredicate(format: "label IN %@", ["Date", "Workspace", "Window", "Agent", "Type"])
+            NSPredicate(format: "title IN %@ OR label IN %@", groupings, groupings)
         ).firstMatch
-        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        XCTAssertTrue(picker.waitForExistence(timeout: 10), app.debugDescription)
         for grouping in ["Workspace", "Window", "Agent", "Type", "Date"] {
             picker.click()
             let item = app.menuItems[grouping].firstMatch
@@ -50,7 +54,7 @@ final class RightSidebarChromeHeightUITests: XCTestCase {
             item.click()
             let selected = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in
-                    picker.label.contains(grouping) || picker.staticTexts[grouping].exists
+                    picker.title == grouping || picker.label == grouping
                 },
                 object: nil
             )
