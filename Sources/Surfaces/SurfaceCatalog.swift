@@ -194,6 +194,27 @@ extension SurfaceProvider {
 @MainActor
 @Observable
 final class SurfaceCatalog {
+    /// Compatibility token for the pre-CloudVMState catalog API. It remains a
+    /// value type so callers can fence an optimistic rename completion without
+    /// retaining a provider or a task.
+    struct CloudWorkspaceRenameToken: Hashable, Sendable {
+        fileprivate let machine: SurfaceMachineID
+        fileprivate let workspaceID: String
+        fileprivate let generation: UInt64
+    }
+
+    private struct LegacyCloudRenameKey: Hashable {
+        let machine: SurfaceMachineID
+        let workspaceID: String
+    }
+
+    private struct LegacyCloudRenameIntent {
+        let generation: UInt64
+        let name: String
+        let baseName: String
+        var receipt: CloudVMCursor?
+    }
+
     /// A terminal identity is not enough while a remote terminal has several
     /// placement-local tabs. An explicit tab therefore gets its own single-flight
     /// lane. The nil lane preserves the legacy resource-wide open behavior.
@@ -234,6 +255,14 @@ final class SurfaceCatalog {
     /// from `CloudVMState` because freshness is local observation metadata, not
     /// part of the daemon document or its cursor.
     private(set) var cloudStateObservations: [SurfaceMachineID: CloudVMStateObservation] = [:]
+    /// Snapshot-only compatibility state used by older catalog callers while
+    /// they migrate to `CloudVMState`. It is deliberately separate from the
+    /// canonical graph so optimistic rename overlays never become daemon state.
+    private var legacyCloudCursors: [SurfaceMachineID: CloudVMCursor] = [:]
+    private var legacyCloudCanonicalResources: [SurfaceMachineID: [SurfaceResource]] = [:]
+    private var legacyCloudCanonicalInfo: [SurfaceMachineID: SurfaceMachineInfo] = [:]
+    private var legacyCloudRenameIntents: [LegacyCloudRenameKey: LegacyCloudRenameIntent] = [:]
+    private var legacyCloudRenameGeneration: UInt64 = 0
     private var providers: [SurfaceMachineID: any SurfaceProvider] = [:]
     /// The process-wide ordering owner for remote rename intents. A remote identity can
     /// have projections in several local windows, so this cannot live in a TabManager.
@@ -401,6 +430,12 @@ final class SurfaceCatalog {
         for record in pending { pendingRestoredProjections[record] = nil }
         cloudStates[machine] = nil
         cloudStateObservations[machine] = nil
+        legacyCloudCursors[machine] = nil
+        legacyCloudCanonicalResources[machine] = nil
+        legacyCloudCanonicalInfo[machine] = nil
+        for key in Array(legacyCloudRenameIntents.keys) where key.machine == machine {
+            legacyCloudRenameIntents[key] = nil
+        }
         projections = projections.filter { $0.resource.machine != machine }
         notifyChange()
     }
@@ -511,6 +546,135 @@ final class SurfaceCatalog {
         return true
     }
 
+    // MARK: Legacy cloud snapshot compatibility
+
+    /// Compatibility entrypoint for providers that still deliver a flat resource
+    /// snapshot plus cursor. New providers should use `replaceCloudState`, which
+    /// retains the daemon document and typed graph. This seam preserves the same
+    /// cursor and optimistic-rename fencing for older callers during migration.
+    @discardableResult
+    func replaceCloudResources(
+        _ list: [SurfaceResource],
+        on machine: SurfaceMachineID,
+        info: SurfaceMachineInfo,
+        cursor: CloudVMCursor
+    ) -> Bool {
+        guard case .cloud = machine, accepts(writeFor: machine) else { return false }
+        precondition(info.id == machine, "cloud resources and machine info disagree")
+
+        let current = legacyCloudCursors[machine]
+        if let current,
+           current.generation == cursor.generation,
+           cursor.revision < current.revision {
+            return false
+        }
+
+        // A receipt advances the cursor before the daemon's canonical snapshot
+        // catches up. At or beyond that cursor, only the acknowledged name may
+        // replace the optimistic view; a stale equal-cursor payload is rejected.
+        if let current,
+           current.generation == cursor.generation,
+           cursor.revision == current.revision,
+           let pending = legacyCloudRenameIntents.first(where: {
+               $0.key.machine == machine &&
+               $0.value.receipt?.generation == cursor.generation &&
+               $0.value.receipt?.revision == cursor.revision
+           }) {
+            guard incomingWorkspaceName(in: info, id: pending.key.workspaceID) == pending.value.name else {
+                return false
+            }
+        } else if let current,
+                  current.generation == cursor.generation,
+                  cursor.revision == current.revision {
+            return false
+        }
+
+        for (key, intent) in Array(legacyCloudRenameIntents) where key.machine == machine {
+            guard let receipt = intent.receipt,
+                  receipt.generation == cursor.generation,
+                  cursor.revision >= receipt.revision else { continue }
+            guard incomingWorkspaceName(in: info, id: key.workspaceID) == intent.name else {
+                return false
+            }
+        }
+
+        legacyCloudCursors[machine] = cursor
+        legacyCloudCanonicalResources[machine] = list
+        legacyCloudCanonicalInfo[machine] = info
+        for (key, intent) in Array(legacyCloudRenameIntents) where key.machine == machine {
+            guard let receipt = intent.receipt,
+                  receipt.generation == cursor.generation,
+                  cursor.revision >= receipt.revision else { continue }
+            if incomingWorkspaceName(in: info, id: key.workspaceID) == intent.name {
+                legacyCloudRenameIntents[key] = nil
+            }
+        }
+        applyLegacyCloudSnapshot(machine)
+        return true
+    }
+
+    /// Begins an optimistic workspace rename against the flat cloud snapshot API.
+    /// Every projection carrying the workspace identity is updated in the same
+    /// catalog turn; the canonical snapshot remains untouched until commit.
+    func beginCloudWorkspaceRename(
+        machine: SurfaceMachineID,
+        workspaceID: String,
+        name: String
+    ) throws -> CloudWorkspaceRenameToken {
+        guard case .cloud = machine,
+              legacyCloudCanonicalInfo[machine] != nil || machines[machine] != nil else {
+            throw SurfaceCatalogError.noProvider(machine)
+        }
+        let key = LegacyCloudRenameKey(machine: machine, workspaceID: workspaceID)
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty else {
+            throw SurfaceCatalogError.unsupported("cloud workspace name cannot be empty")
+        }
+        legacyCloudRenameGeneration &+= 1
+        let generation = legacyCloudRenameGeneration
+        let baseName = legacyCloudRenameIntents[key]?.baseName
+            ?? incomingWorkspaceName(in: displayedCloudInfo(machine), id: workspaceID)
+            ?? ""
+        legacyCloudRenameIntents[key] = LegacyCloudRenameIntent(
+            generation: generation,
+            name: normalizedName,
+            baseName: baseName,
+            receipt: nil
+        )
+        applyLegacyCloudSnapshot(machine)
+        return CloudWorkspaceRenameToken(machine: machine, workspaceID: workspaceID, generation: generation)
+    }
+
+    /// Records the daemon receipt for an optimistic rename. The intent remains
+    /// visible until a canonical snapshot at or beyond the receipt confirms it.
+    func commitCloudWorkspaceRename(
+        _ token: CloudWorkspaceRenameToken,
+        receipt: CloudVMCursor
+    ) {
+        let key = LegacyCloudRenameKey(machine: token.machine, workspaceID: token.workspaceID)
+        guard var intent = legacyCloudRenameIntents[key], intent.generation == token.generation else { return }
+        intent.receipt = receipt
+        legacyCloudRenameIntents[key] = intent
+        legacyCloudCursors[token.machine] = receipt
+        applyLegacyCloudSnapshot(token.machine)
+    }
+
+    func pendingCloudWorkspaceRenameName(
+        machine: SurfaceMachineID,
+        workspaceID: String
+    ) -> String? {
+        legacyCloudRenameIntents[LegacyCloudRenameKey(machine: machine, workspaceID: workspaceID)]?.name
+    }
+
+    /// Rolls back only the still-current intent. An older completion cannot erase
+    /// a newer name, which is the key race this compatibility seam protects.
+    func rollbackCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken) {
+        let key = LegacyCloudRenameKey(machine: token.machine, workspaceID: token.workspaceID)
+        guard let intent = legacyCloudRenameIntents[key], intent.generation == token.generation else { return }
+        legacyCloudRenameIntents[key] = nil
+        applyLegacyCloudSnapshot(token.machine)
+    }
+
     /// Insert or replace one resource. A cloud provider may identify itself with `from` so a
     /// result from a retired provider cannot overwrite a replacement registration.
     func upsert(_ resource: SurfaceResource, from source: (any SurfaceProvider)? = nil) {
@@ -535,7 +699,13 @@ final class SurfaceCatalog {
     /// Update machine metadata, optionally validating the provider registration that supplied it.
     func updateMachine(_ info: SurfaceMachineInfo, from source: (any SurfaceProvider)? = nil) {
         guard accepts(writeFor: info.id, from: source) else { return }
-        machines[info.id] = machineInfoPreservingCanonicalCloudState(info)
+        if legacyCloudCanonicalInfo[info.id] != nil {
+            // Cursorless provider summaries must not regress a flat cloud
+            // snapshot that has already advanced (especially after a rename).
+            machines[info.id] = displayedCloudInfo(info.id, fallback: info)
+        } else {
+            machines[info.id] = machineInfoPreservingCanonicalCloudState(info)
+        }
         notifyChange()
     }
 
@@ -1450,6 +1620,55 @@ final class SurfaceCatalog {
         for workspaceID in resolvedWorkspaceIDs {
             reconcileCloudWorkspaceBinding(localWorkspaceID: workspaceID)
         }
+    }
+
+    // MARK: Legacy cloud snapshot helpers
+
+    private func incomingWorkspaceName(in info: SurfaceMachineInfo, id: String) -> String? {
+        info.remoteWorkspaces?.first(where: { $0.id == id })?.name
+    }
+
+    private func displayedCloudInfo(
+        _ machine: SurfaceMachineID,
+        fallback: SurfaceMachineInfo? = nil
+    ) -> SurfaceMachineInfo {
+        guard var info = legacyCloudCanonicalInfo[machine] ?? fallback ?? machines[machine] else {
+            preconditionFailure("legacy cloud snapshot has no machine info")
+        }
+        guard var workspaces = info.remoteWorkspaces else { return info }
+        for (key, intent) in Array(legacyCloudRenameIntents) where key.machine == machine {
+            guard let index = workspaces.firstIndex(where: { $0.id == key.workspaceID }) else { continue }
+            workspaces[index].name = intent.name
+        }
+        info.remoteWorkspaces = workspaces
+        return info
+    }
+
+    private func applyLegacyCloudSnapshot(_ machine: SurfaceMachineID) {
+        guard let canonicalResources = legacyCloudCanonicalResources[machine] else { return }
+        var displayedResources = canonicalResources
+        for (key, intent) in Array(legacyCloudRenameIntents) where key.machine == machine {
+            for index in displayedResources.indices {
+                if displayedResources[index].remoteWorkspace?.id == key.workspaceID {
+                    displayedResources[index].remoteWorkspace?.name = intent.name
+                }
+                if var views = displayedResources[index].remoteViews {
+                    for viewIndex in views.indices where views[viewIndex].workspace.id == key.workspaceID {
+                        views[viewIndex].workspace.name = intent.name
+                    }
+                    displayedResources[index].remoteViews = views
+                }
+            }
+        }
+        for id in resourceIDsByMachine[machine] ?? [] { resources[id] = nil }
+        resourceIDsByMachine[machine] = nil
+        for resource in displayedResources {
+            resources[resource.id] = resource
+            resourceIDsByMachine[machine, default: []].insert(resource.id)
+        }
+        machines[machine] = displayedCloudInfo(machine)
+        resolvePendingRestoredProjections(on: machine)
+        notifyChange()
     }
 
     // MARK: Snapshot
