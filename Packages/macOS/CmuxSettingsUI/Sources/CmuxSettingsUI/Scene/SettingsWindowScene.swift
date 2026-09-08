@@ -16,7 +16,7 @@ public struct SettingsWindowRoot: View {
     private let searchIndex: SettingsSearchIndex
     /// Progressive mounting of the detail sections (cmux issue #12134):
     /// the section the window opens on is built in the first layout pass,
-    /// the rest one per run-loop turn. Window-scoped like the scroll state.
+    /// the rest one per update pass. Window-scoped like the scroll state.
     @State var mountModel: SettingsSectionMountModel
 
     static let selectedSectionDefaultsKey = "selectedSettingsSection"
