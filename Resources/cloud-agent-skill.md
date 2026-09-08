@@ -67,6 +67,8 @@ cmux vm workspace close <id> <ws>           # CLI-only: close the workspace but 
 cmux vm terminal close <id> <term>          # end one terminal (the process and its tab)
 cmux vm terminal send <id> <term> 'bun test' --keys enter   # type into a terminal headlessly, then press keys (no pane, no focus)
 cmux vm terminal wait <id> <term> --pattern 'pass|fail' [--timeout 120]   # block until the screen matches; exit 1 on timeout
+cmux vm terminal wait-exit <id> <term> [--timeout <s>]   # block until the process exits (exited code=<n> | pending)
+cmux vm terminal output <id> <term> [--after <offset>]   # the full output so far, resumable
 cmux vm terminal read <id> <term>           # the terminal's visible screen (what a person would see)
 cmux surface ls [--json]                    # every surface (This Mac + machines) and which panes show it
 cmux surface open <machine>/<kind>/<key> [--new] [--pane <p> --left|--right|--up|--down|--tab]
@@ -85,7 +87,7 @@ A pane showing a machine surface is an ordinary local cmux pane: move, split, re
 Run commands:
 
 ```bash
-cmux vm exec <id> -- <command...>        # one command, ~35s limit, exit code passes through
+cmux vm exec [--timeout <s>] <id> -- <command...>   # one command, 30 s default up to 900 s, exit code passes through
 cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
 cmux vm route [--cwd <dir>]              # print which machine vm run/agent would pick, and why
 cmux vm wait <id> [--timeout <seconds>] [--wake]
@@ -121,21 +123,34 @@ cmux vm restore <snapshot-id>
 Destroy:
 
 ```bash
+cmux vm pause <id>       # park a machine when the work is done (compute stops; files and daemon state stay)
+cmux vm resume <id>      # wake it again
 cmux vm rm <id>          # irreversible and unprompted
 ```
+
+## The grammar (one spelling per concept)
+
+| Where you are | What you address | Spelling |
+|---|---|---|
+| Mac | a machine | `cmux vm <verb> <machine> …` — everything about machines lives here |
+| Mac | this Mac's own session | the unprefixed local verbs (`cmux send-key`, `cmux new-workspace`, …) |
+| inside a machine | **this** machine's session | the same unprefixed local verbs as on a Mac (`cmux send-key`, `cmux terminal send`, `cmux layout apply`, `cmux env set`, `cmux notify`) |
+| inside a machine | **another** machine | `cmux vm <verb> <machine> …` — the same grammar as on the Mac |
+| inside a machine | the owner's machines | `cmux vm ls` (this one marked `*`, with reachability) |
+| inside a machine | myself | `cmux self [peers\|integrations\|owner\|machine] [--json]` (aliases: `cmux whoami`, `cmux reflect [<path>]`) |
 
 ## Inside a machine
 
 Every machine has its own in-VM `cmux` CLI (a shim over the machine's cmux-tui daemon). Local verbs use cmux-tui's grammar (`cmux <resource> <action>`) against the machine's own session — workspaces, terminals, panes:
 
-`cmux self [--json]` identifies this machine and `cmux vm ls [--json]` lists the team's live machines through `GET /api/vm/self`. Both work without a local daemon and use the edge-injected machine identity, never an account token copied into the VM. Linked peer status is available separately as `cmux vm peers`.
+`cmux self [--json]` identifies this machine and `cmux vm ls [--json]` lists the owner's live machines, this one marked `*`, with reachable/linked state. Both read reflection (`GET /api/vm/reflection`, falling back to `/api/vm/self` on an older server), work without a local daemon, and use the edge-injected machine identity, never an account token copied into the VM.
 
 ```bash
 cmux workspace current run -- bun test        # run a command in a durable terminal here
 cmux session current snapshot --json          # this machine's workspace/terminal tree
 ```
 
-A machine knows who it is: `cmux whoami` (name, vm id, owner, plan) and `cmux reflect <path>` (`owner`, `machine`, `peers`, `integrations`) read the reflection service through the edge, which asserts the identity — nothing in the guest is a credential. `cmux reflect integrations` lists what the machine can use with a help command each.
+A machine knows who it is: `cmux self` (name, id, status, team, owner, plan) and `cmux self peers|integrations|owner|machine` read the reflection service through the edge, which asserts the identity — nothing in the guest is a credential. `cmux self integrations` lists what the machine can use with a help command each; `cmux whoami` and `cmux reflect <path>` are aliases.
 
 The Mac spellings work there too, against the machine's own session (default target: the terminal you run them from, `$CMUX_TUI_TERMINAL_ID`):
 
@@ -143,14 +158,15 @@ The Mac spellings work there too, against the machine's own session (default tar
 cmux tree --json ; cmux new-workspace --name tests ; cmux new-split right
 cmux send-key --terminal <term> ctrl+c ; cmux send --terminal <term> 'bun test' ; cmux read-screen --terminal <term>
 cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
+cmux terminal wait-exit <term> --timeout 600 ; cmux terminal output <term>      # wait for the process to end, then read everything it printed
 cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
 cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
 ```
 
-`cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux reflect peers` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
+`cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux self peers` / `cmux vm ls` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
 
 ```bash
-cmux vm peers                       # this machine, linked peers, and reachable peers from reflection
+cmux vm ls                          # the owner's machines: this one marked *, reachable/linked/connected
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
 cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>

@@ -92,7 +92,7 @@ The checklist an agent runs through, each item a primitive (not a doc):
    shipped; the person's click reproduces the geometry.
 7. **Verification**: recipe `checks` in a durable terminal; the exit receipt is
    the proof the environment works — designed.
-9. **Identity**: a machine knows who it is — `cmux whoami` / `cmux reflect`
+9. **Identity**: a machine knows who it is — `cmux self [peers|integrations|owner|machine]`
    (exe.dev-style reflection on the edge-asserted route-token identity; shipped) —
    and finds its peers itself (`/peers`, trusted-carrier routes). Scoped mutations
    and git credentials for the machine principal are next (docs/vm-identity-edge-auth.md).

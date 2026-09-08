@@ -68,6 +68,10 @@ cmux vm wait <id> --wake                # block until ready and awake
 cmux vm terminal send <id> <term> 'bun test' --keys enter     # drive a machine terminal headlessly: type, then press keys (no pane, no focus)
 cmux vm terminal wait <id> <term> --pattern 'pass|fail' --timeout 300   # block until the screen matches; exit 1 on timeout
 cmux vm terminal read <id> <term>       # the visible screen — what a person at that terminal sees
+cmux vm terminal wait-exit <id> <term> --timeout 900   # block until the process exits (exit code passes through as exited/pending)
+cmux vm terminal output <id> <term>     # the full output so far (scrollback), with a resume cursor for the next read
+cmux vm exec <id> --timeout 600 -- <command>   # one command up to 15 minutes; default cap is 30 s
+cmux vm pause <id> / cmux vm resume <id>   # park a machine when the work is done (stops its compute); resume brings it back
 ```
 
 `terminal send/wait/read` is the interactive counterpart of `exec`: a REPL, a TUI, a long test run, or another agent's session on the machine can be driven and observed without attaching a pane or stealing focus. Start the program with `cmux surface new-terminal --machine <id> --no-open -- <cmd>` (its `term_…` id comes back on the OK line), then loop send → wait → read.
@@ -135,23 +139,36 @@ cmux vm exec <m> -- sh -c 'cd work && git clone repo.bundle app'
 
 **How values travel, and the rules that keep them secret.** `vm env set` sends values over the machine's cmux-tui link (end-to-end encrypted between the Mac and the daemon on the private WireGuard network; the control plane brokers the route but never reads it) into the machine's `cmux env receive`, which turns terminal echo off before it reads. Nothing passes through `vm.exec`, a provider API, a command line, shell history, or a terminal's screen, and the daemon never journals terminal input. On the machine they are one root-only 0600 file. Your side of the bargain: prefer `--from-file .env` or `-` (stdin) over `KEY=VALUE` arguments so values stay out of *your* shell history and `ps`; keep values out of layout documents (names belong there, values in `vm env`); `vm env ls` prints names unless you pass `--show`; and remember that forks, snapshots and templates copy the volume, file included (`cmux vm env rm` before `vm promote-template`). Do not put the user's own account tokens on a machine unless they ask; model credentials already reach agents through CodeRouter's edge and never sit in the guest.
 
+## The grammar (one spelling per concept)
+
+| Where you are | What you address | Spelling |
+|---|---|---|
+| Mac | a machine | `cmux vm <verb> <machine> …` — everything about machines lives here |
+| Mac | this Mac's own session | the unprefixed local verbs (`cmux send-key`, `cmux new-workspace`, …) |
+| inside a machine | **this** machine's session | the same unprefixed local verbs as on a Mac (`cmux send-key`, `cmux terminal send`, `cmux layout apply`, `cmux env set`, `cmux notify`) |
+| inside a machine | **another** machine | `cmux vm <verb> <machine> …` — the same grammar as on the Mac |
+| inside a machine | the owner's machines | `cmux vm ls` (this one marked `*`, with reachability) |
+| inside a machine | myself | `cmux self [peers\|integrations\|owner\|machine] [--json]` (aliases: `cmux whoami`, `cmux reflect [<path>]`) |
+
 ## Inside a machine: the same verbs, and other machines
 
 Every machine has its own `cmux` (a shim over its cmux-tui daemon). An agent running *in* the machine drives its own session with the Mac spellings — the target defaults to its own terminal (`$CMUX_TUI_TERMINAL_ID`):
 
 ```bash
-cmux whoami                             # who am I: name, vm id, owner, plan (reflection; no credential in the guest)
-cmux reflect peers                      # the owner's other machines and their routes; `reflect integrations` = what I can use, with help commands
+cmux self                               # who am I: name, id, status, team, owner, plan (reflection; no credential in the guest)
+cmux self peers                         # the owner's other machines and their routes; `cmux self integrations` = what I can use, with help commands
+cmux vm ls                              # every machine of the owner, this one marked *, with reachable/linked state
 cmux tree --json                        # this machine's workspaces/terminals
 cmux new-workspace --name tests         # a workspace here
 cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
+cmux terminal wait-exit <term> --timeout 600 ; cmux terminal output <term>   # block until the process exits, then read the full output (not just the screen)
 cmux send-key --terminal <term> ctrl+c  # keys into another terminal on this machine
 cmux layout apply --name app app.json   # the same layout verb, locally
 cmux env ls                             # the same env file
 cmux notify --title "done" --body "…"   # lands on the Mac pane showing this terminal
 ```
 
-To talk to **another** machine (a second agent, a service box), a machine discovers its peers through reflection (`cmux reflect peers`; the owner's private network is the trust boundary, so no Mac step is needed — older Mac-written route files still work). Inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only machines of its own owner.
+To talk to **another** machine (a second agent, a service box), a machine discovers its peers through reflection (`cmux self peers` or `cmux vm ls`; the owner's private network is the trust boundary, so no Mac step is needed — older Mac-written route files still work). Inside `src`, `cmux vm …` takes the peer as its first argument with the same grammar the Mac uses: `cmux vm tree <dst>`, `cmux vm exec <dst> -- <cmd>`, `cmux vm terminal send|read|wait|close <dst> <term> …`, `cmux vm send-key <dst> <term> enter`, `cmux vm workspace new|rename|close|rm <dst> …`, `cmux vm agent <dst> --agent codex -- "review work/app"` (a durable terminal on the peer running the peer's own agent config), `cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`. No control-plane credential lives in any VM; a machine reaches only machines of its own owner.
 
 ## CodeRouter and model credentials
 

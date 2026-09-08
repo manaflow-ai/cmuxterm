@@ -90,7 +90,8 @@ Across machines, an existing peer route lets the source machine speak to the pee
 ```bash
 # inside <builder>:
 cmux vm agent reviewer --agent codex --name "review" --cwd /root/work/app -- "review the diff on branch feat/x and write REVIEW.md"
-cmux vm terminal wait reviewer <term> --pattern 'REVIEW.md written' --timeout 1800
+cmux vm terminal wait-exit reviewer <term> --timeout 1800                     # the agent's process ended
+cmux vm terminal output reviewer <term> | tail -n 40                          # what it said
 cmux vm exec reviewer -- cat /root/work/app/REVIEW.md
 cmux vm env set reviewer GITHUB_REPO=org/app                       # settings for the peer's shells
 cmux vm layout apply reviewer review-layout.json --name review     # a workspace on the peer, ready for the human
@@ -111,14 +112,13 @@ Public repos can just clone on the machine: `cmux vm exec <id> -- git clone http
 ## 4. Builds and tests in the cloud instead of the local Mac
 
 ```bash
-run=test-$(uuidgen | tr 'A-Z' 'a-z' | cut -c1-8)
-cmux vm exec <id> -- sh -c "cd work/app && rm -f /tmp/$run.log /tmp/$run.status && nohup sh -c 'make test > /tmp/$run.log 2>&1; echo \$? > /tmp/$run.status.tmp && mv /tmp/$run.status.tmp /tmp/$run.status' >/dev/null 2>&1 &"
-cmux vm exec <id> -- sh -c "cat /tmp/$run.status 2>/dev/null || echo running"   # poll; status appears atomically when done
-cmux vm exec <id> -- tail -n 30 /tmp/$run.log
+t=$(cmux surface new-terminal --machine <id> --no-open --json -- sh -c 'cd work/app && make test' | jq -r .terminal_id)
+cmux vm terminal wait-exit <id> "$t" --timeout 900        # exited code=<n> | exited signal=<s> | pending (exit 1)
+cmux vm terminal output <id> "$t" > test.log              # everything the run printed, not just the visible screen
 cmux vm pull <id> work/app/dist ./dist-from-cloud
 ```
 
-Report the real outcome from the log — a finished poll is not a passed test.
+A durable terminal outlives the CLI call and the Mac; `wait-exit` returns the exit code and `output` the full log (`--json` gives `next_offset`, so a long run can be read incrementally with `--after`). For a quick command that finishes in seconds, `cmux vm exec <id> --timeout 300 -- <cmd>` is enough. Report the real outcome from the exit code and the log — a finished wait is not a passed test.
 
 ## 5. Parallel experiments with checkpoints and forks
 

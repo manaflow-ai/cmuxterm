@@ -42,6 +42,8 @@ Port row (when shown) click | `cmux vm open <m>:port/<n>` / `cmux vm open <m> <n
 (no menu verb — the workspace's shape as data) | `cmux vm layout export <m> <ws>` | `vm.exec` → in-VM `cmux layout export` | ✅ the same LayoutDocument the row renders, in the `cmux new-workspace --layout` / `cmux layout get` schema
 (no menu verb — an agent builds the workspace the row will open) | `cmux vm layout apply <m> <file> [--name n] [--open]` | `vm.exec` → in-VM `cmux layout apply`, then `vm.workspace_open` for `--open` | ✅ builds panes/splits/tabs on the machine; `--open` is exactly the row click
 (no menu verb — project secrets) | `cmux vm env set\|ls\|rm <m> …` | `vm.exec` → in-VM `cmux env` | ✅ machine-local, sourced by every shell cmux starts
+(no menu verb — CLI only) | `cmux vm pause <m>` / `cmux vm resume <m>` | `vm.pause` / `vm.resume` | ✅ parks and wakes a machine; the sidebar shows the state
+(no menu verb — agent-only) | `cmux vm terminal wait-exit\|output <m> <term> …` | `vm.terminal_wait_exit` / `vm.terminal_output` | ✅ exit code and full output stream, headless
 
 Rules that keep it 1:1:
 

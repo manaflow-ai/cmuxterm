@@ -58,7 +58,7 @@ HTTP ポートはプライベートネットワークの URL を使います。�
 ## ワークスペースとターミナル
 
 ```bash
-cmux vm workspace new <id> [--name <n>]
+cmux vm workspace new <id> [--name <n>] [--reuse] [--no-open]   # --reuse: 同名があれば再利用、--no-open: ローカルに開かず用意だけ
 cmux vm workspace open <id> <ws> [--here|--tabs|--pane <p> --left|--right|--up|--down]
 cmux vm workspace rename <id> <ws> <name>
 cmux vm workspace rm <id> <ws>
@@ -66,6 +66,8 @@ cmux vm workspace close <id> <ws>
 cmux vm terminal close <id> <term>
 cmux vm terminal send <id> <term> 'bun test' --keys enter
 cmux vm terminal wait <id> <term> --pattern 'pass|fail' [--timeout 120]
+cmux vm terminal wait-exit <id> <term> [--timeout <s>]   # プロセスの終了を待つ（exited code=<n> | pending）
+cmux vm terminal output <id> <term> [--after <offset>]   # これまでの出力全体（画面だけではなく）
 cmux vm terminal read <id> <term>
 cmux surface ls [--json]
 cmux surface new-terminal --machine <id> --no-open -- <cmd>
@@ -82,7 +84,7 @@ cmux surface new-terminal --machine <id> --no-open -- <cmd>
 ## コマンドとエージェント
 
 ```bash
-cmux vm exec <id> -- <command...>
+cmux vm exec [--timeout <s>] <id> -- <command...>   # 既定 30 秒、最大 900 秒
 cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
 cmux vm route [--cwd <dir>]
 cmux vm wait <id> [--timeout <seconds>] [--wake]
@@ -104,6 +106,8 @@ cmux vm pull <id> <remote-path> [local-path]
 cmux vm snapshot <id> [--name <name>]
 cmux vm fork <id> [--name <name>]
 cmux vm restore <snapshot-id>
+cmux vm pause <id>    # 作業が終わったら停止（計算資源は止まり、ファイルとデーモン状態は残る）
+cmux vm resume <id>   # 再開
 cmux vm rm <id>
 ```
 
@@ -115,20 +119,19 @@ cmux vm rm <id>
 
 ## マシン内の操作
 
-`cmux self [--json]` はこのマシンを識別し、`cmux vm ls [--json]` はチームの稼働中のマシンを一覧表示します。どちらもローカルデーモンを必要とせず、エッジが付与するマシン認証で `GET /api/vm/self` を読み取ります。リンク済みの接続先は `cmux vm peers` で確認できます。
+`cmux self [--json]` はこのマシンを識別し（名前、ID、状態、チーム、所有者、プラン）、`cmux self peers|integrations|owner|machine` は到達できるマシンと使える連携を返します（別名: `cmux whoami`、`cmux reflect`）。`cmux vm ls [--json]` は所有者のマシン一覧で、このマシンには `*` が付きます。どれもローカルデーモンを必要とせず、エッジが付与するマシン認証でリフレクション（`GET /api/vm/reflection`、古いサーバーでは `/api/vm/self`）を読み取ります。
 
 ```bash
-cmux workspace current run -- bun test
-cmux session current snapshot --json
-cmux vm peers
-cmux vm exec <peer> -- <command>
-cmux vm tree <peer>
+cmux self                            # 自分の名前、ID、状態、所有者、プラン
+cmux self peers                      # 到達できる他のマシンとその経路
+cmux vm ls                           # 所有者のマシン一覧（このマシンは *）
+cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait-exit <term> ; cmux terminal output <term>
+cmux layout apply --name app app.json ; cmux env set KEY=VALUE ; cmux notify --title 完了
+cmux vm exec <machine> -- <command>  # 他のマシンには Mac と同じ文法 cmux vm <verb> <machine> …
+cmux vm tree <machine>
 ```
 
-ローカル操作はマシン自身のセッションを使います。接続先への操作には既存の
-許可と互換性のあるデーモンが必要です。このビルドには古い Mac の `vm link`
-登録処理がないため、新しい接続許可を作成できると案内しないでください。
-アカウントの認証情報はマシンに保存しません。
+ローカル操作はマシン自身のセッションを使い、Mac と同じ動詞（`cmux send-key`、`cmux terminal send|read|wait|wait-exit|output`、`cmux layout …`、`cmux env …`、`cmux notify`）で操作します。他のマシンには Mac と同じ文法 `cmux vm <verb> <machine> …` を使います。接続先は `cmux self peers` で自動的に見つかり（所有者のプライベートネットワークが信頼境界なので Mac 側の手順は不要）、古い Mac 製の経路ファイルもそのまま使えます。アカウントの認証情報はマシンに保存しません。
 
 接続完了はデーモンのイベントで通知され、30 秒の期限とキャンセル処理を備えます。
 状態確認のためのポーリングは行いません。ゲストの案内言語は `LC_ALL`、

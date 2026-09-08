@@ -186,7 +186,7 @@ curl -s https://coderouter.cmux.internal/api/vm/reflection      # or https://ref
 - `/integrations` — what the machine can use, each with a `help` one-liner (CodeRouter
   models, the installed agents, notify, env, layouts, peers, the desktop when present).
 
-In the guest: `cmux whoami`, `cmux reflect [path]`, and `cmux auth status` (which now
+In the guest: `cmux self [path]` (aliases `cmux whoami`, `cmux reflect`), `cmux vm ls`, and `cmux auth status` (which now
 prints the identity). The vanity alias `reflection.cmux.internal` is a second edge rule
 on new machines; the path form under the coderouter alias works on every machine.
 

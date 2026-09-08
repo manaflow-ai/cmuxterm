@@ -14,7 +14,7 @@ cmux vpn down                          # take this build's tunnel down (sudo)
 cmux self                              # INSIDE a machine: this machine's name, id, status, team (--json: {schema, machine, team, machines}); the guest `cmux vm ls` lists the team's machines with this one marked *
 cmux vm tree                           # the surface catalog: This Mac (terminals by workspace, browsers), then every machine → Workspaces, Ports, VNC Displays, Terminals
 cmux vm tree <id> --refresh            # one machine (`local` for This Mac), re-synced first (fleet + provider refresh)
-cmux vm workspace new <id> [--name n]  # a new cmux-tui workspace on the machine (⌘N there), opened as a new local workspace
+cmux vm workspace new <id> [--name n] [--reuse] [--no-open]   # a new cmux-tui workspace on the machine (⌘N there); --reuse returns the existing workspace of that name instead of a second one
 cmux vm workspace open <id> <ws-id>    # open a machine workspace as a NEW local workspace: one pane per terminal/browser (clicking its row)
 cmux vm workspace open <id> <ws-id> --here [--workspace <local>]      # into the current local workspace: one pane + the rest as tabs (drop a workspace row onto a pane)
 cmux vm workspace open <id> <ws-id> --tabs [--pane <p>]                # all as tabs of the focused/--pane pane (CLI placement)
@@ -26,6 +26,8 @@ cmux vm terminal close <id> <term-id>  # end one terminal on the machine (the si
 cmux vm terminal send <id> <term-id> [text] [--keys enter,ctrl+c,…]   # type into the terminal headlessly (as-is, no newline), then press named keys (chords join with +); no pane, no focus
 cmux vm terminal read <id> <term-id>   # the visible screen as text (--json: + rows, cols, cursor)
 cmux vm terminal wait <id> <term-id> --pattern <regex> [--timeout <s>]   # block until the screen matches (default 30 s); exit 1 on timeout
+cmux vm terminal wait-exit <id> <term-id> [--timeout <s>]   # block until the process exits: exited code=<n> | exited signal=<s> | pending (exit 1)
+cmux vm terminal output <id> <term-id> [--after <offset>] [--max-bytes <n>]   # the full output stream (scrollback), resumable with --after <next_offset>
 cmux vm tree --json                    # {machines: [{id, local, name, status, link_state, …}], resources: [{id, machine, kind, key, title, detail, lifecycle, agent, remote_workspace, port, url, open, open_surface_ids}], projections: […]}
 cmux surface ls [--json]               # same catalog; `surface open <resource>` / `surface new-terminal --machine <m>` are the generic verbs
 cmux vm status <id>                    # provider, status, image
@@ -51,8 +53,10 @@ cmux terminal send <id> [text] [--keys k1,k2] | read <id> | wait <id> --pattern 
 cmux layout export [--workspace <ws>] [--raw] | cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
 cmux env set KEY=VALUE… [--from-file <.env>] [-] | ls [--show] [--json] | rm KEY… | path
 cmux vm <verb> <peer> …                # any of the above on a peer machine (see "Machine-to-machine links")
-cmux whoami [--json]                   # this machine's identity from reflection: name, vm id, owner, plan, status
-cmux reflect [<path>] [--json]         # raw reflection JSON: / (index), owner, machine, peers, integrations
+cmux self [--json]                     # who am I: name, id, status, team, owner, plan (reflection; falls back to /api/vm/self on older servers)
+cmux self peers|integrations|owner|machine [--json]   # reflection sub-resources (aliases: cmux whoami = cmux self, cmux reflect <path> = cmux self <path>)
+cmux vm ls [--json]                    # the owner's machines, this one marked *, reachable/linked/connected
+cmux terminal wait-exit <id> [--timeout <s>] [--json] | output <id> [--after <offset>] [--max-bytes <n>] [--json]
 ```
 
 Reflection (`https://coderouter.cmux.internal/api/vm/reflection`, also `https://reflection.cmux.internal/` on new machines) is how a machine identifies itself: the edge asserts the identity (the VM-bound route token), the guest holds no credential, and `/peers` lists the owner's other machines with their private routes so `cmux vm exec <peer>` works without any Mac step.
@@ -111,6 +115,8 @@ cmux vm new --name "build box" --detach # display label; the id stays the addres
 cmux vm wait <id> [--timeout <sec>] [--wake]   # block until ready; --wake also wakes it
 cmux vm rename <id> <label>            # display label; the id stays the address
 cmux vm rename <id> --clear
+cmux vm pause <id>                     # park it: compute stops, /root and the daemon state stay; `cmux vm ls` shows paused
+cmux vm resume <id>                    # wake a paused machine (the same plan limits as a create apply)
 cmux vm rm <id>                        # PERMANENT delete of machine + data (aliases: destroy, delete)
 ```
 
@@ -140,10 +146,13 @@ cmux vm agent --agent opencode --no-open --json -- "add a README"              #
 cmux vm agent --agent pi --name "pi: docs" --cwd ~/src/app --sync -- "write docs for src/"
 # agents: claude | codex | opencode | pi (preinstalled under /root/.npm-global/bin)
 
-cmux vm exec <id> -- <command...>      # one command; remote exit code passes through; ~30 s default cap
+cmux vm exec <id> -- <command...>      # one command; remote exit code passes through; 30 s default cap
+cmux vm exec <id> --timeout 600 -- <command...>   # up to 900 s for a build or a test run
 cmux vm exec <id> --json -- ls -la     # {stdout, stderr, exit_code}
-cmux vm exec <id> -- sh -c 'nohup bun run build > /tmp/build.log 2>&1 &'   # long work: background, then poll
-cmux vm exec <id> -- tail -n 20 /tmp/build.log
+# long work: a durable terminal, then wait for exit and read the whole output
+t=$(cmux surface new-terminal --machine <id> --no-open --json -- sh -c 'cd work/app && bun run build' | jq -r .terminal_id)
+cmux vm terminal wait-exit <id> "$t" --timeout 900     # exited code=0 | exited signal=… | pending (exit 1)
+cmux vm terminal output <id> "$t"                      # everything it printed; --json adds next_offset to resume from
 ```
 
 ## Files
@@ -227,7 +236,7 @@ cmux vm promote-template <id>          # template-named snapshot for reuse
 
 ## Machine-to-machine links
 
-A machine discovers its peers itself: `cmux reflect peers` (or `cmux vm ls`) lists the
+A machine discovers its peers itself: `cmux self peers` (or `cmux vm ls`) lists the
 owner's other machines with their private daemon routes, and the daemon's
 private-network listener is a trusted carrier (every member of the network is the
 owner's Mac or machine), so `cmux vm exec <dst> -- <command>` connects with the route

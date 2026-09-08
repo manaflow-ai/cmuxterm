@@ -662,7 +662,7 @@ granted only from the Mac, and no control-plane credential enters a machine.
 
 ## Reflection: a machine's own identity (2026-09-06)
 
-`cmux whoami` / `cmux reflect [path]` in the guest read
+`cmux self [path]` (aliases `cmux whoami`, `cmux reflect`) in the guest reads
 `https://coderouter.cmux.internal/api/vm/reflection` (and, on new machines,
 `https://reflection.cmux.internal/`). The edge terminates the alias and injects the
 VM-bound route token and `x-cmux-vm-id`; `web/services/vms/vmPrincipal.ts` turns that
