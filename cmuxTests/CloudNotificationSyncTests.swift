@@ -1,10 +1,10 @@
-import Foundation
-import Testing
-#if DEBUG
+#if canImport(cmux_DEV)
 @testable import cmux_DEV
-#else
+#elseif canImport(cmux)
 @testable import cmux
 #endif
+import Foundation
+import Testing
 
 /// The Cloud notification sync must converge on one invariant under any
 /// sequence of feed replays, evictions, reads on other clients, local reads,
