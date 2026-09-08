@@ -1,6 +1,14 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "cli.claude-hook.notification.body.error": {"extractionState": "manual", "localizations": {"en": {"stringUnit": {"state": "translated", "value": "Claude reported an error"}}, "ja": {"stringUnit": {"state": "translated", "value": "Claude がエラーを報告しました"}}}},
+    "cli.notification.invalidPayload": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid notification payload" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "通知のペイロードが無効です" } }
+      }
+    },
     "cli.help.readScreen": {
       "extractionState": "manual",
       "localizations": {
@@ -221674,6 +221682,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "鍵盤快速鍵"
+          }
+        }
+      }
+    },
+    "settings.section.loading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み込み中…"
           }
         }
       }
