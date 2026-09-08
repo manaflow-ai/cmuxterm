@@ -729,6 +729,11 @@ extension TerminalController {
                 return ["accounts": accounts.map(\.foundationObject)]
             }
         case "aiAccounts.upload":
+            // `DisableAICredentialUpload` (MDM): the one verb that reads local
+            // credential files and ships them to the tenant.
+            guard ManagedAICredentialUploadPolicy.isEnabled else {
+                return v2Error(id: id, code: ManagedAICredentialUploadPolicy.socketErrorCode, message: ManagedAICredentialUploadPolicy.disabledMessage)
+            }
             guard let rawProvider = Self.socketWorkerString(params["provider"]),
                   let provider = AIAccountProvider(rawValue: rawProvider) else {
                 return v2Error(

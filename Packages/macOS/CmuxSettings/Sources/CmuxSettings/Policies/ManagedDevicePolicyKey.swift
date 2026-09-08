@@ -47,6 +47,38 @@ public enum ManagedDevicePolicyKey: String, CaseIterable, Sendable {
     /// transport itself, including the paths that are not remote control.
     case disableIrohNetworking = "DisableIrohNetworking"
 
+    /// Disables analytics and crash reporting (PostHog, Sentry) and the remote
+    /// feature-flag fetch, all of which carry the install's anonymous id off
+    /// the Mac. Read once at launch, like the user opt-in it overrides.
+    case disableTelemetry = "DisableTelemetry"
+
+    /// Disables Sparkle: no scheduled or launch-time update checks and no
+    /// downloads, and "Check for Updates…" explains the managed state. Read
+    /// at launch; the fleet's MDM deploys app versions instead.
+    case disableAutoUpdate = "DisableAutoUpdate"
+
+    /// Disables the `webhook` action of automation rules, which posts event
+    /// payloads with caller-supplied headers to any http(s) URL.
+    case disableAutomationWebhooks = "DisableAutomationWebhooks"
+
+    /// Disables the embedded browser's click-through on certificate errors:
+    /// the error page offers no bypass, and no earlier grant is honored.
+    case disableTLSTrustBypass = "DisableTLSTrustBypass"
+
+    /// Disables Computer Use: agent launches never receive the tools, the
+    /// helper stops, and the Settings toggle locks.
+    case disableComputerUse = "DisableComputerUse"
+
+    /// Disables interpreted custom sidebars from `~/.config/cmux/sidebars`
+    /// (user- or agent-authored code that can dispatch `cmux(...)` commands).
+    case disableCustomSidebars = "DisableCustomSidebars"
+
+    /// Disables uploading local AI credentials (Claude/Codex OAuth tokens,
+    /// Anthropic/OpenAI API keys) to the cmux tenant: `aiAccounts.upload` and
+    /// the coderouter upstream-account writes. Independent of ``disableCloud``,
+    /// which already covers both families.
+    case disableAICredentialUpload = "DisableAICredentialUpload"
+
     /// Restricts embedded-browser top-level navigations to the administrator's
     /// URL patterns. An empty forced array denies every external web origin
     /// while preserving cmux-owned internal documents. Loopback origins and

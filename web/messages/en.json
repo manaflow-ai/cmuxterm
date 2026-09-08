@@ -1704,7 +1704,7 @@
     "managedPolicies": {
       "title": "Managed Device Policies (MDM)",
       "metaTitle": "Managed device policies (MDM)",
-      "metaDescription": "Deploy MDM-enforceable policies for cmux on managed Macs: disable the embedded browser, iOS remote control, cmux Cloud, remote connections, file transfer, and relay networking, or restrict the browser to an allowlist, with a configuration profile targeting com.cmuxterm.app.",
+      "metaDescription": "Deploy MDM-enforceable policies for cmux on managed Macs: disable the embedded browser, iOS remote control, cmux Cloud, remote connections, file transfer, relay networking, telemetry, auto-update, automation webhooks, certificate bypass, Computer Use, custom sidebars, and AI credential upload, or restrict the browser to an allowlist, with a configuration profile targeting com.cmuxterm.app.",
       "intro": "cmux supports MDM-enforceable policies for managed Macs. Administrators deliver them as forced preference values through a macOS configuration profile (a Custom Settings payload). Forced values are tier 0: they win over environment variables, user settings, ~/.config/cmux/cmux.json imports, and built-in defaults.",
       "lockSummary": "Forced values cannot be changed from inside the app: the Settings UI shows the control as “Managed by your organization”, the command palette hides the matching commands, and the cmux CLI refuses with a managed-policy error.",
       "domainTitle": "Payload domain",
@@ -1750,7 +1750,15 @@
       "allowlistNoteLocal": "localhost and local files do not need entries; add rules only for the web origins your users should reach. If you force BrowserAllowLocalhost to false, list the exact loopback origins you still want to allow with a port-qualified rule.",
       "allowlistNoteEmpty": "A forced empty array is a valid policy that blocks every external web origin. Paths, queries, fragments, credentials, and non-HTTP(S) schemes are rejected; a list containing only invalid rules fails closed.",
       "allowlistNoteScope": "The allowlist governs page navigations. It does not filter subresource requests (images, scripts, fetch), and DisableEmbeddedBrowser takes precedence: when the browser is disabled the allowlist is not consulted.",
-      "allowlistNoteBlockedPage": "A blocked navigation shows an in-page explanation with the blocked origin and the next step; Settings → Browser shows the effective rules and whether localhost and local files are allowed, and cmux browser status --json reports the same."
+      "allowlistNoteBlockedPage": "A blocked navigation shows an in-page explanation with the blocked origin and the next step; Settings → Browser shows the effective rules and whether localhost and local files are allowed, and cmux browser status --json reports the same.",
+      "telemetryKeyDesc": "Disables analytics and crash reporting (PostHog, Sentry) and the remote feature-flag fetch; all three carry the install's anonymous id off the Mac, and flags then use their built-in defaults. Read once at launch like the user opt-in it overrides. Settings → App shows the telemetry toggle locked.",
+      "autoUpdateKeyDesc": "Disables Sparkle: no scheduled or launch-time update checks and no downloads, and Check for Updates explains the managed state. Read at launch. Deploy app versions through your MDM instead.",
+      "webhooksKeyDesc": "Disables the webhook action of automation rules, which posts event payloads with caller-supplied headers to any http(s) URL. The action fails with a managed-policy message in the automation log; run and notify actions are unaffected.",
+      "tlsBypassKeyDesc": "Disables the embedded browser's click-through on certificate errors: the error page offers no bypass and no earlier 24-hour grant is honored.",
+      "computerUseKeyDesc": "Disables Computer Use: new agent launches never receive the computer-use tools, the bundled helper stops (also when the policy is pushed mid-session), and Settings → Computer Use locks the toggle. Lifting the policy re-applies the user's own setting.",
+      "customSidebarsKeyDesc": "Disables interpreted custom sidebars from ~/.config/cmux/sidebars (user- or agent-authored code that can dispatch cmux commands): none are listed or mounted, and Settings → Beta Features locks the toggle.",
+      "aiCredentialUploadKeyDesc": "Disables uploading local AI credentials (Claude/Codex OAuth tokens, Anthropic/OpenAI API keys) to the cmux tenant: cmux ai-accounts upload and cmux coderouter claude add/update fail closed at the socket and inside their clients. Listing and removing accounts still work. Independent of DisableCloud, which refuses these families entirely.",
+      "noteLaunchTimeKeys": "DisableTelemetry and DisableAutoUpdate are the two launch-time reads: Settings shows their managed state within a minute of a push, and the telemetry and updater processes honor them at the next launch. Every other key applies live."
     },
     "remoteTmux": {
       "title": "Remote tmux",

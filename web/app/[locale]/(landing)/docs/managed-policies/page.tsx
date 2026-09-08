@@ -71,6 +71,20 @@ const sampleProfile = `<?xml version="1.0" encoding="UTF-8"?>
                                 <true/>
                                 <key>DisableIrohNetworking</key>
                                 <true/>
+                                <key>DisableTelemetry</key>
+                                <true/>
+                                <key>DisableAutoUpdate</key>
+                                <true/>
+                                <key>DisableAutomationWebhooks</key>
+                                <true/>
+                                <key>DisableTLSTrustBypass</key>
+                                <true/>
+                                <key>DisableComputerUse</key>
+                                <true/>
+                                <key>DisableCustomSidebars</key>
+                                <true/>
+                                <key>DisableAICredentialUpload</key>
+                                <true/>
                                 <key>BrowserURLAllowlist</key>
                                 <array>
                                     <string>https://git.example.com</string>
@@ -166,10 +180,53 @@ export default async function ManagedPoliciesPage({
             <td><code>false</code></td>
             <td>{t("irohKeyDesc")}</td>
           </tr>
+          <tr>
+            <td><code>DisableTelemetry</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("telemetryKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableAutoUpdate</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("autoUpdateKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableAutomationWebhooks</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("webhooksKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableTLSTrustBypass</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("tlsBypassKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableComputerUse</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("computerUseKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableCustomSidebars</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("customSidebarsKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableAICredentialUpload</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("aiCredentialUploadKeyDesc")}</td>
+          </tr>
         </tbody>
       </table>
       <ul>
         <li>{t("noteBoolean")}</li>
+        <li>{t("noteLaunchTimeKeys")}</li>
         <li>{t("noteForcedOnly")}</li>
         <li>{t("noteTiming")}</li>
         <li>{t("noteCloudEntitlement")}</li>
@@ -242,6 +299,13 @@ defaults read com.cmuxterm.app DisableCloud
 defaults read com.cmuxterm.app DisableRemoteConnections
 defaults read com.cmuxterm.app DisableFileTransfer
 defaults read com.cmuxterm.app DisableIrohNetworking
+defaults read com.cmuxterm.app DisableTelemetry
+defaults read com.cmuxterm.app DisableAutoUpdate
+defaults read com.cmuxterm.app DisableAutomationWebhooks
+defaults read com.cmuxterm.app DisableTLSTrustBypass
+defaults read com.cmuxterm.app DisableComputerUse
+defaults read com.cmuxterm.app DisableCustomSidebars
+defaults read com.cmuxterm.app DisableAICredentialUpload
 defaults read com.cmuxterm.app BrowserURLAllowlist
 defaults read com.cmuxterm.app BrowserAllowLocalhost     # absent or 1 = allowed
 defaults read com.cmuxterm.app BrowserAllowLocalFiles    # absent or 1 = allowed

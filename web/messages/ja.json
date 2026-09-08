@@ -1669,7 +1669,15 @@
       "allowlistNoteLocal": "localhost とローカルファイルにはエントリは不要です。ユーザーがアクセスすべきウェブオリジンのルールだけを追加してください。BrowserAllowLocalhost を false に強制した場合、引き続き許可したいループバックオリジンはポート付きのルールで個別に記載してください。",
       "allowlistNoteEmpty": "強制された空の配列は有効なポリシーで、すべての外部ウェブオリジンをブロックします。パス、クエリ、フラグメント、認証情報、HTTP(S) 以外のスキームは拒否されます。無効なルールのみを含むリストはフェイルクローズします。",
       "allowlistNoteScope": "許可リストはページのナビゲーションを対象とします。サブリソースのリクエスト（画像、スクリプト、fetch）はフィルタリングしません。DisableEmbeddedBrowser が優先され、ブラウザが無効な場合は許可リストは参照されません。",
-      "allowlistNoteBlockedPage": "ブロックされたナビゲーションは、ブロックされたオリジンと次の手順をページ内に表示します。設定 → ブラウザには有効なルールと localhost・ローカルファイルの許可状態が表示され、cmux browser status --json も同じ情報を報告します。"
+      "allowlistNoteBlockedPage": "ブロックされたナビゲーションは、ブロックされたオリジンと次の手順をページ内に表示します。設定 → ブラウザには有効なルールと localhost・ローカルファイルの許可状態が表示され、cmux browser status --json も同じ情報を報告します。",
+      "telemetryKeyDesc": "分析とクラッシュレポート（PostHog、Sentry）およびリモート機能フラグの取得を無効にします。いずれもインストールの匿名 ID を Mac の外へ送信し、フラグは組み込みのデフォルトを使用するようになります。上書き対象であるユーザーのオプトインと同様、起動時に一度だけ読み込まれます。設定 → App のテレメトリ切替はロック表示になります。",
+      "autoUpdateKeyDesc": "Sparkle を無効にします。スケジュールされたアップデート確認や起動時の確認、ダウンロードは行われず、「アップデートを確認」は管理状態を説明します。起動時に読み込まれます。アプリのバージョンは MDM で配布してください。",
+      "webhooksKeyDesc": "自動化ルールの webhook アクションを無効にします。このアクションは呼び出し側が指定したヘッダー付きでイベントペイロードを任意の http(s) URL に送信します。アクションは自動化ログに管理ポリシーのメッセージを残して失敗し、run と notify アクションには影響しません。",
+      "tlsBypassKeyDesc": "埋め込みブラウザの証明書エラーのクリックスルーを無効にします。エラーページにはバイパスが表示されず、以前の 24 時間の許可も適用されません。",
+      "computerUseKeyDesc": "Computer Use を無効にします。新しいエージェントの起動には computer-use ツールが渡されず、同梱のヘルパーは停止し（セッション中にポリシーが配布された場合も同様）、設定 → Computer Use の切替はロックされます。ポリシーを解除するとユーザー自身の設定が再適用されます。",
+      "customSidebarsKeyDesc": "~/.config/cmux/sidebars のインタープリタ型カスタムサイドバー（cmux コマンドを実行できるユーザーまたはエージェント作成のコード）を無効にします。一覧にもマウントにも現れず、設定 → ベータ機能の切替はロックされます。",
+      "aiCredentialUploadKeyDesc": "ローカルの AI 認証情報（Claude/Codex の OAuth トークン、Anthropic/OpenAI の API キー）を cmux テナントへアップロードする機能を無効にします。cmux ai-accounts upload と cmux coderouter claude add/update はソケットとクライアント内部の両方でフェイルクローズします。アカウントの一覧表示と削除は引き続き動作します。これらの機能全体を拒否する DisableCloud とは独立しています。",
+      "noteLaunchTimeKeys": "DisableTelemetry と DisableAutoUpdate は起動時に読み込まれる 2 つのキーです。設定は配布後 1 分以内に管理状態を表示し、テレメトリとアップデータのプロセスは次回起動時にそれらを反映します。その他のキーはすべて即時に適用されます。"
     },
     "remoteTmux": {
       "title": "リモート tmux",

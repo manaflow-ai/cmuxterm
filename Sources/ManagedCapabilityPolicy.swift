@@ -119,6 +119,41 @@ enum ManagedCloudPolicy {
     }
 }
 
+/// MDM master switch for uploading local AI credentials (Claude/Codex OAuth
+/// tokens, Anthropic/OpenAI API keys) to the cmux tenant. Independent of
+/// `DisableCloud`, which already refuses the same families.
+enum ManagedAICredentialUploadPolicy {
+    private static let policy = ManagedDevicePolicy()
+
+    /// Whether a profile forces `DisableAICredentialUpload`.
+    static var isDisabled: Bool {
+        return policy.isEnforced(.disableAICredentialUpload)
+    }
+
+    static var isEnabled: Bool { !isDisabled }
+
+    static let socketErrorCode = "ai_credential_upload_disabled"
+
+    static var disabledMessage: String {
+        String(
+            localized: "managedPolicy.aiCredentialUpload.disabled",
+            defaultValue: "Uploading AI account credentials is disabled by your organization."
+        )
+    }
+
+    static func refusalError() -> ManagedPolicyRefusal {
+        ManagedPolicyRefusal(message: disabledMessage)
+    }
+}
+
+/// A managed-policy refusal thrown from a service boundary. Its description
+/// is the user-facing message, so socket and CLI error paths print it as-is.
+struct ManagedPolicyRefusal: Error, CustomStringConvertible, LocalizedError {
+    let message: String
+    var description: String { message }
+    var errorDescription: String? { message }
+}
+
 /// MDM master switch for cmux-managed Iroh networking.
 enum ManagedIrohNetworkingPolicy {
     private static let policy = ManagedDevicePolicy()

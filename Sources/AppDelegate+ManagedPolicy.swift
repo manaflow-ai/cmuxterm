@@ -1,5 +1,6 @@
-import Foundation
+import AppKit
 import CmuxSettings
+import Foundation
 
 /// Runtime enforcement for MDM managed policies (`DisableEmbeddedBrowser`,
 /// `DisableRemoteControl`, `DisableCloud`, and `DisableRemoteConnections`):
@@ -27,8 +28,46 @@ extension AppDelegate {
             },
             enforceRemoteConnectionsPolicy: { [weak self] in
                 self?.endRemoteConnectionsForManagedPolicy()
+            },
+            enforceComputerUsePolicy: { [weak self] in
+                self?.applyManagedComputerUsePolicy()
             }
         )
+    }
+
+    /// `DisableComputerUse` transitions, both directions: activation stops the
+    /// helper (the spawn policy already withholds the tools from new agent
+    /// launches); a lift re-applies the user's own setting.
+    func applyManagedComputerUsePolicy() {
+        guard let service = computerUseRuntimeService else { return }
+        let catalog = settingsRuntime?.catalog ?? SettingCatalog()
+        let store = settingsRuntime?.jsonStore
+            ?? JSONConfigStore(fileURL: CmuxConfigLocation().userConfigFile)
+        let userEnabled = store.snapshotValue(for: catalog.computerUse.enabled)
+        Task { @MainActor in
+            // `setEnabled` applies the policy itself; passing the user's value
+            // keeps a lift symmetrical with activation.
+            await service.setEnabled(userEnabled)
+        }
+    }
+
+    /// `DisableAutoUpdate`: a manual "Check for Updates…" explains the managed
+    /// state instead of silently doing nothing. Returns true when the check
+    /// may proceed.
+    func managedAutoUpdateAllowsCheck() -> Bool {
+        guard ManagedDevicePolicy().isEnforced(.disableAutoUpdate) else { return true }
+        let alert = NSAlert()
+        alert.messageText = String(
+            localized: "managedPolicy.autoUpdate.disabled",
+            defaultValue: "Software updates are managed by your organization."
+        )
+        alert.informativeText = String(
+            localized: "managedPolicy.autoUpdate.disabledDetail",
+            defaultValue: "cmux does not check for or install updates on this Mac. Your organization deploys new versions."
+        )
+        alert.alertStyle = .informational
+        alert.runModal()
+        return false
     }
 
     /// `DisableRemoteConnections` activation. Every live cmux-created remote

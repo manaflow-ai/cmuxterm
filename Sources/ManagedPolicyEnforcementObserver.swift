@@ -43,6 +43,16 @@ final class ManagedPolicyEnforcementObserver {
     private let enforceRemoteControlPolicy: () -> Void
     private let enforceCloudPolicy: () -> Void
     private let enforceRemoteConnectionsPolicy: () -> Void
+    private let enforceComputerUsePolicy: () -> Void
+    /// Keys whose runtime effect is a per-call read, a launch-time read, or a
+    /// Settings lock: a transition only needs the change signal — except
+    /// Computer Use, whose helper is re-applied on both directions.
+    private static let settingsVisibleKeys: [ManagedDevicePolicyKey] = [
+        .disableTelemetry, .disableAutoUpdate, .disableAutomationWebhooks,
+        .disableTLSTrustBypass, .disableComputerUse, .disableCustomSidebars,
+        .disableAICredentialUpload,
+    ]
+    private var settingsVisiblePolicyStates: [ManagedDevicePolicyKey: Bool]
     private var browserPolicyActive: Bool
     private var observedBrowserURLAllowlistPolicy: BrowserURLAllowlistPolicy
     private var remoteControlPolicyActive: Bool
@@ -72,7 +82,8 @@ final class ManagedPolicyEnforcementObserver {
         enforceBrowserURLAllowlistPolicy: @escaping () -> Void,
         enforceRemoteControlPolicy: @escaping () -> Void,
         enforceCloudPolicy: @escaping () -> Void = {},
-        enforceRemoteConnectionsPolicy: @escaping () -> Void = {}
+        enforceRemoteConnectionsPolicy: @escaping () -> Void = {},
+        enforceComputerUsePolicy: @escaping () -> Void = {}
     ) {
         self.notificationCenter = notificationCenter
         self.isBrowserDisabledByPolicy = isBrowserDisabledByPolicy
@@ -86,6 +97,8 @@ final class ManagedPolicyEnforcementObserver {
         self.enforceRemoteControlPolicy = enforceRemoteControlPolicy
         self.enforceCloudPolicy = enforceCloudPolicy
         self.enforceRemoteConnectionsPolicy = enforceRemoteConnectionsPolicy
+        self.enforceComputerUsePolicy = enforceComputerUsePolicy
+        settingsVisiblePolicyStates = Self.settingsVisibleStates(capabilityPolicy)
         browserPolicyActive = isBrowserDisabledByPolicy()
         observedBrowserURLAllowlistPolicy = browserURLAllowlistPolicy()
         remoteControlPolicyActive = isRemoteControlDisabledByPolicy()
@@ -102,6 +115,10 @@ final class ManagedPolicyEnforcementObserver {
         if remoteConnectionsPolicyActive {
             // Same for remote connections: nothing cmux created may stay dialed.
             enforceRemoteConnectionsPolicy()
+        }
+        if settingsVisiblePolicyStates[.disableComputerUse] == true {
+            // A profile installed before launch: stop the helper right away.
+            enforceComputerUsePolicy()
         }
         observe(UserDefaults.didChangeNotification)
         observe(NSApplication.didBecomeActiveNotification)
@@ -120,6 +137,10 @@ final class ManagedPolicyEnforcementObserver {
 
     deinit {
         observationTasks.forEach { $0.cancel() }
+    }
+
+    private static func settingsVisibleStates(_ policy: ManagedDevicePolicy) -> [ManagedDevicePolicyKey: Bool] {
+        Dictionary(uniqueKeysWithValues: settingsVisibleKeys.map { ($0, policy.isEnforced($0)) })
     }
 
     private func observe(_ name: Notification.Name) {
@@ -190,6 +211,14 @@ final class ManagedPolicyEnforcementObserver {
             // upload reads the resolver.
             fileTransferPolicyActive = fileTransferNow
             anyTransition = true
+        }
+        let settingsVisibleNow = Self.settingsVisibleStates(capabilityPolicy)
+        if settingsVisibleNow != settingsVisiblePolicyStates {
+            let computerUseChanged =
+                settingsVisibleNow[.disableComputerUse] != settingsVisiblePolicyStates[.disableComputerUse]
+            settingsVisiblePolicyStates = settingsVisibleNow
+            anyTransition = true
+            if computerUseChanged { enforceComputerUsePolicy() }
         }
         if anyTransition {
             // Settings UI re-reads the resolver on this signal.

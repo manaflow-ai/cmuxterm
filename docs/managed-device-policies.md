@@ -34,6 +34,13 @@ domain wins over the release-domain fallback.
 | `DisableRemoteConnections` | Boolean | `false` | Disables cmux-created remote connections: SSH, Mosh, and remote tmux sessions, plus the remote registry, from every entry point (command palette, menus, `cmux` CLI, socket automation, and session restore). The socket refuses with `remote_connections_disabled`, `ssh://` links cmux is asked to open are refused up front, and a profile pushed mid-session disconnects every live cmux-created remote workspace and remote tmux mirror (a retained configuration cannot redial, and the wake-from-sleep re-arm is skipped). Cloud Machines attach over the same mechanism, so this key blocks them too; use `DisableCloud` to disable Cloud as a product. Terminals on this Mac are unaffected, and a user's own `ssh` typed into a shell is deliberately out of scope — this control governs connections cmux creates, not the shell. |
 | `DisableFileTransfer` | Boolean | `false` | Disables cmux-mediated file transfer: drag-and-drop and pasted-image uploads into a remote terminal (both the workspace remote session and a detected `ssh` session, including a configured `terminal.uploadCommands` custom command), remote-file previews in the SSH file explorer, phone↔Mac transfers over the iOS app (attachment upload, artifact and changed-file fetch, image paste; RPC code `file_transfer_disabled`), and `cmux vm push` / `cmux vm pull`. A refused drop or paste shows the policy message. Local drops into local terminals still work. A user's own `scp` or `rsync` typed into a shell is deliberately out of scope. |
 | `DisableIrohNetworking` | Boolean | `false` | Disables cmux-managed Iroh networking: the host runtime never activates, so no endpoint is created, no relay traffic flows, and no routes are published. Local terminal work, the local automation socket, and ordinary SSH are unaffected. `DisableRemoteControl` disables the Mac's role as an iOS remote-control host; this key disables the transport itself. Settings → Networking shows the managed state and locks its controls. |
+| `DisableTelemetry` | Boolean | `false` | Disables analytics and crash reporting (PostHog, Sentry) and the remote feature-flag fetch; all three carry the install's anonymous id off the Mac, and flags then use their built-in defaults. Read once at launch, like the user opt-in it overrides, so a profile pushed mid-session applies at the next launch. Settings → App shows the telemetry toggle locked. |
+| `DisableAutoUpdate` | Boolean | `false` | Disables Sparkle: no scheduled or launch-time update checks and no downloads, and "Check for Updates…" explains the managed state. Read at launch. Deploy app versions through your MDM instead. |
+| `DisableAutomationWebhooks` | Boolean | `false` | Disables the `webhook` action of automation rules (`~/.cmuxterm/automations.json`, `cmux automation`), which posts event payloads with caller-supplied headers to any http(s) URL. The action fails with a managed-policy message in the automation log; `run` and `notify` actions are unaffected. |
+| `DisableTLSTrustBypass` | Boolean | `false` | Disables the embedded browser's click-through on certificate errors: the error page offers no bypass and no earlier 24-hour grant is honored. |
+| `DisableComputerUse` | Boolean | `false` | Disables Computer Use: new agent launches never receive the computer-use tools, the bundled helper stops (also when the policy is pushed mid-session), and Settings → Computer Use locks the toggle. Lifting the policy re-applies the user's own setting. |
+| `DisableCustomSidebars` | Boolean | `false` | Disables interpreted custom sidebars from `~/.config/cmux/sidebars` (user- or agent-authored `.js`/`.swift`/`.json` that can dispatch `cmux(...)` commands): none are listed or mounted, and Settings → Beta Features locks the toggle. |
+| `DisableAICredentialUpload` | Boolean | `false` | Disables uploading local AI credentials (Claude/Codex OAuth tokens, Anthropic/OpenAI API keys) to the cmux tenant: `cmux ai-accounts upload` (`aiAccounts.upload`) and `cmux coderouter claude add/update` fail closed at the socket (`ai_credential_upload_disabled`) and inside their clients. Listing and removing accounts still work. Independent of `DisableCloud`, which refuses these families entirely. |
 | `BrowserURLAllowlist` | Array of strings | unset (allow all web origins) | Restricts every embedded-browser top-level navigation to matching URL patterns. Address-bar loads, links, redirects, `window.open`, automation, deep links, and restored panes are checked. A forced empty array denies all external web origins while cmux-owned internal documents (such as `about:blank` and diff pages), localhost, and local files remain available unless the two allow keys below turn them off. See [Browser allowlist](#browser-allowlist). |
 | `BrowserAllowLocalhost` | Boolean | `true` | Allow-style key. While `true`, a managed `BrowserURLAllowlist` permits `localhost`, `*.localhost`, `127.0.0.1`, `::1`, and `0.0.0.0` on any HTTP(S) port without a rule, so local development servers keep working. Forced to `false`, loopback origins are blocked in the embedded browser — even ones the list names, and even when no list is forced. |
 | `BrowserAllowLocalFiles` | Boolean | `true` | Allow-style key. While `true`, local `file:` documents opened through cmux (the address bar, `cmux browser open`, terminal links, a file dropped onto a browser pane, or a link from another local file) stay available under a managed list. Forced to `false`, local files are blocked whether or not a list is forced. |
@@ -41,8 +48,11 @@ domain wins over the release-domain fallback.
 Notes:
 
 - `DisableEmbeddedBrowser`, `DisableRemoteControl`, `DisableCloud`,
-  `DisableRemoteConnections`, `DisableFileTransfer`, and
-  `DisableIrohNetworking` values must be Boolean.
+  `DisableRemoteConnections`, `DisableFileTransfer`,
+  `DisableIrohNetworking`, `DisableTelemetry`, `DisableAutoUpdate`,
+  `DisableAutomationWebhooks`, `DisableTLSTrustBypass`, `DisableComputerUse`,
+  `DisableCustomSidebars`, and `DisableAICredentialUpload` values must be
+  Boolean.
   A Boolean key forced to `false` (or to a non-Boolean value) does not enforce
   the policy, but the key still counts as managed for write-locking purposes.
   `BrowserAllowLocalhost` and `BrowserAllowLocalFiles` are the two allow-style
@@ -76,7 +86,9 @@ Notes:
   notifications, whenever the app becomes active, and on a periodic
   re-check (about once a minute) while the app runs — a profile pushed
   mid-session takes effect within roughly a minute even if the user never
-  leaves cmux.
+  leaves cmux. `DisableTelemetry` and `DisableAutoUpdate` are the two
+  launch-time reads: Settings shows their managed state within that minute,
+  and the telemetry and updater processes honor them at the next launch.
 
 ## Lockability
 
@@ -210,6 +222,20 @@ table above when a full browser disable is desired.
                                 <true/>
                                 <key>DisableIrohNetworking</key>
                                 <true/>
+                                <key>DisableTelemetry</key>
+                                <true/>
+                                <key>DisableAutoUpdate</key>
+                                <true/>
+                                <key>DisableAutomationWebhooks</key>
+                                <true/>
+                                <key>DisableTLSTrustBypass</key>
+                                <true/>
+                                <key>DisableComputerUse</key>
+                                <true/>
+                                <key>DisableCustomSidebars</key>
+                                <true/>
+                                <key>DisableAICredentialUpload</key>
+                                <true/>
                                 <!-- localhost and local files need no entries;
                                      force BrowserAllowLocalhost / BrowserAllowLocalFiles
                                      to false to block them. -->
@@ -251,6 +277,13 @@ defaults read com.cmuxterm.app DisableCloud
 defaults read com.cmuxterm.app DisableRemoteConnections
 defaults read com.cmuxterm.app DisableFileTransfer
 defaults read com.cmuxterm.app DisableIrohNetworking
+defaults read com.cmuxterm.app DisableTelemetry
+defaults read com.cmuxterm.app DisableAutoUpdate
+defaults read com.cmuxterm.app DisableAutomationWebhooks
+defaults read com.cmuxterm.app DisableTLSTrustBypass
+defaults read com.cmuxterm.app DisableComputerUse
+defaults read com.cmuxterm.app DisableCustomSidebars
+defaults read com.cmuxterm.app DisableAICredentialUpload
 defaults read com.cmuxterm.app BrowserURLAllowlist
 defaults read com.cmuxterm.app BrowserAllowLocalhost     # absent or 1 = allowed
 defaults read com.cmuxterm.app BrowserAllowLocalFiles    # absent or 1 = allowed
@@ -271,3 +304,6 @@ In cmux, Settings → Browser shows the enable toggle disabled with
 the iOS app is disabled by your organization.", and Settings → Beta Features
 shows the Cloud Machines toggle disabled with "Managed by your organization"
 while the Cloud settings section and the right-sidebar Cloud tab are hidden.
+The telemetry toggle (Settings → App), the Computer Use toggle, and the
+Custom Sidebars toggle lock the same way under their keys, and
+"Check for Updates…" explains the managed state under `DisableAutoUpdate`.

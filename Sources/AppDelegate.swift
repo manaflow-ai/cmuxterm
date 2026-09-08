@@ -835,7 +835,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// `ContentView` environment so `@LiveSetting` can resolve the stores it
     /// observes inside the sidebar.
     var settingsRuntime: SettingsRuntime?
-    private var computerUseRuntimeService: ComputerUseRuntimeService?
+    /// Injected before the coordinator is used; the managed-policy extension
+    /// re-applies `DisableComputerUse` through it.
+    var computerUseRuntimeService: ComputerUseRuntimeService?
     weak var fileExplorerState: FileExplorerState?
     weak var fullscreenControlsViewModel: TitlebarControlsViewModel?
     weak var sidebarSelectionState: SidebarSelectionState?
@@ -927,7 +929,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let sidebarDragStateRegistry = SidebarDragStateRegistry()
     var debugFocusedTerminalKeyRepairObserverForTesting: ((NSWindow, NSEvent, NSResponder?) -> Void)?
     #endif
-    private lazy var updateController = UpdateController(log: updateLog)
+    private lazy var updateController = UpdateController(
+        log: updateLog,
+        // `DisableAutoUpdate` (MDM): the updater never starts and manual checks
+        // are suppressed while forced; `managedAutoUpdateAllowsCheck()` explains.
+        isDisabledByPolicy: { ManagedDevicePolicy().isEnforced(.disableAutoUpdate) }
+    )
     private let titlebarControlsLayoutModel = TitlebarControlsLayoutModel()
     private lazy var titlebarAccessoryController = UpdateTitlebarAccessoryController(
         updateLog: updateLog,
@@ -1660,7 +1667,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             PostHogAnalytics.shared.startIfNeeded()
             StartupBreadcrumbLog.append("appDelegate.didFinish.posthog.complete")
         }
-        if !isRunningUnderXCTest {
+        // `DisableTelemetry` (MDM) also stops the remote feature-flag fetch: it
+        // carries the same anonymous install id, and flags then use their
+        // built-in defaults.
+        if !isRunningUnderXCTest, !ManagedDevicePolicy().isEnforced(.disableTelemetry) {
             CmuxFeatureFlags.shared.start()
         }
 
@@ -10421,11 +10431,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc func checkForUpdates(_ sender: Any?) {
+        guard managedAutoUpdateAllowsCheck() else { return }
         updateController.model.setOverrideState(nil)
         updateController.checkForUpdates()
     }
 
     func checkForUpdatesInCustomUI() {
+        guard managedAutoUpdateAllowsCheck() else { return }
         updateController.model.setOverrideState(nil)
         updateController.checkForUpdatesInCustomUI()
     }
