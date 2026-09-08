@@ -851,7 +851,7 @@ struct EmptyPanelView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            CmuxSystemSymbolImage(magnified: "terminal.fill", pointSize: 48, tint: .tertiary)
+            CmuxSystemSymbolImage(magnified: "terminal.fill", pointSize: 48, tint: Color(nsColor: .tertiaryLabelColor))
 
             Text(String(localized: "emptyPanel.title", defaultValue: "Empty Panel"))
                 .cmuxFont(.headline)

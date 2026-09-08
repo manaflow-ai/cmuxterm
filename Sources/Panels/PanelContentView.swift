@@ -378,7 +378,7 @@ private struct CloudVMLoadingStatusRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            CmuxSystemSymbolImage(systemName: icon, pointSize: 12, tint: isActive ? .secondary : .tertiary)
+            CmuxSystemSymbolImage(systemName: icon, pointSize: 12, tint: isActive ? Color.secondary : Color(nsColor: .tertiaryLabelColor))
                 .frame(width: 14)
             Text(text)
                 .cmuxFont(size: 12)
