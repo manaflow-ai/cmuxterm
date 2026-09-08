@@ -387,7 +387,7 @@ extension DockSplitStore {
             }
             let persistedAgentWasRunning: Bool? =
                 restorableAgent != nil || resumeBinding != nil || managedResumeBinding != nil
-                    ? (agentWasRunning ?? false)
+                    ? agentWasRunning
                     : nil
             let tmuxStartCommand = localTmuxStartCommand
                 ?? (restorableAgent == nil
@@ -723,6 +723,6 @@ extension DockSplitStore {
             confirmedRuntimeProcessIdentities: confirmedRuntimeIdentities,
             currentProcessIdentity: currentAgentProcessIdentity,
             processPresence: agentProcessPresence
-        ) ?? false
+        )
     }
 }

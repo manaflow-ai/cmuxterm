@@ -625,7 +625,7 @@ extension Workspace {
                             confirmedRuntimeProcessIdentities: confirmedRuntimeProcessIdentities,
                             currentProcessIdentity: currentAgentProcessIdentity,
                             processPresence: agentProcessPresence
-                        ) ?? false
+                        )
                 }
                 guard let effectiveRestorableAgent else { return nil }
                 let confirmedRuntimeProcessIdentities = confirmedRuntimeAgentProcessIdentities(
@@ -677,7 +677,7 @@ extension Workspace {
             }
             let persistedAgentWasRunning: Bool? =
                 effectiveRestorableAgent != nil || effectiveResumeBinding != nil
-                    ? (agentWasRunning ?? false)
+                    ? agentWasRunning
                     : nil
             let resumeStartupInput = localTmuxStartCommand == nil
                 ? sessionRestorePolicy.surfaceResumeStartupInput(
@@ -1656,7 +1656,7 @@ extension Workspace {
             // snapshot available for manual continuation, but never let the
             // ownership-deferred path synthesize an agent resume command on
             // top of that binding.
-            let restorableAgentCanAutoResume = restorableAgent != nil &&
+            let restorableAgentCanAutoResume = restorableAgent?.hasAuthoritativeResumeIdentity == true &&
                 (resumeBinding == nil || resumeBinding?.isAgentHookBinding == true)
             let shouldCheckAgentOwnership = shouldAutoResumeAgent &&
                 (restorableAgentCanAutoResume || resumeBinding?.isAgentHookBinding == true)

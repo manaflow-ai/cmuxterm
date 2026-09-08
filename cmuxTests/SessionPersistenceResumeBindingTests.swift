@@ -94,9 +94,9 @@ import Testing
         let firstTerminal = try #require(first.panels.first?.terminal)
         #expect(firstTerminal.agent?.sessionId == sessionId)
         #expect(firstTerminal.resumeBinding?.checkpointId == sessionId)
-        // Unknown liveness is persisted fail-closed so a scan gap cannot turn
-        // into an automatic resume on the next restart.
-        #expect(firstTerminal.wasAgentRunning == false)
+        // Unknown liveness remains inconclusive so a scan gap does not become
+        // a durable stopped-state claim on the next restart.
+        #expect(firstTerminal.wasAgentRunning == nil)
 
         let second = workspace.sessionSnapshot(
             includeScrollback: false,

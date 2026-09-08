@@ -2247,9 +2247,7 @@ struct RestorableAgentSessionIndex: Sendable {
             ) {
                 resolved[key] = processDetectedEntry(
                     key: key,
-                    snapshot: detected.snapshot.preservingCodexResumeEvidence(
-                        from: existing.snapshot
-                    ),
+                    snapshot: existing.snapshot,
                     lifecycle: existing.lifecycle,
                     updatedAt: existing.updatedAt,
                     detected: detected

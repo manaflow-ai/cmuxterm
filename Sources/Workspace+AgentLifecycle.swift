@@ -652,7 +652,8 @@ extension Workspace {
                 removeDeferredAgentResumeRestore(panelId: panelId)
                 continue
             }
-            guard restore.restorableAgent?.hasAuthoritativeResumeIdentity != false else {
+            guard restore.restorableAgent?.hasAuthoritativeResumeIdentity != false ||
+                restore.resumeBinding?.isAgentHookBinding == true else {
                 cancelDeferredAgentResumeRestore(panelId: panelId, restore: restore)
                 continue
             }
