@@ -58,6 +58,12 @@
             "state": "translated",
             "value": "附加"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加"
+          }
         }
       }
     },
@@ -116,6 +122,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "附加圖片"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加图片"
           }
         }
       }
@@ -176,6 +188,12 @@
             "state": "translated",
             "value": "附加圖片"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加图片"
+          }
         }
       }
     },
@@ -234,6 +252,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "最多 10 張圖片。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 10 张图片。"
           }
         }
       }
@@ -359,6 +383,12 @@
             "state": "translated",
             "value": "無法傳送意見反應。請檢查您的連線並重試。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送反馈。请检查您的网络连接并重试。"
+          }
         }
       }
     },
@@ -483,6 +513,12 @@
             "state": "translated",
             "value": "您的電子郵件"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的电子邮箱"
+          }
         }
       }
     },
@@ -538,6 +574,12 @@
           }
         },
         "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you@example.com"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "you@example.com"
@@ -601,6 +643,12 @@
             "state": "translated",
             "value": "傳送前請先輸入訊息。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送前请输入内容。"
+          }
         }
       }
     },
@@ -659,6 +707,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "目前無法使用意見反應功能。請改為傳送電子郵件至 founders@manaflow.com。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈服务目前不可用。请发送邮件至 founders@manaflow.com 联系我们。"
           }
         }
       }
@@ -719,6 +773,12 @@
             "state": "translated",
             "value": "無法傳送意見反應。請重試。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法发送反馈。请重试。"
+          }
         }
       }
     },
@@ -778,6 +838,12 @@
             "state": "translated",
             "value": "請輸入有效的電子郵件地址。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请输入有效的电子邮箱地址。"
+          }
         }
       }
     },
@@ -836,6 +902,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法附加其中一個選取的檔案。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选中的某个文件无法附加。"
           }
         }
       }
@@ -961,6 +1033,12 @@
             "state": "translated",
             "value": "分享意見反應、功能需求或問題。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享反馈、功能需求或遇到的问题。"
+          }
         }
       }
     },
@@ -1019,6 +1097,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "您的訊息過長。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您的反馈内容过长。"
           }
         }
       }
@@ -1079,6 +1163,12 @@
             "state": "translated",
             "value": "您也可以透過 founders@manaflow.com 與我們聯絡。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您也可以通过 founders@manaflow.com 联系我们。"
+          }
         }
       }
     },
@@ -1138,6 +1228,12 @@
             "state": "translated",
             "value": "嘗試傳送意見反應的次數過多。請稍後重試。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反馈尝试过于频繁。请稍后再试。"
+          }
         }
       }
     },
@@ -1193,6 +1289,12 @@
           }
         },
         "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "移除"
@@ -1321,6 +1423,12 @@
             "state": "translated",
             "value": "您也可以透過 founders@manaflow.com 與我們聯絡。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您也可以通过 founders@manaflow.com 联系我们。"
+          }
         }
       }
     },
@@ -1379,6 +1487,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "感謝您的意見反應。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "感谢您的反馈。"
           }
         }
       }
@@ -1504,6 +1618,12 @@
             "state": "translated",
             "value": "您最多可以附加 10 張圖片。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "您最多只能附加 10 张图片。"
+          }
         }
       }
     },
@@ -1563,6 +1683,12 @@
             "state": "translated",
             "value": "這些圖片過大，無法同時傳送。請移除幾張圖片後重試。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些图片过大，无法一同发送。请移除部分图片后重试。"
+          }
         }
       }
     },
@@ -1621,6 +1747,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "請檢查您的訊息與附件，然後重試。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查您的反馈内容和附件，然后重试。"
           }
         }
       }

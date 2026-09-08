@@ -46,6 +46,12 @@
             "state": "translated",
             "value": "Diff 檢視器允許清單過大"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 查看器白名单过大"
+          }
         }
       }
     },
@@ -92,6 +98,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "重複的 Diff 檢視器允許清單項目"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重复的 Diff 查看器白名单条目"
           }
         }
       }
@@ -140,6 +152,12 @@
             "state": "translated",
             "value": "Diff 檢視器允許清單為空"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 查看器白名单为空"
+          }
         }
       }
     },
@@ -186,6 +204,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "無效的 Diff 檢視器允許清單項目"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效的 Diff 查看器白名单条目"
           }
         }
       }
@@ -234,6 +258,12 @@
             "state": "translated",
             "value": "無效的 Diff 檢視器 Manifest"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效的 Diff 查看器清单"
+          }
         }
       }
     },
@@ -280,6 +310,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "無效的 Diff 檢視器 Token"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无效的 Diff 查看器令牌"
           }
         }
       }
@@ -328,6 +364,12 @@
             "state": "translated",
             "value": "Diff 檢視器 Manifest 過大"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 查看器清单过大"
+          }
         }
       }
     },
@@ -375,6 +417,12 @@
             "state": "translated",
             "value": "Diff 檢視器檔案無法讀取"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 查看器文件不可读"
+          }
         }
       }
     },
@@ -421,6 +469,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diff 檢視器信任的目錄不安全"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diff 查看器受信任目录不安全"
           }
         }
       }

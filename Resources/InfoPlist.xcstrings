@@ -629,6 +629,12 @@
             "state": "translated",
             "value": "在 cmux 中執行的程式想要尋找您區域網路上的裝置。"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中运行的程序想要发现您本地网络上的设备。"
+          }
         }
       }
     },
@@ -1106,6 +1112,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "在 cmux 中執行的程式想要執行系統管理工作。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 cmux 中运行的程序想要执行系统管理任务。"
           }
         }
       }
