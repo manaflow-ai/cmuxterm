@@ -38,6 +38,8 @@ enum VMClientError: Error, CustomStringConvertible {
     case backendUnreachable(url: String, detail: String)
     case httpStatus(Int, String)
     case malformedResponse(String)
+    /// The control plane answered 501 to `pause`/`resume`: this provider has no such operation.
+    case lifecycleUnsupported(action: String)
 
     var description: String {
         switch self {
@@ -70,6 +72,13 @@ enum VMClientError: Error, CustomStringConvertible {
                 """
         case .httpStatus(let code, let body):
             return formattedCloudVMHTTPError(status: code, body: body)
+        case .lifecycleUnsupported(let action):
+            return """
+                This provider cannot \(action) machines.
+
+                What to do:
+                  Machines here stay available until you delete them; `cmux vm rm <id>` when the work is done.
+                """
         case .malformedResponse(let message):
             return """
                 The cmux Cloud VM backend returned a response this client could not read.
@@ -1332,6 +1341,38 @@ actor VMClient {
         let encodedID = try pathSegment(id, fieldName: "vm id")
         let (data, http) = try await request("DELETE", path: "/api/vm/\(encodedID)")
         try ensureOK(http, data: data)
+    }
+
+    /// `POST /api/vm/<id>/pause`: park the machine — compute stops (and stops billing), the
+    /// volume, workspaces and terminal history stay. Returns the status the control plane
+    /// now reports. A provider that cannot pause answers 501 `vm_pause_unsupported`.
+    func pause(id: String) async throws -> String {
+        try await lifecycleTransition(id: id, action: "pause")
+    }
+
+    /// `POST /api/vm/<id>/resume`: wake a paused machine; the daemon, its terminals and
+    /// files come back. Plan limits apply exactly as they do to an implicit wake.
+    func resume(id: String) async throws -> String {
+        try await lifecycleTransition(id: id, action: "resume")
+    }
+
+    private func lifecycleTransition(id: String, action: String) async throws -> String {
+        let encodedID = try pathSegment(id, fieldName: "vm id")
+        let (data, http) = try await request(
+            "POST",
+            path: "/api/vm/\(encodedID)/\(action)",
+            jsonBody: [:],
+            timeoutSeconds: Self.createTimeoutSeconds
+        )
+        if http.statusCode == 501 {
+            throw VMClientError.lifecycleUnsupported(action: action)
+        }
+        try ensureOK(http, data: data)
+        let obj = try decodeJSONObject(data)
+        guard let status = obj["status"] as? String, !status.isEmpty else {
+            throw VMClientError.malformedResponse("Cloud VM \(action) response was missing `status`.")
+        }
+        return status
     }
 
     func snapshot(id: String, name: String? = nil) async throws -> VMSnapshotResult {

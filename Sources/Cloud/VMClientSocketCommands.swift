@@ -298,6 +298,17 @@ extension TerminalController {
                     "displayName": stored ?? NSNull(),
                 ]
             }
+        case "vm.pause", "vm.resume":
+            guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
+                return v2Error(id: id, code: "invalid_params", message: "\(method) requires `id`. Run `cmux vm ls` to find one.")
+            }
+            let resume = method == "vm.resume"
+            return v2VmCall(id: id) {
+                let status = resume
+                    ? try await VMClient.shared.resume(id: vmId)
+                    : try await VMClient.shared.pause(id: vmId)
+                return ["id": vmId, "status": status]
+            }
         case "vm.snapshot":
             guard let vmId = Self.socketWorkerString(params["id"]), !vmId.isEmpty else {
                 return v2Error(id: id, code: "invalid_params", message: "vm.snapshot requires `id`. Run `cmux vm ls` to find one.")
@@ -579,6 +590,10 @@ extension TerminalController {
             return socketWorkerVMTerminalReadResponse(id: id, params: params)
         case "vm.terminal_wait":
             return socketWorkerVMTerminalWaitResponse(id: id, params: params)
+        case "vm.terminal_wait_exit":
+            return socketWorkerVMTerminalWaitExitResponse(id: id, params: params)
+        case "vm.terminal_output":
+            return socketWorkerVMTerminalOutputResponse(id: id, params: params)
         case "vm.env_set":
             return socketWorkerVMEnvSetResponse(id: id, params: params)
         case "vm.terminal_rename":

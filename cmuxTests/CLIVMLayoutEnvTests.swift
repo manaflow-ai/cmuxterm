@@ -726,4 +726,309 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertTrue(result.stderr.contains("predates layout support"), result.stderr)
         XCTAssertTrue(result.stderr.contains("cmux vm tree brave-otter --refresh"), result.stderr)
     }
+
+    // MARK: - vm exec --timeout, pause/resume, terminal wait-exit/output, workspace new --reuse, per-verb help
+
+    /// A mock that routes every v2 method through `respond` (nil → "unexpected method"),
+    /// for the verbs whose contract is the method and its params, not an exec command line.
+    private func startVMMethodMock(
+        listenerFD: Int32,
+        state: MockSocketServerState,
+        log: VMLayoutEnvRequestLog,
+        respond: @escaping @Sendable (_ method: String, _ params: [String: Any]) -> [String: Any]?
+    ) -> XCTestExpectation {
+        startMockServer(listenerFD: listenerFD, state: state) { line in
+            if line.hasPrefix("auth ") { return "OK" }
+            guard let request = self.jsonObject(line),
+                  let id = request["id"] as? String,
+                  let method = request["method"] as? String else {
+                return self.malformedRequestResponse(raw: line)
+            }
+            log.append(request)
+            let params = (request["params"] as? [String: Any]) ?? [:]
+            guard let result = respond(method, params) else {
+                return self.v2Response(id: id, ok: false, error: ["code": "unexpected", "message": "Unexpected method \(method)"])
+            }
+            return self.v2Response(id: id, ok: true, result: result)
+        }
+    }
+
+    /// One `cmux vm …` invocation against `startVMMethodMock`; returns the process result
+    /// and every request the mock saw (the auth handshake is not a request).
+    private func runVMCommandAgainstMock(
+        _ name: String,
+        arguments: [String],
+        respond: @escaping @Sendable (_ method: String, _ params: [String: Any]) -> [String: Any]?
+    ) throws -> (result: ProcessRunResult, log: VMLayoutEnvRequestLog) {
+        let cliPath = try bundledCLIPath()
+        let socketPath = makeSocketPath(name)
+        let listenerFD = try bindUnixSocket(at: socketPath)
+        let state = MockSocketServerState()
+        let log = VMLayoutEnvRequestLog()
+        defer {
+            Darwin.close(listenerFD)
+            unlink(socketPath)
+        }
+        let serverHandled = startVMMethodMock(listenerFD: listenerFD, state: state, log: log, respond: respond)
+        let result = runProcess(
+            executablePath: cliPath,
+            arguments: arguments,
+            environment: vmLayoutEnvEnvironment(socketPath: socketPath),
+            timeout: 30
+        )
+        wait(for: [serverHandled], timeout: 30)
+        XCTAssertFalse(result.timedOut, "\(arguments) timed out: \(result.stderr)")
+        return (result, log)
+    }
+
+    func testVMExecTimeoutFlagBecomesTimeoutMsAndStaysOutOfTheCommand() throws {
+        let (result, log) = try runVMCommandAgainstMock(
+            "vm-exec-timeout",
+            // The flag sits before `--`; the same word after `--` is command text.
+            arguments: ["vm", "exec", "--timeout", "120", "brave-otter", "--", "sh", "-c", "sleep 1; echo --timeout done"]
+        ) { method, _ in
+            method == "vm.exec" ? ["exit_code": 0, "stdout": "done\n", "stderr": ""] : nil
+        }
+
+        XCTAssertEqual(result.status, 0, "stdout=\(result.stdout) stderr=\(result.stderr)")
+        XCTAssertEqual(log.methods, ["vm.exec"], log.methods.description)
+        let params = log.params(ofFirst: "vm.exec")
+        XCTAssertEqual(params?["id"] as? String, "brave-otter")
+        XCTAssertEqual(params?["timeout_ms"] as? Int, 120_000)
+        XCTAssertEqual(params?["command"] as? String, "sh -c 'sleep 1; echo --timeout done'")
+        XCTAssertEqual(result.stdout, "done\n")
+    }
+
+    func testVMExecDefaultsToThirtySecondsAndRejectsOutOfRangeTimeouts() throws {
+        let (defaulted, defaultLog) = try runVMCommandAgainstMock(
+            "vm-exec-default",
+            arguments: ["vm", "exec", "brave-otter", "--", "true"]
+        ) { method, _ in
+            method == "vm.exec" ? ["exit_code": 0, "stdout": "", "stderr": ""] : nil
+        }
+        XCTAssertEqual(defaulted.status, 0, "stdout=\(defaulted.stdout) stderr=\(defaulted.stderr)")
+        XCTAssertEqual(defaultLog.params(ofFirst: "vm.exec")?["timeout_ms"] as? Int, 30_000)
+
+        for bad in ["0", "901", "2m"] {
+            let (rejected, rejectedLog) = try runVMCommandAgainstMock(
+                "vm-exec-bad-timeout",
+                arguments: ["vm", "exec", "--timeout", bad, "brave-otter", "--", "true"]
+            ) { _, _ in nil }
+            XCTAssertNotEqual(rejected.status, 0, "--timeout \(bad) must be rejected: stdout=\(rejected.stdout)")
+            XCTAssertTrue(rejected.stderr.contains("between 1 and 900"), rejected.stderr)
+            XCTAssertTrue(rejectedLog.methods.isEmpty, "a rejected timeout must not reach the app: \(rejectedLog.methods)")
+        }
+    }
+
+    func testVMPauseAndResumeSendTheLifecycleMethods() throws {
+        let (paused, pauseLog) = try runVMCommandAgainstMock(
+            "vm-pause",
+            arguments: ["vm", "pause", "brave-otter"]
+        ) { method, params in
+            method == "vm.pause" ? ["id": params["id"] ?? "?", "status": "paused"] : nil
+        }
+        XCTAssertEqual(paused.status, 0, "stdout=\(paused.stdout) stderr=\(paused.stderr)")
+        XCTAssertEqual(pauseLog.methods, ["vm.pause"], pauseLog.methods.description)
+        XCTAssertEqual(pauseLog.params(ofFirst: "vm.pause")?["id"] as? String, "brave-otter")
+        XCTAssertTrue(paused.stdout.contains("OK brave-otter paused (status=paused)"), paused.stdout)
+        XCTAssertTrue(paused.stdout.contains("cmux vm resume brave-otter"), paused.stdout)
+
+        let (resumed, resumeLog) = try runVMCommandAgainstMock(
+            "vm-resume",
+            arguments: ["vm", "resume", "brave-otter", "--json"]
+        ) { method, params in
+            method == "vm.resume" ? ["id": params["id"] ?? "?", "status": "running"] : nil
+        }
+        XCTAssertEqual(resumed.status, 0, "stdout=\(resumed.stdout) stderr=\(resumed.stderr)")
+        XCTAssertEqual(resumeLog.methods, ["vm.resume"], resumeLog.methods.description)
+        let payload = jsonObject(resumed.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(payload?["status"] as? String, "running", resumed.stdout)
+        XCTAssertEqual(payload?["id"] as? String, "brave-otter", resumed.stdout)
+
+        // A provider that cannot pause is a plain error, not a stack of JSON.
+        let (unsupported, _) = try runVMCommandAgainstMock(
+            "vm-pause-unsupported",
+            arguments: ["vm", "pause", "brave-otter"]
+        ) { _, _ in nil }
+        XCTAssertNotEqual(unsupported.status, 0, unsupported.stdout)
+        XCTAssertTrue(unsupported.stderr.contains("Unexpected method vm.pause"), unsupported.stderr)
+    }
+
+    func testVMTerminalWaitExitReportsTheOutcomeAndFailsWhilePending() throws {
+        let (exited, exitLog) = try runVMCommandAgainstMock(
+            "vm-wait-exit",
+            arguments: ["vm", "terminal", "wait-exit", "brave-otter", "term_7", "--timeout", "5"]
+        ) { method, _ in
+            guard method == "vm.terminal_wait_exit" else { return nil }
+            return [
+                "state": "exited", "terminal_id": "term_7", "lifecycle": "exited",
+                "outcome": ["kind": "exit", "code": 3], "exited_at": 1_725_000_000_000,
+            ]
+        }
+        // Exit status 0: the wait succeeded (the process finished). Its own code is in the line.
+        XCTAssertEqual(exited.status, 0, "stdout=\(exited.stdout) stderr=\(exited.stderr)")
+        XCTAssertEqual(exited.stdout, "exited code=3\n")
+        XCTAssertEqual(exitLog.methods, ["vm.terminal_wait_exit"], exitLog.methods.description)
+        let params = exitLog.params(ofFirst: "vm.terminal_wait_exit")
+        XCTAssertEqual(params?["id"] as? String, "brave-otter")
+        XCTAssertEqual(params?["terminal_id"] as? String, "term_7")
+        XCTAssertEqual(params?["timeout_ms"] as? Int, 5_000)
+
+        let (signaled, _) = try runVMCommandAgainstMock(
+            "vm-wait-exit-signal",
+            arguments: ["vm", "terminal", "wait-exit", "brave-otter", "term_7"]
+        ) { method, _ in
+            method == "vm.terminal_wait_exit"
+                ? ["state": "exited", "outcome": ["kind": "signal", "signal": 9, "core_dumped": false]]
+                : nil
+        }
+        XCTAssertEqual(signaled.status, 0, signaled.stderr)
+        XCTAssertEqual(signaled.stdout, "exited signal=9\n")
+
+        let (pending, pendingLog) = try runVMCommandAgainstMock(
+            "vm-wait-exit-pending",
+            arguments: ["vm", "terminal", "wait-exit", "brave-otter", "term_7", "--timeout", "0.5"]
+        ) { method, _ in
+            method == "vm.terminal_wait_exit" ? ["state": "pending", "terminal_id": "term_7", "lifecycle": "running"] : nil
+        }
+        XCTAssertNotEqual(pending.status, 0, "a still-running process is a failed wait: stdout=\(pending.stdout)")
+        XCTAssertEqual(pending.stdout, "pending\n")
+        XCTAssertTrue(pending.stderr.contains("still running"), pending.stderr)
+        XCTAssertEqual(pendingLog.params(ofFirst: "vm.terminal_wait_exit")?["timeout_ms"] as? Int, 500)
+
+        // `--pattern` is `wait`'s; `--timeout` is shared by both wait verbs.
+        let (misused, misusedLog) = try runVMCommandAgainstMock(
+            "vm-wait-exit-misuse",
+            arguments: ["vm", "terminal", "wait-exit", "brave-otter", "term_7", "--pattern", "x"]
+        ) { _, _ in nil }
+        XCTAssertNotEqual(misused.status, 0, misused.stdout)
+        XCTAssertTrue(misused.stderr.contains("--pattern belongs to `wait`"), misused.stderr)
+        XCTAssertTrue(misusedLog.methods.isEmpty, misusedLog.methods.description)
+    }
+
+    func testVMTerminalOutputPrintsTextAndForwardsOffsets() throws {
+        let (human, humanLog) = try runVMCommandAgainstMock(
+            "vm-terminal-output",
+            arguments: ["vm", "terminal", "output", "brave-otter", "term_7", "--after", "100", "--max-bytes", "2048"]
+        ) { method, _ in
+            method == "vm.terminal_output"
+                ? ["text": "hello\nworld\n", "start_offset": 100, "next_offset": 112, "complete": true]
+                : nil
+        }
+        XCTAssertEqual(human.status, 0, "stdout=\(human.stdout) stderr=\(human.stderr)")
+        // Human output is the text, byte for byte — no banner, no added newline.
+        XCTAssertEqual(human.stdout, "hello\nworld\n")
+        XCTAssertEqual(humanLog.methods, ["vm.terminal_output"], humanLog.methods.description)
+        let params = humanLog.params(ofFirst: "vm.terminal_output")
+        XCTAssertEqual(params?["id"] as? String, "brave-otter")
+        XCTAssertEqual(params?["terminal_id"] as? String, "term_7")
+        XCTAssertEqual(params?["after"] as? Int, 100)
+        XCTAssertEqual(params?["max_bytes"] as? Int, 2_048)
+
+        let (json, jsonLog) = try runVMCommandAgainstMock(
+            "vm-terminal-output-json",
+            arguments: ["vm", "terminal", "output", "brave-otter", "term_7", "--json"]
+        ) { method, _ in
+            method == "vm.terminal_output"
+                ? ["text": "partial", "start_offset": 0, "next_offset": 7, "complete": false]
+                : nil
+        }
+        XCTAssertEqual(json.status, 0, "stdout=\(json.stdout) stderr=\(json.stderr)")
+        let payload = jsonObject(json.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(payload?["next_offset"] as? Int, 7, json.stdout)
+        XCTAssertEqual(payload?["complete"] as? Bool, false, json.stdout)
+        // No offset flags → the whole log from the start; nothing is invented client-side.
+        let jsonParams = jsonLog.params(ofFirst: "vm.terminal_output")
+        XCTAssertNil(jsonParams?["after"])
+        XCTAssertNil(jsonParams?["max_bytes"])
+
+        let (bad, badLog) = try runVMCommandAgainstMock(
+            "vm-terminal-output-bad",
+            arguments: ["vm", "terminal", "output", "brave-otter", "term_7", "--after", "-1"]
+        ) { _, _ in nil }
+        XCTAssertNotEqual(bad.status, 0, bad.stdout)
+        XCTAssertTrue(bad.stderr.contains("--after must be a non-negative offset"), bad.stderr)
+        XCTAssertTrue(badLog.methods.isEmpty, badLog.methods.description)
+    }
+
+    func testVMWorkspaceNewReuseSendsTheFlagAndMarksAnExistingWorkspace() throws {
+        let (reused, reuseLog) = try runVMCommandAgainstMock(
+            "vm-workspace-reuse",
+            arguments: ["vm", "workspace", "new", "brave-otter", "--name", "tests", "--reuse"]
+        ) { method, params in
+            guard method == "vm.workspace_new" else { return nil }
+            return [
+                "machine": params["id"] ?? "?", "name": params["name"] ?? "?", "existing": true,
+                "remote_workspace_id": "ws_42", "workspace_id": "3F1C7A2E-0000-4000-8000-000000000042",
+            ]
+        }
+        XCTAssertEqual(reused.status, 0, "stdout=\(reused.stdout) stderr=\(reused.stderr)")
+        XCTAssertEqual(reuseLog.methods, ["vm.workspace_new"], reuseLog.methods.description)
+        let params = reuseLog.params(ofFirst: "vm.workspace_new")
+        XCTAssertEqual(params?["id"] as? String, "brave-otter")
+        XCTAssertEqual(params?["name"] as? String, "tests")
+        XCTAssertEqual(params?["reuse"] as? Bool, true)
+        XCTAssertTrue(reused.stdout.contains("remote_workspace=ws_42 machine=brave-otter (existing)"), reused.stdout)
+
+        // Without --reuse the app creates; the request must not carry the flag at all.
+        let (created, createLog) = try runVMCommandAgainstMock(
+            "vm-workspace-create",
+            arguments: ["vm", "workspace", "new", "brave-otter", "--name", "tests"]
+        ) { method, _ in
+            method == "vm.workspace_new"
+                ? ["existing": false, "remote_workspace_id": "ws_43", "workspace_id": "3F1C7A2E-0000-4000-8000-000000000043"]
+                : nil
+        }
+        XCTAssertEqual(created.status, 0, created.stderr)
+        XCTAssertNil(createLog.params(ofFirst: "vm.workspace_new")?["reuse"])
+        XCTAssertFalse(created.stdout.contains("(existing)"), created.stdout)
+
+        // Reuse needs a name to look for; that is a usage error before any request.
+        let (nameless, namelessLog) = try runVMCommandAgainstMock(
+            "vm-workspace-reuse-nameless",
+            arguments: ["vm", "workspace", "new", "brave-otter", "--reuse"]
+        ) { _, _ in nil }
+        XCTAssertNotEqual(nameless.status, 0, nameless.stdout)
+        XCTAssertTrue(nameless.stderr.contains("--reuse needs --name"), nameless.stderr)
+        XCTAssertTrue(namelessLog.methods.isEmpty, namelessLog.methods.description)
+    }
+
+    func testVMResizeIsNoLongerAVerb() throws {
+        let (result, log) = try runVMCommandAgainstMock(
+            "vm-resize-gone",
+            arguments: ["vm", "resize", "brave-otter", "--disk", "40"]
+        ) { _, _ in nil }
+        XCTAssertNotEqual(result.status, 0, result.stdout)
+        XCTAssertTrue(result.stderr.contains("Usage: cmux vm <"), result.stderr)
+        XCTAssertFalse(result.stderr.contains("resize"), "resize must not be advertised: \(result.stderr)")
+        XCTAssertTrue(result.stderr.contains("pause|resume"), result.stderr)
+        XCTAssertTrue(log.methods.isEmpty, "an unknown verb must not reach the app: \(log.methods)")
+    }
+
+    func testVMVerbHelpPrintsThatVerbsUsageWithoutASocket() throws {
+        let cliPath = try bundledCLIPath()
+        // Help never resolves a socket: point at a path nothing listens on.
+        let environment = vmLayoutEnvEnvironment(socketPath: makeSocketPath("vm-help-no-socket"))
+        let cases: [(arguments: [String], expected: [String], forbidden: [String])] = [
+            (["vm", "terminal", "--help"], ["cmux vm terminal", "wait-exit <machine> <terminal-id>", "output <machine> <terminal-id>"], ["cmux vm new"]),
+            (["cloud", "exec", "-h"], ["cmux vm exec", "[--timeout <seconds>]", "1…900"], ["cmux vm new"]),
+            (["vm", "pause", "--help"], ["cmux vm pause", "Park the machine", "cmux vm resume <machine>"], []),
+            (["vm", "workspace", "--help"], ["cmux vm workspace", "[--reuse]"], []),
+            (["vm", "layout", "--help"], ["cmux vm layout"], ["cmux vm new"]),
+            // The family text stays for the family itself and for verbs without their own usage.
+            (["vm", "--help"], ["pause|resume", "terminal wait-exit", "exec [--timeout <s>]", "workspace new <machine> [--name <name>] [--reuse]"], ["resize"]),
+            (["vm", "ls", "--help"], ["Usage: cmux vm <"], ["resize"]),
+        ]
+        for testCase in cases {
+            let result = runProcess(executablePath: cliPath, arguments: testCase.arguments, environment: environment, timeout: 30)
+            XCTAssertFalse(result.timedOut, "\(testCase.arguments) timed out")
+            XCTAssertEqual(result.status, 0, "\(testCase.arguments): stdout=\(result.stdout) stderr=\(result.stderr)")
+            for expected in testCase.expected {
+                XCTAssertTrue(result.stdout.contains(expected), "\(testCase.arguments) should mention '\(expected)':\n\(result.stdout)")
+            }
+            for forbidden in testCase.forbidden {
+                XCTAssertFalse(result.stdout.contains(forbidden), "\(testCase.arguments) must not mention '\(forbidden)':\n\(result.stdout)")
+            }
+        }
+    }
 }

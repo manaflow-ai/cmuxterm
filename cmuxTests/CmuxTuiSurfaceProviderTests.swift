@@ -847,6 +847,24 @@ typealias RemoteRoutingCLI = CmuxTuiRemoteRouting
         #expect(CloudTuiCommandLine.screenWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", pattern: "λ", timeoutMs: 0).contains("--timeout-ms") == false)
     }
 
+    @Test func terminalExitAndOutputArgvFollowTheCLIGrammar() {
+        // `terminal <id> process wait` is the exit fact behind `cmux vm terminal wait-exit`;
+        // `terminal <id> output read` is the retained log behind `cmux vm terminal output`.
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: 45_000)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "process", "wait", "--timeout-ms", "45000"])
+        // No timeout (or a non-positive one) leaves the daemon default in charge.
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: nil)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "process", "wait"])
+        #expect(CloudTuiCommandLine.processWaitArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", timeoutMs: 0).contains("--timeout-ms") == false)
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: 1_024, maxBytes: 65_536)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read", "--after", "1024", "--max-bytes", "65536"])
+        // Offset 0 is a real cursor (read from the start); a zero byte cap is not a cap.
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: 0, maxBytes: 0)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read", "--after", "0"])
+        #expect(CloudTuiCommandLine.outputReadArguments(socketPath: "/tmp/s.sock", terminalID: "term_1", after: nil, maxBytes: nil)
+            == ["--socket", "/tmp/s.sock", "--json", "terminal", "term_1", "output", "read"])
+    }
+
     @Test @MainActor func waitTimeoutNormalizesToTheDaemonDefaultAndClamps() {
         // The link headroom is computed from the same value the daemon uses, so a
         // non-positive request cannot cut the link off before the daemon's default.

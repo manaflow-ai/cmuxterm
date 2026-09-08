@@ -337,28 +337,121 @@ extension TerminalController {
             return v2Error(id: id, code: "invalid_params", message: "vm.workspace_new requires `id`. Run `cmux vm ls` to find one.")
         }
         let name = Self.surfaceString(params["name"])
+        // `reuse`: get-or-create by exact name, so a script that runs twice does not leave
+        // two `tests` workspaces on the machine (`cmux vm workspace new --reuse`).
+        let reuse = Self.surfaceBool(params["reuse"]) ?? false
+        if reuse, name == nil {
+            return v2Error(id: id, code: "invalid_params", message: "vm.workspace_new: `reuse` needs a `name` to look for.")
+        }
         return v2VmCall(id: id, timeoutSeconds: 240) {
             let machine = SurfaceMachineID.cloud(vmId)
             let catalog = await SurfaceCatalog.shared
             guard let provider = try await Self.surfaceProvider(for: machine, catalog: catalog) else {
                 throw SurfaceCatalogError.noProvider(machine)
             }
+            let focus = Self.surfaceBool(params["focus"]) ?? true
+            // `open: false` stages the workspace on the machine only (`--no-open`).
+            let open = Self.surfaceBool(params["open"]) ?? true
+            if reuse, let name {
+                // A fresh read first: another agent may have created the workspace moments
+                // ago, and the catalog only learns about it from the event feed.
+                await provider.refresh()
+                switch CloudTreeNodeBuilder.lookupRemoteWorkspace(name, on: machine, snapshot: await catalog.snapshot) {
+                case .found(let workspace, _):
+                    if !open {
+                        return [
+                            "machine": machine.rawValue,
+                            "remote_workspace_id": workspace.id,
+                            "remote_workspace_name": workspace.name,
+                            "existing": true,
+                            "opened": false,
+                        ]
+                    }
+                    let opened = try await Self.openExistingRemoteWorkspace(
+                        workspace,
+                        machine: machine,
+                        provider: provider,
+                        catalog: catalog,
+                        focus: focus
+                    )
+                    return [
+                        "machine": machine.rawValue,
+                        "remote_workspace_id": workspace.id,
+                        "remote_workspace_name": workspace.name,
+                        "existing": true,
+                        "opened": true,
+                        "terminal_id": opened.starterTerminalID ?? NSNull(),
+                        "workspace_id": opened.workspaceID.uuidString,
+                        "surface_id": opened.projections.first?.panelID.uuidString ?? NSNull(),
+                    ]
+                case .ambiguous(let matches):
+                    throw SurfaceCatalogError.destinationNotFound(
+                        "several workspaces on \(vmId) are named '\(name)' (\(matches.map(\.id).joined(separator: ", "))); open one by id with `cmux vm workspace open \(vmId) <ws_…>` or pick a unique --name"
+                    )
+                case .notFound:
+                    break
+                }
+            }
             let created = try await CloudTreeNodeActions.createWorkspaceAndOpenLocally(
                 machine: machine,
                 provider: provider,
                 catalog: catalog,
                 name: name,
-                focus: Self.surfaceBool(params["focus"]) ?? true
+                focus: focus,
+                openLocally: open
             )
             return [
                 "machine": machine.rawValue,
                 "remote_workspace_id": created.workspace.id,
                 "remote_workspace_name": created.workspace.name,
+                "existing": false,
+                "opened": created.opened != nil,
                 "terminal_id": created.terminal.id.key,
-                "workspace_id": created.opened.workspaceID.uuidString,
-                "surface_id": created.opened.projections.first?.panelID.uuidString ?? NSNull(),
+                "workspace_id": created.opened?.workspaceID.uuidString ?? NSNull(),
+                "surface_id": created.opened?.projections.first?.panelID.uuidString ?? NSNull(),
             ]
         }
+    }
+
+    /// Opens an existing machine workspace as a new local workspace the way
+    /// `vm.workspace_open` does, giving an EMPTY workspace a starter terminal first (the
+    /// ⌘N contract), so `vm workspace new --reuse` always lands the caller somewhere.
+    @MainActor
+    static func openExistingRemoteWorkspace(
+        _ workspace: SurfaceRemoteWorkspace,
+        machine: SurfaceMachineID,
+        provider: any SurfaceProvider,
+        catalog: SurfaceCatalog,
+        focus: Bool
+    ) async throws -> (workspaceID: UUID, projections: [SurfaceProjection], starterTerminalID: String?) {
+        var starterTerminalID: String?
+        let group: SurfaceResourceGroup
+        if let existing = try? catalog.remoteWorkspaceGroup(machine: machine, workspaceID: workspace.id), !existing.isEmpty {
+            group = existing
+        } else {
+            let terminal = try await provider.createTerminal(command: nil, cwd: nil, name: nil, remoteWorkspaceID: workspace.id)
+            starterTerminalID = terminal.id.key
+            let placement = SurfaceResourcePlacement(
+                resource: terminal.id,
+                remoteView: terminal.remoteViews?.first { $0.workspace.id == workspace.id },
+                remoteWorkspaceID: workspace.id
+            )
+            group = SurfaceResourceGroup(title: workspace.name, placements: [placement], remoteWorkspaceID: workspace.id)
+        }
+        let title = CloudTreeNodeActions.localWorkspaceTitle(
+            hostName: CloudTreeNodeActions.resolvedMachineName(machine, snapshot: catalog.snapshot),
+            group: group
+        )
+        // The machine screen's geometry, when known (nil → the grid fallback).
+        let layout = await CloudWorkspaceLayoutTranslator.fetch(machine: machine, workspaceID: workspace.id, catalog: catalog)
+        let opened = try await catalog.projectGroupAsNewLocalWorkspace(group, title: title, focus: focus, host: .app, layout: layout)
+        catalog.bindCloudWorkspace(
+            localWorkspaceID: opened.workspaceID,
+            machine: machine,
+            remoteWorkspaceID: workspace.id,
+            generatedTitle: title
+        )
+        return (opened.workspaceID, opened.projections, starterTerminalID)
     }
 
     /// `vm.workspace_open {id, workspace_id, here?, …dest}` → the remote workspace's terminals
@@ -755,6 +848,57 @@ extension TerminalController {
             result["machine"] = vmId
             result["terminal_id"] = terminalID
             result["pattern"] = pattern
+            return result
+        }
+    }
+
+    /// `vm.terminal_wait_exit {id, terminal_id, timeout_ms?}` → blocks until the terminal's
+    /// PROCESS exits (default 30 s, at most an hour): `{state: "exited", outcome: {kind:
+    /// exit, code} | {kind: signal, signal, core_dumped} | {kind: unknown, reason},
+    /// exited_at, …}` or `{state: "pending", lifecycle, …}` when it is still running.
+    nonisolated func socketWorkerVMTerminalWaitExitResponse(id: Any?, params: [String: Any]) -> String {
+        guard let vmId = Self.surfaceString(params["id"]), !vmId.isEmpty,
+              let terminalID = Self.surfaceString(params["terminal_id"]), !terminalID.isEmpty else {
+            return v2Error(id: id, code: "invalid_params", message: "vm.terminal_wait_exit requires `id` and `terminal_id`.")
+        }
+        let timeoutMs = CmuxTuiSurfaceProvider.clampedWaitTimeoutMs(
+            (params["timeout_ms"] as? Int) ?? Int(Self.surfaceString(params["timeout_ms"]) ?? "")
+        )
+        let socketTimeout = TimeInterval(max(60, timeoutMs / 1000 + 15))
+        return v2VmCall(id: id, timeoutSeconds: socketTimeout) {
+            let provider = try await Self.cloudTuiProvider(machineID: vmId, catalog: await SurfaceCatalog.shared)
+            var result = try await provider.waitForExit(terminalID: terminalID, timeoutMs: timeoutMs)
+            // Some daemon builds wrap read results the way mutations are wrapped.
+            if let value = result["value"] as? [String: Any] { result = value }
+            result["machine"] = vmId
+            result["terminal_id"] = terminalID
+            return result
+        }
+    }
+
+    /// `vm.terminal_output {id, terminal_id, after?, max_bytes?}` → the terminal's retained
+    /// output: `{text, start_offset, next_offset, complete}`. `after` is a `next_offset`
+    /// from an earlier call (read only what is new); `max_bytes` caps one window
+    /// (1…4 MiB, daemon default 256 KiB).
+    nonisolated func socketWorkerVMTerminalOutputResponse(id: Any?, params: [String: Any]) -> String {
+        guard let vmId = Self.surfaceString(params["id"]), !vmId.isEmpty,
+              let terminalID = Self.surfaceString(params["terminal_id"]), !terminalID.isEmpty else {
+            return v2Error(id: id, code: "invalid_params", message: "vm.terminal_output requires `id` and `terminal_id`.")
+        }
+        let after = Self.surfaceInt(params["after"])
+        if let after, after < 0 {
+            return v2Error(id: id, code: "invalid_params", message: "vm.terminal_output: `after` must be a non-negative stream offset (a `next_offset` from an earlier read).")
+        }
+        let maxBytes = Self.surfaceInt(params["max_bytes"])
+        if let maxBytes, !(1...4_194_304).contains(maxBytes) {
+            return v2Error(id: id, code: "invalid_params", message: "vm.terminal_output: `max_bytes` must be between 1 and 4194304.")
+        }
+        return v2VmCall(id: id, timeoutSeconds: 120) {
+            let provider = try await Self.cloudTuiProvider(machineID: vmId, catalog: await SurfaceCatalog.shared)
+            var result = try await provider.readOutput(terminalID: terminalID, after: after, maxBytes: maxBytes)
+            if let value = result["value"] as? [String: Any] { result = value }
+            result["machine"] = vmId
+            result["terminal_id"] = terminalID
             return result
         }
     }

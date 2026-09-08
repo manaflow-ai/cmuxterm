@@ -170,6 +170,33 @@ struct CloudTuiCommandLine: Sendable {
         return arguments
     }
 
+    /// `terminal <term_id> process wait [--timeout-ms <n>]` (spec `terminal.wait_exit`): blocks
+    /// until the terminal's process exits or the timeout elapses —
+    /// `{state: "exited", outcome: {kind: exit|signal|unknown, …}, exited_at}` or `{state: "pending", …}`.
+    /// The complement of `screen wait`: an exit is a fact, a prompt regex is a guess.
+    static func processWaitArguments(socketPath: String, terminalID: String, timeoutMs: Int?) -> [String] {
+        var arguments = ["--socket", socketPath, "--json", "terminal", terminalID, "process", "wait"]
+        if let timeoutMs, timeoutMs > 0 {
+            arguments += ["--timeout-ms", String(timeoutMs)]
+        }
+        return arguments
+    }
+
+    /// `terminal <term_id> output read [--after <offset>] [--max-bytes <n>]` (spec
+    /// `terminal.output_read`): the terminal's retained OUTPUT as text — the whole build log,
+    /// not the 24 rows currently on screen — with `{text, start_offset, next_offset, complete}`;
+    /// `next_offset` fed back as `after` reads only what arrived since.
+    static func outputReadArguments(socketPath: String, terminalID: String, after: Int?, maxBytes: Int?) -> [String] {
+        var arguments = ["--socket", socketPath, "--json", "terminal", terminalID, "output", "read"]
+        if let after, after >= 0 {
+            arguments += ["--after", String(after)]
+        }
+        if let maxBytes, maxBytes > 0 {
+            arguments += ["--max-bytes", String(maxBytes)]
+        }
+        return arguments
+    }
+
     /// `tab <tab_id> rename --name <name>`: set or clear the user label on one
     /// view of a terminal (spec `tab.rename`). The daemon persists it in its
     /// registry and broadcasts `tab-renamed`, so every attached client sees it.
