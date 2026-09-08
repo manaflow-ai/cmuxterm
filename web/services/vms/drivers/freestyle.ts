@@ -7,6 +7,7 @@ import {
   type VmResources,
   type Vm,
   type VpcData,
+  type SnapshotData,
 } from "freestyle";
 import { createHash, randomBytes } from "node:crypto";
 import {
@@ -143,6 +144,9 @@ const GUEST_LINUX_USER = "root";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const CREATE_TIMEOUT_MS = 15 * 60 * 1000;
 const SNAPSHOT_TIMEOUT_MS = 15 * 60 * 1000;
+/** Page size and ceiling for `listSnapshots`; a machine rarely has more than a handful. */
+const SNAPSHOT_LIST_PAGE = 100;
+const SNAPSHOT_LIST_MAX = 1_000;
 const EXEC_DEFAULT_TIMEOUT_MS = 30_000;
 /** Cloud machines are durable boxes; only an explicit pause/stop should put one to sleep. */
 export const FREESTYLE_PERSISTENT_IDLE_TIMEOUT_SECONDS = -1;
@@ -841,6 +845,32 @@ function spanAttributes(vmId: string, operation: string, extra: Record<string, s
   };
 }
 
+/**
+ * A snapshot that does not exist, or was not taken from the machine named in
+ * the request. `code` and `status` are what `isProviderNotFoundError` reads, so
+ * the workflow answers 404 vm_snapshot_not_found instead of a provider failure.
+ */
+export class FreestyleSnapshotNotFoundError extends Error {
+  readonly code = "not_found";
+  readonly status = 404;
+
+  constructor(readonly snapshotId: string, readonly vmId: string) {
+    super(`snapshot ${snapshotId} not found for vm ${vmId}`);
+    this.name = "FreestyleSnapshotNotFoundError";
+  }
+}
+
+/** The provider's snapshot record in the driver contract's shape. */
+export function freestyleSnapshotRef(snapshot: SnapshotData): SnapshotRef {
+  const createdAt = Date.parse(snapshot.createdAt);
+  const name = snapshot.displayName?.trim() || snapshot.slug?.trim() || undefined;
+  return {
+    id: snapshot.id,
+    createdAt: Number.isFinite(createdAt) ? createdAt : 0,
+    ...(name ? { name } : {}),
+  };
+}
+
 export class FreestyleProvider implements VMProvider {
   readonly id = "freestyle" as const;
 
@@ -1166,6 +1196,54 @@ export class FreestyleProvider implements VMProvider {
           return { id: out.snapshotId, createdAt: Date.now(), name };
         } catch (err) {
           throw new ProviderError("freestyle", `snapshot(${vmId})`, err);
+        }
+      },
+    );
+  }
+
+  async listSnapshots(vmId: string): Promise<SnapshotRef[]> {
+    return withVmSpan(
+      "cmux.vm.provider.list_snapshots",
+      spanAttributes(vmId, "listSnapshots"),
+      async (span) => {
+        try {
+          const fs = this.deps.client();
+          const snapshots: SnapshotData[] = [];
+          for (let offset = 0; offset < SNAPSHOT_LIST_MAX; offset += SNAPSHOT_LIST_PAGE) {
+            const page = await fs.vms.snapshots.list({ sourceVmId: vmId, limit: SNAPSHOT_LIST_PAGE, offset });
+            snapshots.push(...page.snapshots);
+            if (page.snapshots.length < SNAPSHOT_LIST_PAGE || snapshots.length >= page.totalCount) break;
+          }
+          setSpanAttributes(span, { "cmux.snapshot.count": snapshots.length });
+          return snapshots
+            // The filter is the provider's; the guard keeps a lax answer from
+            // ever listing another machine's snapshots under this one.
+            .filter((snapshot) => (snapshot.sourceVmId ?? vmId) === vmId)
+            .map(freestyleSnapshotRef)
+            .sort((a, b) => b.createdAt - a.createdAt);
+        } catch (err) {
+          throw new ProviderError("freestyle", `listSnapshots(${vmId})`, err);
+        }
+      },
+    );
+  }
+
+  async deleteSnapshot(vmId: string, snapshotId: string): Promise<void> {
+    return withVmSpan(
+      "cmux.vm.provider.delete_snapshot",
+      spanAttributes(vmId, "deleteSnapshot", { "cmux.snapshot.id": snapshotId }),
+      async () => {
+        try {
+          const fs = this.deps.client();
+          // Ownership is per machine: only a snapshot taken from this VM goes.
+          // A missing snapshot surfaces here as the SDK's 404.
+          const snapshot = await fs.vms.snapshots.get(snapshotId);
+          if (snapshot.sourceVmId !== vmId) {
+            throw new FreestyleSnapshotNotFoundError(snapshotId, vmId);
+          }
+          await fs.vms.snapshots.delete(snapshotId);
+        } catch (err) {
+          throw new ProviderError("freestyle", `deleteSnapshot(${snapshotId})`, err);
         }
       },
     );

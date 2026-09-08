@@ -2644,6 +2644,14 @@ export const vmRepositoryLiveShape: VmRepositoryShape = {
             eq(cloudVmUsageEvents.provider, input.provider),
             eq(cloudVmUsageEvents.eventType, "vm.snapshot.created"),
             sql`${cloudVmUsageEvents.metadata}->>'snapshotId' = ${input.snapshotId}`,
+            // A snapshot deleted through cmux (`cmux vm snapshot rm`) is no
+            // longer restorable: the ledger keeps its creation row for
+            // accounting, so exclude it here rather than at the provider.
+            sql`not exists (
+              select 1 from ${cloudVmUsageEvents} as snapshot_deleted
+              where snapshot_deleted.event_type = 'vm.snapshot.deleted'
+                and snapshot_deleted.metadata->>'snapshotId' = ${input.snapshotId}
+            )`,
           ),
         )
         .limit(1);

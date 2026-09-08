@@ -17,6 +17,10 @@
 // `read-screen`, `terminal send|read|wait|close`) — locally and toward
 // linked peers (`cmux vm <verb> <peer> …`). The Mac's `cmux vm layout|env …`
 // run these same functions over `vm exec`, so there is one implementation.
+// `env receive` and `file receive` are the receiving ends of the link-typed
+// handshakes (`cmux vm env set`, `cmux vm push --secret` / peer `vm push`);
+// `vm agent … --wait --output` turns a peer's durable agent terminal into a
+// blocking call with the agent's exit code and stream.
 //
 // Reflection (`cmux whoami`, `cmux reflect`, peer discovery) reads the control
 // plane's `/api/vm/reflection/*` through the model-plane alias: the edge injects
@@ -546,6 +550,22 @@ guest_coderouter_models() {
   printf '%s\\n' "\$cmux_response"
 }
 
+# Run the agent in this terminal; with --timeout, under timeout(1) (exit 1 and
+# a message when the cap is hit, the agent's own code otherwise).
+agent_exec() {
+  if [ -n "\${cmux_ag_timeout:-}" ]; then
+    cmux_ag_bin="\$(command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null || true)"
+    if [ -n "\$cmux_ag_bin" ]; then
+      "\$cmux_ag_bin" -k 5 "\$cmux_ag_timeout" "\$@" && return 0
+      cmux_ag_rc=\$?
+      [ "\$cmux_ag_rc" -ne 124 ] || die "agent \$cmux_agent timed out after \${cmux_ag_timeout}s" 1
+      exit "\$cmux_ag_rc"
+    fi
+    warn "no timeout(1) on this machine; running \$cmux_agent without a cap"
+  fi
+  exec "\$@"
+}
+
 guest_coderouter_agent() {
   cmux_agent="\${1:-}"
   [ -n "\$cmux_agent" ] || die_message 2 agentUsage
@@ -559,11 +579,24 @@ guest_coderouter_agent() {
     claude|codex|opencode|pi) ;;
     *) die_message 2 unsupportedAgent "\$cmux_agent" ;;
   esac
+  # This form runs the agent right here, in the caller's terminal, so it is
+  # already the wait and its output is already the output: --wait and --output
+  # are accepted for parity with \`cmux vm agent <machine> …\`; --timeout caps it.
+  cmux_ag_timeout=""
+  while [ "\$#" -gt 0 ]; do
+    case "\$1" in
+      --wait|--output) shift ;;
+      --timeout) [ "\$#" -ge 2 ] || die "agent: --timeout needs seconds" 2; cmux_ag_timeout="\$2"; shift 2 ;;
+      --timeout=*) cmux_ag_timeout="\${1#--timeout=}"; shift ;;
+      *) break ;;
+    esac
+  done
+  [ -z "\$cmux_ag_timeout" ] || timeout_ms "\$cmux_ag_timeout" "agent" >/dev/null
   load_agent_config
   # Match the host vm-agent contract: a bare sentence becomes the provider's
   # one-shot form, while flags/subcommands are passed through byte-for-byte.
   if [ "\$#" -eq 0 ]; then
-    exec "\$cmux_agent"
+    agent_exec "\$cmux_agent"
   fi
   if [ "\$1" = "--" ]; then
     shift
@@ -575,12 +608,12 @@ guest_coderouter_agent() {
       opencode) set -- opencode run "\$cmux_prompt" ;;
       pi) set -- pi -p "\$cmux_prompt" ;;
     esac
-    exec "\$@"
+    agent_exec "\$@"
   fi
   cmux_first="\$1"
   case "\$cmux_first" in
     -*|mcp|config|doctor|update|install|auth|setup-token|plugin|agents|exec|e|login|logout|apply|resume|completion|debug|sandbox|cloud|app-server|features|run|serve|web|models|upgrade|agent|session|export|import|github|acp|list)
-      exec "\$cmux_agent" "\$@"
+      agent_exec "\$cmux_agent" "\$@"
       ;;
     *)
       cmux_prompt="\$*"
@@ -590,7 +623,7 @@ guest_coderouter_agent() {
         opencode) set -- opencode run "\$cmux_prompt" ;;
         pi) set -- pi -p "\$cmux_prompt" ;;
       esac
-      exec "\$@"
+      agent_exec "\$@"
       ;;
   esac
 }
@@ -994,6 +1027,117 @@ guest_env_command() {
 }
 
 # ---------------------------------------------------------------------------
+# File drop: bytes that arrive typed over the encrypted link (the Mac's
+# \`cmux vm push --secret\`, a peer's \`cmux vm push\`), never through a provider
+# exec API, an argv, or a control plane. The handshake is \`cmux env receive\`'s
+# with CMUX-FILE-* markers, so one sender implementation serves both.
+# ---------------------------------------------------------------------------
+file_usage() {
+  cmux_message fileHelp
+}
+
+# Three or four octal digits (600, 0644, 755).
+file_mode_ok() {
+  case "\$1" in
+    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) return 0 ;;
+  esac
+  return 1
+}
+
+file_receive_cleanup() {
+  if [ -n "\${cmux_fr_tmp:-}" ]; then rm -f "\$cmux_fr_tmp"; fi
+  if [ -n "\${cmux_fr_dir:-}" ]; then rm -rf "\$cmux_fr_dir"; fi
+  if [ -n "\${cmux_fr_dog:-}" ]; then kill "\$cmux_fr_dog" 2>/dev/null || true; fi
+  if [ "\${cmux_fr_tty:-0}" -eq 1 ]; then stty echo 2>/dev/null || true; fi
+  return 0
+}
+
+# cmux file receive <path> [--mode <octal>] [--stdin]: turn PTY echo off, print
+# CMUX-FILE-READY, read base64 lines up to CMUX-FILE-END, decode in a scratch
+# dir (bad input never touches the destination), then land the bytes through a
+# temp file in the destination directory and one rename, so a reader never sees
+# a partial file and a failed transfer leaves nothing behind. Answers with one
+# CMUX-FILE-OK bytes=<n> path=<p> mode=<m> or CMUX-FILE-ERR <reason> line.
+# Relative paths are under \$HOME; missing parents are created (0700); the file
+# gets the requested mode (default 600); the payload is capped at 256 KiB.
+guest_file_receive() {
+  cmux_fr_stdin=0
+  cmux_fr_mode=600
+  cmux_fr_path=""
+  while [ "\$#" -gt 0 ]; do
+    case "\$1" in
+      --stdin) cmux_fr_stdin=1; shift ;;
+      --mode) [ "\$#" -ge 2 ] || { printf 'CMUX-FILE-ERR bad-mode\\n'; exit 2; }; cmux_fr_mode="\$2"; shift 2 ;;
+      --mode=*) cmux_fr_mode="\${1#--mode=}"; shift ;;
+      --help|-h) file_usage; return 0 ;;
+      -*) printf 'CMUX-FILE-ERR usage unknown option %s\\n' "\$1"; exit 2 ;;
+      *) if [ -z "\$cmux_fr_path" ]; then cmux_fr_path="\$1"; else printf 'CMUX-FILE-ERR usage one path only\\n'; exit 2; fi; shift ;;
+    esac
+  done
+  [ -n "\$cmux_fr_path" ] || { printf 'CMUX-FILE-ERR usage cmux file receive <path> [--mode <octal>]\\n'; exit 2; }
+  file_mode_ok "\$cmux_fr_mode" || { printf 'CMUX-FILE-ERR bad-mode %s\\n' "\$cmux_fr_mode"; exit 2; }
+  case "\$cmux_fr_path" in
+    /*) ;;
+    *) cmux_fr_path="\${HOME:-/root}/\$cmux_fr_path" ;;
+  esac
+  if [ -d "\$cmux_fr_path" ]; then printf 'CMUX-FILE-ERR is-directory %s\\n' "\$cmux_fr_path"; exit 1; fi
+  umask 077
+  cmux_fr_tty=0
+  if [ "\$cmux_fr_stdin" -eq 0 ] && [ -t 0 ]; then
+    if stty -echo 2>/dev/null; then cmux_fr_tty=1; fi
+  fi
+  cmux_fr_dir="\$(mktemp -d "\${TMPDIR:-/tmp}/cmux-file-recv.XXXXXX")"
+  cmux_fr_tmp=""
+  # Watchdog, as in env receive: a sender that never finishes must not hold
+  # this terminal forever.
+  ( cmux_fr_i=0; while [ -d "\$cmux_fr_dir" ] && [ "\$cmux_fr_i" -lt 120 ]; do sleep 1; cmux_fr_i=\$((cmux_fr_i + 1)); done; if [ -d "\$cmux_fr_dir" ]; then kill -TERM \$\$ 2>/dev/null; fi ) </dev/null >/dev/null 2>&1 &
+  cmux_fr_dog=\$!
+  trap 'file_receive_cleanup' EXIT
+  trap 'printf "CMUX-FILE-ERR timeout\\n"; exit 1' TERM
+  trap 'printf "CMUX-FILE-ERR interrupted\\n"; exit 1' INT HUP
+  printf 'CMUX-FILE-READY\\n'
+  cmux_fr_chars=0
+  cmux_fr_end=0
+  cmux_fr_cr="\$(printf '\\r')"
+  while IFS= read -r cmux_fr_line; do
+    cmux_fr_line="\${cmux_fr_line%"\$cmux_fr_cr"}"
+    if [ "\$cmux_fr_line" = CMUX-FILE-END ]; then cmux_fr_end=1; break; fi
+    [ -n "\$cmux_fr_line" ] || continue
+    cmux_fr_chars=\$((cmux_fr_chars + \${#cmux_fr_line}))
+    # 349528 base64 characters decode to exactly 262144 bytes (256 KiB).
+    if [ "\$cmux_fr_chars" -gt 349528 ]; then printf 'CMUX-FILE-ERR too-large\\n'; exit 1; fi
+    printf '%s\\n' "\$cmux_fr_line" >> "\$cmux_fr_dir/b64"
+  done
+  if [ "\$cmux_fr_end" -ne 1 ]; then printf 'CMUX-FILE-ERR eof\\n'; exit 1; fi
+  if [ ! -s "\$cmux_fr_dir/b64" ]; then printf 'CMUX-FILE-ERR empty\\n'; exit 1; fi
+  if ! base64 -d < "\$cmux_fr_dir/b64" > "\$cmux_fr_dir/payload" 2>/dev/null; then printf 'CMUX-FILE-ERR bad-base64\\n'; exit 1; fi
+  cmux_fr_bytes="\$(wc -c < "\$cmux_fr_dir/payload" | tr -d ' ')"
+  if [ "\$cmux_fr_bytes" -eq 0 ]; then printf 'CMUX-FILE-ERR empty\\n'; exit 1; fi
+  if [ "\$cmux_fr_bytes" -gt 262144 ]; then printf 'CMUX-FILE-ERR too-large\\n'; exit 1; fi
+  cmux_fr_parent="\${cmux_fr_path%/*}"
+  [ -n "\$cmux_fr_parent" ] || cmux_fr_parent=/
+  if [ ! -d "\$cmux_fr_parent" ]; then
+    mkdir -p "\$cmux_fr_parent" 2>/dev/null || { printf 'CMUX-FILE-ERR mkdir-failed %s\\n' "\$cmux_fr_parent"; exit 1; }
+  fi
+  cmux_fr_tmp="\$(mktemp "\$cmux_fr_parent/.cmux-file.XXXXXX" 2>/dev/null)" || { cmux_fr_tmp=""; printf 'CMUX-FILE-ERR write-failed %s\\n' "\$cmux_fr_parent"; exit 1; }
+  if cat "\$cmux_fr_dir/payload" > "\$cmux_fr_tmp" 2>/dev/null && chmod "\$cmux_fr_mode" "\$cmux_fr_tmp" 2>/dev/null && mv -f "\$cmux_fr_tmp" "\$cmux_fr_path" 2>/dev/null; then :; else
+    printf 'CMUX-FILE-ERR write-failed %s\\n' "\$cmux_fr_path"; exit 1
+  fi
+  cmux_fr_tmp=""
+  printf 'CMUX-FILE-OK bytes=%s path=%s mode=%s\\n' "\$cmux_fr_bytes" "\$cmux_fr_path" "\$cmux_fr_mode"
+}
+
+guest_file_command() {
+  cmux_file_sub="\${1:-help}"
+  [ "\$#" -gt 0 ] && shift
+  case "\$cmux_file_sub" in
+    receive) guest_file_receive "\$@" ;;
+    help|--help|-h) file_usage ;;
+    *) die "unknown file command '\$cmux_file_sub' (try: cmux file help)" 2 ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Terminal verbs in the Mac's spelling (\`cmux vm terminal send|read|wait|close\`
 # and \`cmux send|send-key|read-screen\`), on the current target. Local calls
 # default to the caller's own terminal (CMUX_TUI_TERMINAL_ID, set by the daemon).
@@ -1004,7 +1148,7 @@ terminal_usage() {
 
 # Milliseconds for a \`--timeout <seconds>\` (decimals allowed, > 0), or die.
 timeout_ms() {
-  cmux_ms="\$(awk -v s="\$1" 'BEGIN { if (s !~ /^[0-9]*\\.?[0-9]+\$/ || s + 0 <= 0) exit 1; printf "%d", s * 1000 }')" || die "terminal wait: --timeout takes seconds > 0, got '\$1'" 2
+  cmux_ms="\$(awk -v s="\$1" 'BEGIN { if (s !~ /^[0-9]*\\.?[0-9]+\$/ || s + 0 <= 0) exit 1; printf "%d", s * 1000 }')" || die "\${2:-terminal wait}: --timeout takes seconds > 0, got '\$1'" 2
   [ "\$cmux_ms" -ge 1 ] || cmux_ms=1
   printf '%s' "\$cmux_ms"
 }
@@ -1752,9 +1896,87 @@ peer_usage() {
   cmux_message peerHelp
 }
 
-# \`cmux vm agent <peer> --agent <a> [--name n] [--cwd d] [--workspace ws] -- <args>\`:
+# agent_wait_terminal <terminal> <timeout-seconds|""> <output 0|1> <json 0|1> <label> <agent> <workspace>:
+# block on the daemon's process wait in slices of at most 30 s until the agent
+# exits or the timeout passes; with output, page the terminal's stream from
+# offset 0. Prints the outcome (or the JSON summary) and returns the agent's
+# exit code; a signal or a timeout returns 1 and says so on stderr.
+agent_wait_terminal() {
+  cmux_aw_term="\$1"
+  cmux_aw_timeout="\$2"
+  cmux_aw_output="\$3"
+  cmux_aw_json="\$4"
+  cmux_aw_where="\$5"
+  cmux_aw_agent="\$6"
+  cmux_aw_ws="\$7"
+  cmux_aw_total=""
+  [ -z "\$cmux_aw_timeout" ] || cmux_aw_total="\$(timeout_ms "\$cmux_aw_timeout" "agent --wait")"
+  cmux_aw_elapsed=0
+  cmux_aw_state=pending
+  cmux_aw_out='{}'
+  while :; do
+    cmux_aw_slice=30000
+    if [ -n "\$cmux_aw_total" ]; then
+      cmux_aw_left=\$((cmux_aw_total - cmux_aw_elapsed))
+      [ "\$cmux_aw_left" -gt 0 ] || break
+      [ "\$cmux_aw_left" -ge "\$cmux_aw_slice" ] || cmux_aw_slice="\$cmux_aw_left"
+    fi
+    if cmux_aw_out="\$(tui --json terminal "\$cmux_aw_term" process wait --timeout-ms "\$cmux_aw_slice" 2>&1)"; then :; else
+      die "agent --wait: process wait failed for \$cmux_aw_term on \$cmux_aw_where: \$cmux_aw_out" 1
+    fi
+    cmux_aw_state="\$(printf '%s\\n' "\$cmux_aw_out" | jq -r '(.value // .) | .state // "pending"' 2>/dev/null || printf pending)"
+    [ "\$cmux_aw_state" != exited ] || break
+    cmux_aw_elapsed=\$((cmux_aw_elapsed + cmux_aw_slice))
+  done
+  cmux_aw_line="\$(printf '%s\\n' "\$cmux_aw_out" | jq -r '(.value // .) | if .state == "exited" then ((.outcome // {}) | if .kind == "exit" then "exited code=\\(.code)" elif .kind == "signal" then "exited signal=\\(.signal)" else "exited unknown=\\(.reason // "?")" end) else "pending" end' 2>/dev/null || printf pending)"
+  cmux_aw_code=1
+  case "\$cmux_aw_line" in "exited code="*) cmux_aw_code="\${cmux_aw_line#exited code=}" ;; esac
+  case "\$cmux_aw_code" in ''|*[!0-9]*) cmux_aw_code=1 ;; esac
+  cmux_aw_text="\$(mktemp "\${TMPDIR:-/tmp}/cmux-agent-out.XXXXXX")"
+  cmux_aw_after=0
+  if [ "\$cmux_aw_output" -eq 1 ]; then
+    while :; do
+      if cmux_aw_page="\$(tui --json terminal "\$cmux_aw_term" output read --after "\$cmux_aw_after" 2>&1)"; then :; else
+        rm -f "\$cmux_aw_text"
+        die "agent --output: output read failed for \$cmux_aw_term on \$cmux_aw_where: \$cmux_aw_page" 1
+      fi
+      if [ "\$cmux_aw_json" -eq 1 ]; then
+        printf '%s\\n' "\$cmux_aw_page" | jq -j '(.value // .) | .text // ""' >> "\$cmux_aw_text" 2>/dev/null || true
+      else
+        printf '%s\\n' "\$cmux_aw_page" | jq -j '(.value // .) | .text // ""' 2>/dev/null || true
+      fi
+      cmux_aw_next="\$(printf '%s\\n' "\$cmux_aw_page" | jq -r '(.value // .) | (.next_offset // empty)' 2>/dev/null || true)"
+      cmux_aw_complete="\$(printf '%s\\n' "\$cmux_aw_page" | jq -r '(.value // .) | if .complete == true then 1 else 0 end' 2>/dev/null || printf 1)"
+      case "\$cmux_aw_next" in ''|*[!0-9]*) cmux_aw_next="\$cmux_aw_after" ;; esac
+      [ "\$cmux_aw_next" -gt "\$cmux_aw_after" ] || cmux_aw_complete=1
+      cmux_aw_after="\$cmux_aw_next"
+      [ "\$cmux_aw_complete" != 1 ] || break
+    done
+  fi
+  if [ "\$cmux_aw_json" -eq 1 ]; then
+    jq -n --arg term "\$cmux_aw_term" --arg ws "\$cmux_aw_ws" --arg machine "\$cmux_aw_where" --arg agent "\$cmux_aw_agent" \\
+      --arg state "\$cmux_aw_state" --arg line "\$cmux_aw_line" --argjson output "\$cmux_aw_output" --argjson after "\$cmux_aw_after" \\
+      --rawfile text "\$cmux_aw_text" '
+      {terminal_id: \$term, workspace_id: \$ws, machine: \$machine, agent: \$agent, state: \$state,
+       exit_code: ((\$line | capture("^exited code=(?<c>[0-9]+)\$")? | .c | tonumber) // null),
+       signal: ((\$line | capture("^exited signal=(?<s>[0-9]+)\$")? | .s | tonumber) // null)}
+      + (if \$output == 1 then {output: \$text, next_offset: \$after} else {} end)'
+  elif [ "\$cmux_aw_output" -eq 0 ]; then
+    printf '%s\\n' "\$cmux_aw_line"
+  fi
+  rm -f "\$cmux_aw_text"
+  case "\$cmux_aw_line" in
+    "exited code="*) return "\$cmux_aw_code" ;;
+    exited*) printf '%s\\n' "cmux: agent \$cmux_aw_agent on \$cmux_aw_where ended by a signal (\$cmux_aw_line, terminal \$cmux_aw_term)" >&2; return 1 ;;
+    *) printf '%s\\n' "cmux: agent \$cmux_aw_agent on \$cmux_aw_where is still running after \${cmux_aw_timeout}s (terminal \$cmux_aw_term; cmux vm terminal wait-exit \$cmux_aw_where \$cmux_aw_term, or cmux vm terminal output \$cmux_aw_where \$cmux_aw_term --after \$cmux_aw_after)" >&2; return 1 ;;
+  esac
+}
+
+# \`cmux vm agent <peer> --agent <a> [--name n] [--cwd d] [--workspace ws] [--wait [--output] [--timeout s]] -- <args>\`:
 # a durable terminal on the peer running the peer's own \`cmux agent\`, so the
 # peer's CodeRouter config and machine env apply and the prompt rules match.
+# --wait blocks until that terminal's process exits (exit code = the agent's);
+# --output then prints its whole terminal stream; --timeout caps the wait.
 peer_agent() {
   cmux_pa_peer="\$1"
   shift
@@ -1762,6 +1984,10 @@ peer_agent() {
   cmux_pa_name=""
   cmux_pa_cwd=""
   cmux_pa_ws=""
+  cmux_pa_wait=0
+  cmux_pa_output=0
+  cmux_pa_timeout=""
+  cmux_pa_json=0
   while [ "\$#" -gt 0 ]; do
     case "\$1" in
       --agent) [ "\$#" -ge 2 ] || die "vm agent: --agent needs claude, codex, opencode, or pi" 2; cmux_pa_agent="\$2"; shift 2 ;;
@@ -1772,17 +1998,22 @@ peer_agent() {
       --cwd=*) cmux_pa_cwd="\${1#--cwd=}"; shift ;;
       --workspace) [ "\$#" -ge 2 ] || die "vm agent: --workspace needs a value" 2; cmux_pa_ws="\$2"; shift 2 ;;
       --workspace=*) cmux_pa_ws="\${1#--workspace=}"; shift ;;
-      --json) shift ;;
+      --wait) cmux_pa_wait=1; shift ;;
+      --output) cmux_pa_output=1; cmux_pa_wait=1; shift ;;
+      --timeout) [ "\$#" -ge 2 ] || die "vm agent: --timeout needs seconds" 2; cmux_pa_timeout="\$2"; cmux_pa_wait=1; shift 2 ;;
+      --timeout=*) cmux_pa_timeout="\${1#--timeout=}"; cmux_pa_wait=1; shift ;;
+      --json) cmux_pa_json=1; shift ;;
       --) shift; break ;;
       claude|codex|opencode|pi) if [ -z "\$cmux_pa_agent" ]; then cmux_pa_agent="\$1"; shift; else break; fi ;;
       *) break ;;
     esac
   done
-  [ -n "\$cmux_pa_agent" ] || die "usage: cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--workspace <ws>] -- <prompt or args…>" 2
+  [ -n "\$cmux_pa_agent" ] || die "usage: cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--workspace <ws>] [--wait [--output] [--timeout <s>]] -- <prompt or args…>" 2
   case "\$cmux_pa_agent" in
     claude|codex|opencode|pi) ;;
     *) die "vm agent: unsupported agent '\$cmux_pa_agent' (choose claude, codex, opencode, or pi)" 2 ;;
   esac
+  [ -z "\$cmux_pa_timeout" ] || timeout_ms "\$cmux_pa_timeout" "vm agent" >/dev/null
   use_peer "\$cmux_pa_peer"
   [ -n "\$cmux_pa_ws" ] || cmux_pa_ws="\$(target_workspace)"
   [ -n "\$cmux_pa_name" ] || cmux_pa_name="\$cmux_pa_agent"
@@ -1794,13 +2025,72 @@ peer_agent() {
   if cmux_out="\$(tui --json "\$@" 2>&1)"; then :; else die "vm agent: could not start \$cmux_pa_agent on \$cmux_pa_peer: \$cmux_out" 1; fi
   cmux_pa_term="\$(printf '%s\\n' "\$cmux_out" | jq -r '(.value // .) | .terminal_id // empty')"
   cmux_pa_wsid="\$(printf '%s\\n' "\$cmux_out" | jq -r '(.value // .) | .workspace_id // empty')"
+  if [ "\$cmux_pa_wait" -eq 1 ]; then
+    [ -n "\$cmux_pa_term" ] || die "vm agent: \$cmux_pa_peer returned no terminal id, so there is nothing to wait for: \$cmux_out" 1
+    if [ "\$cmux_pa_json" -eq 0 ]; then
+      printf 'started terminal=%s workspace=%s machine=%s agent=%s; waiting%s\\n' "\$cmux_pa_term" "\${cmux_pa_wsid:-\$cmux_pa_ws}" "\$cmux_pa_peer" "\$cmux_pa_agent" "\${cmux_pa_timeout:+ up to \${cmux_pa_timeout}s}" >&2
+    fi
+    agent_wait_terminal "\$cmux_pa_term" "\$cmux_pa_timeout" "\$cmux_pa_output" "\$cmux_pa_json" "\$cmux_pa_peer" "\$cmux_pa_agent" "\${cmux_pa_wsid:-\$cmux_pa_ws}" || exit "\$?"
+    return 0
+  fi
+  if [ "\$cmux_pa_json" -eq 1 ]; then
+    jq -n --arg term "\${cmux_pa_term:-}" --arg ws "\${cmux_pa_wsid:-\$cmux_pa_ws}" --arg machine "\$cmux_pa_peer" --arg agent "\$cmux_pa_agent" \\
+      '{terminal_id: \$term, workspace_id: \$ws, machine: \$machine, agent: \$agent, state: "running"}'
+    return 0
+  fi
   printf 'OK terminal=%s workspace=%s machine=%s agent=%s (detached: it keeps running on the peer; read it with cmux vm terminal read %s %s)\\n' \\
     "\${cmux_pa_term:-?}" "\${cmux_pa_wsid:-\$cmux_pa_ws}" "\$cmux_pa_peer" "\$cmux_pa_agent" "\$cmux_pa_peer" "\${cmux_pa_term:-<term>}"
 }
 
-# \`cmux vm env set <peer> …\`: the sending half of the handshake above, over the
-# peer's link. Values travel only inside the typed base64 payload — never in a
-# \`run\` argv (visible in process lists) and never through a control plane.
+# peer_deliver <label> <MARKER> <terminal-name> <scratch-dir> <payload-file> -- <receiver argv…>:
+# the sending half of a receive handshake on the current peer target. Starts the
+# receiver in a durable terminal (--on-exit keep: its final OK/ERR line must stay
+# readable), waits for CMUX-<MARKER>-READY (echo is off by then), types the
+# payload as 76-column base64 lines plus CMUX-<MARKER>-END in 1 KiB writes, reads
+# one CMUX-<MARKER>-(OK|ERR) line and closes the terminal. Sets cmux_pd_line to
+# that line ("" when the receiver never answered). Payload bytes travel only
+# inside the typed stream: never in a run argv (visible in process lists) and
+# never through a control plane. Transport failures remove <scratch-dir> and die.
+peer_deliver() {
+  cmux_pd_label="\$1"
+  cmux_pd_marker="\$2"
+  cmux_pd_name="\$3"
+  cmux_pd_dir="\$4"
+  cmux_pd_payload="\$5"
+  shift 5
+  [ "\${1:-}" = "--" ] && shift
+  cmux_pd_verb="\$(printf '%s' "\$cmux_pd_marker" | tr 'A-Z' 'a-z')"
+  cmux_pd_ws="\$(target_workspace)"
+  if cmux_out="\$(tui --json workspace "\$cmux_pd_ws" run --on-exit keep --name "\$cmux_pd_name" -- "\$@" 2>&1)"; then :; else
+    rm -rf "\$cmux_pd_dir"; die "\$cmux_pd_label: could not start the receiver on \$TARGET_LABEL: \$cmux_out" 1
+  fi
+  cmux_pd_term="\$(printf '%s\\n' "\$cmux_out" | jq -r '(.value // .) | .terminal_id // empty')"
+  [ -n "\$cmux_pd_term" ] || { rm -rf "\$cmux_pd_dir"; die "\$cmux_pd_label: the receiver on \$TARGET_LABEL returned no terminal id: \$cmux_out" 1; }
+  cmux_pd_ready="\$(tui --json terminal "\$cmux_pd_term" screen wait --pattern "CMUX-\$cmux_pd_marker-READY" --timeout-ms 15000 2>/dev/null || true)"
+  if [ "\$(printf '%s\\n' "\$cmux_pd_ready" | jq -r '(.value // .) | if .matched == true then 1 else 0 end' 2>/dev/null || printf 0)" != 1 ]; then
+    cmux_pd_seen="\$(printf '%s\\n' "\$cmux_pd_ready" | jq -r '(.value // .) | .text // ""' 2>/dev/null | grep -Eo "CMUX-\$cmux_pd_marker-ERR[^[:cntrl:]]*" | tail -n 1 || true)"
+    tui --json terminal "\$cmux_pd_term" close >/dev/null 2>&1 || true
+    rm -rf "\$cmux_pd_dir"
+    [ -z "\$cmux_pd_seen" ] || die "\$cmux_pd_label on \$TARGET_LABEL failed: \${cmux_pd_seen#CMUX-\$cmux_pd_marker-ERR }" 1
+    die "\$cmux_pd_label: the receiver on \$TARGET_LABEL never became ready (its cmux shim may predate \$cmux_pd_verb receive; reconnect the machine to heal it)" 1
+  fi
+  { base64 < "\$cmux_pd_payload" | tr -d '\\n' | fold -w 76; printf '\\nCMUX-%s-END\\n' "\$cmux_pd_marker"; } > "\$cmux_pd_dir/stream"
+  split -b 1024 "\$cmux_pd_dir/stream" "\$cmux_pd_dir/piece."
+  for cmux_pd_piece in "\$cmux_pd_dir"/piece.*; do
+    [ -f "\$cmux_pd_piece" ] || continue
+    cmux_pd_b64="\$(base64 < "\$cmux_pd_piece" | tr -d '\\n')"
+    if ! tui --json terminal "\$cmux_pd_term" write --bytes-base64 "\$cmux_pd_b64" >/dev/null 2>&1; then
+      tui --json terminal "\$cmux_pd_term" close >/dev/null 2>&1 || true
+      rm -rf "\$cmux_pd_dir"
+      die "\$cmux_pd_label: the link to \$TARGET_LABEL dropped while sending" 1
+    fi
+  done
+  cmux_pd_result="\$(tui --json terminal "\$cmux_pd_term" screen wait --pattern "CMUX-\$cmux_pd_marker-(OK|ERR)" --timeout-ms 30000 2>/dev/null || true)"
+  cmux_pd_line="\$(printf '%s\\n' "\$cmux_pd_result" | jq -r '(.value // .) | .text // ""' 2>/dev/null | grep -Eo "CMUX-\$cmux_pd_marker-(OK|ERR)[^[:cntrl:]]*" | tail -n 1 || true)"
+  tui --json terminal "\$cmux_pd_term" close >/dev/null 2>&1 || true
+}
+
+# \`cmux vm env set <peer> …\`: values onto a peer through its \`cmux env receive\`.
 peer_env_set() {
   cmux_pe_peer="\$1"
   shift
@@ -1809,44 +2099,77 @@ peer_env_set() {
   cmux_pe_n="\$(grep -c . "\$cmux_pe_dir/payload" || true)"
   cmux_pe_names="\$(sed 's/=.*//' "\$cmux_pe_dir/payload" | tr '\\n' ' ')"
   use_peer "\$cmux_pe_peer"
-  cmux_pe_ws="\$(target_workspace)"
-  # --on-exit keep: the receiver's final screen (the OK/ERR line) must stay
-  # readable after it exits; the terminal is closed explicitly below.
-  if cmux_out="\$(tui --json workspace "\$cmux_pe_ws" run --on-exit keep --name "cmux env" -- cmux env receive 2>&1)"; then :; else
-    rm -rf "\$cmux_pe_dir"; die "vm env set: could not start the receiver on \$cmux_pe_peer: \$cmux_out" 1
-  fi
-  cmux_pe_term="\$(printf '%s\\n' "\$cmux_out" | jq -r '(.value // .) | .terminal_id // empty')"
-  [ -n "\$cmux_pe_term" ] || { rm -rf "\$cmux_pe_dir"; die "vm env set: the receiver on \$cmux_pe_peer returned no terminal id: \$cmux_out" 1; }
-  cmux_pe_ready="\$(tui --json terminal "\$cmux_pe_term" screen wait --pattern CMUX-ENV-READY --timeout-ms 15000 2>/dev/null || true)"
-  if [ "\$(printf '%s\\n' "\$cmux_pe_ready" | jq -r '(.value // .) | if .matched == true then 1 else 0 end' 2>/dev/null || printf 0)" != 1 ]; then
-    tui --json terminal "\$cmux_pe_term" close >/dev/null 2>&1 || true
-    rm -rf "\$cmux_pe_dir"
-    die "vm env set: the receiver on \$cmux_pe_peer never became ready (its cmux shim may predate env receive; reconnect the machine to heal it)" 1
-  fi
-  { base64 < "\$cmux_pe_dir/payload" | tr -d '\\n' | fold -w 76; printf '\\nCMUX-ENV-END\\n'; } > "\$cmux_pe_dir/stream"
-  split -b 1024 "\$cmux_pe_dir/stream" "\$cmux_pe_dir/piece."
-  for cmux_pe_piece in "\$cmux_pe_dir"/piece.*; do
-    [ -f "\$cmux_pe_piece" ] || continue
-    cmux_pe_b64="\$(base64 < "\$cmux_pe_piece" | tr -d '\\n')"
-    if ! tui --json terminal "\$cmux_pe_term" write --bytes-base64 "\$cmux_pe_b64" >/dev/null 2>&1; then
-      tui --json terminal "\$cmux_pe_term" close >/dev/null 2>&1 || true
-      rm -rf "\$cmux_pe_dir"
-      die "vm env set: the link to \$cmux_pe_peer dropped while sending" 1
-    fi
-  done
-  cmux_pe_result="\$(tui --json terminal "\$cmux_pe_term" screen wait --pattern 'CMUX-ENV-(OK|ERR)' --timeout-ms 30000 2>/dev/null || true)"
-  cmux_pe_line="\$(printf '%s\\n' "\$cmux_pe_result" | jq -r '(.value // .) | .text // ""' 2>/dev/null | grep -Eo 'CMUX-ENV-(OK|ERR)[^[:cntrl:]]*' | tail -n 1 || true)"
-  tui --json terminal "\$cmux_pe_term" close >/dev/null 2>&1 || true
+  peer_deliver "vm env set" ENV "cmux env" "\$cmux_pe_dir" "\$cmux_pe_dir/payload" -- cmux env receive
   rm -rf "\$cmux_pe_dir"
-  case "\$cmux_pe_line" in
+  case "\$cmux_pd_line" in
     CMUX-ENV-OK*)
       printf 'OK set %s variable%s on %s: %s(new cmux shells and agents there see them)\\n' "\$cmux_pe_n" "\$([ "\$cmux_pe_n" = 1 ] || printf s)" "\$cmux_pe_peer" "\$cmux_pe_names"
       ;;
     CMUX-ENV-ERR*)
-      die "vm env set on \$cmux_pe_peer failed: \${cmux_pe_line#CMUX-ENV-ERR }" 1
+      die "vm env set on \$cmux_pe_peer failed: \${cmux_pd_line#CMUX-ENV-ERR }" 1
       ;;
     *)
       die "vm env set: no answer from the receiver on \$cmux_pe_peer within 30s" 1
+      ;;
+  esac
+}
+
+# \`cmux vm push <peer> <local-file> <remote-path> [--mode <octal>] [--json]\`:
+# one file onto a linked machine through its \`cmux file receive\`, the handshake
+# the Mac's \`cmux vm push --secret\` uses. Single files up to 256 KiB, always
+# over the link: secret-safe by construction, so there is no --secret flag here.
+peer_push() {
+  cmux_pp_peer="\$1"
+  shift
+  cmux_pp_local=""
+  cmux_pp_remote=""
+  cmux_pp_mode=600
+  cmux_pp_json=0
+  cmux_pp_usage="usage: cmux vm push <machine> <local-file> <remote-path> [--mode <octal>] [--json]"
+  while [ "\$#" -gt 0 ]; do
+    case "\$1" in
+      --mode) [ "\$#" -ge 2 ] || die "vm push: --mode needs an octal mode such as 600 or 755" 2; cmux_pp_mode="\$2"; shift 2 ;;
+      --mode=*) cmux_pp_mode="\${1#--mode=}"; shift ;;
+      --json) cmux_pp_json=1; shift ;;
+      --help|-h) peer_usage; return 0 ;;
+      --secret) shift ;;
+      -*) die "vm push: unknown option \$1 (\$cmux_pp_usage)" 2 ;;
+      *)
+        if [ -z "\$cmux_pp_local" ]; then cmux_pp_local="\$1"
+        elif [ -z "\$cmux_pp_remote" ]; then cmux_pp_remote="\$1"
+        else die "vm push: one local file and one remote path (\$cmux_pp_usage)" 2; fi
+        shift ;;
+    esac
+  done
+  [ -n "\$cmux_pp_local" ] && [ -n "\$cmux_pp_remote" ] || die "\$cmux_pp_usage" 2
+  file_mode_ok "\$cmux_pp_mode" || die "vm push: --mode takes an octal mode such as 600 or 755, got '\$cmux_pp_mode'" 2
+  [ ! -d "\$cmux_pp_local" ] || die "vm push: \$cmux_pp_local is a directory; from inside a machine push one file at a time (tar it first)" 2
+  [ -f "\$cmux_pp_local" ] && [ -r "\$cmux_pp_local" ] || die "vm push: cannot read \$cmux_pp_local" 2
+  cmux_pp_bytes="\$(wc -c < "\$cmux_pp_local" | tr -d ' ')"
+  [ "\$cmux_pp_bytes" -gt 0 ] || die "vm push: \$cmux_pp_local is empty" 2
+  [ "\$cmux_pp_bytes" -le 262144 ] || die "vm push: \$cmux_pp_local is \$cmux_pp_bytes bytes; the link carries files up to 262144 bytes (256 KiB)" 2
+  cmux_pp_dir="\$(mktemp -d "\${TMPDIR:-/tmp}/cmux-file-send.XXXXXX")"
+  use_peer "\$cmux_pp_peer"
+  peer_deliver "vm push" FILE "cmux file" "\$cmux_pp_dir" "\$cmux_pp_local" -- cmux file receive "\$cmux_pp_remote" --mode "\$cmux_pp_mode"
+  rm -rf "\$cmux_pp_dir"
+  case "\$cmux_pd_line" in
+    CMUX-FILE-OK*)
+      cmux_pp_rest="\${cmux_pd_line#CMUX-FILE-OK }"
+      cmux_pp_landed="\${cmux_pp_rest#*path=}"
+      cmux_pp_landed="\${cmux_pp_landed% mode=*}"
+      [ -n "\$cmux_pp_landed" ] || cmux_pp_landed="\$cmux_pp_remote"
+      if [ "\$cmux_pp_json" -eq 1 ]; then
+        jq -n --arg machine "\$cmux_pp_peer" --arg path "\$cmux_pp_landed" --arg mode "\$cmux_pp_mode" --argjson bytes "\$cmux_pp_bytes" \\
+          '{machine: \$machine, path: \$path, bytes: \$bytes, mode: \$mode, transport: "link"}'
+      else
+        printf 'OK %s on %s (%s bytes, mode %s) delivered over the link\\n' "\$cmux_pp_landed" "\$cmux_pp_peer" "\$cmux_pp_bytes" "\$cmux_pp_mode"
+      fi
+      ;;
+    CMUX-FILE-ERR*)
+      die "vm push to \$cmux_pp_peer failed: \${cmux_pd_line#CMUX-FILE-ERR }" 1
+      ;;
+    *)
+      die "vm push: no answer from the receiver on \$cmux_pp_peer within 30s" 1
       ;;
   esac
 }
@@ -1939,6 +2262,10 @@ case "\${1:-}" in
   env)
     shift
     guest_env_command "\$@"
+    ;;
+  file)
+    shift
+    guest_file_command "\$@"
     ;;
   layout)
     shift
@@ -2033,6 +2360,13 @@ case "\${1:-}" in
         target="\$(target_workspace)"
         exec "\$CMUX_TUI_BIN" --socket "\$sock" workspace "\$target" run --on-exit close -- "\$@"
         ;;
+      push)
+        # The Mac spelling puts --secret first; here every push is link-typed, so it is accepted and means nothing extra.
+        [ "\${1:-}" != --secret ] || shift
+        peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm push <machine> <local-file> <remote-path> [--mode <octal>]" 2
+        shift
+        peer_push "\$peer" "\$@"
+        ;;
       terminal)
         case "\${1:-}" in
           send|write|read|screen|wait|wait-exit|output|close)
@@ -2084,7 +2418,7 @@ case "\${1:-}" in
       agent)
         peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm agent <machine> --agent <claude|codex|opencode|pi> -- <prompt or args…>" 2
         case "\${2:-}" in
-          --agent|--agent=*|claude|codex|opencode|pi) peer_agent "\$@" ;;
+          --agent|--agent=*|claude|codex|opencode|pi|--wait|--output|--timeout|--timeout=*|--name|--name=*|--cwd|--cwd=*|--workspace|--workspace=*) peer_agent "\$@" ;;
           *)
             shift
             use_peer "\$peer"

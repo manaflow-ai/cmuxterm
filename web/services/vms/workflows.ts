@@ -1077,6 +1077,91 @@ export function snapshotVm(input: {
   });
 }
 
+/**
+ * The machine as the Mac-facing reflection route reads it (`cmux vm self <m>`):
+ * the owned row itself, so the route can build the same reflection context a
+ * machine gets from inside. List/status semantics (`requireUserVm`): a locked
+ * free-window machine still describes itself.
+ */
+export function reflectVm(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const vm: CloudVmRow = yield* requireUserVm(input);
+    return vm;
+  });
+}
+
+/** Every snapshot taken from a machine the caller owns, newest first (`cmux vm snapshot ls`). */
+export function listVmSnapshots(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+}) {
+  return Effect.gen(function* () {
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (!providers.listSnapshots) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "listSnapshots" }));
+    }
+    const snapshots = yield* providers.listSnapshots(vm.provider, providerVmId);
+    return [...snapshots].sort((a, b) => b.createdAt - a.createdAt);
+  });
+}
+
+export type VmSnapshotDeleteResult = {
+  readonly id: string;
+  readonly deleted: true;
+};
+
+/**
+ * Delete one snapshot of a machine the caller owns (`cmux vm snapshot rm`).
+ * Scoped to the machine: the provider refuses a snapshot taken from another
+ * VM as not-found, which the route answers as 404 vm_snapshot_not_found. The
+ * ledger records the deletion so `hasOwnedSnapshot` stops offering it to restore.
+ */
+export function deleteVmSnapshot(input: {
+  readonly userId: string;
+  readonly billingTeamId?: string | null;
+  readonly teamIds?: readonly string[];
+  readonly providerVmId: string;
+  readonly snapshotId: string;
+}) {
+  return Effect.gen(function* () {
+    const repo = yield* VmRepository;
+    const providers = yield* VmProviderGateway;
+    const vm = yield* requireUserVm(input);
+    const providerVmId = vm.providerVmId ?? input.providerVmId;
+    if (!providers.deleteSnapshot) {
+      return yield* Effect.fail(new VmOperationUnsupportedError({ provider: vm.provider, operation: "deleteSnapshot" }));
+    }
+    yield* providers.deleteSnapshot(vm.provider, providerVmId, input.snapshotId).pipe(
+      Effect.catchAll((err) =>
+        Effect.fail<VmProviderOperationError | VmSnapshotNotFoundError>(
+          isProviderNotFoundError(err) ? new VmSnapshotNotFoundError({ snapshotId: input.snapshotId }) : err,
+        ),
+      ),
+    );
+    yield* repo.recordUsageEvent({
+      userId: vm.userId,
+      billingTeamId: vm.billingTeamId,
+      billingPlanId: vm.billingPlanId,
+      vmId: vm.id,
+      eventType: "vm.snapshot.deleted",
+      provider: vm.provider,
+      imageId: vm.imageId,
+      metadata: { snapshotId: input.snapshotId },
+    });
+    const result: VmSnapshotDeleteResult = { id: input.snapshotId, deleted: true };
+    return result;
+  });
+}
+
 export type VmPauseResumeResult = {
   readonly id: string;
   readonly status: "paused" | "running";

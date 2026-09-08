@@ -8,6 +8,8 @@
 //
 // Pure: every builder takes rows and an owner snapshot and returns JSON-ready data,
 // so the route is a thin loader and the tests need no database.
+import type { ProviderId } from "./drivers/types";
+import { vmImageKindFor } from "./images/resolver";
 import { VM_RESOURCE_RESERVATION_METADATA_KEY } from "./machineSpec";
 import { VM_SELF_SCHEMA, vmSelfMachine, type VmSelfMachine } from "./selfDiscovery";
 import { VM_PRINCIPAL_LIVE_STATUSES, type VmPrincipalRow } from "./vmPrincipalContract";
@@ -96,6 +98,18 @@ export function reflectionPeerRoute(network: ReflectionNetwork): string | null {
   if (network.ipv6) return `ws://[${network.ipv6}]:${REFLECTION_PEER_DAEMON_PORT}/v1/link`;
   if (network.ipv4) return `ws://${network.ipv4}:${REFLECTION_PEER_DAEMON_PORT}/v1/link`;
   return null;
+}
+
+/**
+ * Whether the machine has a screen: the image kind decides. An image or
+ * provider unknown to this deployment means "cannot say", not "no".
+ */
+export function reflectionHasDesktop(row: Pick<ReflectionRow, "provider" | "imageId">): boolean | null {
+  try {
+    return vmImageKindFor(row.provider as ProviderId, row.imageId) === "desktop";
+  } catch {
+    return null;
+  }
 }
 
 export function reflectionIsLive(row: Pick<ReflectionRow, "status">): boolean {

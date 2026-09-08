@@ -465,6 +465,18 @@ export interface VMProvider {
 
   snapshot(vmId: string, name?: string): Promise<SnapshotRef>;
   /**
+   * Optional: every snapshot taken from `vmId`, newest first. Absent on a
+   * provider that cannot enumerate snapshots; the gateway answers unsupported.
+   */
+  listSnapshots?(vmId: string): Promise<SnapshotRef[]>;
+  /**
+   * Optional: delete one snapshot taken from `vmId`. A snapshot that does not
+   * exist or was taken from another machine fails with an error
+   * `isProviderNotFoundError` recognizes, so the workflow answers not-found
+   * rather than deleting across machines.
+   */
+  deleteSnapshot?(vmId: string, snapshotId: string): Promise<void>;
+  /**
    * Boot a new machine from a snapshot. `options.network` places it on the
    * owner's private network exactly as `create` does — a restored machine is a
    * machine like any other, and one restored outside the network would be the

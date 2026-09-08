@@ -56,6 +56,17 @@ export type VmProviderGatewayShape = {
     snapshotId: string,
     options?: RestoreOptions,
   ) => Effect.Effect<VMHandle, VmProviderOperationError>;
+  /** Every snapshot taken from the machine, newest first (`cmux vm snapshot ls`). */
+  readonly listSnapshots?: (
+    provider: ProviderId,
+    vmId: string,
+  ) => Effect.Effect<SnapshotRef[], VmProviderOperationError>;
+  /** Delete one snapshot taken from the machine (`cmux vm snapshot rm`). */
+  readonly deleteSnapshot?: (
+    provider: ProviderId,
+    vmId: string,
+    snapshotId: string,
+  ) => Effect.Effect<void, VmProviderOperationError>;
   readonly fork?: (provider: ProviderId, vmId: string) => Effect.Effect<VMHandle, VmProviderOperationError>;
   readonly exec: (
     provider: ProviderId,
@@ -207,6 +218,23 @@ export const VmProviderGatewayLive = Layer.succeed(VmProviderGateway, {
     providerEffect(provider, "snapshot", () => getProvider(provider).snapshot(vmId, name)),
   restore: (provider, snapshotId, options) =>
     providerEffect(provider, "restore", () => getProvider(provider).restore(snapshotId, options)),
+  listSnapshots: (provider, vmId) =>
+    providerEffect(provider, "listSnapshots", async () => {
+      const impl = getProvider(provider);
+      if (!impl.listSnapshots) {
+        // Typed, so the route answers 501 (cannot) rather than a retryable 502.
+        throw new VmOperationUnsupportedError({ provider, operation: "listSnapshots" });
+      }
+      return await impl.listSnapshots(vmId);
+    }),
+  deleteSnapshot: (provider, vmId, snapshotId) =>
+    providerEffect(provider, "deleteSnapshot", async () => {
+      const impl = getProvider(provider);
+      if (!impl.deleteSnapshot) {
+        throw new VmOperationUnsupportedError({ provider, operation: "deleteSnapshot" });
+      }
+      await impl.deleteSnapshot(vmId, snapshotId);
+    }),
   fork: (provider, vmId) =>
     providerEffect(provider, "fork", async () => {
       const driver = getProvider(provider);

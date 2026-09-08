@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "
 // Every shim run spawns dozens of processes (sh + jq per step); give the suites room.
 setDefaultTimeout(60_000);
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createServer } from "node:net";
 import { join } from "node:path";
@@ -480,6 +480,10 @@ if [ "$a" = pane ] && [ "$c" = tab ] && [ "$d" = create ]; then
 fi
 if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = wait ]; then
   case "$*" in
+    *CMUX-FILE-\\(OK*) printf '{"matched":true,"text":"CMUX-FILE-READY\\\\nCMUX-FILE-OK bytes=%s path=%s mode=%s\\\\n"}\\n' "\${FAKE_FILE_BYTES:-11}" "\${FAKE_FILE_PATH:-/root/app/.env}" "\${FAKE_FILE_MODE:-640}"; exit 0 ;;
+    *CMUX-FILE-READY*)
+      if [ "\${FAKE_FILE_REFUSE:-0}" = 1 ]; then printf '{"matched":false,"text":"CMUX-FILE-ERR is-directory /root/app\\\\n"}\\n'; exit 0; fi
+      printf '{"matched":%s,"text":"CMUX-FILE-READY\\\\n"}\\n' "\${FAKE_MATCHED:-true}"; exit 0 ;;
     *CMUX-ENV-\\(OK*) printf '{"matched":true,"text":"CMUX-ENV-READY\\\\nCMUX-ENV-OK keys=2 path=/root/.config/cmux/env\\\\n"}\\n'; exit 0 ;;
     *CMUX-ENV-READY*) printf '{"matched":%s,"text":"CMUX-ENV-READY\\\\n"}\\n' "\${FAKE_MATCHED:-true}"; exit 0 ;;
   esac
@@ -487,14 +491,21 @@ if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = wait ]; then
 fi
 if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = read ]; then printf '{"cols":80,"rows":24,"text":"hello screen"}\\n'; exit 0; fi
 if [ "$a" = terminal ] && [ "$c" = process ] && [ "$d" = wait ]; then
-  if [ "\${FAKE_EXIT_PENDING:-0}" = 1 ]; then printf '{"value":{"terminal_id":"%s","state":"pending"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
+  if [ "\${FAKE_EXIT_PENDING:-0}" = 1 ] || [ "$n" -lt "\${FAKE_EXIT_PENDING_UNTIL:-0}" ]; then printf '{"value":{"terminal_id":"%s","state":"pending"},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
   case "\${FAKE_EXIT_KIND:-exit}" in
     signal) printf '{"value":{"terminal_id":"%s","state":"exited","outcome":{"kind":"signal","signal":9,"core_dumped":false}},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" ;;
     *) printf '{"value":{"terminal_id":"%s","state":"exited","outcome":{"kind":"exit","code":3}},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n" ;;
   esac
   exit 0
 fi
-if [ "$a" = terminal ] && [ "$c" = output ] && [ "$d" = read ]; then printf '{"value":{"terminal_id":"%s","text":"line one\\\\nline two\\\\n","start_offset":0,"next_offset":18,"complete":true},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
+if [ "$a" = terminal ] && [ "$c" = output ] && [ "$d" = read ]; then
+  if [ "\${FAKE_OUTPUT_PAGED:-0}" = 1 ]; then
+    case "$*" in
+      *"--after 0"*) printf '{"value":{"terminal_id":"%s","text":"line one\\\\n","start_offset":0,"next_offset":9,"complete":false},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0 ;;
+      *) printf '{"value":{"terminal_id":"%s","text":"line two\\\\n","start_offset":9,"next_offset":18,"complete":true},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0 ;;
+    esac
+  fi
+  printf '{"value":{"terminal_id":"%s","text":"line one\\\\nline two\\\\n","start_offset":0,"next_offset":18,"complete":true},"generation":"g","revision":%s,"replayed":false}\\n' "$b" "$n"; exit 0; fi
 if [ "$a" = remote ] && [ "$b" = connect ]; then printf '{"event":"connection-snapshot","local_socket":"%s"}\\n' "\${FAKE_LINK_SOCKET:-}"; exit 0; fi
 printf '{}\\n'
 `;
@@ -670,9 +681,19 @@ describe("in-VM cmux shim: agent primitives", () => {
       "cmux vm env set|ls|rm|path <machine>",
       "cmux self [--json]",
       "cmux vm ls [--json]",
+      "cmux file receive <path> [--mode <octal>]",
+      "cmux vm push <machine> <local-file> <remote-path> [--mode <octal>]",
+      "cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--wait [--output] [--timeout <s>]] -- <prompt>",
+      "cmux agent <claude|codex|opencode|pi> [--timeout <s>] [args...]",
     ]) {
       expect(run.stdout).toContain(line);
     }
+    const fileHelp = runShim(["file", "help"]);
+    expect(fileHelp.status).toBe(0);
+    for (const line of ["cmux file receive <path> [--mode <octal>]", "CMUX-FILE-READY", "CMUX-FILE-OK bytes=<n> path=<p> mode=<m>", "CMUX-FILE-ERR <reason>", "cmux vm push <machine> <local-file> <remote-path>"]) {
+      expect(fileHelp.stdout).toContain(line);
+    }
+    expect(runShim(["file", "help"], { LANG: "ja_JP.UTF-8" }).stdout).toContain("CMUX-FILE-READY");
     const envHelp = runShim(["env", "help"]);
     for (const line of ["cmux env receive [--stdin]", "CMUX-ENV-READY / CMUX-ENV-OK / CMUX-ENV-ERR", "cmux env set -"]) {
       expect(envHelp.stdout).toContain(line);
@@ -684,7 +705,9 @@ describe("in-VM cmux shim: agent primitives", () => {
     }
     const vmHelp = runShim(["vm", "help"]);
     expect(vmHelp.stdout).toContain("cmux vm agent <machine> --agent");
+    expect(vmHelp.stdout).toContain("[--wait [--output] [--timeout <s>]]");
     expect(vmHelp.stdout).toContain("cmux vm env set|ls|rm|path <machine>");
+    expect(vmHelp.stdout).toContain("cmux vm push <machine> <local-file> <remote-path> [--mode <octal>]");
   });
 
   describe("local Mac-flavoured verbs", () => {
@@ -1105,6 +1128,31 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(run.status).toBe(0);
       expect(run.stdout.trim()).toBe("from-env");
     });
+
+    test("agent --wait/--output are already how this form runs; --timeout caps it with timeout(1)", () => {
+      const dir = makeStatefulDir();
+      const claude = join(dir, "claude");
+      writeFileSync(claude, "#!/bin/sh\nprintf '%s\\n' \"$*\"\nif [ \"${SLOW:-0}\" = 1 ]; then sleep 5; fi\n");
+      chmodSync(claude, 0o755);
+      // The flags are stripped only when they lead; the agent sees the prompt form it always saw.
+      const plain = runStateful(dir, ["agent", "claude", "--wait", "--output", "--", "say", "hi"]);
+      expect(plain.stderr).toBe("");
+      expect(plain.status).toBe(0);
+      expect(plain.stdout).toBe("-p say hi\n");
+      expect(plain.calls).toEqual([]);
+      const capped = runStateful(dir, ["agent", "claude", "--timeout=30", "say hi"]);
+      expect(capped.status).toBe(0);
+      expect(capped.stdout).toBe("-p say hi\n");
+      // Anything after the agent's own first token is the agent's, untouched.
+      expect(runStateful(dir, ["agent", "claude", "--resume", "--wait"]).stdout).toBe("--resume --wait\n");
+      expect(runStateful(dir, ["agent", "claude", "--timeout", "nope", "x"]).status).toBe(2);
+      const hasTimeout = spawnSync("sh", ["-c", "command -v timeout || command -v gtimeout"], { encoding: "utf8" }).status === 0;
+      if (hasTimeout) {
+        const slow = runStateful(dir, ["agent", "claude", "--timeout", "0.5", "--", "x"], { SLOW: "1" });
+        expect(slow.status).toBe(1);
+        expect(slow.stderr).toContain("agent claude timed out after 0.5s");
+      }
+    });
   });
 
   describe("peer forms", () => {
@@ -1240,6 +1288,126 @@ describe("in-VM cmux shim: agent primitives", () => {
       expect(notReady.status).toBe(1);
       expect(notReady.stderr).toContain("never became ready");
       expect(notReady.calls.at(-1)?.slice(2)).toEqual(["--json", "terminal", "term_2", "close"]);
+    });
+
+    test("vm push types one file into the peer's cmux file receive over the link; only the payload carries the bytes", () => {
+      const dir = peerDir();
+      const secret = Buffer.concat([Buffer.from("API_KEY=s3cr3t-value\n", "utf8"), Buffer.from([0, 1, 2, 255, 10])]);
+      writeFileSync(join(dir, "local.env"), secret);
+      const run = runStateful(dir, ["vm", "push", peer, join(dir, "local.env"), "/root/app/.env", "--mode", "640"], { FAKE_FILE_BYTES: String(secret.length) });
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      const ops = run.calls.map(stripRoute);
+      expect(ops[0]).toEqual(["workspace", "current", "show"]);
+      expect(ops[1]).toEqual(["--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "cmux file", "--", "cmux", "file", "receive", "/root/app/.env", "--mode", "640"]);
+      expect(ops[2]).toEqual(["--json", "terminal", "term_2", "screen", "wait", "--pattern", "CMUX-FILE-READY", "--timeout-ms", "15000"]);
+      const writes = ops.filter((call) => call[1] === "terminal" && call[3] === "write");
+      expect(writes.length).toBeGreaterThan(0);
+      for (const write of writes) expect(write.slice(0, 5)).toEqual(["--json", "terminal", "term_2", "write", "--bytes-base64"]);
+      const stream = Buffer.concat(writes.map((write) => Buffer.from(write[5], "base64"))).toString("utf8");
+      const lines = stream.split("\n");
+      expect(lines.at(-1)).toBe("");
+      expect(lines.at(-2)).toBe("CMUX-FILE-END");
+      expect(lines.slice(0, -2).every((line) => line.length <= 76)).toBe(true);
+      expect(Buffer.from(lines.slice(0, -2).join(""), "base64").equals(secret)).toBe(true);
+      expect(ops.at(-2)).toEqual(["--json", "terminal", "term_2", "screen", "wait", "--pattern", "CMUX-FILE-(OK|ERR)", "--timeout-ms", "30000"]);
+      expect(ops.at(-1)).toEqual(["--json", "terminal", "term_2", "close"]);
+      for (const call of run.calls) {
+        if (call[3] === "write") continue;
+        for (const word of call) expect(word).not.toContain("s3cr3t");
+      }
+      expect(run.stdout).toBe(`OK /root/app/.env on ${peer} (${secret.length} bytes, mode 640) delivered over the link\n`);
+      // --json, the Mac's --secret spelling, and a relative remote path (resolved under the peer's $HOME by the receiver).
+      const json = runStateful(dir, ["vm", "push", "--secret", peer, join(dir, "local.env"), "app/.env", "--json"], { FAKE_FILE_PATH: "/root/app/.env", FAKE_FILE_MODE: "600" });
+      expect(json.status).toBe(0);
+      expect(JSON.parse(json.stdout)).toEqual({ machine: peer, path: "/root/app/.env", bytes: secret.length, mode: "600", transport: "link" });
+      expect(json.calls.map(stripRoute)[1]?.slice(-5)).toEqual(["file", "receive", "app/.env", "--mode", "600"]);
+      // Refusals happen before anything touches the link.
+      mkdirSync(join(dir, "tree"));
+      const directory = runStateful(dir, ["vm", "push", peer, join(dir, "tree"), "/root/tree"]);
+      expect(directory.status).toBe(2);
+      expect(directory.stderr).toContain("is a directory");
+      expect(directory.calls).toEqual([]);
+      expect(runStateful(dir, ["vm", "push", peer, join(dir, "missing.env"), "/root/x"]).status).toBe(2);
+      expect(runStateful(dir, ["vm", "push", peer, join(dir, "local.env"), "/root/x", "--mode", "999"]).status).toBe(2);
+      expect(runStateful(dir, ["vm", "push", peer, join(dir, "local.env")]).status).toBe(2);
+      writeFileSync(join(dir, "big.bin"), Buffer.alloc(262145, 7));
+      const big = runStateful(dir, ["vm", "push", peer, join(dir, "big.bin"), "/root/big.bin"]);
+      expect(big.status).toBe(2);
+      expect(big.stderr).toContain("256 KiB");
+      expect(big.calls).toEqual([]);
+      // A receiver that never says READY: the terminal is closed and the command fails.
+      const notReady = runStateful(dir, ["vm", "push", peer, join(dir, "local.env"), "/root/x"], { FAKE_MATCHED: "false" });
+      expect(notReady.status).toBe(1);
+      expect(notReady.stderr).toContain("never became ready");
+      expect(notReady.calls.at(-1)?.slice(2)).toEqual(["--json", "terminal", "term_2", "close"]);
+      // A receiver that refuses before READY (its reason is on the screen) is relayed verbatim.
+      const refused = runStateful(dir, ["vm", "push", peer, join(dir, "local.env"), "/root/app"], { FAKE_FILE_REFUSE: "1" });
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain(`vm push on ${peer} failed: is-directory /root/app`);
+      expect(refused.calls.at(-1)?.slice(2)).toEqual(["--json", "terminal", "term_2", "close"]);
+    });
+
+    test("agent --wait blocks on the peer terminal's exit, --output pages its stream, and the exit code is the agent's", () => {
+      const dir = peerDir();
+      const waited = runStateful(dir, ["vm", "agent", peer, "--agent", "claude", "--wait", "--", "fix", "the tests"]);
+      expect(waited.status).toBe(3);
+      expect(waited.stdout).toBe("exited code=3\n");
+      expect(waited.stderr).toBe(`started terminal=term_2 workspace=current machine=${peer} agent=claude; waiting\n`);
+      expect(waited.calls.map(stripRoute)).toEqual([
+        ["workspace", "current", "show"],
+        ["--json", "workspace", "current", "run", "--on-exit", "keep", "--name", "claude", "--", "cmux", "agent", "claude", "fix", "the tests"],
+        ["--json", "terminal", "term_2", "process", "wait", "--timeout-ms", "30000"],
+      ]);
+      // --output implies --wait and pages the stream by next_offset until complete.
+      const output = runStateful(dir, ["vm", "agent", peer, "claude", "--output", "--", "fix"], { FAKE_OUTPUT_PAGED: "1" });
+      expect(output.status).toBe(3);
+      expect(output.stdout).toBe("line one\nline two\n");
+      expect(output.calls.map(stripRoute).slice(2)).toEqual([
+        ["--json", "terminal", "term_2", "process", "wait", "--timeout-ms", "30000"],
+        ["--json", "terminal", "term_2", "output", "read", "--after", "0"],
+        ["--json", "terminal", "term_2", "output", "read", "--after", "9"],
+      ]);
+      // Still running after two slices: the daemon is asked again until it exits.
+      const eventually = runStateful(dir, ["vm", "agent", peer, "claude", "--wait", "--", "x"], { FAKE_EXIT_PENDING_UNTIL: "5" });
+      expect(eventually.status).toBe(3);
+      expect(eventually.stdout).toBe("exited code=3\n");
+      expect(eventually.calls.filter((call) => call[5] === "process").length).toBe(3);
+      // --timeout is sliced into daemon waits of at most 30 s; when it runs out the agent keeps running there.
+      const slow = runStateful(dir, ["vm", "agent", peer, "--agent", "codex", "--wait", "--timeout", "45", "--", "x"], { FAKE_EXIT_PENDING: "1" });
+      expect(slow.status).toBe(1);
+      expect(slow.stdout).toBe("pending\n");
+      expect(slow.calls.map(stripRoute).filter((call) => call[3] === "process")).toEqual([
+        ["--json", "terminal", "term_2", "process", "wait", "--timeout-ms", "30000"],
+        ["--json", "terminal", "term_2", "process", "wait", "--timeout-ms", "15000"],
+      ]);
+      expect(slow.stderr).toContain(`agent codex on ${peer} is still running after 45s (terminal term_2`);
+      expect(slow.stderr).toContain(`cmux vm terminal wait-exit ${peer} term_2`);
+      // With --output the partial stream is still printed before the timeout verdict.
+      const slowOutput = runStateful(dir, ["vm", "agent", peer, "claude", "--output", "--timeout", "0.5", "--", "x"], { FAKE_EXIT_PENDING: "1" });
+      expect(slowOutput.status).toBe(1);
+      expect(slowOutput.stdout).toBe("line one\nline two\n");
+      expect(slowOutput.stderr).toContain("--after 18");
+      const killed = runStateful(dir, ["vm", "agent", peer, "claude", "--wait", "--", "x"], { FAKE_EXIT_KIND: "signal" });
+      expect(killed.status).toBe(1);
+      expect(killed.stdout).toBe("exited signal=9\n");
+      expect(killed.stderr).toContain("ended by a signal");
+      // JSON: one object with the outcome and, with --output, the stream; nothing on stderr.
+      const json = runStateful(dir, ["vm", "agent", peer, "--agent", "claude", "--wait", "--output", "--json", "--", "x"]);
+      expect(json.status).toBe(3);
+      expect(json.stderr).toBe("");
+      expect(JSON.parse(json.stdout)).toEqual({ terminal_id: "term_2", workspace_id: "current", machine: peer, agent: "claude", state: "exited", exit_code: 3, signal: null, output: "line one\nline two\n", next_offset: 18 });
+      const jsonSignal = runStateful(dir, ["vm", "agent", peer, "claude", "--wait", "--json", "--", "x"], { FAKE_EXIT_KIND: "signal" });
+      expect(JSON.parse(jsonSignal.stdout)).toMatchObject({ state: "exited", exit_code: null, signal: 9 });
+      const jsonPending = runStateful(dir, ["vm", "agent", peer, "claude", "--wait", "--json", "--timeout", "1", "--", "x"], { FAKE_EXIT_PENDING: "1" });
+      expect(jsonPending.status).toBe(1);
+      expect(JSON.parse(jsonPending.stdout)).toMatchObject({ state: "pending", exit_code: null, signal: null });
+      // Detached --json names the terminal so a later wait-exit/output can find it.
+      const detached = runStateful(dir, ["vm", "agent", peer, "--agent", "claude", "--json", "--", "x"]);
+      expect(detached.status).toBe(0);
+      expect(JSON.parse(detached.stdout)).toEqual({ terminal_id: "term_2", workspace_id: "current", machine: peer, agent: "claude", state: "running" });
+      expect(detached.calls.filter((call) => call[5] === "process")).toEqual([]);
+      expect(runStateful(dir, ["vm", "agent", peer, "claude", "--wait", "--timeout", "nope", "--", "x"]).status).toBe(2);
     });
 
     test("layout, env, exec, and tree on a peer use the same functions over the link socket", () => {
@@ -1617,6 +1785,83 @@ describe("in-VM cmux shim: reflection", () => {
     const terminalHelp = runShim(["terminal", "help"]);
     expect(terminalHelp.stdout).toContain("cmux terminal wait-exit <id> [--timeout <seconds>] [--json]");
     expect(terminalHelp.stdout).toContain("cmux terminal output <id> [--after <offset>] [--max-bytes <n>] [--json]");
+  });
+});
+
+describe("in-VM cmux shim: file drop", () => {
+  const stream = (bytes: Buffer) => `${bytes.toString("base64").replace(/(.{76})/g, "$1\n")}\nCMUX-FILE-END\n`;
+
+  test("file receive: READY, base64 lines, END; the bytes land by rename with the mode and parents asked for", () => {
+    const dir = makeStatefulDir();
+    const payload = Buffer.concat([Buffer.from(Array.from({ length: 256 }, (_, i) => i)), Buffer.from(Array.from({ length: 256 }, (_, i) => i))]);
+    const run = runStateful(dir, ["file", "receive", "secrets/deep/key.bin", "--mode", "640", "--stdin"], {}, stream(payload));
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    const file = join(dir, "secrets", "deep", "key.bin");
+    expect(run.stdout).toBe(`CMUX-FILE-READY\nCMUX-FILE-OK bytes=${payload.length} path=${file} mode=640\n`);
+    expect(readFileSync(file).equals(payload)).toBe(true);
+    expect(statSync(file).mode & 0o777).toBe(0o640);
+    expect(statSync(join(dir, "secrets")).mode & 0o777).toBe(0o700);
+    expect(statSync(join(dir, "secrets", "deep")).mode & 0o777).toBe(0o700);
+    expect(readdirSync(join(dir, "secrets", "deep"))).toEqual(["key.bin"]);
+    expect(run.calls).toEqual([]);
+    // Default mode 600, absolute path, and an existing file is replaced atomically (no temp file survives).
+    const target = join(dir, "app.env");
+    writeFileSync(target, "old\n");
+    const replaced = runStateful(dir, ["file", "receive", target, "--stdin"], {}, stream(Buffer.from("NEW=1\n")));
+    expect(replaced.status).toBe(0);
+    expect(replaced.stdout).toBe(`CMUX-FILE-READY\nCMUX-FILE-OK bytes=6 path=${target} mode=600\n`);
+    expect(readFileSync(target, "utf8")).toBe("NEW=1\n");
+    expect(statSync(target).mode & 0o777).toBe(0o600);
+    expect(readdirSync(dir).filter((name) => name.startsWith(".cmux-file."))).toEqual([]);
+    // CRLF line ends and blank lines from a PTY are tolerated; --mode=0755 is the four-digit form.
+    const crlf = runStateful(dir, ["file", "receive", "bin/run.sh", "--mode=0755", "--stdin"], {}, stream(Buffer.from("#!/bin/sh\necho hi\n")).replace(/\n/g, "\r\n\r\n"));
+    expect(crlf.status).toBe(0);
+    expect(statSync(join(dir, "bin", "run.sh")).mode & 0o777).toBe(0o755);
+    expect(readFileSync(join(dir, "bin", "run.sh"), "utf8")).toBe("#!/bin/sh\necho hi\n");
+  });
+
+  test("file receive refuses garbage, truncation, empty and oversize payloads, directories and bad modes without leaving anything behind", () => {
+    const dir = makeStatefulDir();
+    mkdirSync(join(dir, "dest"));
+    const garbage = runStateful(dir, ["file", "receive", "dest/x", "--stdin"], {}, "!!!not base64!!!\nCMUX-FILE-END\n");
+    expect(garbage.status).toBe(1);
+    expect(garbage.stdout).toBe("CMUX-FILE-READY\nCMUX-FILE-ERR bad-base64\n");
+    const truncated = runStateful(dir, ["file", "receive", "dest/x", "--stdin"], {}, `${Buffer.from("abc").toString("base64")}\n`);
+    expect(truncated.status).toBe(1);
+    expect(truncated.stdout).toBe("CMUX-FILE-READY\nCMUX-FILE-ERR eof\n");
+    const empty = runStateful(dir, ["file", "receive", "dest/x", "--stdin"], {}, "CMUX-FILE-END\n");
+    expect(empty.status).toBe(1);
+    expect(empty.stdout).toBe("CMUX-FILE-READY\nCMUX-FILE-ERR empty\n");
+    const big = runStateful(dir, ["file", "receive", "dest/x", "--stdin"], {}, stream(Buffer.alloc(262145, 1)));
+    expect(big.status).toBe(1);
+    expect(big.stdout).toBe("CMUX-FILE-READY\nCMUX-FILE-ERR too-large\n");
+    const exact = runStateful(dir, ["file", "receive", "dest/max", "--stdin"], {}, stream(Buffer.alloc(262144, 1)));
+    expect(exact.status).toBe(0);
+    expect(statSync(join(dir, "dest", "max")).size).toBe(262144);
+    expect(readdirSync(join(dir, "dest"))).toEqual(["max"]);
+    const directory = runStateful(dir, ["file", "receive", "dest", "--stdin"], {}, stream(Buffer.from("x")));
+    expect(directory.status).toBe(1);
+    expect(directory.stdout).toBe(`CMUX-FILE-ERR is-directory ${join(dir, "dest")}\n`);
+    // Usage errors answer before READY, so a sender sees the reason on the screen instead of a silent timeout.
+    const badMode = runStateful(dir, ["file", "receive", "dest/x", "--mode", "9", "--stdin"], {}, stream(Buffer.from("x")));
+    expect(badMode.status).toBe(2);
+    expect(badMode.stdout).toBe("CMUX-FILE-ERR bad-mode 9\n");
+    const noPath = runStateful(dir, ["file", "receive", "--stdin"], {}, stream(Buffer.from("x")));
+    expect(noPath.status).toBe(2);
+    expect(noPath.stdout).toBe("CMUX-FILE-ERR usage cmux file receive <path> [--mode <octal>]\n");
+    expect(runStateful(dir, ["file", "bogus"]).status).toBe(2);
+    expect(runStateful(dir, ["file", "bogus"]).stderr).toContain("unknown file command");
+  });
+
+  test("the receiver also runs under dash (the image's sh)", () => {
+    if (!existsSync("/bin/dash")) return;
+    const dir = makeStatefulDir();
+    const payload = Buffer.from("hello from dash\n");
+    const run = runStateful(dir, ["file", "receive", "d/out.txt", "--stdin"], {}, stream(payload), "/bin/dash");
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(readFileSync(join(dir, "d", "out.txt"), "utf8")).toBe("hello from dash\n");
   });
 });
 

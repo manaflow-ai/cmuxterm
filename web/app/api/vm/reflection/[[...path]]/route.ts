@@ -9,10 +9,8 @@ import { coderouterControlRoute } from "@/services/coderouter/requestTelemetry";
 import { captureCoderouterEvent } from "../../../../../services/coderouter/analytics";
 import { addCoderouterBreadcrumb, reportCoderouterFailure } from "../../../../../services/coderouter/observability";
 import { vmEdgeAliasDomain, vmReflectionAliasDomain } from "../../../../../services/coderouter/vmGuestEnv";
-import { vmImageKindFor } from "../../../../../services/vms/images/resolver";
-import { reflectionPayload, type ReflectionContext } from "../../../../../services/vms/reflection";
+import { reflectionHasDesktop, reflectionPayload, type ReflectionContext } from "../../../../../services/vms/reflection";
 import { listOwnerLiveVms, loadReflectionOwner } from "../../../../../services/vms/reflectionStore";
-import type { ProviderId } from "../../../../../services/vms/drivers/types";
 import {
   requireVmPrincipal,
   vmPrincipalFailureResponse,
@@ -69,17 +67,8 @@ async function handleGet(request: Request, context?: RouteContext): Promise<Resp
     siblings,
     aliasOrigin: `https://${vmEdgeAliasDomain()}`,
     reflectionOrigin: `https://${vmReflectionAliasDomain()}`,
-    hasDesktop: hasDesktopFor(principal.vm.provider, principal.vm.imageId),
+    hasDesktop: reflectionHasDesktop(principal.vm),
   };
   const answer = reflectionPayload(path, reflection);
   return new Response(JSON.stringify(answer.body), { status: answer.status, headers: JSON_HEADERS });
-}
-
-/** The image kind decides whether a screen exists; an unknown provider id means "cannot say". */
-function hasDesktopFor(provider: string, imageId: string): boolean | null {
-  try {
-    return vmImageKindFor(provider as ProviderId, imageId) === "desktop";
-  } catch {
-    return null;
-  }
 }
