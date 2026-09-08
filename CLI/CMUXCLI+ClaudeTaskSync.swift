@@ -512,7 +512,7 @@ extension CMUXCLI {
                             telemetry.breadcrumb("claude-hook.task-sync.coalesced")
                             return
                         }
-                        guard sendClaudeTaskFeedSnapshot(
+                        let feedDelivered = sendClaudeTaskFeedSnapshot(
                             [],
                             client: client,
                             telemetry: telemetry,
@@ -521,7 +521,16 @@ extension CMUXCLI {
                             surfaceId: resolvedTarget.surfaceId,
                             socketPassword: socketPassword,
                             deadlineUptime: hookDeadlineUptime
-                        ) else { return }
+                        )
+                        if !feedDelivered {
+                            // Fallback TeamDelete cleanup is independent of the
+                            // Feed projection. Keep retiring the bound list so
+                            // SessionEnd has a durable retry fence after a
+                            // transient Feed failure.
+                            telemetry.breadcrumb(
+                                "claude-hook.task-sync.team-delete-feed-deferred"
+                            )
+                        }
                         let cleanup = clearClaudeTaskChecklistOwner(
                             taskDirectoryName: previouslyBoundRecord.binding.taskListID,
                             taskStoreIdentity: previouslyBoundRecord.binding.taskStoreIdentity,
