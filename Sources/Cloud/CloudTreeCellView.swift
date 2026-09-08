@@ -48,6 +48,11 @@ final class CloudTreeCellView: NSTableCellView {
         nodeActions: CloudTreeNodeActions,
         style: CloudTreeStyle = CloudTreeStyleStore.current
     ) {
+        #if DEBUG
+        if case .terminal(let row) = node.kind, row.hasUnreadNotification {
+            cmuxDebugLog("cloudTree.cell.configure unread terminal=\(row.resource.id.key.suffix(4)) node=\(node.id.suffix(12))")
+        }
+        #endif
         displayHost.rootView = AnyView(
             CloudTreeRowContentView(kind: node.kind, style: style)
                 .frame(maxWidth: .infinity, alignment: .leading)

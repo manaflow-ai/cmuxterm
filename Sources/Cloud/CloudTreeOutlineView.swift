@@ -251,6 +251,13 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             }
             let nextStructure = CloudTreeNodeBuilder.structureSignature(nodes)
             let nextContent = CloudTreeNodeBuilder.contentSignature(nodes)
+            #if DEBUG
+            let unreadRows = CloudTreeNodeBuilder.flattened(nodes).filter {
+                if case .terminal(let row) = $0.kind { return row.hasUnreadNotification }
+                return false
+            }.count
+            cmuxDebugLog("cloudTree.apply structureChanged=\(nextStructure != structureSignature) contentChanged=\(nextContent != contentSignature) unreadRows=\(unreadRows) rows=\(outlineView?.numberOfRows ?? -1)")
+            #endif
             guard nextStructure != structureSignature || nextContent != contentSignature else { return }
             contentSignature = nextContent
             if nextStructure == structureSignature, !self.nodes.isEmpty {
