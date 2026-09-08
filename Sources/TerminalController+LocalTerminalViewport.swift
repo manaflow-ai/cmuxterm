@@ -223,7 +223,6 @@ extension TerminalController {
         guard let target = mobileCanonicalTerminalTarget(params: params) else {
             return .err(code: "not_found", message: Self.localViewportSurfaceNotFoundMessage, data: nil)
         }
-        _ = session.reset(surfaceID: target.surfaceID)
         guard let surface = target.target.surface.liveSurfaceForGhosttyAccess(
             reason: "localTerminalViewportReset"
         ) else {
@@ -233,6 +232,7 @@ extension TerminalController {
                 data: ["surface_id": target.surfaceID.uuidString]
             )
         }
+        _ = session.reset(surfaceID: target.surfaceID)
         let size = ghostty_surface_size(surface)
         let viewport = LocalTerminalViewport(
             columns: min(
