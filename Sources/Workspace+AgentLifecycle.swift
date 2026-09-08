@@ -285,13 +285,12 @@ extension Workspace {
         panelId: UUID,
         observation: RestorableAgentSessionIndex.Entry
     ) {
-        let statusKey = agentLifecycleStatusKey(for: observation.snapshot.kind)
-        let lifecycleWatermark = statusKey.flatMap { agentLifecycleEventTimesByPanelId[panelId]?[$0] }
+        let statusKey = observation.snapshot.kind.lifecycleStatusKey
+        let lifecycleWatermark = agentLifecycleEventTimesByPanelId[panelId]?[statusKey]
         let eventTime = observation.runtimeStatusEventTime ?? (lifecycleWatermark == nil ? observation.updatedAt : nil)
         guard let eventTime, eventTime.isFinite, eventTime > 0,
               observation.lifecycle == .idle,
               Date.now.timeIntervalSince1970 - eventTime >= Self.agentRunningStatusReconciliationDelay,
-              let statusKey,
               agentLifecycleStatesByPanelId[panelId]?[statusKey] == .running else { return }
         guard setAgentLifecycle(key: statusKey, panelId: panelId, lifecycle: .idle, agentEventTime: eventTime) else { return }
         guard let current = statusEntries[statusKey], current.agentOwnerPanelID == nil || current.agentOwnerPanelID == panelId else { return }

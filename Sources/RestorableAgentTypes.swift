@@ -114,6 +114,11 @@ enum RestorableAgentKind: Codable, Hashable, Sendable {
         return nil
     }
 
+    /// The lifecycle/sidebar slot used by this agent's hooks and Feed events.
+    var lifecycleStatusKey: String {
+        rawValue == "claude" ? "claude_code" : rawValue
+    }
+
     var displayName: String {
         switch self {
         case .claude: return "Claude Code"

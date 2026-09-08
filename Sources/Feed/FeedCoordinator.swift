@@ -550,12 +550,9 @@ extension FeedCoordinator {
     /// keys its status by its own source name. Returning the agent's own key
     /// is what lets the existing per-agent resume hooks (e.g. Claude's
     /// `pre-tool-use`) clear the needs-input badge once the agent continues.
-    private static let lifecycleStatusKeyOverrides = [
-        "claude": "claude_code",
-    ]
-
     static func lifecycleStatusKey(forSource source: String) -> String {
-        lifecycleStatusKeyOverrides[source] ?? source
+        guard let kind = RestorableAgentKind(rawValue: source), kind.rawValue == source else { return source }
+        return kind.lifecycleStatusKey
     }
 
     /// Returns the Feed-owned status/lifecycle slot for one agent source.
