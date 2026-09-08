@@ -143,12 +143,13 @@ struct JSONConfigStoreTests {
         let unreadable = Data("{\"chrome\":".utf8)
         try unreadable.write(to: fileURL)
 
-        #expect(throws: (any Error).self) {
+        await #expect(throws: (any Error).self) {
             try await store.update(key) { current in
                 current
             }
         }
-        #expect(Data(contentsOf: fileURL) == unreadable)
+        let persisted = try Data(contentsOf: fileURL)
+        #expect(persisted == unreadable)
     }
 
     @Test func snapshotMatchesAsyncRead() async throws {
