@@ -93,7 +93,7 @@ struct StickyPromptHeaderTests {
     @Test func bindingDifferentSurfaceClearsPromptHistory() throws {
         let manager = TabManager()
         let first = try #require(manager.tabs.first?.focusedTerminalPanel)
-        let secondWorkspace = manager.addWorkspace(select: false, placementOverride: .end)
+        let secondWorkspace = try #require(manager.addWorkspaceIfActive(select: false, placementOverride: .end))
         let second = try #require(secondWorkspace.focusedTerminalPanel)
         let controller = StickyPromptHeaderController()
         _ = controller.record("first pane", surface: first.surface)
