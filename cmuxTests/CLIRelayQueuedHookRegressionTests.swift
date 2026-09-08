@@ -523,7 +523,7 @@ struct CLIRelayQueuedHookRegressionTests {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         if let waitingForMethod {
-            #expect(waitForCondition(timeout: 2) {
+            #expect(waitForConditionBlocking(timeout: 2) {
                 captured.snapshot().compactMap(codexHookJSONObject).contains {
                     $0["method"] as? String == waitingForMethod
                 }
