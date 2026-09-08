@@ -4758,6 +4758,7 @@ struct CMUXCLI {
 
     private static let browserDisabledDefaultsKey = "browserDisabledOverride"
     private static let browserEngineDefaultsKey = "browserEngine"
+    private static let browserEngineDidInitializeDefaultsKey = "browserEngineDidInitialize"
     private static let browserEngineWebKitValue = "webkit"
     private static let browserEngineSystemDefaultValue = "systemDefault"
     private static let defaultBrowserSettingsDomain = "com.cmuxterm.app"
@@ -4889,12 +4890,13 @@ struct CMUXCLI {
         if let rawEngine = defaults.string(forKey: Self.browserEngineDefaultsKey),
            rawEngine == Self.browserEngineWebKitValue || rawEngine == Self.browserEngineSystemDefaultValue {
             engine = rawEngine
-        } else if defaults.object(forKey: Self.browserDisabledDefaultsKey) == nil {
-            engine = Self.browserEngineWebKitValue
-        } else {
+        } else if defaults.object(forKey: Self.browserEngineDidInitializeDefaultsKey) == nil,
+                  defaults.object(forKey: Self.browserDisabledDefaultsKey) != nil {
             engine = defaults.bool(forKey: Self.browserDisabledDefaultsKey)
                 ? Self.browserEngineSystemDefaultValue
                 : Self.browserEngineWebKitValue
+        } else {
+            engine = Self.browserEngineWebKitValue
         }
         let disabled = engine == Self.browserEngineSystemDefaultValue || Self.browserDisabledByManagedPolicy(
             defaults: defaults,
