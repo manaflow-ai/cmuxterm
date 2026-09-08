@@ -33721,6 +33721,7 @@ export default CMUXSessionRestore;
         telemetry: CLISocketSentryTelemetry,
         socketPassword: String? = nil,
         rawInputOverride: String? = nil,
+        hookDeadline: Date? = nil,
         eventTimeOverride: TimeInterval? = nil
     ) throws {
         let env = ProcessInfo.processInfo.environment
@@ -33750,6 +33751,7 @@ export default CMUXSessionRestore;
                     telemetry: telemetry,
                     socketPassword: socketPassword,
                     rawInputOverride: replay.payload,
+                    hookDeadline: hookDeadline,
                     eventTimeOverride: replay.agentEventTime
                 )
             }
@@ -35986,13 +35988,11 @@ export default CMUXSessionRestore;
                 isNestedAgentSession = nestedAgentSessionDetected(
                     currentAgentPID: pid,
                     nestedPromptEvent: nestedPromptStop,
-                    transcriptSubagentSession: codexSubagentSignals.isSubagentSession,
                     env: env
                 )
                 suppressVisibleMutations = shouldSuppressNestedAgentVisibleMutations(
                     currentAgentPID: pid,
                     nestedPromptEvent: nestedPromptStop,
-                    transcriptSubagentSession: codexSubagentSignals.isSubagentSession,
                     precomputedNestedDetection: isNestedAgentSession,
                     env: env
                 ) || staleIdleStopHasNewerRunningSession
