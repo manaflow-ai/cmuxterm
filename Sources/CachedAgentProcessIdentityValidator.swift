@@ -185,6 +185,13 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                 orSubcommand: "resume",
                 in: arguments
             ) ?? authoritativeEnvironmentSessionID
+        case .pi:
+            // Pi's `--resume`/`-r` are boolean pickers; only `--session`
+            // names a session. A resumed Pi shows it, a fresh one shows nothing.
+            observedSessionID = firstValue(
+                after: ["--session"],
+                in: arguments
+            ) ?? authoritativeEnvironmentSessionID
         default:
             observedSessionID = authoritativeEnvironmentSessionID
         }

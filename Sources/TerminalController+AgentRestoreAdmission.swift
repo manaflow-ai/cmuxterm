@@ -41,7 +41,12 @@ extension TerminalController {
             )
         }
 
-        guard let index = await SharedLiveAgentIndex.shared.indexRefreshingNow(),
+        // Only this kind's hook store must be settled; other agents on the
+        // Mac write theirs constantly, and that churn must not fail the
+        // restore closed (#12084).
+        guard let index = await SharedLiveAgentIndex.shared.indexRefreshingNow(
+                  relevantKinds: [inputs.kind]
+              ),
               index.isComplete(
                   forWorkspaceId: inputs.workspaceID,
                   panelId: inputs.surfaceID,

@@ -799,7 +799,8 @@ jobs:
             SurfaceResumeAgentHookDowngradeTests \
             RestoredAgentShellActivityLivenessTests \
             RestoreAdmissionRetryPolicyTests \
-            LiveAgentIndexSettleTests
+            LiveAgentIndexSettleTests \
+            LiveAgentIndexRelevantChurnTests
           do
             scripts/ci/run-in-console-session.sh \
               scripts/ci/run-app-host-xcodebuild.sh \

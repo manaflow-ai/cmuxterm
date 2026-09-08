@@ -519,7 +519,8 @@ extension DockSplitStore {
             // instead of cancelling every deferred restore on the first miss.
             let index = await SharedLiveAgentIndex.shared.indexRefreshingNow(
                 settleAttempts: SharedLiveAgentIndex.deferredRestoreSettleAttempts,
-                pauseNanoseconds: SharedLiveAgentIndex.deferredRestoreSettlePauseNanoseconds
+                pauseNanoseconds: SharedLiveAgentIndex.deferredRestoreSettlePauseNanoseconds,
+                relevantKinds: { [weak self] in self?.deferredAgentResumeRestoreKinds }
             )
             guard !Task.isCancelled else { return }
             guard let self else { return }
@@ -530,6 +531,14 @@ extension DockSplitStore {
             }
             self.resolveDeferredAgentResumeRestores(using: index)
         }
+    }
+
+    /// Agent kinds whose hook stores must be settled before this Dock's
+    /// deferred restores can be admitted or cancelled.
+    var deferredAgentResumeRestoreKinds: Set<String> {
+        Set(deferredAgentResumeRestoresByPanelId.values.compactMap {
+            $0.restorableAgent?.kind.rawValue ?? $0.resumeBinding?.kind
+        })
     }
 
     private func resolveDeferredAgentResumeRestores(
