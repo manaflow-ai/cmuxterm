@@ -1,6 +1,6 @@
 import CmuxTerminalCore
 import Foundation
-internal import os
+import os
 
 /// Cross-entrypoint admission gate shared by async sockets and the legacy
 /// synchronous dispatcher.
