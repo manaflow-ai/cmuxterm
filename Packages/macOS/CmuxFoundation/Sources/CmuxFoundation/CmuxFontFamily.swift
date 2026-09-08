@@ -79,7 +79,7 @@ public enum CmuxFontResolver {
         var font: Font
         if let family = CmuxFontFamily(family),
            let resolved = familyFont(family, size: size, weight: .regular) {
-            font = Font.custom(resolved.familyName ?? resolved.fontName, size: size).weight(weight)
+            font = Font.custom(resolved.fontName, size: size).weight(weight)
         } else {
             font = Font.system(size: size, weight: weight, design: design)
         }
