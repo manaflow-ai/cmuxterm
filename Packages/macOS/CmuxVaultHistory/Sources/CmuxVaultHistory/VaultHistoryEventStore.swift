@@ -2,10 +2,16 @@ public import Foundation
 
 /// Actor-isolated, retention-bounded JSONL persistence for recorded History events.
 public actor VaultHistoryEventStore: VaultHistoryEventStoring {
+    private enum LoadState {
+        case notLoaded
+        case loaded
+        case failed
+    }
+
     private let fileURL: URL?
     private let retention: VaultHistoryRetentionPolicy
     private let fileManager: FileManager
-    private var didLoad = false
+    private var loadState: LoadState = .notLoaded
     /// Retention and read order, updated incrementally so refreshes never re-sort.
     private var newestFirstEvents: [VaultHistoryEvent] = []
     private var fileBytes = 0
@@ -32,7 +38,12 @@ public actor VaultHistoryEventStore: VaultHistoryEventStoring {
     /// - Returns: `true` when storage accepted the mutation. An event older
     ///   than the retained timestamp window can be evicted immediately.
     public func append(_ event: VaultHistoryEvent) async -> Bool {
-        loadIfNeeded()
+        guard loadIfNeeded() else {
+            // A failed initial read must never be followed by a compacting
+            // rewrite: doing so could replace an existing log with a partial
+            // in-memory snapshot.
+            return false
+        }
         guard let line = encodedLine(for: event), line.count <= retention.maxFileBytes else {
             return false
         }
@@ -67,7 +78,7 @@ public actor VaultHistoryEventStore: VaultHistoryEventStoring {
     /// - Parameter limit: Maximum number of events returned.
     /// - Returns: Events ordered by timestamp and stable identifier, newest first.
     public func recentEvents(limit: Int = .max) async -> [VaultHistoryEvent] {
-        loadIfNeeded()
+        guard loadIfNeeded() else { return [] }
         guard limit < newestFirstEvents.count else {
             return newestFirstEvents
         }
@@ -87,23 +98,49 @@ public actor VaultHistoryEventStore: VaultHistoryEventStoring {
         return decoder
     }
 
-    private func loadIfNeeded() {
-        guard !didLoad else { return }
-        didLoad = true
-        guard let fileURL,
-              let handle = try? FileHandle(forReadingFrom: fileURL) else {
-            return
+    @discardableResult
+    private func loadIfNeeded() -> Bool {
+        switch loadState {
+        case .loaded:
+            return true
+        case .failed:
+            return false
+        case .notLoaded:
+            break
+        }
+
+        guard let fileURL else {
+            loadState = .loaded
+            return true
+        }
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            loadState = .loaded
+            return true
+        }
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
+            loadState = .failed
+            return false
         }
         defer { try? handle.close() }
 
-        let fileSize = (try? handle.seekToEnd()).map(Int.init) ?? 0
+        guard let fileSizeOffset = try? handle.seekToEnd() else {
+            loadState = .failed
+            return false
+        }
+        let fileSize = Int(fileSizeOffset)
         fileBytes = fileSize
-        guard fileSize > 0 else { return }
+        guard fileSize > 0 else {
+            loadState = .loaded
+            return true
+        }
 
         let readBytes = min(fileSize, retention.maxLoadBytes)
         let startOffset = UInt64(fileSize - readBytes)
-        try? handle.seek(toOffset: startOffset)
-        guard var data = try? handle.read(upToCount: readBytes) else { return }
+        guard (try? handle.seek(toOffset: startOffset)) != nil,
+              var data = try? handle.read(upToCount: readBytes) else {
+            loadState = .failed
+            return false
+        }
 
         if startOffset > 0, let firstNewline = data.firstIndex(of: 0x0a) {
             data = data[data.index(after: firstNewline)...]
@@ -129,6 +166,8 @@ public actor VaultHistoryEventStore: VaultHistoryEventStoring {
                 .sorted(by: VaultHistoryEvent.newestFirst)
                 .prefix(retention.maxStoredEvents)
         )
+        loadState = .loaded
+        return true
     }
 
     private func encodedLine(for event: VaultHistoryEvent) -> Data? {

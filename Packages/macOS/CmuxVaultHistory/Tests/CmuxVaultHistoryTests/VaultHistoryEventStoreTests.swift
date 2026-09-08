@@ -85,6 +85,20 @@ import Testing
         #expect(await store.recentEvents().isEmpty)
     }
 
+    @Test func failedInitialLoadNeverRewritesAnExistingUnreadablePath() async throws {
+        let fileURL = try makeTempFileURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: fileURL, withIntermediateDirectories: false)
+
+        let store = VaultHistoryEventStore(fileURL: fileURL)
+        #expect(await store.recentEvents().isEmpty)
+        #expect(await store.append(event(id: "must-not-rewrite", secondsAgo: 0)) == false)
+
+        var isDirectory: ObjCBool = false
+        #expect(FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory))
+        #expect(isDirectory.boolValue)
+    }
+
     @Test(arguments: [true, false])
     func retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy: Bool) async throws {
         let fileURL = try makeTempFileURL()
