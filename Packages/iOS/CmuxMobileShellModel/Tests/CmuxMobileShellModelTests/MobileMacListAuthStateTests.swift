@@ -47,6 +47,18 @@ struct MobileMacListAuthStateTests {
     }
 
     @Test
+    func nightlyVersionIsNotComparedToStableFloor() {
+        let current = MobileMacListAuthState.Entry(
+            status: "active",
+            revoked: false,
+            isFresh: true,
+            appVersion: "0.64.22-nightly.3345650013202+202609081234",
+            minimumSupportedVersion: "0.64.23"
+        )
+        #expect(!current.isOutdated)
+    }
+
+    @Test
     func policyFloorOverridesDirectoryFloorAndSurvivesLaterSnapshots() {
         let state = MobileMacListAuthState()
         let entry = MobileMacListAuthState.Entry(
@@ -74,6 +86,31 @@ struct MobileMacListAuthStateTests {
         )
         #expect(state.entry(deviceID: "device")!.isOutdated)
         #expect(state.minimumSupportedMacVersion == "0.64.23")
+    }
+
+    @Test
+    func policyAppliesSeparateNightlyFloorToNightlyRows() {
+        let state = MobileMacListAuthState()
+        let nightly = MobileMacListAuthState.Entry(
+            status: "active",
+            revoked: false,
+            isFresh: true,
+            appVersion: "0.64.22-nightly.3345650013202+202609081234",
+            releaseTrack: "nightly"
+        )
+        state.replace(
+            entriesByEndpointID: ["endpoint": nightly],
+            entriesByDeviceID: ["device": nightly],
+            minimumSupportedMacVersion: "0.64.23"
+        )
+        #expect(!state.entry(deviceID: "device")!.isOutdated)
+
+        state.applyPolicyMinimumSupportedMacVersions(
+            stable: "0.64.23",
+            nightly: "0.64.22-nightly.3345650013202"
+        )
+        #expect(!state.entry(deviceID: "device")!.isOutdated)
+        #expect(state.entry(deviceID: "device")!.requiredVersionDisplay == nil)
     }
 
     @Test
