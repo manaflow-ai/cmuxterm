@@ -743,10 +743,22 @@ extension DockSplitStore {
 
     @discardableResult
     func clearAgentLifecycle(key: String, panelId: UUID) -> Bool {
+        let recordsBeforeMutation = [
+            panelId: agentRuntimeByPanelId[panelId]?.authoritativeAgentLifecycleRecords ?? [:]
+        ]
         var didClear = false
         mutateAgentRuntime(panelId: panelId, updatesAgentAttention: true) {
-            didClear = $0.agentLifecycleStates.removeValue(forKey: key) != nil
+            if $0.agentLifecycleStates.removeValue(forKey: key) != nil {
+                didClear = true
+            }
+            if $0.agentLifecycleSessionIDs.removeValue(forKey: key) != nil {
+                didClear = true
+            }
+            if $0.authoritativeAgentLifecycleRecords.removeValue(forKey: key) != nil {
+                didClear = true
+            }
         }
+        publishRemovedDockAgentLifecycleRecords(from: recordsBeforeMutation)
         return didClear
     }
 
