@@ -8,7 +8,7 @@ import CmuxSettings
 import CmuxSidebar
 
 private enum FeedEventAcceptance: Sendable {
-    case accepted(event: WorkstreamEvent, itemId: UUID)
+    case accepted(event: WorkstreamEvent, item: WorkstreamItem)
     case notFound
     case unavailable
 }
@@ -28,9 +28,9 @@ final class FeedCoordinator: @unchecked Sendable {
 
     // The store runs on the main actor. The coordinator is not isolated,
     // so it hops to main explicitly when touching the store.
-    @MainActor private(set) var store: WorkstreamStore!
+    @MainActor var store: WorkstreamStore!
     @MainActor var notificationJournal: AgentJournalLifecycleCenter = .shared
-    @MainActor private var userNotificationCenter: (any UserNotificationCenterServing)?
+    @MainActor var userNotificationCenter: (any UserNotificationCenterServing)?
 
     /// The bounded notification-center boundary. `install(store:)` injects it;
     /// the shared store's service covers the pre-install window.
@@ -41,7 +41,7 @@ final class FeedCoordinator: @unchecked Sendable {
     /// Pending blocking-hook waiters keyed by request id. The waiter owns
     /// a semaphore plus a slot for the resolved decision; the reply
     /// handler signals the semaphore after filling the slot.
-    private let waiterRegistry = FeedWaiterRegistry()
+    let waiterRegistry = FeedWaiterRegistry()
 
     /// One kqueue-backed DispatchSource per distinct agent PID we've
     /// ever seen. The kernel fires `.exit` the instant the process
@@ -105,19 +105,6 @@ final class FeedCoordinator: @unchecked Sendable {
         }
     }
 
-#if DEBUG
-    @MainActor var notificationCenterForTesting: (any UserNotificationCenterServing)? { userNotificationCenter }
-
-    @MainActor
-    func restoreInstallationForTesting(store: WorkstreamStore?, journal: AgentJournalLifecycleCenter,
-                                       center: (any UserNotificationCenterServing)?) {
-        waiterRegistry.discardInactive()
-        self.store = store
-        self.notificationJournal = journal
-        self.userNotificationCenter = center
-    }
-#endif
-
     /// Installs a one-shot kqueue watcher for `ppid`. The handler
     /// fires the moment the kernel observes process exit (or
     /// immediately if `ppid` is already dead), marks every pending
@@ -150,10 +137,10 @@ final class FeedCoordinator: @unchecked Sendable {
         switch resolveDeliveryTarget(for: [event]) {
         case .accepted(let events):
             guard let revalidatedEvent = events.first,
-                  let itemId = ingestRevalidatedOnMainActor(revalidatedEvent) else {
+                  let item = ingestRevalidatedOnMainActor(revalidatedEvent) else {
                 return .unavailable
             }
-            return .accepted(event: revalidatedEvent, itemId: itemId)
+            return .accepted(event: revalidatedEvent, item: item)
         case .notFound:
             return .notFound
         case .unavailable:
@@ -161,15 +148,16 @@ final class FeedCoordinator: @unchecked Sendable {
         }
     }
 
+    /// Inserts a revalidated event and returns the item the store now holds for it.
     @MainActor
-    func ingestRevalidatedOnMainActor(_ event: WorkstreamEvent) -> UUID? {
+    func ingestRevalidatedOnMainActor(_ event: WorkstreamEvent) -> WorkstreamItem? {
         guard let store else { return nil }
         guard let item = store.ingestReturningItem(event) else { return nil }
         observeSemanticLifecycle(event)
         if let ppid = event.ppid, ppid > 0 {
             armPidWatcher(ppid: ppid)
         }
-        return item.id
+        return item
     }
 
     /// Runs synchronous acknowledged ingress on the same ordered lane as zero-wait telemetry.
@@ -258,9 +246,9 @@ final class FeedCoordinator: @unchecked Sendable {
                 return IngestBlockingOutcome(result: .unavailable, authoritativeEvent: nil)
             }
             switch acceptance {
-            case .accepted(let acceptedEvent, let itemId):
+            case .accepted(let acceptedEvent, let item):
                 return IngestBlockingOutcome(
-                    result: .acknowledged(itemId: itemId),
+                    result: .acknowledged(itemId: item.id),
                     authoritativeEvent: acceptedEvent
                 )
             case .notFound:
@@ -297,13 +285,10 @@ final class FeedCoordinator: @unchecked Sendable {
                     }) else {
                         return nil
                     }
-                    guard case .accepted(let acceptedEvent, _) = acceptance else {
+                    guard case .accepted(let acceptedEvent, let item) = acceptance else {
                         return nil
                     }
-                    if case .accepted(_, let itemID) = acceptance,
-                       let item = FeedCoordinator.shared.store?.items.first(where: { $0.id == itemID }) {
-                        FeedCoordinator.shared.waiterRegistry.accepted(registration, event: acceptedEvent, item: item)
-                    }
+                    FeedCoordinator.shared.waiterRegistry.accepted(registration, event: acceptedEvent, item: item)
                     guard FeedCoordinator.shared.waiterRegistry.isAwaiting(requestId) else { return acceptedEvent }
                     // Surface in-app attention (needs-input status + workspace
                     // elevation) for the blocking decision. This fires
@@ -494,10 +479,6 @@ final class FeedCoordinator: @unchecked Sendable {
     }
 
     func isAwaitingDecision(requestId: String) -> Bool { waiterRegistry.isAwaiting(requestId) }
-
-#if DEBUG
-    func waiterCountForTesting(requestId: String) -> Int { waiterRegistry.subscriberCount(requestId) }
-#endif
 
     private static func findItemId(
         for requestId: String,
@@ -1557,9 +1538,14 @@ private func makeFeedNotificationPolicyContext(
         ?? FileManager.default.homeDirectoryForCurrentUser.path
     var effects = TerminalNotificationPolicyEffects()
     effects.desktop = true
-    effects.record = false
-    effects.markUnread = false
-    effects.reorderWorkspace = false
+    // History, unread, and reorder are store-owned effects: the accepted Feed
+    // decision fans them out through the shared notification store, so they
+    // start enabled and only a hook or the delivery decision below turns them
+    // off. The actionable banner keeps its own attention overlay in place of
+    // a pane flash.
+    effects.record = true
+    effects.markUnread = true
+    effects.reorderWorkspace = true
     // Feed actionable notifications are part of the same sound-delivery
     // lane as terminal notifications.  The delivery decision below still
     // suppresses this effect for DND, muted workspaces, and focused surfaces.

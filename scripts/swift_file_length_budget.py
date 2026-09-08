@@ -20,7 +20,7 @@ def main():
             continue
         old = subprocess.run(["git", "show", f"{base}:{name}"], capture_output=True, text=True)
         budget = max(500, len(old.stdout.splitlines())) if old.returncode == 0 else 500
-        count = len(path.read_text().splitlines())
+        count = len(path.read_text(encoding="utf-8").splitlines())
         if count > budget:
             failures.append(f"{name}: {count} lines exceeds {budget}")
     if failures:

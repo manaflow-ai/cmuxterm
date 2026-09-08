@@ -399,7 +399,14 @@ public final class AgentJournalStore: @unchecked Sendable {
             detail: database.columnText(statement, 16)
         )
         draft.schemaVersion = Int(database.columnInt64(statement, 2))
-        draft.attention = try? Self.readAttention(database, eventId: eventId)
+        // An unreadable context row is not an absent one: dropping it would turn
+        // a legitimate retry into an idempotency conflict and strip request
+        // identity from replay. Skipping the row keeps it visible as a gap.
+        do {
+            draft.attention = try Self.readAttention(database, eventId: eventId)
+        } catch {
+            return nil
+        }
         return AgentJournalEvent(
             sequence: database.columnInt64(statement, 0),
             committedAtMs: database.columnInt64(statement, 5),

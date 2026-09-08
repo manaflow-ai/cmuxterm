@@ -117,7 +117,10 @@ final class AgentJournalLifecycleCenter: Sendable {
                     let outcome = try store.append(draft)
                     let event = AgentJournalEvent(sequence: outcome.sequence,
                         committedAtMs: outcome.committedAtMs, draft: draft)
-                    let accepted = await reconcile(event, store: store, deliver: false)
+                    // An admission waiter renders its own effect. A fire-and-forget
+                    // observation has no waiter, so a completion it releases must be
+                    // delivered here or its receipt would be spent for nothing.
+                    let accepted = await reconcile(event, store: store, deliver: id == nil)
                     admissions.complete(id, accepted: accepted)
                 } catch {
                     Self.notificationDiagnostic(draft, reason: "storage-unavailable")

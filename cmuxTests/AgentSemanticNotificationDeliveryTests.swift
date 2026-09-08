@@ -1,6 +1,7 @@
 import CMUXAgentLaunch
 import CmuxFoundation
 import CmuxAgentJournal
+import CmuxNotifications
 import CmuxSettings
 import Foundation
 import Testing
@@ -9,6 +10,22 @@ import Testing
 #elseif canImport(cmux)
 @testable import cmux
 #endif
+
+/// Test-only installation control over the shared coordinator's internal state.
+extension FeedCoordinator {
+    @MainActor var notificationCenterForTesting: (any UserNotificationCenterServing)? { userNotificationCenter }
+
+    @MainActor
+    func restoreInstallationForTesting(store: WorkstreamStore?, journal: AgentJournalLifecycleCenter,
+                                       center: (any UserNotificationCenterServing)?) {
+        waiterRegistry.discardInactive()
+        self.store = store
+        self.notificationJournal = journal
+        self.userNotificationCenter = center
+    }
+
+    func waiterCountForTesting(requestId: String) -> Int { waiterRegistry.subscriberCount(requestId) }
+}
 
 extension AgentNotificationRegressionTests {
     private func semanticEvent(_ fixture: Fixture, source: String, sequence: Int64 = 1,

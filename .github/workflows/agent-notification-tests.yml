@@ -5,8 +5,11 @@ on:
       - Packages/macOS/CmuxAgentJournal/**
       - CLI/*Notification*.swift
       - CLI/CMUXCLI+AgentJournalEmission.swift
+      - CLI/CMUXCLI+VMTui.swift
+      - CLI/VMRemoteWorkspaceResolver.swift
       - CLI/cmux.swift
       - Sources/AgentNotification*.swift
+      - Sources/TerminalNotification*.swift
       - Sources/AgentFeedSemanticInput.swift
       - Sources/Feed/**
       - cmuxTests/**
@@ -22,6 +25,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
       - name: Test semantic lifecycle and durable notification admission
         run: swift test --package-path Packages/macOS/CmuxAgentJournal -Xswiftc -warnings-as-errors
       - name: Test immutable Feed ingestion

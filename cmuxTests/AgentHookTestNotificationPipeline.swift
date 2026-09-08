@@ -29,8 +29,12 @@ final class AgentHookTestNotificationPipeline {
             let outcome = try store.append(draft)
             let event = AgentJournalEvent(sequence: outcome.sequence, committedAtMs: outcome.committedAtMs, draft: draft)
             let decision = reconciler.apply(event)
-            guard let identity = decision.identity, try store.claimNotification(identity: identity),
-                  let rendered = Self.presentation(draft) else { return [] }
+            // A resolution can release a delayed completion: render the event the
+            // reconciler accepted, which is not always the input.
+            let accepted = (decision.notificationEvent ?? event).draft
+            guard decision.disposition == .accepted, let identity = decision.identity,
+                  try store.claimNotification(identity: identity),
+                  let rendered = Self.presentation(accepted) else { return [] }
             return [rendered]
         } catch {
             Issue.record("Hook fixture journal failed: \(error)")
