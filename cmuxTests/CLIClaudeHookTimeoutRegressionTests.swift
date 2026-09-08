@@ -1217,7 +1217,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
         try makeCodexHookExecutableShellFile(at: url, lines: [
             "#!/bin/sh",
             "while [ \"$#\" -gt 0 ]; do",
-            "  if [ \"$1\" = \"--settings\" ]; then shift; printf '%s' \"$1\" > \"$CMUX_TEST_SETTINGS\"; fi",
+            "  if [ \"$1\" = \"--settings\" ]; then shift; if [ -f \"$1\" ]; then cat \"$1\" > \"$FAKE_CLAUDE_SETTINGS_OUTPUT\"; else printf '%s' \"$1\" > \"$FAKE_CLAUDE_SETTINGS_OUTPUT\"; fi; fi",
             "  shift",
             "done",
         ])
@@ -1240,7 +1240,7 @@ struct CLIClaudeHookTimeoutRegressionTests {
             "CMUX_BUNDLED_CLI_PATH": cli.path,
             "CMUX_CUSTOM_CLAUDE_PATH": claude.path,
             "CMUX_CLI_SENTRY_DISABLED": "1",
-            "CMUX_TEST_SETTINGS": settings.path,
+            "FAKE_CLAUDE_SETTINGS_OUTPUT": settings.path,
         ]
     }
 
