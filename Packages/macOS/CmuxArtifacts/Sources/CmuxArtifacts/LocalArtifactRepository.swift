@@ -168,10 +168,18 @@ public actor LocalArtifactRepository: ArtifactStoring {
         let keysToRemove = recordsByIdentity.compactMap { key, record in
             matches(record, scope: scope) && incoming[key] == nil ? key : nil
         }
+        var removed: [ArtifactRecord] = []
         for key in keysToRemove {
-            recordsByIdentity.removeValue(forKey: key)
+            if let record = recordsByIdentity.removeValue(forKey: key) {
+                removed.append(record)
+            }
         }
         for record in incoming.values { recordsByIdentity[record.identityKey] = record }
+        // Drop payload files only after the replacement rows are in place so
+        // a payload the new projection still references survives.
+        for record in removed {
+            try removePayloadIfUnreferenced(record)
+        }
         try enforceRetention(at: now())
         try persist()
         notify(.records(Set(incoming.values.map(\.id))))
