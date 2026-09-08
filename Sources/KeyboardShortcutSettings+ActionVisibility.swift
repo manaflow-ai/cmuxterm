@@ -7,8 +7,7 @@ extension KeyboardShortcutSettings.Action {
              .switchRightSidebarToSessions,
              .switchRightSidebarToFeed,
              .switchRightSidebarToDock,
-             .switchRightSidebarToMachines,
-             .switchRightSidebarToDevices:
+             .switchRightSidebarToMachines:
             return false
         default:
             return true

@@ -80,7 +80,7 @@ struct CloudTreeRowContentView: View {
         case .device(let row):
             CloudTreeDeviceRowContent(row: row, style: style)
         case .devicesSection(let count):
-            groupRow(title: String(localized: "cloudTree.group.devices", defaultValue: "Devices"), count: count)
+            groupRow(title: String(localized: "cloudTree.group.devices", defaultValue: "My Devices"), count: count)
         case .terminalsPool(_, let count):
             groupRow(title: String(localized: "cloudTree.group.terminals", defaultValue: "Terminals"), count: count)
         case .displaysPool(_, let count):

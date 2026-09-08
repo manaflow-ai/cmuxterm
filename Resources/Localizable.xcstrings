@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "devices.manage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manage My Devices"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マイデバイスを管理"
+          }
+        }
+      }
+    },
     "cloudTree.device.status.unknown": {
       "extractionState": "manual",
       "localizations": {
@@ -789,13 +806,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Devices"
+            "value": "My Devices"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "デバイス"
+            "value": "マイデバイス"
           }
         }
       }
@@ -1208,36 +1225,19 @@
         }
       }
     },
-    "rightSidebar.mode.devices": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Devices"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "デバイス"
-          }
-        }
-      }
-    },
     "settings.betaFeatures.devices": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Devices"
+            "value": "My Devices"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "デバイス"
+            "value": "マイデバイス"
           }
         }
       }
@@ -1248,13 +1248,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hides the Devices tab and stops publishing this Mac to your other Macs unless iOS pairing is on."
+            "value": "Hides My Devices from Cloud and stops publishing this Mac to your other Macs unless iOS pairing is on."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「デバイス」タブを非表示にし、iOS ペアリングがオンでない限り、この Mac をほかの Mac に公開しません。"
+            "value": "Cloud のマイデバイスを非表示にします。iOS ペアリングがオンでない限り、この Mac をほかの Mac に公開しなくなります。"
           }
         }
       }
@@ -1265,30 +1265,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shows Devices in the right sidebar: your account’s other Macs and their live workspaces. This Mac also publishes itself so your other Macs can see it."
+            "value": "Shows My Devices below your Cloud machines, with your other Macs and their live workspaces. This Mac also becomes available to your other Macs."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "右サイドバーに「デバイス」を表示します。アカウントのほかの Mac とそのライブワークスペースが見られます。この Mac 自身も公開され、ほかの Mac から見えるようになります。"
-          }
-        }
-      }
-    },
-    "shortcut.switchRightSidebarToDevices.label": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Sidebar Devices"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サイドバーのデバイスを表示"
+            "value": "Cloud マシンの下のマイデバイスに、ほかの Mac とライブワークスペースを表示します。この Mac もほかの Mac から利用できるようになります。"
           }
         }
       }

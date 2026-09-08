@@ -10,6 +10,14 @@ struct CloudTreeRevealRequest: Equatable {
     static func machine(_ machine: SurfaceMachineID) -> CloudTreeRevealRequest {
         CloudTreeRevealRequest(token: UUID(), nodeID: CloudTreeNodeBuilder.nodeID(machine: machine))
     }
+
+    func path(in nodes: [CloudTreeNode]) -> [CloudTreeNode]? {
+        for node in nodes {
+            if node.id == nodeID { return [node] }
+            if let descendants = path(in: node.children) { return [node] + descendants }
+        }
+        return nil
+    }
 }
 
 extension CloudTreeOutlineView.Coordinator {

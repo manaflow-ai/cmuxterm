@@ -1,7 +1,7 @@
 import Foundation
 
-/// Which machines a Cloud-style outline lists. The Cloud tab and the Devices
-/// tab share one tree stack (`CloudTreeNodeBuilder`, `CloudTreeOutlineView`,
+/// Which machines a Cloud-style outline lists. Cloud machines and personal Macs
+/// share one tree stack (`CloudTreeNodeBuilder`, `CloudTreeOutlineView`,
 /// the row views, `CloudTreeNodeActions`); this value is the single switch that
 /// decides which catalog machines become top-level rows.
 enum CloudTreeMachineSource: Equatable, Sendable {
@@ -10,9 +10,8 @@ enum CloudTreeMachineSource: Equatable, Sendable {
     case cloud
     /// The Devices tab: the account's other Macs only, each a top-level machine row.
     case devices
-    /// The Cloud tab with a "Devices" section appended under the fleet. The
-    /// follow-up that merges the Devices tab into the Cloud tab flips
-    /// `MachinesPanelView` to this value; nothing else changes.
+    /// The live Cloud tab with a "My Devices" section beneath the fleet.
+    /// The section stays visible when empty so pairing remains discoverable.
     case cloudWithDevicesSection
 
     var includesCloudMachines: Bool {

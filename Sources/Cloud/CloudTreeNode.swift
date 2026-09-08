@@ -168,7 +168,7 @@ final class CloudTreeNode: NSObject {
             return url ?? (resource.id.forwardedPort ?? resource.port).map(String.init) ?? resource.title
         case .placeholder(_, let placeholder): return placeholder.text
         case .device(let row): return row.name
-        case .devicesSection: return String(localized: "cloudTree.group.devices", defaultValue: "Devices")
+        case .devicesSection: return String(localized: "cloudTree.group.devices", defaultValue: "My Devices")
         }
     }
 
@@ -629,6 +629,7 @@ enum CloudTreeNodeBuilder {
         includeLocalMachine: Bool = CloudTreeNodeBuilder.includesLocalMachine,
         source: CloudTreeMachineSource = .cloud
     ) -> Bool {
+        if source.groupsDevicesUnderSection { return false }
         if source.includesCloudMachines {
             guard machines.isEmpty, pendingCreates.isEmpty else { return false }
             if snapshot.machines.contains(where: { (includeLocalMachine && $0.id.isLocal) || $0.id.cloudMachineID != nil }) {

@@ -21,7 +21,7 @@ public struct ComputersSection: View {
         )
         SettingsCard {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(String(localized: "settings.betaFeatures.devices", defaultValue: "Devices"), isOn: Binding(
+                Toggle(String(localized: "settings.betaFeatures.devices", defaultValue: "My Devices"), isOn: Binding(
                     get: { devices.current },
                     set: {
                         devices.set($0)

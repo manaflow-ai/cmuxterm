@@ -174,10 +174,10 @@ public struct BetaFeaturesSection: View {
         SettingsCardRow(
             configurationReview: .json("devices.beta.enabled"),
             searchAnchorID: "setting:betaFeatures:devices",
-            String(localized: "settings.betaFeatures.devices", defaultValue: "Devices"),
+            String(localized: "settings.betaFeatures.devices", defaultValue: "My Devices"),
             subtitle: devices.current
-                ? String(localized: "settings.betaFeatures.devices.subtitleOn", defaultValue: "Shows Devices in the right sidebar: your account\u{2019}s other Macs and their live workspaces. This Mac also publishes itself so your other Macs can see it.")
-                : String(localized: "settings.betaFeatures.devices.subtitleOff", defaultValue: "Hides the Devices tab and stops publishing this Mac to your other Macs unless iOS pairing is on.")
+                ? String(localized: "settings.betaFeatures.devices.subtitleOn", defaultValue: "Shows My Devices below your Cloud machines, with your other Macs and their live workspaces. This Mac also becomes available to your other Macs.")
+                : String(localized: "settings.betaFeatures.devices.subtitleOff", defaultValue: "Hides My Devices from Cloud and stops publishing this Mac to your other Macs unless iOS pairing is on.")
         ) {
             Toggle("", isOn: Binding(get: { devices.current }, set: {
                 devices.set($0)

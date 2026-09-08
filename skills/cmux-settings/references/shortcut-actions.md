@@ -124,7 +124,6 @@ Values for `shortcuts.bindings.<action>`:
 - `shortcuts.bindings.switchRightSidebarToFeed`
 - `shortcuts.bindings.switchRightSidebarToDock`
 - `shortcuts.bindings.switchRightSidebarToMachines`
-- `shortcuts.bindings.switchRightSidebarToDevices`
 - `shortcuts.bindings.nextSidebarTab`
 - `shortcuts.bindings.prevSidebarTab`
 - `shortcuts.bindings.nextSidebarTabInGroup`

@@ -28,7 +28,6 @@ extension CloudTreeNodeBuilder {
         grouped: Bool
     ) -> [CloudTreeNode] {
         let infos = orderedDeviceInfos(snapshot.machines)
-        guard !infos.isEmpty else { return [] }
         let rows = infos.map { info in
             deviceNode(info: info, snapshot: snapshot, projectionIndex: projectionIndex)
         }
@@ -36,7 +35,13 @@ extension CloudTreeNodeBuilder {
         return [CloudTreeNode(
             id: devicesSectionNodeID,
             kind: .devicesSection(count: rows.count),
-            children: rows
+            children: rows.isEmpty ? [CloudTreeNode(
+                id: "devices-section/empty",
+                kind: .placeholder(machine: .cloud("devices-section"), CloudTreePlaceholder(
+                    text: String(localized: "devices.empty.title", defaultValue: "No other Macs yet"),
+                    style: .dimmed
+                ))
+            )] : rows
         )]
     }
 

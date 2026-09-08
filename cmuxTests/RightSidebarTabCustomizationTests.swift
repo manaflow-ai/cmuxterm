@@ -32,7 +32,6 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         defaults.set(true, forKey: RightSidebarBetaFeatureSettings.feedEnabledKey)
         defaults.set(true, forKey: RightSidebarBetaFeatureSettings.dockEnabledKey)
         defaults.set(true, forKey: RightSidebarBetaFeatureSettings.cloudMachinesEnabledKey)
-        defaults.set(true, forKey: RightSidebarBetaFeatureSettings.devicesEnabledKey)
     }
 
     private func enableMachinesGate() {
@@ -44,7 +43,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
     func testDefaultOrderIsCanonical() {
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.files, .find, .sessions, .feed, .dock, .machines, .devices]
+            [.files, .find, .sessions, .feed, .dock, .machines]
         )
     }
 
@@ -52,7 +51,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         defaults.set(["machines", "bogus", "files", "custom-sidebar"], forKey: RightSidebarTabPreferences.orderKey)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .sessions, .feed, .dock, .devices]
+            [.machines, .files, .find, .sessions, .feed, .dock]
         )
     }
 
@@ -61,7 +60,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         XCTAssertTrue(RightSidebarTabPreferences.setHidden(true, mode: .find, defaults: defaults))
         XCTAssertEqual(
             RightSidebarMode.visibleModes(defaults: defaults),
-            [.files, .sessions, .feed, .dock, .machines, .devices]
+            [.files, .sessions, .feed, .dock, .machines]
         )
     }
 
@@ -82,7 +81,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         RightSidebarTabPreferences.move(.machines, offset: -5, defaults: defaults)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .sessions, .feed, .dock, .devices]
+            [.machines, .files, .find, .sessions, .feed, .dock]
         )
         RightSidebarTabPreferences.move(.machines, offset: -1, defaults: defaults)
         XCTAssertEqual(
@@ -98,12 +97,12 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         enableAllModeGates()
         RightSidebarTabPreferences.setHidden(true, mode: .feed, defaults: defaults)
         RightSidebarTabPreferences.setDisplayedOrder(
-            [.machines, .files, .find, .sessions, .dock, .devices],
+            [.machines, .files, .find, .sessions, .dock],
             defaults: defaults
         )
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.machines, .files, .find, .feed, .sessions, .dock, .devices],
+            [.machines, .files, .find, .feed, .sessions, .dock],
             "hidden Feed keeps its 4th slot while the displayed tabs permute around it"
         )
     }
@@ -133,7 +132,7 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         RightSidebarTabPreferences.resetToDefaults(defaults: defaults)
         XCTAssertEqual(
             RightSidebarTabPreferences.orderedModes(defaults: defaults),
-            [.files, .find, .sessions, .feed, .dock, .machines, .devices]
+            [.files, .find, .sessions, .feed, .dock, .machines]
         )
         XCTAssertTrue(RightSidebarTabPreferences.hiddenModes(defaults: defaults).isEmpty)
     }
@@ -160,7 +159,6 @@ final class RightSidebarTabCustomizationTests: XCTestCase {
         enableAllModeGates()
         let expected: [(RightSidebarMode, String)] = [
             (.files, "1"), (.find, "2"), (.sessions, "3"), (.feed, "4"), (.dock, "5"), (.machines, "6"),
-            (.devices, "7"),
         ]
         for (mode, digit) in expected {
             XCTAssertEqual(

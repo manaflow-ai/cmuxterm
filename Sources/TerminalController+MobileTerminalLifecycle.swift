@@ -63,7 +63,7 @@ extension TerminalController {
         let surfaceID = resolved.surfaceID
         let title = v2RawString(params, "title")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         v2MainSync {
-            workspace.setPanelCustomTitle(panelId: surfaceID, title: title.isEmpty ? nil : title)
+            _ = workspace.setPanelCustomTitle(panelId: surfaceID, title: title.isEmpty ? nil : title)
         }
         return .ok([
             "workspace_id": workspace.id.uuidString,

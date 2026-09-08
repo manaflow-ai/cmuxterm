@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// State for the right-sidebar Devices tab: the surface catalog as one value
+/// State for the Cloud sidebar’s My Devices section: the surface catalog as one value
 /// (device machines, their terminals, and which local panes project them),
 /// plus the directory's presence-connection state for the control bar. Every
 /// mutation goes through the shared Cloud tree action path; this model only
@@ -29,8 +29,8 @@ final class DevicesPanelViewModel {
     }
 
     private let registry: DeviceSurfaceProviderRegistry
-    private var catalogObserver: NSObjectProtocol?
-    private var directoryObserver: NSObjectProtocol?
+    @ObservationIgnored private var catalogObserver: NSObjectProtocol?
+    @ObservationIgnored private var directoryObserver: NSObjectProtocol?
     private var pendingCatalogRead = false
     private var catalogReadSuppressedByDrag = false
     private var refreshTask: Task<Void, Never>?

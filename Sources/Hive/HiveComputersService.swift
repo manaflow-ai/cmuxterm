@@ -110,7 +110,7 @@ final class HiveComputersService {
             await provider.refresh(force: true)
         }
         guard identity == scope, isPaired(instance) else { return }
-        guard let result = AppDelegate.shared?.applyRightSidebarRemoteCommand(.setMode(.devices, focus: true)) else { return }
+        guard let result = AppDelegate.shared?.applyRightSidebarRemoteCommand(.setMode(.machines, focus: true)) else { return }
         switch result {
         case .failure(let message):
             error = message

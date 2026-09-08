@@ -2,8 +2,8 @@ import CmuxSettings
 import Foundation
 
 /// Whether the Devices surfaces are available: the Beta Features opt-in, minus
-/// a managed-device remote-control ban. Every entry point (right-sidebar Devices
-/// tab, its positional shortcut, `cmux right-sidebar set devices`, the settings
+/// a managed-device remote-control ban. Every entry point (Cloud sidebar’s My Devices
+/// section, the Cloud shortcut, `cmux right-sidebar set devices`, the settings
 /// row, this Mac publishing itself to the account's other Macs) funnels through
 /// this gate, mirroring ``CloudMachinesFeature`` for the Cloud tab.
 ///

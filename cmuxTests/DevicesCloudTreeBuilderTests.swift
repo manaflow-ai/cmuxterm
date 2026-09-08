@@ -50,12 +50,15 @@ struct DevicesCloudTreeBuilderTests {
             resources: [], projections: []
         )
         let nodes = CloudTreeNodeBuilder.nodes(
-            machines: [], snapshot: snapshot, localWorkspaces: [], includeLocalMachine: false, source: .devices
+            machines: [], snapshot: snapshot, localWorkspaces: [], includeLocalMachine: false, source: .cloudWithDevicesSection
         )
-        let device = try #require(nodes.first)
+        let section = try #require(nodes.first)
+        let device = try #require(section.children.first)
         coordinator.apply(nodes: nodes)
         outline.collapseItem(device)
+        outline.collapseItem(section)
         coordinator.reveal(request)
+        #expect(outline.isItemExpanded(section))
         #expect(outline.isItemExpanded(device))
         #expect(outline.selectedRow == outline.row(forItem: device))
 
@@ -204,6 +207,25 @@ struct DevicesCloudTreeBuilderTests {
         }
         #expect(machine == .device(laptop))
         #expect(placeholder.style == .dimmed)
+    }
+
+    @Test("An empty My Devices section remains visible beneath the cloud fleet")
+    func emptyDevicesSectionRemainsVisible() throws {
+        let nodes = CloudTreeNodeBuilder.nodes(
+            machines: [], snapshot: .empty, localWorkspaces: [],
+            includeLocalMachine: false, source: .cloudWithDevicesSection
+        )
+        let section = try #require(nodes.first)
+        guard case .devicesSection(let count) = section.kind else {
+            Issue.record("Expected the My Devices section")
+            return
+        }
+        #expect(count == 0)
+        #expect(!section.children.isEmpty)
+        #expect(!CloudTreeNodeBuilder.isEmpty(
+            machines: [], snapshot: .empty, includeLocalMachine: false,
+            source: .cloudWithDevicesSection
+        ))
     }
 
     @Test("Merged into the Cloud tab, devices sit under one Devices section after the fleet")

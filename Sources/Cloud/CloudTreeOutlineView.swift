@@ -308,14 +308,8 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         /// expansion store remembers it. Never opens a terminal.
         func reveal(_ request: CloudTreeRevealRequest?) {
             guard let request, request.token != lastRevealToken, let outlineView else { return }
-            guard let node = CloudTreeNodeBuilder.flattened(nodes).first(where: { $0.id == request.nodeID }) else { return }
-            var ancestors: [CloudTreeNode] = []
-            var parent = outlineView.parent(forItem: node) as? CloudTreeNode
-            while let current = parent {
-                ancestors.append(current)
-                parent = outlineView.parent(forItem: current) as? CloudTreeNode
-            }
-            for ancestor in ancestors.reversed() where !outlineView.isItemExpanded(ancestor) {
+            guard let path = request.path(in: nodes), let node = path.last else { return }
+            for ancestor in path.dropLast() where !outlineView.isItemExpanded(ancestor) {
                 expansionStore.setExpanded(true, node: ancestor)
                 outlineView.expandItem(ancestor)
             }
@@ -746,6 +740,9 @@ struct CloudTreeOutlineView: NSViewRepresentable {
                 return deviceMenuItems(machine: row.machine, isOnline: row.isOnline)
             case .devicesSection:
                 return [
+                    item(String(localized: "devices.manage", defaultValue: "Manage My Devices")) {
+                        SettingsWindowPresenter.show(navigationTarget: .computers)
+                    },
                     item(String(localized: "cloudTree.menu.refresh", defaultValue: "Refresh")) { [nodeActions] in nodeActions.refresh() },
                 ]
             }
