@@ -17,11 +17,12 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
     case socketWorker(mainThreadCallable: Bool)
 
     /// Classifies a method: every `vm.`-, `remotes.`-, `aiAccounts.`-, and
-    /// `subrouter.`-prefixed method and the fixed socket-worker set run on the
+    /// `subrouter.`- and `coderouter.`-prefixed methods and the fixed socket-worker set run on the
     /// worker; everything else runs on the main actor.
     ///
-    /// `remotes.*` (the `cmux remotes` device-registry verbs) and
-    /// `aiAccounts.*` (the team's cloud AI-account verbs) make blocking,
+    /// `remotes.*` (the `cmux remotes` device-registry verbs), `aiAccounts.*`
+    /// (the team's subrouter AI-account verbs), and `coderouter.*` (the team's
+    /// coderouter Claude upstream and per-machine usage) make blocking,
     /// authenticated web API calls just like `vm.*`, so they must stay off the
     /// main actor; `subrouter.*` (the local subrouter-daemon verbs) awaits
     /// localhost HTTP fetches and the `sr` subprocess. Prefix matches keep
@@ -40,7 +41,7 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
 #endif
         if method.hasPrefix("vm.") || method.hasPrefix("remotes.") || method.hasPrefix("aiAccounts.")
             || method.hasPrefix("subrouter.")
-            || Self.socketWorkerMethods.contains(method) {
+            || method.hasPrefix("coderouter.") || Self.socketWorkerMethods.contains(method) {
             self = .socketWorker(
                 mainThreadCallable: Self.mainThreadCallableSocketWorkerMethods.contains(method)
             )
@@ -122,6 +123,17 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
         "mobile.panel.artifact.thumbnail",
         "system.top",
         "system.memory",
+        // vault.* scans agent transcript stores on disk (~/.claude/projects,
+        // ~/.codex/sessions, OpenCode SQLite). That is unbounded-latency file
+        // I/O; on the main actor it would stall the run loop, so the whole
+        // family runs on the socket worker. `vault.fork` streams a multi-MB
+        // transcript here and takes exactly one v2MainSync hop when asked to
+        // open the forked session. None are mainThreadCallable.
+        "vault.sessions",
+        "vault.search",
+        "vault.checkpoints",
+        "vault.checkpoint",
+        "vault.fork",
         // `surface.read_text` reads a terminal's visible or full-scrollback
         // text and formats it (line tailing, candidate scoring, base64
         // encoding). On the main actor that formatting stalls the run loop
