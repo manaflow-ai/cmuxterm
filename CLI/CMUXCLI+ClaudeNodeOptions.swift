@@ -231,6 +231,36 @@ extension CMUXCLI {
         return "\(requireOption) \(memoryOption) \(cleanedExisting)"
     }
 
+    func configureClaudeNodeOptionsEnvironment(
+        processEnvironment: [String: String],
+        restoreModuleURL: URL
+    ) {
+        switch processEnvironment["CMUX_ORIGINAL_NODE_OPTIONS_PRESENT"] {
+        case "1":
+            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
+            setenv("CMUX_ORIGINAL_NODE_OPTIONS", processEnvironment["CMUX_ORIGINAL_NODE_OPTIONS"] ?? "", 1)
+        case "0":
+            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
+            unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
+        default:
+            if let existing = processEnvironment["NODE_OPTIONS"] {
+                setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
+                setenv("CMUX_ORIGINAL_NODE_OPTIONS", normalizedNodeOptionsForRestore(existing), 1)
+            } else {
+                setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
+                unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
+            }
+        }
+        setenv(
+            "NODE_OPTIONS",
+            mergedNodeOptions(
+                existing: processEnvironment["NODE_OPTIONS"],
+                restoreModulePath: restoreModuleURL.path
+            ),
+            1
+        )
+    }
+
     private func cleanedNodeOptions(_ existing: String?) -> String {
         guard let tokens = Self.nodeOptionsTokens(existing ?? "") else { return existing ?? "" }
         guard !tokens.isEmpty else { return "" }

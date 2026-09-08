@@ -23868,20 +23868,9 @@ struct CMUXCLI {
             unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
             return
         }
-        if let existing = processEnvironment["NODE_OPTIONS"] {
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS", normalizedNodeOptionsForRestore(existing), 1)
-        } else {
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
-            unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
-        }
-        setenv(
-            "NODE_OPTIONS",
-            mergedNodeOptions(
-                existing: processEnvironment["NODE_OPTIONS"],
-                restoreModulePath: restoreModuleURL.path
-            ),
-            1
+        configureClaudeNodeOptionsEnvironment(
+            processEnvironment: processEnvironment,
+            restoreModuleURL: restoreModuleURL
         )
     }
 
@@ -26382,20 +26371,9 @@ struct CMUXCLI {
             unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
             return
         }
-        if let existing = processEnvironment["NODE_OPTIONS"] {
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "1", 1)
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS", normalizedNodeOptionsForRestore(existing), 1)
-        } else {
-            setenv("CMUX_ORIGINAL_NODE_OPTIONS_PRESENT", "0", 1)
-            unsetenv("CMUX_ORIGINAL_NODE_OPTIONS")
-        }
-        setenv(
-            "NODE_OPTIONS",
-            mergedNodeOptions(
-                existing: processEnvironment["NODE_OPTIONS"],
-                restoreModulePath: restoreModuleURL.path
-            ),
-            1
+        configureClaudeNodeOptionsEnvironment(
+            processEnvironment: processEnvironment,
+            restoreModuleURL: restoreModuleURL
         )
     }
 
@@ -28528,7 +28506,7 @@ struct CMUXCLI {
             // `errorStalled` context and silently lose the sound override.
             let payload = notificationPayload(
                 title: title,
-                subtitle: summary.subtitle,
+                subtitle: localizedClaudeNotificationSubtitle(summary.subtitle),
                 body: summary.body,
                 meta: Self.agentNotificationMeta(
                     category: notifyCategory,
@@ -28922,7 +28900,8 @@ struct CMUXCLI {
                     )
                     _ = try? sendV1Command(try semanticNotificationCommand(source: "claude", agentKey: Self.claudeCodeStatusKey,
                         sessionId: parsedInput.sessionId, workspaceId: workspaceId, surfaceId: existingSurfaceId,
-                        kind: .approvalRequested, rawObject: parsedInput.rawObject, payload: payload), client: client)
+                        kind: toolName == "AskUserQuestion" ? .questionRequested : .planReviewRequested,
+                        rawObject: parsedInput.rawObject, payload: payload), client: client)
                 }
                 printClaudeHookAck()
                 return
@@ -28940,10 +28919,9 @@ struct CMUXCLI {
                     updateLastSummary: true
                 )
             }
-            _ = try? sendV1Command("clear_notifications --tab=\(workspaceId)\(socketPanelOption(surfaceId))", client: client)
             emitAgentJournalEvent(
                 client: client,
-                kind: .turnStarted,
+                kind: .stateChanged,
                 source: "claude",
                 agentKey: Self.claudeCodeStatusKey,
                 sessionId: parsedInput.sessionId,
@@ -28951,6 +28929,7 @@ struct CMUXCLI {
                 surfaceId: surfaceId,
                 isSubagent: isNestedAgentSession,
                 nativeEvent: reportedHookEventName(from: parsedInput) ?? "PreToolUse",
+                declaredPhase: .running,
                 attention: Self.semanticAttentionContext(parsedInput.rawObject),
                 occurredAtMs: Self.semanticOccurredAtMs(parsedInput.rawObject),
                 store: sessionStore,
@@ -39214,8 +39193,52 @@ export default CMUXSessionRestore;
             agentID: source,
             includeAgentContext: true
         ) else { return }
+        let evidence = Self.semanticAttentionContext(eventDict)
+        if classification.clearsNativeApprovalPrompt {
+            guard evidence.requestIdentity != nil,
+                  let workspaceID = liveTarget?.workspaceId ?? ambientWorkspaceId,
+                  let surfaceID = liveTarget?.surfaceId ?? ambientSurfaceId else { return }
+            emitAgentJournalEvent(
+                client: activeClient,
+                kind: .attentionResolved,
+                source: source,
+                agentKey: Self.agentDef(named: source)?.statusKey ?? source,
+                sessionId: FeedWorkstreamIdentifier(
+                    rawValue: eventDict["session_id"] as? String ?? ""
+                )?.sessionID,
+                workspaceId: workspaceID,
+                surfaceId: surfaceID,
+                nativeEvent: eventDict["hook_event_name"] as? String,
+                declaredPhase: .running,
+                attention: evidence,
+                occurredAtMs: Self.semanticOccurredAtMs(eventDict),
+                responseTimeout: remainingBudget(),
+                deadline: deadline
+            )
+            return
+        }
+        let command: String
+        if classification.notifiesNativeApprovalPrompt {
+            let fields = attentionLine.split(separator: " ", maxSplits: 3).map(String.init)
+            guard fields.count == 4,
+                  let candidate = try? semanticNotificationCommand(
+                      source: source,
+                      agentKey: Self.agentDef(named: source)?.statusKey ?? source,
+                      sessionId: FeedWorkstreamIdentifier(
+                          rawValue: eventDict["session_id"] as? String ?? ""
+                      )?.sessionID,
+                      workspaceId: fields[1],
+                      surfaceId: fields[2],
+                      kind: .approvalRequested,
+                      rawObject: eventDict,
+                      payload: fields[3]
+                  ) else { return }
+            command = candidate
+        } else {
+            command = attentionLine
+        }
         _ = try? activeClient.send(
-            command: attentionLine,
+            command: command,
             responseTimeout: remainingBudget(),
             deadline: deadline
         )
@@ -39632,10 +39655,16 @@ export default CMUXSessionRestore;
             hookEventName: hookEventName,
             promptText: promptText
         )
+        let causalEvidence = Self.semanticAttentionContext(stdinObj)
         let requestId = stdinObj["_opencode_request_id"] as? String
-            ?? firstString(in: stdinObj, keys: ["request_id", "tool_use_id", "toolUseID"])
-            ?? "\(source)-\(sessionId)-\(rawEvent)-\(toolName)-\(Int(Date().timeIntervalSince1970 * 1000))"
+            ?? causalEvidence.requestIdentity.map { "\(workstreamID):\(Data($0.utf8).base64EncodedString())" }
+            ?? UUID().uuidString
         eventDict["_opencode_request_id"] = requestId
+        if let value = causalEvidence.eventIdentity { eventDict["event_id"] = value }
+        if let value = causalEvidence.turnIdentity { eventDict["turn_id"] = value }
+        if let value = causalEvidence.requestIdentity { eventDict["request_id"] = value }
+        if let value = Self.semanticOccurredAtMs(stdinObj) { eventDict["occurred_at_ms"] = value }
+        if let value = firstString(in: stdinObj, keys: ["agent_id", "agentId"]) { eventDict["agent_id"] = value }
 
         // Sync. For actionable events we wait for the user's Feed click;
         // the hook's stdout is then a
