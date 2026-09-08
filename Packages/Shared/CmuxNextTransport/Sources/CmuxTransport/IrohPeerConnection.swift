@@ -27,6 +27,9 @@ public actor IrohPeerConnection: PeerConnection {
     /// first lane frame.
     let handshakeSleep: @Sendable (Duration) async throws -> Void
     var lanes: [String: IrohLane] = [:]
+    /// Reserve names before native I/O suspends. One caller's cancellation
+    /// must not abort the shared open; connection shutdown owns these tasks.
+    var laneOpenTasks: [String: Task<any TransportLane, Never>] = [:]
     var laneWaiters: [String: [(id: UInt64, continuation: CheckedContinuation<any TransportLane, Never>)]] = [:]
     var laneWaiterTasks: [UInt64: Task<Void, Never>] = [:]
     private var laneWaiterCounter: UInt64 = 0
@@ -177,63 +180,19 @@ public actor IrohPeerConnection: PeerConnection {
         }
         switch role {
         case .dialer:
-            guard lanes.count < Self.maxLaneCount else {
+            if let opening = laneOpenTasks[name] { return await awaitNamedLane(opening, name: name) }
+            guard !Task.isCancelled,
+                lanes.count + laneOpenTasks.count < Self.maxLaneCount
+            else {
                 if TransportDebugLog.enabled {
                     TransportDebugLog.core.error(
                         "conn \(TransportDebugLog.id(self), privacy: .public) lane limit reached (\(Self.maxLaneCount, privacy: .public)); refusing name=\(name, privacy: .public)")
                 }
                 return DeadLane(name: name)
             }
-            var openedStream: BiStream?
-            do {
-                let stream = try await connection.openBi()
-                openedStream = stream
-                guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
-                // Re-check after the suspension: a concurrent caller may have
-                // opened the same lane while we awaited. The loser must CLOSE
-                // the stream it already opened — dropping the handle leaks a
-                // live QUIC stream (and its flow-control credit) for the
-                // connection's whole lifetime.
-                if let existing = lanes[name] {
-                    try? await stream.send().finish()
-                    try? await stream.recv().stop(errorCode: 0)
-                    return existing
-                }
-                let channel = IrohLaneChannel(
-                    send: stream.send(), recv: stream.recv(),
-                    onProtocolError: { [weak self] in
-                        await self?.protocolViolation()
-                    })
-                try await channel.sendFrame(
-                    Frame(type: Self.laneOpenType, payload: ["name": .string(name)]))
-                guard !closedFlag, !Task.isCancelled else { throw TransportError.pipeClosed }
-                if let existing = lanes[name] {
-                    await closeUnadoptedStream(stream)
-                    return existing
-                }
-                guard lanes.count < Self.maxLaneCount else { throw TransportError.pipeClosed }
-                let lane = makeLane(name: name, channel: channel)
-                lanes[name] = lane
-                if TransportDebugLog.enabled {
-                    TransportDebugLog.core.notice(
-                        """
-                        conn \(TransportDebugLog.id(self), privacy: .public) lane opened \
-                        (dialer) name=\(name, privacy: .public)
-                        """)
-                }
-                return lane
-            } catch {
-                if let openedStream { await closeUnadoptedStream(openedStream) }
-                if TransportDebugLog.enabled {
-                    TransportDebugLog.core.error(
-                        """
-                        conn \(TransportDebugLog.id(self), privacy: .public) lane open FAILED \
-                        (dialer) name=\(name, privacy: .public) \
-                        error=\(String(describing: error), privacy: .public) -> dead lane
-                        """)
-                }
-                return DeadLane(name: name)
-            }
+            let opening = Task { await self.openNamedLane(name) }
+            laneOpenTasks[name] = opening
+            return await awaitNamedLane(opening, name: name)
         case .acceptor:
             laneWaiterCounter &+= 1
             let waiterID = laneWaiterCounter
@@ -347,6 +306,8 @@ public actor IrohPeerConnection: PeerConnection {
                 """)
         }
         acceptLoop?.cancel()
+        let openingLanes = Array(laneOpenTasks.values)
+        for task in openingLanes { task.cancel() }
         for task in inboundStreamTasks.values { task.cancel() }
         inboundStreamTasks.removeAll()
         rawDeliveryTask?.cancel()
@@ -364,6 +325,9 @@ public actor IrohPeerConnection: PeerConnection {
         try? connection.close(
             errorCode: reason == nil ? 0 : 1,
             reason: Data((reason?.code ?? "closed").utf8))
+        // Close QUIC before joining: native stream opens and writes need that
+        // close to unblock; cancelling a Swift task alone cannot interrupt FFI.
+        for task in openingLanes { _ = await task.value }
         resumeAllWaitersClosed()
     }
 
