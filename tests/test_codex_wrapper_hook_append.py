@@ -24,6 +24,8 @@ import tempfile
 import threading
 import time
 import unittest
+from collections.abc import Iterator
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -67,6 +69,13 @@ USER_COMMANDS = {
     "Interrupt": "user-12081-interrupt",
 }
 LIVE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop"]
+# Every user-owned handler the live run must fire exactly once: the three
+# hooks.json handlers above plus one SessionStart handler in each of the other
+# documented user layers (config.toml `[hooks]` and a trusted project's
+# `.codex/hooks.json`).
+LIVE_USER_MARKERS = LIVE_EVENTS + ["SessionStart:config.toml", "SessionStart:project"]
+# cmux's own handlers that a one-turn `codex exec` with no tool calls fires.
+LIVE_CMUX_SUBCOMMANDS = ["session-start", "prompt-submit", "stop"]
 
 
 def user_hooks_json(commands: dict[str, str]) -> dict:
@@ -286,21 +295,61 @@ def wait_for(predicate, timeout_seconds: float) -> bool:
     return predicate()
 
 
+@contextmanager
+def scratch_directory(prefix: str) -> Iterator[str]:
+    """A temporary directory whose removal tolerates stragglers.
+
+    cmux's fire-and-forget hooks keep writing payload files under TMPDIR for a
+    moment after codex exits. Python 3.9 (the CI runner default) has no
+    ``ignore_cleanup_errors``, so clean up by hand.
+    """
+    # Resolve the macOS `/var` -> `/private/var` symlink: Codex trusts a project
+    # by its canonical path, so the trust entry must match the cwd it sees.
+    path = str(Path(tempfile.mkdtemp(prefix=prefix)).resolve())
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def write_logging_shim(path: Path, log: Path, target: str) -> None:
+    """An executable that appends its arguments to ``log`` then execs ``target``."""
+    path.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '%s\\n' \"$*\" >> '{log}'\n"
+        f"exec '{target}' \"$@\"\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def cmux_hook_calls(log: Path) -> dict[str, int]:
+    """How many times each `cmux hooks codex <subcommand>` reached the CLI."""
+    lines = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    counts: dict[str, int] = {}
+    for line in lines:
+        _, marker, subcommand = line.rpartition("hooks codex ")
+        if marker:
+            counts[subcommand] = counts.get(subcommand, 0) + 1
+    return counts
+
+
 def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
     real_codex = resolve_real_codex()
     if real_codex is None:
-        raise unittest.SkipTest("no real codex binary on PATH; set CMUX_TEST_REAL_CODEX to run")
+        # CI runners do not provision Codex. Where it is provisioned, set
+        # CMUX_TEST_REQUIRE_REAL_CODEX=1 so a missing binary fails instead
+        # of skipping.
+        message = "no real codex binary on PATH; set CMUX_TEST_REAL_CODEX to run"
+        assert os.environ.get("CMUX_TEST_REQUIRE_REAL_CODEX") != "1", message
+        raise unittest.SkipTest(message)
     cli_path = resolve_cmux_cli()
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeModelHandler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     try:
-        # cmux's fire-and-forget hooks keep writing payload files under TMPDIR
-        # for a moment after codex exits, so cleanup must tolerate stragglers.
-        with tempfile.TemporaryDirectory(
-            prefix="cmux-codex-live-", ignore_cleanup_errors=True
-        ) as temporary_directory:
+        with scratch_directory("cmux-codex-live-") as temporary_directory:
             root = Path(temporary_directory)
             codex_home = root / "codex"
             home = root / "home"
@@ -311,11 +360,22 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                 directory.mkdir()
             marker_log = root / "user-hooks.log"
             commands = {}
-            for event in LIVE_EVENTS:
-                script = hooks_dir / f"{event}.sh"
-                write_marker_hook(script, marker_log, event)
-                commands[event] = str(script)
-            (codex_home / "hooks.json").write_text(json.dumps(user_hooks_json(commands)), encoding="utf-8")
+            for marker in LIVE_USER_MARKERS:
+                script = hooks_dir / (marker.replace(":", "-") + ".sh")
+                write_marker_hook(script, marker_log, marker)
+                commands[marker] = str(script)
+            (codex_home / "hooks.json").write_text(
+                json.dumps(user_hooks_json({event: commands[event] for event in LIVE_EVENTS})),
+                encoding="utf-8",
+            )
+            # A trusted project layer: Codex discovers `.codex/hooks.json` at
+            # the project root, which it locates through the git checkout.
+            subprocess.run(["git", "init", "-q", str(work)], check=True, capture_output=True)
+            (work / ".codex").mkdir()
+            (work / ".codex" / "hooks.json").write_text(
+                json.dumps(user_hooks_json({"SessionStart": commands["SessionStart:project"]})),
+                encoding="utf-8",
+            )
             port = server.server_address[1]
             (codex_home / "config.toml").write_text(
                 "\n".join(
@@ -330,6 +390,15 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                         "",
                         "[features]",
                         "hooks = true",
+                        "",
+                        f'[projects."{work}"]',
+                        'trust_level = "trusted"',
+                        "",
+                        # The user layer's TOML representation of a hook.
+                        "[[hooks.SessionStart]]",
+                        "[[hooks.SessionStart.hooks]]",
+                        'type = "command"',
+                        f'command = "{commands["SessionStart:config.toml"]}"',
                         "",
                     ]
                 ),
@@ -346,6 +415,12 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                 encoding="utf-8",
             )
             argv_shim.chmod(0o755)
+            # Every cmux CLI call (the wrapper's inject-args and each hook's
+            # detached delivery) goes through this shim, so invocations can be
+            # counted per subcommand.
+            cli_calls = root / "cmux-cli-calls.log"
+            cli_shim = root / "cmux-cli-shim"
+            write_logging_shim(cli_shim, cli_calls, cli_path)
 
             with focused_cmux_server(root / "cmux.sock") as (socket_path, requests):
                 environment = clean_environment(
@@ -355,7 +430,7 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                     CMUX_SURFACE_ID=FOCUSED_SURFACE_ID,
                     CMUX_WORKSPACE_ID=FOCUSED_WORKSPACE_ID,
                     CMUX_SOCKET_PATH=socket_path,
-                    CMUX_BUNDLED_CLI_PATH=cli_path,
+                    CMUX_BUNDLED_CLI_PATH=str(cli_shim),
                     CMUX_CUSTOM_CODEX_PATH=str(argv_shim),
                     CMUX_AGENT_HOOK_STATE_DIR=str(state_dir),
                     CMUX_COMPUTER_USE_MCP_DISABLED="1",
@@ -392,21 +467,28 @@ def test_live_codex_runs_user_hooks_and_cmux_hook_once_each() -> None:
                     assert command not in joined, f"live argv re-declared the user {event} handler: {arguments}"
 
                 fired = marker_log.read_text(encoding="utf-8").split() if marker_log.exists() else []
-                for event in LIVE_EVENTS:
-                    assert fired.count(event) == 1, f"user {event} handler ran {fired.count(event)} times: {fired}"
+                for marker in LIVE_USER_MARKERS:
+                    assert fired.count(marker) == 1, f"user {marker} handler ran {fired.count(marker)} times: {fired}"
 
-                # cmux's own SessionStart handler is fire-and-forget, so give
-                # its detached CLI call a moment to reach the fake cmux socket.
+                # cmux's handlers deliver through detached CLI calls, so give
+                # them a moment, then require exactly one call per event.
+                assert wait_for(
+                    lambda: all(cmux_hook_calls(cli_calls).get(s, 0) >= 1 for s in LIVE_CMUX_SUBCOMMANDS), 30
+                ), f"cmux hooks did not all reach the CLI: {cmux_hook_calls(cli_calls)}"
                 assert wait_for(lambda: len(requests) > 0, 30), "cmux hook never reached the cmux socket"
                 assert wait_for(lambda: (state_dir / "codex-hook-sessions.json").exists(), 30), (
                     f"cmux hook ledger was not written: {sorted(state_dir.iterdir())}"
                 )
+                # Let the detached hook runners finish with their payload files
+                # before the directory goes away; this also settles any late
+                # duplicate call that the exact counts below would catch.
+                wait_for(lambda: not list(root.glob("cmux-codex-*")), 35)
+                calls = cmux_hook_calls(cli_calls)
+                assert calls.get("inject-args") == 1, f"wrapper injected {calls.get('inject-args')} times: {calls}"
+                for subcommand in LIVE_CMUX_SUBCOMMANDS:
+                    assert calls.get(subcommand) == 1, f"cmux {subcommand} hook ran {calls.get(subcommand)} times: {calls}"
                 ledger = json.loads((state_dir / "codex-hook-sessions.json").read_text(encoding="utf-8"))
                 assert ledger, "cmux hook ledger is empty"
-                # Let the detached hook runners finish with their payload files
-                # before the directory goes away.
-                wait_for(lambda: not list(root.glob("cmux-codex-*")), 35)
-                shutil.rmtree(work, ignore_errors=True)
     finally:
         server.shutdown()
         server.server_close()
