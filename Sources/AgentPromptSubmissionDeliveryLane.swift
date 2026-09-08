@@ -150,7 +150,7 @@ actor AgentPromptSubmissionDeliveryLane {
 
         let receipt = PromptSubmissionDeliveryReceipt()
         let admitted = await withTaskCancellationHandler(operation: {
-            await MainActor.run {
+            await MainActor.run { () -> Outcome in
                 guard !Task.isCancelled else {
                     return .laneBusy
                 }
