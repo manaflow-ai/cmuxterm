@@ -652,6 +652,7 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
         catalog.replaceResources(
             [terminalResource],
             on: machine,
@@ -674,6 +675,7 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
+        catalog.register(GroupFakeProvider(machine: machine))
         catalog.replaceResources(
             [resource],
             on: machine,
