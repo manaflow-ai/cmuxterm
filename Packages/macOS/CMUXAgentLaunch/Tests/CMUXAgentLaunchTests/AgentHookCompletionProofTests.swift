@@ -100,6 +100,12 @@ struct AgentHookCompletionProofTests {
         ))
     }
 
+    @Test("exposes structured failure evidence separately from completion proof")
+    func detectsStructuredFailureEvidence() {
+        #expect(proof.containsStructuredFailureEvidence(payload: ["error": "transport"]))
+        #expect(!proof.containsStructuredFailureEvidence(payload: ["session_id": "successful-turn"]))
+    }
+
     @Test("treats explicit success-shaped failure fields as non-failures")
     func acceptsExplicitlyClearFailureFields() {
         for value: Any in ["ok", false, 0] {
