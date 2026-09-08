@@ -108,16 +108,14 @@ final class SubrouterAppRuntime {
     func footerSwitcherDidAppear() {
         footerVisibleCount += 1
         syncServerRegistryWatch()
-        if footerVisibleCount == 1 {
-            // Do not let the first background poll race a registry refresh.
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.refreshServerSelectionAndApply()
-                guard self.footerVisibleCount > 0 else { return }
-                self.syncFooterSurfaceVisibility()
-            }
-        } else {
-            syncFooterSurfaceVisibility()
+        // Every appearance waits for the coalesced registry read. A second
+        // window (or a duplicate SwiftUI onAppear) must not enable polling
+        // against the previous daemon while the first read is still pending.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshServerSelectionAndApply()
+            guard self.footerVisibleCount > 0 else { return }
+            self.syncFooterSurfaceVisibility()
         }
     }
 
@@ -139,19 +137,14 @@ final class SubrouterAppRuntime {
     func agentsPanelDidBecomeVisible() {
         agentsPanelVisibleCount += 1
         syncServerRegistryWatch()
-        if agentsPanelVisibleCount == 1 {
-            // Opening the panel is an authoritative boundary: await the
-            // registry read before enabling its poll surface, so the first
-            // request cannot hit loopback while `sr server use` selects a
-            // remote daemon.
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await self.refreshServerSelectionAndApply()
-                guard self.agentsPanelVisibleCount > 0 else { return }
-                self.syncAgentsPanelSurfaceVisibility()
-            }
-        } else {
-            syncAgentsPanelSurfaceVisibility()
+        // Opening any panel is an authoritative boundary: await the
+        // coalesced registry read before enabling its poll surface, so a
+        // second window cannot briefly refresh the previous daemon.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.refreshServerSelectionAndApply()
+            guard self.agentsPanelVisibleCount > 0 else { return }
+            self.syncAgentsPanelSurfaceVisibility()
         }
     }
 

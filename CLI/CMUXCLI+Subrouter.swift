@@ -226,11 +226,25 @@ extension CMUXCLI {
         }
 
         // 2. The daemon, through the app (which follows sr's server selection).
-        var statusResponse = try? client.sendV2(method: "subrouter.status", responseTimeout: Self.subrouterDataResponseTimeout)
-        if statusResponse == nil {
+        var statusResponse: [String: Any]?
+        do {
+            statusResponse = try client.sendV2(
+                method: "subrouter.status",
+                responseTimeout: Self.subrouterDataResponseTimeout
+            )
+        } catch let error as CLIError where error.v2Code == "subrouter_disabled" {
             print(Self.cliText("cli.subrouter.welcome.disabled", defaultValue: "✗ The cmux subrouter integration is disabled."))
             print(Self.cliText("cli.subrouter.welcome.enableHint", defaultValue: "  Enable it in Settings → Agent Accounts, or set {\"subrouter\": {\"enabled\": true}} in ~/.config/cmux/cmux.json."))
-        } else if let daemon = statusResponse?["daemon"] as? [String: Any],
+            return
+        } catch let error {
+            print(Self.cliFormat(
+                "cli.subrouter.status.error",
+                defaultValue: "  error:  Unable to query daemon status (%@)",
+                Self.sanitizeForTerminal(error.localizedDescription)
+            ))
+            return
+        }
+        if let daemon = statusResponse?["daemon"] as? [String: Any],
                   (daemon["state"] as? String) != "healthy",
                   let srPath {
             let endpoint = (statusResponse?["endpoint"] as? String) ?? ""
@@ -306,16 +320,26 @@ extension CMUXCLI {
         return host == "127.0.0.1" || host == "localhost" || host == "::1"
     }
 
-    /// Mirrors the app's sr resolution order: explicit places first.
+    /// Mirrors the app's sr resolution order: PATH first, then explicit
+    /// fallback locations. This keeps `cmux subrouter` and in-app switching
+    /// on the same user-selected binary when PATH changes after installation.
     func resolveSubrouterBinary() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        var candidates = ["\(home)/bin/sr", "\(home)/bin/subrouter", "/opt/homebrew/bin/sr", "/usr/local/bin/sr"]
+        var candidates: [String] = []
         if let pathVariable = ProcessInfo.processInfo.environment["PATH"] {
             for directory in pathVariable.split(separator: ":") {
                 candidates.append("\(directory)/sr")
                 candidates.append("\(directory)/subrouter")
             }
         }
+        candidates.append(contentsOf: [
+            "\(home)/bin/sr",
+            "\(home)/bin/subrouter",
+            "/opt/homebrew/bin/sr",
+            "/usr/local/bin/sr",
+            "/opt/local/bin/sr",
+            "/opt/local/bin/subrouter",
+        ])
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
