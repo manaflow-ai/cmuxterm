@@ -131,14 +131,24 @@ public actor JSONConfigStore {
     ///   - key: The JSON setting to update.
     ///   - transform: A pure transformation applied to the latest stored value.
     /// - Returns: The value written to the store.
-    /// - Throws: Errors from the underlying JSON write.
+    /// - Throws: A ``JSONConfigStoreReadError`` when the existing value cannot
+    ///   be decoded, or errors from the underlying JSON write.
     public func update<Value: SettingCodable>(
         _ key: JSONKey<Value>,
         transform: @Sendable (Value) -> Value
     ) throws -> Value {
         var updatedValue: Value?
         try mutateRoot(forceReload: true) { root in
-            let current = Value.decodeFromJSON(key.path.lookup(in: root)) ?? key.defaultValue
+            let raw = key.path.lookup(in: root)
+            let current: Value
+            if key.path.contains(in: root) {
+                guard let decoded = Value.decodeFromJSON(raw) else {
+                    throw JSONConfigStoreReadError.valueNotDecodable(key: key.id)
+                }
+                current = decoded
+            } else {
+                current = key.defaultValue
+            }
             let updated = transform(current)
             key.path.assign(updated.encodeForJSON(), in: &root)
             updatedValue = updated
@@ -362,7 +372,7 @@ public actor JSONConfigStore {
     /// of splitting the operation across two targets.
     private func mutateRoot(
         forceReload: Bool = false,
-        _ mutate: (inout [String: Any]) -> Void
+        _ mutate: (inout [String: Any]) throws -> Void
     ) throws {
         // Write through a symlink to its target rather than at the link path:
         // an atomic write is a temp-file + `rename()`, which would replace the
@@ -371,7 +381,7 @@ public actor JSONConfigStore {
         var root = !forceReload && cacheIsCurrent(for: writeURL.path)
             ? cachedRoot
             : try readFromDisk(at: writeURL)
-        mutate(&root)
+        try mutate(&root)
 
         let parent = writeURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
