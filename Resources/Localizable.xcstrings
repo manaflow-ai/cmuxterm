@@ -42045,122 +42045,258 @@
       "localizations": {
         "ar": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (بدائل لـ CodeRouter CLI المثبّت)"
           }
         },
         "bs": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (aliasi za instalirani CodeRouter CLI)"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (aliasser for den installerede CodeRouter CLI)"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (Aliase für die installierte CodeRouter-CLI)"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "coderouter|cr [coderouter-args...]                 (aliases for the installed CodeRouter CLI)"
+            "value": "coderouter|cr [coderouter-args...]                 (aliases for the CodeRouter CLI; offers to install it when missing)"
           }
         },
         "es": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (alias para la CLI de CodeRouter instalada)"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (alias de la CLI CodeRouter installée)"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (alias per la CLI CodeRouter installata)"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "coderouter|cr [coderouter-args...]                 (インストール済み CodeRouter CLI のエイリアス)"
+            "value": "coderouter|cr [coderouter-args...]                 (CodeRouter CLI のエイリアス。未インストール時はインストールを提案)"
           }
         },
         "km": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (ឈ្មោះកាត់សម្រាប់ CodeRouter CLI ដែលបានដំឡើង)"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (설치된 CodeRouter CLI의 별칭)"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (aliaser for den installerte CodeRouter CLI)"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (aliasy zainstalowanego CodeRouter CLI)"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (aliases para a CLI do CodeRouter instalada)"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (псевдонимы для установленного CodeRouter CLI)"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (ชื่อเรียกแทนสำหรับ CodeRouter CLI ที่ติดตั้งไว้)"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (yüklü CodeRouter CLI için takma adlar)"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (псевдоніми для встановленого CodeRouter CLI)"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (已安装 CodeRouter CLI 的别名)"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "translated",
+            "state": "needs_review",
             "value": "coderouter|cr [coderouter-args...]                 (已安裝 CodeRouter CLI 的別名)"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.confirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install CodeRouter now? [y/N] "
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ CodeRouter をインストールしますか? [y/N] "
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.declined": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter was not installed. Install it later with:\n  %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter はインストールされませんでした。後で次のコマンドでインストールできます:\n  %@"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.downloadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not download the CodeRouter installer (curl exited with status %1$d). Retry, or install it with:\n  %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter インストーラーをダウンロードできませんでした (curl の終了ステータス: %1$d)。もう一度お試しいただくか、次のコマンドでインストールしてください:\n  %2$@"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.installedNotFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The CodeRouter installer finished, but no CodeRouter CLI was found in %@. Add its bin directory to PATH and retry."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter インストーラーは完了しましたが、%@ に CodeRouter CLI が見つかりませんでした。その bin ディレクトリを PATH に追加して、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.installerFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The CodeRouter installer exited with status %1$d. Retry, or install it with:\n  %2$@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter インストーラーが終了ステータス %1$d で終了しました。もう一度お試しいただくか、次のコマンドでインストールしてください:\n  %2$@"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.installing": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing CodeRouter..."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter をインストールしています..."
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.notInstalled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter CLI is not installed. Install it, then retry:\n  %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter CLI がインストールされていません。次のコマンドでインストールしてから、もう一度お試しください:\n  %@"
+          }
+        }
+      }
+    },
+    "cli.coderouter.bootstrap.offer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter CLI is not installed. cmux can install it now by running the official installer:\n  %1$@\nThis downloads the checksum-verified CodeRouter binary into %2$@ and adds that directory to your shell PATH."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CodeRouter CLI がインストールされていません。cmux は公式インストーラーを実行して今すぐインストールできます:\n  %1$@\nチェックサムを検証した CodeRouter バイナリを %2$@ にダウンロードし、そのディレクトリをシェルの PATH に追加します。"
           }
         }
       }
@@ -42411,131 +42547,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法啟動必要的 CLI。請檢查安裝後再試一次。"
-          }
-        }
-      }
-    },
-    "cli.coderouter.error.notFound": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تعذر العثور على أداة سطر الأوامر المطلوبة. ثبّت الأمر ثم أعد المحاولة."
-          }
-        },
-        "bs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Traženi CLI nije pronađen. Instalirajte naredbu i pokušajte ponovo."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Den nødvendige CLI blev ikke fundet. Installer kommandoen, og prøv igen."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die erforderliche CLI wurde nicht gefunden. Installieren Sie den Befehl und versuchen Sie es erneut."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Required CLI not found. Install the command and retry."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se encontró la CLI necesaria. Instala el comando y vuelve a intentarlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La CLI requise est introuvable. Installez la commande, puis réessayez."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La CLI richiesta non è stata trovata. Installa il comando e riprova."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "必要な CLI が見つかりません。コマンドをインストールして、もう一度お試しください。"
-          }
-        },
-        "km": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "រកមិនឃើញ CLI ដែលត្រូវការ។ សូមដំឡើងពាក្យបញ្ជា ហើយព្យាយាមម្ដងទៀត។"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "필요한 CLI를 찾을 수 없습니다. 명령을 설치한 후 다시 시도하세요."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fant ikke den nødvendige CLI-en. Installer kommandoen og prøv igjen."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie znaleziono wymaganej CLI. Zainstaluj polecenie i spróbuj ponownie."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A CLI necessária não foi encontrada. Instale o comando e tente novamente."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось найти необходимый CLI. Установите команду и повторите попытку."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่พบ CLI ที่จำเป็น โปรดติดตั้งคำสั่งแล้วลองอีกครั้ง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gerekli CLI bulunamadı. Komutu yükleyip tekrar deneyin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не знайдено потрібний CLI. Установіть команду та повторіть спробу."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未找到所需的 CLI。请安装该命令后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "找不到必要的 CLI。請安裝該命令後再試一次。"
           }
         }
       }

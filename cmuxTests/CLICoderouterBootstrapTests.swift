@@ -135,6 +135,41 @@ struct CLICoderouterBootstrapTests {
         #expect(!fixture.fileManager.fileExists(atPath: fixture.installerDefaultRoot.path))
     }
 
+    @Test("an existing install is exec'd unchanged and the installer never runs")
+    func existingInstallNeverRunsTheInstaller() throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let installerScript = try fixture.writeFakeInstaller()
+        let pathDirectory = fixture.root.appendingPathComponent("path-bin", isDirectory: true)
+        try fixture.writeExecutable(
+            """
+            #!/bin/sh
+            printf '<%s>\\n' "$@" > "$HOME/coderouter-args"
+            printf 'path coderouter\\n'
+            exit 41
+            """,
+            at: pathDirectory.appendingPathComponent("coderouter", isDirectory: false)
+        )
+
+        // A terminal with `y` already typed: were cmux to ask, it would install.
+        let result = try fixture.runCLIUnderPTY(
+            arguments: ["cr", "--version"],
+            input: "y\n",
+            extraEnvironment: [
+                "PATH": pathDirectory.path,
+                "CMUX_CODEROUTER_INSTALLER_SCRIPT": installerScript.path,
+            ]
+        )
+
+        #expect(!result.timedOut, Comment(rawValue: result.transcript))
+        #expect(result.status == 41, Comment(rawValue: result.transcript))
+        #expect(result.transcript.contains("path coderouter"), Comment(rawValue: result.transcript))
+        #expect(!result.transcript.contains(Self.confirmPrompt), Comment(rawValue: result.transcript))
+        #expect(try fixture.readHomeFile("coderouter-args") == "<--version>\n")
+        #expect(!fixture.installerRan, Comment(rawValue: result.transcript))
+        #expect(!fixture.fileManager.fileExists(atPath: fixture.installerDefaultRoot.path))
+    }
+
     // MARK: - Fixture
 
     struct ProcessResult {

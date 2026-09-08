@@ -319,11 +319,11 @@ struct CLICoderouterAliasTests {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))
         #expect(
-            result.stdout.contains("インストール済み CodeRouter CLI のエイリアス"),
+            result.stdout.contains("CodeRouter CLI のエイリアス。未インストール時はインストールを提案"),
             Comment(rawValue: result.stdout)
         )
         #expect(
-            !result.stdout.contains("aliases for the installed CodeRouter CLI"),
+            !result.stdout.contains("aliases for the CodeRouter CLI"),
             Comment(rawValue: result.stdout)
         )
     }
