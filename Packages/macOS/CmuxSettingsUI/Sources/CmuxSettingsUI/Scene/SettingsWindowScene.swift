@@ -472,7 +472,7 @@ public struct SettingsWindowRoot: View {
         // lets the highlight-state mutation above commit before the scroll
         // and is generation-guarded so a newer navigation still wins.
         let anchor: UnitPoint = anchorID == sectionID ? .top : .center
-        let scrollTarget = SettingsSectionMountModel.ScrollTarget(
+        let scrollTarget = SettingsSectionScrollTarget(
             section: target,
             anchorID: anchorID,
             anchor: anchor,

@@ -49,6 +49,10 @@ struct SettingsSectionMountModelTests {
         #expect(model.sectionDidAppear(.app) == .terminal)
         // .browser is already mounted, so the chain skips it.
         #expect(model.sectionDidAppear(.terminal) == .reset)
+        // Everything is mounted, but the last mount is still under
+        // construction until it appears.
+        #expect(!model.isComplete)
+        #expect(model.sectionDidAppear(.reset) == nil)
         #expect(model.isComplete)
     }
 
@@ -79,9 +83,19 @@ struct SettingsSectionMountModelTests {
         #expect(model.sectionDidAppear(.account) == .app)
     }
 
+    @Test func completionWaitsForTheFinalSectionToAppear() {
+        let model = SettingsSectionMountModel(initial: .account, order: [.account, .app])
+        #expect(!model.isComplete)
+        #expect(model.sectionDidAppear(.account) == .app)
+        #expect(model.mounted == Set([.account, .app]))
+        #expect(!model.isComplete, "the App section is mounted but has not appeared yet")
+        #expect(model.sectionDidAppear(.app) == nil)
+        #expect(model.isComplete)
+    }
+
     @Test func deferredScrollIsOwedToItsSectionOnly() {
         let model = SettingsSectionMountModel(initial: .account, order: order)
-        let target = SettingsSectionMountModel.ScrollTarget(
+        let target = SettingsSectionScrollTarget(
             section: .browserImport, anchorID: "section:browserImport", anchor: .top, generation: 3
         )
         model.deferScroll(target)
@@ -95,8 +109,8 @@ struct SettingsSectionMountModelTests {
 
     @Test func pinnedScrollTracksTheLatestNavigation() {
         let model = SettingsSectionMountModel(initial: .account, order: order)
-        let first = SettingsSectionMountModel.ScrollTarget(section: .reset, anchorID: "section:reset", anchor: .top, generation: 1)
-        let second = SettingsSectionMountModel.ScrollTarget(section: .app, anchorID: "row:app", anchor: .center, generation: 2)
+        let first = SettingsSectionScrollTarget(section: .reset, anchorID: "section:reset", anchor: .top, generation: 1)
+        let second = SettingsSectionScrollTarget(section: .app, anchorID: "row:app", anchor: .center, generation: 2)
         model.pin(first)
         model.pin(second)
         #expect(model.pinnedScroll == second)

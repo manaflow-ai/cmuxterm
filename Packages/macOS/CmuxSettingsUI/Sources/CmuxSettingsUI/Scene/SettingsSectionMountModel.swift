@@ -1,5 +1,25 @@
 import SwiftUI
 
+/// A scroll the settings scene applies once its target section is on
+/// screen, and re-applies while sections above it are still mounting.
+/// Declared at file scope so this plain value stays free of
+/// ``SettingsSectionMountModel``'s main-actor isolation.
+public struct SettingsSectionScrollTarget: Equatable, Sendable {
+    public let section: SettingsSectionID
+    public let anchorID: String
+    public let anchor: UnitPoint
+    /// Navigation generation the request was issued under; a newer
+    /// navigation supersedes an older deferred scroll.
+    public let generation: Int
+
+    public init(section: SettingsSectionID, anchorID: String, anchor: UnitPoint, generation: Int) {
+        self.section = section
+        self.anchorID = anchorID
+        self.anchor = anchor
+        self.generation = generation
+    }
+}
+
 /// Progressive mounting of the settings window's detail sections
 /// (https://github.com/manaflow-ai/cmux/issues/12134).
 ///
@@ -22,24 +42,6 @@ import SwiftUI
 @MainActor
 @Observable
 public final class SettingsSectionMountModel {
-    /// A scroll the scene applies once the target section is on screen,
-    /// and re-applies while sections above it are still mounting.
-    public struct ScrollTarget: Equatable, Sendable {
-        public let section: SettingsSectionID
-        public let anchorID: String
-        public let anchor: UnitPoint
-        /// Navigation generation the request was issued under; a newer
-        /// navigation supersedes an older deferred scroll.
-        public let generation: Int
-
-        public init(section: SettingsSectionID, anchorID: String, anchor: UnitPoint, generation: Int) {
-            self.section = section
-            self.anchorID = anchorID
-            self.anchor = anchor
-            self.generation = generation
-        }
-    }
-
     /// Detail-stack order of the sections that own a slot. `browserImport`
     /// is an anchor inside the Browser section rather than a section of
     /// its own, so it never appears here.
@@ -65,10 +67,10 @@ public final class SettingsSectionMountModel {
     private var awaitingAppearance: SettingsSectionID?
     private var queue: [SettingsSectionID]
     /// Navigation waiting for its section to appear before scrolling.
-    public private(set) var deferredScroll: ScrollTarget?
+    public private(set) var deferredScroll: SettingsSectionScrollTarget?
     /// Most recent navigation; re-applied when a section above it mounts
     /// so the viewport does not drift while placeholders grow into content.
-    public private(set) var pinnedScroll: ScrollTarget?
+    public private(set) var pinnedScroll: SettingsSectionScrollTarget?
 
     /// - Parameters:
     ///   - initial: The section mounted in the first (synchronous) pass.
@@ -82,8 +84,9 @@ public final class SettingsSectionMountModel {
         queue = order.filter { $0 != first }
     }
 
-    /// Whether every section in ``order`` has been mounted.
-    public var isComplete: Bool { queue.isEmpty }
+    /// Whether every section in ``order`` has been mounted and the last
+    /// one mounted has appeared, i.e. nothing is still under construction.
+    public var isComplete: Bool { queue.isEmpty && awaitingAppearance == nil }
 
     /// Whether `section`'s content is present in the detail stack.
     public func isMounted(_ section: SettingsSectionID) -> Bool {
@@ -114,18 +117,18 @@ public final class SettingsSectionMountModel {
     }
 
     /// Records the navigation the viewport should stay on.
-    public func pin(_ target: ScrollTarget) {
+    public func pin(_ target: SettingsSectionScrollTarget) {
         pinnedScroll = target
     }
 
     /// Defers `target` until its section appears (replacing any older
     /// deferred scroll).
-    public func deferScroll(_ target: ScrollTarget) {
+    public func deferScroll(_ target: SettingsSectionScrollTarget) {
         deferredScroll = target
     }
 
     /// Consumes the deferred scroll owed to `section`, if any.
-    public func takeDeferredScroll(for section: SettingsSectionID) -> ScrollTarget? {
+    public func takeDeferredScroll(for section: SettingsSectionID) -> SettingsSectionScrollTarget? {
         guard let target = deferredScroll, Self.hostSection(for: target.section) == section else { return nil }
         deferredScroll = nil
         return target

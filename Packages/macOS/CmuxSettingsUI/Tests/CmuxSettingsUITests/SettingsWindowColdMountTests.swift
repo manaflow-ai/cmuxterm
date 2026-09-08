@@ -87,6 +87,7 @@ import Testing
                 withObservationTracking {
                     _ = model.mounted
                     _ = model.deferredScroll
+                    _ = model.isComplete
                 } onChange: {
                     continuation.resume()
                 }
