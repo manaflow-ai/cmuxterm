@@ -68,7 +68,13 @@ extension FileExplorerSearchResultsTableView {
 extension FileExplorerSearchField {
     func handleOpenSelectionShortcut(_ event: NSEvent) -> Bool {
         if (currentEditor() as? NSTextView)?.hasMarkedText() == true { return false }
-        guard !RightSidebarKeyboardNavigation.isPlainPrintableText(event) else { return false }
+        // A resolved prefix chord owns its bare suffix even while the search
+        // field is editing text. Unresolved printable input remains ordinary
+        // search text and must continue through the existing guard.
+        let isResolvedPrefixChord = AppDelegate.shared?.activeResolvedPrefixChordActionID != nil
+        guard isResolvedPrefixChord || !RightSidebarKeyboardNavigation.isPlainPrintableText(event) else {
+            return false
+        }
         guard event.isFileExplorerOpenSelectionShortcut(in: fileExplorerPanelPlacement) else { return false }
         onCommit?()
         return true
