@@ -940,29 +940,36 @@ export const vmRepositoryLiveShape: VmRepositoryShape = {
   upsertNetwork: (input) =>
     dbEffect("upsertNetwork", async () => {
       const db = cloudDb();
-      const [row] = await db
-        .insert(cloudVmNetworks)
-        .values({
-          userId: input.userId,
-          provider: input.provider,
-          providerNetworkId: input.providerNetworkId,
-          slug: input.slug ?? null,
-          cidr: input.cidr ?? null,
-          cidrV6: input.cidrV6 ?? null,
-        })
-        .onConflictDoUpdate({
-          target: [cloudVmNetworks.userId, cloudVmNetworks.provider],
-          set: {
+      return await db.transaction(async (tx) => {
+        // Both (user, provider) and (provider, providerNetworkId) are unique.
+        // Concurrent first inserts can violate the latter before ON CONFLICT
+        // handles the former. Serialize one owner's writes, while retaining
+        // the unique constraint that prevents cross-owner network reuse.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`vm-network:${input.provider}:${input.userId}`}, 0))`);
+        const [row] = await tx
+          .insert(cloudVmNetworks)
+          .values({
+            userId: input.userId,
+            provider: input.provider,
             providerNetworkId: input.providerNetworkId,
             slug: input.slug ?? null,
             cidr: input.cidr ?? null,
             cidrV6: input.cidrV6 ?? null,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
-      if (!row) throw new Error("upsertNetwork returned no row");
-      return row;
+          })
+          .onConflictDoUpdate({
+            target: [cloudVmNetworks.userId, cloudVmNetworks.provider],
+            set: {
+              providerNetworkId: input.providerNetworkId,
+              slug: input.slug ?? null,
+              cidr: input.cidr ?? null,
+              cidrV6: input.cidrV6 ?? null,
+              updatedAt: new Date(),
+            },
+          })
+          .returning();
+        if (!row) throw new Error("upsertNetwork returned no row");
+        return row;
+      });
     }),
 
   deleteNetwork: (id) =>

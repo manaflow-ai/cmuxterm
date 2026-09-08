@@ -25,6 +25,8 @@
  */
 import { Freestyle, type FirewallSpec } from "freestyle";
 import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { cmuxTuiWebsocketSmokeCommand, readImageManifest } from "./devbox-image-common";
 import { resolveCmuxTuiSource } from "../services/vms/drivers/cmuxTuiDaemon";
 
@@ -145,4 +147,6 @@ async function main(): Promise<void> {
   console.log(`REACHABLE ${kind}/${size} ${target} in ${elapsed()}`);
 }
 
-if (import.meta.main) await main();
+// Bun exposes import.meta.main at runtime, but tsgo does not include Bun's ImportMeta extension.
+// Compare the resolved entrypoint instead so this script typechecks in the shared CI config.
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) await main();

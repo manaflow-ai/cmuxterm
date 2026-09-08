@@ -267,7 +267,11 @@ actor CloudMachineLink {
                     return .timedOut
                 }
                 defer { group.cancelAll() }
-                switch try await group.next() {
+                let first = try await group.next()
+                // Cancellation resumes the non-throwing socket waiter with nil.
+                // Preserve cancellation instead of reporting that wakeup as a timeout.
+                try Task.checkCancellation()
+                switch first {
                 case .socket(let socket)?:
                     return socket
                 case .ended?:

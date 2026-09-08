@@ -146,6 +146,10 @@ describe("pricing copy matches the plan policy", () => {
       const faq = messages.pricing.faq.items.map(item => item.a).join("\n");
       expect(faq).not.toContain("5 vCPU");
       expect(faq).toContain("50 ");
+      const paidSeat = locale === "en" ? "per paid seat" : "有料シート1席につき";
+      expect(faq).toContain(paidSeat);
+      const machineCount = messages.pricing.compare.rows.find(row => row.pro === "50");
+      expect(machineCount?.team).toContain(paidSeat);
     });
   }
 

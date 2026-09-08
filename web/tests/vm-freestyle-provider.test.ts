@@ -211,7 +211,7 @@ describe("Freestyle tunnel create recovery", () => {
 // A fake Freestyle SDK client: records every create, exec, file write, and
 // delete so the driver's guest-facing behavior can be asserted without a
 // platform. `probeExit` is what the edge readiness probe returns.
-function fakeFreestyle(input: { readonly probeExit: number }) {
+function fakeFreestyle(input: { readonly probeExit: number; readonly execExit?: number }) {
   const creates: unknown[] = [];
   const resizes: unknown[] = [];
   const execs: string[] = [];
@@ -220,7 +220,7 @@ function fakeFreestyle(input: { readonly probeExit: number }) {
   const vm = {
     exec: async ({ command }: { command: string }) => {
       execs.push(command);
-      const statusCode = command.includes("/api/coderouter/vm-usage/self") ? input.probeExit : 0;
+      const statusCode = input.execExit ?? (command.includes("/api/coderouter/vm-usage/self") ? input.probeExit : 0);
       return { statusCode, stdout: "", stderr: statusCode === 0 ? "" : "probe failed" };
     },
     fs: {
@@ -577,7 +577,7 @@ describe("FreestyleProvider create with edge rules", () => {
     });
   });
 
-  test("passes the rule inline, writes nothing into the guest, and returns the machine", async () => {
+  test("passes the rule inline, publishes the client without credentials, and returns the machine", async () => {
     const fake = fakeFreestyle({ probeExit: 0 });
     const handle = await providerWith(fake).create({
       image: "sh-devbox",
@@ -653,6 +653,21 @@ describe("FreestyleProvider create with edge rules", () => {
     expect(JSON.stringify(ok.writes)).not.toContain("crt_");
     expect(ok.deletes).toEqual([]);
   });
+});
+
+describe("FreestyleProvider public client failure", () => {
+  for (const operation of ["create", "restore"] as const) {
+    test(`${operation} removes its new VM when the public client cannot be published`, async () => {
+      const fake = fakeFreestyle({ probeExit: 0, execExit: 13 });
+      const provider = providerWith(fake);
+      const request = operation === "create"
+        ? provider.create({ image: "sh-devbox", network: { id: "vpc_1" } })
+        : provider.restore("sh-devbox", { network: { id: "vpc_1" } });
+      await expect(request).rejects.toBeInstanceOf(ProviderError);
+      expect(fake.deletes).toEqual([VM_ID]);
+      expect(fake.writes).toEqual([]);
+    });
+  }
 });
 
 describe("FreestyleProvider resume policy", () => {

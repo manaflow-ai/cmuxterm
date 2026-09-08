@@ -8776,7 +8776,7 @@ class TerminalController {
 
                     switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
                     case .delivered:
-                        var payload: [String: Any] = [
+                        let payload: [String: Any] = [
                             "workspace_id": ctx.workspaceId.uuidString,
                             "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
                             "surface_id": ctx.surfaceId.uuidString,

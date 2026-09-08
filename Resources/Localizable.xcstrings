@@ -158767,13 +158767,121 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "50 per user"
+            "value": "50 per paid seat"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ユーザーごとに 50"
+            "value": "有料シート1席につき50台"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 لكل مقعد مدفوع"
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 po plaćenom mjestu"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 pr. betalt brugerplads"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 pro kostenpflichtigem Benutzerplatz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 por licencia de pago"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 par licence payante"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 per licenza a pagamento"
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 សម្រាប់កៅអីអ្នកប្រើដែលបានបង់ប្រាក់មួយ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "유료 시트당 50대"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 per betalt brukerplass"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 na płatne stanowisko"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 por licença paga"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 на оплаченное место"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 เครื่องต่อที่นั่งผู้ใช้แบบชำระเงิน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretli kullanıcı lisansı başına 50"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "50 на оплачене місце"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个付费席位 50 台"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每個付費席位 50 台"
           }
         }
       }
@@ -159515,13 +159623,121 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Up to 50 Cloud VMs, each with its own resources; default size 8 GB RAM and 32 GB disk, with 4 to 64 GB RAM available"
+            "value": "Up to 50 Cloud VMs. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最大 50 台の Cloud VM。各マシンに専用のリソースがあり、標準サイズは 8 GB RAM / 32 GB ディスク。RAM 4～64 GB のサイズを選べます"
+            "value": "最大 50 台の Cloud VM。 各マシンには独立した CPU、メモリ、ディスクがあります。 標準サイズは 8 GB RAM / 32 GB ディスクです。 RAM 4～64 GB のサイズを選べます。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ما يصل إلى 50 جهاز Cloud VM. لكل جهاز موارده الخاصة من المعالج والذاكرة والقرص. الحجم الافتراضي هو 8 GB من الذاكرة و32 GB من مساحة القرص. تتوفر أحجام ذاكرة من 4 إلى 64 GB."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do 50 Cloud VM mašina. Svaka mašina ima vlastiti CPU, memoriju i disk. Zadana veličina je 8 GB RAM-a i disk od 32 GB. Dostupne su veličine od 4 do 64 GB RAM-a."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Op til 50 Cloud VM-maskiner. Hver maskine har sin egen CPU, hukommelse og disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Der kan vælges størrelser fra 4 til 64 GB RAM."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis zu 50 Cloud-VMs. Jede Maschine hat ihre eigene CPU, ihren eigenen Arbeitsspeicher und ihre eigene Festplatte. Die Standardgröße beträgt 8 GB RAM und 32 GB Festplattenspeicher. Größen von 4 bis 64 GB RAM stehen zur Auswahl."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta 50 máquinas Cloud VM. Cada máquina tiene su propia CPU, memoria y disco. El tamaño predeterminado es de 8 GB de RAM y 32 GB de disco. Hay tamaños de 4 a 64 GB de RAM."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jusqu’à 50 machines Cloud VM. Chaque machine dispose de son propre processeur, de sa propre mémoire et de son propre disque. La taille par défaut est de 8 Go de RAM et de 32 Go de disque. Des tailles de 4 à 64 Go de RAM sont disponibles."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fino a 50 macchine Cloud VM. Ogni macchina ha CPU, memoria e disco propri. La dimensione predefinita è di 8 GB di RAM e 32 GB di disco. Sono disponibili dimensioni da 4 a 64 GB di RAM."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ម៉ាស៊ីន Cloud VM រហូតដល់ 50. ម៉ាស៊ីននីមួយៗមាន CPU អង្គចងចាំ និងថាសផ្ទាល់ខ្លួន។ ទំហំលំនាំដើមគឺ RAM 8 GB និងថាស 32 GB។ អាចជ្រើសរើសទំហំ RAM ពី 4 ដល់ 64 GB។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최대 50대의 Cloud VM. 각 머신에는 독립적인 CPU, 메모리, 디스크가 있습니다. 기본 사양은 8 GB RAM과 32 GB 디스크입니다. 4~64 GB RAM 사양을 선택할 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opptil 50 Cloud VM-maskiner. Hver maskin har sin egen CPU, sitt eget minne og sin egen disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Størrelser fra 4 til 64 GB RAM er tilgjengelige."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do 50 maszyn Cloud VM. Każda maszyna ma własny procesor, pamięć i dysk. Domyślna konfiguracja to 8 GB RAM i dysk 32 GB. Dostępne są konfiguracje z pamięcią RAM od 4 do 64 GB."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Até 50 máquinas Cloud VM. Cada máquina tem CPU, memória e disco próprios. O tamanho padrão é de 8 GB de RAM e 32 GB de disco. Há tamanhos de 4 a 64 GB de RAM disponíveis."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До 50 машин Cloud VM. У каждой машины свои процессор, память и диск. Конфигурация по умолчанию — 8 ГБ оперативной памяти и диск 32 ГБ. Доступны конфигурации с 4–64 ГБ оперативной памяти."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM สูงสุด 50 เครื่อง. แต่ละเครื่องมี CPU หน่วยความจำ และดิสก์ของตนเอง ขนาดเริ่มต้นคือ RAM 8 GB และดิสก์ 32 GB เลือกขนาด RAM ได้ตั้งแต่ 4 ถึง 64 GB"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En fazla 50 Cloud VM makinesi. Her makinenin kendi CPU, bellek ve diski vardır. Varsayılan boyut 8 GB RAM ve 32 GB disktir. 4 ile 64 GB RAM arasında boyutlar seçilebilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До 50 машин Cloud VM. Кожна машина має власні процесор, пам’ять і диск. Типова конфігурація — 8 ГБ оперативної пам’яті та диск 32 ГБ. Доступні конфігурації з 4–64 ГБ оперативної пам’яті."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 50 台 Cloud VM。 每台机器都有独立的 CPU、内存和磁盘。 默认配置为 8 GB 内存和 32 GB 磁盘。 可选择 4 至 64 GB 内存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最多 50 台 Cloud VM。 每台機器都有獨立的 CPU、記憶體和磁碟。 預設規格為 8 GB 記憶體和 32 GB 磁碟。 可選擇 4 至 64 GB 記憶體。"
           }
         }
       }
@@ -159736,121 +159952,121 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Up to 50 Cloud VMs. Team: Up to 50 Cloud VMs per paid seat. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro では最大 50 台、Team ではユーザーごとに最大 50 台の Cloud VM を利用できます。各マシンには独立した CPU、メモリ、ディスクがあります。標準サイズは 8 GB RAM / 32 GB ディスクで、RAM 4～64 GB のサイズを選べます。ディスクは最大 256 GB まで拡張できます。従量課金や超過料金はありません。"
+            "value": "Pro: 最大 50 台の Cloud VM。 Team: 有料シート1席につき最大 50 台の Cloud VM。 各マシンには独立した CPU、メモリ、ディスクがあります。 標準サイズは 8 GB RAM / 32 GB ディスクです。 RAM 4～64 GB のサイズを選べます。 ディスクは最大 256 GB まで拡張できます。 従量課金や超過料金はありません。"
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: ما يصل إلى 50 جهاز Cloud VM. Team: ما يصل إلى 50 جهاز Cloud VM لكل مقعد مدفوع. لكل جهاز موارده الخاصة من المعالج والذاكرة والقرص. الحجم الافتراضي هو 8 GB من الذاكرة و32 GB من مساحة القرص. تتوفر أحجام ذاكرة من 4 إلى 64 GB. يمكن توسيع الأقراص حتى 256 GB. لا توجد فوترة حسب الاستخدام أو رسوم تجاوز."
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Do 50 Cloud VM mašina. Team: Do 50 Cloud VM mašina po plaćenom mjestu. Svaka mašina ima vlastiti CPU, memoriju i disk. Zadana veličina je 8 GB RAM-a i disk od 32 GB. Dostupne su veličine od 4 do 64 GB RAM-a. Diskovi se mogu proširiti do 256 GB. Nema naplate po potrošnji ni dodatnih naknada za prekoračenje."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Op til 50 Cloud VM-maskiner. Team: Op til 50 Cloud VM-maskiner pr. betalt brugerplads. Hver maskine har sin egen CPU, hukommelse og disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Der kan vælges størrelser fra 4 til 64 GB RAM. Diske kan udvides til 256 GB. Der er ingen forbrugsafregning eller gebyrer for overforbrug."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Bis zu 50 Cloud-VMs. Team: Bis zu 50 Cloud-VMs pro kostenpflichtigem Benutzerplatz. Jede Maschine hat ihre eigene CPU, ihren eigenen Arbeitsspeicher und ihre eigene Festplatte. Die Standardgröße beträgt 8 GB RAM und 32 GB Festplattenspeicher. Größen von 4 bis 64 GB RAM stehen zur Auswahl. Festplatten lassen sich auf bis zu 256 GB erweitern. Es gibt keine verbrauchsabhängige Abrechnung oder Zusatzgebühren bei Überschreitung."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Hasta 50 máquinas Cloud VM. Team: Hasta 50 máquinas Cloud VM por licencia de pago. Cada máquina tiene su propia CPU, memoria y disco. El tamaño predeterminado es de 8 GB de RAM y 32 GB de disco. Hay tamaños de 4 a 64 GB de RAM. Los discos pueden ampliarse hasta 256 GB. No hay facturación por consumo ni cargos por excedentes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Jusqu’à 50 machines Cloud VM. Team: Jusqu’à 50 machines Cloud VM par licence payante. Chaque machine dispose de son propre processeur, de sa propre mémoire et de son propre disque. La taille par défaut est de 8 Go de RAM et de 32 Go de disque. Des tailles de 4 à 64 Go de RAM sont disponibles. Les disques peuvent être étendus jusqu’à 256 Go. Aucune facturation à l’usage ni aucuns frais de dépassement."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Fino a 50 macchine Cloud VM. Team: Fino a 50 macchine Cloud VM per licenza a pagamento. Ogni macchina ha CPU, memoria e disco propri. La dimensione predefinita è di 8 GB di RAM e 32 GB di disco. Sono disponibili dimensioni da 4 a 64 GB di RAM. I dischi possono essere ampliati fino a 256 GB. Non sono previsti addebiti a consumo o per superamento dei limiti."
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: ម៉ាស៊ីន Cloud VM រហូតដល់ 50. Team: ម៉ាស៊ីន Cloud VM រហូតដល់ 50 សម្រាប់កៅអីអ្នកប្រើដែលបានបង់ប្រាក់មួយ. ម៉ាស៊ីននីមួយៗមាន CPU អង្គចងចាំ និងថាសផ្ទាល់ខ្លួន។ ទំហំលំនាំដើមគឺ RAM 8 GB និងថាស 32 GB។ អាចជ្រើសរើសទំហំ RAM ពី 4 ដល់ 64 GB។ ថាសអាចពង្រីករហូតដល់ 256 GB។ មិនមានការគិតថ្លៃតាមការប្រើប្រាស់ ឬថ្លៃប្រើប្រាស់លើសកំណត់ទេ។"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: 최대 50대의 Cloud VM. Team: 유료 시트당 최대 50대의 Cloud VM. 각 머신에는 독립적인 CPU, 메모리, 디스크가 있습니다. 기본 사양은 8 GB RAM과 32 GB 디스크입니다. 4~64 GB RAM 사양을 선택할 수 있습니다. 디스크는 최대 256 GB까지 확장할 수 있습니다. 사용량에 따른 과금이나 초과 요금은 없습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Opptil 50 Cloud VM-maskiner. Team: Opptil 50 Cloud VM-maskiner per betalt brukerplass. Hver maskin har sin egen CPU, sitt eget minne og sin egen disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Størrelser fra 4 til 64 GB RAM er tilgjengelige. Disker kan utvides til 256 GB. Det er ingen forbruksbasert fakturering eller gebyrer for overforbruk."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Do 50 maszyn Cloud VM. Team: Do 50 maszyn Cloud VM na płatne stanowisko. Każda maszyna ma własny procesor, pamięć i dysk. Domyślna konfiguracja to 8 GB RAM i dysk 32 GB. Dostępne są konfiguracje z pamięcią RAM od 4 do 64 GB. Dyski można powiększyć do 256 GB. Nie ma rozliczeń za zużycie ani opłat za przekroczenie limitów."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Até 50 máquinas Cloud VM. Team: Até 50 máquinas Cloud VM por licença paga. Cada máquina tem CPU, memória e disco próprios. O tamanho padrão é de 8 GB de RAM e 32 GB de disco. Há tamanhos de 4 a 64 GB de RAM disponíveis. Os discos podem ser expandidos até 256 GB. Não há cobrança por consumo nem por excedentes."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: До 50 машин Cloud VM. Team: До 50 машин Cloud VM на одно оплаченное место. У каждой машины свои процессор, память и диск. Конфигурация по умолчанию — 8 ГБ оперативной памяти и диск 32 ГБ. Доступны конфигурации с 4–64 ГБ оперативной памяти. Диски можно расширять до 256 ГБ. Нет оплаты по объёму использования или доплат за превышение лимитов."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: Cloud VM สูงสุด 50 เครื่อง. Team: Cloud VM สูงสุด 50 เครื่องต่อที่นั่งผู้ใช้แบบชำระเงิน. แต่ละเครื่องมี CPU หน่วยความจำ และดิสก์ของตนเอง ขนาดเริ่มต้นคือ RAM 8 GB และดิสก์ 32 GB เลือกขนาด RAM ได้ตั้งแต่ 4 ถึง 64 GB ขยายดิสก์ได้สูงสุด 256 GB ไม่มีการคิดค่าบริการตามการใช้งานหรือค่าใช้จ่ายส่วนเกิน"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: En fazla 50 Cloud VM makinesi. Team: Ücretli kullanıcı lisansı başına en fazla 50 Cloud VM makinesi. Her makinenin kendi CPU, bellek ve diski vardır. Varsayılan boyut 8 GB RAM ve 32 GB disktir. 4 ile 64 GB RAM arasında boyutlar seçilebilir. Diskler 256 GB’a kadar genişletilebilir. Kullanıma göre ücretlendirme veya aşım ücreti yoktur."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: До 50 машин Cloud VM. Team: До 50 машин Cloud VM на одне оплачене місце. Кожна машина має власні процесор, пам’ять і диск. Типова конфігурація — 8 ГБ оперативної пам’яті та диск 32 ГБ. Доступні конфігурації з 4–64 ГБ оперативної пам’яті. Диски можна розширювати до 256 ГБ. Немає оплати за обсяг використання чи доплат за перевищення лімітів."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: 最多 50 台 Cloud VM。 Team: 每个付费席位最多 50 台 Cloud VM。 每台机器都有独立的 CPU、内存和磁盘。 默认配置为 8 GB 内存和 32 GB 磁盘。 可选择 4 至 64 GB 内存。 磁盘可扩展至 256 GB。 没有按量计费或超额费用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pro includes up to 50 Cloud VMs. Team includes up to 50 Cloud VMs per user. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk; sizes from 4 to 64 GB RAM are available. Disks can grow up to 256 GB. There is no metering or overage billing."
+            "value": "Pro: 最多 50 台 Cloud VM。 Team: 每個付費席位最多 50 台 Cloud VM。 每台機器都有獨立的 CPU、記憶體和磁碟。 預設規格為 8 GB 記憶體和 32 GB 磁碟。 可選擇 4 至 64 GB 記憶體。 磁碟可擴充至 256 GB。 沒有按量計費或超額費用。"
           }
         }
       }
@@ -159924,109 +160140,109 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "موارد أجهزة Cloud VM"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Resursi Cloud VM mašina"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM-ressourcer"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud-VM-Ressourcen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Recursos de Cloud VM"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Ressources Cloud VM"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Risorse Cloud VM"
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "ធនធាន Cloud VM"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM 리소스"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM-ressurser"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Zasoby Cloud VM"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Recursos de Cloud VM"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Ресурсы Cloud VM"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "ทรัพยากร Cloud VM"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM kaynakları"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Ресурси Cloud VM"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM 资源"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM resources"
+            "value": "Cloud VM 資源"
           }
         }
       }
@@ -160139,13 +160355,121 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Up to 50 Cloud VMs per user, each with its own resources; default size 8 GB RAM and 32 GB disk, with 4 to 64 GB RAM available"
+            "value": "Up to 50 Cloud VMs per paid seat. Each machine has its own CPU, memory, and disk. The default size is 8 GB RAM and 32 GB disk. Sizes from 4 to 64 GB RAM are available."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ユーザーごとに最大 50 台の Cloud VM。各マシンに専用のリソースがあり、標準サイズは 8 GB RAM / 32 GB ディスク。RAM 4～64 GB のサイズを選べます"
+            "value": "有料シート1席につき最大 50 台の Cloud VM。 各マシンには独立した CPU、メモリ、ディスクがあります。 標準サイズは 8 GB RAM / 32 GB ディスクです。 RAM 4～64 GB のサイズを選べます。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ما يصل إلى 50 جهاز Cloud VM لكل مقعد مدفوع. لكل جهاز موارده الخاصة من المعالج والذاكرة والقرص. الحجم الافتراضي هو 8 GB من الذاكرة و32 GB من مساحة القرص. تتوفر أحجام ذاكرة من 4 إلى 64 GB."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do 50 Cloud VM mašina po plaćenom mjestu. Svaka mašina ima vlastiti CPU, memoriju i disk. Zadana veličina je 8 GB RAM-a i disk od 32 GB. Dostupne su veličine od 4 do 64 GB RAM-a."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Op til 50 Cloud VM-maskiner pr. betalt brugerplads. Hver maskine har sin egen CPU, hukommelse og disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Der kan vælges størrelser fra 4 til 64 GB RAM."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bis zu 50 Cloud-VMs pro kostenpflichtigem Benutzerplatz. Jede Maschine hat ihre eigene CPU, ihren eigenen Arbeitsspeicher und ihre eigene Festplatte. Die Standardgröße beträgt 8 GB RAM und 32 GB Festplattenspeicher. Größen von 4 bis 64 GB RAM stehen zur Auswahl."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta 50 máquinas Cloud VM por licencia de pago. Cada máquina tiene su propia CPU, memoria y disco. El tamaño predeterminado es de 8 GB de RAM y 32 GB de disco. Hay tamaños de 4 a 64 GB de RAM."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jusqu’à 50 machines Cloud VM par licence payante. Chaque machine dispose de son propre processeur, de sa propre mémoire et de son propre disque. La taille par défaut est de 8 Go de RAM et de 32 Go de disque. Des tailles de 4 à 64 Go de RAM sont disponibles."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fino a 50 macchine Cloud VM per licenza a pagamento. Ogni macchina ha CPU, memoria e disco propri. La dimensione predefinita è di 8 GB di RAM e 32 GB di disco. Sono disponibili dimensioni da 4 a 64 GB di RAM."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ម៉ាស៊ីន Cloud VM រហូតដល់ 50 សម្រាប់កៅអីអ្នកប្រើដែលបានបង់ប្រាក់មួយ. ម៉ាស៊ីននីមួយៗមាន CPU អង្គចងចាំ និងថាសផ្ទាល់ខ្លួន។ ទំហំលំនាំដើមគឺ RAM 8 GB និងថាស 32 GB។ អាចជ្រើសរើសទំហំ RAM ពី 4 ដល់ 64 GB។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "유료 시트당 최대 50대의 Cloud VM. 각 머신에는 독립적인 CPU, 메모리, 디스크가 있습니다. 기본 사양은 8 GB RAM과 32 GB 디스크입니다. 4~64 GB RAM 사양을 선택할 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opptil 50 Cloud VM-maskiner per betalt brukerplass. Hver maskin har sin egen CPU, sitt eget minne og sin egen disk. Standardstørrelsen er 8 GB RAM og 32 GB disk. Størrelser fra 4 til 64 GB RAM er tilgjengelige."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do 50 maszyn Cloud VM na płatne stanowisko. Każda maszyna ma własny procesor, pamięć i dysk. Domyślna konfiguracja to 8 GB RAM i dysk 32 GB. Dostępne są konfiguracje z pamięcią RAM od 4 do 64 GB."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Até 50 máquinas Cloud VM por licença paga. Cada máquina tem CPU, memória e disco próprios. O tamanho padrão é de 8 GB de RAM e 32 GB de disco. Há tamanhos de 4 a 64 GB de RAM disponíveis."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До 50 машин Cloud VM на одно оплаченное место. У каждой машины свои процессор, память и диск. Конфигурация по умолчанию — 8 ГБ оперативной памяти и диск 32 ГБ. Доступны конфигурации с 4–64 ГБ оперативной памяти."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM สูงสุด 50 เครื่องต่อที่นั่งผู้ใช้แบบชำระเงิน. แต่ละเครื่องมี CPU หน่วยความจำ และดิสก์ของตนเอง ขนาดเริ่มต้นคือ RAM 8 GB และดิสก์ 32 GB เลือกขนาด RAM ได้ตั้งแต่ 4 ถึง 64 GB"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ücretli kullanıcı lisansı başına en fazla 50 Cloud VM makinesi. Her makinenin kendi CPU, bellek ve diski vardır. Varsayılan boyut 8 GB RAM ve 32 GB disktir. 4 ile 64 GB RAM arasında boyutlar seçilebilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До 50 машин Cloud VM на одне оплачене місце. Кожна машина має власні процесор, пам’ять і диск. Типова конфігурація — 8 ГБ оперативної пам’яті та диск 32 ГБ. Доступні конфігурації з 4–64 ГБ оперативної пам’яті."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个付费席位最多 50 台 Cloud VM。 每台机器都有独立的 CPU、内存和磁盘。 默认配置为 8 GB 内存和 32 GB 磁盘。 可选择 4 至 64 GB 内存。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每個付費席位最多 50 台 Cloud VM。 每台機器都有獨立的 CPU、記憶體和磁碟。 預設規格為 8 GB 記憶體和 32 GB 磁碟。 可選擇 4 至 64 GB 記憶體。"
           }
         }
       }

@@ -221,6 +221,22 @@ export function resetCmuxTuiSourceCache(): void {
   cmuxTuiSourceCache = null;
 }
 
+/** Publish the installed client without exposing the daemon's private home. */
+export function cmuxTuiPublicClientCommand(binaryPath = CMUX_TUI_BINARY_PATH): string {
+  return publishPublicClient(shellQuote(binaryPath));
+}
+
+/** `binary` is an already-quoted path or the installer's selected-home variable. */
+function publishPublicClient(binary: string): string {
+  const target = shellQuote("/usr/local/bin/cmux-tui");
+  return `[ -x ${binary} ] && (` +
+    `if [ ! -L ${target} ] && [ -x ${target} ] && cmp -s ${binary} ${target}; then :; else ` +
+    `CMUX_TUI_PUBLIC_TMP="$(mktemp ${shellQuote("/usr/local/bin/cmux-tui.tmp.XXXXXX")})" && ` +
+    `trap 'unlink "$CMUX_TUI_PUBLIC_TMP" 2>/dev/null || true' EXIT && ` +
+    `cp ${binary} "$CMUX_TUI_PUBLIC_TMP" && chmod 755 "$CMUX_TUI_PUBLIC_TMP" && ` +
+    `mv -f "$CMUX_TUI_PUBLIC_TMP" ${target}; fi)`;
+}
+
 /**
  * Installs the pinned cmux-tui binary onto the machine, skipping the download when
  * the installed copy already matches the pin. The VM fetches the ~50 MB static musl
@@ -247,7 +263,7 @@ export function cmuxTuiInstallCommand(
       `CMUX_TUI_TMP="$CMUX_TUI_BIN.tmp"`,
       `mkdir -p "$(dirname "$CMUX_TUI_BIN")"`,
       `if [ -x ${bin} ] && ${pinned(bin)}; then :; else ${fetch} && ${pinned(tmp)} && chmod 755 ${tmp} && mv -f ${tmp} ${bin}; fi`,
-      `ln -sfn ${bin} /usr/local/bin/cmux-tui`,
+      publishPublicClient(bin),
       // The volume is already identity-mapped by bindfs. Chown only the nodes this
       // install created, never the potentially large persistent state tree.
       `if [ "$CMUX_TUI_HOME" != '/root' ]; then chown ${layout.user}:${layout.user} "$CMUX_TUI_HOME/.cmux" "$CMUX_TUI_HOME/.cmux/bin" "$CMUX_TUI_BIN" 2>/dev/null || true; fi`,
@@ -268,7 +284,7 @@ export function cmuxTuiInstallCommand(
     `mkdir -p ${shellQuote(dirname(binaryPath))}`,
     `if [ -x ${bin} ] && ${pinned(bin)}; then :; else ` +
       `${fetch} && ${pinned(tmp)} && chmod 755 ${tmp} && mv -f ${tmp} ${bin}; fi`,
-    `ln -sfn ${bin} /usr/local/bin/cmux-tui`,
+    publishPublicClient(bin),
     `${bin} --version`,
   ].join(" && ");
 }
