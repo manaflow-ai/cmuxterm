@@ -122,6 +122,56 @@ struct AgentPromptSubmissionServiceTests {
     }
 
     @MainActor
+    @Test func inFlightQueueRetainsEachRequestTargetSurface() {
+        let service = AgentPromptSubmissionService(maximumPendingRequests: 8)
+        let workspaceID = UUID()
+        let firstSurfaceID = UUID()
+        let secondSurfaceID = UUID()
+        var deliveryAttempts = 0
+        let delivery: AgentPromptSubmissionService.Delivery = { _ in
+            deliveryAttempts += 1
+            return .submitted(
+                workspaceID: workspaceID,
+                surfaceID: deliveryAttempts == 1
+                    ? firstSurfaceID
+                    : secondSurfaceID,
+                queued: false
+            )
+        }
+
+        let first = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: firstSurfaceID,
+            text: "first",
+            delivery: delivery
+        )
+        let second = service.submit(
+            workspaceID: workspaceID,
+            requestedSurfaceID: secondSurfaceID,
+            text: "second",
+            delivery: delivery
+        )
+
+        #expect(first.result == .submitted(
+            workspaceID: workspaceID,
+            surfaceID: firstSurfaceID,
+            queued: false
+        ))
+        #expect(second.result == .queued(
+            workspaceID: workspaceID,
+            surfaceID: secondSurfaceID,
+            reason: "prior_prompt_in_flight"
+        ))
+
+        let removed = service.remove(surfaceID: firstSurfaceID)
+        #expect(removed.map(\.messageID) == [first.messageID])
+        #expect(service.pendingCount == 1)
+        #expect(service.drain(workspaceID: workspaceID).map(\.messageID) == [
+            second.messageID,
+        ])
+    }
+
+    @MainActor
     @Test func zeroConfirmationWindowNeverWedgesLaterSubmissions() {
         let service = AgentPromptSubmissionService(
             maximumPendingRequests: 8,
