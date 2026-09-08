@@ -2,6 +2,21 @@ import Foundation
 
 /// Pure remote catalog selector and placement resolution shared by the app and CLI.
 enum CmuxTuiRemoteRouting {
+    private static let vmAgentValueOptions: Set<String> = [
+        "--agent", "--machine", "--cwd", "--name", "--remote-workspace", "--size",
+    ]
+
+    static func vmAgentRequestsHelp(_ arguments: [String]) -> Bool {
+        let normalized = Array(vmAgentAliasArgs(arguments).prefix { $0 != "--" })
+        var index = 0
+        while index < normalized.count {
+            let token = normalized[index]
+            if token == "--help" || token == "-h" { return true }
+            index += vmAgentValueOptions.contains(token) ? 2 : 1
+        }
+        return false
+    }
+
     /// Normalizes ergonomic provider-first aliases into the canonical
     /// `--agent <name>` shape used by `cmux vm agent` and `coderouter agent`.
     /// VM options are consumed until the first provider argument, which stays
@@ -19,10 +34,7 @@ enum CmuxTuiRemoteRouting {
             return normalized
         }
 
-        let valueOptions: Set<String> = [
-            "--machine", "--cwd", "--name", "--remote-workspace", "--size",
-        ]
-        let flagOptions: Set<String> = ["--sync", "--no-open", "--new", "--json"]
+        let flagOptions: Set<String> = ["--sync", "--no-open", "--new", "--json", "--help", "-h"]
         var index = 0
         while index < tail.count {
             let token = tail[index]
@@ -31,7 +43,7 @@ enum CmuxTuiRemoteRouting {
                 index += 1
                 continue
             }
-            if valueOptions.contains(token) {
+            if vmAgentValueOptions.contains(token) {
                 normalized.append(token)
                 guard index + 1 < tail.count else { return normalized }
                 normalized.append(tail[index + 1])

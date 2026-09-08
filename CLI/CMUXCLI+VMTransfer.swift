@@ -1267,7 +1267,7 @@ extension CMUXCLI {
     }
 
     func runVMAgentCommand(rest: [String], client: SocketClient, jsonOutput: Bool) throws {
-        if rest.contains("--help") || rest.contains("-h") {
+        if CmuxTuiRemoteRouting.vmAgentRequestsHelp(rest) {
             print(Self.vmAgentUsage)
             return
         }

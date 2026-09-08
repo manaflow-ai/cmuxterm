@@ -21,6 +21,11 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, help]) == ["--agent", agent, help])
         #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "--", help]) == ["--agent", agent, "--", help])
         #expect(CmuxTuiRemoteRouting.vmAgentAliasArgs([agent, "prompt", help]) == ["--agent", agent, "--", "prompt", help])
+        #expect(CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, help]))
+        #expect(!CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, "--", help]))
+        #expect(!CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, "prompt", help]))
+        #expect(!CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, "--name", help]))
+        #expect(!CmuxTuiRemoteRouting.vmAgentRequestsHelp([agent, "--machine", "--", help]))
     }
 
     @Test(arguments: ["claude", "codex", "opencode", "pi"], ["--help", "-h"])
