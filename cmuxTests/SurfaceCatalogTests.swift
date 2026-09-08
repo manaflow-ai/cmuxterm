@@ -1395,6 +1395,54 @@ struct SurfaceCatalogTests {
         #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "after")
     }
 
+    @Test(arguments: ["g", "unobserved-generation"])
+    func retiredCloudRenameReceiptsCannotAdvanceTheMachineCursor(receiptGeneration: String) throws {
+        let machine = SurfaceMachineID.cloud("vivid-newt")
+        let catalog = SurfaceCatalog()
+        catalog.register(FakeProvider(machine: machine))
+        let workspace = SurfaceRemoteWorkspace(id: "ws_main", name: "main", index: 0, focused: true)
+        let info = SurfaceMachineInfo(
+            id: machine,
+            name: "vivid-newt",
+            status: "running",
+            image: nil,
+            hasDesktop: false,
+            memoryMb: nil,
+            diskMb: nil,
+            linkState: .connected,
+            linkError: nil,
+            cpuPercent: nil,
+            memoryUsedMb: nil,
+            diskUsedMb: nil,
+            remoteWorkspaces: [workspace]
+        )
+        #expect(catalog.replaceCloudResources([], on: machine, info: info, cursor: CloudVMCursor(generation: "g", revision: 1)))
+        let retired = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "retired")
+        let latest = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "latest")
+        catalog.rollbackCloudWorkspaceRename(retired)
+        catalog.commitCloudWorkspaceRename(retired, receipt: CloudVMCursor(generation: receiptGeneration, revision: 100))
+        #expect(!catalog.replaceCloudResources([], on: machine, info: info, cursor: CloudVMCursor(generation: "g", revision: 2)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == "latest")
+        catalog.commitCloudWorkspaceRename(latest, receipt: CloudVMCursor(generation: "g", revision: 2))
+        var confirmed = info
+        confirmed.remoteWorkspaces = [SurfaceRemoteWorkspace(id: workspace.id, name: "latest", index: 0, focused: true)]
+        #expect(catalog.replaceCloudResources([], on: machine, info: confirmed, cursor: CloudVMCursor(generation: "g", revision: 2)))
+        catalog.commitCloudWorkspaceRename(latest, receipt: CloudVMCursor(generation: receiptGeneration, revision: 101))
+        #expect(catalog.replaceCloudResources([], on: machine, info: confirmed, cursor: CloudVMCursor(generation: "g", revision: 3)))
+        let rolledBack = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "rolled-back")
+        catalog.rollbackCloudWorkspaceRename(rolledBack)
+        catalog.commitCloudWorkspaceRename(rolledBack, receipt: CloudVMCursor(generation: receiptGeneration, revision: 102))
+        #expect(catalog.replaceCloudResources([], on: machine, info: confirmed, cursor: CloudVMCursor(generation: "g", revision: 4)))
+        let superseded = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "superseded")
+        let pending = try catalog.beginCloudWorkspaceRename(machine: machine, workspaceID: workspace.id, name: "pending")
+        catalog.commitCloudWorkspaceRename(superseded, receipt: CloudVMCursor(generation: "unobserved-generation", revision: 103))
+        #expect(!catalog.replaceCloudResources([], on: machine, info: confirmed, cursor: CloudVMCursor(generation: "g", revision: 5)))
+        #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: workspace.id) == "pending")
+        catalog.rollbackCloudWorkspaceRename(pending)
+        #expect(catalog.snapshot.machines.first?.remoteWorkspaces?.first?.name == "latest")
+        #expect(catalog.replaceCloudResources([], on: machine, info: confirmed, cursor: CloudVMCursor(generation: "g", revision: 5)))
+    }
+
     @Test func `An older cloud rename completion cannot roll back a newer intent`() throws {
         let machine = SurfaceMachineID.cloud("vivid-newt")
         let catalog = SurfaceCatalog()
