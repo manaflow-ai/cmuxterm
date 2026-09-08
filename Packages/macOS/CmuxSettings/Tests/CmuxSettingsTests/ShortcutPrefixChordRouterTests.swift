@@ -228,6 +228,33 @@ struct ShortcutPrefixChordRouterTests {
                 stroke: ShortcutStroke(key: "7", command: true),
                 now: 8.1,
                 bindings: [numbered]
+        ) == .executed(numbered)
+        )
+    }
+
+    @Test func numberedSuffixWithRecordedKeyCodeArmsAndMatchesWholeDigitFamily() {
+        var router = ShortcutPrefixChordRouter(prefix: prefix)
+        let numbered = ShortcutPrefixChordBinding(
+            actionID: "selectWorkspaceByNumber",
+            firstStroke: prefix,
+            secondStroke: ShortcutStroke(key: "1", command: true, keyCode: 18),
+            matchesNumberedDigits: true
+        )
+
+        guard case .armed(let available, _) = router.handle(
+            stroke: prefix,
+            now: 8.5,
+            bindings: [numbered]
+        ) else {
+            Issue.record("expected recorded numbered prefix binding to arm")
+            return
+        }
+        #expect(available == [numbered])
+        #expect(
+            router.handle(
+                stroke: ShortcutStroke(key: "8", command: true, keyCode: 25),
+                now: 8.6,
+                bindings: [numbered]
             ) == .executed(numbered)
         )
     }
