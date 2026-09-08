@@ -53,16 +53,20 @@ struct CmuxWorkspaceLayoutCommandDefinition: Codable, Hashable, Sendable {
             )
         }
 
-        let workspace: CmuxWorkspaceDefinition
+        var workspace: CmuxWorkspaceDefinition
         if container.contains(.workspace), !((try? container.decodeNil(forKey: .workspace)) ?? false) {
             workspace = try container.decode(CmuxWorkspaceDefinition.self, forKey: .workspace)
         } else {
             // Older cmux.json files flatten the workspace fields directly into
             // the commands[] entry: {name, cwd, color, env, setup, layout}.
+            // The command name is metadata for the command entry, not the
+            // workspace definition. The shared decoder sees that same name at
+            // the flattened root, so clear the accidental promotion here.
             workspace = try CmuxWorkspaceDefinition(
                 from: decoder,
                 layoutMode: .legacyFlattenedRoot
             )
+            workspace.name = nil
         }
 
         guard let definition = Self(

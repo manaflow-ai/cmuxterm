@@ -45,6 +45,7 @@ struct CmuxConfigLayoutEntryTests {
         #expect(config.commands[0].command == nil)
         #expect(config.commands[0].workspace?.cwd == "/tmp/layout")
         #expect(config.commands[0].workspace?.color == "#336699")
+        #expect(config.commands[0].workspace?.name == nil)
         #expect(config.commands[0].workspace?.layout != nil)
         #expect(config.commands[1].name == "Run tests")
         #expect(config.commands[1].command == "npm test")
@@ -80,6 +81,31 @@ struct CmuxConfigLayoutEntryTests {
         } else {
             Issue.record("Expected shell command variant")
         }
+    }
+
+    @Test func flattenedAndNestedLayoutsDoNotPromoteCommandNameToWorkspaceName() throws {
+        let json = """
+        {
+          "commands": [
+            {
+              "name": "Flattened layout",
+              "cwd": "/tmp/flattened",
+              "layout": { "pane": { "surfaces": [{ "type": "terminal" }] } }
+            },
+            {
+              "name": "Nested layout",
+              "workspace": {
+                "cwd": "/tmp/nested",
+                "layout": { "pane": { "surfaces": [{ "type": "terminal" }] } }
+              }
+            }
+          ]
+        }
+        """
+
+        let config = try decode(json)
+        #expect(config.commands[0].workspace?.name == nil)
+        #expect(config.commands[1].workspace?.name == nil)
     }
 
     @Test func decodeFlattenedLayoutNormalizesLegacySingleChildSplit() throws {
