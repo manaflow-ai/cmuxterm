@@ -851,6 +851,45 @@ def test_app_host_rejects_failed_or_empty_shard_generation() -> None:
         assert not runner_invoked, (shard_mode, result.stdout)
 
 
+def test_depot_unit_suite_guard_drains_successful_test_output() -> None:
+    """A successful selected suite must not be rejected by pipefail/SIGPIPE."""
+    script = workflow_job_step_script(
+        "tests",
+        "Run unit tests",
+        ROOT / ".github" / "workflows" / "test-depot.yml",
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_root = Path(temp_dir)
+        fake_runner = temp_root / "scripts" / "ci" / "xcodebuild_noninteractive.py"
+        fake_runner.parent.mkdir(parents=True)
+        fake_runner.write_text(
+            "#!/usr/bin/env python3\n"
+            "print('Test run with 76 tests in 1 suite passed after 0.1 seconds')\n"
+            "print('x' * 2000000)\n",
+            encoding="utf-8",
+        )
+        fake_runner.chmod(0o755)
+        home = temp_root / "home"
+        home.mkdir()
+
+        result = subprocess.run(
+            ["bash", "-c", script],
+            cwd=temp_root,
+            env={
+                **os.environ,
+                "HOME": str(home),
+                "UNIT_TEST_SUITES": "AgentNotificationRegressionTests",
+            },
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert "No tests executed" not in result.stdout + result.stderr
+
+
 def test_agent_session_web_resources_runs_only_for_agent_session_web_area() -> None:
     block = workflow_job_block("agent-session-web-resources")
 
