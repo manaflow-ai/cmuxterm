@@ -99,9 +99,17 @@ extension MobileShellComposite {
         // callback. Keep this generation marked until its acknowledgement
         // settles so registration can let that acknowledgement own the cold
         // replay instead of racing it with a second request.
-        terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
-            forKey: sequenceKey
-        )
+        // A geometry callback can supersede the preparation that was already
+        // in flight after the output sink mounted. Carry that sink's deferred
+        // cold replay onto the newer generation so the replacement
+        // acknowledgement still owns the initial replay.
+        if terminalViewportDeferredColdReplayGenerationsBySequenceKey
+            .removeValue(forKey: sequenceKey) != nil
+        {
+            terminalViewportDeferredColdReplayGenerationsBySequenceKey[
+                sequenceKey
+            ] = requestGeneration
+        }
         terminalViewportPreparationGenerationsBySequenceKey[sequenceKey] = requestGeneration
         return MobileTerminalViewportPreparation(
             workspaceID: workspaceID,
