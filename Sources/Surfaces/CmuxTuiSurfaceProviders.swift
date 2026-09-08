@@ -279,8 +279,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             return false
         }
         // Publish the display before the terminal link is ready: a slow or hanging
-        // connect must not leave the desktop unopenable. Its private URL still waits
-        // for the browser Network Extension when the user opens it.
+        // connect must not leave the desktop unopenable. Opening it forwards the
+        // private noVNC port over the user-space hub (`materializeBrowserPane`).
         if hasDesktop, catalog.snapshot.resources(on: machine).isEmpty {
             catalog.replaceResources([desktopDisplayResource()], on: machine, info: info, from: self)
         }
