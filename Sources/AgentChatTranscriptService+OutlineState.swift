@@ -14,7 +14,7 @@ final class SessionOutlineState {
         changeBus.yield(surfaceIDs: surfaceIDs)
     }
 
-    func remove(sessionID: String, surfaceID: String) {
+    func remove(sessionID: String, surfaceID: String?) {
         cache.remove(sessionID: sessionID)
         changeBus.yield(surfaceID: surfaceID)
     }

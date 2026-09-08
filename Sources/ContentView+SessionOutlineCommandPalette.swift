@@ -1,4 +1,5 @@
 import AppKit
+import CmuxCommandPalette
 
 extension ContentView {
     static func sessionOutlineCommandPaletteContribution() -> CommandPaletteCommandContribution {
