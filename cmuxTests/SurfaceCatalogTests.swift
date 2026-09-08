@@ -205,7 +205,7 @@ struct SurfaceCatalogTests {
         /// Every materialize makes a new pane, as real providers do; a fixed id would let
         /// the catalog's projection set collapse a deliberate second pane into the first.
         var nextPanel = UUID()
-        var materializeGate: MaterializeGate?
+        private var materializeGate: MaterializeGate?
 
         init(machine: SurfaceMachineID) {
             self.machine = machine
