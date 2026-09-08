@@ -1387,7 +1387,7 @@ struct CmuxTuiSnapshotParser: Sendable {
         var nameOfTab: [String: String] = [:]
         var indexOfTab: [String: Int] = [:]
         var focusedOfTab: [String: Bool] = [:]
-        for tab in tabsRaw {
+        for (tabOffset, tab) in tabsRaw.enumerated() {
             guard let id = tab["id"] as? String else { continue }
             if let paneID = tab["pane_id"] as? String {
                 paneOfTab[id] = paneID
@@ -1401,7 +1401,7 @@ struct CmuxTuiSnapshotParser: Sendable {
             if let name = (tab["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
                 nameOfTab[id] = name
             }
-            indexOfTab[id] = integer(tab["index"])
+            indexOfTab[id] = integer(tab["index"]) ?? tabOffset
             focusedOfTab[id] = tab["focused"] as? Bool
         }
         var agentByTerminal: [String: SurfaceAgentBadge] = [:]
