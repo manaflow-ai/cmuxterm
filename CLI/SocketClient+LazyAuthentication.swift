@@ -43,16 +43,18 @@ extension SocketClient {
         authenticationModeCoordinator.recordCredentialFree()
     }
 
-    /// Resolves the deferred provider within the request's remaining deadline.
+    /// Completes a deferred attempt only within this request's deadline.
     func resolveDeferredAuthenticationPassword(deadline: Date?) -> String? {
         if let deadline, deadline.timeIntervalSinceNow <= 0 {
             return nil
         }
-        authenticationPasswordResolutionAttempted = true
         let password = authenticationPasswordProvider?(deadline)
         if let deadline, deadline.timeIntervalSinceNow <= 0 {
+            // The resolver may have cached a late result. A later operation
+            // needs a fresh attempt to consume it, without extending this one.
             return nil
         }
+        authenticationPasswordResolutionAttempted = true
         return password
     }
 
