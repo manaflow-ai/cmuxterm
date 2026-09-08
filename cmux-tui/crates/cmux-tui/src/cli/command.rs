@@ -1414,7 +1414,7 @@ fn parse_notify(words: &[String], flags: &mut Flags) -> Result<CommandPlan, Usag
     }
     let caller_terminal = std::env::var("CMUX_TUI_TERMINAL_ID").ok().filter(|id| !id.is_empty());
     let surface = match flags.take_dashed("--surface") {
-        Some(value) if value == "current" => match caller_terminal.clone() {
+        Some(value) if value == "current" => match caller_terminal {
             Some(terminal) => Some(terminal),
             None => {
                 return Err(UsageError::new(
