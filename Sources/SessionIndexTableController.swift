@@ -109,8 +109,6 @@ final class SessionIndexTableController: NSObject, NSTableViewDataSource, NSTabl
             object: scrollView.contentView,
             queue: .main
         ) { [weak self, weak table] _ in
-            // The observer is registered on the main queue; hop back onto the
-            // main actor explicitly so the isolated reconcile call is checked.
             MainActor.assumeIsolated {
                 guard let self, let table, !self.isApplyingRows else { return }
                 self.reconcilePresentation(in: table)
