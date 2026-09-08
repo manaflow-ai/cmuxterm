@@ -420,6 +420,9 @@ struct CLISSHPTYResizeInputTests {
         state: MockSocketServerState,
         handler: @escaping @Sendable (String) -> Data
     ) {
+        // Darwin accept inherits O_NONBLOCK, but this reader waits for each request.
+        let flags = fcntl(clientFD, F_GETFL, 0)
+        guard flags >= 0, fcntl(clientFD, F_SETFL, flags & ~O_NONBLOCK) == 0 else { return }
         var pending = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
