@@ -576,6 +576,7 @@ enum BrowserLinkOpenSettings {
 enum BrowserEngineSettings {
     static let engineKey = "browserEngine"
     static let legacyDisabledKey = "browserDisabledOverride"
+    static let didInitializeKey = "browserEngineDidInitialize"
     static let didChangeNotification = Notification.Name("cmux.browserEngineDidChange")
     static let defaultEngine: BrowserEngine = .webKit
 
@@ -587,22 +588,28 @@ enum BrowserEngineSettings {
     static func currentEngine(defaults: UserDefaults = .standard) -> BrowserEngine {
         if let rawEngine = defaults.string(forKey: engineKey) {
             if let engine = engine(for: rawEngine) {
+                defaults.set(true, forKey: didInitializeKey)
                 mirrorLegacyDisabledIfNeeded(engine, defaults: defaults)
                 return engine
             }
-            let repairedEngine = legacyEngine(defaults: defaults) ?? defaultEngine
+            let repairedEngine = shouldMigrateLegacyEngine(defaults: defaults)
+                ? legacyEngine(defaults: defaults) ?? defaultEngine
+                : defaultEngine
             setCurrentEngine(repairedEngine, defaults: defaults)
             return repairedEngine
         }
-        if let migratedEngine = legacyEngine(defaults: defaults) {
+        if shouldMigrateLegacyEngine(defaults: defaults),
+           let migratedEngine = legacyEngine(defaults: defaults) {
             setCurrentEngine(migratedEngine, defaults: defaults)
             return migratedEngine
         }
+        setCurrentEngine(defaultEngine, defaults: defaults)
         return defaultEngine
     }
 
     static func setCurrentEngine(_ engine: BrowserEngine, defaults: UserDefaults = .standard) {
         defaults.set(engine.rawValue, forKey: engineKey)
+        defaults.set(true, forKey: didInitializeKey)
         mirrorLegacyDisabledIfNeeded(engine, defaults: defaults)
         NotificationCenter.default.post(name: didChangeNotification, object: nil)
         NotificationCenter.default.post(name: BrowserAvailabilitySettings.didChangeNotification, object: nil)
@@ -618,6 +625,10 @@ enum BrowserEngineSettings {
     private static func legacyEngine(defaults: UserDefaults) -> BrowserEngine? {
         guard defaults.object(forKey: legacyDisabledKey) != nil else { return nil }
         return defaults.bool(forKey: legacyDisabledKey) ? .systemDefault : .webKit
+    }
+
+    private static func shouldMigrateLegacyEngine(defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: didInitializeKey) == nil
     }
 }
 
