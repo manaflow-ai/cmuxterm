@@ -19,6 +19,8 @@ public struct TerminalPointerIntentState: @unchecked Sendable {
     private var isFocused = false
     private var isCmuxLinkHoverActive = false
     private var isGhosttyLinkHoverActive = false
+    /// Raw Ghostty link state, retained independently of focus projection.
+    private var hasGhosttyLinkHoverSignal = false
     /// A pointer callback may be the temporary cursor Ghostty emits while
     /// entering a link. Keep the prior base until the transition settles.
     private var hasPendingGhosttyLinkPointer = false
@@ -140,6 +142,8 @@ public struct TerminalPointerIntentState: @unchecked Sendable {
 
         case .ghosttyLinkHoverChanged(let active, let runtimeLifetimeId):
             guard activeRuntimeLifetimeId == runtimeLifetimeId else { return false }
+            let hadGhosttyLinkHoverSignal = hasGhosttyLinkHoverSignal
+            hasGhosttyLinkHoverSignal = active
             let nextActive = isFocused && active
             if nextActive,
                hasPendingGhosttyLinkPointer,
@@ -149,7 +153,9 @@ public struct TerminalPointerIntentState: @unchecked Sendable {
                 ghosttyShape = lastNonPointerShape
             }
             if !active, pendingUnsupportedBaseAfterPointer {
-                ghosttyShape = lastNonPointerShape
+                if hadGhosttyLinkHoverSignal {
+                    ghosttyShape = lastNonPointerShape
+                }
                 pendingUnsupportedBaseAfterPointer = false
                 hasPendingGhosttyLinkPointer = false
                 persistentPointerBaseConfirmed = false
@@ -191,6 +197,7 @@ public struct TerminalPointerIntentState: @unchecked Sendable {
         lastNonPointerShape = nil
         isCmuxLinkHoverActive = false
         isGhosttyLinkHoverActive = false
+        hasGhosttyLinkHoverSignal = false
         hasPendingGhosttyLinkPointer = false
         persistentPointerBaseConfirmed = false
         pendingUnsupportedBaseAfterPointer = false
