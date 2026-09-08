@@ -7551,9 +7551,10 @@
               "kind": "primitive",
               "name": "uint32",
               "minimum": 1,
-              "maximum": 1000
+              "maximum": 256
             },
-            "default": 100
+            "default": 100,
+            "description": "The session retains at most 256 notifications; older rows are evicted, so a full clear names at most 256 ids."
           }
         },
         "extra": false

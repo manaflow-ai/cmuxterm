@@ -5954,7 +5954,7 @@ impl Mux {
     /// Sends a diagnostic to the frontend-owned sink without writing to a
     /// frontend terminal. One message is retained when startup races sink
     /// installation.
-    fn report_internal_diagnostic(&self, message: impl Into<String>) {
+    pub(crate) fn report_internal_diagnostic(&self, message: impl Into<String>) {
         let message = message.into();
         if let Some(reporter) = self.diagnostic_reporter.get().cloned() {
             reporter(&message);
@@ -9315,15 +9315,20 @@ impl Mux {
                 .or_else(|| state.terminal_runtime_by_id(surface))
                 .and_then(|surface| surface.terminal_public_id().cloned())
         });
-        let fingerprint = serde_json::json!({
+        // The fingerprint names the subtitle only when one was given, so a key
+        // minted before subtitles existed (an agent-hook retry across an
+        // upgrade) still matches its stored receipt.
+        let mut fingerprint = serde_json::json!({
             "operation": OPERATION,
             "origin": "durable-notification",
             "title": title,
-            "subtitle": subtitle,
             "body": body,
             "level": level.as_str(),
             "terminal_id": terminal_id,
         });
+        if let Some(subtitle) = &subtitle {
+            fingerprint["subtitle"] = serde_json::json!(subtitle);
+        }
         let committed = |outcome: ResourceEffectOutcome| match outcome {
             ResourceEffectOutcome::Success(_) => Ok(None),
             ResourceEffectOutcome::Failure(error) => Err(anyhow::Error::new(error)),
@@ -9549,7 +9554,7 @@ impl Mux {
         if let Some(replay) = registry.replay_resource_patch(mutation, OPERATION, &fingerprint)? {
             return Ok(replay);
         }
-        let cleared: Vec<NotificationPublicId> = {
+        let candidates: Vec<NotificationPublicId> = {
             let ledger = self.notification_ledger.lock().unwrap();
             ledger
                 .iter()
@@ -9559,6 +9564,10 @@ impl Mux {
                 .map(|entry| entry.id.clone())
                 .collect()
         };
+        // Only durably committed rows are cleared. A row whose create receipt
+        // is still in flight stays, so the clear cannot mask a receipt that
+        // commits after it (the registry lock held here serializes the two).
+        let cleared = registry.committed_notification_ids(&candidates)?;
         let deltas = cleared
             .iter()
             .map(|id| {

@@ -122,11 +122,16 @@ describe("guest cmux self-discovery shim", () => {
 
   test("host-only verbs are refused with a pointer to the Mac CLI", () => {
     withCurl(JSON.stringify(SELF_BODY), "200");
-    for (const args of [["vm", "new"], ["notify", "--title", "x"], ["vm", "exec", "fs-self", "--", "ls"]]) {
+    for (const args of [["vm", "new"], ["vm", "exec", "fs-self", "--", "ls"]]) {
       const result = run(args);
       expect(result.status).toBe(2);
       expect(result.stderr).toContain("runs on the Mac cmux CLI");
     }
+    // notify belongs to the machine's daemon; without one installed the shim
+    // says so instead of pointing at the Mac.
+    const notify = run(["notify", "--title", "x"]);
+    expect(notify.status).toBe(2);
+    expect(notify.stderr).toContain("needs the cmux-tui daemon");
     expect(spawnSync("cat", [requestLog], { encoding: "utf8" }).stdout).toBe("");
     const help = run(["--help"]);
     expect(help.status).toBe(0);

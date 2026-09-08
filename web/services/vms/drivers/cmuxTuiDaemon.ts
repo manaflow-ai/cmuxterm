@@ -248,9 +248,6 @@ export function cmuxTuiInstallCommand(
       `mkdir -p "$(dirname "$CMUX_TUI_BIN")"`,
       `if [ -x ${bin} ] && ${pinned(bin)}; then :; else ${fetch} && ${pinned(tmp)} && chmod 755 ${tmp} && mv -f ${tmp} ${bin}; fi`,
       `ln -sfn ${bin} /usr/local/bin/cmux-tui`,
-      // The same binary answers to `cmux` so `cmux notify` inside the machine
-      // matches the macOS CLI signature.
-      `ln -sfn ${bin} /usr/local/bin/cmux`,
       // The volume is already identity-mapped by bindfs. Chown only the nodes this
       // install created, never the potentially large persistent state tree.
       `if [ "$CMUX_TUI_HOME" != '/root' ]; then chown ${layout.user}:${layout.user} "$CMUX_TUI_HOME/.cmux" "$CMUX_TUI_HOME/.cmux/bin" "$CMUX_TUI_BIN" 2>/dev/null || true; fi`,
@@ -272,7 +269,6 @@ export function cmuxTuiInstallCommand(
     `if [ -x ${bin} ] && ${pinned(bin)}; then :; else ` +
       `${fetch} && ${pinned(tmp)} && chmod 755 ${tmp} && mv -f ${tmp} ${bin}; fi`,
     `ln -sfn ${bin} /usr/local/bin/cmux-tui`,
-    `ln -sfn ${bin} /usr/local/bin/cmux`,
     `${bin} --version`,
   ].join(" && ");
 }

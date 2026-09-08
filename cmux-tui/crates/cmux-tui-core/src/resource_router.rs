@@ -1463,7 +1463,20 @@ fn clear_notifications(mux: &Mux, request: ParsedResourceRequest) -> Result<Valu
     .map_err(resource_operation_error)?;
     let commit = mux
         .clear_notifications(&mutation, expected_revision(&request.fields)?, terminal_id.as_ref())
-        .map_err(resource_operation_error)?;
+        .map_err(|error| {
+            // Revision conflicts keep their typed error; anything else is an
+            // internal failure whose raw cause stays in the daemon log.
+            let mapped = resource_operation_error(error);
+            if mapped.code == "revision.conflict" {
+                return mapped;
+            }
+            mux.report_internal_diagnostic(format!("notification.clear failed: {}", mapped.message));
+            ResourceError::operation_failed(
+                "notification.clear",
+                "the machine could not clear notifications; retry after the next state refresh",
+                json!({}),
+            )
+        })?;
     mutation_result(mux, commit.result, commit.revision, commit.replayed)
 }
 

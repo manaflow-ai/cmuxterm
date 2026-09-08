@@ -1084,6 +1084,34 @@ impl WorkspaceRegistry {
         Ok(ResourcePatchCommit { revision, result: result.clone(), replayed: false })
     }
 
+    /// Notification ids among `candidates` whose `notification.create` receipt
+    /// is committed. A row can sit in the live ledger before its receipt
+    /// commits; clearing such a row would mask a receipt that lands later, so
+    /// a clear names only what is durable.
+    pub(crate) fn committed_notification_ids(
+        &self,
+        candidates: &[NotificationPublicId],
+    ) -> anyhow::Result<Vec<NotificationPublicId>> {
+        let mut committed = Vec::with_capacity(candidates.len());
+        for candidate in candidates {
+            let exists: bool = self.connection.query_row(
+                "SELECT EXISTS(
+                   SELECT 1 FROM resource_effect_receipts
+                   WHERE operation = 'notification.create'
+                     AND state = 'committed'
+                     AND json_extract(outcome_json, '$.kind') = 'success'
+                     AND json_extract(outcome_json, '$.value.id') = ?1
+                 )",
+                [candidate.as_str()],
+                |row| row.get(0),
+            )?;
+            if exists {
+                committed.push(candidate.clone());
+            }
+        }
+        Ok(committed)
+    }
+
     /// Mask cleared notifications from every later rebuild and drop their read
     /// marks, publishing the delete deltas as one revision.
     pub(crate) fn commit_notification_clear(

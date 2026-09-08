@@ -1319,7 +1319,7 @@ fn parse_notification(words: &[String], flags: &mut Flags) -> Result<CommandPlan
         ["list"] => {
             let mut params = Map::new();
             if let Some(limit) = flags.take("limit") {
-                insert_bounded_u32(&mut params, "limit", "--limit", limit, 1, 1_000)?;
+                insert_bounded_u32(&mut params, "limit", "--limit", limit, 1, 256)?;
             }
             request(ResourceOperation::NotificationList, &selectors, flags, params)
         }
@@ -1412,12 +1412,21 @@ fn parse_notify(words: &[String], flags: &mut Flags) -> Result<CommandPlan, Usag
     {
         validate_prefixed_id("workspace", "ws", workspace)?;
     }
+    let caller_terminal =
+        std::env::var("CMUX_TUI_TERMINAL_ID").ok().filter(|id| !id.is_empty());
     let surface = match flags.take_dashed("--surface") {
-        Some(value) if value == "current" => std::env::var("CMUX_TUI_TERMINAL_ID").ok(),
+        Some(value) if value == "current" => match caller_terminal.clone() {
+            Some(terminal) => Some(terminal),
+            None => {
+                return Err(UsageError::new(
+                    "--surface current needs a caller terminal (CMUX_TUI_TERMINAL_ID is not set); pass --surface <term_id>",
+                ));
+            }
+        },
         Some(value) => Some(value),
         // A workspace-scoped notify has no terminal, like the local form.
         None if workspace.is_some() => None,
-        None => std::env::var("CMUX_TUI_TERMINAL_ID").ok(),
+        None => caller_terminal,
     };
     if let Some(surface) = &surface {
         validate_prefixed_id("terminal", "term", surface)?;
@@ -1429,6 +1438,14 @@ fn parse_notify(words: &[String], flags: &mut Flags) -> Result<CommandPlan, Usag
             || flags.take("body").is_some()
         {
             return Err(UsageError::new("--clear does not take --title, --subtitle, or --body"));
+        }
+        // A clear must name its scope. Outside a daemon terminal there is no
+        // caller terminal to default to, and silently clearing the whole
+        // session would be the wrong surprise.
+        if surface.is_none() && workspace.is_none() {
+            return Err(UsageError::new(
+                "--clear needs a scope: run it from a machine terminal, or pass --surface <term_id> or --workspace current",
+            ));
         }
         if let Some(surface) = surface {
             params.insert("terminal_id".into(), Value::String(surface));
@@ -3380,6 +3397,10 @@ mod tests {
             parse(&strings(&["notify", "--reply", "--title", "x"])).is_err(),
             "no reply channel across the link"
         );
+        if std::env::var_os("CMUX_TUI_TERMINAL_ID").is_none() {
+            assert!(parse(&strings(&["notify", "--clear"])).is_err(), "no implicit whole-session clear");
+            assert!(parse(&strings(&["notify", "--surface", "current"])).is_err());
+        }
         assert!(parse(&strings(&["notify", "--title", ""])).is_err());
         assert!(
             parse(&strings(&["notify", "--surface", "not-a-terminal"])).is_err(),
