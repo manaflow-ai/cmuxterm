@@ -47,12 +47,15 @@ struct HivePairingScopeTransitionTests {
         #expect(newTeam.map(\.macDeviceID) == ["mac-b"])
     }
 
-    @Test(arguments: ["SELF-DEVICE", "FCAB639B-4765-4524-B0F9-72329620D51C"])
-    func legacyLinkCannotPairThisMacUsingDifferentCase(deviceID: String) async throws {
+    @Test(arguments: [
+        ("self-device", "self-device"),
+        ("FCAB639B-4765-4524-B0F9-72329620D51C", "fcab639b-4765-4524-b0f9-72329620d51c")
+    ])
+    func legacyLinkCannotPairThisMac(deviceID: String, ownDeviceID: String) async throws {
         let (store, cleanup) = try fixture.makeTempStore()
         defer { cleanup() }
         let directory = fixture.makeDirectory(
-            registry: .ok([]), store: store, ownDeviceID: deviceID.lowercased()
+            registry: .ok([]), store: store, ownDeviceID: ownDeviceID
         )
 
         #expect(await directory.pair(link: try legacyLink(deviceID: deviceID)) == .loopbackRejected)

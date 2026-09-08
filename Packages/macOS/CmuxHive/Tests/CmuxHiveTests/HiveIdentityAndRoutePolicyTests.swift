@@ -57,8 +57,10 @@ struct HiveIdentityAndRoutePolicyTests {
         let registry = HiveDirectoryTestFixture.Registry(outcome: .ok([
             device(id: "Opaque-Host", routes: [route]), device(id: "opaque-host", routes: [route])
         ]))
+        let feed = HivePresenceTestFeed()
+        defer { feed.events.continuation.finish() }
         let directory = HiveComputerDirectory(
-            registry: registry, pairedStore: store, presence: nil, ownDeviceID: "Opaque-Host",
+            registry: registry, pairedStore: store, presence: feed, ownDeviceID: "Opaque-Host",
             scopeProvider: { HiveAccountScope(stackUserID: "user-1", teamID: "team-1") },
             linkDecoder: HivePairingLinkDecoder(allowsLoopbackRoutes: false), presenceRetryDelay: { _ in }
         )
@@ -68,6 +70,13 @@ struct HiveIdentityAndRoutePolicyTests {
         var lowerRows = directory.updates(for: "opaque-host").makeAsyncIterator()
         let row = try #require(await lowerRows.next())
         #expect(row?.deviceID == "opaque-host")
+        feed.events.continuation.yield(.routes(PresenceInstance(
+            deviceId: "opaque-host", tag: "stable", platform: "mac",
+            online: true, lastSeenAt: 1_100_000, routes: [route]
+        )))
+        let updated = try #require(await lowerRows.next())
+        #expect(updated?.deviceID == "opaque-host")
+        #expect(updated?.isThisComputer == false)
         directory.clearForSignOut()
     }
 

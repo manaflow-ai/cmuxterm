@@ -10,13 +10,21 @@ import Foundation
 /// The directory owns lifecycle and caching; this value type owns only the
 /// merge policy so incremental presence updates can rebuild affected rows
 /// without rescanning unrelated devices.
-public nonisolated struct HiveComputerRowBuilder: Sendable {
+public struct HiveComputerRowBuilder: Sendable {
     /// The local device id used to mark the This Mac row.
     public let ownDeviceID: String
+    private let viewerRoutePolicy: HiveViewerRoutePolicy
 
-    /// Creates a row builder for one local device.
-    public init(ownDeviceID: String) {
-        self.ownDeviceID = ownDeviceID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    /// Creates a row builder for one local device and its runtime route policy.
+    /// - Parameters:
+    ///   - ownDeviceID: This computer’s stable device identity.
+    ///   - viewerRoutePolicy: Route kinds accepted by the corresponding viewer runtime.
+    public init(
+        ownDeviceID: String,
+        viewerRoutePolicy: HiveViewerRoutePolicy = .init(allowsLoopbackRoutes: false)
+    ) {
+        self.ownDeviceID = cmxCanonicalDeviceID(ownDeviceID)
+        self.viewerRoutePolicy = viewerRoutePolicy
     }
 
     /// Builds all rows from the current source snapshots.
@@ -26,9 +34,9 @@ public nonisolated struct HiveComputerRowBuilder: Sendable {
         presence: PresenceMap
     ) -> [HiveComputer] {
         let pairedByID = indexPairedRecords(paired)
-        let pairedRecordsByID = Dictionary(grouping: paired, by: \.macDeviceID)
+        let pairedRecordsByID = Dictionary(grouping: paired) { cmxCanonicalDeviceID($0.macDeviceID) }
         let registryByID = Dictionary(
-            registry.map { ($0.deviceId, $0) },
+            registry.map { (cmxCanonicalDeviceID($0.deviceId), $0) },
             uniquingKeysWith: { first, _ in first }
         )
         let ids = Set(registryByID.keys).union(pairedByID.keys)
@@ -47,14 +55,15 @@ public nonisolated struct HiveComputerRowBuilder: Sendable {
     /// physical device id; prefer the active, then freshest, record.
     func indexPairedRecords(_ records: [MobilePairedMac]) -> [String: MobilePairedMac] {
         records.reduce(into: [String: MobilePairedMac]()) { result, record in
-            guard let existing = result[record.macDeviceID] else {
-                result[record.macDeviceID] = record
+            let deviceID = cmxCanonicalDeviceID(record.macDeviceID)
+            guard let existing = result[deviceID] else {
+                result[deviceID] = record
                 return
             }
             let preferRecord = (record.isActive && !existing.isActive)
                 || (record.isActive == existing.isActive && record.lastSeenAt > existing.lastSeenAt)
             if preferRecord {
-                result[record.macDeviceID] = record
+                result[deviceID] = record
             }
         }
     }
@@ -67,7 +76,7 @@ public nonisolated struct HiveComputerRowBuilder: Sendable {
         presence: PresenceMap
     ) -> HiveComputer? {
         guard registry != nil || paired != nil else { return nil }
-        let deviceID = registry?.deviceId ?? paired?.macDeviceID ?? ""
+        let deviceID = cmxCanonicalDeviceID(registry?.deviceId ?? paired?.macDeviceID ?? "")
         let instances: [HiveComputerInstance]
         if let registry, !registry.instances.isEmpty {
             instances = registry.instances.map { instance in
@@ -116,7 +125,7 @@ public nonisolated struct HiveComputerRowBuilder: Sendable {
                 ?? paired?.displayName?.nonEmpty
                 ?? String(deviceID.prefix(8)),
             platform: registry?.platform,
-            isThisComputer: deviceID.caseInsensitiveCompare(ownDeviceID) == .orderedSame,
+            isThisComputer: deviceID == ownDeviceID,
             isPaired: paired != nil,
             isOwnedByCurrentUser: registry?.isOwnedByCurrentUser ?? true,
             presence: presenceState(
@@ -125,7 +134,8 @@ public nonisolated struct HiveComputerRowBuilder: Sendable {
                 fallbackLastSeen: fallbackLastSeen
             ),
             buildLabel: presence.deviceSummary(deviceId: deviceID)?.buildLabel,
-            instances: instances
+            instances: instances,
+            viewerRoutePolicy: viewerRoutePolicy
         )
     }
 

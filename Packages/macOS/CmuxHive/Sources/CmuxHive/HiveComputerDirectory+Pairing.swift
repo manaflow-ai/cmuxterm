@@ -9,6 +9,7 @@ extension HiveComputerDirectory {
     /// Pair a computer from its registry row: persist its best instance's
     /// routes into the local paired store.
     public func pair(deviceID: String) async -> HivePairOutcome {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         let scope = await scopeProvider()
         guard scope.stackUserID != nil else { return .storeFailed }
         if loadedScope != scope {
@@ -17,7 +18,7 @@ extension HiveComputerDirectory {
         }
         // Pairing with the computer you are sitting at is always a mistake
         // (dev builds advertise loopback routes, so it would even "work").
-        guard deviceID.caseInsensitiveCompare(ownDeviceID) != .orderedSame else {
+        guard deviceID != ownDeviceID else {
             return .loopbackRejected
         }
         guard let computer = computers.first(where: { $0.deviceID == deviceID }),
@@ -71,11 +72,11 @@ extension HiveComputerDirectory {
         // team is ambiguous and reports not-found rather than guessing.
         guard matches.count == 1, let match = matches.first else { return .codeNotFound }
         guard match.device.isOwnedByCurrentUser,
-              match.instance.routes.contains(where: { $0.kind == .tailscale || $0.kind == .debugLoopback }) else {
+              match.instance.routes.contains(where: { viewerRoutePolicy.supports($0) }) else {
             return .noRoutes
         }
         guard match.device.isControllableHost else { return .noRoutes }
-        guard match.device.deviceId.caseInsensitiveCompare(ownDeviceID) != .orderedSame else {
+        guard cmxCanonicalDeviceID(match.device.deviceId) != ownDeviceID else {
             return .loopbackRejected
         }
         return await persistPairing(
@@ -126,7 +127,7 @@ extension HiveComputerDirectory {
             } else {
                 macDeviceID = ticket.macDeviceID
             }
-            guard macDeviceID.caseInsensitiveCompare(ownDeviceID) != .orderedSame else {
+            guard cmxCanonicalDeviceID(macDeviceID) != ownDeviceID else {
                 return .loopbackRejected
             }
             return await persistPairing(
@@ -159,6 +160,7 @@ extension HiveComputerDirectory {
     /// - Returns: `true` when the store accepted the removal.
     @discardableResult
     public func unpair(deviceID: String) async -> Bool {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         let scope = await scopeProvider()
         let generation = scopeGeneration
         guard scope.stackUserID != nil,
@@ -189,6 +191,8 @@ extension HiveComputerDirectory {
         instanceTag: String?,
         scope: HiveAccountScope
     ) async -> HivePairOutcome {
+        let macDeviceID = cmxCanonicalDeviceID(macDeviceID)
+        let routes = viewerRoutePolicy.supportedRoutes(routes)
         guard !routes.isEmpty else { return .noRoutes }
         let generation = scopeGeneration
         guard await isCurrentScope(scope, generation: generation) else {

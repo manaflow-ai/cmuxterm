@@ -1,3 +1,4 @@
+import CMUXMobileCore
 import CmuxAuthRuntime
 import CmuxHive
 import Foundation
@@ -8,8 +9,8 @@ import OSLog
 ///
 /// The composition root supplies configuration only — URLs, tokens, device
 /// identity, loopback policy — and `HiveComposition` (in the CmuxHive
-/// package) names the concrete client-stack types, so the app target depends
-/// on nothing below CmuxHive. Follows the house pattern of the other cloud
+/// package) names the concrete client-stack types; this service uses shared
+/// core identity values without constructing those clients. Follows the other cloud
 /// clients configured at the root (``DeviceRegistryClient``,
 /// ``PresenceHeartbeatClient``): a `shared` instance that stays inert until
 /// `configure(auth:)`.
@@ -60,6 +61,7 @@ final class HiveComputersService {
     /// the computer has no local pairing record (the Computers pane only
     /// offers Open on paired rows) or auth is not configured.
     func makeViewerSession(deviceID: String) async -> HiveRemoteMacSession? {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         guard let auth, let directory else { return nil }
         // Always bind a viewer to the current account/team snapshot. A cached
         // row can otherwise survive a team switch and authorize the old
@@ -116,6 +118,7 @@ final class HiveComputersService {
     /// connecting one on first use. Returns `nil` when the computer has no
     /// pairing record or auth is not configured.
     func embeddedSession(deviceID: String) async -> HiveRemoteMacSession? {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         guard let directory else { return nil }
         await refreshEmbeddedDirectory(directory)
         if let existing = embeddedSessions[deviceID] {
@@ -151,6 +154,7 @@ final class HiveComputersService {
 
     /// Tears down the embedded session for a device (unpair, sign-out).
     func discardEmbeddedSession(deviceID: String) async {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         guard let session = embeddedSessions.removeValue(forKey: deviceID) else { return }
         await session.disconnect()
     }
@@ -199,7 +203,7 @@ final class HiveComputersService {
     /// so reading `.phase` from a SwiftUI `body` tracks it like any other
     /// observable property; no polling needed.
     func connectionPhase(deviceID: String) -> HiveRemoteMacSession.Phase? {
-        embeddedSessions[deviceID]?.phase
+        embeddedSessions[cmxCanonicalDeviceID(deviceID)]?.phase
     }
 
     /// Forces a fresh connection attempt for a device's embedded viewer

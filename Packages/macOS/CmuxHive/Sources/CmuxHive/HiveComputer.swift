@@ -8,8 +8,8 @@ import Foundation
 /// device picker of the remote-Mac viewer. It is a pure value snapshot: the
 /// merge lives in ``HiveComputerDirectory``, rows never observe stores.
 public struct HiveComputer: Equatable, Sendable, Identifiable {
-    /// Stable cross-platform cmux device UUID (matches the registry's
-    /// `deviceId` and `CmxAttachTicket.macDeviceID`).
+    /// Stable cross-platform cmux device identity, with UUID casing canonicalized.
+    /// Opaque non-UUID identities retain their exact bytes.
     public var deviceID: String
     /// Best-known human label: the local custom name override, else the
     /// registry/pairing display name, else the short device id.
@@ -32,6 +32,7 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
     public var buildLabel: String?
     /// The computer's registered cmux app instances, freshest first.
     public var instances: [HiveComputerInstance]
+    private let viewerRoutePolicy: HiveViewerRoutePolicy
 
     public var id: String { deviceID }
 
@@ -40,6 +41,7 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
     public var isRegistryBacked: Bool { platform != nil }
 
     /// Creates a merged computer row.
+    /// - Parameter viewerRoutePolicy: The same route policy used for pairing and dialing.
     public init(
         deviceID: String,
         displayName: String,
@@ -49,9 +51,10 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
         isOwnedByCurrentUser: Bool = true,
         presence: HiveComputerPresence,
         buildLabel: String? = nil,
-        instances: [HiveComputerInstance] = []
+        instances: [HiveComputerInstance] = [],
+        viewerRoutePolicy: HiveViewerRoutePolicy = .init(allowsLoopbackRoutes: false)
     ) {
-        self.deviceID = deviceID
+        self.deviceID = cmxCanonicalDeviceID(deviceID)
         self.displayName = displayName
         self.platform = platform
         self.isThisComputer = isThisComputer
@@ -60,6 +63,7 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
         self.presence = presence
         self.buildLabel = buildLabel
         self.instances = instances
+        self.viewerRoutePolicy = viewerRoutePolicy
     }
 
     /// Whether this computer is a host another cmux can attach to (a route
@@ -74,17 +78,19 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
         }
     }
 
-    /// The attach routes to persist when pairing this computer: the freshest
-    /// online instance's routes, else the freshest instance advertising any.
+    /// The supported attach routes of the freshest online compatible instance,
+    /// or the freshest compatible offline instance when none is online.
     public var bestPairingRoutes: (routes: [CmxAttachRoute], instanceTag: String?)? {
-        let candidates = instances.filter { !$0.routes.isEmpty }
+        let candidates = instances.filter { instance in
+            instance.routes.contains { viewerRoutePolicy.supports($0) }
+        }
         guard !candidates.isEmpty else { return nil }
         let ordered = candidates.sorted { lhs, rhs in
             if lhs.isOnline != rhs.isOnline { return lhs.isOnline }
             return lhs.lastSeenAt > rhs.lastSeenAt
         }
         guard let best = ordered.first else { return nil }
-        return (best.routes, best.tag)
+        return (viewerRoutePolicy.supportedRoutes(best.routes), best.tag)
     }
 
     /// Whether at least one advertised instance has a route the current Mac
@@ -92,7 +98,7 @@ public struct HiveComputer: Equatable, Sendable, Identifiable {
     public var hasViewerSupportedRoute: Bool {
         instances.contains { instance in
             instance.routes.contains { route in
-                route.kind == .tailscale || route.kind == .debugLoopback
+                viewerRoutePolicy.supports(route)
             }
         }
     }

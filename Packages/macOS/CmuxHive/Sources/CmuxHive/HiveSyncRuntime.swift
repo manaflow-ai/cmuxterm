@@ -65,9 +65,9 @@ public struct HiveSyncRuntime: MobileSyncRuntime, Sendable {
         stackAccessTokenForceRefresher: @escaping @Sendable () async throws -> String,
         stackAccessTokenForStatusProvider: @escaping @Sendable () async -> String? = { nil }
     ) -> HiveSyncRuntime {
-        let supportedKinds: [CmxAttachTransportKind] = allowsLoopbackRoutes
-            ? [.debugLoopback, .tailscale]
-            : [.tailscale]
+        let supportedKinds = HiveViewerRoutePolicy(
+            allowsLoopbackRoutes: allowsLoopbackRoutes
+        ).supportedRouteKinds
         // Tailscale is registered with the viewer-specific factory, which
         // remains fail-closed until a cryptographic transport-admission
         // handshake is available. DEBUG loopback still uses the shared local

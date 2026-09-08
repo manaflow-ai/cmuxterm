@@ -1,4 +1,5 @@
 import AppKit
+import CMUXMobileCore
 import CmuxHive
 import CmuxHiveUI
 import SwiftUI
@@ -38,6 +39,7 @@ final class HiveViewerWindowController: NSObject, NSWindowDelegate {
 
     /// Opens (or focuses) the viewer window for one paired computer.
     func show(deviceID: String) {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         NSApp.activate(ignoringOtherApps: true)
         if let existing = viewersByDeviceID[deviceID] {
             if existing.window.isMiniaturized {

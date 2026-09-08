@@ -9,6 +9,7 @@ final class HiveDeviceMirror {
     weak var tabManager: TabManager?
     var reconcileTask: Task<Void, Never>?
     var routeTask: Task<Void, Never>?
+    let workspaceReadiness = HiveMirrorWorkspaceReadiness()
     var windowCloseObserver: NSObjectProtocol?
     /// Local mirror workspace id per remote workspace id.
     var workspaceIdByRemoteID: [String: UUID] = [:]

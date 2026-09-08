@@ -116,7 +116,7 @@ private actor ScopeBox {
         )
 
         await directory.refresh()
-        var targetIterator = directory.updates(for: "TARGET-MAC").makeAsyncIterator()
+        var targetIterator = directory.updates(for: "target-mac").makeAsyncIterator()
         var otherIterator = directory.updates(for: "other-mac").makeAsyncIterator()
         let initialTargetEvent = try #require(await targetIterator.next())
         let initialTarget = try #require(initialTargetEvent)

@@ -32,6 +32,7 @@ public final class HiveComputerDirectory {
     @ObservationIgnored let ownDeviceID: String
     @ObservationIgnored let scopeProvider: @Sendable () async -> HiveAccountScope
     @ObservationIgnored let linkDecoder: HivePairingLinkDecoder
+    @ObservationIgnored let viewerRoutePolicy: HiveViewerRoutePolicy
     @ObservationIgnored let now: @Sendable () -> Date
     @ObservationIgnored private let presenceRetryDelay: @Sendable (_ attempt: Int) async -> Void
     @ObservationIgnored private let rowBuilder: HiveComputerRowBuilder
@@ -81,12 +82,14 @@ public final class HiveComputerDirectory {
         self.registry = registry
         self.pairedStore = pairedStore
         self.presence = presence
-        self.ownDeviceID = ownDeviceID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.ownDeviceID = cmxCanonicalDeviceID(ownDeviceID)
         self.scopeProvider = scopeProvider
         self.linkDecoder = linkDecoder
+        let routePolicy = HiveViewerRoutePolicy(allowsLoopbackRoutes: linkDecoder.allowsLoopbackRoutes)
+        self.viewerRoutePolicy = routePolicy
         self.now = now
         self.presenceRetryDelay = presenceRetryDelay
-        self.rowBuilder = HiveComputerRowBuilder(ownDeviceID: ownDeviceID)
+        self.rowBuilder = HiveComputerRowBuilder(ownDeviceID: ownDeviceID, viewerRoutePolicy: routePolicy)
     }
 
     // MARK: - Observation
@@ -124,13 +127,13 @@ public final class HiveComputerDirectory {
     ///   the device disappeared from the current account scope.
     public func updates(for deviceID: String) -> AsyncStream<HiveComputer?> {
         let id = UUID()
-        let key = deviceID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let key = cmxCanonicalDeviceID(deviceID)
         let (stream, continuation) = AsyncStream<HiveComputer?>.makeStream(
             bufferingPolicy: .bufferingNewest(1)
         )
         deviceListeners[key, default: [:]][id] = continuation
         continuation.yield(computers.first {
-            $0.deviceID.caseInsensitiveCompare(deviceID) == .orderedSame
+            $0.deviceID == key
         })
         continuation.onTermination = { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -213,7 +216,7 @@ public final class HiveComputerDirectory {
             guard await isCurrentScope(scope, generation: generation) else { return generation }
             registryDevices = devices
             registryByID = Dictionary(
-                devices.map { ($0.deviceId, $0) },
+                devices.map { (cmxCanonicalDeviceID($0.deviceId), $0) },
                 uniquingKeysWith: { first, _ in first }
             )
             lastRefreshFailed = false
@@ -250,7 +253,7 @@ public final class HiveComputerDirectory {
             guard await isCurrentScope(scope, generation: generation) else { return }
             pairedRecords = records
             pairedByID = rowBuilder.indexPairedRecords(pairedRecords)
-            pairedRecordsByID = Dictionary(grouping: pairedRecords, by: \.macDeviceID)
+            pairedRecordsByID = Dictionary(grouping: pairedRecords) { cmxCanonicalDeviceID($0.macDeviceID) }
         } catch {
             // Keep the previous local list; a store read failure must not
             // wipe rows the registry no longer needs to confirm.
@@ -370,8 +373,8 @@ public final class HiveComputerDirectory {
         let previousComputers = computers
         let changedIDs: Set<String>
         if let affectedDeviceIDs {
-            changedIDs = affectedDeviceIDs
-            for deviceID in affectedDeviceIDs {
+            changedIDs = Set(affectedDeviceIDs.map(cmxCanonicalDeviceID))
+            for deviceID in changedIDs {
                 if let oldIndex = computers.firstIndex(where: { $0.deviceID == deviceID }) {
                     computers.remove(at: oldIndex)
                 }
@@ -388,9 +391,9 @@ public final class HiveComputerDirectory {
             }
         } else {
             changedIDs = Set(
-                previousComputers.map(\.deviceID)
+                (previousComputers.map(\.deviceID)
                     + registryDevices.map(\.deviceId)
-                    + pairedRecords.map(\.macDeviceID)
+                    + pairedRecords.map(\.macDeviceID)).map(cmxCanonicalDeviceID)
             )
             computers = rowBuilder.makeRows(
                 registry: registryDevices,
@@ -405,9 +408,9 @@ public final class HiveComputerDirectory {
         }
         for deviceID in changedIDs {
             let row = computers.first {
-                $0.deviceID.caseInsensitiveCompare(deviceID) == .orderedSame
+                $0.deviceID == deviceID
             }
-            let key = deviceID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let key = cmxCanonicalDeviceID(deviceID)
             deviceListeners[key]?.values.forEach { continuation in
                 continuation.yield(row)
             }

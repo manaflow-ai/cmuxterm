@@ -103,7 +103,7 @@ public final class HiveRemoteMacSession {
         requiresHostIdentity: Bool = true
     ) {
         self.runtime = runtime
-        self.macDeviceID = macDeviceID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.macDeviceID = cmxCanonicalDeviceID(macDeviceID)
         self.displayName = displayName
         self.routes = routes
         self.sourceRoutes = sourceRoutes ?? routes
@@ -358,9 +358,7 @@ public final class HiveRemoteMacSession {
         let status = try await Task.detached(priority: .userInitiated) {
             try MobileHostStatusResponse.decode(data)
         }.value
-        guard status.macDeviceID?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased() == macDeviceID,
+        guard status.macDeviceID.map(cmxCanonicalDeviceID) == macDeviceID,
               expectedInstanceTag == nil || status.macInstanceTag == expectedInstanceTag else {
             throw HiveRemoteTerminalSessionError.hostIdentityMismatch
         }

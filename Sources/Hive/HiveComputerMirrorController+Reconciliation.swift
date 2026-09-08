@@ -106,6 +106,9 @@ extension HiveComputerMirrorController {
                 _ = workspace.removeRemoteTmuxDisplayPane(panelId)
             }
         }
+        mirror.workspaceReadiness.publish(
+            workspaces.lazy.compactMap { mirror.workspaceIdByRemoteID[$0.id] }.first
+        )
     }
 
     /// Formats a mirror workspace title through the localized format resource

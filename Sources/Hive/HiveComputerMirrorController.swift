@@ -1,3 +1,4 @@
+import CMUXMobileCore
 import CmuxHive
 import CmuxMobileRPC
 import CmuxSettings
@@ -26,10 +27,12 @@ final class HiveComputerMirrorController {
     /// Mirror ownership is per computer *and* per main-window TabManager.
     /// Two windows may scope to the same computer without stealing each
     /// other's workspaces.
-    struct MirrorKey: Hashable {
+    struct MirrorKey: Hashable, Sendable {
         let deviceID: String
         let tabManagerID: ObjectIdentifier
     }
+
+    private let rebindCoordinator = HiveMirrorRebindCoordinator<MirrorKey>()
 
     var mirrorsByKey: [MirrorKey: HiveDeviceMirror] = [:]
     var deviceIDByWorkspaceID: [UUID: String] = [:]
@@ -77,6 +80,7 @@ final class HiveComputerMirrorController {
     /// sidebar mode attaches mirrors into the key main window's sidebar;
     /// windows mode creates a real main window scoped to the device.
     static func presentViewer(deviceID: String) {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         Task { @MainActor in
             guard HiveComputersService.shared.viewerTransportAvailable else { return }
             #if DEBUG
@@ -138,21 +142,27 @@ final class HiveComputerMirrorController {
     /// mirror workspaces in `tabManager`, keeping them reconciled with the
     /// host's live topology.
     @discardableResult
-    func attach(deviceID: String, into tabManager: TabManager) async -> UUID? {
+    func attach(
+        deviceID: String,
+        into tabManager: TabManager,
+        replacing expectedMirror: HiveDeviceMirror? = nil
+    ) async -> UUID? {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
+        guard !Task.isCancelled, !tabManager.isFinalizedForWindowClose else { return nil }
+        let selectionScope = tabManager.hiveSidebarScopeModel.scope
+        let shouldSelect = expectedMirror == nil || selectionScope == .device(deviceID)
+            || selectionScope == .allComputers
         let key = MirrorKey(deviceID: deviceID, tabManagerID: ObjectIdentifier(tabManager))
-        if let existing = mirrorsByKey[key] {
+        let previousMirror = mirrorsByKey[key]
+        if let expectedMirror, previousMirror !== expectedMirror { return nil }
+        if expectedMirror == nil, let existing = previousMirror {
             if let firstId = existing.workspaceIdByRemoteID.values.first,
                let workspace = tabManager.workspacesById[firstId] {
-                tabManager.selectWorkspace(workspace)
+                if tabManager.hiveSidebarScopeModel.scope == selectionScope {
+                    tabManager.selectWorkspace(workspace)
+                }
                 return firstId
             }
-            mirrorsByKey.removeValue(forKey: key)
-            let shouldDiscard = !mirrorsByKey.keys.contains { $0.deviceID == deviceID }
-            await teardownMirror(
-                deviceID: deviceID,
-                mirror: existing,
-                discardEmbeddedSession: shouldDiscard
-            )
         }
         guard let session = await HiveComputersService.shared.embeddedSession(deviceID: deviceID) else {
             #if DEBUG
@@ -160,6 +170,7 @@ final class HiveComputerMirrorController {
             #endif
             return nil
         }
+        guard !Task.isCancelled, !tabManager.isFinalizedForWindowClose else { return nil }
         // A failed session remains cached so every window shares one transport,
         // but an attach from the sidebar Retry action must explicitly restart
         // that failed attempt before rebuilding the mirror around it. New
@@ -169,14 +180,18 @@ final class HiveComputerMirrorController {
         // Another Open/Retry call may have installed the same mirror while
         // embeddedSession() suspended. Reuse that winner instead of creating
         // an unreachable duplicate with live tasks and workspaces.
-        if let winner = mirrorsByKey[key] {
+        if mirrorsByKey[key] !== previousMirror {
+            guard expectedMirror == nil, let winner = mirrorsByKey[key] else { return nil }
             if let firstId = winner.workspaceIdByRemoteID.values.first,
                let workspace = tabManager.workspacesById[firstId] {
-                tabManager.selectWorkspace(workspace)
+                if tabManager.hiveSidebarScopeModel.scope == selectionScope {
+                    tabManager.selectWorkspace(workspace)
+                }
                 return firstId
             }
             return nil
         }
+        guard !Task.isCancelled, !tabManager.isFinalizedForWindowClose else { return nil }
         let mirror = HiveDeviceMirror(deviceID: deviceID)
         mirror.tabManager = tabManager
         mirror.computerName = HiveComputersService.shared.directory?.computers
@@ -198,6 +213,14 @@ final class HiveComputerMirrorController {
             }
         }
 
+        if let previousMirror {
+            // Transfer ownership before teardown so route churn never resets the user's scope.
+            await teardownMirror(
+                deviceID: deviceID, mirror: previousMirror, discardEmbeddedSession: false
+            )
+            guard !Task.isCancelled, mirrorsByKey[key] === mirror,
+                  !tabManager.isFinalizedForWindowClose else { return nil }
+        }
         mirror.reconcileTask = Task { @MainActor [weak self, weak mirror] in
             for await workspaces in session.workspaceUpdates() {
                 guard let self, let mirror else { return }
@@ -226,51 +249,43 @@ final class HiveComputerMirrorController {
                         || computer.isRegistryBacked != session.requiresHostIdentity else {
                         continue
                     }
-                    // Ask the service to replace the immutable session before
-                    // rebuilding this window's mirrors on the fresh routes.
-                    _ = await HiveComputersService.shared.embeddedSession(deviceID: deviceID)
-                    guard self.mirrorsByKey[key] === mirror else { return }
-                    self.mirrorsByKey.removeValue(forKey: key)
-                    await self.teardownMirror(
-                        deviceID: deviceID,
-                        mirror: mirror,
-                        discardEmbeddedSession: false
-                    )
-                    _ = await self.attach(deviceID: deviceID, into: tabManager)
+                    // The replacement must outlive cancellation of this obsolete observer.
+                    self.rebindCoordinator.rebind(key: key) { [weak self, weak mirror, weak tabManager] in
+                        guard let self, let mirror, let tabManager else { return }
+                        _ = await self.attach(
+                            deviceID: deviceID, into: tabManager, replacing: mirror
+                        )
+                    }
                     return
                 }
             }
         }
 
-        // Wait briefly for the first non-empty list so the caller can select
-        // a mirror workspace; reconciliation keeps running either way.
-        var attempts = 0
-        while mirror.workspaceIdByRemoteID.isEmpty, attempts < 40 {
-            do {
-                try await ContinuousClock().sleep(for: .milliseconds(250))
-            } catch {
-                return nil
-            }
-            attempts += 1
+        // The deadline only bounds an empty attachment; readiness comes from reconciliation.
+        let firstID = await mirror.workspaceReadiness.wait {
+            try? await ContinuousClock().sleep(for: .seconds(10))
         }
-        if let firstId = mirror.workspaceIdByRemoteID.values.first,
-           let workspace = tabManager.workspacesById[firstId] {
+        guard !Task.isCancelled, !tabManager.isFinalizedForWindowClose, mirrorsByKey[key] === mirror,
+              let firstID, let workspace = tabManager.workspacesById[firstID] else { return nil }
+        if shouldSelect, tabManager.hiveSidebarScopeModel.scope == selectionScope {
             tabManager.selectWorkspace(workspace)
-            return firstId
         }
-        return nil
+        return firstID
     }
 
     /// Detaches a computer's mirrors: stops the streams and closes the
     /// mirror workspaces.
     func detach(deviceID: String, from tabManager: TabManager) async {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
         let key = MirrorKey(deviceID: deviceID, tabManagerID: ObjectIdentifier(tabManager))
+        rebindCoordinator.cancel(key: key)
         guard let mirror = mirrorsByKey.removeValue(forKey: key) else { return }
         let shouldDiscard = !mirrorsByKey.keys.contains { $0.deviceID == deviceID }
         await teardownMirror(deviceID: deviceID, mirror: mirror, discardEmbeddedSession: shouldDiscard)
     }
 
     private func detach(mirrorKey key: MirrorKey) async {
+        rebindCoordinator.cancel(key: key)
         guard let mirror = mirrorsByKey.removeValue(forKey: key) else { return }
         let shouldDiscard = !mirrorsByKey.keys.contains { $0.deviceID == key.deviceID }
         await teardownMirror(
@@ -282,6 +297,7 @@ final class HiveComputerMirrorController {
 
     /// Tear down every embedded mirror, used when account auth ends.
     func detachAll() async {
+        rebindCoordinator.cancelAll()
         let mirrors = Array(mirrorsByKey.values)
         mirrorsByKey.removeAll()
         var deviceIDs = Set<String>()
@@ -300,6 +316,8 @@ final class HiveComputerMirrorController {
 
     /// Tear down one device's mirror regardless of which window owns it.
     func detach(deviceID: String) async {
+        let deviceID = cmxCanonicalDeviceID(deviceID)
+        rebindCoordinator.cancelAll { $0.deviceID == deviceID }
         let keys = mirrorsByKey.keys.filter { $0.deviceID == deviceID }
         guard !keys.isEmpty else { return }
         let mirrors = keys.compactMap { mirrorsByKey.removeValue(forKey: $0) }
@@ -314,6 +332,7 @@ final class HiveComputerMirrorController {
         mirror: HiveDeviceMirror,
         discardEmbeddedSession: Bool
     ) async {
+        mirror.workspaceReadiness.finish()
         mirror.reconcileTask?.cancel()
         mirror.reconcileTask = nil
         mirror.routeTask?.cancel()
