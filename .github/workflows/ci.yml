@@ -1211,6 +1211,10 @@ jobs:
 
             echo "Running app-host unit-test batch ${logical_shard}/${LOGICAL_SHARD_TOTAL} serially"
             local batch_status
+            # A single test parked on an await that never resumes must not take
+            # the whole batch to CMUX_UNIT_TEST_TIMEOUT_SECONDS: XCTest's
+            # per-test execution allowance fails that one test (with a
+            # spindump) and keeps the batch moving.
             # Reset this batch's capture before every invocation. The outer
             # SwiftPM-resolution retry reuses the path, and a failed retry
             # must not inherit an earlier attempt's expected-failure summary.
@@ -1232,6 +1236,9 @@ jobs:
                 -disableAutomaticPackageResolution \
                 -destination "platform=macOS" \
                 "${only_testing_args[@]}" \
+                -test-timeouts-enabled YES \
+                -default-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
+                -maximum-test-execution-time-allowance "${CMUX_UNIT_TEST_CASE_TIMEOUT_SECONDS:-300}" \
                 CMUX_SKIP_ZIG_BUILD=1 \
                 test 2>&1 &
               local xcodebuild_pid=$!
@@ -1248,7 +1255,7 @@ jobs:
                     hang_sample="$RUNNER_TEMP/app-host-hang-sample-${logical_shard}-${hang_pid}.txt"
                     if sample "$hang_pid" 3 -mayDie -file "$hang_sample" >/dev/null 2>&1; then
                       echo "::group::app-host hang sample (pid ${hang_pid}, first threads)"
-                      awk '/^Call graph:/{p=1} p' "$hang_sample" | head -200
+                      awk '/^Call graph:/{p=1} p' "$hang_sample" | head -900
                       echo "::endgroup::"
                     fi
                   done
