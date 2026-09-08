@@ -1,11 +1,8 @@
 "use client";
 
-import { useUser } from "@stackframe/stack";
 import { useTranslations } from "next-intl";
 import { Suspense, useState } from "react";
-import { ThemeToggle } from "@/app/[locale]/theme";
 import { Link, usePathname } from "@/i18n/navigation";
-import { isAdminUser } from "@/services/admin/access";
 import { DashboardAccountMenu } from "./dashboard-account-menu";
 
 type DashboardNavGroup = {
@@ -116,7 +113,6 @@ export function DashboardShell({
         </div>
         <DashboardNav
           groups={groups}
-          trailing={<AdminNavGroup pathname={pathname} />}
           className="flex-1 overflow-y-auto px-2 py-3 pb-28"
         />
       </aside>
@@ -144,18 +140,11 @@ export function DashboardShell({
               <Suspense fallback={<DashboardAccountMenuFallback />}>
                 <DashboardAccountMenu />
               </Suspense>
-              <ThemeToggle />
             </div>
           </div>
           <DashboardNav
             id="dashboard-mobile-nav"
             groups={groups}
-            trailing={
-              <AdminNavGroup
-                pathname={pathname}
-                onNavigate={() => setMobileNavOpen(false)}
-              />
-            }
             hidden={!mobileNavOpen}
             onNavigate={() => setMobileNavOpen(false)}
             className="max-h-[calc(100vh-6rem)] overflow-y-auto border-t border-border px-2 py-3 sm:hidden"
@@ -173,15 +162,12 @@ function DashboardAccountMenuFallback() {
 
 function DashboardNav({
   groups,
-  trailing,
   className,
   hidden,
   id,
   onNavigate,
 }: {
   groups: DashboardNavGroup[];
-  /** Groups whose visibility depends on the signed-in user, rendered last. */
-  trailing?: React.ReactNode;
   className?: string;
   hidden?: boolean;
   id?: string;
@@ -193,7 +179,6 @@ function DashboardNav({
         {groups.map((group) => (
           <DashboardNavGroupView key={group.label} group={group} onNavigate={onNavigate} />
         ))}
-        {trailing}
       </div>
     </nav>
   );
@@ -230,50 +215,6 @@ function DashboardNavGroupView({
         ))}
       </div>
     </div>
-  );
-}
-
-// The admin link is a convenience only; /dashboard/admin and /api/admin/*
-// re-check admin membership on the server. Reading the client user suspends,
-// so this stays behind its own boundary and the rest of the nav paints first.
-function AdminNavGroup({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  return (
-    <Suspense fallback={null}>
-      <AdminNavGroupContent pathname={pathname} onNavigate={onNavigate} />
-    </Suspense>
-  );
-}
-
-function AdminNavGroupContent({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  const t = useTranslations("dashboard.nav");
-  const user = useUser({ or: "return-null" });
-  if (!isAdminUser(user)) return null;
-  return (
-    <DashboardNavGroupView
-      group={{
-        label: t("adminGroup"),
-        items: [
-          {
-            href: "/dashboard/admin",
-            label: t("adminPro"),
-            active: pathname.startsWith("/dashboard/admin"),
-          },
-        ],
-      }}
-      onNavigate={onNavigate}
-    />
   );
 }
 
