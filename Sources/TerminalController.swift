@@ -4094,6 +4094,7 @@ class TerminalController {
     nonisolated func v2VmCall(
         id: Any?,
         timeoutSeconds: TimeInterval = 17 * 60,
+        transportUnsupportedContext: (command: String, machineID: String)? = nil,
         _ work: @escaping () async throws -> [String: Any]
     ) -> String {
         let semaphore = DispatchSemaphore(value: 0)
@@ -4144,6 +4145,34 @@ class TerminalController {
                     message: message
                 )
             }
+            if let vmError = error as? VMClientError,
+               let context = transportUnsupportedContext,
+               Self.isCloudVMTransportUnsupportedError(vmError) {
+                let alternative = String(
+                    format: String(
+                        localized: "socket.cloudVM.transportUnsupported.useShell",
+                        defaultValue: "Use `cmux vm shell %1$@` or `cmux vm exec %2$@ -- <command>` instead."
+                    ),
+                    context.machineID,
+                    context.machineID
+                )
+                let message = String(
+                    format: String(
+                        localized: "socket.cloudVM.transportUnsupported",
+                        defaultValue: "`cmux %1$@` needs the `%2$@` transport, which %3$@ machines do not offer. %4$@"
+                    ),
+                    context.command,
+                    "cmux-remote",
+                    "base",
+                    alternative
+                )
+                return v2Error(
+                    id: id,
+                    code: "transport_unsupported",
+                    message: message,
+                    data: Self.cloudVMBackendErrorData(error)
+                )
+            }
             return v2Error(
                 id: id,
                 code: "vm_error",
@@ -4191,6 +4220,17 @@ class TerminalController {
         case .sessionRefreshFailed, .backendUnreachable, .malformedResponse:
             return false
         }
+    }
+
+    private nonisolated static func isCloudVMTransportUnsupportedError(_ error: VMClientError) -> Bool {
+        guard case let .httpStatus(status, body) = error, status == 501 else {
+            return false
+        }
+        guard let data = body.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            return false
+        }
+        return object["error"] as? String == "vm_attach_transport_unsupported"
     }
 
     nonisolated func v2AsyncResultCall(
