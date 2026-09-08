@@ -53,7 +53,7 @@ const messagesByLocale = {
 const supportEmail = "founders@manaflow.com";
 
 const traditionalChineseForbiddenCharacters = new Set(
-  [..."发帐复终运检销访云虚拟网浏览会话确认显码设备连团队楼库闭键证体执负载选项层优于环变导这过开关统实时间对纪仅转应为户响该线还标识组书电机盘继续断试级价计费审录读问无处们区条规则频现视许进评类题页个业专吗么让长别样后备宽"],
+  [..."发帐复终运检销访虚拟网浏览会话确认显码设备连团队楼库闭键证体执负载选项层优环变导这过开关统实时间对纪仅转应为户响该线还标识组书电机盘继续断试级价计费审录读问处们区条规则频现视许进评类题页个业专吗么让长别样备宽"],
 );
 
 // Long-form sentences that any genuine translation must render differently

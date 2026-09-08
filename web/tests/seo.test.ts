@@ -659,7 +659,7 @@ describe("SEO metadata helpers", () => {
         }
       }
     }
-  }, 30_000);
+  });
 
   test("uses deterministic code-point widths for Khmer metadata", async () => {
     const messages = await messagesFor("km");

@@ -225,6 +225,7 @@ function hasMatchingIcuStructure(source: string, translation: string): boolean {
   if (sourceAst && translationAst) {
     return isStructurallySame(sourceAst, translationAst).success;
   }
+  if (sourceAst && !translationAst) return false;
   const sourceSimplePlaceholders = matchingBraces(source).filter((token) =>
     /^[{][\w.-]+[}]$/u.test(token),
   );
@@ -514,6 +515,9 @@ async function main() {
     const locale = args[0] as ParityLocale | undefined;
     if (!locale || locale === "en") throw new Error("export requires a non-English locale");
     const batchSize = Number(args[1] ?? 100);
+    if (!Number.isInteger(batchSize) || batchSize < 1) {
+      throw new Error("export batch size must be a positive integer");
+    }
     const output = path.resolve(args[2] ?? "localization-batches");
     await exportEntries(locale, batchSize, output);
     return;
