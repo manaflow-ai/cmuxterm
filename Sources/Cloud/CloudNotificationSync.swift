@@ -110,11 +110,9 @@ enum CloudNotificationSyncReducer {
         let retained = Set(rows.map(\.id))
         var next = state
         next.delivered.removeAll { !retained.contains($0) }
-        next.pendingAcks = next.pendingAcks.compactMap { batch in
-            var batch = batch
-            batch.ids.removeAll { !retained.contains($0) }
-            return batch.ids.isEmpty ? nil : batch
-        }
+        // Pending acks are never pruned here: the daemon answers an evicted
+        // id with `unknown`, which completes the batch, and dropping a batch
+        // locally would lose a read that was recorded before the rows arrived.
         let delivered = Set(next.delivered)
         let pending = next.pendingIDs
         var deliver: [CloudVMNotificationRow] = []
@@ -128,9 +126,12 @@ enum CloudNotificationSyncReducer {
         return Plan(deliver: deliver, state: next)
     }
 
-    /// Record local reads. Only rows the daemon still retains and this client
-    /// has not already acknowledged form a new batch; the batch key is minted
-    /// once and survives retries.
+    /// Record local reads. Ids already pending, or whose row is known to be
+    /// read by this client, are skipped; every other id forms a new batch,
+    /// including ids whose rows have not arrived yet (a read after launch
+    /// before the first snapshot). The daemon reports ids it no longer
+    /// retains as `unknown`, which completes the batch. The batch key is
+    /// minted once and survives retries.
     static func recordRead(
         ids: [String],
         rows: [CloudVMNotificationRow],
@@ -142,7 +143,8 @@ enum CloudNotificationSyncReducer {
         let pending = state.pendingIDs
         var batch: [String] = []
         for id in ids where !batch.contains(id) {
-            guard let row = byID[id], !row.isRead(by: clientID), !pending.contains(id) else { continue }
+            if pending.contains(id) { continue }
+            if let row = byID[id], row.isRead(by: clientID) { continue }
             batch.append(id)
         }
         guard !batch.isEmpty else { return state }
@@ -155,6 +157,24 @@ enum CloudNotificationSyncReducer {
         var next = state
         next.pendingAcks.removeAll { $0.key == key }
         return next
+    }
+
+    /// Read-your-write overlay: after the daemon confirmed a batch, the rows
+    /// it named carry this client until the feed delivers the same fact, so
+    /// the unread set cannot flicker back between the ack and its delta.
+    static func markingRead(
+        ids: [String],
+        clientID: String,
+        rows: [CloudVMNotificationRow]
+    ) -> [CloudVMNotificationRow] {
+        let acked = Set(ids)
+        return rows.map { row in
+            guard acked.contains(row.id), !row.readBy.contains(clientID) else { return row }
+            var row = row
+            row.readBy.append(clientID)
+            row.readBy.sort()
+            return row
+        }
     }
 
     /// Terminals with a notification this client has neither read nor
@@ -239,7 +259,9 @@ struct CloudNotificationDeliveryTarget: Equatable, Sendable {
 /// `notification.ack` round trip over the link.
 @MainActor
 final class CloudNotificationSync {
-    typealias Deliverer = @MainActor (CloudVMNotificationRow, CloudNotificationDeliveryTarget) -> Void
+    /// Returns false when the store declined the notification (muted
+    /// workspace, no store); the row then stays undelivered for a later fold.
+    typealias Deliverer = @MainActor (CloudVMNotificationRow, CloudNotificationDeliveryTarget) -> Bool
     typealias TargetResolver = @MainActor (CloudVMNotificationRow) -> CloudNotificationDeliveryTarget?
     typealias AckSender = @MainActor (CloudNotificationSyncState.PendingAck) async throws -> Void
     typealias UnreadObserver = @MainActor (Set<String>) -> Void
@@ -261,6 +283,9 @@ final class CloudNotificationSync {
     /// still delivers them once.
     private var flushTask: Task<Void, Never>?
     private var flushRequested = false
+    /// Set by `retire()`: a replaced sync must not write the shared per-machine
+    /// key after its provider is gone.
+    private var retired = false
 
     init(
         machineID: String,
@@ -298,10 +323,14 @@ final class CloudNotificationSync {
                 next.delivered.removeAll { $0 == row.id }
             }
         }
-        commit(next)
-        for (row, target) in placed {
-            deliver(row, target)
+        var undelivered: [String] = []
+        for (row, target) in placed where !deliver(row, target) {
+            undelivered.append(row.id)
         }
+        if !undelivered.isEmpty {
+            next.delivered.removeAll { undelivered.contains($0) }
+        }
+        commit(next)
         requestFlush()
     }
 
@@ -324,13 +353,22 @@ final class CloudNotificationSync {
         requestFlush()
     }
 
-    func forget() {
+    /// Stop writing on behalf of this machine. A replacement sync for the same
+    /// machine loads the durable state itself; this one must not overwrite
+    /// it from an in-flight flush.
+    func retire() {
+        retired = true
         flushTask?.cancel()
         flushTask = nil
+    }
+
+    func forget() {
+        retire()
         store.remove(machineID: machineID)
     }
 
     private func commit(_ next: CloudNotificationSyncState) {
+        guard !retired else { return }
         state = next
         store.save(next, machineID: machineID)
         let unread = CloudNotificationSyncReducer.unreadTerminalIDs(rows: rows, clientID: clientID, state: next)
@@ -369,6 +407,8 @@ final class CloudNotificationSync {
             } catch {
                 return
             }
+            if retired { return }
+            rows = CloudNotificationSyncReducer.markingRead(ids: batch.ids, clientID: clientID, rows: rows)
             commit(CloudNotificationSyncReducer.ackCompleted(key: batch.key, state: state))
         }
     }

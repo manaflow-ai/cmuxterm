@@ -58,6 +58,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// This machine's notification sync: VM rows in, local notifications and
     /// `notification.ack` round trips out. Fed after every accepted state.
     private(set) var notificationSync: CloudNotificationSync?
+    /// A local placement (a pane opening, a workspace binding) is a catalog
+    /// change, not a daemon state; it re-runs the fold so rows that had no
+    /// local target get delivered.
+    private var notificationPlacementObserver: NSObjectProtocol?
     let links: CloudMachineLinkManager
     unowned let catalog: SurfaceCatalog
     /// Invalidates suspended work when this provider is stopped or replaced.
@@ -188,7 +192,12 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         lifecycleGeneration &+= 1
         refreshGeneration &+= 1
         CloudNotificationSyncHub.shared.unregister(machineID: machineID)
+        notificationSync?.retire()
         notificationSync = nil
+        if let notificationPlacementObserver {
+            NotificationCenter.default.removeObserver(notificationPlacementObserver)
+            self.notificationPlacementObserver = nil
+        }
         changeWatcher?.cancel()
         changeWatcher = nil
         watchedLink = nil
@@ -1780,7 +1789,9 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             resolveTarget: { [weak self] row in self?.notificationDeliveryTarget(for: row) },
             deliver: { [weak self] row, target in self?.deliverNotification(row, to: target) },
             send: { [weak self] batch in
-                guard let self else { return }
+                // A vanished provider must not report success: the batch stays
+                // pending in the durable state for the replacement sync.
+                guard let self else { throw ProviderError.machineAsleep(machineID) }
                 let connected = try await self.links.connected(machineID: machineID)
                 guard let link = await self.links.link(machineID: machineID) else {
                     throw ProviderError.machineAsleep(machineID)
@@ -1798,6 +1809,16 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         )
         notificationSync = sync
         CloudNotificationSyncHub.shared.register(sync)
+        notificationPlacementObserver = NotificationCenter.default.addObserver(
+            forName: SurfaceCatalog.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let state = self.cloudState else { return }
+                self.syncNotifications(from: state)
+            }
+        }
     }
 
     private func syncNotifications(from state: CloudVMState) {
@@ -1840,10 +1861,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         return nil
     }
 
-    private func deliverNotification(_ row: CloudVMNotificationRow, to target: CloudNotificationDeliveryTarget) {
-        guard let store = AppDelegate.shared?.notificationStore else { return }
+    private func deliverNotification(_ row: CloudVMNotificationRow, to target: CloudNotificationDeliveryTarget) -> Bool {
+        guard let store = AppDelegate.shared?.notificationStore else { return false }
         let terminalTitle = row.terminalID.flatMap { cloudState?.lookupIndex.terminal(id: $0)?.title } ?? ""
-        let machineName = machineID
+        let machineName = summary.preferredName
         let subtitle: String
         if terminalTitle.isEmpty {
             subtitle = machineName
@@ -1854,7 +1875,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 machineName
             )
         }
-        _ = store.addNotification(
+        return store.addNotification(
             tabId: target.workspaceID,
             surfaceId: target.panelID,
             title: row.title,
@@ -1862,7 +1883,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             body: row.body,
             retargetsToLiveSurfaceOwner: target.panelID != nil,
             correlationKey: CloudNotificationCorrelation.key(machineID: machineID, notificationID: row.id)
-        )
+        ) != nil
     }
 
     private func watchChanges(link: CloudMachineLink, generation: UInt64) {

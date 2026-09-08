@@ -120,7 +120,8 @@ struct CloudNotificationSyncTests {
         let mint = { keys.removeFirst() }
 
         state = CloudNotificationSyncReducer.recordRead(ids: [a.id, a.id, "notification_unknown"], rows: rows, clientID: Self.me, state: state, newKey: mint)
-        #expect(state.pendingAcks == [.init(key: "k1", ids: [a.id])], "duplicates and unknown ids never enter a batch")
+        #expect(state.pendingAcks == [.init(key: "k1", ids: [a.id, "notification_unknown"])],
+                "duplicates collapse; an id without a known row still acks (the daemon answers `unknown`)")
         #expect(CloudNotificationSyncReducer.unreadTerminalIDs(rows: rows, clientID: Self.me, state: state) == [b.terminalID!],
                 "a is pending, so the tree no longer shows it as unread")
 
@@ -146,16 +147,33 @@ struct CloudNotificationSyncTests {
         #expect(none == next.state)
     }
 
-    @Test func evictionPrunesPendingIDsButKeepsTheRestOfTheBatch() {
+    @Test func evictionPrunesDeliveredButNeverAPendingAck() {
         let a = Self.row("a")
         let b = Self.row("b")
         var state = CloudNotificationSyncReducer.plan(rows: [a, b], clientID: Self.me, state: CloudNotificationSyncState()).state
         state = CloudNotificationSyncReducer.recordRead(ids: [a.id, b.id], rows: [a, b], clientID: Self.me, state: state, newKey: { "k" })
         let afterEviction = CloudNotificationSyncReducer.plan(rows: [b], clientID: Self.me, state: state).state
-        #expect(afterEviction.pendingAcks == [.init(key: "k", ids: [b.id])])
+        #expect(afterEviction.pendingAcks == [.init(key: "k", ids: [a.id, b.id])], "a read is never dropped locally")
+        #expect(afterEviction.delivered == [b.id])
         let allGone = CloudNotificationSyncReducer.plan(rows: [], clientID: Self.me, state: state).state
-        #expect(allGone.pendingAcks.isEmpty)
+        #expect(allGone.pendingAcks == state.pendingAcks)
         #expect(allGone.delivered.isEmpty)
+    }
+
+    @Test func readsBeforeTheFirstSnapshotStillAckAndAcksOverlayTheRows() {
+        // A restored banner is dismissed before any rows arrived.
+        let early = CloudNotificationSyncReducer.recordRead(
+            ids: ["notification_early"], rows: [], clientID: Self.me, state: CloudNotificationSyncState(), newKey: { "k1" }
+        )
+        #expect(early.pendingAcks == [.init(key: "k1", ids: ["notification_early"])])
+
+        // A confirmed ack overlays this client onto the rows until the feed says so.
+        let a = Self.row("a", readBy: ["mac-b"])
+        let overlaid = CloudNotificationSyncReducer.markingRead(ids: [a.id], clientID: Self.me, rows: [a, Self.row("b")])
+        #expect(overlaid[0].readBy == ["mac-a", "mac-b"])
+        #expect(overlaid[1].readBy.isEmpty)
+        let state = CloudNotificationSyncReducer.ackCompleted(key: "k1", state: early)
+        #expect(CloudNotificationSyncReducer.unreadTerminalIDs(rows: overlaid, clientID: Self.me, state: state) == [Self.row("b").terminalID!])
     }
 
     @Test @MainActor func correlationKeysRoundTripThroughTheLocalStore() throws {
@@ -289,6 +307,7 @@ struct CloudNotificationSyncTests {
             var acked: [String: [String]] = [:] // key -> ids
             var sendFails = false
             var hasPlacement = true
+            var declineDelivery = false
             var unread: Set<String> = []
         }
         let effects = Effects()
@@ -303,7 +322,11 @@ struct CloudNotificationSyncTests {
                 store: store,
                 newKey: { keyCounter += 1; return "k\(keyCounter)" },
                 resolveTarget: { _ in effects.hasPlacement ? CloudNotificationDeliveryTarget(workspaceID: workspace, panelID: nil) : nil },
-                deliver: { row, _ in effects.delivered.append(row.id) },
+                deliver: { row, _ in
+                    if effects.declineDelivery { return false }
+                    effects.delivered.append(row.id)
+                    return true
+                },
                 send: { batch in
                     if effects.sendFails { throw CancellationError() }
                     effects.acked[batch.key, default: []] += batch.ids
@@ -355,6 +378,8 @@ struct CloudNotificationSyncTests {
                 await Task.yield()
             case 7:
                 effects.hasPlacement.toggle()
+            case 9:
+                effects.declineDelivery.toggle()
             case 8:
                 // Restart: a fresh sync over the durable store.
                 sync = makeSync()
