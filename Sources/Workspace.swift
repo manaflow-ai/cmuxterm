@@ -8251,52 +8251,20 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
     }
 
-    private func normalizedTerminalStartupWorkingDirectory(
-        _ workingDirectory: String?,
-        preserveExact: Bool = false
-    ) -> String? {
-        guard let workingDirectory else { return nil }
-        if preserveExact {
-            return workingDirectory.isEmpty ? nil : workingDirectory
-        }
-        return TerminalWorkingDirectoryResolver.normalized(workingDirectory)
-    }
-
-    private func resolvedTerminalStartupWorkingDirectory(
+    func resolvedTerminalStartupWorkingDirectory(
         requestedWorkingDirectory: String?,
         sourcePanelId: UUID?,
         preserveExact: Bool = false
     ) -> String? {
-        if let requested = normalizedTerminalStartupWorkingDirectory(
-            requestedWorkingDirectory,
-            preserveExact: preserveExact
-        ) {
-            return requested
-        }
-        if let sourcePanelId,
-           let rescued = resumedAgentPaneWorkingDirectoryRescue(panelId: sourcePanelId) {
-            return rescued
-        }
-        var candidates: [String?] = [
-            sourcePanelId.flatMap { panelDirectories[$0] },
-            sourcePanelId.flatMap { terminalPanel(for: $0)?.requestedWorkingDirectory },
-        ]
-        if preserveExact,
-           let sourcePanelId,
-           isRemoteTerminalSurface(sourcePanelId),
-           let remoteInitialWorkingDirectory = terminalPanel(for: sourcePanelId)?.surface
-               .startupEnvironmentValue(Self.remoteInitialWorkingDirectoryEnvironmentKey) {
-            candidates.append(remoteInitialWorkingDirectory)
-        }
-        if !preserveExact {
-            candidates.append(currentDirectory)
-        }
-        if preserveExact {
-            return candidates.lazy.compactMap {
-                self.normalizedTerminalStartupWorkingDirectory($0, preserveExact: true)
-            }.first
-        }
-        return TerminalWorkingDirectoryResolver.firstAvailable(candidates)
+        RemoteTerminalWorkingDirectoryResolver.resolve(
+            requested: requestedWorkingDirectory, preserveExact: preserveExact,
+            rescued: sourcePanelId.flatMap { resumedAgentPaneWorkingDirectoryRescue(panelId: $0) },
+            panelDirectory: sourcePanelId.flatMap { panelDirectories[$0] },
+            requestedPanelDirectory: sourcePanelId.flatMap { terminalPanel(for: $0)?.requestedWorkingDirectory },
+            remoteInitialDirectory: preserveExact && sourcePanelId.map(isRemoteTerminalSurface) == true
+                ? sourcePanelId.flatMap { terminalPanel(for: $0)?.surface.startupEnvironmentValue(Self.remoteInitialWorkingDirectoryEnvironmentKey) } : nil,
+            currentDirectory: preserveExact ? nil : currentDirectory
+        )
     }
 
     /// The foreground-process cwd read consulted by
@@ -8847,10 +8815,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let remoteTerminalStartupCommand = suppressWorkspaceRemoteStartupCommand ? nil : remoteTerminalStartupCommand()
         let startupCommand = explicitInitialCommand ?? remoteTerminalStartupCommand
         let remoteStartupCommandForEnvironment = explicitInitialCommand == nil ? remoteTerminalStartupCommand : nil
-        let explicitRemoteInitialWorkingDirectory = normalizedTerminalStartupWorkingDirectory(
-            startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey],
-            preserveExact: true
-        )
+        let explicitRemoteInitialWorkingDirectory = RemoteTerminalWorkingDirectoryResolver.normalized(startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey], preserveExact: true)
         let newPanelID = UUID()
         let requestedRemotePTYSessionID = normalizedRemotePTYSessionID(remotePTYSessionID)
         let effectiveRemotePTYSessionID = requestedRemotePTYSessionID
@@ -8885,23 +8850,10 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
 
         // Resolve cwd as explicit request, source reported cwd, source requested
         // startup cwd, then workspace currentDirectory.
-        let splitWorkingDirectory = resolvedTerminalStartupWorkingDirectory(
-            requestedWorkingDirectory: workingDirectory,
-            sourcePanelId: panelId,
-            preserveExact: remoteStartupCommandForEnvironment != nil
-        )
-        let localWorkingDirectory: String?
-        if remoteStartupCommandForEnvironment != nil {
-            localWorkingDirectory = nil
-            effectiveStartupEnvironment.removeValue(forKey: Self.remoteInitialWorkingDirectoryEnvironmentKey)
-            if let splitWorkingDirectory {
-                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = splitWorkingDirectory
-            } else if let explicitRemoteInitialWorkingDirectory {
-                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = explicitRemoteInitialWorkingDirectory
-            }
-        } else {
-            localWorkingDirectory = splitWorkingDirectory
-        }
+        let cwdResolution = resolveRemoteTerminalWorkingDirectory(requestedWorkingDirectory: workingDirectory, sourcePanelId: panelId, startupEnvironment: effectiveStartupEnvironment, explicitRemoteInitialWorkingDirectory: explicitRemoteInitialWorkingDirectory, isRemoteStartup: remoteStartupCommandForEnvironment != nil, inheritWorkingDirectoryFallback: true, resolveLocalFallback: true)
+        let splitWorkingDirectory = cwdResolution.resolvedWorkingDirectory
+        let localWorkingDirectory = cwdResolution.localWorkingDirectory
+        effectiveStartupEnvironment = cwdResolution.startupEnvironment
 #if DEBUG
         cmuxDebugLog(
             "split.cwd panelId=\(panelId.uuidString.prefix(5)) panelDir=\(panelDirectories[panelId] ?? "nil") requestedDir=\(terminalPanel(for: panelId)?.requestedWorkingDirectory ?? "nil") currentDir=\(currentDirectory) resolved=\(splitWorkingDirectory ?? "nil")"
@@ -9185,10 +9137,7 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         let remoteTerminalStartupCommand = suppressWorkspaceRemoteStartupCommand ? nil : remoteTerminalStartupCommand()
         let startupCommand = explicitInitialCommand ?? remoteTerminalStartupCommand
         let remoteStartupCommandForEnvironment = explicitInitialCommand == nil ? remoteTerminalStartupCommand : nil
-        let explicitRemoteInitialWorkingDirectory = normalizedTerminalStartupWorkingDirectory(
-            startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey],
-            preserveExact: true
-        )
+        let explicitRemoteInitialWorkingDirectory = RemoteTerminalWorkingDirectoryResolver.normalized(startupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey], preserveExact: true)
         let newPanelID = restoredSurfaceId ?? UUID()
         let requestedRemotePTYSessionID = normalizedRemotePTYSessionID(remotePTYSessionID)
         let effectiveRemotePTYSessionID = requestedRemotePTYSessionID
@@ -9213,32 +9162,9 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         }
         let fallbackSourcePanelId = workingDirectoryFallbackSourcePanelId
             ?? bonsplitController.selectedTab(inPane: paneId).map(\.id).flatMap(panelIdFromSurfaceId)
-        let requestedWorkingDirectory = inheritWorkingDirectoryFallback && startupCommand == nil
-            ? resolvedTerminalStartupWorkingDirectory(
-                requestedWorkingDirectory: workingDirectory,
-                sourcePanelId: fallbackSourcePanelId,
-                preserveExact: false
-            )
-            : workingDirectory
-        let localWorkingDirectory: String?
-        if remoteStartupCommandForEnvironment != nil {
-            localWorkingDirectory = nil
-            effectiveStartupEnvironment.removeValue(forKey: Self.remoteInitialWorkingDirectoryEnvironmentKey)
-            let remoteInitialWorkingDirectory = inheritWorkingDirectoryFallback
-                ? resolvedTerminalStartupWorkingDirectory(
-                    requestedWorkingDirectory: workingDirectory,
-                    sourcePanelId: fallbackSourcePanelId,
-                    preserveExact: true
-                )
-                : normalizedTerminalStartupWorkingDirectory(workingDirectory, preserveExact: true)
-            if let remoteInitialWorkingDirectory {
-                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = remoteInitialWorkingDirectory
-            } else if let explicitRemoteInitialWorkingDirectory {
-                effectiveStartupEnvironment[Self.remoteInitialWorkingDirectoryEnvironmentKey] = explicitRemoteInitialWorkingDirectory
-            }
-        } else {
-            localWorkingDirectory = requestedWorkingDirectory
-        }
+        let cwdResolution = resolveRemoteTerminalWorkingDirectory(requestedWorkingDirectory: workingDirectory, sourcePanelId: fallbackSourcePanelId, startupEnvironment: effectiveStartupEnvironment, explicitRemoteInitialWorkingDirectory: explicitRemoteInitialWorkingDirectory, isRemoteStartup: remoteStartupCommandForEnvironment != nil, inheritWorkingDirectoryFallback: inheritWorkingDirectoryFallback, resolveLocalFallback: inheritWorkingDirectoryFallback && startupCommand == nil)
+        let localWorkingDirectory = cwdResolution.localWorkingDirectory
+        effectiveStartupEnvironment = cwdResolution.startupEnvironment
 
         // Create new terminal panel. A restored panel reuses its persisted
         // surface id (the panel/surface id IS the ghostty surface id, a

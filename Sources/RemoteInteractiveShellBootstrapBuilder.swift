@@ -74,8 +74,7 @@ enum RemoteInteractiveShellBootstrapBuilder {
                 "CMUXCMUXFISH",
             ]
         }
-        outerLines.append(contentsOf: commonShellExportLines)
-        outerLines.append(contentsOf: remoteInitialWorkingDirectoryLines())
+        outerLines.append(contentsOf: commonShellExportLines + Self.remoteInitialWorkingDirectoryLines())
         outerLines += [
             "CMUX_LOGIN_SHELL=\"${SHELL:-/bin/zsh}\"",
             "if [ -z \"${CMUX_PERSISTENT_PTY_EXEC_HELPER:-}\" ] || [ ! -x \"$CMUX_PERSISTENT_PTY_EXEC_HELPER\" ]; then exit 126; fi",
@@ -269,24 +268,10 @@ enum RemoteInteractiveShellBootstrapBuilder {
             "cmux_ssh_attempt_id='__CMUX_SSH_ATTEMPT_ID__'",
             "case \"$cmux_ssh_attempt_id\" in \"\"|'__CMUX_''SSH_ATTEMPT_ID__') ;; *) export CMUX_SSH_ATTEMPT_ID=\"$cmux_ssh_attempt_id\" ;; esac",
             "unset cmux_workspace_id cmux_surface_id cmux_terminal_lifecycle_id cmux_ssh_attempt_id",
-        ])
-        lines.append(contentsOf: [
             "hash -r >/dev/null 2>&1 || true",
             "rehash >/dev/null 2>&1 || true",
         ])
         return lines
-    }
-
-    private static func remoteInitialWorkingDirectoryLines() -> [String] {
-        [
-            "cmux_remote_initial_cwd_b64='__CMUX_REMOTE_INITIAL_CWD_B64__'",
-            "if [ \"$cmux_remote_initial_cwd_b64\" = '__CMUX_''REMOTE_INITIAL_CWD_B64__' ]; then cmux_remote_initial_cwd_b64=''; fi",
-            "if [ -n \"$cmux_remote_initial_cwd_b64\" ]; then",
-            "  cmux_remote_initial_cwd=\"$(printf %s \"$cmux_remote_initial_cwd_b64\" | base64 -d 2>/dev/null || printf %s \"$cmux_remote_initial_cwd_b64\" | base64 -D 2>/dev/null || true)\"",
-            "  if [ -n \"$cmux_remote_initial_cwd\" ]; then cd \"$cmux_remote_initial_cwd\" 2>/dev/null || true; fi",
-            "fi",
-            "unset cmux_remote_initial_cwd_b64 cmux_remote_initial_cwd",
-        ]
     }
 
     static func terminalSetupLines(terminfoSource: String?) -> [String] {

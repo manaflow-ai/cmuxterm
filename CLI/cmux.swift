@@ -15320,37 +15320,12 @@ struct CMUXCLI {
         let explicitAttachmentID = Self.normalizedEnvValue(attachmentIDOpt)
         let surfaceID = environmentSurfaceID ?? (explicitAttachmentID.flatMap { UUID(uuidString: $0) == nil ? nil : $0 })
         let attachmentID = explicitAttachmentID ?? environmentSurfaceID ?? UUID().uuidString.lowercased()
-        let remoteInitialCWDB64: String
-        if let remoteInitialCWD = ProcessInfo.processInfo.environment["CMUX_REMOTE_INITIAL_CWD"],
-           !remoteInitialCWD.isEmpty {
-            remoteInitialCWDB64 = Data(remoteInitialCWD.utf8).base64EncodedString()
-        } else {
-            remoteInitialCWDB64 = ""
-        }
         let command: String? = try commandB64Opt.flatMap { encoded in
             guard let data = Data(base64Encoded: encoded),
                   var decoded = String(data: data, encoding: .utf8) else {
                 throw CLIError(message: "ssh-pty-attach: --command-b64 must be valid UTF-8 base64")
             }
-            decoded = decoded
-                .replacingOccurrences(of: "__CMUX_WORKSPACE_ID__", with: workspaceId)
-                .replacingOccurrences(
-                    of: "__CMUX_SURFACE_ID__",
-                    with: ProcessInfo.processInfo.environment["CMUX_SURFACE_ID"] ?? ""
-                )
-                .replacingOccurrences(
-                    of: "__CMUX_TERMINAL_LIFECYCLE_ID__",
-                    with: ProcessInfo.processInfo.environment["CMUX_TERMINAL_LIFECYCLE_ID"] ?? ""
-                )
-                .replacingOccurrences(
-                    of: "__CMUX_SSH_ATTEMPT_ID__",
-                    with: ProcessInfo.processInfo.environment["CMUX_SSH_ATTEMPT_ID"] ?? ""
-                )
-                .replacingOccurrences(
-                    of: "__CMUX_REMOTE_INITIAL_CWD_B64__",
-                    with: remoteInitialCWDB64
-                )
-            return decoded
+            return Self.applyingSSHPTYAttachBootstrapSubstitutions(to: decoded, workspaceID: workspaceId)
         }
         var bridgeReachedReady = false
         var sessionLostWillRespawn = false
