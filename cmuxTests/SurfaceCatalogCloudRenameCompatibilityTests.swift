@@ -129,4 +129,39 @@ struct SurfaceCatalogCloudRenameCompatibilityTests {
         #expect(catalog.pendingCloudWorkspaceRenameName(machine: machine, workspaceID: "ws") == nil)
         #expect(catalog.machines[machine]?.remoteWorkspaces?.first?.name == "remote")
     }
+
+    @Test("Typed cloud state applies optimistic rename overlays to pending workspaces")
+    func typedCloudStateAppliesRenameOverlayToPendingWorkspace() throws {
+        let machine = SurfaceMachineID.cloud("vivid-newt")
+        let catalog = SurfaceCatalog()
+        let provider = SurfaceCatalogTests.FakeProvider(machine: machine)
+        catalog.register(provider)
+
+        let snapshot: [String: Any] = [
+            "cursor": ["generation": "g1", "revision": "1"],
+            "workspaces": [["id": "canonical", "name": "canonical"]],
+            "screens": [],
+            "panes": [],
+            "tabs": [],
+            "terminals": [],
+            "browsers": [],
+            "agents": [],
+        ]
+        let state = try #require(CmuxTuiSnapshotParser.state(fromSnapshot: snapshot, machine: machine))
+        var info = provider.info
+        info.remoteWorkspaces = [
+            SurfaceRemoteWorkspace(id: "canonical", name: "canonical", index: 0, focused: true),
+            SurfaceRemoteWorkspace(id: "pending", name: "pending", index: 1, focused: false),
+        ]
+        catalog.replaceCloudState(state, resources: [], info: info)
+
+        let token = try catalog.beginCloudWorkspaceRename(
+            machine: machine,
+            workspaceID: "pending",
+            name: "renamed pending"
+        )
+
+        #expect(catalog.machines[machine]?.remoteWorkspaces?.map(\.name) == ["canonical", "renamed pending"])
+        catalog.rollbackCloudWorkspaceRename(token)
+    }
 }
