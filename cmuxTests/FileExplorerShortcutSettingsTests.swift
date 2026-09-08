@@ -454,6 +454,50 @@ private final class ShortcutNoopFileSearchController: FileSearchControlling {
         }
     }
 
+    @Test func resolvedPrefixChordCanCommitFileExplorerSearchTextSuffix() throws {
+        try withIsolatedShortcutSettings {
+            let appDelegate = try #require(AppDelegate.shared)
+            let chord = StoredShortcut(
+                first: ShortcutStroke(key: "b", command: true),
+                second: ShortcutStroke(key: "p")
+            )
+            KeyboardShortcutSettings.setShortcut(chord, for: .fileExplorerOpenSelection)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("cmux.about")
+            let searchField = FileExplorerSearchField(frame: NSRect(x: 20, y: 40, width: 240, height: 28))
+            searchField.fileExplorerPanelPlacement = .pane
+            var commitCount = 0
+            searchField.onCommit = { commitCount += 1 }
+            window.contentView = searchField
+            window.makeKeyAndOrderFront(nil)
+            defer { window.orderOut(nil) }
+            #expect(window.makeFirstResponder(searchField))
+
+            let event = try #require(makeKeyDownEvent(
+                shortcut: StoredShortcut(first: chord.secondStroke!),
+                windowNumber: window.windowNumber
+            ))
+            defer { appDelegate.clearShortcutEventFocusContextCache(for: event) }
+            let previousActionID = appDelegate.activeResolvedPrefixChordActionID
+            let previousPrefix = appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent
+            appDelegate.activeResolvedPrefixChordActionID =
+                KeyboardShortcutSettings.Action.fileExplorerOpenSelection.rawValue
+            appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = chord.firstStroke
+            defer {
+                appDelegate.activeResolvedPrefixChordActionID = previousActionID
+                appDelegate.activeConfiguredShortcutChordPrefixForCurrentEvent = previousPrefix
+            }
+
+            #expect(searchField.handleOpenSelectionShortcut(event))
+            #expect(commitCount == 1)
+        }
+    }
+
     private func withIsolatedShortcutSettings(_ body: () throws -> Void) rethrows {
         let originalSettingsFileStore = KeyboardShortcutSettings.installIsolatedTestFileStore(
             prefix: "cmux-file-explorer-shortcut-settings"
