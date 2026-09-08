@@ -308,6 +308,7 @@ public enum ControlCommandExecutionPolicy: Sendable, Equatable {
         // admission inside a global async lane that remains occupied through
         // queued terminal delivery.
         "workspace.agent_submit",
+        "surface.sync_codex_native_title",
         // The v2 resolution reads (tranche D of issue #5757) — the implicit
         // handle-normalization reads nearly every CLI invocation pays 1-3 of.
         // Their nonisolated coordinator bodies
