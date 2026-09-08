@@ -154,7 +154,10 @@ struct VMRemoteWorkspaceResolver: Sendable {
         in resource: [String: Any],
         workspaceID: String
     ) -> VMRemoteViewResolution {
-        if let views = resource["remote_views"] as? [[String: Any]] {
+        if resource.keys.contains("remote_views") {
+            guard let views = resource["remote_views"] as? [[String: Any]] else {
+                return .unavailable
+            }
             let matches = views.filter { view in
                 let workspace = view["workspace"] as? [String: Any]
                 return (workspace?["id"] as? String) == workspaceID
@@ -182,7 +185,7 @@ struct VMRemoteWorkspaceResolver: Sendable {
         }
         guard let workspace = resource["remote_workspace"] as? [String: Any],
               (workspace["id"] as? String) == workspaceID else {
-            return .notFound
+            return .unavailable
         }
         return .legacy
     }
