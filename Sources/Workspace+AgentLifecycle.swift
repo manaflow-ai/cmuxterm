@@ -312,6 +312,7 @@ extension Workspace {
             switch restoredAgentResumeStatesByPanelId[panelId] {
             case .some(.awaitingAutoResumeCommand):
                 restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
             case .some(.autoResumeCommandRunning), .some(.observedAgentCommandRunning),
                  .some(.completedAgentExit):
                 break
@@ -324,7 +325,9 @@ extension Workspace {
                 markRestoredAgentCompleted(panelId: panelId, snapshot: restoredAgent)
                 restoredResumeSessionWorkingDirectoriesByPanelId.removeValue(forKey: panelId)
                 retireAgentHookResumeBinding(panelId: panelId, matching: restoredAgent)
-            case .some(.awaitingAutoResumeCommand), .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
+            case .some(.awaitingAutoResumeCommand):
+                scheduleRestoredStartupInputResend(panelId: panelId)
+            case .some(.manualResumeAvailable), .some(.completedAgentExit), nil:
                 break
             }
         case .unknown:
@@ -339,6 +342,9 @@ extension Workspace {
         switch (shellState, restoredAgentResumeStatesByPanelId[panelId]) {
         case (.commandRunning, .some(.awaitingAutoResumeCommand)):
             restoredAgentLifecycle.setResumeState(.autoResumeCommandRunning, panelId: panelId)
+            restoredAgentLifecycle.clearStartupInput(panelId: panelId)
+        case (.promptIdle, .some(.awaitingAutoResumeCommand)):
+            scheduleRestoredStartupInputResend(panelId: panelId)
         case (.promptIdle, .some(.autoResumeCommandRunning)),
              (.promptIdle, .some(.observedAgentCommandRunning)):
             restoredAgentLifecycle.setResumeState(nil, panelId: panelId)
@@ -347,6 +353,73 @@ extension Workspace {
         default:
             break
         }
+    }
+
+    /// Grace period between a restored launch's shell settling at an idle prompt
+    /// and replaying its startup input. Long enough for a prompt-then-command
+    /// sequence to report `commandRunning`, short enough that a lost restore
+    /// still resumes before the user notices an empty shell.
+    static var restoredStartupInputResendGrace: TimeInterval = 2
+
+    /// Ghostty types a restored launch's startup input as soon as the PTY exists,
+    /// and a slow login shell can discard that typeahead while it initializes.
+    /// When shell integration then reports an idle prompt while the launch is
+    /// still `.awaitingAutoResumeCommand`, replay the retained input once after
+    /// the grace period (https://github.com/manaflow-ai/cmux/issues/5473).
+    func scheduleRestoredStartupInputResend(panelId: UUID) {
+        guard restoredAgentLifecycle.armStartupInputResend(panelId: panelId) else {
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.startupInput.resend.skip panel=\(panelId.uuidString.prefix(5)) " +
+                "state=\(String(describing: restoredAgentResumeStatesByPanelId[panelId])) " +
+                "awaits=\(restoredAgentLifecycle.awaitsStartupInput(panelId: panelId) ? 1 : 0)"
+            )
+#endif
+            return
+        }
+#if DEBUG
+        cmuxDebugLog("session.restore.startupInput.resend.armed panel=\(panelId.uuidString.prefix(5))")
+#endif
+        let grace = Self.restoredStartupInputResendGrace
+        DispatchQueue.main.asyncAfter(deadline: .now() + grace) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.resendRestoredStartupInputIfStillIdle(panelId: panelId)
+            }
+        }
+    }
+
+    func resendRestoredStartupInputIfStillIdle(panelId: UUID) {
+        let shellState = panelShellActivityStates[panelId] ?? .unknown
+        guard !isRetiredFromOwningTabManager,
+              let terminal = panels[panelId] as? TerminalPanel,
+              let input = restoredAgentLifecycle.takeStartupInputForResend(
+                  panelId: panelId,
+                  shellState: shellState
+              ) else {
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.startupInput.resend.declined panel=\(panelId.uuidString.prefix(5)) " +
+                "shell=\(shellState.rawValue) " +
+                "state=\(String(describing: restoredAgentResumeStatesByPanelId[panelId]))"
+            )
+#endif
+            return
+        }
+        // The idle prompt came from a live runtime; never queue the selector
+        // for some future shell of this pane.
+        guard terminal.surface.surface != nil else {
+#if DEBUG
+            cmuxDebugLog("session.restore.startupInput.resend.noRuntime panel=\(panelId.uuidString.prefix(5))")
+#endif
+            return
+        }
+        let result = terminal.sendInputResult(input)
+#if DEBUG
+        cmuxDebugLog(
+            "session.restore.startupInput.resend panel=\(panelId.uuidString.prefix(5)) " +
+            "result=\(result) bytes=\(input.utf8.count)"
+        )
+#endif
     }
 
     private func invalidateRestoredAgentSnapshot(
@@ -500,13 +573,20 @@ extension Workspace {
         ) != true else {
             return false
         }
-        let liveEntry = liveIndex.entryForStablePanel(
+        // Only an index entry for this very session can say it exited. A panel
+        // with no entry, or entries for other sessions only, means the scan has
+        // not caught up with a hook record written after it (routine on a busy
+        // Mac, where the next autosave used to retire a binding that was
+        // published seconds earlier, #5473). Treat that as unknown and keep it.
+        guard let sessionEntry = liveIndex.entryForStablePanel(
             workspaceId: id,
             panelId: panelId,
             revalidateProcessEvidence: false
-        )
+        )?.matchingAgentSession(kind: kind, sessionId: checkpointId) else {
+            return false
+        }
         return !AgentResumeLiveness.hasLiveProcess(
-            for: liveEntry,
+            for: sessionEntry,
             kind: kind,
             sessionId: checkpointId
         )
@@ -524,7 +604,8 @@ extension Workspace {
             snapshot: detached.restorableAgent,
             resumeState: detached.restorableAgentResumeState,
             completedGeneration: detached.restoredAgentCompletedGeneration,
-            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory
+            resumeWorkingDirectory: detached.restoredResumeSessionWorkingDirectory,
+            startupInput: detached.restoredStartupInput
         )
         adoptDetachedAgentLifecycleRecords(
             detached.agentLifecycleRecords,
@@ -845,16 +926,45 @@ extension Workspace {
         deferredAgentResumeRestoresByPanelId[panelId] = restore
         guard deferredAgentResumeIndexTask == nil else { return }
         deferredAgentResumeIndexTask = Task { @MainActor [weak self] in
-            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow()
+            let refreshed = await SharedLiveAgentIndex.shared.indexRefreshingNow()
             guard !Task.isCancelled else { return }
             guard let self else { return }
             self.deferredAgentResumeIndexTask = nil
+            // The settled refresh gives up after its bounded passes whenever
+            // hook stores keep changing, which is the steady state on a Mac
+            // running several agents. The most recent completed load is still
+            // current to within seconds and its process evidence is
+            // revalidated during resolution, so resolve against it instead of
+            // cancelling every restore: a cancel starts a plain shell, and the
+            // next relaunch then sees no running agent to resume (#5473).
+            let index = Self.deferredResumeIndex(
+                refreshed: refreshed,
+                lastKnown: SharedLiveAgentIndex.shared.index
+            )
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.deferred.index workspace=\(self.id.uuidString.prefix(5)) " +
+                "settled=\(refreshed == nil ? 0 : 1) available=\(index == nil ? 0 : 1) " +
+                "pending=\(self.deferredAgentResumeRestoresByPanelId.count)"
+            )
+#endif
             guard let index else {
-                self.clearDeferredAgentResumeRestores()
+                // No index has ever loaded. Start plain shells, but keep the
+                // bindings auto-resumable: this says nothing about the sessions.
+                self.clearDeferredAgentResumeRestores(retireBindings: false)
                 return
             }
             self.resolveDeferredAgentResumeRestores(using: index)
         }
+    }
+
+    /// The index a deferred restore resolves against: the settled refresh when
+    /// it completed, otherwise the most recent completed load.
+    nonisolated static func deferredResumeIndex(
+        refreshed: RestorableAgentSessionIndex?,
+        lastKnown: RestorableAgentSessionIndex?
+    ) -> RestorableAgentSessionIndex? {
+        refreshed ?? lastKnown
     }
 
     private func resolveDeferredAgentResumeRestores(
@@ -931,6 +1041,13 @@ extension Workspace {
                 nil
             }
             if let liveSessionOwner {
+#if DEBUG
+                cmuxDebugLog(
+                    "session.restore.deferred.liveOwner panel=\(panelId.uuidString.prefix(5)) " +
+                    "session=\(liveSessionOwner.sessionID.prefix(8)) pid=\(liveSessionOwner.processID)"
+                )
+#endif
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 let noticeInput = AgentRestoreLiveOwnerNotice(
                     processID: liveSessionOwner.processID
                 ).startupInput(
@@ -1066,10 +1183,19 @@ extension Workspace {
                 .awaitingAutoResumeCommand,
                 panelId: panelId
             )
+            let admittedInput = restore.remoteResumeCommandEmbedded ? nil : startupInput
+            restoredAgentLifecycle.registerStartupInput(admittedInput, panelId: panelId)
             let admitted = terminal.surface.admitStartupRestoreRuntime(
-                initialInput: restore.remoteResumeCommandEmbedded ? nil : startupInput
+                initialInput: admittedInput
             )
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.deferred.admit panel=\(panelId.uuidString.prefix(5)) " +
+                "admitted=\(admitted ? 1 : 0) inputBytes=\(admittedInput?.utf8.count ?? 0)"
+            )
+#endif
             if !admitted {
+                restoredAgentLifecycle.clearStartupInput(panelId: panelId)
                 if let ownedClaim {
                     AgentResumeLaunchGuard.shared.releaseResumeLaunch(
                         kind: ownedClaim.kind,
@@ -1115,8 +1241,19 @@ extension Workspace {
     func cancelDeferredAgentResumeRestore(
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
-        startRuntime: Bool = true
+        startRuntime: Bool = true,
+        retireBinding: Bool = true,
+        callerLine: Int = #line
     ) {
+#if DEBUG
+        cmuxDebugLog(
+            "session.restore.deferred.cancel panel=\(panelId.uuidString.prefix(5)) " +
+            "startRuntime=\(startRuntime ? 1 : 0) retireBinding=\(retireBinding ? 1 : 0) line=\(callerLine) " +
+            "session=\((restore.restorableAgent?.sessionId ?? restore.resumeBinding?.checkpointId ?? "-").prefix(8))"
+        )
+#endif
+        // A cancelled launch must never have its selector replayed later.
+        restoredAgentLifecycle.clearStartupInput(panelId: panelId)
         if startRuntime {
             (panels[panelId] as? TerminalPanel)?.surface.cancelStartupRestoreAdmission()
         } else {
@@ -1124,7 +1261,7 @@ extension Workspace {
             restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         }
         removeDeferredAgentResumeRestore(panelId: panelId)
-        if startRuntime, restore.restorableAgent == nil {
+        if startRuntime, retireBinding, restore.restorableAgent == nil {
             if let binding = restore.resumeBinding {
                 retireAgentHookResumeBinding(panelId: panelId, matching: binding)
             }
@@ -1198,7 +1335,7 @@ extension Workspace {
         retireAgentHookResumeBinding(panelId: panelId)
     }
 
-    func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
+    func clearDeferredAgentResumeRestores(startRuntime: Bool = true, retireBindings: Bool = true) {
         deferredAgentResumeIndexTask?.cancel()
         deferredAgentResumeIndexTask = nil
         let panelIds = Set(
@@ -1210,7 +1347,8 @@ extension Workspace {
                 cancelDeferredAgentResumeRestore(
                     panelId: panelId,
                     restore: restore,
-                    startRuntime: startRuntime
+                    startRuntime: startRuntime,
+                    retireBinding: retireBindings
                 )
             } else {
                 if startRuntime {
