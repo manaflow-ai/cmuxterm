@@ -1801,7 +1801,12 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     }
 
     private func syncNotifications(from state: CloudVMState) {
-        notificationSync?.apply(rows: CloudVMNotificationRow.rows(from: state))
+        guard let notificationSync else { return }
+        let rows = CloudVMNotificationRow.rows(from: state)
+        notificationSync.apply(rows: rows)
+        #if DEBUG
+        cmuxDebugLog("cloud.notifications.sync machine=\(machineID) revision=\(state.cursor?.revision.map(String.init) ?? "nil") rows=\(rows.count) unreadTerminals=\(notificationSync.unreadTerminalIDs.count) pending=\(notificationSync.state.pendingAcks.count)")
+        #endif
     }
 
     /// The pane showing the terminal when one is open on this Mac, else the
@@ -1937,6 +1942,9 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                 // A gap is the same synchronization barrier as a malformed event. Route it
                 // through the single bounded recovery owner so a burst of out-of-order events
                 // cannot start one full snapshot request per line.
+                #if DEBUG
+                cmuxDebugLog("cloud.state.deltaGap machine=\(machineID) previous=\(previousRevision) revision=\(revision) current=\(cloudState?.cursor?.revision.map(String.init) ?? "nil")")
+                #endif
                 scheduleStateRecoveryRefresh()
             case .installSnapshot:
                 guard let current = cloudState,
@@ -1947,6 +1955,11 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
                         to: current
                       ),
                       application.state.cursor == cursor else {
+                    #if DEBUG
+                    let kinds = ((try? JSONSerialization.jsonObject(with: payload) as? [String: Any])?["changes"] as? [[String: Any]])?
+                        .compactMap { "\($0["kind"] ?? "?"):\($0["resource"] ?? "?")" }.joined(separator: ",") ?? "?"
+                    cmuxDebugLog("cloud.state.deltaRejected machine=\(machineID) revision=\(revision) changes=\(kinds)")
+                    #endif
                     scheduleStateRecoveryRefresh()
                     return
                 }

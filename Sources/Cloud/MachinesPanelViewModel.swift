@@ -576,11 +576,18 @@ final class MachinesPanelViewModel: ObservableObject {
     func readCatalog() {
         catalog = SurfaceCatalog.shared.snapshot
         localWorkspaces = localWorkspacesProvider()
+        // The unread index and the catalog change on the same accepted daemon
+        // state, so a catalog read also refreshes it. Cheap: a dictionary read.
+        readUnreadTerminalIDs()
     }
 
     private func readUnreadTerminalIDs() {
         let unread = CloudNotificationSyncHub.shared.unreadTerminalIDs
-        if unread != unreadTerminalIDs { unreadTerminalIDs = unread }
+        guard unread != unreadTerminalIDs else { return }
+        #if DEBUG
+        cmuxDebugLog("cloud.notifications.panelUnread machines=\(unread.count) terminals=\(unread.values.reduce(0) { $0 + $1.count })")
+        #endif
+        unreadTerminalIDs = unread
     }
 
     /// The explicit Refresh verb: asks every provider to re-sync (machine list,

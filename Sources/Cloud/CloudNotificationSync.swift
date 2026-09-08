@@ -414,6 +414,9 @@ final class CloudNotificationSyncHub {
             guard unreadTerminalIDs[machineID] != terminalIDs else { return }
             unreadTerminalIDs[machineID] = terminalIDs
         }
+        #if DEBUG
+        cmuxDebugLog("cloud.notifications.unread machine=\(machineID) terminals=\(terminalIDs.count)")
+        #endif
         NotificationCenter.default.post(name: .cmuxCloudNotificationUnreadDidChange, object: nil)
     }
 
