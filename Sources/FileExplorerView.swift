@@ -1460,19 +1460,21 @@ final class FileExplorerContainerView: NSView {
     private func updateSearchLayout(hasContent: Bool? = nil, isLoading: Bool? = nil) {
         let effectiveHasContent = hasContent ?? !currentRootPath.isEmpty
         let effectiveIsLoading = isLoading ?? false
-        let showSearch = isSearchVisible && effectiveHasContent && !effectiveIsLoading
-        let nextSearchBarHeight = showSearch ? searchBarVisibleHeight : 0
+        let showSearchResults = isSearchVisible && effectiveHasContent && !effectiveIsLoading
+        let nextSearchBarHeight = isSearchVisible ? searchBarVisibleHeight : 0
 
         // Assigning isHidden/constraints unconditionally fires KVO even when unchanged,
         // which re-enters updateNSView and spins the main thread on macOS 26 (#4931).
         var changed = false
-        if applyHidden(searchBarView, !showSearch) { changed = true }
+        // Loading changes the results, not the editor's lifetime. Hiding the
+        // active search bar makes AppKit end editing and drops shortcut focus.
+        if applyHidden(searchBarView, !isSearchVisible) { changed = true }
         if searchBarHeightConstraint.constant != nextSearchBarHeight {
             searchBarHeightConstraint.constant = nextSearchBarHeight
             changed = true
         }
-        if applyHidden(searchScrollView, !showSearch) { changed = true }
-        if applyHidden(scrollView, showSearch || !effectiveHasContent || effectiveIsLoading) { changed = true }
+        if applyHidden(searchScrollView, !showSearchResults) { changed = true }
+        if applyHidden(scrollView, isSearchVisible || !effectiveHasContent || effectiveIsLoading) { changed = true }
         if changed {
             needsLayout = true
         }
