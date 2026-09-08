@@ -634,6 +634,11 @@ jobs:
       # thinning. The arm64 and x86_64 matrix artifacts are intentionally thin;
       # the universal invariant belongs at this pre-transformation boundary.
       - name: Verify universal Mach-O bundle before thinning
+        # The manually dispatched fast dogfood build is intentionally arm64-only
+        # from Xcode, so it cannot satisfy the pre-thinning universal invariant.
+        # Its post-thinning variant check below still verifies every bundled
+        # binary against the arm64 output.
+        if: env.NIGHTLY_FAST_BUILD != 'true'
         run: |
           set -euo pipefail
           ./scripts/verify-macos-bundle-architectures.sh \
