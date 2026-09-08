@@ -38,7 +38,7 @@ extension AppDelegate {
         let topologyChanged = MainWindowVisibleFrameFitCore()
             .trustedTopologySignature(of: displays)
             .map { didObserveUnknownVisibleFrameFitTopology || $0 != lastVisibleFrameFitTopologySignature }
-            ?? true
+            ?? false
         guard topologyChanged || fullscreenNeedsFit else { return }
 
         if fullscreenNeedsFit {
@@ -48,6 +48,6 @@ extension AppDelegate {
                 Self.screenChangeReconcileRetryLimit
             )
         }
-        reconcileMainWindowFramesAfterScreenChange()
+        scheduleScreenChangeReconcileWhenIdle()
     }
 }
