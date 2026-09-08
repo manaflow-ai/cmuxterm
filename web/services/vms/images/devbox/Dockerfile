@@ -313,7 +313,7 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' >> /etc/bash.bashrc \
   && echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' >> /etc/skel/.bashrc \
   && echo '[ -f /etc/cmux/agent-config.sh ] && . /etc/cmux/agent-config.sh' >> /root/.bashrc \
-  && mkdir -p /tmp/agent-config-check \
+  && rm -rf /tmp/agent-config-check && mkdir -p /tmp/agent-config-check \
   && env HOME=/tmp/agent-config-check OPENAI_BASE_URL=https://example.invalid/v1 OPENAI_API_KEY=cmux-vm-edge-placeholder CMUX_CODEROUTER_URL=https://example.invalid ANTHROPIC_BASE_URL=https://example.invalid ANTHROPIC_API_KEY=cmux-vm-edge-placeholder CMUX_VM_ID=vm-check bash -lc 'true' \
   && grep -q 'model_provider = "cmux"' /tmp/agent-config-check/.codex/config.toml \
   && grep -q 'base_url = "https://example.invalid/v1"' /tmp/agent-config-check/.codex/config.toml \
@@ -330,7 +330,7 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && ! grep -q 'x-coderouter-route-token' /tmp/agent-config-check/.pi/agent/models.json \
   && ! grep -q 'crt_' /tmp/agent-config-check/.pi/agent/models.json \
   && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json \
-  && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding && j.bypassPermissionsModeAccepted && j.projects["/"].hasTrustDialogAccepted && j.customApiKeyResponses.approved.includes("-vm-edge-placeholder"))) process.exit(1)' \
+  && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding === true && j.bypassPermissionsModeAccepted === true && j.projects["/"].hasTrustDialogAccepted === true && Array.isArray(j.customApiKeyResponses.approved) && j.customApiKeyResponses.approved.includes("-vm-edge-placeholder"))) process.exit(1)' \
   && [ "$(stat -c %a /tmp/agent-config-check/.claude.json)" = "600" ] \
   && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX:$DISABLE_AUTOUPDATER')" = "1:1:1" ] \
   && rm -rf /tmp/agent-config-check \
@@ -401,3 +401,10 @@ RUN chmod 0755 /etc/update-motd.d/00-cmux \
 # layers the image carries (verify-devbox-image.ts keys the desktop checks on
 # the word "desktop").
 RUN echo "cmux-devbox ${CMUX_IMAGE_EPOCH} desktop" > /etc/cmux/image-stamp && cat /etc/cmux/image-stamp
+
+# The login-shell probes above seeded ~/.claude.json before any model-plane
+# env existed. Ship no seed: each machine's first shell writes its own, with
+# the placeholder key approval derived from the env (Freestyle bake parity).
+RUN work_home="$(getent passwd 1000 | cut -d: -f6)" \
+  && rm -f /root/.claude.json "$work_home/.claude.json" \
+  && test ! -e /root/.claude.json && test ! -e "$work_home/.claude.json"
