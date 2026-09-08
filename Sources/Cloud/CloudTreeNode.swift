@@ -246,6 +246,9 @@ struct CloudTreeTerminalRow: Equatable {
     let resource: SurfaceResource
     let isOpen: Bool
     var viewBadge: Int?
+    /// The machine holds a notification for this terminal that this Mac has
+    /// not read (per-client read state from the daemon's `read_by`).
+    var hasUnreadNotification: Bool = false
     /// The exact daemon tab represented by a workspace pointer row. Pool rows
     /// leave this nil because one terminal may have several placement names.
     var remoteView: SurfaceRemoteView? = nil
@@ -346,6 +349,21 @@ enum CloudTreeNodeBuilder {
         private var openResources: Set<SurfaceResourceID> = []
         private var openPlacements: Set<RemotePlacementIdentity> = []
         private var workspaceCountsByResource: [SurfaceResourceID: [UUID: Int]] = [:]
+        /// Terminals whose machine holds a notification this Mac has not read.
+        private var unreadTerminals: Set<SurfaceResourceID> = []
+
+        init(snapshot: SurfaceCatalogSnapshot, unreadTerminalIDs: [String: Set<String>]) {
+            self.init(snapshot: snapshot)
+            for (machineID, terminalIDs) in unreadTerminalIDs {
+                for terminalID in terminalIDs {
+                    unreadTerminals.insert(SurfaceResourceID(machine: .cloud(machineID), kind: .terminal, key: terminalID))
+                }
+            }
+        }
+
+        func hasUnreadNotification(_ id: SurfaceResourceID) -> Bool {
+            unreadTerminals.contains(id)
+        }
 
         init(snapshot: SurfaceCatalogSnapshot) {
             let resourceByID = Dictionary(
@@ -528,9 +546,10 @@ enum CloudTreeNodeBuilder {
         pendingCreates: [MachineCreateOperation] = [],
         snapshot: SurfaceCatalogSnapshot,
         localWorkspaces: [CloudTreeLocalWorkspace],
+        unreadTerminalIDs: [String: Set<String>] = [:],
         includeLocalMachine: Bool = CloudTreeNodeBuilder.includesLocalMachine
     ) -> [CloudTreeNode] {
-        let projectionIndex = LocalProjectionIndex(snapshot: snapshot)
+        let projectionIndex = LocalProjectionIndex(snapshot: snapshot, unreadTerminalIDs: unreadTerminalIDs)
         var nodes: [CloudTreeNode] = []
         if includeLocalMachine, let local = snapshot.machines.first(where: { $0.id.isLocal }) {
             nodes.append(localMachineNode(
@@ -1031,6 +1050,7 @@ enum CloudTreeNodeBuilder {
                 resource: resource,
                 isOpen: projectionIndex.isOpen(resource.id, remoteView: remoteView),
                 viewBadge: viewBadge,
+                hasUnreadNotification: projectionIndex.hasUnreadNotification(resource.id),
                 remoteView: remoteView
             ))
         )

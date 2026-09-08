@@ -420,7 +420,7 @@ final class HostSettingsActions: SettingsHostActions {
     }
 
     func openCloudMachinesBilling() {
-        ProUpgradePresenter.present()
+        ProUpgradePresenter.present(source: .settingsCloudMachines)
     }
 
     func mobilePhonePushSettings() -> MobilePhonePushSettingsSnapshot {
