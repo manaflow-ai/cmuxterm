@@ -44,6 +44,22 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(result.text.contains("--tab and a pane side"), "\(result.text)")
     }
 
+    @Test(arguments: [["--json"], ["--sync"], ["--no-open"], ["--machine", "vm-agent-test"]])
+    func aliasesAcceptLeadingCanonicalOptions(options: [String]) throws {
+        for command in [["vm", "agent"], ["agent"], ["coderouter", "agent"]] {
+            let result = try runWithoutSocket(command + options + ["--agent", "claude", "--size", "1", "--", "reply pong"])
+            #expect(result.status != 0, "\(command): \(result.text)")
+            #expect(result.text.contains("vm agent: unknown size '1'"), "\(command): \(result.text)")
+        }
+    }
+
+    @Test
+    func topLevelAgentAliasReachesCanonicalValidation() throws {
+        let result = try runWithoutSocket(["agent", "claude", "--size", "1", "reply pong"])
+        #expect(result.status != 0, "\(result.text)")
+        #expect(result.text.contains("vm agent: unknown size '1'"), "\(result.text)")
+    }
+
     private func runWithoutSocket(_ arguments: [String]) throws -> (status: Int32, text: String) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("cmux-agent-help-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
