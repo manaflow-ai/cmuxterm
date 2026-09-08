@@ -244,55 +244,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff viewer manifest"
+            "value": "Could not load the diff viewer. Try again."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "差分ビューアのマニフェストが無効です"
+            "value": "差分ビューアを読み込めませんでした。もう一度お試しください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ungültiges Diff-Viewer-Manifest"
+            "value": "Der Diff-Viewer konnte nicht geladen werden. Versuchen Sie es erneut."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manifeste du visualiseur de diff non valide"
+            "value": "Impossible de charger le visualiseur de diff. Réessayez."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "بيان عارض الفروق غير صالح"
+            "value": "تعذر تحميل عارض الفروق. حاول مرة أخرى."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manifiesto del visor de diferencias no válido"
+            "value": "No se pudo cargar el visor de diferencias. Inténtalo de nuevo."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無效的 Diff 檢視器 Manifest"
+            "value": "無法載入差異檢視器。請再試一次。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无效的 Diff 查看器清单"
+            "value": "无法加载差异查看器。请重试。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "잘못된 Diff 뷰어 매니페스트"
+            "value": "차이 뷰어를 불러올 수 없습니다. 다시 시도하세요."
           }
         }
       }
@@ -303,55 +303,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff viewer token"
+            "value": "Could not open the diff viewer. Try again."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "差分ビューアのトークンが無効です"
+            "value": "差分ビューアを開けませんでした。もう一度お試しください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ungültiges Diff-Viewer-Token"
+            "value": "Der Diff-Viewer konnte nicht geöffnet werden. Versuchen Sie es erneut."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jeton du visualiseur de diff non valide"
+            "value": "Impossible d’ouvrir le visualiseur de diff. Réessayez."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "رمز عارض الفروق غير صالح"
+            "value": "تعذر فتح عارض الفروق. حاول مرة أخرى."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Token del visor de diferencias no válido"
+            "value": "No se pudo abrir el visor de diferencias. Inténtalo de nuevo."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無效的 Diff 檢視器 Token"
+            "value": "無法開啟差異檢視器。請再試一次。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无效的 Diff 查看器令牌"
+            "value": "无法打开差异查看器。请重试。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "잘못된 Diff 뷰어 토큰"
+            "value": "차이 뷰어를 열 수 없습니다. 다시 시도하세요."
           }
         }
       }
@@ -362,55 +362,55 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff viewer manifest is too large"
+            "value": "The diff is too large to display. Try opening fewer files."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "差分ビューアのマニフェストが大きすぎます"
+            "value": "差分が大きすぎるため表示できません。開くファイルの数を減らしてください。"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff-Viewer-Manifest ist zu groß"
+            "value": "Der Diff ist zu groß für die Anzeige. Versuchen Sie, weniger Dateien zu öffnen."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le manifeste du visualiseur de diff est trop grand"
+            "value": "Le diff est trop volumineux pour être affiché. Essayez d’ouvrir moins de fichiers."
           }
         },
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "بيان عارض الفروق كبير جداً"
+            "value": "حجم الفروق أكبر من أن يتم عرضه. حاول فتح عدد أقل من الملفات."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El manifiesto del visor de diferencias es demasiado grande"
+            "value": "Las diferencias son demasiado grandes para mostrarlas. Intenta abrir menos archivos."
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff 檢視器 Manifest 過大"
+            "value": "差異內容過大，無法顯示。請嘗試開啟較少的檔案。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff 查看器清单过大"
+            "value": "差异内容过大，无法显示。请尝试打开更少的文件。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff 뷰어 매니페스트가 너무 큽니다"
+            "value": "차이가 너무 커서 표시할 수 없습니다. 여는 파일 수를 줄여 보세요."
           }
         }
       }
