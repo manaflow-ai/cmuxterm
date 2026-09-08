@@ -85,6 +85,42 @@ import Testing
         #expect(await store.recentEvents().isEmpty)
     }
 
+    @Test(arguments: [true, false])
+    func retainedFileRoundTripsBeyondRequestedLoadBudget(useDefaultPolicy: Bool) async throws {
+        let fileURL = try makeTempFileURL()
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
+        let retention = useDefaultPolicy ? VaultHistoryRetentionPolicy.default : VaultHistoryRetentionPolicy(
+            maxStoredEvents: 20,
+            maxFileBytes: 8_192,
+            maxLoadBytes: 4_096
+        )
+        let titleBytes = useDefaultPolicy ? 750_000 : 1_300
+        let store = VaultHistoryEventStore(fileURL: fileURL, retention: retention)
+        for index in 0..<4 {
+            #expect(await store.append(event(
+                id: "e\(index)",
+                secondsAgo: TimeInterval(10 - index),
+                title: String(repeating: "x", count: titleBytes)
+            )))
+        }
+        let original = await store.recentEvents()
+        #expect(original.count == 4)
+        let bytes = try Data(contentsOf: fileURL).count
+        #expect(bytes > (useDefaultPolicy ? 2 * 1_024 * 1_024 : 4_096))
+        #expect(bytes <= retention.maxFileBytes)
+
+        let reloaded = VaultHistoryEventStore(fileURL: fileURL, retention: retention)
+        #expect(await reloaded.recentEvents().map(\.id) == original.map(\.id))
+        // An out-of-order append forces compaction; no retained older record
+        // may disappear just because it was outside the previous load budget.
+        let late = event(id: "late", secondsAgo: 8.5)
+        #expect(await reloaded.append(late))
+        let expected = (original + [late]).sorted(by: VaultHistoryEvent.newestFirst)
+        #expect(await reloaded.recentEvents().map(\.id) == expected.map(\.id))
+        let afterCompaction = VaultHistoryEventStore(fileURL: fileURL, retention: retention)
+        #expect(await afterCompaction.recentEvents().map(\.id) == expected.map(\.id))
+    }
+
     @Test func retentionCompactsFileAndKeepsNewestEvents() async throws {
         let fileURL = try makeTempFileURL()
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }

@@ -224,6 +224,50 @@ import Testing
         }
     }
 
+    @Test(arguments: [true, false])
+    func closedWindowReopenRecordsOnlyUsableRestoredWindows(restoreSucceeds: Bool) async throws {
+        try await withWindowHistory { app, log in
+            let sourceId = app.createMainWindow(shouldActivate: false)
+            let manager = try #require(app.tabManagerFor(windowId: sourceId))
+            let workspace = try #require(manager.selectedWorkspace)
+            var workspaceSnapshot = workspace.sessionSnapshot(includeScrollback: false)
+            if !restoreSucceeds {
+                var panel = try #require(workspaceSnapshot.panels.first)
+                // This panel advertises restorable content, but lacks the
+                // payload needed to recreate it. Restoration returns no map.
+                panel.type = .markdown
+                panel.terminal = nil
+                panel.markdown = nil
+                workspaceSnapshot.panels = [panel]
+                workspaceSnapshot.layout = .pane(SessionPaneLayoutSnapshot(
+                    panelIds: [panel.id], selectedPanelId: panel.id
+                ))
+            }
+            let snapshot = SessionWindowSnapshot(
+                windowId: sourceId,
+                frame: nil,
+                display: nil,
+                tabManager: SessionTabManagerSnapshot(selectedWorkspaceIndex: 0, workspaces: [workspaceSnapshot]),
+                sidebar: SessionSidebarSnapshot(isVisible: true, selection: .tabs, width: nil)
+            )
+            #expect(snapshot.hasRestorablePanels)
+            let record = ClosedItemHistoryRecord(entry: .window(ClosedWindowHistoryEntry(snapshot: snapshot)))
+            ClosedItemHistoryStore.shared.push(record)
+            defer { _ = ClosedItemHistoryStore.shared.removeRecord(id: record.id) }
+            #expect(app.closeMainWindow(windowId: sourceId, recordHistory: false))
+            await log.flushPendingRecords()
+            let priorIds = Set(await log.recentEvents().map(\.id))
+
+            // Exercise the actual reopen/validation/discard path, including
+            // the fallback workspace created when panel restoration fails.
+            #expect(app.reopenClosedHistoryItem(id: record.id, shouldActivate: false) == restoreSucceeds)
+            #expect(app.mainWindowContexts.count == (restoreSucceeds ? 1 : 0))
+            await log.flushPendingRecords()
+            let reopenedEvents = await log.recentEvents().filter { !priorIds.contains($0.id) }
+            #expect(reopenedEvents.map(\.kind) == (restoreSucceeds ? [.windowOpened] : []))
+        }
+    }
+
     @Test(arguments: ["cmux.cloudVM", "cmux.newWorkspace", "cmux.newAgentChat"])
     func configuredWorkspaceActionRecordsOnlyItsRetainedWorkspace(actionId: String) async throws {
         var createdId: UUID?
