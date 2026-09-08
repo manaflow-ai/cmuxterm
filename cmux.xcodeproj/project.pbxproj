@@ -1891,6 +1891,8 @@
 		B873F9235DE54B9FCA435A3A /* NextTransportMintRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */; };
 		9A71FDA9C5AB5BAD95716FF6 /* NextTransportRelayCredentialCachePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */; };
 		509FF536E69C5AA4B245928F /* NextTransportRelayPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */; };
+		50F3D3A9946F442327C95159 /* NextTransportSecureStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */; };
+		8940877D58F49667D6421AF5 /* NextTransportSecureStoreFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */; };
 		734F49D37E543DD01C2F4FEF /* NotificationAndMenuBarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C075029771815DD5DA1332 /* NotificationAndMenuBarTests.swift */; };
 		C06552010000000000000003 /* NotificationBurstCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06552010000000000000004 /* NotificationBurstCoalescer.swift */; };
 		7490C00D7490C00D7490C00D /* NotificationCacheMemoryPressureResponder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7490D00D7490D00D7490D00D /* NotificationCacheMemoryPressureResponder.swift */; };
@@ -5248,6 +5250,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 		62AF319279A8B2D819033F22 /* NextTransportMintRetryPolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportMintRetryPolicy.swift; sourceTree = "<group>"; };
 		26871075C15A3EC498158501 /* NextTransportRelayCredentialCachePolicy.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayCredentialCachePolicy.swift; sourceTree = "<group>"; };
 		901A251E032BA34EBD675927 /* NextTransportRelayPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextTransportRelayPlan.swift; sourceTree = "<group>"; };
+		05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportSecureStorageTests.swift; sourceTree = "<group>"; };
+		3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextTransportSecureStoreFixture.swift; sourceTree = "<group>"; };
 		D2C075029771815DD5DA1332 /* NotificationAndMenuBarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationAndMenuBarTests.swift; sourceTree = "<group>"; };
 		C06552010000000000000004 /* NotificationBurstCoalescer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBurstCoalescer.swift; sourceTree = "<group>"; };
 		7490D00D7490D00D7490D00D /* NotificationCacheMemoryPressureResponder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/NotificationCacheMemoryPressureResponder.swift; sourceTree = "<group>"; };
@@ -10167,6 +10171,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				A1B2C3D4E5F60718293A4C04 /* MobileHostOrderedInputTests.swift */,
 				F33200000000000000000001 /* MobileSimulatorReaderAttachmentTests.swift */,
 				C0DE73840000000000000002 /* MobileHostWorkspaceTicketAuthorizationTests.swift */,
+				3E3D4FF30AC560B1815ED82A /* NextTransportSecureStoreFixture.swift */,
+				05B550E263114F3A9FB70AE4 /* NextTransportSecureStorageTests.swift */,
 				E89538C5E739543A7B9E0E86 /* MobileHostWorkspaceTicketAuthorizationTests+NextTransport.swift */,
 				ABMDPARTRES0000000000002 /* MobilePanelArtifactResolutionTests.swift */,
 				B8B056D80000000000000002 /* MobileHostIdentityTests.swift */,
@@ -13709,6 +13715,8 @@ B8B056D80000000000000002 /* MobileHostIdentityTests.swift */ = {isa = PBXFileRef
 				D5EB22366F37AB2B52CD4B2A /* NewMachineModelTests.swift in Sources */,
 				EBEEFD57F5B44FD3D569C2A7 /* NewMachineModelUncappedPlanTests.swift in Sources */,
 				A5FB1400 /* NewWorkspaceMenuModelTests.swift in Sources */,
+				50F3D3A9946F442327C95159 /* NextTransportSecureStorageTests.swift in Sources */,
+				8940877D58F49667D6421AF5 /* NextTransportSecureStoreFixture.swift in Sources */,
 				734F49D37E543DD01C2F4FEF /* NotificationAndMenuBarTests.swift in Sources */,
 				D7AB00000000000000B021 /* NotificationDismissSyncTests.swift in Sources */,
 				C0DEFEE50000000000000001 /* NotificationFeedHistoryTests.swift in Sources */,
