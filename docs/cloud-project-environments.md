@@ -20,7 +20,11 @@ cmux vm dev -- bun test    # …and run this in it once it's ready
 1. **Route** — the sticky per-directory binding (`vm route`) picks the machine;
    provision on first use, reuse (warm deps) after.
 2. **Sync** — push the working tree to `work/<name>` (`vm push` chunking; default
-   excludes; later `--watch` for fs-event incremental sync).
+   excludes; `--watch` re-pushes on local change, mtime/size scan). Files that are
+   themselves secrets (deploy keys, kubeconfigs, `.npmrc` with a token) never
+   ride the exec channel: `vm push --secret <m> <file> <remote-path> [--mode]`
+   goes over the machine's link into `cmux file receive`, the same echo-off
+   receiver protocol as `vm env set`, and lands 0600 by an atomic rename.
 3. **Set up the environment** — the new part, below.
 4. **Name the workspace** — create/reuse a cmux-tui workspace on the machine named
    after the project (`vm workspace new`), so the sidebar and `vm tree` show

@@ -35,6 +35,7 @@ cmux vm stats <id>                     # CPU/mem/disk now; sleeping machines sta
 cmux vm tools <id>                     # which tools are installed
 cmux vm ports <id>                     # listening TCP ports inside the machine
 cmux vm handoff <id>                   # short attach block to paste to a human or another agent
+cmux vm self <id> [<path>] [--json]    # the machine's reflection through your session: index (name, machine, owner, team, paths) or peers | integrations | owner | machine
 
 # Guest-safe auth and CodeRouter commands (run inside a Cloud VM)
 cmux auth status [--json]              # daemon, TLS edge, and VM-bound route status
@@ -57,6 +58,9 @@ cmux self [--json]                     # who am I: name, id, status, team, owner
 cmux self peers|integrations|owner|machine [--json]   # reflection sub-resources (aliases: cmux whoami = cmux self, cmux reflect <path> = cmux self <path>)
 cmux vm ls [--json]                    # the owner's machines, this one marked *, reachable/linked/connected
 cmux terminal wait-exit <id> [--timeout <s>] [--json] | output <id> [--after <offset>] [--max-bytes <n>] [--json]
+cmux agent <a> [--timeout <s>] <args…>   # runs here, in this terminal, until it exits (it IS the wait; exit code passes through; --timeout caps it). Peers: cmux vm agent <peer> --agent <a> --wait [--output] [--timeout <s>] -- <prompt>
+cmux file receive <path> [--mode <octal>]   # the receiver `cmux vm push --secret` (Mac) and peer `cmux vm push` (machine) type into; not for hand use
+cmux vm push <peer> <local-file> <remote-path> [--mode <octal>]   # one file to a peer, always over the link (secret-safe by construction)
 ```
 
 Reflection (`https://coderouter.cmux.internal/api/vm/reflection`, also `https://reflection.cmux.internal/` on new machines) is how a machine identifies itself: the edge asserts the identity (the VM-bound route token), the guest holds no credential, and `/peers` lists the owner's other machines with their private routes so `cmux vm exec <peer>` works without any Mac step.
@@ -145,6 +149,8 @@ cmux vm agent --agent codex --machine <id> -- exec "summarize work/app"        #
 cmux vm agent --agent opencode --no-open --json -- "add a README"              # headless; {terminal_id, workspace_id, reattach}
 cmux vm agent --agent pi --name "pi: docs" --cwd ~/src/app --sync -- "write docs for src/"
 # agents: claude | codex | opencode | pi (preinstalled under /root/.npm-global/bin)
+cmux vm agent --agent claude --machine <id> --wait --output --timeout 1800 -- "fix the failing tests"   # block until the agent exits, then print everything it wrote; its exit code passes through (1 on timeout/signal)
+cmux vm run --machine <id> --wait --output -- sh -c 'bun test'    # accepted for symmetry: run already blocks on exec and prints the output
 
 cmux vm exec <id> -- <command...>      # one command; remote exit code passes through; 30 s default cap
 cmux vm exec <id> --timeout 600 -- <command...>   # up to 900 s for a build or a test run
@@ -155,6 +161,19 @@ cmux vm terminal wait-exit <id> "$t" --timeout 900     # exited code=0 | exited 
 cmux vm terminal output <id> "$t"                      # everything it printed; --json adds next_offset to resume from
 ```
 
+### `vm dev`: a folder to a running dev layout in one verb
+
+```bash
+cmux vm dev <id>                                   # route + sync cwd + detect the dev command + named workspace + layout + open
+cmux vm dev <id> ~/src/app --name app --port 3000  # explicit folder, workspace name (default: folder basename), port
+cmux vm dev <id> --command "make serve" --no-open  # your command; nothing opens on the Mac
+cmux vm dev <id> --layout dev.json --no-sync       # your layout document instead of the built-in one; skip the push
+cmux vm dev <id> --dry-run                         # print the plan and the exact layout document; zero socket traffic
+cmux vm dev <id> --json                            # {machine, workspace_id, workspace_name, existing, remote, synced_files, detected, command, port, url, terminals: {dev, shell}, layout_applied, opened, layout}
+```
+
+Detection: `--command` wins; else `package.json` `scripts.dev` (or `start`) → `<pm> install && <pm> run dev` with the package manager from the lockfile (bun, pnpm, yarn, npm), `Cargo.toml` → `cargo run`, `go.mod` → `go run .`, a `Makefile` with a `dev:` target → `make dev`, `manage.py` → `python manage.py runserver 0.0.0.0:8000`, `uv.lock` → `uv sync`, `pyproject.toml` → `pip install -e .`, `requirements.txt` → `pip install -r requirements.txt`, a bare `index.html` → `python3 -m http.server 8000`; otherwise a shell-only layout and a line saying so. The port comes from `--port`, else `-p`/`--port`/`PORT=` in the script line, else the framework's default (next/vite/astro…) when the script or dependencies name it. The built-in layout is a horizontal split (0.62): the dev command on the left, a shell (focused) on the right with a browser tab on `http://localhost:<port>` when a port is known. Re-running is idempotent: `workspace <name> (existing)`, and when that workspace already has live terminals the layout is kept (no second dev server). The `next:` lines are the `terminal output` / `terminal send` commands for the dev terminal.
+
 ## Files
 
 ```bash
@@ -162,9 +181,11 @@ cmux vm push <id> <local-path> [remote-path]        # file or directory (tarball
 cmux vm push <id> ./site --exclude dist             # extra excludes on top of defaults
 cmux vm push <id> ./repo --no-default-excludes      # include .git, node_modules, ...
 cmux vm pull <id> <remote-path> [local-path]        # file or directory back to local disk
+cmux vm push --secret <id> ./id_ed25519 ~/.ssh/id_ed25519 [--mode 600]   # ONE file that must never transit exec: over the machine's link into `cmux file receive` (0600 by default, 256 KiB cap)
+cmux vm push <id> ./site work/site --watch [--interval 1]              # keep pushing on change (mtime/size scan, same excludes); one `synced <n> files at HH:MM:SS` line per push; Ctrl-C exits 0
 ```
 
-Aliases: `upload` / `download`. Transfers ride the exec channel (no SSH), chunked base64, 256 MB cap; directories travel as tarballs and merge into the destination. Remote paths are relative to `/root` (the persistent volume).
+Aliases: `upload` / `download`. Transfers ride the exec channel (no SSH), chunked base64, 256 MB cap; directories travel as tarballs and merge into the destination. Remote paths are relative to `/root` (the persistent volume). `--secret` is the exception: like `vm env set`, it goes Mac → app → the machine's cmux-tui link → a receiver terminal (`cmux file receive <path>`) that turns echo off before it reads, writes to a temp file next to the destination and moves it into place atomically. Nothing appears in a command line, the control plane, the provider API, a screen or scrollback. It refuses directories and `--exclude`; use it for keys, tokens, kubeconfigs, `.npmrc` and the like.
 
 ## Layouts (the shape of a machine workspace)
 
@@ -229,6 +250,8 @@ cmux vm tui <id>                       # the FULL cmux-tui client in a pane (its
 
 ```bash
 cmux vm snapshot <id> [--name <name>]  # checkpoint; prints the snapshot id (alias: checkpoint)
+cmux vm snapshot ls <id> [--json]      # this machine's snapshots, newest first: <id>\t<created>\t<name|->
+cmux vm snapshot rm <id> <snapshot-id> # delete one (only a snapshot of THIS machine; a later `vm restore` of it answers not found)
 cmux vm fork <id> [--name <n>] [--detach]      # clone for a parallel experiment
 cmux vm restore <snapshot-id> [--detach]       # snapshot -> new tracked machine
 cmux vm promote-template <id>          # template-named snapshot for reuse
@@ -247,8 +270,10 @@ machine the installed `cmux` shim can run `cmux vm exec <dst> -- <command>`,
 `cmux vm send-key <dst> <term> <keys…>`, `cmux vm workspace new|rename|close|rm <dst> …`,
 `cmux vm agent <dst> --agent <a> [--name <n>] [--cwd <dir>] -- <prompt>` (a durable
 terminal on the peer running `cmux agent <a> …` with the peer's own CodeRouter config),
-`cmux vm layout export|apply <dst> …`, and `cmux vm env set|ls|rm <dst> …`; no
-control-plane credential enters a machine.
+`cmux vm layout export|apply <dst> …`, `cmux vm env set|ls|rm <dst> …`, and
+`cmux vm push <dst> <file> <remote-path>` (one file over the link, never through exec);
+`cmux vm agent <dst> … --wait --output` blocks until the peer's agent exits and prints what
+it wrote. No control-plane credential enters a machine.
 
 ## SSH (provider-dependent)
 

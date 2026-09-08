@@ -15,6 +15,16 @@ cmux vm tree                          # what is already running where (terminals
 
 ## 1. Cloud dev box from the local repo ("set it up like magic")
 
+One verb does the whole thing when the project has a recognizable dev command:
+
+```bash
+cmux vm dev <id>                       # route → push cwd → detect `bun run dev` (or cargo/go/django/make dev) → workspace named after the folder → dev pane + shell + browser tab → opened on the Mac with geometry
+cmux vm dev <id> --port 3000 --name app   # when the port is not in the script line, or you want another workspace name
+cmux vm push <id> . work/app --watch   # in a second terminal: keep the machine in sync while you edit locally
+```
+
+By hand, the same steps as separate primitives (use these when the dev command needs a pidfile, a database, or a seed step):
+
 ```bash
 cmux vm run --sync -- bun install                                # --sync runs inside the synced work/<dir>
 # idempotent dev server with a workspace-scoped pidfile/log
@@ -70,6 +80,16 @@ cmux vm tree "$(echo "$term" | jq -r '.machine')"                 # [agent claud
 
 The agent runs as a detached terminal in the machine's cmux-tui session: it keeps going if the pane closes, and `cmux vm open <reattach address>` brings it back (reusing the pane if one already shows it). Fan out by calling `vm agent` once per task with `--machine` pinned to different machines (or forks, §4) and watch them all in `cmux vm tree`.
 
+When you need the result, not the terminal, block until the agent is done and take its output in one call:
+
+```bash
+cmux vm agent --agent claude --machine <id> --sync --wait --output --timeout 1800 -- "run the suite, fix failures, commit on a branch" > agent.log; echo "exit=$?"
+# fan-out: start each without --wait, then wait on the terminals
+for t in $t1 $t2 $t3; do cmux vm terminal wait-exit <id> "$t" --timeout 1800; cmux vm terminal output <id> "$t" > "$t.log"; done
+```
+
+`--wait` polls the process (Ctrl-C stops your wait, not the agent), `--output` pages the full scrollback after exit, and the agent's exit code becomes yours (1 on a timeout or signal, with a line saying which).
+
 Inside the machine the agent authenticates like it would locally (its own login, or CodeRouter's env/config under `/root`, set once with `vm exec`). Never copy the user's tokens onto a machine unless they ask.
 
 ## 2b. Agents talking to agents (same machine, and across machines)
@@ -94,6 +114,8 @@ cmux vm terminal wait-exit reviewer <term> --timeout 1800                     # 
 cmux vm terminal output reviewer <term> | tail -n 40                          # what it said
 cmux vm exec reviewer -- cat /root/work/app/REVIEW.md
 cmux vm env set reviewer GITHUB_REPO=org/app                       # settings for the peer's shells
+cmux vm push reviewer ./deploy_key ~/.ssh/deploy_key --mode 600    # one file over the link into the peer's `cmux file receive`; never through exec
+cmux vm agent reviewer --agent codex --wait --output -- "summarize REVIEW.md in three lines"   # until-done on the peer
 cmux vm layout apply reviewer review-layout.json --name review     # a workspace on the peer, ready for the human
 ```
 

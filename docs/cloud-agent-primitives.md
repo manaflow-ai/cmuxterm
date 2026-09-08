@@ -109,8 +109,17 @@ The checklist an agent runs through, each item a primitive (not a doc):
    in-VM parity verbs (`cmux terminal|send-key|new-workspace|layout|env`,
    `cmux vm … <peer>`).
 2. ~~`vm env set|ls|rm`~~ shipped machine-local; control-plane/edge storage later.
-3. `vm dev` P1 (route+sync+detect+named workspace+layout) — unlocks goal 4 in
-   one verb; today it is a four-line recipe (route, push, env set, layout apply).
-4. `vm push --watch`, `vm repo clone`, recipe `services`.
-5. Push-notification forwarding for the ledger; `vm agent --until-done`,
-   `--fan-out`.
+3. ~~`vm dev` P1~~ shipped: route + sync + detect (`package.json` by lockfile,
+   cargo, go, django, uv, make dev) + named workspace (`--reuse`) + built-in or
+   `--layout` document + geometry-honoring open; `--command`/`--port` override.
+4. ~~`vm push --watch`~~ shipped (mtime/size scan, same excludes); `vm push --secret`
+   shipped (one file over the link into `cmux file receive`, the env receiver
+   generalized). Still open: `vm repo clone`, recipe `services`.
+5. ~~`vm agent --wait --output`~~ shipped on `vm agent`, `vm run`, and the in-VM
+   `cmux agent`/peer `cmux vm agent` (until-done, exit code passes through).
+   Still open: push-notification forwarding for the ledger, `--fan-out` (today:
+   one `vm agent` per task, then `terminal wait-exit` each).
+6. Identity: ~~reflection~~ shipped (`cmux self`, `cmux vm self <m>` on the Mac,
+   `GET /api/vm/reflection` ⊇ `/api/vm/self`, vanity alias). Still open:
+   per-peer authorization (the private network is the trust boundary today),
+   edge-injected git credentials.

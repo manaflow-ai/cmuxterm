@@ -25,6 +25,7 @@ cmux vm stats <id>            # live CPU/memory
 cmux vm ports <id>            # listening TCP ports inside the machine
 cmux vm tools <id>            # probe common tools inside the machine
 cmux vm tree [<machine>|local] [--refresh]
+cmux vm self <id> [<path>] [--json]   # the machine's reflection (name, owner, team, peers, integrations) through your session
 ```
 
 Create and name:
@@ -88,34 +89,38 @@ Run commands:
 
 ```bash
 cmux vm exec [--timeout <s>] <id> -- <command...>   # one command, 30 s default up to 900 s, exit code passes through
-cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
+cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] [--wait [--output]] -- <command...>
 cmux vm route [--cwd <dir>]              # print which machine vm run/agent would pick, and why
 cmux vm wait <id> [--timeout <seconds>] [--wake]
+cmux vm dev <id> [<folder>] [--name <ws>] [--layout <file>] [--command "<cmd>"] [--port <n>] [--remote <path>] [--no-sync] [--no-open]
 ```
 
-`vm run` needs no machine name: it reuses an idle pool machine, wakes a sleeping one, or provisions a fresh one (default timeout 600s, max 15 minutes). `--sync` pushes the current directory to `work/<basename>` first; `--pull` fetches a path back afterward. For longer work start a detached terminal via `vm agent`.
+`vm run` needs no machine name: it reuses an idle pool machine, wakes a sleeping one, or provisions a fresh one (default timeout 600s, max 15 minutes). `--sync` pushes the current directory to `work/<basename>` first; `--pull` fetches a path back afterward. For longer work start a detached terminal via `vm agent`. `vm dev` is the one-verb dev box: route, push the folder, detect the dev command (`package.json` scripts.dev by lockfile, `cargo run`, `go run .`, `manage.py runserver`, `make dev`), create or reuse a workspace named after the folder, apply a dev-pane + shell + browser layout, and open it on the Mac with geometry; `--command`/`--port` override detection, `--layout` replaces the built-in document.
 
 Coding agents on machines:
 
 ```bash
-cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] -- <prompt or args...>
+cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] [--wait [--output] [--timeout <s>]] -- <prompt or args...>
 ```
 
-The agent starts as a detached terminal in the machine's cmux-tui session: it keeps running when the pane closes, and `cmux vm open <machine>/<ws>/<term>` reattaches from any device. A bare prompt runs the agent's one-shot form; leading flags or known subcommands pass through verbatim. Credentials for cloud agents come from `cmux ai-accounts upload`.
+The agent starts as a detached terminal in the machine's cmux-tui session: it keeps running when the pane closes, and `cmux vm open <machine>/<ws>/<term>` reattaches from any device. A bare prompt runs the agent's one-shot form; leading flags or known subcommands pass through verbatim. Credentials for cloud agents come from `cmux ai-accounts upload`. `--wait` blocks until the agent's process exits (Ctrl-C stops the wait, not the agent), `--output` then prints everything it wrote, and the agent's exit code becomes yours (1 on timeout or signal). Without `--wait`, `cmux vm terminal wait-exit` + `terminal output` on the printed terminal id do the same later.
 
 Files:
 
 ```bash
-cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]...
+cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]... [--watch [--interval <s>]]
+cmux vm push --secret <id> <local-file> <remote-path> [--mode <octal>]   # one file over the machine's link, never through exec (0600, atomic, 256 KiB cap)
 cmux vm pull <id> <remote-path> [local-path]
 ```
 
-Directories travel as tarballs with default excludes (node_modules, .git, and similar); transfers are size-capped, so ship repos without build artifacts.
+Directories travel as tarballs with default excludes (node_modules, .git, and similar); transfers are size-capped, so ship repos without build artifacts. `--watch` re-pushes on local change (one line per push, Ctrl-C to stop). `--secret` is for keys, tokens and config files with credentials: like `vm env set`, it rides the end-to-end link into the machine's `cmux file receive`, which turns echo off before it reads, so the bytes never touch a command line, the control plane, the provider API, a screen or scrollback; it refuses directories.
 
 Snapshot, fork, restore:
 
 ```bash
 cmux vm snapshot <id> [--name <name>]
+cmux vm snapshot ls <id> [--json]        # this machine's snapshots, newest first
+cmux vm snapshot rm <id> <snapshot-id>   # delete one of this machine's snapshots
 cmux vm fork <id> [--name <name>]
 cmux vm restore <snapshot-id>
 ```
@@ -161,6 +166,8 @@ cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --
 cmux terminal wait-exit <term> --timeout 600 ; cmux terminal output <term>      # wait for the process to end, then read everything it printed
 cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
 cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
+cmux agent claude [--timeout <s>] "fix the tests"                                # runs in this terminal until it exits (it is the wait; exit code passes through)
+cmux file receive <path> [--mode <octal>]                                        # the receiver that `cmux vm push --secret` (Mac) and peer `cmux vm push` type into
 ```
 
 `cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux self peers` / `cmux vm ls` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
@@ -171,7 +178,8 @@ cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
 cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>
 cmux vm workspace new|rename|close|rm <peer> … ; cmux vm layout export|apply <peer> … ; cmux vm env set|ls|rm <peer> …
-cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] -- <prompt>   # a durable agent terminal on the peer
+cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--wait [--output]] -- <prompt>   # a durable agent terminal on the peer; --wait blocks until it exits
+cmux vm push <peer> <local-file> <remote-path> [--mode <octal>]   # one file to the peer, always over the link (secret-safe by construction)
 ```
 
 Peer commands require an existing grant and a compatible daemon. No control-plane credential lives in a VM. Connection readiness comes from daemon events, with a 30-second deadline and cancellation cleanup, not polling. Guest messages follow `LC_ALL`, `LC_MESSAGES`, then `LANG` (English or Japanese).

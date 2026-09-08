@@ -85,10 +85,12 @@ cmux surface new-terminal --machine <id> --no-open -- <cmd>
 
 ```bash
 cmux vm exec [--timeout <s>] <id> -- <command...>   # 既定 30 秒、最大 900 秒
-cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
+cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] [--wait [--output]] -- <command...>
 cmux vm route [--cwd <dir>]
 cmux vm wait <id> [--timeout <seconds>] [--wake]
-cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] -- <prompt or args...>
+cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] [--wait [--output] [--timeout <s>]] -- <prompt or args...>
+cmux vm dev <id> [<folder>] [--name <ws>] [--layout <file>] [--command "<cmd>"] [--port <n>] [--remote <path>] [--no-sync] [--no-open]
+cmux vm self <id> [<path>] [--json]   # マシンのリフレクション（名前、所有者、チーム、peers、integrations）
 ```
 
 `vm run` は空いているプールマシンを再利用し、必要なら起動または作成します。
@@ -97,13 +99,24 @@ cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cw
 `vm agent` で開始してください。引数の先頭が通常の文章ならワンショットの
 プロンプトとして実行し、フラグや既知のサブコマンドはそのまま渡します。
 クラウド用エージェントの認証設定は `cmux ai-accounts upload` で行います。
+`--wait` はエージェントのプロセスが終了するまで待ち（Ctrl-C は待機だけを止め、
+エージェントは止めません）、`--output` はその後に出力全体を表示し、終了コードは
+そのまま返ります（タイムアウトやシグナルは 1）。`vm dev` は 1 つの動詞で開発環境を
+用意します: ルーティング、フォルダの送信、開発コマンドの検出（`package.json` の
+`scripts.dev` をロックファイルに応じて bun/pnpm/yarn/npm、`cargo run`、`go run .`、
+`manage.py runserver`、`make dev`）、フォルダ名のワークスペースの作成または再利用、
+開発ペイン + シェル + ブラウザのレイアウト適用、そして Mac 側でジオメトリ付きで開きます。
+`--command`/`--port` は検出を上書きし、`--layout` は組み込みレイアウトを置き換えます。
 
 ## ファイルと保存
 
 ```bash
-cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]...
+cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]... [--watch [--interval <s>]]
+cmux vm push --secret <id> <local-file> <remote-path> [--mode <octal>]   # 1 ファイルをリンク経由で送る（exec を通らない、0600、アトミック、256 KiB まで）
 cmux vm pull <id> <remote-path> [local-path]
 cmux vm snapshot <id> [--name <name>]
+cmux vm snapshot ls <id> [--json]        # このマシンのスナップショット一覧（新しい順）
+cmux vm snapshot rm <id> <snapshot-id>   # このマシンのスナップショットを 1 つ削除
 cmux vm fork <id> [--name <name>]
 cmux vm restore <snapshot-id>
 cmux vm pause <id>    # 作業が終わったら停止（計算資源は止まり、ファイルとデーモン状態は残る）
@@ -113,6 +126,11 @@ cmux vm rm <id>
 
 ディレクトリは tar で転送し、`node_modules` や `.git` などを既定で除外します。
 転送サイズには制限があるため、ビルド成果物を含めないでください。
+`--watch` はローカルの変更を検知するたびに再送信します（1 回ごとに 1 行、Ctrl-C で終了）。
+`--secret` は鍵、トークン、認証情報を含む設定ファイル用です。`vm env set` と同じく
+エンドツーエンドのリンクでマシンの `cmux file receive` に届き、受信側は読み取り前に
+エコーを切るため、コマンドライン、コントロールプレーン、プロバイダー API、画面、
+スクロールバックのどこにもバイトが現れません。ディレクトリは拒否されます。
 保存・複製・復元は機能契約で対応を確認してください。`vm rm` は確認なしで
 不可逆に削除するため、このセッションで作成したマシン以外は、ユーザーが
 今回明示的に指定した場合のみ削除できます。
@@ -127,8 +145,12 @@ cmux self peers                      # 到達できる他のマシンとその�
 cmux vm ls                           # 所有者のマシン一覧（このマシンは *）
 cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait-exit <term> ; cmux terminal output <term>
 cmux layout apply --name app app.json ; cmux env set KEY=VALUE ; cmux notify --title 完了
+cmux agent claude [--timeout <s>] "テストを直して"   # このターミナルで終了まで実行（それ自体が待機。終了コードはそのまま）
+cmux file receive <path> [--mode <octal>]           # `cmux vm push --secret`（Mac）と他マシンの `cmux vm push` が書き込む受信側
 cmux vm exec <machine> -- <command>  # 他のマシンには Mac と同じ文法 cmux vm <verb> <machine> …
 cmux vm tree <machine>
+cmux vm push <machine> <local-file> <remote-path> [--mode <octal>]   # 1 ファイルを他のマシンへ、常にリンク経由
+cmux vm agent <machine> --agent codex --wait --output -- "…"        # 他のマシンのエージェントを終了まで待つ
 ```
 
 ローカル操作はマシン自身のセッションを使い、Mac と同じ動詞（`cmux send-key`、`cmux terminal send|read|wait|wait-exit|output`、`cmux layout …`、`cmux env …`、`cmux notify`）で操作します。他のマシンには Mac と同じ文法 `cmux vm <verb> <machine> …` を使います。接続先は `cmux self peers` で自動的に見つかり（所有者のプライベートネットワークが信頼境界なので Mac 側の手順は不要）、古い Mac 製の経路ファイルもそのまま使えます。アカウントの認証情報はマシンに保存しません。
