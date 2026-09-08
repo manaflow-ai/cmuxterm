@@ -732,10 +732,11 @@ export const vmWorkflowErrorResponders = {
       status: 503,
       message: "Cloud VM network enrollment is temporarily unavailable.",
       action: "Retry after the Cloud VM service has completed its database upgrade.",
-      reason: error.reason,
       phase: "network",
       retryable: true,
       retryAfterSeconds: 30,
+      // The reason names control-plane internals; it goes to operators only.
+      diagnostics: { reason: error.reason },
     }),
   VmAccessGrantRevokedError: () =>
     vmErrorResponse({
