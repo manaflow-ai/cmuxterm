@@ -759,6 +759,22 @@ fn terminal_project(
     super::mutation_result(mux, value, commit.revision, commit.replayed)
 }
 
+fn confirmed_terminal_write(
+    surface: &Surface,
+    bytes: &[u8],
+    operation: &str,
+) -> Result<(), ActionFailure> {
+    match surface.write_bytes_confirmed(bytes) {
+        Ok(()) => Ok(()),
+        Err(crate::surface::ConfirmedInputFailure::Known(error)) => Err(ActionFailure::Known(
+            ResourceError::operation_failed(operation, error.to_string(), json!({})),
+        )),
+        Err(crate::surface::ConfirmedInputFailure::Indeterminate(error)) => {
+            Err(ActionFailure::Indeterminate(error.to_string()))
+        }
+    }
+}
+
 fn terminal_write(surface: &Surface, fields: &Map<String, Value>) -> Result<(), ActionFailure> {
     let bytes = match (fields.get("text"), fields.get("bytes_base64")) {
         (Some(Value::String(text)), None) => text.as_bytes().to_vec(),
@@ -777,7 +793,7 @@ fn terminal_write(surface: &Surface, fields: &Map<String, Value>) -> Result<(), 
             )));
         }
     };
-    surface.write_bytes(&bytes).map_err(|error| ActionFailure::Indeterminate(error.to_string()))
+    confirmed_terminal_write(surface, &bytes, "terminal.input.write")
 }
 
 fn terminal_scroll_viewport(
@@ -826,7 +842,7 @@ fn terminal_keys(surface: &Surface, fields: &Map<String, Value>) -> Result<(), A
         .map_err(|error| ActionFailure::Known(resource_operation_error(error)))?
         .map_err(ActionFailure::Known)?;
     surface.scroll_to_bottom().map_err(|error| ActionFailure::Indeterminate(error.to_string()))?;
-    surface.write_bytes(&encoded).map_err(|error| ActionFailure::Indeterminate(error.to_string()))
+    confirmed_terminal_write(surface, &encoded, "terminal.input.keys")
 }
 
 fn terminal_mouse(surface: &Surface, fields: &Map<String, Value>) -> Result<(), ActionFailure> {
@@ -940,7 +956,7 @@ fn terminal_mouse(surface: &Surface, fields: &Map<String, Value>) -> Result<(), 
     if output.is_empty() {
         return Ok(());
     }
-    surface.write_bytes(&output).map_err(|error| ActionFailure::Indeterminate(error.to_string()))
+    confirmed_terminal_write(surface, &output, "terminal.input.mouse")
 }
 
 fn terminal_focus(surface: &Surface, fields: &Map<String, Value>) -> Result<(), ActionFailure> {
@@ -954,7 +970,7 @@ fn terminal_focus(surface: &Surface, fields: &Map<String, Value>) -> Result<(), 
         return Ok(());
     }
     let bytes: &[u8] = if focused { b"\x1b[I" } else { b"\x1b[O" };
-    surface.write_bytes(bytes).map_err(|error| ActionFailure::Indeterminate(error.to_string()))
+    confirmed_terminal_write(surface, bytes, "terminal.input.focus")
 }
 
 fn browser_key(surface: &Surface, fields: &Map<String, Value>) -> Result<(), ActionFailure> {

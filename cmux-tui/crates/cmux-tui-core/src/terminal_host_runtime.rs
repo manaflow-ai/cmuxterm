@@ -17,8 +17,9 @@ use crate::surface::{
     CLEAR_HISTORY_FALLBACK_UNREPRESENTABLE_ERROR, CLEAR_HISTORY_FALLBACK_WRITE_TIMEOUT_ERROR,
     CLEAR_HISTORY_PRESERVATION_ERROR, CLEAR_HISTORY_STREAM_TIMEOUT_ERROR,
     CLEAR_HISTORY_STREAM_WAIT_TIMEOUT, ClearHistoryDelivery, ClearHistoryFailure,
-    ClearHistoryTransition, DefaultColors, SurfaceOptions, TerminalStreamProgress,
-    apply_clear_history_transition, replace_ghostty_cursor_defaults, write_clear_history_fallback,
+    ClearHistoryTransition, ConfirmedInputFailure, DefaultColors, SurfaceOptions,
+    TerminalStreamProgress, apply_clear_history_transition, replace_ghostty_cursor_defaults,
+    write_clear_history_fallback,
 };
 use crate::terminal_host::{
     CapabilityRights, CapabilityStore, CapabilityToken, ClientHello, ClientRole, HostBootstrap,
@@ -153,6 +154,10 @@ pub struct TerminalHostRecord {
     /// hosts whose fire-and-forget Terminate command has no receipt.
     #[serde(default)]
     pub supports_terminate_ack: bool,
+    /// Additive control capability. Missing/false records belong to hosts that
+    /// accept fire-and-forget input but cannot confirm PTY delivery.
+    #[serde(default)]
+    pub supports_input_ack: bool,
 }
 
 impl std::fmt::Debug for TerminalHostRecord {
@@ -169,6 +174,7 @@ impl std::fmt::Debug for TerminalHostRecord {
             .field("supports_set_defaults", &self.supports_set_defaults)
             .field("supports_clear_history", &self.supports_clear_history)
             .field("supports_terminate_ack", &self.supports_terminate_ack)
+            .field("supports_input_ack", &self.supports_input_ack)
             .finish()
     }
 }
@@ -434,6 +440,14 @@ mod unix {
 
     static RECORD_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
     const HOST_TERMINATE_GRACE: Duration = Duration::from_millis(250);
+    // Match the remote PTY bridge's bounded outstanding-write precedent.
+    // This protects the local control-response waiter table from an unbounded
+    // burst of durable API input without serializing every receipt.
+    const MAX_PENDING_INPUT_ACKS: usize = 256;
+    // Keep the total outstanding receipted payload bounded too. Using the
+    // existing frame-payload ceiling preserves admission for one maximum-sized
+    // legal Input while preventing 256 such frames from accumulating.
+    const MAX_PENDING_INPUT_ACK_BYTES: usize = MAX_FRAME_PAYLOAD;
     const HOST_KILL_WAIT: Duration = Duration::from_secs(2);
     const HOST_PTY_DRAIN_GRACE: Duration = Duration::from_millis(250);
     const HOST_FORCED_DRAIN_WINDOW: Duration = Duration::from_millis(100);
@@ -826,10 +840,18 @@ mod unix {
     pub(crate) type DeferredCellPixelHandler =
         Arc<dyn Fn(u64, (u16, u16), DeferredCellPixelResolution) + Send + Sync + 'static>;
 
+    #[derive(Default)]
+    struct PendingInputAckWindow {
+        writes: usize,
+        bytes: usize,
+    }
+
     pub(crate) struct ControlResponses {
         waiters: Mutex<HashMap<u64, ControlResponseWaiter>>,
         deferred_cell_pixel_handler: Mutex<Option<DeferredCellPixelHandler>>,
         latest_cell_pixel_ack: AtomicU64,
+        pending_input_acks: Mutex<PendingInputAckWindow>,
+        input_ack_shutdown: Mutex<Option<Arc<UnixStream>>>,
     }
 
     impl ControlResponses {
@@ -838,6 +860,8 @@ mod unix {
                 waiters: Mutex::new(HashMap::new()),
                 deferred_cell_pixel_handler: Mutex::new(None),
                 latest_cell_pixel_ack: AtomicU64::new(0),
+                pending_input_acks: Mutex::new(PendingInputAckWindow::default()),
+                input_ack_shutdown: Mutex::new(None),
             }
         }
 
@@ -897,6 +921,56 @@ mod unix {
             }
         }
 
+        fn input_ack_shutdown_handle(
+            &self,
+            writer: &Mutex<UnixStream>,
+        ) -> std::io::Result<Arc<UnixStream>> {
+            let mut cached = self.input_ack_shutdown.lock().unwrap();
+            if let Some(shutdown) = cached.as_ref() {
+                return Ok(shutdown.clone());
+            }
+            let shutdown = Arc::new(writer.lock().unwrap().try_clone()?);
+            *cached = Some(shutdown.clone());
+            Ok(shutdown)
+        }
+
+        fn try_reserve_input_ack(&self, bytes: usize) -> bool {
+            if bytes > MAX_PENDING_INPUT_ACK_BYTES {
+                return false;
+            }
+            let mut pending = self.pending_input_acks.lock().unwrap();
+            if pending.writes >= MAX_PENDING_INPUT_ACKS
+                || bytes > MAX_PENDING_INPUT_ACK_BYTES.saturating_sub(pending.bytes)
+            {
+                return false;
+            }
+            pending.writes += 1;
+            pending.bytes += bytes;
+            true
+        }
+
+        fn release_input_ack(&self, bytes: usize) {
+            let mut pending = self.pending_input_acks.lock().unwrap();
+            debug_assert!(pending.writes > 0, "terminal input ACK reservation underflow");
+            debug_assert!(pending.bytes >= bytes, "terminal input ACK byte reservation underflow");
+            pending.writes = pending.writes.saturating_sub(1);
+            pending.bytes = pending.bytes.saturating_sub(bytes);
+        }
+
+        #[cfg(test)]
+        fn pending_input_acks_for_test(&self) -> (usize, usize) {
+            let pending = self.pending_input_acks.lock().unwrap();
+            (pending.writes, pending.bytes)
+        }
+
+        #[cfg(test)]
+        fn input_ack_shutdown_is_cached_for_test(&self, writer: &Mutex<UnixStream>) {
+            let first = self.input_ack_shutdown_handle(writer).unwrap();
+            let _writer_guard = writer.lock().unwrap();
+            let second = self.input_ack_shutdown_handle(writer).unwrap();
+            assert!(Arc::ptr_eq(&first, &second));
+        }
+
         fn defer_cell_pixel(&self, request_id: u64, expected: (u16, u16)) -> bool {
             let mut waiters = self.waiters.lock().unwrap();
             let Some(waiter) = waiters.get_mut(&request_id) else { return false };
@@ -937,6 +1011,64 @@ mod unix {
 
         pub(crate) fn latest_cell_pixel_ack(&self) -> u64 {
             self.latest_cell_pixel_ack.load(Ordering::Acquire)
+        }
+    }
+
+    pub(crate) struct InputAckReceipt {
+        request_id: u64,
+        receiver: Receiver<Frame>,
+        control_responses: Arc<ControlResponses>,
+        shutdown: Arc<UnixStream>,
+        bytes: usize,
+    }
+
+    impl InputAckReceipt {
+        fn abort_connection(&self) {
+            let _ = self.shutdown.shutdown(std::net::Shutdown::Both);
+        }
+
+        pub(crate) fn wait(self) -> std::io::Result<()> {
+            match self.receiver.recv_timeout(CONTROL_RESPONSE_TIMEOUT) {
+                Ok(frame) => {
+                    if !frame.payload.is_empty() {
+                        self.abort_connection();
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "terminal host returned a malformed input acknowledgement",
+                        ));
+                    }
+                    Ok(())
+                }
+                Err(error) => {
+                    self.control_responses.waiters.lock().unwrap().remove(&self.request_id);
+                    // Shutdown uses a separately cloned socket handle. A timed-out
+                    // receipt therefore does not wait behind another frame writer
+                    // before it can abort the broken attachment.
+                    self.abort_connection();
+                    let kind = match error {
+                        RecvTimeoutError::Timeout => std::io::ErrorKind::TimedOut,
+                        RecvTimeoutError::Disconnected => std::io::ErrorKind::ConnectionAborted,
+                    };
+                    Err(std::io::Error::new(
+                        kind,
+                        format!("terminal host did not acknowledge receipted input: {error}"),
+                    ))
+                }
+            }
+        }
+    }
+
+    impl Drop for InputAckReceipt {
+        fn drop(&mut self) {
+            let abandoned =
+                self.control_responses.waiters.lock().unwrap().remove(&self.request_id).is_some();
+            self.control_responses.release_input_ack(self.bytes);
+            if abandoned {
+                // A submitted request whose confirmation is abandoned can still
+                // produce a late targeted ACK. Close this attachment now rather
+                // than letting that late frame fail the production reader later.
+                self.abort_connection();
+            }
         }
     }
 
@@ -1047,6 +1179,81 @@ mod unix {
                 let _ = writer.shutdown(std::net::Shutdown::Both);
             }
             result
+        }
+
+        pub(crate) fn begin_input_confirmed(
+            &self,
+            payload: &[u8],
+        ) -> Result<InputAckReceipt, ConfirmedInputFailure> {
+            if !self.record.supports_input_ack {
+                return Err(ConfirmedInputFailure::Known(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "terminal host cannot acknowledge receipted input",
+                )));
+            }
+            if !self.control_responses.try_reserve_input_ack(payload.len()) {
+                return Err(ConfirmedInputFailure::Known(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "terminal host receipted-input window is full",
+                )));
+            }
+
+            let shutdown = self
+                .control_responses
+                .input_ack_shutdown_handle(&self.writer)
+                .map_err(|error| {
+                    self.control_responses.release_input_ack(payload.len());
+                    ConfirmedInputFailure::Known(error)
+                })?;
+
+            let request_id = self.next_request.fetch_add(1, Ordering::Relaxed);
+            if request_id == 0 {
+                self.control_responses.release_input_ack(payload.len());
+                return Err(ConfirmedInputFailure::Known(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "terminal host input request id exhausted",
+                )));
+            }
+            let (sender, receiver) = sync_channel(1);
+            {
+                let mut waiters = self.control_responses.waiters.lock().unwrap();
+                if waiters.contains_key(&request_id) {
+                    self.control_responses.release_input_ack(payload.len());
+                    return Err(ConfirmedInputFailure::Known(std::io::Error::new(
+                        std::io::ErrorKind::WouldBlock,
+                        "terminal host input request id collision",
+                    )));
+                }
+                waiters.insert(
+                    request_id,
+                    ControlResponseWaiter::Blocking { kind: MessageKind::InputAck, sender },
+                );
+            }
+
+            let mut frame = Frame::new(MessageKind::Input, payload.to_vec());
+            frame.version = self.protocol_version;
+            frame.request_id = request_id;
+            let write_result = {
+                let mut writer = self.writer.lock().unwrap();
+                let result = write_frame(&mut *writer, &frame).map_err(protocol_io_error);
+                if result.is_err() {
+                    let _ = writer.shutdown(std::net::Shutdown::Both);
+                }
+                result
+            };
+            if let Err(error) = write_result {
+                self.control_responses.waiters.lock().unwrap().remove(&request_id);
+                self.control_responses.release_input_ack(payload.len());
+                return Err(ConfirmedInputFailure::Indeterminate(error));
+            }
+
+            Ok(InputAckReceipt {
+                request_id,
+                receiver,
+                control_responses: self.control_responses.clone(),
+                shutdown,
+                bytes: payload.len(),
+            })
         }
 
         /// Update the authoritative parser defaults on a feature-advertising
@@ -3755,6 +3962,24 @@ mod unix {
             );
         }
 
+        fn write_input(&self, payload: &[u8], request_id: u64, target: &HostTap) -> bool {
+            let delivered = {
+                let mut writer = self.writer.lock().unwrap();
+                writer.write_all(payload).and_then(|()| writer.flush()).is_ok()
+            };
+            // Interactive input has always been best-effort. Only a nonzero
+            // request id asks the authoritative host to certify delivery.
+            if request_id == 0 {
+                return true;
+            }
+            if !delivered {
+                return false;
+            }
+            let mut response = Frame::new(MessageKind::InputAck, Vec::new());
+            response.request_id = request_id;
+            target.try_send(response)
+        }
+
         fn fence_client_detach(&self, client: u64, request_id: u64, target: &HostTap) -> bool {
             let mut response = Frame::new(MessageKind::DetachAck, Vec::new());
             response.request_id = request_id;
@@ -4873,6 +5098,7 @@ mod unix {
             supports_set_defaults: true,
             supports_clear_history: true,
             supports_terminate_ack: true,
+            supports_input_ack: true,
         };
         let record_root = Path::new(&launch.record_path)
             .parent()
@@ -5534,12 +5760,15 @@ mod unix {
                         command_host.mark_launch_owner_stream_ready();
                     }
                     MessageKind::Input => {
-                        if !granted_rights.contains(CapabilityRights::INPUT) {
+                        if !granted_rights.contains(CapabilityRights::INPUT)
+                            || !command_host.write_input(
+                                &frame.payload,
+                                frame.request_id,
+                                &command_sender,
+                            )
+                        {
                             break;
                         }
-                        let mut writer = command_host.writer.lock().unwrap();
-                        let _ = writer.write_all(&frame.payload);
-                        let _ = writer.flush();
                     }
                     MessageKind::Paste => {
                         if !granted_rights.contains(CapabilityRights::INPUT) {
@@ -6599,6 +6828,7 @@ mod unix {
                 supports_set_defaults: true,
                 supports_clear_history: true,
                 supports_terminate_ack: true,
+                supports_input_ack: true,
             };
             let record_path = record.record_path(&root);
             let lease = HostLivenessLease::acquire(liveness_path(&record_path, &record)).unwrap();
@@ -7055,6 +7285,241 @@ mod unix {
         }
 
         #[test]
+        fn receipted_input_waits_for_the_authoritative_pty_receipt() {
+            let (record_path, record, lease) = record_fixture("input-ack");
+            let root = record_path.parent().unwrap().to_path_buf();
+            let (client, mut host) = UnixStream::pair().unwrap();
+            let control_responses = Arc::new(ControlResponses::new());
+            let attachment = HostAttachment {
+                record,
+                record_path,
+                snapshot: HostSnapshot {
+                    cols: 80,
+                    rows: 24,
+                    cell_pixels: DEFAULT_CELL_PIXELS,
+                    replay: Vec::new(),
+                    kitty_image_aliases: Vec::new(),
+                    kitty_state: test_kitty_state(),
+                    sequence_boundary: 0,
+                    colors: TerminalColorOverrides::default(),
+                    pid: None,
+                    command: Vec::new(),
+                    cwd: None,
+                },
+                protocol_version: PROTOCOL_VERSION,
+                smart_renderer: true,
+                reader: None,
+                writer: Arc::new(Mutex::new(client)),
+                control_responses: control_responses.clone(),
+                next_request: AtomicU64::new(2),
+                viewer_size: Mutex::new(None),
+                launch_process: None,
+                launch_activation_pending: false,
+            };
+            let responder = thread::spawn(move || {
+                let request = read_frame(&mut host, MAX_FRAME_PAYLOAD).unwrap().unwrap();
+                assert_eq!(request.kind, MessageKind::Input);
+                assert_eq!(request.payload, b"owner-ack");
+                assert_ne!(request.request_id, 0);
+                let mut response = Frame::new(MessageKind::InputAck, Vec::new());
+                response.request_id = request.request_id;
+                assert!(control_responses.resolve(&response));
+            });
+
+            attachment.begin_input_confirmed(b"owner-ack").unwrap().wait().unwrap();
+            responder.join().unwrap();
+
+            drop(attachment);
+            drop(lease);
+            let _ = fs::remove_dir_all(root);
+        }
+
+        #[test]
+        fn receipted_input_never_reaches_a_legacy_host_without_ack_support() {
+            let (record_path, mut record, lease) = record_fixture("input-ack-legacy");
+            let root = record_path.parent().unwrap().to_path_buf();
+            record.supports_input_ack = false;
+            let (client, mut host) = UnixStream::pair().unwrap();
+            host.set_read_timeout(Some(Duration::from_millis(20))).unwrap();
+            let attachment = HostAttachment {
+                record,
+                record_path,
+                snapshot: HostSnapshot {
+                    cols: 80,
+                    rows: 24,
+                    cell_pixels: DEFAULT_CELL_PIXELS,
+                    replay: Vec::new(),
+                    kitty_image_aliases: Vec::new(),
+                    kitty_state: test_kitty_state(),
+                    sequence_boundary: 0,
+                    colors: TerminalColorOverrides::default(),
+                    pid: None,
+                    command: Vec::new(),
+                    cwd: None,
+                },
+                protocol_version: PROTOCOL_VERSION,
+                smart_renderer: true,
+                reader: None,
+                writer: Arc::new(Mutex::new(client)),
+                control_responses: Arc::new(ControlResponses::new()),
+                next_request: AtomicU64::new(2),
+                viewer_size: Mutex::new(None),
+                launch_process: None,
+                launch_activation_pending: false,
+            };
+
+            let error = match attachment.begin_input_confirmed(b"must-not-send") {
+                Ok(_) => panic!("legacy host accepted a receipted input request"),
+                Err(ConfirmedInputFailure::Known(error)) => error,
+                Err(ConfirmedInputFailure::Indeterminate(error)) => {
+                    panic!("legacy-host rejection became indeterminate: {error}")
+                }
+            };
+            assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+            let mut byte = [0u8; 1];
+            let read_error = host.read(&mut byte).unwrap_err();
+            assert!(matches!(
+                read_error.kind(),
+                std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+            ));
+
+            drop(attachment);
+            drop(lease);
+            let _ = fs::remove_dir_all(root);
+        }
+
+        #[test]
+        fn receipted_input_requests_can_pipeline_before_the_first_ack() {
+            let (record_path, record, lease) = record_fixture("input-ack-pipeline");
+            let root = record_path.parent().unwrap().to_path_buf();
+            let (client, mut host) = UnixStream::pair().unwrap();
+            let control_responses = Arc::new(ControlResponses::new());
+            let attachment = HostAttachment {
+                record,
+                record_path,
+                snapshot: HostSnapshot {
+                    cols: 80,
+                    rows: 24,
+                    cell_pixels: DEFAULT_CELL_PIXELS,
+                    replay: Vec::new(),
+                    kitty_image_aliases: Vec::new(),
+                    kitty_state: test_kitty_state(),
+                    sequence_boundary: 0,
+                    colors: TerminalColorOverrides::default(),
+                    pid: None,
+                    command: Vec::new(),
+                    cwd: None,
+                },
+                protocol_version: PROTOCOL_VERSION,
+                smart_renderer: true,
+                reader: None,
+                writer: Arc::new(Mutex::new(client)),
+                control_responses: control_responses.clone(),
+                next_request: AtomicU64::new(2),
+                viewer_size: Mutex::new(None),
+                launch_process: None,
+                launch_activation_pending: false,
+            };
+
+            let first = attachment.begin_input_confirmed(b"a").unwrap();
+            let first_request = read_frame(&mut host, MAX_FRAME_PAYLOAD).unwrap().unwrap();
+            assert_eq!(first_request.kind, MessageKind::Input);
+            assert_eq!(first_request.payload, b"a");
+
+            // The second request must enter the host channel before the first
+            // receipt is acknowledged. A stop-and-wait implementation cannot
+            // reach this point without resolving first_request.
+            let second = attachment.begin_input_confirmed(b"b").unwrap();
+            let second_request = read_frame(&mut host, MAX_FRAME_PAYLOAD).unwrap().unwrap();
+            assert_eq!(second_request.kind, MessageKind::Input);
+            assert_eq!(second_request.payload, b"b");
+            assert_ne!(first_request.request_id, second_request.request_id);
+
+            let mut second_ack = Frame::new(MessageKind::InputAck, Vec::new());
+            second_ack.request_id = second_request.request_id;
+            assert!(control_responses.resolve(&second_ack));
+            let mut first_ack = Frame::new(MessageKind::InputAck, Vec::new());
+            first_ack.request_id = first_request.request_id;
+            assert!(control_responses.resolve(&first_ack));
+
+            second.wait().unwrap();
+            first.wait().unwrap();
+            assert_eq!(control_responses.pending_input_acks_for_test(), (0, 0));
+
+            drop(attachment);
+            drop(lease);
+            let _ = fs::remove_dir_all(root);
+        }
+
+        #[test]
+        fn receipted_input_shutdown_handle_is_connection_scoped() {
+            let responses = ControlResponses::new();
+            let (writer, _peer) = UnixStream::pair().unwrap();
+            let writer = Mutex::new(writer);
+            responses.input_ack_shutdown_is_cached_for_test(&writer);
+        }
+
+        #[test]
+        fn receipted_input_window_is_bounded() {
+            let responses = ControlResponses::new();
+            for _ in 0..MAX_PENDING_INPUT_ACKS {
+                assert!(responses.try_reserve_input_ack(1));
+            }
+            assert!(!responses.try_reserve_input_ack(1));
+            assert_eq!(
+                responses.pending_input_acks_for_test(),
+                (MAX_PENDING_INPUT_ACKS, MAX_PENDING_INPUT_ACKS)
+            );
+            responses.release_input_ack(1);
+            assert!(responses.try_reserve_input_ack(1));
+            for _ in 0..MAX_PENDING_INPUT_ACKS {
+                responses.release_input_ack(1);
+            }
+            assert_eq!(responses.pending_input_acks_for_test(), (0, 0));
+
+            assert!(responses.try_reserve_input_ack(MAX_PENDING_INPUT_ACK_BYTES));
+            assert!(!responses.try_reserve_input_ack(1));
+            responses.release_input_ack(MAX_PENDING_INPUT_ACK_BYTES);
+            assert_eq!(responses.pending_input_acks_for_test(), (0, 0));
+            assert!(!responses.try_reserve_input_ack(MAX_PENDING_INPUT_ACK_BYTES + 1));
+        }
+
+        #[test]
+        fn interactive_input_keeps_fire_and_forget_semantics() {
+            let host = test_host_shared();
+            let (pty_writer, mut pty_reader) = UnixStream::pair().unwrap();
+            *host.writer.lock().unwrap() = Box::new(pty_writer);
+            let (target_socket, _target_peer) = UnixStream::pair().unwrap();
+            let (target_tx, target_rx) = mpsc_channel();
+            let target = HostTap::new(target_tx, Arc::new(target_socket), usize::MAX);
+
+            assert!(host.write_input(b"x", 0, &target));
+            let mut byte = [0u8; 1];
+            pty_reader.read_exact(&mut byte).unwrap();
+            assert_eq!(&byte, b"x");
+            assert!(target_rx.recv_timeout(Duration::from_millis(20)).is_err());
+        }
+
+        #[test]
+        fn host_input_receipt_follows_the_pty_write() {
+            let host = test_host_shared();
+            let (pty_writer, mut pty_reader) = UnixStream::pair().unwrap();
+            *host.writer.lock().unwrap() = Box::new(pty_writer);
+            let (target_socket, _target_peer) = UnixStream::pair().unwrap();
+            let (target_tx, target_rx) = mpsc_channel();
+            let target = HostTap::new(target_tx, Arc::new(target_socket), usize::MAX);
+
+            assert!(host.write_input(b"x", 42, &target));
+            let mut byte = [0u8; 1];
+            pty_reader.read_exact(&mut byte).unwrap();
+            assert_eq!(&byte, b"x");
+            let ack = target_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+            assert_eq!(ack.kind, MessageKind::InputAck);
+            assert_eq!(ack.request_id, 42);
+            assert!(ack.payload.is_empty());
+        }
+
+        #[test]
         fn terminate_waits_for_the_authoritative_host_receipt() {
             let (record_path, record, lease) = record_fixture("terminate-ack");
             let root = record_path.parent().unwrap().to_path_buf();
@@ -7429,6 +7894,7 @@ mod unix {
             legacy.supports_set_defaults = false;
             legacy.supports_clear_history = false;
             legacy.supports_terminate_ack = false;
+            legacy.supports_input_ack = false;
             let legacy_path = legacy.record_path(root);
             write_record(&legacy_path, &legacy).unwrap();
 
