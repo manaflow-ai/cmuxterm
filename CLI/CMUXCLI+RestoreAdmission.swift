@@ -130,10 +130,7 @@ extension CMUXCLI {
     /// seconds. Giving up immediately left a bare shell whose binding then
     /// retired, and the next relaunch had nothing to resume (#12084).
     enum RestoreAdmissionRetryPolicy {
-        /// Roughly 45 seconds of waiting, front-loaded so a brief storm costs
-        /// little and a longer one still resolves before the user notices.
-        static let delaysSeconds: [TimeInterval] = [0.5, 1, 2, 3, 5, 5, 5, 5, 5, 5, 5]
-
+        /// A structured v2 `busy` answer that the app marked retryable.
         static func isRetryable(_ error: Error) -> Bool {
             guard let error = error as? CLIError else { return false }
             return error.isStructuredProtocolResponse
@@ -141,25 +138,16 @@ extension CMUXCLI {
                 && error.v2Retryable
         }
 
-        /// Runs `send` until it succeeds, fails with a non-retryable error, or
-        /// the delay budget is spent; the last retryable error then propagates.
+        /// `AgentRestoreAdmissionRetry.response` with the CLI's error classifier.
         static func response(
-            delays: [TimeInterval] = delaysSeconds,
-            sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
             onRetry: (Int) -> Void = { _ in },
             sending send: () throws -> [String: Any]
         ) throws -> [String: Any] {
-            var attempt = 0
-            while true {
-                do {
-                    return try send()
-                } catch {
-                    guard isRetryable(error), attempt < delays.count else { throw error }
-                    onRetry(attempt)
-                    sleep(delays[attempt])
-                    attempt += 1
-                }
-            }
+            try AgentRestoreAdmissionRetry.response(
+                onRetry: onRetry,
+                isRetryable: isRetryable,
+                sending: send
+            )
         }
     }
 

@@ -1,3 +1,4 @@
+import CMUXAgentLaunch
 import Foundation
 import Testing
 
@@ -16,13 +17,12 @@ import Testing
 /// answer left a bare shell whose binding then retired, so resumes only worked
 /// once. The CLI now waits through a bounded delay budget.
 @Suite struct RestoreAdmissionRetryPolicyTests {
-    private static func busy(retryable: Bool = true) -> CLIError {
-        CLIError(
-            message: "busy: cmux could not verify whether this agent session is already running.",
-            v2Code: "busy",
-            isStructuredProtocolResponse: true,
-            v2Retryable: retryable
-        )
+    private struct AdmissionFailure: Error {
+        let retryable: Bool
+    }
+
+    private static func isRetryable(_ error: Error) -> Bool {
+        (error as? AdmissionFailure)?.retryable == true
     }
 
     @Test
@@ -31,17 +31,18 @@ import Testing
         var slept: [TimeInterval] = []
         var retriesAnnounced: [Int] = []
 
-        let response = try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+        let response = try AgentRestoreAdmissionRetry.response(
             delays: [0.5, 1, 2],
             sleep: { slept.append($0) },
-            onRetry: { retriesAnnounced.append($0) }
-        ) {
+            onRetry: { retriesAnnounced.append($0) },
+            isRetryable: Self.isRetryable
+        ) { () throws -> [String: Bool] in
             sends += 1
-            if sends < 3 { throw Self.busy() }
-            return ["admitted": true, "claim_id": UUID().uuidString]
+            if sends < 3 { throw AdmissionFailure(retryable: true) }
+            return ["admitted": true]
         }
 
-        #expect(response["admitted"] as? Bool == true)
+        #expect(response["admitted"] == true)
         #expect(sends == 3)
         #expect(slept == [0.5, 1])
         #expect(retriesAnnounced == [0, 1])
@@ -52,13 +53,14 @@ import Testing
         var sends = 0
         var slept: [TimeInterval] = []
 
-        #expect(throws: CLIError.self) {
-            try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+        #expect(throws: AdmissionFailure.self) {
+            try AgentRestoreAdmissionRetry.response(
                 delays: [0.5, 1],
-                sleep: { slept.append($0) }
-            ) {
+                sleep: { slept.append($0) },
+                isRetryable: Self.isRetryable
+            ) { () throws -> Bool in
                 sends += 1
-                throw Self.busy()
+                throw AdmissionFailure(retryable: true)
             }
         }
         #expect(sends == 3)
@@ -69,35 +71,27 @@ import Testing
     func nonRetryableFailuresAreNotRetried() {
         var sends = 0
         var slept: [TimeInterval] = []
-        let liveOwner = CLIError(
-            message: "conflict",
-            v2Code: "conflict",
-            isStructuredProtocolResponse: true
-        )
 
-        #expect(throws: CLIError.self) {
-            try CMUXCLI.RestoreAdmissionRetryPolicy.response(
+        #expect(throws: AdmissionFailure.self) {
+            try AgentRestoreAdmissionRetry.response(
                 delays: [0.5, 1],
-                sleep: { slept.append($0) }
-            ) {
+                sleep: { slept.append($0) },
+                isRetryable: Self.isRetryable
+            ) { () throws -> Bool in
                 sends += 1
-                throw liveOwner
+                throw AdmissionFailure(retryable: false)
             }
         }
         #expect(sends == 1)
         #expect(slept.isEmpty)
-        #expect(!CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(Self.busy(retryable: false)))
-        #expect(!CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(
-            CLIError(message: "busy", v2Code: "busy", isStructuredProtocolResponse: false, v2Retryable: true)
-        ))
-        #expect(CMUXCLI.RestoreAdmissionRetryPolicy.isRetryable(Self.busy()))
     }
 
     @Test
     func defaultBudgetWaitsLongEnoughForAHookStormToSubside() {
-        let total = CMUXCLI.RestoreAdmissionRetryPolicy.delaysSeconds.reduce(0, +)
+        let total = AgentRestoreAdmissionRetry.delaysSeconds.reduce(0, +)
         #expect(total >= 30)
         #expect(total <= 60)
+        #expect(AgentRestoreAdmissionRetry.delaysSeconds.first.map { $0 <= 1 } == true)
     }
 }
 
