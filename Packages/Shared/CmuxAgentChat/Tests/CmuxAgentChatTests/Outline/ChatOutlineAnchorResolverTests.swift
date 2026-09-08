@@ -21,7 +21,7 @@ struct ChatOutlineAnchorResolverTests {
             hasAlert: false
         )
 
-        let history = "shell\n\u{1B}[32mReview the login flow\u{1B}[0m\nresult\nReview the login flow\n"
+        let history = "shell\n\u{1B}[32m❯ Review the login flow\u{1B}[0m\nresult\n❯ Review the login flow\n"
         let row = ChatOutlineAnchorResolver().row(
             for: second,
             among: [first, second],
