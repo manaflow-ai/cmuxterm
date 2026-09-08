@@ -56,7 +56,11 @@ actor CloudMachineLinkManager {
     /// How long a link may take to report its socket: the daemon accepts a
     /// carrier or enrolled session immediately, so anything slower than this is
     /// a broken route rather than a slow one.
-    private let connectTimeout: Duration = .seconds(60)
+    /// One dial's budget. A fresh machine's first dial can stall in the private
+    /// network while a second dial answers in under a second, so the connect
+    /// budget is spent as two dials rather than one long wait.
+    private let connectTimeout: Duration = .seconds(25)
+    private let connectDialAttempts = 2
     /// This Mac's resolved Ghostty default colors ("#rrggbb"), pushed to each machine as
     /// its cmux-tui session defaults (`set-default-colors`) so remote panes render with
     /// the local theme. Injected so tests need no Ghostty runtime.
@@ -177,30 +181,45 @@ actor CloudMachineLinkManager {
                 await hub.release(claim.lease)
                 throw ManagerError.privateRouteRequired(privateRoute)
             }
-            let releaseLease: @Sendable () async -> Void = { await hub.release(claim.lease) }
             #if DEBUG
             cmuxDebugLog("cloud.link.wireguardHub machine=\(machineID) socket=\(claim.ready.socketPath)")
             #endif
-            let connect = Task {
-                try await link.connect(
-                    route: privateRoute,
-                    session: session,
-                    carrier: carrier,
-                    timeout: connectTimeout,
-                    wireguardHubSocket: claim.ready.socketPath,
-                    releaseHubLease: releaseLease
-                )
-            }
-            do {
-                let connected = try await connect.value
-                if carrier, knownFingerprint == nil {
-                    paths.saveDeviceFingerprint(CloudTuiClientPaths.carrierDeviceMarker, for: machineID)
+            var hubClaim = claim
+            var attempt = 1
+            while true {
+                let lease = hubClaim.lease
+                let releaseLease: @Sendable () async -> Void = { await hub.release(lease) }
+                let connect = Task {
+                    try await link.connect(
+                        route: privateRoute,
+                        session: session,
+                        carrier: carrier,
+                        timeout: connectTimeout,
+                        wireguardHubSocket: hubClaim.ready.socketPath,
+                        releaseHubLease: releaseLease
+                    )
                 }
-                return connected
-            } catch {
-                connect.cancel()
-                await link.disconnect()
-                throw error
+                do {
+                    let connected = try await connect.value
+                    if carrier, knownFingerprint == nil {
+                        paths.saveDeviceFingerprint(CloudTuiClientPaths.carrierDeviceMarker, for: machineID)
+                    }
+                    return connected
+                } catch {
+                    connect.cancel()
+                    await link.disconnect()
+                    // The link released its hub lease on failure. A stalled dial gets
+                    // one fresh dial on a fresh lease inside the same overall budget.
+                    guard attempt < connectDialAttempts, !Task.isCancelled,
+                          case CloudMachineLink.LinkError.timedOut = error else {
+                        throw error
+                    }
+                    attempt += 1
+                    #if DEBUG
+                    cmuxDebugLog("cloud.link.redial machine=\(machineID) attempt=\(attempt) after=\(CloudMachineLink.errorText(error))")
+                    #endif
+                    hubClaim = try await hub.acquire()
+                }
             }
         }
         connecting[machineID] = task
@@ -363,5 +382,22 @@ actor CloudMachineLinkManager {
             return []
         }
         return raw.compactMap { $0 as? String }
+    }
+}
+
+/// When a machine's catalog refresh fails at the link, the provider retries
+/// on its own instead of waiting for the next fleet poll or a click: short
+/// gaps first (a fresh machine's private route usually settles within
+/// seconds), then a steady cadence just under the fleet poll, then it stops
+/// and the tree keeps the error text.
+nonisolated enum CloudLinkRetryPolicy {
+    static let delays: [Duration] = [
+        .seconds(5), .seconds(10), .seconds(20), .seconds(40), .seconds(40), .seconds(40),
+    ]
+
+    /// The wait before retry number `attempt` (1-based); nil once the budget is spent.
+    static func delay(forAttempt attempt: Int) -> Duration? {
+        guard attempt >= 1, attempt <= delays.count else { return nil }
+        return delays[attempt - 1]
     }
 }

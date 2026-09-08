@@ -2131,4 +2131,28 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(resources.map { $0.id.key } == ["term_a", "term_b"], "tab index, not transport order, decides the view order")
         #expect(resources.compactMap { $0.remoteViews?.first?.index } == [0, 1])
     }
+
+    @Test func linkRetryPolicyBacksOffThenStops() {
+        // Short gaps first, then a cadence under the 45 s fleet poll, then nothing.
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 1) == .seconds(5))
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 2) == .seconds(10))
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 3) == .seconds(20))
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 4) == .seconds(40))
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 6) == .seconds(40))
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 7) == nil)
+        #expect(CloudLinkRetryPolicy.delay(forAttempt: 0) == nil)
+        let total = CloudLinkRetryPolicy.delays.reduce(Duration.zero, +)
+        #expect(total < .seconds(180), "the whole budget stays inside a few minutes")
+    }
+
+    @Test func linkTimeoutErrorCarriesTheBudgetAndStderrTail() {
+        let error = CloudMachineLink.LinkError.timedOut(
+            after: .seconds(25),
+            output: "enrolling\ndialing ws://[fd00::1]:1337/v1/link\nwaiting for handshake"
+        )
+        let text = CloudMachineLink.errorText(error)
+        #expect(text.hasPrefix("cmux-tui link did not connect within 25s"))
+        #expect(text.contains("waiting for handshake"))
+        #expect(CloudMachineLink.errorText(CloudMachineLink.LinkError.timedOut(after: .seconds(25), output: "")) == "cmux-tui link did not connect within 25s")
+    }
 }

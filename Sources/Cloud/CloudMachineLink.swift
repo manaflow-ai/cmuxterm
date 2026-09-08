@@ -102,7 +102,9 @@ actor CloudMachineLink {
         case clientMissing
         case spawnFailed(String)
         case exited(status: Int32, output: String)
-        case timedOut
+        /// No socket line within `after`; `output` is the client's stderr tail so
+        /// a stalled dial says what it was doing (hub enroll, TCP dial, handshake).
+        case timedOut(after: Duration, output: String)
 
         var errorDescription: String? {
             switch self {
@@ -113,8 +115,10 @@ actor CloudMachineLink {
             case .exited(let status, let output):
                 let tail = output.split(separator: "\n").suffix(3).joined(separator: " · ")
                 return "cmux-tui link exited with status \(status)" + (tail.isEmpty ? "" : ": \(tail)")
-            case .timedOut:
-                return "cmux-tui link did not report a socket within the connect timeout."
+            case .timedOut(let after, let output):
+                let seconds = Int(after.components.seconds)
+                let tail = output.split(separator: "\n").suffix(3).joined(separator: " · ")
+                return "cmux-tui link did not connect within \(seconds)s" + (tail.isEmpty ? "" : ": \(tail)")
             }
         }
     }
@@ -280,7 +284,7 @@ actor CloudMachineLink {
                         output: stderrTail.joined(separator: "\n")
                     )
                 case .timedOut?, nil:
-                    throw LinkError.timedOut
+                    throw LinkError.timedOut(after: timeout, output: stderrTail.joined(separator: "\n"))
                 }
             }
             guard process.isRunning else {
@@ -479,7 +483,7 @@ actor CloudMachineLink {
         let out = await outData
         let err = await errData
         if Task.isCancelled || outcome == .cancelled { throw CancellationError() }
-        if outcome == .timedOut { throw LinkError.timedOut }
+        if outcome == .timedOut { throw LinkError.timedOut(after: timeout, output: String(decoding: err, as: UTF8.self)) }
         guard status == 0 else {
             let text = String(data: err, encoding: .utf8) ?? ""
             let fallback = String(data: out, encoding: .utf8) ?? ""
