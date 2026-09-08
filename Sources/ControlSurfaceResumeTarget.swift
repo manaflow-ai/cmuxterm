@@ -578,6 +578,14 @@ extension TerminalController {
             effectiveBinding = binding
         }
         guard target.setBinding(effectiveBinding) else {
+            // A same-session agent-hook write cannot demote a trusted binding.
+            // Report the binding the surface kept rather than a set failure, so
+            // an older Pi extension's follow-up verification still sees its
+            // own session and third-party tooling reads the effective state.
+            if let keptBinding = target.binding,
+               effectiveBinding.downgradesTrustedAgentHookBinding(keptBinding) {
+                return .result(surfaceResumeSnapshot(target: target, binding: keptBinding, cleared: false))
+            }
             return .emptyResumeCommand
         }
         return .result(surfaceResumeSnapshot(target: target, binding: effectiveBinding, cleared: false))
