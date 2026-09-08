@@ -6,7 +6,9 @@ final class BrowserRecoveryHTTPServer {
 
     private let inputPipe = Pipe()
     private let outputPipe = Pipe()
+    private let errorPipe = Pipe()
     private var outputBuffer = Data()
+    private var errorBuffer = Data()
     private var process: Process?
     private var hasHeldRequest = false
 
@@ -31,7 +33,7 @@ final class BrowserRecoveryHTTPServer {
         ]
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        process.standardError = errorPipe
         try process.run()
         self.process = process
 
@@ -82,10 +84,43 @@ final class BrowserRecoveryHTTPServer {
             var bytes = [UInt8](repeating: 0, count: 128)
             let count = Darwin.read(readiness.fd, &bytes, bytes.count)
             guard count > 0 else {
-                throw ServerError.signalStreamClosed
+                throw ServerError.signalStreamClosed(details: processDiagnostics())
             }
             outputBuffer.append(contentsOf: bytes[..<count])
         }
+    }
+
+    private func processDiagnostics() -> String {
+        drainErrorIfReady()
+        guard let process else {
+            return "process=unavailable stderr=\(decodedErrorBuffer())"
+        }
+        if !process.isRunning {
+            process.waitUntilExit()
+        }
+        let termination = process.isRunning
+            ? "running"
+            : "status=\(process.terminationStatus) reason=\(process.terminationReason.rawValue)"
+        return "\(termination) stderr=\(decodedErrorBuffer())"
+    }
+
+    private func drainErrorIfReady() {
+        var readiness = pollfd(
+            fd: errorPipe.fileHandleForReading.fileDescriptor,
+            events: Int16(POLLIN),
+            revents: 0
+        )
+        guard Darwin.poll(&readiness, 1, 0) > 0 else { return }
+        var bytes = [UInt8](repeating: 0, count: 512)
+        let count = Darwin.read(readiness.fd, &bytes, bytes.count)
+        guard count > 0 else { return }
+        errorBuffer.append(contentsOf: bytes[..<count])
+    }
+
+    private func decodedErrorBuffer() -> String {
+        let stderr = String(decoding: errorBuffer, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stderr.isEmpty ? "<empty>" : stderr
     }
 
     private static func availablePort() throws -> UInt16 {
@@ -119,7 +154,7 @@ final class BrowserRecoveryHTTPServer {
 
     private enum ServerError: Error {
         case couldNotReservePort
-        case signalStreamClosed
+        case signalStreamClosed(details: String)
         case signalTimedOut
         case unexpectedSignal
     }

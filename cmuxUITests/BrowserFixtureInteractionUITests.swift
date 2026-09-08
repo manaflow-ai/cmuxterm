@@ -43,7 +43,7 @@ class BrowserFixtureSocketTestCase: XCTestCase {
     }
 
     override func tearDown() {
-        if (testRun?.failureCount ?? 0) > 0 {
+        if (testRun?.totalFailureCount ?? 0) > 0 {
             let diagnostics = loadDiagnostics()
             print("Browser fixture failure: socket=\(socketPath) diagnostics=\(diagnostics)")
             if let data = try? Data(contentsOf: URL(fileURLWithPath: diagnosticsPath)) {
