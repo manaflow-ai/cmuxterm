@@ -330,8 +330,7 @@ extension CMUXCLI {
         let fallbackInvocation = pinnedHookInvocation(
             executable: "cmux",
             routedArguments: routedArguments,
-            socketPath: socketPath,
-            noOpSnippet: noOpSnippet
+            socketPath: socketPath
         )
         // The terminal that launched the agent owns the surface. When the agent
         // preserved that terminal's cmux environment, dispatch there first so a
@@ -349,14 +348,14 @@ extension CMUXCLI {
             let primaryInvocation = pinnedHookInvocation(
                 executable: quotedCLIPath,
                 routedArguments: routedArguments,
-                socketPath: socketPath,
-                noOpSnippet: noOpSnippet
+                socketPath: socketPath
             )
             dispatch = "if \(ambientGuard) && \(ambientInvocation); then :; elif [ -x \(quotedCLIPath) ]; then \(primaryInvocation); elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
         } else {
             dispatch = "if \(ambientGuard) && \(ambientInvocation); then :; elif command -v cmux >/dev/null 2>&1; then \(fallbackInvocation); else \(noOpSnippet); fi"
         }
-        return ": \(marker); \(shellTraceStart); printenv \(def.disableEnvVar) | grep -qx 1 && { \(shellTraceDisabled); \(noOpSnippet); } || { \(dispatch); cmux_hook_status=$?; \(shellTraceExit); exit $cmux_hook_status; }"
+        let capturedDispatch = timestampedAgentHookDispatch(dispatch, noOpSnippet: noOpSnippet)
+        return ": \(marker); \(shellTraceStart); printenv \(def.disableEnvVar) | grep -qx 1 && { \(shellTraceDisabled); \(noOpSnippet); } || { \(capturedDispatch); cmux_hook_status=$?; \(shellTraceExit); exit $cmux_hook_status; }"
     }
 
     /// Shell test that is true only when the hook inherited a live cmux terminal
@@ -373,21 +372,12 @@ extension CMUXCLI {
     private static func pinnedHookInvocation(
         executable: String,
         routedArguments: String,
-        socketPath: String?,
-        noOpSnippet: String
+        socketPath: String?
     ) -> String {
         if let socketPath {
-            return timestampedAgentHookInvocation(
-                executable: executable,
-                arguments: "--socket \(shellSingleQuote(socketPath)) \(routedArguments)",
-                noOpSnippet: noOpSnippet
-            )
+            return "\(executable) --socket \(shellSingleQuote(socketPath)) \(routedArguments)"
         }
-        return timestampedAgentHookInvocation(
-            executable: executable,
-            arguments: routedArguments,
-            noOpSnippet: noOpSnippet
-        )
+        return "\(executable) \(routedArguments)"
     }
 
     private static func pinnedAgentHookCLIPath(

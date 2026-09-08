@@ -47,6 +47,14 @@ extension CMUXCLI {
         return "hook_captured_at=\"$(/bin/sh -c \(quotedCaptureTime))\"; if [ -n \"$hook_captured_at\" ]; then CMUX_AGENT_HOOK_CAPTURED_AT=\"$hook_captured_at\" \(executable) \(arguments); else \(noOpSnippet); fi"
     }
 
+    /// Capture once for a callback, not once per route. An ambient CLI failure
+    /// must still reach the pinned fallback with the same event time and exit
+    /// semantics. The subshell scopes exported metadata to this dispatch chain.
+    static func timestampedAgentHookDispatch(_ dispatch: String, noOpSnippet: String) -> String {
+        let quotedCaptureTime = shellSingleQuote(agentHookCaptureTimeShell())
+        return "(hook_captured_at=\"$(/bin/sh -c \(quotedCaptureTime))\"; if [ -n \"$hook_captured_at\" ]; then export CMUX_AGENT_HOOK_CAPTURED_AT=\"$hook_captured_at\"; \(dispatch); else \(noOpSnippet); fi)"
+    }
+
     /// Permission/decision hooks must still run when the ordering clock is
     /// unavailable. They explicitly publish an empty event-time environment in
     /// that case (so the receiver fails closed for ordered state), but preserve
