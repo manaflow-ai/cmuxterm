@@ -340,6 +340,8 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && env HOME=/tmp/agent-config-resurrect bash -lc 'grep -q "https://resurrect.invalid/v1" "$HOME/.codex/config.toml"' \
   && rm -rf /tmp/agent-config-resurrect \
   && bash -lc 'true' \
+  && rm -f /root/.claude.json \
+  && test ! -e /root/.claude.json \
   && test ! -e /root/.codex/config.toml \
   && test ! -e /root/.pi/agent/models.json \
   && test ! -e /root/.config/opencode/opencode.json \
