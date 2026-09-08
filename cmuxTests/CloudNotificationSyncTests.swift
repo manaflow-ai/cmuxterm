@@ -231,6 +231,24 @@ struct CloudNotificationSyncTests {
         #expect(!applied.impact.requiresFullResourceRebuild, "a notification row touches no resource rows")
     }
 
+    /// Wire numbers arrive as JSON, where a number is an NSNumber and
+    /// `NSNumber(0) is Bool` holds. The decoder must accept those numbers and
+    /// reject only real booleans; before this test every zero-based delta
+    /// sequence from a daemon was rejected and the feed fell back to snapshots.
+    @Test func wireNumbersFromJSONDecodeZeroAndRejectBooleans() throws {
+        let object = try #require(JSONSerialization.jsonObject(with: Data(#"{"zero":0,"one":1,"big":18446744073709551615,"str":"42","yes":true,"no":false,"neg":-1,"frac":1.5}"#.utf8)) as? [String: Any])
+        #expect(CloudWireNumber.unsigned(object["zero"]) == 0)
+        #expect(CloudWireNumber.unsigned(object["one"]) == 1)
+        #expect(CloudWireNumber.unsigned(object["big"]) == UInt64.max)
+        #expect(CloudWireNumber.unsigned(object["str"]) == 42)
+        #expect(CloudWireNumber.unsigned(object["yes"]) == nil)
+        #expect(CloudWireNumber.unsigned(object["no"]) == nil)
+        #expect(CloudWireNumber.unsigned(object["neg"]) == nil)
+        #expect(CloudWireNumber.unsigned(object["frac"]) == nil)
+        #expect(CloudWireNumber.unsigned(true) == nil)
+        #expect(CloudWireNumber.unsigned(0) == 0)
+    }
+
     @Test func ackArgumentsPinTheBatchKeyAndClient() {
         let arguments = CloudTuiCommandLine.notificationAckArguments(
             socketPath: "/tmp/s.sock",
