@@ -14,7 +14,7 @@ extension ClaudeHookSessionRecord {
         startIdentity: (seconds: Int64, microseconds: Int64)?
     ) {
         let previousPID = self.pid
-        let previousGeneration = if let previousPID,
+        let previousGeneration: ClaudeHookProcessGeneration? = if let previousPID,
             let previousStartSeconds = pidStartSeconds,
             let previousStartMicroseconds = pidStartMicroseconds {
             ClaudeHookProcessGeneration(
