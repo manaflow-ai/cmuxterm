@@ -252,6 +252,131 @@ struct ManagedCapabilityPolicyGateTests {
         #expect(TabManager.isCloudVMWorkspaceSnapshotForManagedPolicy(tuiBound))
     }
 
+    @Test(arguments: [(true, false, true), (true, true, false), (false, false, false), (false, true, false)])
+    func telemetryHonorsTheManagedPolicyOverTheOptIn(optIn: Bool, forced: Bool, expected: Bool) {
+        #expect(TelemetrySettings.resolveEnabled(userOptIn: optIn, policy: policy(.disableTelemetry, disabled: forced)) == expected)
+    }
+
+    @Test func tlsTrustBypassIsNeitherOfferedNorHonoredUnderThePolicy() throws {
+        let allowed = PolicyFlag(value: true)
+        let state = BrowserSSLTrustBypassState(isBypassAllowed: { allowed.value })
+        let url = try #require(URL(string: "https://self-signed.internal/report"))
+        let scope = try #require(BrowserSSLTrustScope(url: url))
+        let fingerprint = BrowserServerTrustFingerprint(sha256: Data("leaf-a".utf8))
+        state.recordObservedServerTrustFingerprint(fingerprint, for: scope)
+
+        // A grant taken before the profile landed is not honored after it.
+        let action = try #require(state.createPendingBypassAction(for: URLRequest(url: url)))
+        #expect(state.consumePendingBypassAction(action) != nil)
+        #expect(state.isBypassed(scope: scope, fingerprint: fingerprint))
+        allowed.value = false
+        #expect(!state.isBypassed(scope: scope, fingerprint: fingerprint))
+        #expect(state.createPendingBypassAction(for: URLRequest(url: url)) == nil)
+
+        // Lifting the policy restores the user's earlier grant.
+        allowed.value = true
+        #expect(state.isBypassed(scope: scope, fingerprint: fingerprint))
+    }
+
+    @Test func automationWebhooksFailClosedWithoutTouchingTheNetwork() async throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("managed-webhook-policy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = AutomationConfigStore(fileURL: directory.appendingPathComponent("automations.json"))
+        try store.save(AutomationConfiguration(rules: [
+            AutomationRule(
+                id: "webhook-policy",
+                when: AutomationWhen(event: "workspace.created"),
+                actions: [AutomationAction(
+                    action: "webhook",
+                    parameters: ["url": .string("https://hooks.example.test/cmux")]
+                )]
+            )
+        ]))
+        let bus = CmuxEventBus(retainedEventLimit: 32)
+        let calls = SpawnRecorder()
+        let engine = AutomationEngine(
+            configStore: store,
+            eventBus: bus,
+            webhookRunner: { _, _, _ in
+                calls.record()
+                return .success()
+            },
+            isWebhookDisabledByPolicy: { true }
+        )
+        defer { engine.stop() }
+        engine.start()
+        var loaded = false
+        for _ in 0..<250 {
+            if engine.rule(withID: "webhook-policy") != nil { loaded = true; break }
+            try await ContinuousClock().sleep(for: .milliseconds(20))
+        }
+        #expect(loaded)
+
+        bus.publish(name: "workspace.created", category: "workspace", source: "managed-policy-test")
+
+        var refused = false
+        for _ in 0..<250 {
+            refused = engine.logsPayload(limit: 32).contains {
+                ($0["rule_id"] as? String) == "webhook-policy" && ($0["status"] as? String) == "error"
+            }
+            if refused { break }
+            try await ContinuousClock().sleep(for: .milliseconds(20))
+        }
+        #expect(refused)
+        #expect(calls.count == 0)
+    }
+
+    @Test func settingsVisiblePoliciesPostChangeSignalsAndReapplyComputerUse() throws {
+        let suite = "ManagedCapabilityPolicyGateTests.visible.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let resolver = ManagedDevicePolicy(defaults: defaults, releaseDomainDefaults: nil, forcedObject: { store, key in
+            store.object(forKey: key)
+        })
+        let center = NotificationCenter()
+        let recorder = RemoteConnectionsEnforcementRecorder()
+        let token = center.addObserver(
+            forName: ManagedDevicePolicy.didChangeNotification,
+            object: nil,
+            queue: nil
+        ) { _ in recorder.recordChangeSignal() }
+        defer { center.removeObserver(token) }
+        let observer = ManagedPolicyEnforcementObserver(
+            notificationCenter: center,
+            isBrowserDisabledByPolicy: { false },
+            isRemoteControlDisabledByPolicy: { false },
+            isCloudDisabledByPolicy: { false },
+            isIrohDisabledByPolicy: { false },
+            capabilityPolicy: resolver,
+            enforceBrowserPolicy: {},
+            enforceBrowserURLAllowlistPolicy: {},
+            enforceRemoteControlPolicy: {},
+            enforceComputerUsePolicy: { recorder.recordEnforcement() }
+        )
+        #expect(recorder.enforcements == 0)
+
+        // A telemetry push is Settings-visible only.
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableTelemetry.rawValue)
+        observer.reevaluate()
+        #expect(recorder.changeSignals == 1)
+        #expect(recorder.enforcements == 0)
+
+        // Computer Use re-applies on both directions.
+        defaults.set(true, forKey: ManagedDevicePolicyKey.disableComputerUse.rawValue)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 1)
+        #expect(recorder.changeSignals == 2)
+        defaults.removeObject(forKey: ManagedDevicePolicyKey.disableComputerUse.rawValue)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 2)
+        observer.reevaluate()
+        #expect(recorder.enforcements == 2)
+        #expect(recorder.changeSignals == 3)
+        withExtendedLifetime(observer) {}
+    }
+
     @Test func closedCloudWorkspaceCannotBeRestoredUnderPolicy() {
         let manager = TabManager(createInitialWorkspace: false, managedDevicePolicy: policy(.disableCloud, disabled: true))
         let workspace = Workspace()
@@ -393,6 +518,17 @@ struct ManagedCapabilityPolicyGateTests {
         await runtime.applyManagedNetworkingPolicy()
         #expect(runtime.settingsPhase == .idle)
         #expect(runtime.brokerService == nil)
+    }
+}
+
+/// A policy switch a test flips between calls of an injected resolver.
+private final class PolicyFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Bool
+    init(value: Bool) { stored = value }
+    var value: Bool {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }
 
