@@ -17,6 +17,7 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         field.click()
         field.typeKey("a", modifierFlags: .command)
         field.typeText("Menlo")
+        XCTAssertEqual(field.value as? String, "Menlo")
         let search = requireElement(
             candidates: [window.searchFields.firstMatch, window.textFields["Search"]],
             timeout: 5,
@@ -34,6 +35,7 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         field.click()
         field.typeKey("a", modifierFlags: .command)
         field.typeText("Courier New")
+        XCTAssertEqual(field.value as? String, "Courier New")
         closeSettings(app, window)
 
         assertPersistedFamily("Courier New", afterRelaunching: app)
@@ -50,6 +52,7 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
         let app = XCUIApplication.cmuxTestApplication()
         testApp = app
         app.launchArguments += settingsLaunchArguments
+        app.launchArguments += ["-confirmQuit", "never", "-warnBeforeQuitShortcut", "NO"]
         app.launchEnvironment["CMUX_UI_TEST_MODE"] = "1"
         app.launchEnvironment["HOME"] = home.path
         app.launchEnvironment["CFFIXED_USER_HOME"] = home.path
@@ -67,7 +70,8 @@ final class SidebarFontFamilySettingsUITests: SettingsUITestCase {
     }
 
     private func assertPersistedFamily(_ expected: String, afterRelaunching app: XCUIApplication) {
-        app.terminate()
+        app.typeKey("q", modifierFlags: .command)
+        XCTAssertTrue(app.wait(for: .notRunning, timeout: 10), "Quit did not terminate the app")
         launchAndActivate(app)
         let field = familyField(in: openSettings(app))
         XCTAssertTrue(
