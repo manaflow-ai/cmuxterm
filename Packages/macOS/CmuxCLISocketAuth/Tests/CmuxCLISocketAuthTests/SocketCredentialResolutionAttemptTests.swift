@@ -5,10 +5,11 @@ import Testing
 
 /// Exercises the deadline boundary that decides whether a deferred credential
 /// lookup is complete and may be suppressed on a later operation.
+/// Per-test locks bridge synchronous Sendable clock callbacks without sleeping.
 @Suite
 struct SocketCredentialResolutionAttemptTests {
     @Test(arguments: [true, false])
-    func lateResolutionRemainsRetryable(firstLookupReturnsPassword: Bool) {
+    func lateResolutionRemainsRetryable(firstLookupReturnsPassword: Bool) throws {
         let clock = OSAllocatedUnfairLock<Date>(
             initialState: Date(timeIntervalSince1970: 1_000)
         )
@@ -18,7 +19,7 @@ struct SocketCredentialResolutionAttemptTests {
         })
         let firstDeadline = clock.withLock { $0.addingTimeInterval(1) }
 
-        let firstResult = attempt.resolve(
+        let firstResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 clock.withLock { $0.addTimeInterval(2) }
@@ -32,7 +33,7 @@ struct SocketCredentialResolutionAttemptTests {
         #expect(providerCalls == 1)
 
         let secondDeadline = clock.withLock { $0.addingTimeInterval(1) }
-        let secondResult = attempt.resolve(
+        let secondResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return "fresh-password"
@@ -48,7 +49,7 @@ struct SocketCredentialResolutionAttemptTests {
     @Test(arguments: [true, false])
     func inBudgetResolutionCompletesAndSuppressesDuplicateLookup(
         returnsPassword: Bool
-    ) {
+    ) throws {
         let clock = OSAllocatedUnfairLock<Date>(
             initialState: Date(timeIntervalSince1970: 2_000)
         )
@@ -58,7 +59,7 @@ struct SocketCredentialResolutionAttemptTests {
         })
         let deadline = clock.withLock { $0.addingTimeInterval(1) }
 
-        let firstResult = attempt.resolve(
+        let firstResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return returnsPassword ? "password" : nil
@@ -69,7 +70,7 @@ struct SocketCredentialResolutionAttemptTests {
         #expect(firstResult == (returnsPassword ? "password" : nil))
         #expect(attempt.isCompleted)
 
-        let secondResult = attempt.resolve(
+        let secondResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return "unexpected-second-password"
@@ -82,7 +83,7 @@ struct SocketCredentialResolutionAttemptTests {
     }
 
     @Test(arguments: [0.0, -1.0])
-    func expiredResolutionDoesNotReadProviderOrComplete(offset: TimeInterval) {
+    func expiredResolutionDoesNotReadProviderOrComplete(offset: TimeInterval) throws {
         let clock = OSAllocatedUnfairLock<Date>(
             initialState: Date(timeIntervalSince1970: 3_000)
         )
@@ -91,7 +92,7 @@ struct SocketCredentialResolutionAttemptTests {
             clock.withLock { $0 }
         })
 
-        let result = attempt.resolve(
+        let result = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return "must-not-read"
@@ -105,7 +106,7 @@ struct SocketCredentialResolutionAttemptTests {
     }
 
     @Test
-    func noDeadlineAllowsOneCompletion() {
+    func noDeadlineAllowsOneCompletion() throws {
         let clock = OSAllocatedUnfairLock<Date>(
             initialState: Date(timeIntervalSince1970: 4_000)
         )
@@ -115,7 +116,7 @@ struct SocketCredentialResolutionAttemptTests {
             clock.withLock { $0 }
         })
 
-        let firstResult = attempt.resolve(
+        let firstResult = try attempt.resolve(
             provider: { deadline in
                 providerCalls += 1
                 observedDeadline = deadline
@@ -123,7 +124,7 @@ struct SocketCredentialResolutionAttemptTests {
             },
             deadline: nil
         )
-        let secondResult = attempt.resolve(
+        let secondResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return "unexpected-second-password"

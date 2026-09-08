@@ -4121,7 +4121,7 @@ final class SocketClient {
                       !authenticationInProgress,
                       !authenticationPasswordResolutionAttempt.isCompleted,
                       authenticationPasswordProvider != nil,
-                      let password = resolveDeferredAuthenticationPassword(deadline: deadline) else {
+                      let password = try resolveDeferredAuthenticationPassword(deadline: deadline) else {
                     throw CLIError(message: line)
                 }
                 authenticationPassword = password

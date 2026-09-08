@@ -15,7 +15,7 @@ extension SocketClient {
             return nil
         }
         authenticationModeCoordinator.recordPasswordRequired()
-        guard let password = resolveDeferredAuthenticationPassword(deadline: operationDeadline) else {
+        guard let password = try resolveDeferredAuthenticationPassword(deadline: operationDeadline) else {
             return nil
         }
         authenticationPassword = password
@@ -44,9 +44,16 @@ extension SocketClient {
     }
 
     /// Completes a deferred attempt only within this request's deadline.
-    func resolveDeferredAuthenticationPassword(deadline: Date?) -> String? {
+    func resolveDeferredAuthenticationPassword(deadline: Date?) throws -> String? {
         guard let provider = authenticationPasswordProvider else { return nil }
-        return authenticationPasswordResolutionAttempt.resolve(provider: provider, deadline: deadline)
+        do {
+            return try authenticationPasswordResolutionAttempt.resolve(provider: provider, deadline: deadline)
+        } catch {
+            throw CLIError(message: String(
+                localized: "cli.socket.error.commandTimedOut",
+                defaultValue: "Command timed out"
+            ))
+        }
     }
 
     /// Probes once before a write-only request when authentication is deferred.
@@ -108,7 +115,7 @@ extension SocketClient {
     private func authenticateOneWayClientIfNeeded(responseTimeout: TimeInterval) throws {
         let deadline = Date.now.addingTimeInterval(responseTimeout)
         guard !authenticationPasswordResolutionAttempt.isCompleted,
-              let password = resolveDeferredAuthenticationPassword(deadline: deadline) else {
+              let password = try resolveDeferredAuthenticationPassword(deadline: deadline) else {
             return
         }
         authenticationPassword = password

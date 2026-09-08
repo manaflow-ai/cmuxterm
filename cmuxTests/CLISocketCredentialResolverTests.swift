@@ -3,6 +3,7 @@ import Foundation
 import os
 import Testing
 
+// All mutable storage is confined to the lock; callbacks access it synchronously.
 private final class CLITestCounter: @unchecked Sendable {
     private let storage = OSAllocatedUnfairLock<Int>(initialState: 0)
 
@@ -19,12 +20,13 @@ private final class CLITestCounter: @unchecked Sendable {
 @Suite(.serialized)
 struct CLISocketCredentialResolverTests {
     @Test(arguments: [true, false])
-    func nextOperationCanResolveAfterPriorProviderDeadline(returnsPassword: Bool) {
+    func nextOperationCanResolveAfterPriorProviderDeadline(returnsPassword: Bool) throws {
         let instant = Date(timeIntervalSince1970: 1_000)
+        // This per-test clock bridges synchronous Sendable callbacks without sleeping.
         let clock = OSAllocatedUnfairLock(initialState: instant)
         var attempt = SocketCredentialResolutionAttempt(now: { clock.withLock { $0 } })
         var providerCalls = 0
-        let expiredResult = attempt.resolve(
+        let expiredResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 clock.withLock { $0.addTimeInterval(2) }
@@ -34,7 +36,7 @@ struct CLISocketCredentialResolverTests {
         )
         #expect(expiredResult == nil)
         #expect(!attempt.isCompleted)
-        let nextResult = attempt.resolve(
+        let nextResult = try attempt.resolve(
             provider: { _ in
                 providerCalls += 1
                 return "cached-password"

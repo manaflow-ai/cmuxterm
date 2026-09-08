@@ -7,6 +7,12 @@ public import Foundation
 /// configuring a client's credentials. Its clock uses the same absolute time
 /// as the operation deadline.
 public struct SocketCredentialResolutionAttempt: Sendable {
+    /// A lookup failure that must not be mistaken for missing credentials.
+    public enum Failure: Error {
+        /// The operation's deadline elapsed before the result was available.
+        case deadlineExceeded
+    }
+
     private let now: @Sendable () -> Date
 
     /// Whether another deferred lookup is suppressed for this client.
@@ -32,7 +38,7 @@ public struct SocketCredentialResolutionAttempt: Sendable {
     public mutating func resolve(
         provider: (Date?) -> String?,
         deadline: Date?
-    ) -> String? {
+    ) throws(Failure) -> String? {
         guard !isCompleted else { return nil }
         if let deadline, now() >= deadline { return nil }
         let password = provider(deadline)

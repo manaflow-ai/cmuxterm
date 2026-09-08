@@ -18,7 +18,7 @@ Inject the operation clock instead of delaying a real file or keychain read:
 ```swift
 let instant = Date(timeIntervalSince1970: 1_000)
 var attempt = SocketCredentialResolutionAttempt(now: { instant })
-let password = attempt.resolve(
+let password = try attempt.resolve(
     provider: { _ in "fixture-password" },
     deadline: instant.addingTimeInterval(1)
 )
