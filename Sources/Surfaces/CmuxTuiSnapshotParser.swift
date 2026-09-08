@@ -618,13 +618,13 @@ struct CmuxTuiSnapshotParser: Sendable {
                let explicitID,
                let valueID = value.flatMap({ nonEmptyString($0["id"]) }),
                valueID != explicitID {
-                return nil
+                return rejectDelta("W-ml#1")
             }
             if resource == "agent",
                let changeTerminalID = nonEmptyString(change["terminal_id"]),
                let valueTerminalID,
                changeTerminalID != valueTerminalID {
-                return nil
+                return rejectDelta("W-ml#2")
             }
             let compatibilityID: String? = if resource == "agent" {
                 explicitID
@@ -676,7 +676,7 @@ struct CmuxTuiSnapshotParser: Sendable {
                     ) else { return rejectDelta("applyingWithImpact#9") }
                 }
             default:
-                return nil
+                return rejectDelta("W-ml#3")
             }
         }
         guard document.setCursor(cursor) else { return rejectDelta("applyingWithImpact#10") }
