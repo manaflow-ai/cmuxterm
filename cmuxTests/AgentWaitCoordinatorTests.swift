@@ -310,7 +310,9 @@ struct AgentWaitCoordinatorTests {
         let coordinator = AgentWaitCoordinator(
             eventBus: fixture.bus,
             onSubscribe: { _ in
-                publishUnrelatedEvent()
+                for _ in 0..<16 {
+                    publishUnrelatedEvent()
+                }
                 fixture.publish(
                     record: fixture.original,
                     state: .idle,
