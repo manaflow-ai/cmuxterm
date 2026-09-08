@@ -158,7 +158,7 @@ struct CloudNotificationSyncTests {
         #expect(allGone.delivered.isEmpty)
     }
 
-    @Test func correlationKeysRoundTripThroughTheLocalStore() throws {
+    @Test @MainActor func correlationKeysRoundTripThroughTheLocalStore() throws {
         let key = CloudNotificationCorrelation.key(machineID: "vm-1", notificationID: "notification_0000000000000000000000000000000a")
         let parsed = try #require(CloudNotificationCorrelation.parse(key))
         #expect(parsed.machineID == "vm-1")
