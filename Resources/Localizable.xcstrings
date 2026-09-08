@@ -54538,109 +54538,109 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "تلقى right-sidebar %@ معاملات غير متوقعة"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ je primio neočekivane argumente"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ modtog uventede argumenter"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ hat unerwartete Argumente erhalten"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ recibió argumentos inesperados"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ a reçu des arguments inattendus"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ ha ricevuto argomenti imprevisti"
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ បានទទួលអាគុយម៉ង់ដែលមិនរំពឹងទុក"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@에 예상치 못한 인수가 전달되었습니다"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ mottok uventede argumenter"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ otrzymał nieoczekiwane argumenty"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ recebeu argumentos inesperados"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ получил неожиданные аргументы"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ ได้รับอาร์กิวเมนต์ที่ไม่คาดคิด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ beklenmeyen bağımsız değişkenler aldı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ отримав неочікувані аргументи"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ 收到了意外参数"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "right-sidebar %@ received unexpected arguments"
+            "value": "right-sidebar %@ 收到了非預期的引數"
           }
         }
       }
@@ -54782,109 +54782,109 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "الاستخدام: cmux right-sidebar <command> [flags]\n\nالتحكم في الشريط الجانبي الأيمن من واجهة سطر الأوامر.\n\nالأوامر:\n  toggle                         تبديل إظهار الشريط الجانبي الأيمن\n  show                           إظهار الشريط الجانبي الأيمن\n  hide                           إخفاء الشريط الجانبي الأيمن\n  focus                          نقل التركيز إلى الوضع الحالي للشريط الجانبي الأيمن\n  set|set-mode <%1$@>\n                                 الإظهار وتبديل الوضع ونقل التركيز\n  mode                           طباعة {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 اسم بديل لـ show + set|set-mode + focus\n\nالخيارات:\n  --workspace <id|ref|index>     استهداف النافذة التي تحتوي على مساحة عمل\n  --window <id|ref|index>        استهداف نافذة\n  --no-focus                     مع set، تبديل الوضع دون نقل التركيز\n\nأمثلة:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Upotreba: cmux right-sidebar <command> [flags]\n\nUpravljajte desnom bočnom trakom iz komandne linije.\n\nKomande:\n  toggle                         Uključite ili isključite prikaz desne bočne trake\n  show                           Prikažite desnu bočnu traku\n  hide                           Sakrijte desnu bočnu traku\n  focus                          Fokusirajte trenutni režim desne bočne trake\n  set|set-mode <%1$@>\n                                 Prikažite, promijenite režim i fokusirajte\n  mode                           Ispišite {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias za show + set|set-mode + focus\n\nOpcije:\n  --workspace <id|ref|index>     Odaberite prozor koji sadrži radni prostor\n  --window <id|ref|index>        Odaberite prozor\n  --no-focus                     Uz set promijenite režim bez pomjeranja fokusa\n\nPrimjeri:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Brug: cmux right-sidebar <command> [flags]\n\nStyr højre sidepanel fra kommandolinjen.\n\nKommandoer:\n  toggle                         Slå visningen af højre sidepanel til eller fra\n  show                           Vis højre sidepanel\n  hide                           Skjul højre sidepanel\n  focus                          Fokusér den aktuelle tilstand i højre sidepanel\n  set|set-mode <%1$@>\n                                 Vis, skift tilstand, og flyt fokus\n  mode                           Udskriv {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlag:\n  --workspace <id|ref|index>     Vælg vinduet, der indeholder et arbejdsområde\n  --window <id|ref|index>        Vælg et vindue\n  --no-focus                     Skift tilstand med set uden at flytte fokus\n\nEksempler:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Verwendung: cmux right-sidebar <command> [flags]\n\nDie rechte Seitenleiste über die Befehlszeile steuern.\n\nBefehle:\n  toggle                         Sichtbarkeit der rechten Seitenleiste umschalten\n  show                           Rechte Seitenleiste anzeigen\n  hide                           Rechte Seitenleiste ausblenden\n  focus                          Aktuellen Modus der rechten Seitenleiste fokussieren\n  set|set-mode <%1$@>\n                                 Anzeigen, Modus wechseln und fokussieren\n  mode                           Ausgeben: {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias für show + set|set-mode + focus\n\nOptionen:\n  --workspace <id|ref|index>     Fenster auswählen, das einen Arbeitsbereich enthält\n  --window <id|ref|index>        Ein Fenster auswählen\n  --no-focus                     Mit set den Modus ohne Fokuswechsel ändern\n\nBeispiele:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Uso: cmux right-sidebar <command> [flags]\n\nControla la barra lateral derecha desde la línea de comandos.\n\nComandos:\n  toggle                         Alternar la visibilidad de la barra lateral derecha\n  show                           Mostrar la barra lateral derecha\n  hide                           Ocultar la barra lateral derecha\n  focus                          Enfocar el modo actual de la barra lateral derecha\n  set|set-mode <%1$@>\n                                 Mostrar, cambiar de modo y enfocar\n  mode                           Imprimir {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias de show + set|set-mode + focus\n\nOpciones:\n  --workspace <id|ref|index>     Seleccionar la ventana que contiene un espacio de trabajo\n  --window <id|ref|index>        Seleccionar una ventana\n  --no-focus                     Con set, cambiar de modo sin mover el foco\n\nEjemplos:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Utilisation : cmux right-sidebar <command> [flags]\n\nContrôler la barre latérale droite depuis la ligne de commande.\n\nCommandes :\n  toggle                         Basculer la visibilité de la barre latérale droite\n  show                           Afficher la barre latérale droite\n  hide                           Masquer la barre latérale droite\n  focus                          Activer le mode actuel de la barre latérale droite\n  set|set-mode <%1$@>\n                                 Afficher, changer de mode et donner le focus\n  mode                           Afficher {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias de show + set|set-mode + focus\n\nOptions :\n  --workspace <id|ref|index>     Cibler la fenêtre contenant un espace de travail\n  --window <id|ref|index>        Cibler une fenêtre\n  --no-focus                     Avec set, changer de mode sans déplacer le focus\n\nExemples :\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Uso: cmux right-sidebar <command> [flags]\n\nControlla la barra laterale destra dalla riga di comando.\n\nComandi:\n  toggle                         Alterna la visibilità della barra laterale destra\n  show                           Mostra la barra laterale destra\n  hide                           Nascondi la barra laterale destra\n  focus                          Sposta il focus sulla modalità attuale della barra laterale destra\n  set|set-mode <%1$@>\n                                 Mostra, cambia modalità e sposta il focus\n  mode                           Stampa {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias di show + set|set-mode + focus\n\nOpzioni:\n  --workspace <id|ref|index>     Seleziona la finestra che contiene un’area di lavoro\n  --window <id|ref|index>        Seleziona una finestra\n  --no-focus                     Con set, cambia modalità senza spostare il focus\n\nEsempi:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "ការប្រើប្រាស់: cmux right-sidebar <command> [flags]\n\nគ្រប់គ្រងរបារចំហៀងខាងស្តាំពីបន្ទាត់ពាក្យបញ្ជា។\n\nពាក្យបញ្ជា:\n  toggle                         ប្តូរការបង្ហាញរបារចំហៀងខាងស្តាំ\n  show                           បង្ហាញរបារចំហៀងខាងស្តាំ\n  hide                           លាក់របារចំហៀងខាងស្តាំ\n  focus                          ផ្តោតលើរបៀបបច្ចុប្បន្ននៃរបារចំហៀងខាងស្តាំ\n  set|set-mode <%1$@>\n                                 បង្ហាញ ប្តូររបៀប និងផ្តោត\n  mode                           បង្ហាញ {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 ឈ្មោះជំនួសសម្រាប់ show + set|set-mode + focus\n\nជម្រើស:\n  --workspace <id|ref|index>     កំណត់គោលដៅទៅបង្អួចដែលមានលំហការងារ\n  --window <id|ref|index>        កំណត់គោលដៅទៅបង្អួចមួយ\n  --no-focus                     ប្រើ set ដើម្បីប្តូររបៀបដោយមិនប្តូរការផ្តោត\n\nឧទាហរណ៍:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "사용법: cmux right-sidebar <command> [flags]\n\nCLI에서 오른쪽 사이드바를 제어합니다.\n\n명령:\n  toggle                         오른쪽 사이드바 표시 여부 전환\n  show                           오른쪽 사이드바 표시\n  hide                           오른쪽 사이드바 숨기기\n  focus                          오른쪽 사이드바의 현재 모드로 포커스 이동\n  set|set-mode <%1$@>\n                                 표시하고 모드를 전환한 뒤 포커스 이동\n  mode                           출력: {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 show + set|set-mode + focus의 별칭\n\n옵션:\n  --workspace <id|ref|index>     작업 공간이 포함된 창 지정\n  --window <id|ref|index>        창 지정\n  --no-focus                     set으로 포커스를 이동하지 않고 모드 전환\n\n예시:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Bruk: cmux right-sidebar <command> [flags]\n\nStyr høyre sidepanel fra kommandolinjen.\n\nKommandoer:\n  toggle                         Slå visningen av høyre sidepanel av eller på\n  show                           Vis høyre sidepanel\n  hide                           Skjul høyre sidepanel\n  focus                          Fokuser gjeldende modus i høyre sidepanel\n  set|set-mode <%1$@>\n                                 Vis, bytt modus og flytt fokus\n  mode                           Skriv ut {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlagg:\n  --workspace <id|ref|index>     Velg vinduet som inneholder et arbeidsområde\n  --window <id|ref|index>        Velg et vindu\n  --no-focus                     Bytt modus med set uten å flytte fokus\n\nEksempler:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Użycie: cmux right-sidebar <command> [flags]\n\nSterowanie prawym paskiem bocznym z wiersza poleceń.\n\nPolecenia:\n  toggle                         Przełącz widoczność prawego paska bocznego\n  show                           Pokaż prawy pasek boczny\n  hide                           Ukryj prawy pasek boczny\n  focus                          Ustaw fokus na bieżącym trybie prawego paska bocznego\n  set|set-mode <%1$@>\n                                 Pokaż, zmień tryb i ustaw fokus\n  mode                           Wypisz {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias dla show + set|set-mode + focus\n\nOpcje:\n  --workspace <id|ref|index>     Wybierz okno zawierające obszar roboczy\n  --window <id|ref|index>        Wybierz okno\n  --no-focus                     Zmień tryb za pomocą set bez przenoszenia fokusu\n\nPrzykłady:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Uso: cmux right-sidebar <command> [flags]\n\nControle a barra lateral direita pela linha de comando.\n\nComandos:\n  toggle                         Alternar a visibilidade da barra lateral direita\n  show                           Mostrar a barra lateral direita\n  hide                           Ocultar a barra lateral direita\n  focus                          Focar o modo atual da barra lateral direita\n  set|set-mode <%1$@>\n                                 Mostrar, alternar o modo e focar\n  mode                           Exibir {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias de show + set|set-mode + focus\n\nOpções:\n  --workspace <id|ref|index>     Selecionar a janela que contém um espaço de trabalho\n  --window <id|ref|index>        Selecionar uma janela\n  --no-focus                     Com set, alternar o modo sem mover o foco\n\nExemplos:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Использование: cmux right-sidebar <command> [flags]\n\nУправление правой боковой панелью из командной строки.\n\nКоманды:\n  toggle                         Переключить видимость правой боковой панели\n  show                           Показать правую боковую панель\n  hide                           Скрыть правую боковую панель\n  focus                          Перевести фокус на текущий режим правой боковой панели\n  set|set-mode <%1$@>\n                                 Показать, переключить режим и перевести фокус\n  mode                           Вывести {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Псевдоним для show + set|set-mode + focus\n\nПараметры:\n  --workspace <id|ref|index>     Выбрать окно, содержащее рабочую область\n  --window <id|ref|index>        Выбрать окно\n  --no-focus                     С set переключить режим без перемещения фокуса\n\nПримеры:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "วิธีใช้: cmux right-sidebar <command> [flags]\n\nควบคุมแถบด้านข้างขวาจากบรรทัดคำสั่ง\n\nคำสั่ง:\n  toggle                         สลับการแสดงแถบด้านข้างขวา\n  show                           แสดงแถบด้านข้างขวา\n  hide                           ซ่อนแถบด้านข้างขวา\n  focus                          ย้ายโฟกัสไปยังโหมดปัจจุบันของแถบด้านข้างขวา\n  set|set-mode <%1$@>\n                                 แสดง เปลี่ยนโหมด และย้ายโฟกัส\n  mode                           แสดง {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 ชื่อแทนของ show + set|set-mode + focus\n\nตัวเลือก:\n  --workspace <id|ref|index>     ระบุหน้าต่างที่มีพื้นที่ทำงาน\n  --window <id|ref|index>        ระบุหน้าต่าง\n  --no-focus                     ใช้ set เพื่อเปลี่ยนโหมดโดยไม่ย้ายโฟกัส\n\nตัวอย่าง:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Kullanım: cmux right-sidebar <command> [flags]\n\nSağ kenar çubuğunu komut satırından yönetin.\n\nKomutlar:\n  toggle                         Sağ kenar çubuğunun görünürlüğünü değiştir\n  show                           Sağ kenar çubuğunu göster\n  hide                           Sağ kenar çubuğunu gizle\n  focus                          Sağ kenar çubuğunun geçerli moduna odaklan\n  set|set-mode <%1$@>\n                                 Göster, modu değiştir ve odaklan\n  mode                           Yazdır {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 show + set|set-mode + focus için takma ad\n\nSeçenekler:\n  --workspace <id|ref|index>     Bir çalışma alanını içeren pencereyi hedefle\n  --window <id|ref|index>        Bir pencereyi hedefle\n  --no-focus                     set ile odağı taşımadan modu değiştir\n\nÖrnekler:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "Використання: cmux right-sidebar <command> [flags]\n\nКерування правою бічною панеллю з командного рядка.\n\nКоманди:\n  toggle                         Перемкнути видимість правої бічної панелі\n  show                           Показати праву бічну панель\n  hide                           Приховати праву бічну панель\n  focus                          Перевести фокус на поточний режим правої бічної панелі\n  set|set-mode <%1$@>\n                                 Показати, перемкнути режим і перевести фокус\n  mode                           Вивести {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Псевдонім для show + set|set-mode + focus\n\nПараметри:\n  --workspace <id|ref|index>     Вибрати вікно, що містить робочу область\n  --window <id|ref|index>        Вибрати вікно\n  --no-focus                     З set перемкнути режим без переміщення фокуса\n\nПриклади:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "用法: cmux right-sidebar <command> [flags]\n\n通过命令行控制右侧边栏。\n\n命令:\n  toggle                         切换右侧边栏的显示状态\n  show                           显示右侧边栏\n  hide                           隐藏右侧边栏\n  focus                          聚焦右侧边栏的当前模式\n  set|set-mode <%1$@>\n                                 显示、切换模式并聚焦\n  mode                           输出 {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 show + set|set-mode + focus 的别名\n\n选项:\n  --workspace <id|ref|index>     指定包含某个工作区的窗口\n  --window <id|ref|index>        指定一个窗口\n  --no-focus                     使用 set 切换模式而不移动焦点\n\n示例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usage: cmux right-sidebar <command> [flags]\n\nControl the right sidebar from the CLI.\n\nCommands:\n  toggle                         Toggle right sidebar visibility\n  show                           Show the right sidebar\n  hide                           Hide the right sidebar\n  focus                          Focus the current right sidebar mode\n  set|set-mode <%1$@>\n                                 Show, switch mode, and focus\n  mode                           Print {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 Alias for show + set|set-mode + focus\n\nFlags:\n  --workspace <id|ref|index>     Target the window containing a workspace\n  --window <id|ref|index>        Target a window\n  --no-focus                     With set, switch mode without moving focus\n\nExamples:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
+            "value": "用法: cmux right-sidebar <command> [flags]\n\n透過命令列控制右側邊欄。\n\n命令:\n  toggle                         切換右側邊欄的顯示狀態\n  show                           顯示右側邊欄\n  hide                           隱藏右側邊欄\n  focus                          聚焦右側邊欄的目前模式\n  set|set-mode <%1$@>\n                                 顯示、切換模式並聚焦\n  mode                           輸出 {\"visible\":bool,\"mode\":string}\n  %1$@\n                                 show + set|set-mode + focus 的別名\n\n選項:\n  --workspace <id|ref|index>     指定包含某個工作區的視窗\n  --window <id|ref|index>        指定一個視窗\n  --no-focus                     使用 set 切換模式而不移動焦點\n\n範例:\n  cmux right-sidebar toggle\n  cmux right-sidebar set find\n  cmux right-sidebar set vault --no-focus\n  cmux right-sidebar mode"
           }
         }
       }
@@ -158765,109 +158765,109 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "خطأ: الاستخدام: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "GREŠKA: Upotreba: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "FEJL: Brug: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "FEHLER: Verwendung: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERROR: Uso: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERREUR: Utilisation : right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERRORE: Uso: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "កំហុស: ការប្រើប្រាស់: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "오류: 사용법: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "FEIL: Bruk: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "BŁĄD: Użycie: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ERRO: Uso: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ОШИБКА: Использование: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ข้อผิดพลาด: วิธีใช้: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "HATA: Kullanım: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "ПОМИЛКА: Використання: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "错误: 用法: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Usage: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
+            "value": "錯誤: 用法: right_sidebar show [--workspace=<workspace-id>] [--window=<window-id>]"
           }
         }
       }
@@ -277319,109 +277319,109 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM التحكم بالمصادر تحكم بالإصدارات إيداع تجهيز إلغاء التجهيز فروق تغييرات الشريط الجانبي الأيمن تجريبي"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM kontrola izvornog koda verzije potvrda priprema uklanjanje iz pripreme razlike promjene desna bočna traka beta"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM kildekontrol versionsstyring commit klargør fjern klargøring forskelle ændringer højre sidepanel beta"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM Quellcodeverwaltung Versionsverwaltung Commit vormerken Vormerkung aufheben Unterschiede Änderungen rechte Seitenleiste Beta"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM control de código fuente control de versiones commit preparar quitar preparación diferencias cambios barra lateral derecha beta"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM contrôle de code source gestion de versions commit indexer désindexer différences modifications barre latérale droite bêta"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM controllo del codice sorgente controllo versioni commit preparazione annulla preparazione differenze modifiche barra laterale destra beta"
           }
         },
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM ការគ្រប់គ្រងកូដប្រភព កំណែ commit រៀបចំ ដកចេញពីការរៀបចំ ភាពខុសគ្នា ការផ្លាស់ប្តូរ របារចំហៀងខាងស្តាំ បេតា"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM 소스 제어 버전 관리 커밋 스테이징 스테이징 해제 차이 변경 사항 오른쪽 사이드바 베타"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM kildekontroll versjonskontroll commit klargjør fjern klargjøring forskjeller endringer høyre sidepanel beta"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM kontrola kodu źródłowego kontrola wersji commit indeksowanie usuwanie z indeksu różnice zmiany prawy pasek boczny beta"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM controle de código-fonte controle de versão commit preparar desfazer preparação diferenças alterações barra lateral direita beta"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM управление исходным кодом контроль версий коммит индексировать убрать из индекса различия изменения правая боковая панель бета"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM การควบคุมซอร์สโค้ด ควบคุมเวอร์ชัน คอมมิต เตรียม ยกเลิกการเตรียม ความแตกต่าง การเปลี่ยนแปลง แถบด้านข้างขวา เบต้า"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM kaynak kodu denetimi sürüm kontrolü commit hazırlama hazırlamayı geri alma fark değişiklikler sağ kenar çubuğu beta"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM керування вихідним кодом контроль версій коміт індексувати прибрати з індексу відмінності зміни права бічна панель бета"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM 源代码管理 版本控制 提交 暂存 取消暂存 差异 更改 右侧边栏 测试版"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "sourceControl.beta.enabled source control git scm commit stage unstage diff changes right sidebar beta"
+            "value": "sourceControl.beta.enabled Git SCM 原始碼管理 版本控制 提交 暫存 取消暫存 差異 變更 右側邊欄 測試版"
           }
         }
       }
@@ -278932,25 +278932,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "يقبل diff ملف تصحيح واحدًا على الأكثر. راجع: cmux diff --help"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff prihvata najviše jednu datoteku zakrpe. Pogledajte: cmux diff --help"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff accepterer højst én patchfil. Se: cmux diff --help"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff akzeptiert höchstens eine Patch-Datei. Siehe: cmux diff --help"
           }
         },
         "en": {
@@ -278962,19 +278962,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff acepta como máximo un archivo de parche. Consulta: cmux diff --help"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff accepte au plus un fichier de correctif. Voir : cmux diff --help"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff accetta al massimo un file patch. Vedi: cmux diff --help"
           }
         },
         "ja": {
@@ -278986,67 +278986,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff ទទួលយកឯកសារ patch បានច្រើនបំផុតមួយ។ សូមមើល: cmux diff --help"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff는 패치 파일을 최대 하나만 허용합니다. 참고: cmux diff --help"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff godtar høyst én patchfil. Se: cmux diff --help"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff przyjmuje najwyżej jeden plik łatki. Zobacz: cmux diff --help"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff aceita no máximo um arquivo de patch. Consulte: cmux diff --help"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff принимает не более одного файла патча. См.: cmux diff --help"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff รับไฟล์แพตช์ได้ไม่เกินหนึ่งไฟล์ ดู: cmux diff --help"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff en fazla bir yama dosyası kabul eder. Bkz.: cmux diff --help"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff приймає щонайбільше один файл патча. Див.: cmux diff --help"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff 最多接受一个补丁文件。参见: cmux diff --help"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff accepts at most one patch file. See: cmux diff --help"
+            "value": "diff 最多接受一個修補檔。請參閱: cmux diff --help"
           }
         }
       }
@@ -279057,25 +279057,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "يتطلب --file مصدر فروق Git"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file zahtijeva Git izvor razlika"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file kræver en Git-diffkilde"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file erfordert eine Git-Diff-Quelle"
           }
         },
         "en": {
@@ -279087,19 +279087,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file requiere una fuente de diferencias de Git"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file nécessite une source de différences Git"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file richiede un’origine delle differenze Git"
           }
         },
         "ja": {
@@ -279111,67 +279111,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file ត្រូវការប្រភពភាពខុសគ្នា Git"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file에는 Git diff 소스가 필요합니다"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file krever en Git-diffkilde"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file wymaga źródła różnic Git"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file requer uma fonte de diferenças do Git"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "Для --file требуется источник различий Git"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file ต้องใช้แหล่งข้อมูล diff ของ Git"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file bir Git fark kaynağı gerektirir"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "Для --file потрібне джерело відмінностей Git"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file 需要 Git 差异源"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file requires a git diff source"
+            "value": "--file 需要 Git 差異來源"
           }
         }
       }
@@ -279182,25 +279182,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: خيار غير معروف '%@'. راجع: cmux diff --help"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: nepoznata opcija '%@'. Pogledajte: cmux diff --help"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: ukendt flag '%@'. Se: cmux diff --help"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: unbekannte Option '%@'. Siehe: cmux diff --help"
           }
         },
         "en": {
@@ -279212,19 +279212,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: opción desconocida '%@'. Consulta: cmux diff --help"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff : option inconnue '%@'. Voir : cmux diff --help"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: opzione sconosciuta '%@'. Vedi: cmux diff --help"
           }
         },
         "ja": {
@@ -279236,67 +279236,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: មិនស្គាល់ជម្រើស '%@'។ សូមមើល: cmux diff --help"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: 알 수 없는 옵션 '%@'. 참고: cmux diff --help"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: ukjent flagg '%@'. Se: cmux diff --help"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: nieznana opcja '%@'. Zobacz: cmux diff --help"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: opção desconhecida '%@'. Consulte: cmux diff --help"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: неизвестный параметр '%@'. См.: cmux diff --help"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: ไม่รู้จักตัวเลือก '%@' ดู: cmux diff --help"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: bilinmeyen seçenek '%@'. Bkz.: cmux diff --help"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: невідомий параметр '%@'. Див.: cmux diff --help"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: 未知选项 '%@'。参见: cmux diff --help"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff: unknown flag '%@'. See: cmux diff --help"
+            "value": "diff: 未知選項 '%@'。請參閱: cmux diff --help"
           }
         }
       }
@@ -279307,25 +279307,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "يتطلب diff ملف تصحيح أو إدخالًا قياسيًا عبر أنبوب أو مصدر Git. راجع: cmux diff --help"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff zahtijeva datoteku zakrpe, standardni ulaz kroz cjevovod ili Git izvor. Pogledajte: cmux diff --help"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff kræver en patchfil, standardinput via en pipe eller en Git-kilde. Se: cmux diff --help"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff erfordert eine Patch-Datei, Standardeingabe über eine Pipe oder eine Git-Quelle. Siehe: cmux diff --help"
           }
         },
         "en": {
@@ -279337,19 +279337,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff requiere un archivo de parche, entrada estándar por una tubería o una fuente de Git. Consulta: cmux diff --help"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff nécessite un fichier de correctif, une entrée standard via un tube ou une source Git. Voir : cmux diff --help"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff richiede un file patch, l’input standard tramite pipe o un’origine Git. Vedi: cmux diff --help"
           }
         },
         "ja": {
@@ -279361,67 +279361,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff ត្រូវការឯកសារ patch ធាតុចូលស្តង់ដារតាម pipe ឬប្រភព Git។ សូមមើល: cmux diff --help"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff에는 패치 파일, 파이프를 통한 표준 입력 또는 Git 소스가 필요합니다. 참고: cmux diff --help"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff krever en patchfil, standardinndata via et rør eller en Git-kilde. Se: cmux diff --help"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff wymaga pliku łatki, standardowego wejścia przez potok lub źródła Git. Zobacz: cmux diff --help"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff requer um arquivo de patch, entrada padrão por pipe ou uma fonte do Git. Consulte: cmux diff --help"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "Для diff требуется файл патча, стандартный ввод через канал или источник Git. См.: cmux diff --help"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff ต้องใช้ไฟล์แพตช์ อินพุตมาตรฐานผ่านไปป์ หรือแหล่งข้อมูล Git ดู: cmux diff --help"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff bir yama dosyası, boru üzerinden standart girdi veya bir Git kaynağı gerektirir. Bkz.: cmux diff --help"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "Для diff потрібен файл патча, стандартне введення через канал або джерело Git. Див.: cmux diff --help"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff 需要补丁文件、通过管道传入的标准输入或 Git 源。参见: cmux diff --help"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "diff requires a patch file, piped stdin, or a git source. See: cmux diff --help"
+            "value": "diff 需要修補檔、透過管道傳入的標準輸入或 Git 來源。請參閱: cmux diff --help"
           }
         }
       }
@@ -279432,25 +279432,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "مسار ملف الفروق خارج مستودع Git"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Putanja datoteke razlika je izvan Git repozitorija"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Diff-filens sti ligger uden for Git-repositoriet"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Der Diff-Dateipfad liegt außerhalb des Git-Repositorys"
           }
         },
         "en": {
@@ -279462,19 +279462,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "La ruta del archivo de diferencias está fuera del repositorio de Git"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Le chemin du fichier de différences se trouve en dehors du dépôt Git"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Il percorso del file delle differenze è esterno al repository Git"
           }
         },
         "ja": {
@@ -279486,67 +279486,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "ផ្លូវឯកសារភាពខុសគ្នាស្ថិតនៅក្រៅឃ្លាំង Git"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "diff 파일 경로가 Git 저장소 밖에 있습니다"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Diff-filbanen er utenfor Git-repositoriet"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Ścieżka pliku różnic znajduje się poza repozytorium Git"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "O caminho do arquivo de diferenças está fora do repositório Git"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Путь к файлу различий находится вне репозитория Git"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "พาธไฟล์ diff อยู่นอกที่เก็บ Git"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Fark dosyası yolu Git deposunun dışında"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "Шлях до файлу відмінностей перебуває поза репозиторієм Git"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "差异文件路径位于 Git 仓库之外"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff file path is outside the Git repository"
+            "value": "差異檔案路徑位於 Git 儲存庫之外"
           }
         }
       }
@@ -279557,25 +279557,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "مسار ملف فروق غير صالح"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Nevažeća putanja datoteke razlika"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Ugyldig sti til diff-fil"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Ungültiger Diff-Dateipfad"
           }
         },
         "en": {
@@ -279587,19 +279587,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Ruta del archivo de diferencias no válida"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Chemin du fichier de différences non valide"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Percorso del file delle differenze non valido"
           }
         },
         "ja": {
@@ -279611,67 +279611,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "ផ្លូវឯកសារភាពខុសគ្នាមិនត្រឹមត្រូវ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "잘못된 diff 파일 경로"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Ugyldig diff-filbane"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Nieprawidłowa ścieżka pliku różnic"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Caminho do arquivo de diferenças inválido"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Недопустимый путь к файлу различий"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "พาธไฟล์ diff ไม่ถูกต้อง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Geçersiz fark dosyası yolu"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "Неприпустимий шлях до файлу відмінностей"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "差异文件路径无效"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid diff file path"
+            "value": "差異檔案路徑無效"
           }
         }
       }
@@ -279682,25 +279682,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 حصر مصدر فروق Git في ملف واحد"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Ograničite Git izvor razlika na jednu datoteku"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Begræns en Git-diffkilde til én fil"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Eine Git-Diff-Quelle auf eine Datei beschränken"
           }
         },
         "en": {
@@ -279712,19 +279712,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Limitar una fuente de diferencias de Git a un archivo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Limiter une source de différences Git à un fichier"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Limita un’origine delle differenze Git a un file"
           }
         },
         "ja": {
@@ -279736,67 +279736,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 កំណត់ប្រភពភាពខុសគ្នា Git ឱ្យមានតែឯកសារមួយ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Git diff 소스를 파일 하나로 제한"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Begrens en Git-diffkilde til én fil"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Ogranicz źródło różnic Git do jednego pliku"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Limitar uma fonte de diferenças do Git a um arquivo"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Ограничить источник различий Git одним файлом"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 จำกัดแหล่งข้อมูล diff ของ Git ให้เหลือหนึ่งไฟล์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Bir Git fark kaynağını tek dosyayla sınırla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 Обмежити джерело відмінностей Git одним файлом"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 将 Git 差异源限制为一个文件"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "--file <path>                 Limit a git diff source to one file"
+            "value": "--file <path>                 將 Git 差異來源限制為一個檔案"
           }
         }
       }
@@ -279807,25 +279807,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "خطأ: وضع الشريط الجانبي الأيمن '%@' غير متاح؛ فعّله في الإعدادات"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "GREŠKA: režim desne bočne trake '%@' nije dostupan; omogućite ga u postavkama"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "FEJL: tilstanden '%@' i højre sidepanel er ikke tilgængelig; aktivér den i Indstillinger"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "FEHLER: Der Modus '%@' der rechten Seitenleiste ist nicht verfügbar; aktiviere ihn in den Einstellungen"
           }
         },
         "en": {
@@ -279837,19 +279837,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ERROR: el modo '%@' de la barra lateral derecha no está disponible; actívalo en Ajustes"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ERREUR : le mode '%@' de la barre latérale droite est indisponible ; activez-le dans Réglages"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ERRORE: la modalità '%@' della barra laterale destra non è disponibile; abilitala nelle Impostazioni"
           }
         },
         "ja": {
@@ -279861,67 +279861,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "កំហុស: របៀប '%@' នៃរបារចំហៀងខាងស្តាំមិនអាចប្រើបានទេ; សូមបើកវាក្នុងការកំណត់"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "오류: 오른쪽 사이드바 모드 '%@'을(를) 사용할 수 없습니다. 설정에서 활성화하세요"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "FEIL: Modusen '%@' i høyre sidepanel er utilgjengelig; aktiver den i Innstillinger"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "BŁĄD: tryb '%@' prawego paska bocznego jest niedostępny; włącz go w Ustawieniach"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ERRO: o modo '%@' da barra lateral direita está indisponível; ative-o nos Ajustes"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ОШИБКА: режим '%@' правой боковой панели недоступен; включите его в настройках"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ข้อผิดพลาด: โหมด '%@' ของแถบด้านข้างขวาไม่พร้อมใช้งาน ให้เปิดใช้ในการตั้งค่า"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "HATA: sağ kenar çubuğu modu '%@' kullanılamıyor; Ayarlar’dan etkinleştirin"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "ПОМИЛКА: режим '%@' правої бічної панелі недоступний; увімкніть його в параметрах"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "错误: 右侧边栏模式 '%@' 不可用；请在设置中启用"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "ERROR: Right sidebar mode '%@' is unavailable; enable it in Settings"
+            "value": "錯誤: 右側邊欄模式 '%@' 無法使用；請在設定中啟用"
           }
         }
       }
@@ -279932,25 +279932,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "معاينات الفروق غير متاحة لمساحات عمل SSH."
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Pregledi razlika nisu dostupni za SSH radne prostore."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Forhåndsvisning af forskelle er ikke tilgængelig for SSH-arbejdsområder."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Diff-Vorschauen sind für SSH-Arbeitsbereiche nicht verfügbar."
           }
         },
         "en": {
@@ -279962,19 +279962,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Las vistas previas de diferencias no están disponibles para espacios de trabajo SSH."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Les aperçus des différences sont indisponibles pour les espaces de travail SSH."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Le anteprime delle differenze non sono disponibili per le aree di lavoro SSH."
           }
         },
         "ja": {
@@ -279986,67 +279986,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "ការមើលភាពខុសគ្នាជាមុនមិនអាចប្រើបានសម្រាប់លំហការងារ SSH ទេ។"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "SSH 작업 공간에서는 diff 미리보기를 사용할 수 없습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Forhåndsvisning av forskjeller er ikke tilgjengelig for SSH-arbeidsområder."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Podgląd różnic jest niedostępny dla obszarów roboczych SSH."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Prévias de diferenças não estão disponíveis para espaços de trabalho SSH."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Предпросмотр различий недоступен для рабочих областей SSH."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "การแสดงตัวอย่าง diff ไม่พร้อมใช้งานสำหรับพื้นที่ทำงาน SSH"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "SSH çalışma alanları için fark önizlemeleri kullanılamaz."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "Попередній перегляд відмінностей недоступний для робочих областей SSH."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "SSH 工作区不支持差异预览。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diff previews are unavailable for SSH workspaces."
+            "value": "SSH 工作區不支援差異預覽。"
           }
         }
       }
@@ -280057,25 +280057,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "جارٍ التحقق من حالة Git…"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Provjera Git statusa…"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Kontrollerer Git-status…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Git-Status wird geprüft…"
           }
         },
         "en": {
@@ -280087,19 +280087,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Comprobando el estado de Git…"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Vérification de l’état Git…"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Verifica dello stato Git…"
           }
         },
         "ja": {
@@ -280111,67 +280111,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "កំពុងពិនិត្យស្ថានភាព Git…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Git 상태 확인 중…"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Kontrollerer Git-status…"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Sprawdzanie stanu Git…"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Verificando o status do Git…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Проверка состояния Git…"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "กำลังตรวจสอบสถานะ Git…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Git durumu kontrol ediliyor…"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "Перевірка стану Git…"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "正在检查 Git 状态…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Checking Git status…"
+            "value": "正在檢查 Git 狀態…"
           }
         }
       }
@@ -280182,25 +280182,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "التحكم بالمصادر غير متاح"
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Kontrola izvornog koda nije dostupna"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Kildekontrol er ikke tilgængelig"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Quellcodeverwaltung nicht verfügbar"
           }
         },
         "en": {
@@ -280212,19 +280212,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Control de código fuente no disponible"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Contrôle de code source indisponible"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Controllo del codice sorgente non disponibile"
           }
         },
         "ja": {
@@ -280236,67 +280236,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "ការគ្រប់គ្រងកូដប្រភពមិនអាចប្រើបាន"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "소스 제어를 사용할 수 없음"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Kildekontroll er utilgjengelig"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Kontrola kodu źródłowego jest niedostępna"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Controle de código-fonte indisponível"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Управление исходным кодом недоступно"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "การควบคุมซอร์สโค้ดไม่พร้อมใช้งาน"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Kaynak kodu denetimi kullanılamıyor"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "Керування вихідним кодом недоступне"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "源代码管理不可用"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Source Control unavailable"
+            "value": "原始碼管理無法使用"
           }
         }
       }
@@ -280307,25 +280307,25 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "تعذرت قراءة حالة Git لمساحة العمل هذه."
           }
         },
         "bs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Nije moguće pročitati Git status za ovaj radni prostor."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Git-status kunne ikke læses for dette arbejdsområde."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Der Git-Status für diesen Arbeitsbereich konnte nicht gelesen werden."
           }
         },
         "en": {
@@ -280337,19 +280337,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "No se pudo leer el estado de Git de este espacio de trabajo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Impossible de lire l’état Git de cet espace de travail."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Impossibile leggere lo stato Git di questa area di lavoro."
           }
         },
         "ja": {
@@ -280361,67 +280361,67 @@
         "km": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "មិនអាចអានស្ថានភាព Git សម្រាប់លំហការងារនេះបានទេ។"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "이 작업 공간의 Git 상태를 읽을 수 없습니다."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Kunne ikke lese Git-status for dette arbeidsområdet."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Nie udało się odczytać stanu Git tego obszaru roboczego."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Não foi possível ler o status do Git deste espaço de trabalho."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Не удалось прочитать состояние Git для этой рабочей области."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "ไม่สามารถอ่านสถานะ Git สำหรับพื้นที่ทำงานนี้ได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Bu çalışma alanı için Git durumu okunamadı."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "Не вдалося прочитати стан Git для цієї робочої області."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "无法读取此工作区的 Git 状态。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Git status could not be read for this workspace."
+            "value": "無法讀取此工作區的 Git 狀態。"
           }
         }
       }
