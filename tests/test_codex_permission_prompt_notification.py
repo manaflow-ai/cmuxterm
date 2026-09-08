@@ -2,7 +2,7 @@
 """
 Regression: a codex PermissionRequest feed hook raises the
 "Agent Needs Permission"-gated notification, acknowledged before the hook
-returns, and codex tool completion clears it.
+returns, and codex tool completion resolves the correlated request.
 
 https://github.com/manaflow-ai/cmux/issues/9592: the feed bridge normalized
 codex PermissionRequest to non-actionable PreToolUse telemetry and never
@@ -14,6 +14,7 @@ or misrouted notify/clear dispatch.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -54,6 +55,39 @@ def codex_payload(event: str) -> dict:
     }
 
 
+def approval_id(payload: dict) -> str:
+    scope_seed = (
+        f"session={payload['session_id']}\n"
+        f"turn={payload['turn_id']}"
+    )
+    scope = hashlib.sha256(scope_seed.encode()).hexdigest()[:24]
+    canonical_input = json.dumps(
+        {"value": payload.get("tool_input")},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    request_seed = (
+        f"{scope_seed}\n"
+        f"tool={payload.get('tool_name', '')}\n"
+        f"input={canonical_input}"
+    )
+    request = hashlib.sha256(request_seed.encode()).hexdigest()[:24]
+    return f"{scope}.{request}"
+
+
+EXPECTED_APPROVAL_ID = approval_id(codex_payload("PermissionRequest"))
+EXPECTED_NOTIFY_COMMAND = (
+    f"notify_target_async {FAKE_WORKSPACE_ID} {FAKE_SURFACE_ID} "
+    "Codex|Permission|shell needs approval|c=needs-permission;p=0"
+    f";a={EXPECTED_APPROVAL_ID};d=1;o=feed"
+)
+EXPECTED_CLEAR_COMMAND = (
+    f"clear_notifications --tab={FAKE_WORKSPACE_ID} --panel={FAKE_SURFACE_ID} "
+    f"--approval-id={EXPECTED_APPROVAL_ID}"
+)
+
+
 def strip_capability_prefix(raw: str) -> str:
     if raw.startswith("_cmux_capability_v1 "):
         parts = raw.split(" ", 2)
@@ -71,6 +105,8 @@ def run_feed_hook_capture(
     method_delays: dict[str, float] | None = None,
     settle_seconds: float = 0,
     payload: dict | None = None,
+    environment: dict[str, str] | None = None,
+    generic_subcommand: str | None = None,
 ) -> tuple[dict, list, float]:
     """Runs `cmux hooks feed --source codex` and returns (stdout JSON,
     ordered received frames, elapsed seconds)."""
@@ -79,6 +115,8 @@ def run_feed_hook_capture(
         env.pop(key, None)
     env["CMUX_SURFACE_ID"] = FAKE_SURFACE_ID
     env["CMUX_WORKSPACE_ID"] = FAKE_WORKSPACE_ID
+    if environment:
+        env.update(environment)
     if socket_password is not None:
         env["CMUX_SOCKET_PASSWORD"] = socket_password
     with FakeCmuxSocket(
@@ -89,18 +127,11 @@ def run_feed_hook_capture(
         method_delays=method_delays,
     ) as fake:
         started = time.monotonic()
+        hook_arguments = ["feed", "--source", "codex", "--event", event]
+        if generic_subcommand is not None:
+            hook_arguments = ["codex", generic_subcommand]
         result = subprocess.run(
-            [
-                cli_path,
-                "--socket",
-                str(socket_path),
-                "hooks",
-                "feed",
-                "--source",
-                "codex",
-                "--event",
-                event,
-            ],
+            [cli_path, "--socket", str(socket_path), "hooks", *hook_arguments],
             input=json.dumps(payload if payload is not None else codex_payload(event)),
             capture_output=True,
             text=True,
@@ -333,6 +364,67 @@ def test_stalled_live_target_probe_does_not_starve_notification(
         )
 
 
+def test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path: str, root: Path) -> None:
+    state_dir = root / "corrupt-hook-state"
+    state_dir.mkdir()
+    state_file = state_dir / "codex-hook-sessions.json"
+    state_file.write_text("{not valid JSON", encoding="utf-8")
+    backup = state_dir / ".codex-hook-sessions.json.quarantined.json"
+    backup.write_text("previous recovery backup", encoding="utf-8")
+    payload = codex_payload("PermissionRequest")
+    payload["approvals_reviewer"] = "auto_review"
+    run_feed_hook_capture(
+        cli_path, root / "cmux-read-only.sock", "PermissionRequest", payload=payload,
+        environment={"CMUX_AGENT_HOOK_STATE_DIR": str(state_dir)},
+    )
+    assert state_file.read_text(encoding="utf-8") == "{not valid JSON"
+    assert backup.read_text(encoding="utf-8") == "previous recovery backup"
+
+
+def test_completion_only_tool_use_id_preserves_legacy_settling(cli_path: str, root: Path) -> None:
+    payload = codex_payload("PermissionRequest")
+    payload.pop("tool_use_id")
+    _, request_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-derived-request.sock", "PermissionRequest", payload=payload,
+    )
+    assert EXPECTED_NOTIFY_COMMAND in raw_commands(request_frames), request_frames
+    assert notification_views(request_frames) == [], request_frames
+    _, completion_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-derived-completion.sock", "PostToolUse",
+    )
+    assert EXPECTED_CLEAR_COMMAND in raw_commands(completion_frames), completion_frames
+
+
+def test_completion_only_call_id_includes_derived_fallback(cli_path: str, root: Path) -> None:
+    payload = codex_payload("PostToolUse")
+    payload["call_id"] = "only-on-completion"
+    _, frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-call-fallback.sock", "PostToolUse", payload=payload,
+    )
+    assert any(f"--approval-fallback-id={EXPECTED_APPROVAL_ID}" in command for command in raw_commands(frames)), frames
+
+
+def test_native_hook_and_feed_share_journal_identity(cli_path: str, root: Path) -> None:
+    state_dir = root / "native-hook-state"
+    state_dir.mkdir()
+    payload = codex_payload("PermissionRequest")
+    payload.pop("tool_use_id")
+    payload["tool_call_id"] = "shared-native-call"
+    _, hook_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-native-hook.sock", "PermissionRequest", payload=payload,
+        generic_subcommand="notification", environment={"CMUX_AGENT_HOOK_STATE_DIR": str(state_dir)},
+        surface_delivery_target=(FAKE_WORKSPACE_ID, FAKE_SURFACE_ID),
+    )
+    _, feed_frames, _ = run_feed_hook_capture(
+        cli_path, root / "cmux-native-feed.sock", "PermissionRequest", payload=payload,
+        surface_delivery_target=(FAKE_WORKSPACE_ID, FAKE_SURFACE_ID),
+    )
+    for frames in (hook_frames, feed_frames):
+        views = notification_views(frames)
+        assert len(views) == 1 and views[0]["request_identity"] == "shared-native-call", frames
+        assert not any(command.startswith("notify_target_async ") for command in raw_commands(frames)), frames
+
+
 def main() -> int:
     try:
         cli_path = resolve_cmux_cli()
@@ -353,11 +445,15 @@ def main() -> int:
             test_permission_notification_survives_slow_authentication(cli_path, root)
             test_permission_notification_targets_rehomed_pane(cli_path, root)
             test_stalled_live_target_probe_does_not_starve_notification(cli_path, root)
+            test_shared_approval_lookup_does_not_quarantine_corrupt_state(cli_path, root)
+            test_completion_only_tool_use_id_preserves_legacy_settling(cli_path, root)
+            test_completion_only_call_id_includes_derived_fallback(cli_path, root)
+            test_native_hook_and_feed_share_journal_identity(cli_path, root)
         except Exception as exc:
             print(f"FAIL: {exc}")
             return 1
 
-    print("PASS: codex permission prompts notify, acknowledge, and clear")
+    print("PASS: codex permission prompts notify, acknowledge, and resolve")
     return 0
 
 

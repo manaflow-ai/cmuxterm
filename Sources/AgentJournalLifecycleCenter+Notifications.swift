@@ -24,8 +24,17 @@ extension AgentJournalLifecycleCenter {
         guard let workspaceID = event.draft.workspaceId.flatMap(UUID.init(uuidString:)),
               let surfaceID = event.draft.surfaceId.flatMap(UUID.init(uuidString:)) else { return }
         for key in decision.invalidatedCorrelationKeys {
-            TerminalMutationBus.shared.enqueueClearNotifications(forTabId: workspaceID,
-                surfaceId: surfaceID, correlationKey: key)
+            let bus = TerminalMutationBus.shared
+            if event.draft.source == "codex", let sessionID = event.draft.sessionId,
+               let approvalID = AgentApprovalCorrelationID.journal(sessionID: sessionID, correlationKey: key) {
+                bus.enqueueAgentApprovalResolution(surfaceId: surfaceID, approvalID: approvalID)
+                bus.enqueueMainActorMutation {
+                    guard bus.resolvedApprovalCorrelationKey(surfaceID: surfaceID, producerCorrelationKey: key) == nil else { return }
+                    bus.enqueueClearNotifications(forTabId: workspaceID, surfaceId: surfaceID, correlationKey: key)
+                }
+            } else {
+                bus.enqueueClearNotifications(forTabId: workspaceID, surfaceId: surfaceID, correlationKey: key)
+            }
             if let sessionID = event.draft.sessionId {
                 FeedCoordinator.shared.invalidateSemanticRequest(requestId: key, source: event.draft.source, sessionId: sessionID)
             }
@@ -92,12 +101,17 @@ extension AgentJournalLifecycleCenter {
         let category = AgentNotifyCategory(rawValue: notification.category)
         let alert: NotificationSoundAlertType? = draft.kind == .errorReported ? .errorStalled : category?.soundAlertType
         let sound = alert.flatMap { NotificationSoundOverrideContext(agentID: draft.source, alertType: $0) }
+        let correlationKey = notification.correlationKey ?? identity
+        let approvalID = draft.source == "codex" && draft.kind == .approvalRequested
+            ? draft.sessionId.flatMap { AgentApprovalCorrelationID.journal(sessionID: $0, correlationKey: correlationKey) }
+            : nil
         let delivered = delivery.enqueue(
             workspaceID: live.tabId, surfaceID: liveSurfaceID,
             title: notification.title, subtitle: notification.subtitle, body: notification.body,
             category: category, pending: draft.pendingWork, soundContext: sound,
+            approvalID: approvalID,
             agentKind: draft.source, isSubagent: draft.isSubagent,
-            correlationKey: notification.correlationKey ?? identity,
+            correlationKey: correlationKey,
             sessionId: draft.sessionId,
             coalesces: false
         )

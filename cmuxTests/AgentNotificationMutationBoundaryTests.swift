@@ -10,6 +10,152 @@ import Testing
 #endif
 
 extension AgentNotificationRegressionTests {
+    private func waitForApprovalControl(_ fixture: Fixture, body: String) async throws {
+        let deadline = ContinuousClock.now + .seconds(15)
+        while !fixture.store.notifications.contains(where: { $0.body == body }), ContinuousClock.now < deadline {
+            TerminalMutationBus.shared.drainForTesting()
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        TerminalMutationBus.shared.drainForTesting()
+        #expect(fixture.store.notifications.contains { $0.body == body })
+    }
+
+    @Test func queuedApprovalResolutionsSurviveFirstUseAndLaterEpisodes() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        let controlSurface = try #require(fixture.destination.focusedPanelId)
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.cancelAgentApproval(surfaceID: controlSurface)
+            bus.discardPendingNotifications()
+        }
+        for episode in 1...2 {
+            bus.setDrainsSuspendedForTesting(true)
+            let first = try #require(AgentApprovalCorrelationID(rawValue: "111111111111111111111111.\(String(format: "%024x", episode * 2))"))
+            let second = try #require(AgentApprovalCorrelationID(rawValue: "111111111111111111111111.\(String(format: "%024x", episode * 2 + 1))"))
+            for approvalID in [first, second] {
+                bus.enqueueAgentApprovalResolution(surfaceId: fixture.panelId, approvalID: approvalID)
+            }
+            for approvalID in [first, second] {
+                bus.enqueueAgentApprovalNotification(tabId: fixture.source.id, surfaceId: fixture.panelId,
+                    title: "Codex", subtitle: "", body: "auto-approved", approvalID: approvalID)
+            }
+            let controlID = try #require(AgentApprovalCorrelationID(rawValue: "222222222222222222222222.\(String(format: "%024x", episode))"))
+            bus.enqueueAgentApprovalNotification(tabId: fixture.destination.id, surfaceId: controlSurface,
+                title: "Control", subtitle: "", body: "control-\(episode)", approvalID: controlID)
+            bus.setDrainsSuspendedForTesting(false)
+            bus.drainForTesting()
+            try await waitForApprovalControl(fixture, body: "control-\(episode)")
+            #expect(!fixture.store.notifications.contains { $0.body == "auto-approved" })
+            bus.enqueueAgentApprovalResolution(surfaceId: controlSurface, approvalID: controlID)
+            bus.drainForTesting()
+        }
+    }
+
+    @Test func queuedDerivedRepetitionsRemainAmbiguous() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        let approvalID = try #require(AgentApprovalCorrelationID(rawValue: "333333333333333333333333.aaaaaaaaaaaaaaaaaaaaaaaa"))
+        bus.setDrainsSuspendedForTesting(true)
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.discardPendingNotifications()
+        }
+        for _ in 0..<2 {
+            bus.enqueueAgentApprovalNotification(tabId: fixture.source.id, surfaceId: fixture.panelId,
+                title: "Codex", subtitle: "", body: "ambiguous approval", approvalID: approvalID, approvalIDIsDerived: true)
+        }
+        bus.enqueueAgentApprovalResolution(surfaceId: fixture.panelId, approvalID: approvalID)
+        bus.setDrainsSuspendedForTesting(false)
+        bus.drainForTesting()
+        try await waitForApprovalControl(fixture, body: "ambiguous approval")
+        bus.enqueueAgentApprovalResolution(surfaceId: fixture.panelId, approvalScope: approvalID.scope)
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.isEmpty)
+    }
+
+    @Test func newerWorkspaceClaimDoesNotInvalidateQueuedApprovalCompletion() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        let resolvedID = try #require(AgentApprovalCorrelationID(rawValue: "555555555555555555555555.aaaaaaaaaaaaaaaaaaaaaaaa"))
+        let waitingID = try #require(AgentApprovalCorrelationID(rawValue: "555555555555555555555555.bbbbbbbbbbbbbbbbbbbbbbbb"))
+        defer {
+            bus.setDrainsSuspendedForTesting(false)
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.discardPendingNotifications()
+        }
+        bus.enqueueAgentApprovalNotification(tabId: fixture.source.id, surfaceId: fixture.panelId,
+            title: "Codex", subtitle: "", body: "already resolved", approvalID: resolvedID)
+        bus.drainForTesting()
+        bus.setDrainsSuspendedForTesting(true)
+        bus.enqueueAgentApprovalResolution(surfaceId: fixture.panelId, approvalID: resolvedID)
+        bus.enqueueAgentApprovalNotification(tabId: fixture.destination.id, surfaceId: fixture.panelId,
+            title: "Codex", subtitle: "", body: "already resolved", approvalID: resolvedID)
+        bus.enqueueAgentApprovalNotification(tabId: fixture.destination.id, surfaceId: fixture.panelId,
+            title: "Codex", subtitle: "", body: "new waiting approval", approvalID: waitingID)
+        try movePanel(fixture)
+        bus.setDrainsSuspendedForTesting(false)
+        bus.drainForTesting()
+        try await waitForApprovalControl(fixture, body: "new waiting approval")
+        #expect(fixture.store.notifications.map(\.body) == ["new waiting approval"])
+        #expect(fixture.store.notifications.first?.tabId == fixture.destination.id)
+    }
+
+    @Test(arguments: [false, true])
+    func ordinaryNotificationDoesNotRetirePendingApproval(correlated: Bool) async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        let approvalID = try #require(AgentApprovalCorrelationID(rawValue: "666666666666666666666666.aaaaaaaaaaaaaaaaaaaaaaaa"))
+        defer {
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.discardPendingNotifications()
+        }
+        bus.enqueueAgentApprovalNotification(tabId: fixture.source.id, surfaceId: fixture.panelId,
+            title: "Codex", subtitle: "", body: "still waiting", approvalID: approvalID)
+        try await waitForApprovalControl(fixture, body: "still waiting")
+        bus.enqueueNotification(tabId: fixture.source.id, surfaceId: fixture.panelId,
+            title: "Other", subtitle: "", body: "unrelated result",
+            correlationKey: correlated ? UUID().uuidString : nil)
+        try await waitForApprovalControl(fixture, body: "unrelated result")
+        #expect(fixture.store.notifications.contains { $0.body == "still waiting" })
+        bus.enqueueAgentApprovalResolution(surfaceId: fixture.panelId, approvalID: approvalID)
+        bus.drainForTesting()
+        #expect(fixture.store.notifications.map(\.body) == ["unrelated result"])
+    }
+
+    @Test func cancellingOneApprovalKeepsOtherPaneAliases() async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let bus = TerminalMutationBus.shared
+        let secondSurface = try #require(fixture.destination.focusedPanelId)
+        let approvalID = try #require(AgentApprovalCorrelationID(rawValue: "444444444444444444444444.aaaaaaaaaaaaaaaaaaaaaaaa"))
+        defer {
+            bus.cancelAgentApproval(surfaceID: fixture.panelId)
+            bus.cancelAgentApproval(surfaceID: secondSurface)
+            bus.discardPendingNotifications()
+        }
+        for (workspaceID, surfaceID, producer) in [
+            (fixture.source.id, fixture.panelId, "first-producer"),
+            (fixture.destination.id, secondSurface, "second-producer"),
+        ] {
+            bus.enqueueAgentApprovalNotification(tabId: workspaceID, surfaceId: surfaceID,
+                title: "Codex", subtitle: "", body: producer, approvalID: approvalID, producerCorrelationKey: producer)
+        }
+        try await waitForApprovalControl(fixture, body: "first-producer")
+        try await waitForApprovalControl(fixture, body: "second-producer")
+        #expect(bus.resolvedApprovalCorrelationKey(surfaceID: fixture.panelId, producerCorrelationKey: "first-producer") != nil)
+        let secondAlias = try #require(bus.resolvedApprovalCorrelationKey(surfaceID: secondSurface, producerCorrelationKey: "second-producer"))
+        bus.cancelAgentApproval(surfaceID: fixture.panelId)
+        #expect(bus.resolvedApprovalCorrelationKey(surfaceID: fixture.panelId, producerCorrelationKey: "first-producer") == nil)
+        #expect(bus.resolvedApprovalCorrelationKey(surfaceID: secondSurface, producerCorrelationKey: "second-producer") == secondAlias)
+    }
+
     // Generous for loaded CI runners: subprocess spawn, signal propagation,
     // and marker writes can take multiple seconds there. A long timeout only
     // slows the failure path.

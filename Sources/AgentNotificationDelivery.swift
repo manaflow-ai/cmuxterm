@@ -18,8 +18,8 @@ struct AgentNotificationDelivery: Sendable {
     }
 
     /// Gates and enqueues the same notification event for hooks and PTY prompt detectors.
-    /// `agentKind`/`isSubagent` are informational agent-event context forwarded
-    /// to the user's notification-policy hooks; they never affect the gate.
+    /// Approval correlation is used only for needs-permission events; agent
+    /// context remains available for all other categories.
     @discardableResult
     func enqueue(
         workspaceID: UUID,
@@ -30,6 +30,9 @@ struct AgentNotificationDelivery: Sendable {
         category: AgentNotifyCategory?,
         pending: Bool,
         soundContext: NotificationSoundOverrideContext? = nil,
+        approvalID: AgentApprovalCorrelationID? = nil,
+        approvalIDIsDerived: Bool = false,
+        approvalSource: String? = nil,
         agentKind: String? = nil,
         isSubagent: Bool? = nil,
         correlationKey: String? = nil,
@@ -37,6 +40,27 @@ struct AgentNotificationDelivery: Sendable {
         coalesces: Bool = false
     ) -> Bool {
         guard allows(category: category, pending: pending) else { return false }
+        if category == .needsPermission, let approvalID {
+            TerminalMutationBus.shared.enqueueAgentApprovalNotification(
+                tabId: workspaceID,
+                surfaceId: surfaceID,
+                title: title,
+                subtitle: subtitle,
+                body: body,
+                approvalID: approvalID,
+                approvalIDIsDerived: approvalIDIsDerived,
+                approvalSource: approvalSource,
+                agent: Self.agentContext(
+                    category: category,
+                    pending: pending,
+                    agentKind: agentKind,
+                    isSubagent: isSubagent,
+                    sessionId: sessionId
+                ),
+                producerCorrelationKey: correlationKey
+            )
+            return true
+        }
         TerminalMutationBus.shared.enqueueNotification(
             tabId: workspaceID,
             surfaceId: surfaceID,
