@@ -125,19 +125,13 @@ public enum CmuxFontResolver {
         return resolved
     }
 
-    private static func fontWithMonospacedDigits(_ font: NSFont, size: CGFloat) -> NSFont? {
+    private static func fontWithMonospacedDigits(_ font: NSFont, size: CGFloat) -> NSFont {
         let descriptor = font.fontDescriptor.addingAttributes([
             .featureSettings: [[
                 NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
                 NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector,
             ]],
         ])
-        guard let resolved = NSFont(descriptor: descriptor, size: size) else { return nil }
-        let zeroWidth = ("0" as NSString).size(withAttributes: [.font: resolved]).width
-        guard "123456789".allSatisfy({ digit in
-            let width = (String(digit) as NSString).size(withAttributes: [.font: resolved]).width
-            return abs(width - zeroWidth) < 0.01
-        }) else { return nil }
-        return resolved
+        return NSFont(descriptor: descriptor, size: size) ?? font
     }
 }
