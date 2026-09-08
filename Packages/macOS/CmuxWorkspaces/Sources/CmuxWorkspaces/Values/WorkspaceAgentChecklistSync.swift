@@ -75,6 +75,9 @@ public struct WorkspaceAgentChecklistSync: Sendable {
             let normalizedText = WorkspaceChecklistItem.normalizedText(task.text) ?? task.text
             let preservedID = existingByRef[task.ref]?.id
                 ?? existingIDsByText[normalizedText, default: []].first(where: { reusedIDs.insert($0).inserted })
+            if let preservedID {
+                reusedIDs.insert(preservedID)
+            }
             let preservedItem = preservedID.flatMap { id in existing.first(where: { $0.id == id }) }
             result.append(WorkspaceChecklistReplacementItem(
                 id: preservedID ?? task.id,
