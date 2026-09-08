@@ -409,6 +409,64 @@ final class MachinesPanelModelTests: XCTestCase {
         )
     }
 
+    func testCloudTreeOmitsUnsupportedBrowserBackedSurfaces() {
+        let machineID = SurfaceMachineID.cloud("limited-vm")
+        let terminal = terminal(machineID, "term_1")
+        let display = SurfaceResource(
+            id: SurfaceResourceID(machine: machineID, kind: .display, key: "display:1"),
+            title: "Desktop", detail: nil, lifecycle: .running, agent: nil,
+            remoteWorkspace: nil, port: 6901, url: nil
+        )
+        let port = SurfaceResource(
+            id: SurfaceResourceID(machine: machineID, kind: .browser, key: "port:8000"),
+            title: ":8000", detail: "http", lifecycle: .running, agent: nil,
+            remoteWorkspace: nil, port: 8000, url: nil
+        )
+        let snapshot = SurfaceCatalogSnapshot(
+            machines: [machineInfo(machineID)],
+            resources: [terminal, display, port],
+            projections: []
+        )
+
+        let nodes = CloudTreeNodeBuilder.flattened(CloudTreeNodeBuilder.nodes(
+            machines: [machineSnapshot(id: machineID.cloudMachineID!)],
+            snapshot: snapshot,
+            localWorkspaces: [],
+            supportsCloudBrowser: false
+        ))
+
+        XCTAssertTrue(nodes.contains { if case .terminal = $0.kind { return true }; return false })
+        XCTAssertFalse(nodes.contains {
+            switch $0.kind {
+            case .browser, .display, .port, .browsersGroup, .displaysPool, .portsGroup: return true
+            default: return false
+            }
+        })
+    }
+
+    func testCloudTreeOmitsProviderUnsupportedPortPreviews() {
+        let machineID = SurfaceMachineID.cloud("no-port-preview-vm")
+        let port = SurfaceResource(
+            id: SurfaceResourceID(machine: machineID, kind: .browser, key: "port:8000"),
+            title: ":8000", detail: "http", lifecycle: .running, agent: nil,
+            remoteWorkspace: nil, port: 8000, url: nil
+        )
+        let snapshot = SurfaceCatalogSnapshot(
+            machines: [machineInfo(machineID)],
+            resources: [port],
+            projections: []
+        )
+        var machine = machineSnapshot(id: machineID.cloudMachineID!)
+        machine.capabilities = VMCapabilities(snapshot: true, restore: true, fork: true, ports: false)
+
+        let nodes = CloudTreeNodeBuilder.flattened(CloudTreeNodeBuilder.nodes(
+            machines: [machine], snapshot: snapshot, localWorkspaces: [], supportsCloudBrowser: true
+        ))
+
+        XCTAssertFalse(nodes.contains { if case .port = $0.kind { return true }; return false })
+        XCTAssertFalse(nodes.contains { if case .portsGroup = $0.kind { return true }; return false })
+    }
+
     func testCloudTreeWorkspacesLeadThenPools() {
         let ws0 = SurfaceRemoteWorkspace(id: "ws_main", name: "main", index: 0, focused: true)
         let ws1 = SurfaceRemoteWorkspace(id: "ws_side", name: "side", index: 1, focused: false)
@@ -453,7 +511,7 @@ final class MachinesPanelModelTests: XCTestCase {
             "machine:vivid-newt/ws/ws_main/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ws/ws_side",
             "machine:vivid-newt/ws/ws_side/resource:vivid-newt/terminal/term_1/tab:tab_9",
-            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1",
+            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1/tab:tab_desk",
             "machine:vivid-newt/ws/ws_empty",
             "machine:vivid-newt/ws/ws_empty/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ports",
@@ -1105,22 +1163,53 @@ struct MachinesPanelListProblemTests {
         )
     }
 
-    @Test("Transient-shaped failures keep the retry-first unreachable state")
-    func transientFailuresStayUnreachable() {
-        #expect(
-            MachinesPanelViewModel.classifyListFailure(.httpStatus(503, "{}")) == .unreachable
-        )
+    @Test("Transport failures keep the retry-first unreachable state")
+    func transportFailuresStayUnreachable() {
         #expect(
             MachinesPanelViewModel.classifyListFailure(
                 .backendUnreachable(url: "https://cmux.com", detail: "offline")
             ) == .unreachable
         )
+        #expect(MachinesPanelViewModel.classifyListFailure(.sessionRefreshFailed) == .unreachable)
+    }
+
+    @Test("Service responses use the server-error state")
+    func serviceResponsesStayOutOfUnreachableState() {
+        for status in [400, 404, 409, 429, 500, 503] {
+            #expect(
+                MachinesPanelViewModel.classifyListFailure(.httpStatus(status, "{}")) == .serverError,
+                "HTTP \(status) is a response from the Cloud service"
+            )
+        }
         #expect(
-            MachinesPanelViewModel.classifyListFailure(.sessionRefreshFailed) == .unreachable
+            MachinesPanelViewModel.classifyListFailure(.malformedResponse("bad")) == .serverError
         )
+    }
+
+    @Test("Raw transport failures stay in the unreachable state")
+    func rawTransportFailuresStayUnreachable() {
+        for code in [
+            URLError.Code.secureConnectionFailed,
+            .appTransportSecurityRequiresSecureConnection,
+            .serverCertificateUntrusted,
+            .dnsLookupFailed,
+            .timedOut,
+        ] {
+            #expect(
+                MachinesPanelViewModel.classifyListFailure(URLError(code)) == .unreachable,
+                "\(code) is a transport failure without a usable Cloud response"
+            )
+        }
         #expect(
-            MachinesPanelViewModel.classifyListFailure(.malformedResponse("bad")) == .unreachable
+            MachinesPanelViewModel.classifyListFailure(URLError(.badURL)) == .serverError,
+            "A malformed client URL is not evidence that Cloud is unreachable"
         )
+        for code in [URLError.Code.cannotLoadFromNetwork, .resourceUnavailable] {
+            #expect(
+                MachinesPanelViewModel.classifyListFailure(URLError(code)) == .serverError,
+                "\(code) describes a local resource/cache failure, not transport"
+            )
+        }
     }
 
     /// No "detached" pill anywhere (austin, 2026-08-31): a pool terminal with no

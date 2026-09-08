@@ -19,6 +19,9 @@ struct CloudTreeOutlineView: NSViewRepresentable {
     let machineActions: MachineRowActions
     let nodeActions: CloudTreeNodeActions
     let expansionStore: CloudTreeExpansionStore
+    /// Whether this build can open browser-backed Cloud surfaces (including
+    /// VNC displays and forwarded-port previews).
+    var supportsCloudBrowser: Bool = true
     /// The visual preset the rows render in (the debug gallery pins one per
     /// column; the live panel passes the stored choice).
     var style: CloudTreeStyle = CloudTreeStyleStore.current
@@ -43,6 +46,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             machineActions: machineActions,
             nodeActions: nodeActions,
             expansionStore: expansionStore,
+            supportsCloudBrowser: supportsCloudBrowser,
             tabDragTransferRegistry: { [tabDragTransferRegistry] in
                 tabDragTransferRegistry ?? AppDelegate.shared?.tabDragTransferRegistry
             }
@@ -59,13 +63,15 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         container.appearance = WindowAppearanceSnapshot.appKitAppearance(for: colorScheme)
         context.coordinator.machineActions = machineActions
         context.coordinator.nodeActions = nodeActions
+        context.coordinator.supportsCloudBrowser = supportsCloudBrowser
         context.coordinator.onDragStateChange = onDragStateChange
         context.coordinator.apply(style: style)
         context.coordinator.apply(nodes: CloudTreeNodeBuilder.nodes(
             machines: machines,
             pendingCreates: pendingCreates,
             snapshot: snapshot,
-            localWorkspaces: localWorkspaces
+            localWorkspaces: localWorkspaces,
+            supportsCloudBrowser: supportsCloudBrowser
         ))
     }
 
@@ -76,6 +82,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         var machineActions: MachineRowActions
         var nodeActions: CloudTreeNodeActions
         let expansionStore: CloudTreeExpansionStore
+        var supportsCloudBrowser: Bool
         private(set) var style: CloudTreeStyle = CloudTreeStyleStore.current
         private let tabDragTransferRegistry: @MainActor () -> TabDragTransferRegistry?
         weak var outlineView: CloudTreeNSOutlineView?
@@ -108,11 +115,13 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             machineActions: MachineRowActions,
             nodeActions: CloudTreeNodeActions,
             expansionStore: CloudTreeExpansionStore,
+            supportsCloudBrowser: Bool = true,
             tabDragTransferRegistry: @escaping @MainActor () -> TabDragTransferRegistry?
         ) {
             self.machineActions = machineActions
             self.nodeActions = nodeActions
             self.expansionStore = expansionStore
+            self.supportsCloudBrowser = supportsCloudBrowser
             self.tabDragTransferRegistry = tabDragTransferRegistry
         }
 
@@ -774,7 +783,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             } else {
                 items.append(item(String(localized: "machines.menu.openShell", defaultValue: "Open Shell")) { nodeActions.newTerminal(.cloud(id), nil) })
                 items.append(item(String(localized: "cloudTree.menu.newWorkspace", defaultValue: "New Workspace")) { nodeActions.newWorkspace(.cloud(id)) })
-                if machine.isDesktop {
+                if machine.isDesktop && supportsCloudBrowser {
                     items.append(item(String(localized: "machines.menu.openDesktop", defaultValue: "Open Desktop")) {
                         nodeActions.project(SurfaceResourceID(machine: .cloud(id), kind: .display, key: SurfaceResourceID.desktopDisplayKey), .split, true)
                     })
