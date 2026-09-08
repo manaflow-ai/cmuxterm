@@ -98,7 +98,8 @@ struct WindowAppearanceSnapshotPaneBackgroundTests {
 
     /// Verifies portal geometry and visibility remain the root mask's source of truth.
     @MainActor
-    @Test func portalReconcilesRootExclusionOnNoninteractiveMoveResetAndHide() async throws {
+    @Test(arguments: [false, true])
+    func portalReconcilesRootExclusionOnNoninteractiveMoveResetAndRemoval(tearDownPortal: Bool) async throws {
         let bounds = NSRect(x: 0, y: 0, width: 360, height: 180)
         let contentView = NSView(frame: bounds)
         let window = NSWindow(
@@ -175,7 +176,13 @@ struct WindowAppearanceSnapshotPaneBackgroundTests {
             showsBackdrop: false
         )
 
-        portal.hideEntry(forHostedId: ObjectIdentifier(hosted))
+        if tearDownPortal {
+            portal.tearDown()
+            #expect(portal.hostedIds().isEmpty)
+            #expect(hosted.superview == nil)
+        } else {
+            portal.hideEntry(forHostedId: ObjectIdentifier(hosted))
+        }
         #expect(try rootMaskShowsBackdrop(atWindowPoint: movedPoint, in: root))
     }
 
