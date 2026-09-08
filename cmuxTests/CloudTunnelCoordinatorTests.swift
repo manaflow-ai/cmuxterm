@@ -334,6 +334,33 @@ struct CloudTunnelCoordinatorTests {
         #expect(await harness.coordinator.state == .up)
     }
 
+    @Test("a browser use hears every state it waits through, so a pane can explain the approval wait")
+    func browserUseReportsStatesWhileWaiting() async throws {
+        let harness = Harness()
+        harness.controller.holdInstallForApproval = true
+        let seen = TunnelStateRecorder()
+        let gate = Task {
+            try await harness.coordinator.requirePrivateNetworkUse(Self.use) { state in
+                Task { await seen.record(state) }
+            }
+        }
+        #expect(await harness.awaitState(.awaitingApproval) == .awaitingApproval)
+        #expect(await harness.waitUntil { await seen.states.contains(.awaitingApproval) })
+        #expect(await seen.states.first == .starting, "the current state is reported first")
+
+        harness.controller.approve()
+        try await gate.value
+        let states = await seen.states
+        #expect(states.last == .up)
+        #expect(states.contains(.awaitingApproval))
+        // An already-up tunnel reports nothing: there is no wait to explain.
+        let afterUp = TunnelStateRecorder()
+        try await harness.coordinator.requirePrivateNetworkUse(Self.use) { state in
+            Task { await afterUp.record(state) }
+        }
+        #expect(await afterUp.states.isEmpty)
+    }
+
     @Test("a tunnel left connected by a previous app instance is adopted, not restarted")
     func adoptsAlreadyConnectedTunnel() async {
         let harness = Harness()
@@ -437,4 +464,9 @@ struct CloudTunnelCoordinatorTests {
         harness.controller.emit(.connected)
         #expect(await waiter.value == .up)
     }
+}
+
+private actor TunnelStateRecorder {
+    private(set) var states: [CloudTunnelState] = []
+    func record(_ state: CloudTunnelState) { states.append(state) }
 }

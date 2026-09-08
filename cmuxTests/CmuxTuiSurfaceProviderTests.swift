@@ -981,6 +981,98 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
         #expect(SurfaceBrowserPlaceholder.escape("a\"b'c") == "a&quot;b&#39;c")
     }
 
+    @Test @MainActor func approvalPlaceholderExplainsTheWaitAndOffersTheWayOut() {
+        let html = SurfaceBrowserPlaceholder.tunnelApproval(
+            label: "vivid-newt:8000",
+            machineName: "vivid-newt",
+            privateAddress: "10.16.203.4",
+            port: 8000,
+            token: "TOKEN-1",
+            proxyAvailable: true
+        )
+        #expect(html.contains("Allow the cmux Cloud Tunnel to open vivid-newt:8000"))
+        // Why: the private address and the extension that reaches it.
+        #expect(html.contains("10.16.203.4:8000"))
+        #expect(html.contains("allow it once in System Settings"))
+        // What: the exact path to the switch, and what to press afterwards.
+        #expect(html.contains("Login Items &amp; Extensions"))
+        #expect(html.contains("Network Extensions"))
+        #expect(html.contains("Turn on cmux Cloud Tunnel"))
+        // The three actions, wired to the bridge with this pane's token.
+        for action in [SurfaceBrowserPlaceholderAction.openSystemSettings, .retry, .openProxy] {
+            #expect(html.contains("data-action=\"\(action.rawValue)\""))
+        }
+        #expect(html.contains("Check Again"))
+        #expect(html.contains("Open through cmux.sh instead"))
+        #expect(html.contains("const token = \"TOKEN-1\""))
+        #expect(html.contains("messageHandlers[\"\(SurfaceBrowserPlaceholderBridge.name)\"]"))
+        #expect(!html.contains("class=\"spinner\""), "an approval wait is not a loading state")
+
+        let noProxy = SurfaceBrowserPlaceholder.tunnelApproval(
+            label: "vivid-newt · Desktop", machineName: "vivid-newt", privateAddress: nil, port: 6901, token: "T", proxyAvailable: false
+        )
+        #expect(!noProxy.contains("data-action=\"openProxy\""))
+    }
+
+    @Test @MainActor func failedPlaceholderWithTokenOffersRetryInsteadOfReopenInstruction() {
+        let retryable = SurfaceBrowserPlaceholder.failed("m:3000", error: "boom", token: "T", proxyAvailable: true)
+        #expect(retryable.contains("data-action=\"retry\""))
+        #expect(retryable.contains("Try Again"))
+        #expect(retryable.contains("data-action=\"openProxy\""))
+        #expect(!retryable.contains("open it again from the sidebar"))
+        // A permanent capability gap keeps its no-retry wording even with a token.
+        let permanent = SurfaceBrowserPlaceholder.failed("m:3000", error: "HTTP 501", retryable: false, token: "T")
+        #expect(!permanent.contains("data-action="))
+        #expect(permanent.contains("Do not retry"))
+    }
+
+    @Test @MainActor func placeholderBridgeAcceptsOnlyLocalMainFrameMessagesWithLiveTokens() {
+        let bridge = SurfaceBrowserPlaceholderBridge()
+        var received: [SurfaceBrowserPlaceholderAction] = []
+        let token = bridge.register { received.append($0) }
+        let body: [String: Any] = ["token": token, "action": "retry"]
+
+        // What `loadHTMLString(_:baseURL: nil)` produces: a main-frame about:blank document.
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: body, isMainFrame: true, frameURL: URL(string: "about:blank"))?.action == .retry)
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: body, isMainFrame: true, frameURL: nil)?.token == token)
+        // A web origin, a subframe, an unknown action, or a malformed body never reaches a pane.
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: body, isMainFrame: true, frameURL: URL(string: "https://evil.example/")) == nil)
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: body, isMainFrame: false, frameURL: URL(string: "about:blank")) == nil)
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: ["token": token, "action": "format"], isMainFrame: true, frameURL: nil) == nil)
+        #expect(SurfaceBrowserPlaceholderBridge.parse(body: "retry", isMainFrame: true, frameURL: nil) == nil)
+
+        // Tokens are single-use secrets: gone after unregister, unknown ones ignored.
+        #expect(bridge.registeredTokenCount == 1)
+        bridge.unregister(token)
+        #expect(bridge.registeredTokenCount == 0)
+        #expect(received.isEmpty)
+    }
+
+    @Test @MainActor func paneOpenerShowsApprovalOnceAndOpensSystemSettingsOnce() {
+        var settingsOpens = 0
+        let opener = CloudBrowserPaneOpener(
+            pane: (workspaceID: UUID(), panelID: UUID()),
+            machineID: "vivid-newt",
+            machineName: "vivid-newt",
+            privateAddress: "10.16.203.4",
+            port: 8000,
+            label: "vivid-newt:8000",
+            directURL: URL(string: "http://10.16.203.4:8000")!,
+            machineWasAwake: true,
+            proxyAvailable: true,
+            openSystemSettings: { settingsOpens += 1; return true }
+        )
+        // No pane exists for these ids, so placeholder writes are no-ops; the
+        // state bookkeeping is what this checks.
+        opener.tunnelStateDidChange(.starting)
+        #expect(opener.shownState == .starting)
+        #expect(settingsOpens == 0)
+        opener.tunnelStateDidChange(.awaitingApproval)
+        opener.tunnelStateDidChange(.awaitingApproval)
+        #expect(opener.shownState == .awaitingApproval)
+        #expect(settingsOpens == 0, "System Settings opens only for a registered (started) pane")
+    }
+
     @Test func linkPipesReadOnGCDNotCooperativeThreads() async throws {
         // Lines arrive as the child writes them, a trailing CR is dropped, and an
         // unterminated last line is delivered at EOF.
