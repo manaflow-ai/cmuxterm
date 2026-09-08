@@ -438,6 +438,16 @@ extension TerminalController {
             )
             return v2VmCall(id: id) {
                 let registry = await MainActor.run { CmuxTuiSurfaceProviderRegistry.shared }
+                let cachedCapabilities = await MainActor.run { registry.provider(machineID: vmId)?.capabilities }
+                let capabilities: VMCapabilities
+                if let cachedCapabilities {
+                    capabilities = cachedCapabilities
+                } else {
+                    capabilities = try await VMClient.shared.status(id: vmId).capabilities
+                }
+                guard capabilities.cmuxRemote else {
+                    throw VMClientError.httpStatus(501, #"{"error":"vm_attach_transport_unsupported"}"#)
+                }
                 guard clientCapabilities.contains(CloudTuiCommandLine.wireGuardHubCapability) else {
                     throw CloudMachineLinkManager.ManagerError.wireGuardHubUnsupported
                 }
