@@ -23,12 +23,20 @@ jobs:
     # slow or flaky simulator capture (up to 300 minutes) must neither delay nor
     # fail a macOS release (https://github.com/manaflow-ai/cmux/issues/12149).
     # A failed capture still turns the run red, so it stays visible.
+    #
+    # Least privilege: capture-only reads the repository and nothing else, so
+    # this job hands the callee neither the release token scopes nor the
+    # repository secrets. The App Store Connect upload path inside the called
+    # workflow is gated to workflow_dispatch from main and is unreachable from
+    # a release run, so `secrets: inherit` would only have exposed the signing,
+    # notarization, Sparkle and R2 secrets to a UI-test job.
+    permissions:
+      contents: read
     uses: ./.github/workflows/ios-screenshots.yml
     with:
       ref: ${{ github.ref }}
       languages: "en-US,de-DE,fr-FR,ar-SA,es-ES,zh-Hant,zh-Hans,ko,ja"
       upload: false
-    secrets: inherit
 
   build-ghostty-cli-helper:
     runs-on: ${{ vars.MACOS_RUNNER_15 || 'blacksmith-6vcpu-macos-15' }}
