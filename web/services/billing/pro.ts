@@ -857,6 +857,9 @@ function hasCoderouterFounderEntitlement(
     : { cmuxPlan: userBillingPlanId };
   return hasEffectiveFounderEntitlement(metadata, hasActiveFounderSubscription);
 }
+
+/** Read the same personal Pro entitlement as billing, without metadata writes
+ * or treating selected-team membership as a personal operator grant. */
 export async function isTestflightEligible(
   user: ProReconcileUser,
   options: {
@@ -866,15 +869,16 @@ export async function isTestflightEligible(
 ): Promise<boolean> {
   if (!user.id) return false;
   const metadata = proMetadataRecord(user.clientReadOnlyMetadata);
-  if (hasFounderEditionEntitlement(metadata)) return true;
+  if (normalizePersonalPlan(metadata, false).isPro) return true;
   if (options.hasActiveStripeSubscription) {
-    if (await options.hasActiveStripeSubscription(user.id)) return true;
-    return !hasManualVmOverride(metadata) && options.hasActiveFounderSubscription
-      ? options.hasActiveFounderSubscription(user.id)
+    const regular = await options.hasActiveStripeSubscription(user.id);
+    const founder = !regular && !hasManualVmOverride(metadata) && options.hasActiveFounderSubscription
+      ? await options.hasActiveFounderSubscription(user.id)
       : false;
+    return normalizePersonalPlan(metadata, regular, founder).isPro;
   }
   const state = await activeStripeSubscriptionState(user.id);
-  return state.regular || hasEffectiveFounderEntitlement(metadata, state.founder);
+  return normalizePersonalPlan(metadata, state.regular, state.founder).isPro;
 }
 
 export function metadataPlanId(raw: unknown): string | null {

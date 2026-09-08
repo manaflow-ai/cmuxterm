@@ -29,6 +29,7 @@ import {
   type ProMetadataJson,
   TEAM_PLAN_ID,
   hasEffectiveFounderEntitlement,
+  normalizePersonalPlan,
   syncProPlanMetadata,
   syncTeamPlanMetadata,
 } from "./pro";
@@ -826,7 +827,7 @@ export async function recordFoundersCheckoutCompletion(
       );
       if (
         verifiedCanonicalOwner &&
-        hasEffectiveFounderEntitlement(entitlementUser?.clientReadOnlyMetadata, true)
+        normalizePersonalPlan(entitlementUser?.clientReadOnlyMetadata, false, true).isPro
       ) {
         await syncProPlanMetadata(entitlementUser!, true, mutationLease);
         await enrollFounderTester(
@@ -1365,14 +1366,15 @@ export async function claimPendingProBilling(
         ) {
           return;
         }
-        const founderAccess = hasEffectiveFounderEntitlement(
+        const personalPlan = normalizePersonalPlan(
           freshUser.clientReadOnlyMetadata,
+          regularClaimed,
           founderPurchasePending,
         );
-        if (regularClaimed || founderAccess) {
+        if (personalPlan.isPro) {
           await syncProPlanMetadata(freshUser, true, lease);
         }
-        entitlementReady = founderAccess;
+        entitlementReady = personalPlan.isPro;
       },
     });
     if (founderPurchasePending && entitlementReady) {
@@ -2162,7 +2164,9 @@ export async function applySubscriptionUpdate(
         effectiveIsActive,
         mutationLease,
       );
-      if (!effectiveIsActive) {
+      // An independent paid operator grant keeps TestFlight access, but must
+      // not keep the lapsed Stripe mirror alive after that grant is removed.
+      if (!normalizePersonalPlan(currentMetadata, effectiveIsActive).isPro) {
         await removeUserFromTestflightOnLapse(
           freshUser,
           lockedResult.stackUserId,
