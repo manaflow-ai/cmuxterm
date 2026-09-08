@@ -36380,8 +36380,8 @@ export default CMUXSessionRestore;
                         hookEventName: persistedHookEventName,
                         runtimeStatus: suppressVisibleMutations ? nil : .running,
                         updateRuntimeStatus: !suppressVisibleMutations,
-                        captureRollback: true,
                         title: input.title,
+                        captureRollback: true,
                         requiredProcessIdentity: inferredProcessIdentity,
                         supersedesSameProcessSession: def.name == "omp"
                     )
@@ -36947,8 +36947,8 @@ export default CMUXSessionRestore;
                         turnId: input.turnId,
                         pid: pid,
                         launchCommand: resumeLaunchCommand,
-                        hookEventName: persistedHookEventName,
                         expectedProcessIdentity: inferredProcessIdentity,
+                        hookEventName: persistedHookEventName,
                         captureRollback: true
                     )
                     acceptedRunningUpdate = runningUpdate?.accepted == true
@@ -36965,8 +36965,8 @@ export default CMUXSessionRestore;
                         agentLifecycle: .running,
                         runtimeStatus: .running,
                         updateRuntimeStatus: true,
-                        captureRollback: true,
                         title: input.title,
+                        captureRollback: true,
                         expectedProcessIdentity: inferredProcessIdentity
                     )
                     acceptedRunningUpdate = runningUpdate?.accepted == true
