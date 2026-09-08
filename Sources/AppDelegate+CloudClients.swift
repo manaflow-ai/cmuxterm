@@ -7,9 +7,14 @@ extension AppDelegate {
     /// and the DEV paired-Mac backup publisher. Extracted from `configure` so
     /// the client roster can grow without growing `AppDelegate.swift`.
     func configureCloudClients(auth: MacAuthComposition) {
-        VMClient.bootstrap(auth: auth.coordinator)
+        let cloudTunnel = makeCloudTunnelCoordinator()
+        cloudTunnelCoordinator = cloudTunnel
+        VMClient.bootstrap(auth: auth.coordinator, privateNetwork: cloudTunnel)
+        TerminalController.shared.cloudTunnel = cloudTunnel
         RemotesClient.bootstrap(auth: auth.coordinator)
         AIAccountsClient.bootstrap(auth: auth.coordinator)
+        CoderouterClient.bootstrap(auth: auth.coordinator)
+        MachineUsageClient.bootstrap(auth: auth.coordinator)
         PhonePushClient.shared.configure(auth: auth.coordinator)
         MobileHostService.shared.configure(auth: auth.coordinator)
         DeviceRegistryClient.shared.configure(auth: auth.coordinator)
