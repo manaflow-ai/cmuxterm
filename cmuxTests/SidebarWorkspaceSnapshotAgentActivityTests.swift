@@ -139,6 +139,69 @@ struct SidebarWorkspaceAgentActivityTests {
     private static let cursorPanelID = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
 
     @MainActor
+    @Test("Scoped process events follow retained panels to their current owner",
+          arguments: ["direct", "restored", "moved"])
+    func scopedProcessEventResolvesCurrentPanelOwner(topology: String) throws {
+        let original = Workspace(initialSurface: .cloudVMLoading)
+        let panelID = try #require(original.panels.keys.first)
+        let panel = try #require(original.panels[panelID])
+        let unrelated = Workspace(initialSurface: .cloudVMLoading)
+        let current: Workspace
+        let workspaces: [Workspace]
+        if topology == "direct" {
+            current = original
+            workspaces = [original, unrelated]
+        } else {
+            current = Workspace(initialSurface: .cloudVMLoading)
+            current.panels[panelID] = panel
+            original.panels.removeValue(forKey: panelID)
+            workspaces = topology == "restored"
+                ? [current, unrelated]
+                : [original, current, unrelated]
+        }
+
+        let owners = Workspace.sidebarPanelOwnership(
+            in: workspaces,
+            workspaceByID: Dictionary(uniqueKeysWithValues: workspaces.map { ($0.id, $0) }),
+            scopedTo: [original.id: [panelID]]
+        )
+
+        #expect(owners == [panelID: current.id])
+    }
+
+    @MainActor
+    @Test("Ambiguous panel ownership is rejected for direct and restored scopes", arguments: [false, true])
+    func ambiguousScopedPanelOwnershipIsRejected(useCurrentScope: Bool) throws {
+        let first = Workspace(initialSurface: .cloudVMLoading)
+        let second = Workspace(initialSurface: .cloudVMLoading)
+        let panelID = try #require(first.panels.keys.first)
+        second.panels[panelID] = try #require(first.panels[panelID])
+        let scope: [UUID: Set<UUID>] = useCurrentScope
+            ? [first.id: [panelID], second.id: [panelID]]
+            : [UUID(): [panelID]]
+
+        let owners = Workspace.sidebarPanelOwnership(
+            in: [first, second],
+            workspaceByID: [first.id: first, second.id: second],
+            scopedTo: scope
+        )
+
+        #expect(owners.isEmpty)
+    }
+
+    @MainActor
+    @Test("Empty and deleted-panel scopes never become full-sidebar watcher registration", arguments: [false, true])
+    func absentScopedPanelsDoNotRegisterOtherOwners(useDeletedPanel: Bool) {
+        let workspace = Workspace(initialSurface: .cloudVMLoading)
+        let scope: [UUID: Set<UUID>] = useDeletedPanel ? [UUID(): [UUID()]] : [:]
+        let owners = Workspace.sidebarPanelOwnership(
+            in: [workspace], workspaceByID: [workspace.id: workspace], scopedTo: scope
+        )
+
+        #expect(owners.isEmpty)
+    }
+
+    @MainActor
     @Test
     func elapsedClockRunsOnlyWhileARealizedTargetIsRegistered() {
         let clock = SidebarAgentElapsedClock()
