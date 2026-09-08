@@ -332,7 +332,7 @@ extension SurfaceCatalog {
                 focus: focus,
                 host: host
             )
-            let realized = await walk.run(layout)
+            let realized = await walk.run(layout.includingMissingPlacements(group.placements))
             if walk.projected.isEmpty {
                 if let starter = created.starterPanelID { host.closeStarter(starter, created.workspaceID) }
                 throw walk.firstError ?? SurfaceCatalogError.destinationNotFound("empty group")

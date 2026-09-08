@@ -251,6 +251,22 @@ import Testing
         #expect(Self.keys(layout.placements) == ["term_a", "browser_1"])
     }
 
+    @Test func missingPlacementsPreserveGeometryAndDistinctTabs() {
+        let resource = SurfaceResourceID(machine: Self.machine, kind: .terminal, key: "shared")
+        let first = SurfaceResourcePlacement(resource: resource, remoteWorkspaceID: "workspace", remoteTabID: "tab-a")
+        let other = SurfaceResourcePlacement(resource: resource, remoteWorkspaceID: "workspace", remoteTabID: "tab-b")
+        let pool = SurfaceResourcePlacement(resource: SurfaceResourceID(machine: Self.machine, kind: .terminal, key: "pool"))
+        let tree = SurfaceProjectionLayout.split(
+            direction: .down, ratio: 0.3, first: .leaf(placements: [first]), second: .leaf(placements: [other])
+        )
+        let merged = tree.includingMissingPlacements([first, other, pool, pool])
+        #expect(merged == .split(
+            direction: .down, ratio: 0.3, first: .leaf(placements: [first, pool]), second: .leaf(placements: [other])
+        ))
+        #expect(tree.includingMissingPlacements([first, other]) == tree)
+        #expect(SurfaceProjectionLayout.leaf(placements: [first]).includingMissingPlacements([first, other]).placements == [first, other])
+    }
+
     @Test func appendingToFirstLeafReachesTheLeftmostPane() {
         let a = SurfaceResourcePlacement(resource: SurfaceResourceID(machine: Self.machine, kind: .terminal, key: "a"))
         let b = SurfaceResourcePlacement(resource: SurfaceResourceID(machine: Self.machine, kind: .terminal, key: "b"))

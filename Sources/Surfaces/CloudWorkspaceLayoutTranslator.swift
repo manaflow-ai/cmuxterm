@@ -24,6 +24,11 @@ indirect enum SurfaceProjectionLayout: Hashable, Sendable {
 
     /// The same tree with `extra` appended as tabs of its first leaf — where the tabs of a
     /// workspace's other screens go, since a local workspace has one screen.
+    func includingMissingPlacements(_ members: [SurfaceResourcePlacement]) -> SurfaceProjectionLayout {
+        var included = Set(placements)
+        return appendingToFirstLeaf(members.filter { included.insert($0).inserted })
+    }
+
     func appendingToFirstLeaf(_ extra: [SurfaceResourcePlacement]) -> SurfaceProjectionLayout {
         guard !extra.isEmpty else { return self }
         switch self {
