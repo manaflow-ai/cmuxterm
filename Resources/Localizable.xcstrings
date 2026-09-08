@@ -7796,7 +7796,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux vault %2$@ に予期しない引数 '%1$@' が指定されました"
+            "value": "予期しない引数 '%@' が cmux vault %@ に指定されました"
           }
         },
         "zh-Hans": {
@@ -16146,7 +16146,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Commit"
+            "value": "コミット"
           }
         },
         "ko": {
@@ -17275,7 +17275,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@、ワークスペース %3$lld中%2$lld"
+            "value": "%1$@、ワークスペース %2$lld / %3$lld"
           }
         },
         "ko": {
@@ -30837,9 +30837,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 文字を送信しました"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d 文字を送信しました"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -52383,9 +52389,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "インポートしたCookie: %ld"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "インポートした Cookie: %ld"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -52562,9 +52574,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "インポートした履歴件数: %ld"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "インポートした履歴エントリ: %ld"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -52900,9 +52918,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スキップしたCookie: %ld"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "スキップした Cookie: %ld"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -54001,7 +54025,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "検出済み: %@、ほか%ld件。"
+            "value": "検出: %@、%#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "ld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "+他 %ld 件"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -55402,7 +55442,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ から %1$@ をインポート中…"
+            "value": "%@ を %@ からインポート中…"
           }
         },
         "ko": {
@@ -56907,9 +56947,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keychainでの復号が必要な暗号化Cookieを%ld件スキップしました。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "キーチェーンでの復号が必要な %ld 個 of 暗号化された Cookie をスキップしました。"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -57216,9 +57262,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keychain から %3$@ を開けなかったため、暗号化された %2$@ のCookieを%1$ld件スキップしました。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%ld 個の暗号化された %@ の Cookie をスキップしました。理由は %@ をキーチェーンからロック解除できなかったためです。"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -58845,7 +58897,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux ブラウザープロファイル '%@' は %d 個のブラウザーパネルが使用中のため削除できません"
+            "value": "cmux ブラウザプロファイル「%@」は、%#@count2@ ため削除できません。"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d 個のブラウザパネルで使用中の"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -60991,7 +61059,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ブラウザのスクリーンショットが %1$@ の描画済みテキストと一致しません。%3$lld 回試行した後も %2$lld 個のテキストプローブが空白でした。"
+            "value": "ブラウザのスクリーンショットが %1$@ のレンダリングテキストと一致しませんでした。%#@count2@ は %#@count3@ 空白のままでした。"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld 個のテキストプローブ"
+                    }
+                  }
+                }
+              }
+            },
+            "count3": {
+              "argNum": 3,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld 回の試行後も"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "de": {
@@ -65476,7 +65574,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い方: cmux claude-teams [claude-args...]\n\nエージェントチームを有効にした状態で Claude Code を起動します。\n\nこのコマンドは次を行います:\n  - Claude の teammate mode を auto に設定\n  - Claude の auto mode が cmux の split を使うよう tmux 風の環境を設定\n  - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 を設定\n  - 専用の tmux shim を PATH の先頭に追加\n  - 残りの引数をそのまま claude に渡す\n\ntmux shim は、対応している tmux の window/pane コマンドを、現在の cmux セッション内の workspace と split 操作に変換します。\n\n例:\n  cmux claude-teams\n  cmux claude-teams --continue\n  cmux claude-teams --model sonnet"
+            "value": "使用方法: cmux claude-teams [claude-args...]\n\nエージェントチームを有効にして Claude Code を起動します。\n\nこのコマンドは以下を行います:\n  - Claude のチームメイトモードのデフォルトを auto に設定\n  - Claude の auto モードが cmux の分割を使用するように tmux 風の環境を設定\n  - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 を設定\n  - PATH の先頭にプライベートな tmux シムを追加\n  - 残りのすべての引数を claude に転送\n\nこの tmux シムは、サポートされている tmux の window/pane コマンドを cmux の\n現在の cmux セッションにおけるワークスペースおよび分割操作に変換します。\n\n例:\n  cmux claude-teams\n  cmux claude-teams --continue\n  cmux claude-teams --model sonnet"
           }
         },
         "ko": {
@@ -69544,9 +69642,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "レビューコメント %1$lld 件 (リポジトリ: %2$@)"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld 件のレビューコメント (リポジトリ: %2$@)"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -69939,7 +70043,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い方: cmux comments <subcommand> [options]\n\ndiff ビューアーで保存されたレビューコメントを、git リポジトリごとに一覧します。\n\nサブコマンド:\n  list [--repo <path>] [--all] [--json]\n    リポジトリのレビューコメントを一覧します (既定はカレントディレクトリを含む\n    git リポジトリ)。既定では未対応のコメントのみを表示し、--all を付けると\n    TextBox の送信でエージェントへ引き渡し済みのコメントも含めます。"
+            "value": "使用方法: cmux comments <subcommand> [options]\n\ndiff ビューアから保存された、Git リポジトリごとに格納されているレビューコメント。\n\nサブコマンド:\n  list [--repo <path>] [--all] [--json]\n    リポジトリのレビューコメントを一覧表示します（デフォルト: 現在のディレクトリを\n    含む Git リポジトリ）。保留中のコメントのみを一覧表示します。\n    --all を指定すると、TextBox の送信を介してすでにエージェントに\n    配信されたコメントも含まれます。"
           }
         },
         "km": {
@@ -72472,7 +72576,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用方法: cmux mosh <destination> [flags] [-- <remote-command-args>]\n\nMosh ターミナルトランスポート:\n  --transport <ssh|mosh>  対話型ターミナルのトランスポート（デフォルト: mosh）\n\nリモート機能は SSH が管理し、Mosh は対話型ターミナルだけを運びます。ローカルまたはリモートに Mosh がない場合、cmux はその旨を表示して SSH を使用します。\n\n例:\n  cmux ssh dev@my-host --transport mosh\n\n  cmux mosh dev@my-host"
+            "value": "使用方法: cmux mosh <destination> [flags] [-- <remote-command-args>]\n\nMosh ターミナル転送:\n  --transport <ssh|mosh>  インタラクティブなターミナル転送（デフォルト: mosh）\n\nリモート機能は引き続き SSH が処理し、Mosh はインタラクティブな\nターミナルのみを転送します。ローカルまたはリモートに Mosh がない場合、cmux はそれを報告して SSH を使用します。\n\n例:\n  cmux ssh dev@my-host --transport mosh\n\n  cmux mosh dev@my-host"
           }
         },
         "km": {
@@ -76007,7 +76111,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "OK closed session=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK closed session=%@" } },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ を閉じました"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -76056,7 +76165,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "OK detached session=%@ client=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK detached session=%@ client=%@" } },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ client=%@ をデタッチしました"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -76105,7 +76219,12 @@
       "extractionState": "manual",
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "OK detached all clients from session=%@" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "OK detached all clients from session=%@" } },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK session=%@ のすべてのクライアントをデタッチしました"
+          }
+        },
         "de": {
           "stringUnit": {
             "state": "translated",
@@ -76171,7 +76290,18 @@
             }
           }
         },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い local tmux セッションが %lld 件見つかりました。削除するには --prune を指定してください" } },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個の不要なローカル tmux セッションが見つかりました。削除するには --prune を指定してください"
+                }
+              }
+            }
+          }
+        },
         "de": {
           "variations": {
             "plural": {
@@ -76535,7 +76665,18 @@
             }
           }
         },
-        "ja": { "stringUnit": { "state": "translated", "value": "古い local tmux セッションを %lld 件削除しました" } },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個の不要なローカル tmux セッションを削除しました"
+                }
+              }
+            }
+          }
+        },
         "de": {
           "variations": {
             "plural": {
@@ -77687,7 +77828,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mosh ターミナルトランスポート:\n  --transport <ssh|mosh>  対話型ターミナルのトランスポート（デフォルト: ssh）\n\nリモート機能は SSH が管理し、Mosh は対話型ターミナルだけを運びます。ローカルまたはリモートに Mosh がない場合、cmux はその旨を表示して SSH を使用します。\n\n例:\n  cmux ssh dev@my-host --transport mosh"
+            "value": "Mosh ターミナル転送:\n  --transport <ssh|mosh>  インタラクティブなターミナル転送（デフォルト: ssh）\n\nリモート機能は引き続き SSH が処理し、Mosh はインタラクティブな\nターミナルのみを転送します。ローカルまたはリモートに Mosh がない場合、cmux はそれを報告して SSH を使用します。\n\n例:\n  cmux ssh dev@my-host --transport mosh"
           }
         },
         "km": {
@@ -84402,9 +84543,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld個のiOS Simulatorペインが見つかりました。--surface <ref> または --all を指定してください"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個の iOS シミュレータペインが見つかりました。--surface <ref> または --all を指定してください"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -84988,9 +85135,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld個のiOS Simulatorペインが見つかりました。screenshot --allは最大8個まで対応しています"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個の iOS シミュレータペインが見つかりました。screenshot --all がサポートするのは最大 8 個までです"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -86381,7 +86534,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "APP"
+            "value": "アプリ"
           }
         },
         "ko": {
@@ -87308,9 +87461,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個のプロセス"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld個のプロセス"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -87685,7 +87844,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "      RSS  PROC  COMMAND                    ATTRIBUTION"
+            "value": "      RSS  PROC  コマンド                    帰属"
           }
         },
         "ko": {
@@ -93645,9 +93804,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "... %lld 件追加で一致。--all または --limit <n> を指定してください。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "... 他に %lld 件あります。--all または --limit <n> を指定してください。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -94696,7 +94861,51 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "有効なサイドバーを %d 件再読み込みしました。%d 件有効、%d 件無効です。"
+            "value": "%#@count1@を再読み込みしました。%#@count2@、%#@count3@。"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d個の有効なサイドバー"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "有効%d個"
+                    }
+                  }
+                }
+              }
+            },
+            "count3": {
+              "argNum": 3,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "無効%d個"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -95344,7 +95553,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d 件有効、%d 件無効です。"
+            "value": "%#@count1@、%#@count2@"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "有効%d個"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "無効%d個"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -96628,9 +96867,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Simulator入力がUTF-8の%lldバイト制限を超えています"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "シミュレーターの入力が%lldバイトのUTF-8制限を超えています"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -98689,9 +98934,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "テキストがUTF-8の%lldバイト制限を超えています"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "テキストが%lldバイトのUTF-8制限を超えています"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -100809,9 +101060,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld文字を入力しました"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld文字を入力しました"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -106523,7 +106780,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い方: cmux todo <subcommand> [--workspace <id|ref|index>] [--window <id|ref|index>] [--json]\n\nワークスペースごとのチェックリストで、サイドバーと todo ペインに表示されます。\n既定では呼び出し元のワークスペースを対象にします。項目数はワークスペースごとに\n50 件までです。\n\nコーディングエージェントへの注意: このチェックリストはユーザーのものです。\n自分の判断で項目を追加・編集・完了・削除・置き換えしないでください。ユーザーが\n明示的に依頼した場合にのみ操作してください。自分の作業計画には内部のタスク管理を\n使ってください。\n\nサブコマンド:\n  add \"text\" [--state <pending|in-progress|completed>] [--origin <user|agent>]\n  list                    項目 (1 始まりの番号) と進捗を表示\n  check <index|id>        項目を完了にする\n  uncheck <index|id>      項目を未着手に戻す\n  start <index|id>        項目を進行中にする\n  edit <index|id> \"text\"  項目のテキストを書き換える\n  rm <index|id>           項目を削除\n  clear                   すべての項目を削除\n  set ['<json>']          {text, state?, id?, origin?} オブジェクトの\n                          JSON 配列でチェックリスト全体を原子的に置き換えます\n                          (インライン引数、または標準入力からパイプ)。\n                          id が既存項目と一致する項目は ID と origin を維持し、\n                          それ以外は新規作成され、名前のない既存項目は削除されます。\n  open                    ワークスペースの todo ペインを開く (またはフォーカスする)\n\n<index> は `cmux todo list` に表示される 1 始まりの番号です。<id> は\n`cmux todo list --json` に含まれる項目 UUID です。\n\n例:\n  cmux todo add \"write regression test\"\n  cmux todo list\n  cmux todo check 1\n  cmux todo start 2 --workspace workspace:3\n  my-plan-tool --json | cmux todo set\n  cmux todo open\n\n関連項目: cmux workspace status"
+            "value": "使用方法: cmux todo <subcommand> [--workspace <id|ref|index>] [--window <id|ref|index>] [--json]\n\nサイドバーおよび todo ペインに表示されるワークスペースごとのチェックリスト。デフォルトで\n呼び出し元のワークスペースを対象とします。アイテムはワークスペースごとに最大 50 個までです。\n\nコーディングエージェントへの注意: このチェックリストはユーザーのものです。自発的にアイテムの追加、\n編集、完了、削除、置換を行わないでください。ユーザーから明示的な要求があった場合にのみ\n管理してください。自身の計画には、独自に用意した内部的なタスク追跡を\n使用してください。\n\nサブコマンド:\n  add \"text\" [--state <pending|in-progress|completed>] [--origin <user|agent>]\n  list                    アイテム（1から始まるインデックス）と進捗を出力\n  check <index|id>        アイテムを完了としてマーク\n  uncheck <index|id>      アイテムを保留中（未完了）としてマーク\n  start <index|id>        アイテムを進行中としてマーク\n  edit <index|id> \"text\"  アイテムのテキストを書き換え\n  rm <index|id>           アイテムを削除\n  clear                   すべてのアイテムを削除\n  set ['<json>']          チェックリスト全体をアトミックに置換します。対象は\n                          {text, state?, id?, origin?} オブジェクトの JSON 配列\n                          （インライン引数、または標準入力からパイプ）。\n                          既存のアイテムと id が一致するアイテムは、\n                          その識別子と作成元を保持します。その他は新規作成され、\n                          名前のない既存のアイテムは削除されます。\n  open                    ワークスペースの todo ペインを開く（またはフォーカスする）\n\n<index> は `cmux todo list` によって出力される1から始まる番号です。<id> は\n`cmux todo list --json` から取得できるアイテムの UUID です。\n\n例:\n  cmux todo add \"write regression test\"\n  cmux todo list\n  cmux todo check 1\n  cmux todo start 2 --workspace workspace:3\n  my-plan-tool --json | cmux todo set\n  cmux todo open\n\n関連項目: cmux workspace status"
           }
         },
         "de": {
@@ -107637,6 +107894,12 @@
             "state": "translated",
             "value": "%@이(가) 준비되었습니다"
           }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の準備が完了しました"
+          }
         }
       }
     },
@@ -107721,9 +107984,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%2$@ プランのマシン %1$d 台（上限なし）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$d台のマシン（%2$@プラン）、制限なし"
+                }
+              }
+            }
           }
         },
         "de": {
@@ -107906,7 +108175,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%3$@ プランのマシン %1$d / %2$d"
+            "value": "%1$d / %#@count2@（%3$@ プラン）"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d 台"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "de": {
@@ -110031,7 +110316,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ターミナル %1$d · ブラウザ %2$d"
+            "value": "%#@count1@ · %#@count2@"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d台のターミナル"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d台のブラウザ"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -111102,7 +111417,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ のワークスペース '%3$@' にターミナル '%2$@' はありません。cmux vm tree %1$@ を確認してください"
+            "value": "%1$@ にはターミナル '%2$@' が、ワークスペース '%3$@' 内にありません。以下を参照してください: cmux vm tree %1$@"
           }
         },
         "de": {
@@ -111161,7 +111476,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ のターミナル '%2$@' はワークスペース '%3$@' に一意なタブがありません。cmux vm tree %1$@ で正確な配置を選んでください。"
+            "value": "ターミナル '%2$@'（%1$@ 上）には、ワークスペース '%3$@' 内に一意のタブがありません。cmux vm tree %1$@ を使用して、正確な配置を指定してください。"
           }
         },
         "de": {
@@ -111338,7 +111653,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ で %1$@ を開始しました — ワークスペース %4$@ のターミナル %3$@（デタッチ済み: ペインを閉じても実行を続けます）。"
+            "value": "%1$@ を %2$@ 上で起動しました — ターミナル %3$@（ワークスペース %4$@ 内）（デタッチ済み: ペインが閉じても実行を継続します）。"
           }
         },
         "de": {
@@ -111456,7 +111771,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ プランのマシン %1$d / 1"
+            "value": "%1$d 台 / 1 台（%2$@ プラン）"
           }
         },
         "de": {
@@ -111655,7 +111970,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux vm pull: %1$d/%2$d チャンク"
+            "value": "cmux vm pull: %1$d/%#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d チャンク"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -112026,7 +112357,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "cmux vm push: %1$d/%2$d チャンク"
+            "value": "cmux vm push: %1$d/%#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d チャンク"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -112353,6 +112700,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "[cmux] 연결이 끊겼습니다 — 다시 연결하는 중입니다 (시도 횟수: %d)…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "[cmux] 接続が切断されました — 再接続中（試行 %d）…"
           }
         }
       }
@@ -113158,7 +113511,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ は準備完了です（%2$@、%3$d 秒）"
+            "value": "%1$@は準備が整いました (%2$@) - %#@count3@後"
+          },
+          "substitutions": {
+            "count3": {
+              "argNum": 3,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d秒"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -113909,7 +114278,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い方: cmux workspace status [set <lane|auto> | cycle] [--workspace <id|ref|index>] [--window <id|ref|index>] [--json]\n\nワークスペースの todo ライフサイクルステータスを表示または固定します。引数なしでは、\n有効なステータス、推定ステータス、上書き状態を表示し、既定では呼び出し元の\nワークスペースを対象にします。\n\nレーンはライブシグナルから推定されます (agent needs input > agent running >\nopen PR > all PRs merged/closed > dirty git tree > todo)。`set <lane>` は\n手動レーンを固定し、推定レーンが変わると自動的に解除されます。`set auto` は\n固定をすぐに解除します。`cycle` は手動上書きを 1 レーン先へ進めます\n(todo → working → needs-attention → review → done → todo)。\n\n\nコーディングエージェントへの注意: 手動ステータスの固定はユーザーのものです。\nレーンはエージェントの活動を自動で追跡します。ユーザーが明示的に依頼しない限り、\n`set` や `cycle` でステータスを変更しないでください。\n\nレーン: todo, working, needs-attention, review, done\n\n例:\n  cmux workspace status\n  cmux workspace status set review\n  cmux workspace status cycle\n  cmux workspace status set auto --workspace workspace:2"
+            "value": "使用方法: cmux workspace status [set <lane|auto> | cycle] [--workspace <id|ref|index>] [--window <id|ref|index>] [--json]\n\nワークスペースの todo ライフサイクルステータスを表示またはピン留めします。引数なしの場合は、\n有効なステータス、推測されたステータス、およびオーバーライドを出力します。デフォルトで\n呼び出し元のワークスペースが対象となります。\n\nレーンはライブシグナルから推測されます（エージェントが要入力を検出 > エージェント実行中 >\nオープンな PR > すべての PR がマージ/クローズ済み > 変更のある git ツリー > todo）。`set <lane>`\nは手動レーンをピン留めし、推測されたレーンが変更されるとすぐに自動クリアされます。\n`set auto` は即座にピン留めをクリアします。`cycle` は手動オーバーライドを\n1つ先のレーンに進めます（todo → working → needs-attention → review → done → todo）。\n\nコーディングエージェントへの注意: 手動のステータスピンはユーザーのものです。レーンは\nすでに自動的にあなたのアクティビティを追跡しています。ユーザーから明示的な\n要求がない限り、ステータスを `set` または `cycle` しないでください。\n\nレーン: todo, working, needs-attention, review, done\n\n例:\n  cmux workspace status\n  cmux workspace status set review\n  cmux workspace status cycle\n  cmux workspace status set auto --workspace workspace:2"
           }
         },
         "de": {
@@ -113968,7 +114337,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い方: cmux workspace <サブコマンド> [フラグ]\n\nワークスペース操作の正規の名前空間です。従来の動詞コマンド\n(new-workspace、list-workspaces、close-workspace、\nrename-workspace、select-workspace) は引き続き動作し、ここを指す\n非推奨ヒントを一度だけ表示します。\n\nサブコマンド:\n  list                    ウィンドウ内のワークスペースを一覧表示\n  create [flags]          ワークスペースを作成 (new-workspace と同じフラグ。\n                          --env KEY=VALUE と --env-file <path> を含む)\n  env [workspace] [--mask]\n                          ワークスペースに設定された環境変数を表示\n                          (--mask は値を伏せ字にします)\n  close <workspace>       ワークスペースを閉じる\n  rename <workspace> --title <new>\n  select <workspace>      ワークスペースをアクティブにする\n  reconnect [workspace]   リモート (SSH) ワークスペースを再接続。ホストに\n                          到達できず自動再接続が一時停止したものも含む\n  disconnect [workspace]  リモート (SSH) ワークスペースの接続を停止\n  status [set <lane|auto>]\n                          ワークスペースの todo ステータスを表示/固定\n  loading <on|off> [--id <name>]\n                          ワークスペースの読み込みスピナーを切り替え。--id ごとに\n                          別のローダーとして積み重なり、省略時は既定の 1 つを\n                          切り替えます\n  group <subcommand>      ワークスペースグループ操作 (cmux workspace-group --help を参照)\n\nenv/reconnect/disconnect は位置引数のハンドルまたは --workspace\n<id|ref|index> を受け付け、省略時は呼び出し元のワークスペース、\n次に選択中のワークスペース (--window 指定時はそのウィンドウ) を\n対象にします。\n\n例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace create --cwd . --env AWS_PROFILE=prod --env-file ./.cmux.env\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3\n  cmux workspace loading on\n  cmux workspace loading on --id build\n  cmux workspace loading off"
+            "value": "使用方法: cmux workspace <subcommand> [flags]\n\nワークスペース操作用の標準コマンド。従来の動詞\n(new-workspace, list-workspaces, close-workspace,\nrename-workspace, select-workspace) も引き続き動作し、ここを指し示す\n初回限りの非推奨ヒントを出力します。\n\nサブコマンド:\n  list                    ウィンドウ内のワークスペースを一覧表示\n  create [flags]          ワークスペースを作成（new-workspace と同じフラグ）\n  env [workspace] [--mask]\n                          ワークスペースに設定されている環境変数を出力\n                          （--mask は値をマスクします）\n  close <workspace>       ワークスペースを閉じる\n  rename <workspace> --title <new>\n  select <workspace>      ワークスペースをアクティブにする\n  status [set <lane|auto>]\n                          ワークスペースの todo ステータスを表示またはピン留め\n  reconnect [workspace]   リモート（SSH）ワークスペースを再接続。ホストが\n                          到達不能になったために自動再接続が一時停止した\n                          ものも含みます\n  disconnect [workspace]  リモート（SSH）ワークスペースの接続を切断\n  loading <on|off> [--id <name>] ワークスペースの読み込み中インジケーターを切り替え。\n  group <subcommand>      ワークスペースグループ操作（cmux workspace-group --help を参照）\nenv/reconnect/disconnect は、位置引数のハンドルまたは --workspace\n<id|ref|index> を受け取り、デフォルトは呼び出し元のワークスペース、次に\n選択されたもの（--window が指定されている場合はそのウィンドウのもの）になります。\n例:\n  cmux workspace list --json\n  cmux workspace create --name Build --cwd ~/projects/myapp\n  cmux workspace env workspace:3 --mask\n  cmux workspace close workspace:3\n  cmux workspace reconnect\n  cmux workspace disconnect --workspace workspace:3"
           }
         },
         "ko": {
@@ -114456,9 +114825,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK グループを削除しました（%lld 個のワークスペースを閉じました）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "OK グループを削除しました（%lld個のワークスペースを閉じました）"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -114629,9 +115004,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK グループを削除しました（%lld 個のワークスペースを閉じました）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "OK グループを削除しました（%lld個のワークスペースを閉じました）"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -114802,9 +115183,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK グループを解除しました（%lld 個のワークスペースを保持しました）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "OK グループを解除しました（%lld個のワークスペースを保持）"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -114975,9 +115362,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "OK グループを解除しました（%lld 個のワークスペースを保持しました）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "OK グループを解除しました（%lld個のワークスペースを保持）"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -115844,9 +116237,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ブラウザ %d"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d個のブラウザ"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -116656,7 +117055,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ の %1$@"
+            "value": "%1$@（%2$@ 上）"
           }
         },
         "de": {
@@ -117197,9 +117596,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中の%d個のターミナルも一緒に終了します。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "その%d個のターミナルも一緒に終了されます。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -118149,7 +118554,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ターミナル名はリモートタブ %1$d/%2$d 件で変更されました。別の変更があったため安全にロールバックできません。更新して再試行してください。"
+            "value": "ターミナルの名前変更により、%1$d個が変更されました（対象：%#@count2@）。別の変更により安全なロールバックが妨げられました。更新して再試行してください。"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d個のリモートタブ"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "de": {
@@ -118498,7 +118919,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモート名称変更がリビジョン %1$llu の後に %2$llu を返しました。更新して再試行してください。"
+            "value": "リモートの名前変更でリビジョン %2$llu が返されました（リビジョン %1$llu の後）。更新して再試行してください。"
           }
         },
         "de": {
@@ -121409,9 +121830,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "マシン上の %d 個のタブがこのターミナルを表示しています"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "マシン上の%d個のタブがこのターミナルを表示しています"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -121641,9 +122068,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナル %d 個"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d個のターミナル"
+                }
+              }
+            }
           }
         },
         "de": {
@@ -128732,7 +129165,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cloud VM"
+            "value": "クラウド VM"
           }
         },
         "de": {
@@ -133247,7 +133680,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Agent Chat"
+            "value": "エージェントチャット"
           }
         },
         "zh-Hans": {
@@ -167405,7 +167838,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "このワークスペースを閉じるとグループ「%1$@」が解除され、他の %2$lld 個のワークスペースが切り離されます。"
+            "value": "このワークスペースを閉じると、“%1$@”のグループが解除され、%#@count2@が解放されます。"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "他の%lld個のワークスペース"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -168261,9 +168710,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このペインの %1$lld 個のタブを閉じます:\n%2$@"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "これにより、このペイン内の%1$lld個のタブが閉じられます:\n%2$@"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -168546,9 +169001,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このペインの %1$lld 個のタブを閉じます:\n%2$@"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "これにより、このペイン内の%1$lld個のタブが閉じられます:\n%2$@"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -169763,9 +170224,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld 個のワークスペースと、それぞれのすべてのパネルを閉じます:\n%2$@"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "これにより、%1$lld個のワークスペースとそれらのすべてのパネルが閉じられます:\n%2$@"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -170007,9 +170474,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現在のウィンドウと、その %1$lld 個のワークスペースと、それぞれのすべてのパネルを閉じます:\n%2$@"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "これにより、現在のウィンドウ、その%1$lld個のワークスペース、およびそれらのすべてのパネルが閉じられます:\n%2$@"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -171801,7 +172274,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "グループ「%1$@」を削除して %2$lld 個のワークスペースを閉じますか？"
+            "value": "グループ“%1$@”を削除し、その%#@count2@を閉じますか？"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld個のワークスペース"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "km": {
@@ -175289,9 +175778,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取得したコマンドの一部が %lld UTF-8 バイトを超えているため、保存したレイアウトから確実に再実行できません。保存する前に短くしてください。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "キャプチャされた1つ以上のコマンドが%lld UTF-8バイトを超えているため、保存されたレイアウトから確実に再実行することができません。保存する前に短縮してください。"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -176058,9 +176553,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個のパネルはレイアウトで表現できないため(プレビュー、ビューアなど)、保存されません。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld個のパネルにはレイアウト表現（プレビュー、ビューアーなど）がないため、除外されます。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -177765,9 +178266,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "SSH 接続先が長すぎます。最大長は %lld 文字です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "SSHの接続先が長すぎます。最大長は%lld文字です。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -178410,9 +178917,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ワークスペース名が長すぎます。最大長は %lld 文字です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "ワークスペースのタイトルが長すぎます。最大長は%lld文字です。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -180240,9 +180753,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リンク名が長すぎます。最大長は %lld 文字です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "リンク名が長すぎます。最大長は%lld文字です。"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -180604,9 +181123,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リンクテキストが長すぎます。最大長は %lld 文字です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "リンクのテキストが長すぎます。最大長は%lld文字です。"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -180968,9 +181493,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リンクタイトルが長すぎます。最大長は %lld 文字です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "リンクのタイトルが長すぎます。最大長は%lld文字です。"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -205751,7 +206282,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Raycast Glass"
+            "value": "Raycast グラス"
           }
         },
         "zh-Hans": {
@@ -206636,7 +207167,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Raycast Glass"
+            "value": "Raycast グラス"
           }
         },
         "zh-Hans": {
@@ -209679,7 +210210,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "TODO"
+            "value": "タスク"
           }
         },
         "zh-Hans": {
@@ -211657,7 +212188,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@からの%1$@リクエスト"
+            "value": "あなた: %@（%@ からの要求）"
           }
         },
         "zh-Hans": {
@@ -213063,7 +213594,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld 行・%lld 文字"
+            "value": "%#@count1@ · %#@count2@"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld 行"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld 文字"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -213722,7 +214283,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "AppKit Direct, intrinsic"
+            "value": "AppKit ダイレクト、固有サイズ"
           }
         },
         "zh-Hans": {
@@ -213781,7 +214342,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "AppKit Direct, sizeThatFits"
+            "value": "AppKit ダイレクト、sizeThatFits"
           }
         },
         "zh-Hans": {
@@ -213840,7 +214401,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "AppKit ScrollView, measured"
+            "value": "AppKit スクロールビュー、計測"
           }
         },
         "zh-Hans": {
@@ -213899,7 +214460,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "AppKit ScrollView, sizeThatFits"
+            "value": "AppKit スクロールビュー、sizeThatFits"
           }
         },
         "zh-Hans": {
@@ -213958,7 +214519,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "SwiftUI Mirror TextEditor"
+            "value": "SwiftUI ミラー テキストエディタ"
           }
         },
         "de": {
@@ -214204,9 +214765,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "... 完了が%lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "... +%lld件完了"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -214377,9 +214944,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完了%lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件完了"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -214550,9 +215123,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "進行中%lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件進行中"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -214723,9 +215302,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未完了%lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件未完了"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -216017,9 +216602,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最初の%d件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "最初の%d件の一致"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -216190,9 +216781,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d件の一致"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -216658,9 +217255,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d件、検索中"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d件の一致、検索中"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -221436,9 +222039,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現在のプランでは %d 台のマシンを利用できます"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "ご利用のプランには%d台のマシンが含まれています"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -222317,9 +222926,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アップグレードすると %d 台を超えるマシンを利用できます"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d台を超えるマシンを使用するにはアップグレードしてください"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -222699,7 +223314,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d日 %2$d時間"
+            "value": "%#@count1@ %#@count2@"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d日"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d時間"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -223130,7 +223775,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$d時間 %2$d分"
+            "value": "%#@count1@ %#@count2@"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d時間"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d分"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -223529,9 +224204,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d分"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d分"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -223879,9 +224560,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無料プランでは作成から %d 日間マシンに接続できます。引き続き使うには Pro にアップグレードしてください。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "無料プランでは、マシンの作成後%d日間アクセス可能です。引き続き使用するにはProにアップグレードしてください。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -224713,7 +225400,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "マシン %1$d / %2$d"
+            "value": "%1$d台 / %#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d台のマシン"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -224954,9 +225657,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "マシン %1$d 台"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$d台のマシン"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -225304,9 +226013,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現在のプランでは %d 台まで作成できます。追加するにはアップグレードしてください。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "ご利用のプランには%d台のマシンが含まれています。さらに作成するにはアップグレードしてください。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -226657,9 +227372,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "残り%d日"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "残り%d日"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -227066,9 +227787,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d日"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d日"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -230104,9 +230831,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld ワークスペース"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld個のワークスペース"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -239302,9 +240035,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 個のワークスペース"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d個のワークスペース"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -239654,9 +240393,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 個のワークスペース"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d個のワークスペース"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -255680,9 +256425,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "離席中とは、画面がロックまたはスリープ中、スクリーンセーバーが実行中、またはキーボードやマウスの入力が %lld 分間ない状態です。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "「離席中」とは、画面がロックまたはスリープ状態であるか、スクリーンセーバーが動作しているか、あるいはキーボードやマウスの入力が%lld分間ない状態を指します。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -256956,7 +257707,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ の %1$@"
+            "value": "%1$@（%2$@ 内）"
           }
         },
         "zh-Hans": {
@@ -257379,9 +258130,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d秒経過"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d秒経過"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -257611,9 +258368,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止するまで%d秒待機しました。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d秒間待機した後に停止しました。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -259210,7 +259973,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enterprise"
+            "value": "エンタープライズ"
           }
         },
         "zh-Hans": {
@@ -259741,7 +260504,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free"
+            "value": "無料"
           }
         },
         "zh-Hans": {
@@ -262605,7 +263368,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enterprise"
+            "value": "エンタープライズ"
           }
         },
         "zh-Hans": {
@@ -262664,7 +263427,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Free"
+            "value": "無料"
           }
         },
         "zh-Hans": {
@@ -267105,9 +267868,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld日"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld日"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -267278,9 +268047,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld時間"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld時間"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -267451,9 +268226,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld分"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld分"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -267683,9 +268464,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld週"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld週"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -272337,7 +273124,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "SSH 制御ソケットパスが Unix ドメインソケットには長すぎます（%lld > %lld バイト）。ホームディレクトリのパスが長すぎます"
+            "value": "SSH制御ソケットのパスがUnixドメインソケットに対して長すぎます（%lld > %#@count2@）。ホームディレクトリのパスが長すぎます"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lldバイト"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "km": {
@@ -274514,7 +275317,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ · 保留中%lld件"
+            "value": "%@ · %#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld件保留中"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -280348,9 +281167,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "あと %lld 件を表示"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "さらに%lld件表示"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -305478,7 +306303,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Feed"
+            "value": "フィード"
           }
         },
         "de": {
@@ -305950,7 +306775,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リモートロールアウトでコントロールが有効になるまで、ワークスペース Todo の概要を読み取り専用にします。"
+            "value": "リモートのロールアウトによってコントロールが有効化されない限り、ワークスペースの todo サマリーを読み取り専用に維持します。"
           }
         },
         "zh-Hans": {
@@ -308127,9 +308952,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld分"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld分"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -308332,7 +309163,37 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld分%lld秒"
+            "value": "%#@count1@分 %#@count2@秒"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -308731,9 +309592,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld秒"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld秒"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -310047,9 +310914,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld件の保存済みページがオムニバーの候補に表示されます。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件の保存されたページがオムニバーの候補に表示されます。"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -311432,7 +312305,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "browser.urlAllowlist URL許可リスト localhost ワイルドカード スキーム ポート 組織 ポリシー"
+            "value": "browser.urlAllowlist URL allowlist localhost wildcard scheme port organization policy browser.urlAllowlist URL許可リスト localhost ワイルドカード スキーム ポート 組織 ポリシー"
           }
         },
         "km": {
@@ -315861,7 +316734,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ · マシン %2$d 台（上限なし）"
+            "value": "%1$@ · %#@count2@"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d台、制限なし"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -316114,7 +317003,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ · マシン %2$d / %3$d"
+            "value": "%1$@ · %2$d / %#@count3@"
+          },
+          "substitutions": {
+            "count3": {
+              "argNum": 3,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d台のマシン"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -338622,7 +339527,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "HUD Glass"
+            "value": "HUD グラス"
           }
         },
         "ko": {
@@ -338979,7 +339884,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Raycast Gray"
+            "value": "Raycast グレー"
           }
         },
         "ko": {
@@ -340008,7 +340913,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クラウド マシン 仮想マシン 永続 コンピュータ プラン アップグレード"
+            "value": "cloud machines vm virtual machine persistent computer sandbox plan upgrade fleet freestyle クラウド マシン 仮想マシン 永続 コンピュータ プラン アップグレード"
           }
         },
         "zh-Hans": {
@@ -340067,7 +340972,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "カスタムサイドバー バイブコード swift json インタープリタ レンダラー アプリ内 分離プロセス"
+            "value": "custom sidebars vibe code swift json interpreted renderer in-process remote worker isolated カスタムサイドバー バイブコード swift json インタープリタ レンダラー アプリ内 分離プロセス"
           }
         },
         "de": {
@@ -340364,7 +341269,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ios iphone ipad モバイル ペアリング ローカルネットワーク 権限 同期"
+            "value": "ios iphone ipad mobile pairing local network permission sync ios iphone ipad モバイル ペアリング ローカルネットワーク 権限 同期"
           }
         },
         "de": {
@@ -340423,7 +341328,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "iroh リレー サーバー フリート プロバイダー リージョン カスタム セルフホスト プライベートネットワーク tailscale vpn 直接 ピア"
+            "value": "iroh relay relays server fleet provider region custom self hosted private network tailscale vpn direct peer iroh リレー サーバー フリート プロバイダー リージョン カスタム セルフホスト プライベートネットワーク tailscale vpn 直接 ピア"
           }
         },
         "de": {
@@ -340839,7 +341744,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "おやすみモード スクリーンセーバー カフェイン スリープ防止 ロック touch id バッテリー wifi 時計 マスコット テーマ グロー ピクセル 夜"
+            "value": "sleepy mode screensaver caffeinate keep awake do not sleep lock touch id battery wifi clock mascot theme glow pixel night おやすみモード スクリーンセーバー カフェイン スリープ防止 ロック touch id バッテリー wifi 時計 マスコット テーマ グロー ピクセル 夜"
           }
         },
         "de": {
@@ -342033,7 +342938,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.wordWrap ファイル エディタ 行折り返し ワードラップ 折り返し 改行 テキスト 横スクロール プレビュー"
+            "value": "fileEditor.wordWrap file editor word wrap soft wrap reflow lines text horizontal scroll preview fileEditor.wordWrap ファイル エディタ 行折り返し ワードラップ 折り返し 改行 テキスト 横スクロール プレビュー"
           }
         },
         "de": {
@@ -342871,7 +343776,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "markdown.fontFamily Markdown マークダウン ビューア フォント フォントファミリー 書体 システム カスタム font family typeface"
+            "value": "markdown.fontFamily md markdown viewer font font-family family typeface system stack custom markdown.fontFamily Markdown マークダウン ビューア フォント フォントファミリー 書体 システム カスタム font family typeface"
           }
         },
         "de": {
@@ -342930,7 +343835,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "markdown.fontSize Markdown マークダウン ビューア フォントサイズ 文字サイズ ズーム 拡大 縮小 大きく 小さく 既定 ポイント font size zoom"
+            "value": "markdown.fontSize md markdown viewer font size points zoom scale text bigger smaller larger default markdown.fontSize Markdown マークダウン ビューア フォントサイズ 文字サイズ ズーム 拡大 縮小 大きく 小さく 既定 ポイント font size zoom"
           }
         },
         "de": {
@@ -342989,7 +343894,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "markdown.maxWidth Markdown マークダウン ビューア 最大幅 幅 カラム 読み取り 行長 ピクセル px 狭い 広い"
+            "value": "markdown.maxWidth md markdown viewer max width column reading line length pixels px narrow wide markdown.maxWidth Markdown マークダウン ビューア 最大幅 幅 カラム 読み取り 行長 ピクセル px 狭い 広い"
           }
         },
         "de": {
@@ -343923,7 +344828,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "notifications.soundOverrides エージェントごとの通知サウンド ターン完了 入力が必要 権限 エラー 停止 カスタムファイル"
+            "value": "notifications.soundOverrides per-agent agent sound turn done needs input permission error stalled custom file notifications.soundOverrides エージェントごとの通知サウンド ターン完了 入力が必要 権限 エラー 停止 カスタムファイル"
           }
         },
         "km": {
@@ -348531,7 +349436,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "automation.suppressSubagentNotifications サブエージェント ネスト 子エージェント codex claude フック 通知"
+            "value": "automation.suppressSubagentNotifications subagent nested child agent codex claude hooks notifications automation.suppressSubagentNotifications サブエージェント ネスト 子エージェント codex claude フック 通知"
           }
         },
         "ko": {
@@ -348733,7 +349638,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.beta.workspaceTodos.controls.enabled ワークスペース Todo Todos タスク ステータス チェックリスト 追加 項目 コントロール ベータ"
+            "value": "sidebar.beta.workspaceTodos.controls.enabled workspace todo todos task status checklist add item controls beta ワークスペース タスク ステータス チェックリスト コントロール ベータ"
           }
         },
         "de": {
@@ -348792,7 +349697,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "sidebar.beta.workspaceTodos.checklistStyle ワークスペース Todo Todos タスク ステータス チェックリスト ポップオーバー インライン 表示 スタイル ベータ"
+            "value": "sidebar.beta.workspaceTodos.checklistStyle workspace todo todos task status checklist popover inline presentation style beta ワークスペース タスク ステータス チェックリスト ポップオーバー インライン プレゼンテーション スタイル ベータ"
           }
         },
         "de": {
@@ -351051,7 +351956,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "モバイル ios iphone ファイル フォルダ ディレクトリ サブツリー 1 階層 認証 セキュリティ"
+            "value": "mobile ios iphone files folders directory subtree one level authorization security モバイル ios iphone ファイル フォルダ ディレクトリ サブツリー 1 階層 認証 セキュリティ"
           }
         },
         "de": {
@@ -351110,7 +352015,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "モバイル ios iphone ペアリング 表示名 mac ホスト名 デバイス ラベル"
+            "value": "mobile ios iphone pairing display name mac hostname device label モバイル ios iphone ペアリング 表示名 mac ホスト名 デバイス ラベル"
           }
         },
         "de": {
@@ -351169,7 +352074,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ios iphone ipad モバイル ペアリング ローカルネットワーク 権限 同期"
+            "value": "ios iphone ipad mobile pairing local network permission sync ios iphone ipad モバイル ペアリング ローカルネットワーク 権限 同期"
           }
         },
         "de": {
@@ -351228,7 +352133,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "モバイル ios iphone ペアリング ポート tcp リスナー ファイアウォール 競合 バインド"
+            "value": "mobile ios iphone pairing port tcp listener firewall conflict bind モバイル ios iphone ペアリング ポート tcp リスナー ファイアウォール 競合 バインド"
           }
         },
         "de": {
@@ -351287,7 +352192,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "iroh カスタム リレー セルフホスト サーバー url シークレット 認証情報 デバイス 認証"
+            "value": "iroh custom relay self hosted server url secret credential device authentication iroh カスタム リレー セルフホスト サーバー url シークレット 認証情報 デバイス 認証"
           }
         },
         "de": {
@@ -351346,7 +352251,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "リレー ポリシー 署名 検証済み カタログ キャッシュ サーバー 有効期限 シーケンス セキュリティ"
+            "value": "relay policy signed verified catalog cached server expiry sequence security リレー ポリシー 署名 検証済み カタログ キャッシュ サーバー 有効期限 シーケンス セキュリティ"
           }
         },
         "de": {
@@ -351405,7 +352310,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "プライベートネットワーク lan vpn 直接 ピア パス ローカル アドレス 汎用 プロバイダー 自動"
+            "value": "private network lan vpn direct peer path local address generic provider automatic プライベートネットワーク lan vpn 直接 ピア パス ローカル アドレス 汎用 プロバイダー 自動"
           }
         },
         "de": {
@@ -351464,7 +352369,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "iroh リレー 設定 自動 管理 選択 cmux フリート プロバイダー リージョン アカウント"
+            "value": "iroh relay preference automatic managed selected cmux fleet provider region account iroh リレー 設定 自動 管理 選択 cmux フリート プロバイダー リージョン アカウント"
           }
         },
         "de": {
@@ -351523,7 +352428,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "iroh ステータス 診断 直接 ピア リレー 縮退 有効 無効 更新"
+            "value": "iroh status diagnostics direct peer relay degraded active inactive refresh iroh ステータス 診断 直接 ピア リレー 縮退 有効 無効 更新"
           }
         },
         "de": {
@@ -351582,7 +352487,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "tailscale tailnet プライベート ip 互換性 vpn レガシー tcp 自動"
+            "value": "tailscale tailnet private ip compatibility vpn legacy tcp automatic tailscale tailnet プライベート ip 互換性 vpn レガシー tcp 自動"
           }
         },
         "de": {
@@ -352777,7 +353682,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "terminal.adaptiveDefaultTheme 適応 デフォルト テーマ 外観 ライト ダーク パレット Ghostty 管理 色 空 未設定 設定 保持"
+            "value": "terminal.adaptiveDefaultTheme adaptive default theme appearance light dark palette Ghostty managed colors empty untouched config preserve settings terminal.adaptiveDefaultTheme 適応 デフォルト テーマ 外観 ライト ダーク パレット Ghostty 管理 色 空 未設定 設定 保持"
           }
         },
         "zh-Hans": {
@@ -352961,7 +353866,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "surface resume commands approvals command prefixes auto restore ask manual tmux hibernation sticky process"
+            "value": "surface resume commands approvals command prefixes auto restore ask manual tmux hibernation sticky process サーフェス 再開 コマンド 自動 復元 手動 プロセス"
           }
         },
         "de": {
@@ -353139,7 +354044,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "terminal.sessionContentAlignment ターミナル エージェントチャット 左 中央 右 配置 位置"
+            "value": "terminal.sessionContentAlignment terminal agent chat left center right alignment position terminal.sessionContentAlignment ターミナル エージェントチャット 左 中央 右 配置 位置"
           }
         },
         "de": {
@@ -353198,7 +354103,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "terminal.sessionContentMaxWidth ターミナル エージェントチャット 最大幅 読みやすい 行長 ポイント pt 狭い 広い"
+            "value": "terminal.sessionContentMaxWidth terminal agent chat max width readable line length points pt narrow wide terminal.sessionContentMaxWidth ターミナル エージェントチャット 最大幅 読みやすい 行長 ポイント pt 狭い 広い"
           }
         },
         "de": {
@@ -353316,7 +354221,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "terminal.textBoxDefaultSubmitAction submit action shift tab claude codex opencode pi agent route provider icon new session"
+            "value": "terminal.textBoxDefaultSubmitAction submit action shift tab claude codex opencode pi agent route provider icon new session ターミナル 送信 アクション エージェント 新規 セッション"
           }
         },
         "de": {
@@ -365934,7 +366839,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Dangerous"
+            "value": "Claude（危険モード）"
           }
         },
         "de": {
@@ -384462,9 +385367,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "読み込み中（アクティブなタスク %lld 件）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "読み込み中（%lld件の実行中のタスク）"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -385219,9 +386130,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld件の画像が添付されています"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld枚の画像が添付されています"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -385805,9 +386722,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "… 残り%lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "… 他%lld件"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -386854,7 +387777,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$@ にキー '%1$@' がありません"
+            "value": "キー '%@' が見つかりません（場所: %@）"
           }
         },
         "zh-Hans": {
@@ -399456,9 +400379,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アクセシビリティ要素: %lld"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "アクセシビリティ要素: %lld"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -399678,7 +400607,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$lldページ中%1$lldページ"
+            "value": "%1$lld / %2$lld ページ"
           }
         },
         "zh-Hans": {
@@ -399806,9 +400735,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アクセシビリティルート: %lld"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "アクセシビリティルート: %lld"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -414183,9 +415118,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "入力するテキストが長すぎます（上限: UTF-8で%lldバイト）"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "入力するテキストが長すぎます（最大%lld UTF-8バイト）"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -434712,9 +435653,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d個のプロファイルファイルをzip化して添付します。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d個のプロファイリングファイルがZIP圧縮されて添付されます。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -434944,9 +435891,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CPU、SwiftUI、メモリ、システムトレースをそれぞれ%d秒ずつ記録しています。仕上げに時間がかかる場合があります。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "CPU、SwiftUI、メモリ、およびシステムトレースをそれぞれ%d秒間記録しています。完了処理にはさらに時間がかかる場合があります。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -437317,9 +438270,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "残り約%d秒"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "残り約%d秒"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -439035,9 +439994,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未読通知 %lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件の未読通知"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -439387,9 +440352,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未読通知 %lld件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld件の未読通知"
+                }
+              }
+            }
           }
         },
         "ko": {
@@ -440879,9 +441850,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個のプロセス"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個のプロセス"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -441896,9 +442873,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 個のプロセスに正常終了を要求します。短い猶予時間の後も残っているプロセスは cmux が強制終了します。PID: %@。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個のプロセスに正常終了を要求します。短い猶予期間の後、cmux は残りのプロセスを強制終了します。PID: %@。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -447468,9 +448451,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コメント%d件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d 件のコメント"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -448807,7 +449796,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Claude Dangerous"
+            "value": "Claude（危険モード）"
           }
         },
         "de": {
@@ -461031,7 +462020,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Agent Chat"
+            "value": "エージェントチャット"
           }
         },
         "zh-Hans": {
@@ -467596,9 +468585,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未読 %lld 件"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "未読 %lld 件"
+                }
+              }
+            }
           }
         },
         "km": {
@@ -468188,9 +469183,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$d 台を使用中"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$d 台のマシンを使用中"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -468432,7 +469433,23 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%2$d 台中 %1$d 台を使用中"
+            "value": "%1$d 台 / %#@count2@ のマシンを使用中"
+          },
+          "substitutions": {
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d 台"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -468673,9 +469690,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無料プラン: このマシンには %d 日間アクセスできます。継続するにはアップグレードしてください。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "無料プラン：このマシンは %d 日間アクセス可能です。維持するにはアップグレードしてください。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -474870,9 +475893,15 @@
           }
         },
         "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中の%d個のターミナルも一緒に終了します。残す場合は「ワークスペースを閉じる」を使ってください。ターミナルはプールに移動します。"
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "その %d 個のターミナルも同時に終了されます。これらを残すには、代わりに「ワークスペースを閉じる」を使用してください。ターミナルプールに移動されます。"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -476620,7 +477649,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.currentLineHighlight カレント行 キャレット"
+            "value": "fileEditor.currentLineHighlight current line caret fileEditor.currentLineHighlight カレント行 キャレット"
           }
         },
         "km": {
@@ -476745,7 +477774,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.indentGuides インデント ガイド"
+            "value": "fileEditor.indentGuides indent guides columns fileEditor.indentGuides インデント ガイド"
           }
         },
         "km": {
@@ -476870,7 +477899,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.lineNumbers ガター 行番号"
+            "value": "fileEditor.lineNumbers gutter line numbers fileEditor.lineNumbers ガター 行番号"
           }
         },
         "km": {
@@ -476995,7 +478024,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.syntaxHighlighting シンタックス ハイライト 色 トークン コード"
+            "value": "fileEditor.syntaxHighlighting syntax highlight colors tokens code fileEditor.syntaxHighlighting シンタックス ハイライト 色 トークン コード"
           }
         },
         "km": {
@@ -477120,7 +478149,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "fileEditor.tabWidth タブ幅 インデント"
+            "value": "fileEditor.tabWidth tab width indent columns fileEditor.tabWidth タブ幅 インデント"
           }
         },
         "km": {
@@ -483794,7 +484823,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "browser.chromiumExtensionDirectories Chrome 拡張機能 アンパック load-extension アドオン プラグイン"
+            "value": "browser.chromiumExtensionDirectories chrome extension unpacked load-extension addon plugin browser.chromiumExtensionDirectories Chrome 拡張機能 アンパック load-extension アドオン プラグイン"
           }
         },
         "de": {
@@ -483853,7 +484882,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "browser.defaultEngine 自動 既定のブラウザ WebKit Chromium Chrome レンダリング エンジン 別プロセス"
+            "value": "browser.defaultEngine auto match default browser webkit chromium chrome rendering engine out of process browser.defaultEngine 自動 既定のブラウザ WebKit Chromium Chrome レンダリング エンジン 別プロセス"
           }
         },
         "de": {
@@ -483912,7 +484941,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "browser.remoteDebuggingPort CDP DevTools プロトコル Playwright Puppeteer ループバック localhost 接続"
+            "value": "browser.remoteDebuggingPort cdp devtools protocol playwright puppeteer loopback localhost attach browser.remoteDebuggingPort CDP DevTools プロトコル Playwright Puppeteer ループバック localhost 接続"
           }
         },
         "de": {
