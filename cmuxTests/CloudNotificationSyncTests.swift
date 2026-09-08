@@ -355,6 +355,7 @@ struct CloudNotificationSyncTests {
         var rows: [CloudVMNotificationRow] = []
         var counter = 0
         var readByMe: Set<String> = []          // acknowledged on the machine (simulated daemon)
+        var expectedWithdrawn: Set<String> = []  // delivered rows the fixture evicted
         var locallyRead: Set<String> = []        // rows this Mac read
 
         func machineApplyAcks() {
@@ -374,7 +375,10 @@ struct CloudNotificationSyncTests {
             case 0...3:
                 counter += 1
                 rows.append(Self.row("n\(counter)", terminal: terminals[Int(next() % 4)], createdAt: UInt64(counter)))
-                if rows.count > 40 { rows.removeFirst() }
+                if rows.count > 40 {
+                    let evicted = rows.removeFirst()
+                    if effects.delivered.contains(evicted.id) { expectedWithdrawn.insert(evicted.id) }
+                }
             case 4 where !rows.isEmpty:
                 // Another client reads one row on the machine.
                 let index = Int(next() % UInt64(rows.count))
@@ -421,11 +425,10 @@ struct CloudNotificationSyncTests {
             for id in locallyRead where rows.contains(where: { $0.id == id }) {
                 #expect(pending.contains(id) || ackedIDs.contains(id) || readByMe.contains(id), "step \(step): read \(id) was lost")
             }
-            // Invariant 4: every delivered row the machine dropped was withdrawn exactly once.
-            let retainedIDs = Set(rows.map(\.id))
+            // Invariant 4: every delivered row the machine dropped was withdrawn exactly once, and nothing else was.
             let withdrawnCounts = Dictionary(effects.withdrawn.map { ($0, 1) }, uniquingKeysWith: +)
             #expect(withdrawnCounts.values.allSatisfy { $0 == 1 }, "step \(step): a row was withdrawn twice")
-            for id in effects.withdrawn { #expect(!retainedIDs.contains(id), "step \(step): withdrew a retained row") }
+            #expect(Set(effects.withdrawn) == expectedWithdrawn, "step \(step): withdrawals \(Set(effects.withdrawn).symmetricDifference(expectedWithdrawn))")
             // Invariant 3: the unread set is exactly what the reducer computes from the durable state.
             let expected = CloudNotificationSyncReducer.unreadTerminalIDs(rows: rows, clientID: Self.me, state: sync.state)
             #expect(sync.unreadTerminalIDs == expected, "step \(step): unread set diverged")
