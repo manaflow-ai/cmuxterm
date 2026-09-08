@@ -126,6 +126,9 @@ def main() -> int:
     removed_count = 0
     removed_kib = 0
     for cas_dir in candidate_cas_dirs(cache_dir):
+        if not cas_dir.is_dir():
+            # Pruned away as a root-level generation earlier in this walk.
+            continue
         sizes: dict[Path, int] = {}
         try:
             for chain in generations_in(cas_dir).values():
@@ -137,6 +140,11 @@ def main() -> int:
                 f"{display_path(cas_dir)}: still in use ({error}); "
                 "leaving its generations alone"
             )
+            continue
+        except OSError as error:
+            # Unlistable or vanished directory: skip it, keep walking. The
+            # bound step measures whatever is left, as it did before pruning.
+            print(f"{display_path(cas_dir)}: could not inspect ({error}); leaving it alone")
             continue
         if not kept and not removed:
             continue
