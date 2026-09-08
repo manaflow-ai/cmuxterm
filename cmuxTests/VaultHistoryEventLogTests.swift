@@ -69,7 +69,11 @@ import Testing
         }
     }
 
-    @Test func startupRestoreRetriesAfterDeferredWindowCloses() async throws {
+    @Test(arguments: ["nativeClose", "close", "discard"], [true, false])
+    func startupRestoreRetriesAfterDeferredWindowCloses(
+        closePath: String,
+        replacementExistsBeforeClose: Bool
+    ) async throws {
         var signingSecretReady = false
         var resumeCallbacks: [@MainActor @Sendable () -> Void] = []
         try await withWindowHistory(
@@ -87,7 +91,7 @@ import Testing
                     selectedWorkspaceIndex: nil,
                     workspaces: []
                 ),
-                sidebar: SessionSidebarSnapshot(isVisible: true, selection: .tabs, width: nil)
+                sidebar: SessionSidebarSnapshot(isVisible: false, selection: .tabs, width: nil)
             )
             app.setStartupSessionSnapshotForTesting(AppSessionSnapshot(
                 version: SessionSnapshotSchema.currentVersion,
@@ -96,20 +100,74 @@ import Testing
             ))
 
             let firstWindowId = app.createMainWindow(shouldActivate: false)
+            let firstWindow = try #require(app.mainWindowContexts.values.first?.window)
+            // AppKit can retain a closed window. A live weak reference must not
+            // let its stale callback consume the replacement's restore.
+            defer { withExtendedLifetime(firstWindow) {} }
             #expect(resumeCallbacks.count == 1)
-            #expect(app.closeMainWindow(windowId: firstWindowId, recordHistory: false))
+            let existingReplacementId = replacementExistsBeforeClose
+                ? app.createMainWindow(shouldActivate: false) : nil
+            switch closePath {
+            case "nativeClose":
+                firstWindow.close()
+            case "discard":
+                app.discardMainWindowWithoutClosedHistory(windowId: firstWindowId)
+            default:
+                #expect(app.closeMainWindow(windowId: firstWindowId, recordHistory: false))
+            }
+            #expect(app.tabManagerFor(windowId: firstWindowId) == nil)
 
-            _ = app.createMainWindow(shouldActivate: false)
-            #expect(resumeCallbacks.count == 2)
+            let replacementId = existingReplacementId ?? app.createMainWindow(shouldActivate: false)
+            let replacement = try #require(app.mainWindowContexts.values.first { $0.windowId == replacementId })
+            let replacementWorkspaceId = try #require(replacement.tabManager.tabs.first?.id)
+            #expect(resumeCallbacks.count == 1)
             #expect(!app.didAttemptStartupSessionRestore)
+            await log.flushPendingRecords()
+            let interactiveEvents = await log.recentEvents()
+            #expect(interactiveEvents.filter { $0.kind == .windowOpened }.map(\.subject.windowId) == [replacementId])
+            #expect(interactiveEvents.filter { $0.kind == .workspaceCreated }.map(\.subject.workspaceId)
+                == [replacementWorkspaceId])
 
             signingSecretReady = true
-            resumeCallbacks[0]()
+            let resume = try #require(resumeCallbacks.first)
+            resume()
+            #expect(app.didAttemptStartupSessionRestore)
+            #expect(!replacement.sidebarState.isVisible)
+            await log.flushPendingRecords()
+            #expect(await log.recentEvents().map(\.id) == interactiveEvents.map(\.id))
+
+            // Readiness notifications are safe to deliver more than once.
+            replacement.sidebarState.isVisible = true
+            resume()
+            #expect(replacement.sidebarState.isVisible)
+        }
+    }
+
+    @Test func startupRestoreWaitsForAWindowAfterReadinessArrives() async throws {
+        var signingSecretReady = false
+        var resume: (@MainActor @Sendable () -> Void)?
+        try await withWindowHistory(
+            initialPhase: .launching,
+            startupSessionRestoreDeferral: { continuation in
+                guard !signingSecretReady else { return false }
+                resume = continuation
+                return true
+            }
+        ) { app, log in
+            let firstWindowId = app.createMainWindow(shouldActivate: false)
+            let firstWindow = try #require(app.mainWindowContexts.values.first?.window)
+            defer { withExtendedLifetime(firstWindow) {} }
+            #expect(app.closeMainWindow(windowId: firstWindowId, recordHistory: false))
+            signingSecretReady = true
+            let continuation = try #require(resume)
+            continuation()
             #expect(!app.didAttemptStartupSessionRestore)
-            resumeCallbacks[1]()
+
+            let replacementId = app.createMainWindow(shouldActivate: false)
             #expect(app.didAttemptStartupSessionRestore)
             await log.flushPendingRecords()
-            #expect(await log.recentEvents().isEmpty)
+            #expect(await log.recentEvents().filter { $0.kind == .windowOpened }.map(\.subject.windowId)
+                == [replacementId])
         }
     }
 
@@ -357,7 +415,7 @@ import Testing
         var createdId: UUID?
         try await withWindowHistory(
             configuredActionId: actionId,
-            configuredActionExecutor: { _, context, _, onExecuted, _, _ in
+            configuredActionExecutor: { action, context, _, onExecuted, onCompletion, _ in
                 guard let workspace = context.tabManager.addWorkspaceIfActive(
                     initialSurface: .cloudVMLoading,
                     select: true,
@@ -365,6 +423,9 @@ import Testing
                 ) else { return false }
                 createdId = workspace.id
                 onExecuted?()
+                if action.action == .builtIn(.cloudVM) {
+                    onCompletion?(.init(terminationStatus: 0, output: "", workspaceId: workspace.id))
+                }
                 return true
             }
         ) { app, log in
@@ -546,7 +607,7 @@ import Testing
                 vaultHistoryEventLog: log,
                 windowConfigStoreFactory: { CmuxConfigStore(globalConfigPath: configURL.path) },
                 configuredActionExecutor: configuredActionExecutor,
-                startupSessionRestoreDeferral: startupSessionRestoreDeferral
+                startupSessionRestoreDeferral: startupSessionRestoreDeferral ?? { _ in false }
             )
             defer {
                 for windowId in app.mainWindowContexts.values.map(\.windowId) {
