@@ -10,8 +10,6 @@ import Foundation
 public enum AgentRelayLifecycle {
     private static let marker = "#relay#"
 
-    private init() {}
-
     /// Removes the private relay suffix before a token crosses a public
     /// surface-resume boundary.
     public static func publicSessionID(_ sessionID: String) -> String {
