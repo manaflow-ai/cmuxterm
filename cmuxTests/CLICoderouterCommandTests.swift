@@ -40,8 +40,8 @@ typealias CMUXCLI = CmuxTuiRemoteRouting
     @Test(arguments: ["open", "project"], ["--left", "--right", "--up", "--down"])
     func surfaceOpenRejectsTabAndSideBeforeTransport(subcommand: String, side: String) throws {
         let result = try runWithoutSocket(["surface", subcommand, "vm/terminal/test", "--pane", "pane:1", "--tab", side])
-        #expect(result.status != 0, result.text)
-        #expect(result.text.contains("--tab and a pane side"), result.text)
+        #expect(result.status != 0, "\(result.text)")
+        #expect(result.text.contains("--tab and a pane side"), "\(result.text)")
     }
 
     @Test func browserLayoutRequiresURLBeforeTransport() throws {
