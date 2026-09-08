@@ -6,6 +6,7 @@ import { expect, test } from "bun:test";
 import type { Freestyle } from "freestyle";
 import { FreestyleProvider } from "../services/vms/drivers/freestyle";
 import { CMUX_TUI_BINARY_PATH, shellQuote } from "../services/vms/drivers/cmuxTuiDaemon";
+import { GUEST_CMUX_SELF_SHIM, GUEST_CMUX_SELF_SHIM_PATH } from "../services/vms/guestSelfCli";
 
 for (const publicationFails of [false, true]) {
   test(`attaching to a healthy baked daemon enforces public client publication (failure: ${publicationFails})`, async () => {
@@ -49,6 +50,7 @@ for (const publicationFails of [false, true]) {
             [CMUX_TUI_BINARY_PATH, binary],
             ["/usr/local/bin/cmux-tui.tmp.XXXXXX", `${publicPath}.tmp.XXXXXX`],
             ["/usr/local/bin/cmux-tui", publicPath],
+            [GUEST_CMUX_SELF_SHIM_PATH, join(root, "cmux")],
             ["/etc/cmux/bake-instance-id", join(root, "bake-instance-id")],
             ["/etc/cmux/daemon-instance-id", join(root, "daemon-instance-id")],
             ["/proc/net/tcp6", join(root, "tcp6")],
@@ -74,11 +76,12 @@ for (const publicationFails of [false, true]) {
       });
       if (publicationFails) {
         await expect(attach).rejects.toThrow("openCmuxRemote(vm-test) failed");
-        expect(execCount).toBe(3);
+        expect(execCount).toBe(4); // guest shim, attach bundle, readiness, publication retry
         expect(lstatSync(publicPath).isSymbolicLink()).toBe(true);
       } else {
         expect((await attach).route).toBe("ws://10.0.0.5:1337/v1/link");
-        expect(execCount).toBe(1);
+        expect(execCount).toBe(2); // guest shim and the ready/publication/enrollment bundle
+        expect(readFileSync(join(root, "cmux"), "utf8")).toBe(GUEST_CMUX_SELF_SHIM);
         expect(lstatSync(publicPath).isSymbolicLink()).toBe(false);
         expect(readFileSync(calls, "utf8").trim().split("\n")).toEqual([
           "remote-probe --json",
