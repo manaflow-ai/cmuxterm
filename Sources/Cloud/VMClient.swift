@@ -1796,11 +1796,15 @@ actor VMClient {
     func openPort(id: String, port: Int) async throws -> VMOpenPortEndpoint {
         let encodedID = try pathSegment(id, fieldName: "vm id")
         try await requireCloudBrowserAccess(machineID: id)
+        // The server may resume a paused machine and, for the desktop port,
+        // start the desktop unit and wait for noVNC to listen (bounded at 90 s
+        // guest-side). Give up after that bound, not before it, so a slow cold
+        // start does not report failure for a desktop that then comes up.
         let (data, http) = try await request(
             "POST",
             path: "/api/vm/\(encodedID)/open-port",
             jsonBody: ["port": port],
-            timeoutSeconds: 60
+            timeoutSeconds: 120
         )
         try ensureOK(http, data: data)
         let obj = try decodeJSONObject(data)

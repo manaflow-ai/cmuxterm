@@ -92,6 +92,10 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// Panels this provider created (or replaced) in this process. A projection whose
     /// panel is not here came back from a restored session as a placeholder shell.
     var materializedPanels: Set<UUID> = []
+    /// The in-flight open-port request behind each browser pane this provider
+    /// materialized, by panel id. It is cancelled with the pane (or the provider),
+    /// so a request that may wait up to 120 s never outlives what it was for.
+    private var browserEndpointTasks: [UUID: Task<Void, Never>] = [:]
     /// Native cloud terminals own a manual attachment separate from their
     /// catalog projection. The provider retains it for the life of the pane.
     var manualMirrorSessions: [UUID: CloudTuiManualMirrorSession] = [:]
@@ -197,6 +201,8 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
         for session in manualMirrorSessions.values { session.stop() }
         manualMirrorSessions.removeAll()
         manualMirrorSurfaceIDsSocketPath = nil
+        for task in browserEndpointTasks.values { task.cancel() }
+        browserEndpointTasks.removeAll()
         for task in remoteTerminalProjectionTasks.values { task.cancel() }
         remoteTerminalProjectionTasks.removeAll()
         pendingRemoteCreations.removeAll()
@@ -1050,23 +1056,32 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             // address until the Network Extension is connected. This is the
             // only action that can cause the one-time macOS approval request.
             let label = Self.paneLabel(machineID: machineID, port: port, desktop: desktop)
-            let machineWasAwake = isAwake
             created = try SurfacePaneFactory.makeBrowserPane(url: SurfacePaneFactory.blankURL, at: destination, focus: focus)
             SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.connecting(label), panelID: created.panelID, in: created.workspaceID)
             let pane = created
-            Task { @MainActor [weak self] in
+            browserEndpointTasks[pane.panelID]?.cancel()
+            browserEndpointTasks[pane.panelID] = Task { @MainActor [weak self] in
                 guard let self else { return }
+                defer { self.browserEndpointTasks.removeValue(forKey: pane.panelID) }
                 do {
                     guard let client = VMClient.shared else { throw ProviderError.notSignedIn }
                     try await client.requireCloudBrowserAccess(machineID: self.machineID)
-                    if !machineWasAwake {
-                        // Waking a paused machine is an explicit management
-                        // operation. Ignore the returned URL and keep the
-                        // private address captured above.
-                        _ = try await client.openPort(id: self.machineID, port: port)
-                    }
+                    // Always ask the control plane to open the port, even when
+                    // the cached status says the machine is running. The server
+                    // probes the provider live (a machine can idle-pause while
+                    // the row still says running), resumes it when needed, and
+                    // for the desktop port starts the desktop unit and waits
+                    // until noVNC listens. Skipping this for "awake" machines
+                    // opened the Desktop row onto a dead private URL. The
+                    // returned endpoint is intentionally ignored: the browser
+                    // must use the catalog's private URL over the approved
+                    // tunnel.
+                    _ = try await client.openPort(id: self.machineID, port: port)
                     SurfacePaneFactory.navigate(panelID: pane.panelID, in: pane.workspaceID, to: directURL)
                 } catch {
+                    // The pane (or this provider) went away while the control plane
+                    // was still opening the port: nothing is left to report to.
+                    if Task.isCancelled { return }
                     let text = CloudMachineLink.errorText(error)
                     SurfacePaneFactory.showPlaceholder(SurfaceBrowserPlaceholder.failed(label, error: text), panelID: pane.panelID, in: pane.workspaceID)
                     #if DEBUG
@@ -1552,12 +1567,14 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func projectionDidEnd(_ projection: SurfaceProjection) {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserEndpointTasks.removeValue(forKey: projection.panelID)?.cancel()
     }
 
     @discardableResult
     func discardMaterialization(_ projection: SurfaceProjection) -> Bool {
         materializedPanels.remove(projection.panelID)
         manualMirrorSessions.removeValue(forKey: projection.panelID)?.stop()
+        browserEndpointTasks.removeValue(forKey: projection.panelID)?.cancel()
         SurfacePaneFactory.close(panelID: projection.panelID, in: projection.workspaceID)
         return false
     }
