@@ -464,6 +464,10 @@ extension TerminalSurface {
         var validatedSurface: ghostty_surface_t? = liveSurface
         var validatedGeneration: UInt64? = runtimeSurfaceGeneration
         var queuedInput = false
+        // Record ownership before any Ghostty write can synchronously trigger
+        // a UserPromptSubmit hook. This keeps the hook matched to the human
+        // boundary even when the runtime callback runs inline.
+        recordPromptInputMutations(for: events)
         for input in pendingSocketInputs(from: events) {
             queuedInput = deliverPendingSocketInput(
                 input,
@@ -471,10 +475,6 @@ extension TerminalSurface {
                 validatedGeneration: &validatedGeneration
             ) || queuedInput
         }
-        // Live and cold surfaces share the same ownership ledger. Without
-        // this live-path record, a raw socket/mobile draft could be mistaken
-        // for an empty composer by the addressed-delivery guard.
-        recordPromptInputMutations(for: events)
         didAcceptExplicitInput()
         return queuedInput ? .queued : .sent
     }
@@ -517,6 +517,32 @@ extension TerminalSurface {
         deferDuringRuntimeClipboardRead: Bool = true,
         messageID: UUID? = nil
     ) -> PromptSubmissionSendResult {
+        sendPromptSubmission(
+            text,
+            submitKey: submitKey,
+            preparationKeys: preparationKeys,
+            rejectIfHumanComposerBusy: rejectIfHumanComposerBusy,
+            hookRecordingSource: hookRecordingSource,
+            hookConfirmsHumanInput: hookConfirmsHumanInput,
+            deferDuringRuntimeClipboardRead: deferDuringRuntimeClipboardRead,
+            messageID: messageID,
+            admittedHumanInputSnapshot: nil
+        )
+    }
+
+    @MainActor
+    @discardableResult
+    private func sendPromptSubmission(
+        _ text: String,
+        submitKey: String,
+        preparationKeys: [String],
+        rejectIfHumanComposerBusy: Bool,
+        hookRecordingSource: String?,
+        hookConfirmsHumanInput: Bool,
+        deferDuringRuntimeClipboardRead: Bool,
+        messageID: UUID?,
+        admittedHumanInputSnapshot: TerminalPromptInputLedger.HumanInputSnapshot?
+    ) -> PromptSubmissionSendResult {
         let data = Data(text.utf8)
         let admissionMessageID = messageID ?? UUID()
         guard let submitEvent = pendingKeyEvent(for: submitKey) else {
@@ -533,9 +559,10 @@ extension TerminalSurface {
             return .composerBusy
         }
         let hookConfirmedHumanInputSnapshot =
-            hookConfirmsHumanInput
-                ? promptInputLedger.humanInputSnapshot
-                : nil
+            admittedHumanInputSnapshot
+                ?? (hookConfirmsHumanInput
+                    ? promptInputLedger.humanInputSnapshot
+                    : nil)
 
         if deferDuringRuntimeClipboardRead {
             if deferInputDuringRuntimeClipboardRead(
@@ -553,7 +580,9 @@ extension TerminalSurface {
                         hookRecordingSource: hookRecordingSource,
                         hookConfirmsHumanInput: hookConfirmsHumanInput,
                         deferDuringRuntimeClipboardRead: false,
-                        messageID: admissionMessageID
+                        messageID: admissionMessageID,
+                        admittedHumanInputSnapshot:
+                            hookConfirmedHumanInputSnapshot
                     )
                 }
             ) {
