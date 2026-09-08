@@ -37,6 +37,17 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_shared_plural_words_do_not_allow_an_english_parent(self):
+        english = counted("Your plan includes %#@count@.", unit("%d machine"), unit("%d machines"))
+        french = counted("Votre forfait comprend %#@count@.", unit("%d machine"), unit("%d machines"))
+        french["substitutions"]["count"]["variations"]["plural"]["many"] = unit("%d machines")
+        entry = MODULE.Member("machines", {"localizations": {"en": english, "fr": french}}, 0, 0)
+        metadata = {"machines": {"source": MODULE.source(entry.value), "identityLocales": {"fr": {
+            "reason": "Machine and machines have the same spelling in French.", "values": ["%d machine", "%d machines"]}}}}
+        self.assertEqual(MODULE.check_entry(entry, "fr", metadata, {}), [])
+        french["stringUnit"]["value"] = "Your plan includes %#@count@."
+        self.assertTrue(MODULE.check_entry(entry, "fr", metadata, {}))
+
     def test_check_does_not_hide_an_incomplete_duplicate_record(self):
         first = {"localizations": {"en": unit("Open")}}
         last = {"localizations": {"en": unit("Open"), "de": unit("Öffnen")}}
