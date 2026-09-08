@@ -180,6 +180,19 @@ public actor CmuxPluginDirectoryLoader {
         }
         var entries: [URL] = []
         for case let entry as URL in enumerator {
+            if let pluginIDs {
+                // A path-scoped reload must not let unrelated entries consume
+                // the root-wide scan budget. The full reload still enforces
+                // the cap below; a partial reload retains only requested
+                // plugin directories and validates them with the same rules.
+                guard pluginIDs.contains(entry.lastPathComponent),
+                      let values = try? entry.resourceValues(forKeys: [.isDirectoryKey]),
+                      values.isDirectory == true else {
+                    continue
+                }
+                entries.append(entry)
+                continue
+            }
             guard entries.count < Self.maximumRootEntryCount else {
                 return CmuxPluginLoadReport(
                     plugins: [],
@@ -199,7 +212,7 @@ public actor CmuxPluginDirectoryLoader {
                 count += 1
             }
         }
-        guard pluginDirectoryCount <= Self.maximumPluginCount else {
+        guard pluginIDs != nil || pluginDirectoryCount <= Self.maximumPluginCount else {
             return CmuxPluginLoadReport(
                 plugins: [],
                 failures: [CmuxPluginLoadFailure(

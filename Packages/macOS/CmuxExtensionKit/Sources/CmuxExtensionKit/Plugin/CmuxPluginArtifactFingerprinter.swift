@@ -29,6 +29,14 @@ struct CmuxPluginArtifactFingerprinter {
         "cmux-plugin-interpreter-unavailable-v1".utf8
     )
 
+    /// Finder metadata is not part of a plugin artifact. Finder may create or
+    /// rewrite these files while browsing an Application Support directory;
+    /// including them would revoke an otherwise unchanged plugin grant.
+    static func isFinderMetadata(relativePath: String) -> Bool {
+        let filename = relativePath.split(separator: "/").last.map(String.init) ?? ""
+        return filename == ".DS_Store" || filename.hasPrefix("._")
+    }
+
     private let fileManager: FileManager
 
     init(fileManager: FileManager = .default) {
@@ -90,9 +98,12 @@ struct CmuxPluginArtifactFingerprinter {
             hasher.update(data: Data(fileDigest.digest))
         }
 
-        if let entrypointFile = files.first(where: {
+        let entrypointFile = files.first(where: {
             $0.relativePath == entrypointDeclaration
-        }) {
+        }) ?? files.first(where: {
+            $0.relativePath.caseInsensitiveCompare(entrypointDeclaration) == .orderedSame
+        })
+        if let entrypointFile {
             let prefix: Data
             do {
                 let handle = try FileHandle(forReadingFrom: entrypointFile.url)
@@ -206,6 +217,10 @@ struct CmuxPluginArtifactFingerprinter {
             guard url.path.hasPrefix(root.path + "/") else {
                 throw CmuxPluginArtifactFingerprintError.symbolicLink(url)
             }
+            let relativePath = String(url.path.dropFirst(root.path.count + 1))
+            if Self.isFinderMetadata(relativePath: relativePath) {
+                continue
+            }
             guard files.count < Self.maximumArtifactFiles,
                   let fileSize = values.fileSize,
                   fileSize >= 0 else {
@@ -217,7 +232,6 @@ struct CmuxPluginArtifactFingerprinter {
                 throw CmuxPluginArtifactFingerprintError.unreadableFile(url)
             }
             totalArtifactBytes += byteCount
-            let relativePath = String(url.path.dropFirst(root.path.count + 1))
             files.append((relativePath: relativePath, url: url))
         }
         return files.sorted { $0.relativePath < $1.relativePath }

@@ -63,6 +63,10 @@ struct CmuxPluginBoundedArtifactCopier {
                 throw CmuxPluginExecutionSnapshotError.copyFailed
             }
             let relativePath = try relativePath(of: sourceURL, under: source)
+            if values.isDirectory != true,
+               CmuxPluginArtifactFingerprinter.isFinderMetadata(relativePath: relativePath) {
+                continue
+            }
             let destinationURL = destination.appendingPathComponent(
                 relativePath,
                 isDirectory: values.isDirectory == true

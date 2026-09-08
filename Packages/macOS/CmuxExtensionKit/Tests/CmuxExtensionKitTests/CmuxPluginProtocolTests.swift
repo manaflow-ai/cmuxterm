@@ -74,6 +74,13 @@ extension CmuxPluginSystemTests {
             CmuxPluginSubscriptionRequest.self,
             from: JSONEncoder().encode(request)
         ) == request)
+        let omittedDefaults = try JSONDecoder().decode(
+            CmuxPluginSubscriptionRequest.self,
+            from: Data(#"{"plugin_id":"dev.example.plugin","plugin_token":"secret"}"#.utf8)
+        )
+        #expect(omittedDefaults.afterSequence == nil)
+        #expect(omittedDefaults.eventNames.isEmpty)
+        #expect(omittedDefaults.includeHeartbeats)
         #expect(CmuxExtensionJSONValue(foundationValue: Double.nan) == .null)
         #expect(CmuxExtensionJSONValue(foundationValue: Double.infinity) == .null)
         let foundationJSON = try #require(JSONSerialization.jsonObject(

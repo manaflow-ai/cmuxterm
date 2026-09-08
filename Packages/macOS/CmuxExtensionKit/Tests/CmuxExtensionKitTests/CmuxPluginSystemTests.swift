@@ -415,6 +415,30 @@ struct CmuxPluginSystemTests {
     }
 
     @Test
+    func partialDirectoryLoadIgnoresUnrelatedRootEntryBudget() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manifest = CmuxExtensionManifest.plugin(
+            id: "dev.example.partial-reload",
+            displayName: "Partial Reload",
+            entrypoint: "bin/plugin"
+        )
+        try Self.writePlugin(manifest, to: root)
+        for index in 0 ..< CmuxPluginDirectoryLoader.maximumRootEntryCount {
+            try FileManager.default.createDirectory(
+                at: root.appendingPathComponent("unrelated-\(index)", isDirectory: true),
+                withIntermediateDirectories: false
+            )
+        }
+
+        let report = await CmuxPluginDirectoryLoader(directoryURL: root).load(only: [manifest.id])
+
+        #expect(report.failures.isEmpty)
+        #expect(report.plugins.map(\.manifest.id) == [manifest.id])
+    }
+
+    @Test
     func permissionStoreSeparatesApprovalFromEnablementAndInvalidatesFingerprints() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

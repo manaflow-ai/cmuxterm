@@ -224,6 +224,20 @@ public struct CmuxPluginSubscriptionRequest: Codable, Equatable, Sendable {
         self.includeHeartbeats = includeHeartbeats
     }
 
+    /// Decodes the wire form while preserving the documented defaults for
+    /// omitted optional subscription fields.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.pluginID = try container.decode(String.self, forKey: .pluginID)
+        self.token = try container.decode(String.self, forKey: .token)
+        self.afterSequence = try container.decodeIfPresent(Int64.self, forKey: .afterSequence)
+        self.eventNames = try container.decodeIfPresent([String].self, forKey: .eventNames) ?? []
+        self.includeHeartbeats = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .includeHeartbeats
+        ) ?? true
+    }
+
     private enum CodingKeys: String, CodingKey {
         case pluginID = "plugin_id"
         case token = "plugin_token"

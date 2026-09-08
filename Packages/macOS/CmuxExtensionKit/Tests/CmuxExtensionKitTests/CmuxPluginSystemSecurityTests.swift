@@ -4,6 +4,73 @@ import Testing
 
 extension CmuxPluginSystemTests {
     @Test
+    func artifactFingerprintIncludesCaseMismatchedEntrypointInterpreter() throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manifest = CmuxExtensionManifest.plugin(
+            id: "dev.example.case-insensitive-entrypoint",
+            displayName: "Case Insensitive Entrypoint",
+            entrypoint: "bin/plugin"
+        )
+        try Self.writePlugin(manifest, to: root)
+        let pluginDirectory = root.appendingPathComponent(manifest.id, isDirectory: true)
+        let manifestData = try Data(
+            contentsOf: pluginDirectory.appendingPathComponent("manifest.json")
+        )
+        let fingerprinter = CmuxPluginArtifactFingerprinter()
+
+        let withoutOverride = try fingerprinter.fingerprint(
+            manifestData: manifestData,
+            pluginDirectoryURL: pluginDirectory,
+            entrypointDeclaration: "BIN/PLUGIN"
+        )
+        let withOverride = try fingerprinter.fingerprint(
+            manifestData: manifestData,
+            pluginDirectoryURL: pluginDirectory,
+            entrypointDeclaration: "BIN/PLUGIN",
+            interpreterData: Data("different interpreter bytes".utf8)
+        )
+
+        #expect(withoutOverride != withOverride)
+    }
+
+    @Test
+    func artifactFingerprintIgnoresFinderMetadata() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manifest = CmuxExtensionManifest.plugin(
+            id: "dev.example.finder-metadata",
+            displayName: "Finder Metadata",
+            entrypoint: "bin/plugin"
+        )
+        try Self.writePlugin(manifest, to: root)
+        let pluginDirectory = root.appendingPathComponent(manifest.id, isDirectory: true)
+        try Data("finder metadata".utf8).write(
+            to: pluginDirectory.appendingPathComponent(".DS_Store")
+        )
+        try Data("resource fork".utf8).write(
+            to: pluginDirectory.appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("._plugin")
+        )
+
+        let report = await CmuxPluginDirectoryLoader(directoryURL: root).load()
+        #expect(report.plugins.count == 1)
+        let plugin = try #require(report.plugins.first)
+        try FileManager.default.removeItem(
+            at: pluginDirectory.appendingPathComponent(".DS_Store")
+        )
+        try FileManager.default.removeItem(
+            at: pluginDirectory.appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("._plugin")
+        )
+        let cleanReport = await CmuxPluginDirectoryLoader(directoryURL: root).load()
+        let cleanPlugin = try #require(cleanReport.plugins.first)
+        #expect(plugin.manifestFingerprint == cleanPlugin.manifestFingerprint)
+    }
+
+    @Test
     func directoryLoaderRejectsManifestAndEntrypointSymlinkEscapes() async throws {
         let root = try Self.makeTemporaryDirectory()
         let outside = try Self.makeTemporaryDirectory()
