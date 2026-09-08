@@ -57,6 +57,8 @@ The catch-all hook remains necessary: the first ordinary tool after `AskUserQues
 
 This reduces redundant writes, not hook process creation. It does not establish that hook writes caused any endpoint-security detection or guarantee that an EDR product will stop flagging Claude Code.
 
+Before skipping an unchanged ordinary tool, the CLI also makes one read-only live-surface check. The session file is not sufficient evidence that attention has cleared: its update can fail while the app still shows a permission prompt. This check adds IPC but no persistent flag or cache. If the app cannot confirm the live state (including an older app without this response field), the existing resume path runs instead. Such fallback calls can retain the previous write cost.
+
 If endpoint-security policy requires no wrapper-injected Claude hooks, turn off **Settings > Automation > Claude Code Integration** or set:
 
 ```json

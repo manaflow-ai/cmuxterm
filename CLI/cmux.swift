@@ -28869,7 +28869,8 @@ struct CMUXCLI {
             let mappedSession = parsedInput.sessionId.flatMap { try? sessionStore.lookup(sessionId: $0) }
             if !isBlockingNeedsInputTool,
                !usesVerboseToolStatus,
-               mappedSession?.agentLifecycle == .running {
+               mappedSession?.agentLifecycle == .running,
+               claudeHookLiveStateAllowsRunningSkip(client: client, session: mappedSession) {
                 didSendFeedTelemetry = true
                 telemetry.breadcrumb("claude-hook.pre-tool-use.unchanged")
                 printClaudeHookAck()
