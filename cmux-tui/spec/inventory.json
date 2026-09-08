@@ -31,6 +31,7 @@
     "frontend_projection.put",
     "machine.get",
     "machine.list",
+    "notification.ack",
     "notification.create",
     "notification.list",
     "pairing_request.list",
