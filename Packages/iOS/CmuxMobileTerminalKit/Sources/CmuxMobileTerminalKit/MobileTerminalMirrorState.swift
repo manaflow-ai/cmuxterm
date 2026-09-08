@@ -9,7 +9,11 @@ public import CMUXMobileCore
 public struct MobileTerminalMirrorState: Sendable {
     /// Whether the next authoritative replay must include scrollback rows.
     public private(set) var hydrationNeeded = true
-    var retainedAcrossReconnect = false
+    /// Whether the mounted mirror is currently eligible for a zero-row replay.
+    ///
+    /// The shell owns the replay barrier and needs to observe this lifecycle
+    /// state, while all mutations remain inside this value type.
+    public private(set) var retainedAcrossReconnect = false
     private(set) var renderEpoch: String?
     private(set) var historyRows: UInt64?
     private(set) var rowSpaceRevision: UInt64?
