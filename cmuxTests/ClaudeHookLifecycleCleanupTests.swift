@@ -1,30 +1,21 @@
 import Foundation
 import Testing
 
-/// Regression tests for https://github.com/manaflow-ai/cmux/issues/7939:
-/// lifecycle-cleanup Claude hooks (SessionEnd, per-tool PreToolUse) must
-/// mutate the pane that owns the agent NOW — resolved from live identity at
-/// hook time — never a stale or polluted persisted session address. Split
-/// from `ClaudeHookLiveDeliveryTargetTests.swift` for the 500-line budget.
+/// Regression coverage for issue #7939: Claude cleanup hooks must target the
+/// pane resolved from live identity, never a stale persisted session address.
 @Suite(.serialized)
 struct ClaudeHookLifecycleCleanupTests {
     private typealias Harness = ClaudeHookLiveDeliveryHarness
-
     private static let liveWorkspaceId = "11111111-1111-1111-1111-111111111111"
     private static let liveSurfaceId = "22222222-2222-2222-2222-222222222222"
     private static let otherSurfaceId = "55555555-5555-5555-5555-555555555555"
     private static let fallbackSurfaceId = "44444444-4444-4444-4444-444444444444"
-
-    /// The session record was polluted to ANOTHER agent's pane (#7391) whose
-    /// own session is active there. SessionEnd's staleness gate must judge the
-    /// pane being CLEANED (the live pid target), not the polluted record
-    /// surface — otherwise the foreign active session makes the hook look
-    /// stale and the real pane keeps its ring/status after exit.
+    /// A polluted record must not let another agent's active pane make the
+    /// live SessionEnd target look stale.
     @Test func sessionEndPollutedRecordStillClearsLivePane() throws {
         let context = try Harness.makeContext(name: "session-end-polluted-record")
         defer { context.cleanup() }
         let sessionId = "session-end-polluted-record-session"
-
         let now = Date().timeIntervalSince1970
         let store: [String: Any] = [
             "version": 1,
@@ -48,13 +39,11 @@ struct ClaudeHookLifecycleCleanupTests {
         ]
         try JSONSerialization.data(withJSONObject: store, options: [.prettyPrinted, .sortedKeys])
             .write(to: context.storeURL)
-
         let serverHandled = Harness.startDeliveryTargetServer(
             context: context,
             surfacesByWorkspace: [Self.liveWorkspaceId: [Self.liveSurfaceId, Self.otherSurfaceId]],
             pidTarget: (workspaceId: Self.liveWorkspaceId, surfaceId: Self.liveSurfaceId)
         )
-
         var environment = Harness.hookEnvironment(context: context)
         environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
         environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
@@ -66,7 +55,6 @@ struct ClaudeHookLifecycleCleanupTests {
             environment: environment,
             standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"SessionEnd","cwd":"\#(context.root.path)"}"#
         )
-
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
 
@@ -92,7 +80,6 @@ struct ClaudeHookLifecycleCleanupTests {
             "A polluted record must not make SessionEnd clear sibling panes; saw \(commands)"
         )
     }
-
     /// SessionEnd is the only hook after a pane move (Ctrl-C exit): its
     /// cleanup must clear status and notifications on the workspace that owns
     /// the pane NOW, not the consumed record's stale workspace — clearing the
@@ -103,7 +90,6 @@ struct ClaudeHookLifecycleCleanupTests {
         defer { context.cleanup() }
         let sessionId = "session-end-moved-pane-session"
         let newWorkspaceId = "88888888-8888-8888-8888-888888888888"
-
         try Harness.writeSessionStore(
             to: context.storeURL,
             sessionId: sessionId,
@@ -132,7 +118,6 @@ struct ClaudeHookLifecycleCleanupTests {
             environment: environment,
             standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"SessionEnd","cwd":"\#(context.root.path)"}"#
         )
-
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
 
@@ -163,7 +148,6 @@ struct ClaudeHookLifecycleCleanupTests {
         let context = try Harness.makeContext(name: "session-end-healed-target")
         defer { context.cleanup() }
         let sessionId = "session-end-healed-target-session"
-
         try Harness.writeSessionStore(
             to: context.storeURL,
             sessionId: sessionId,
@@ -195,7 +179,9 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
-    @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
+    /// Since #11976, the CLI records the new turn in the journal for the resolved pane
+    /// instead of sending `clear_notifications`; the app reconciles attention from that event.
+    @Test func promptSubmitTurnStartFollowsMovedPaneWithoutTouchingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
@@ -228,8 +214,19 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let turnStarted = AgentJournalAppendCapture.first(
+            in: commands, kind: "agent.turn.started", agentKey: "claude_code", sessionId: sessionId
+        )
+        #expect(turnStarted?.workspaceId == newWorkspaceId, "turn start must follow the moved pane; saw \(commands)")
+        #expect(turnStarted?.surfaceId == Self.liveSurfaceId)
+        #expect(
+            !commands.contains { $0.contains("--panel=\(Self.otherSurfaceId)") },
+            "a new turn must not touch sibling panes; saw \(commands)"
+        )
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications --tab=\(newWorkspaceId)") && !$0.contains("--panel=") },
+            "attention effects are pane-scoped, never workspace-wide; saw \(commands)"
+        )
     }
 
     @Test func preToolUsePreservesProviderErrorNotification() throws {
@@ -340,8 +337,15 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
-        #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
+        let stateChanged = AgentJournalAppendCapture.first(
+            in: commands, kind: "agent.state.changed", agentKey: "claude_code", sessionId: sessionId
+        )
+        #expect(stateChanged?.workspaceId == newWorkspaceId, "PreToolUse journal event must follow the moved pane; saw \(commands)")
+        #expect(stateChanged?.surfaceId == Self.liveSurfaceId)
+        #expect(
+            !commands.contains { $0.hasPrefix("clear_notifications --tab=\(newWorkspaceId)") && !$0.contains("--panel=") },
+            "attention effects are pane-scoped, never workspace-wide; saw \(commands)"
+        )
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
         #expect(record?["surfaceId"] as? String == Self.liveSurfaceId)
