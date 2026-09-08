@@ -1757,7 +1757,10 @@ final class WindowTerminalPortal: NSObject {
             transientRecoveryRetriesRemaining: 0
         )
         hostedView.sharedRootBackdropExclusionDidChange = { [weak self] in
-            self?.reconcileRootBackdropExclusion(forHostedId: hostedId)
+            self?.reconcileRootBackdropExclusion(
+                forHostedId: hostedId,
+                immediately: false
+            )
         }
 
         let didChangeAnchor: Bool = {
