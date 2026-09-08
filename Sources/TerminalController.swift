@@ -166,7 +166,7 @@ class TerminalController {
     /// FIFO admission for legacy synchronous agent-submit callers. Real socket
     /// requests also hold `agentPromptSubmissionDeliveryLane` until the queued
     /// compound write completes.
-    private nonisolated let agentPromptSubmissionAdmissionQueue =
+    nonisolated let agentPromptSubmissionAdmissionQueue =
         DispatchQueue(
             label: "com.cmux.agent-prompt-submission-admission",
             qos: .userInitiated
