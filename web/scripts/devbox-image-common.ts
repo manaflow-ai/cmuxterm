@@ -80,11 +80,13 @@ export function cmuxTuiWebsocketSmokeCommand(session = "cloud"): string {
   // Runs as the daemon's own user with the daemon's HOME: enrollment reads and
   // writes the session state the daemon owns, and as root that state dir is a
   // different (empty) one on a work-user machine.
+  // The layout is selected by the caller (as root, the only user that can ask
+  // runuser) and handed in: re-running the selector here, already dropped to
+  // the daemon's user, cannot use runuser and would fall back to root's path.
   const shell = `#!/usr/bin/env bash
 set -euo pipefail
-${cmuxTuiLayoutSelector()}
-export HOME="$CMUX_TUI_HOME"
-BIN="$CMUX_TUI_BIN"
+BIN="\${CMUX_TUI_BIN:?cmux-tui binary not provided}"
+: "\${HOME:?home not provided}"
 SESSION=${session}
 ROOT=/tmp/cmux-tui-websocket-smoke
 ROUTE='ws://[::1]:1337/v1/link'
@@ -171,7 +173,7 @@ echo "websocket-smoke-ok marker=$MARKER through_sequence=$FIRST_SEQUENCE->$SECON
   return (
     `printf %s ${encoded} | base64 -d >${script} && chmod 755 ${script} && ` +
     `${cmuxTuiLayoutSelector()} && ` +
-    `runuser -u "$CMUX_TUI_USER" -- bash ${script}`
+    `runuser -u "$CMUX_TUI_USER" -- env HOME="$CMUX_TUI_HOME" CMUX_TUI_BIN="$CMUX_TUI_BIN" bash ${script}`
   );
 }
 
