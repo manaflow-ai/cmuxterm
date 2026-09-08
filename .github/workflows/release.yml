@@ -17,6 +17,12 @@ env:
 jobs:
   generate-ios-screenshots:
     name: Generate iOS App Store screenshots
+    # Runs alongside the macOS build so every stable tag still ships screenshot
+    # artifacts captured at the exact release ref. It is deliberately not a
+    # dependency of build-sign-notarize: the DMG consumes nothing from it, and a
+    # slow or flaky simulator capture (up to 300 minutes) must neither delay nor
+    # fail a macOS release (https://github.com/manaflow-ai/cmux/issues/12149).
+    # A failed capture still turns the run red, so it stays visible.
     uses: ./.github/workflows/ios-screenshots.yml
     with:
       ref: ${{ github.ref }}
@@ -72,9 +78,7 @@ jobs:
           retention-days: 3
 
   build-sign-notarize:
-    needs:
-      - build-ghostty-cli-helper
-      - generate-ios-screenshots
+    needs: build-ghostty-cli-helper
     # Build the app on macOS 26 so SDK-gated SwiftUI Liquid Glass code compiles
     # into stable releases. The real universal Ghostty CLI helper is built on
     # macOS 15 above because Zig 0.15.2 cannot link it on macOS 26.

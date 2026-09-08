@@ -329,6 +329,9 @@ jobs:
       - name: Validate reusable workflow permission grants
         run: python3 tests/test_ci_reusable_workflow_permissions.py
 
+      - name: Validate release does not gate on iOS screenshot capture
+        run: ./tests/test_ci_release_ios_screenshots_decoupled.sh
+
       - name: Validate markdown viewer asset compression
         run: ./tests/test_compress_markdown_viewer_assets.sh
 
