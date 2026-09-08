@@ -110,11 +110,15 @@ final class HiveComputersService {
             await provider.refresh(force: true)
         }
         guard identity == scope, isPaired(instance) else { return }
-        if let result = AppDelegate.shared?.applyRightSidebarRemoteCommand(.setMode(.devices, focus: true)),
-           case .failure(let message) = result {
+        guard let result = AppDelegate.shared?.applyRightSidebarRemoteCommand(.setMode(.devices, focus: true)) else { return }
+        switch result {
+        case .failure(let message):
             error = message
-            publish()
+        case .success:
+            DeviceSurfaceProviderRegistry.shared.reveal(instance: instance)
+            error = nil
         }
+        publish()
     }
 
     private func observeAccount() {

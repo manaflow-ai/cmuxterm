@@ -308,7 +308,6 @@ struct CloudTreeOutlineView: NSViewRepresentable {
         /// expansion store remembers it. Never opens a terminal.
         func reveal(_ request: CloudTreeRevealRequest?) {
             guard let request, request.token != lastRevealToken, let outlineView else { return }
-            lastRevealToken = request.token
             guard let node = CloudTreeNodeBuilder.flattened(nodes).first(where: { $0.id == request.nodeID }) else { return }
             var ancestors: [CloudTreeNode] = []
             var parent = outlineView.parent(forItem: node) as? CloudTreeNode
@@ -326,6 +325,7 @@ struct CloudTreeOutlineView: NSViewRepresentable {
             }
             let row = outlineView.row(forItem: node)
             guard row >= 0 else { return }
+            lastRevealToken = request.token
             outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
             outlineView.scrollRowToVisible(row)
         }
