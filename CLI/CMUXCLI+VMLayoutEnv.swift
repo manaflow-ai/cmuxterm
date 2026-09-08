@@ -745,6 +745,9 @@ extension CMUXCLI {
                 throw VMLayoutDocumentError(path: "\(path).\(key)", reason: "'\(key)' must be a string")
             }
         }
+        if type == "browser", (surface["url"] as? String)?.isEmpty != false {
+            throw VMLayoutDocumentError(path: "\(path).url", reason: "browser surface needs url")
+        }
         if let env = surface["env"], !(env is NSNull) {
             guard let table = env as? [String: Any], table.values.allSatisfy({ $0 is String }) else {
                 throw VMLayoutDocumentError(path: "\(path).env", reason: "'env' must be an object of string values")

@@ -1090,7 +1090,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     /// cmux-tui's `selector.not_found` error body, surfaced by `link.run` as the
     /// command's output text.
-    private static func isSelectorNotFound(_ error: Error) -> Bool {
+    static func isSelectorNotFound(_ error: Error) -> Bool {
         let text = CloudMachineLink.errorText(error)
         return text.contains("selector.not_found") || text.contains("no terminal matches")
     }

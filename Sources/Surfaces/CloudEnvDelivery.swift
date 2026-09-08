@@ -53,12 +53,10 @@ enum CloudEnvDelivery {
 
     @MainActor
     static func withReceiverWorkspace(
-        existingWorkspaceID: String?,
         createWorkspace: @MainActor () async throws -> String,
         closeWorkspace: @escaping @MainActor (String) async throws -> Void,
         operation: @MainActor (String) async throws -> Outcome
     ) async throws -> Outcome {
-        if let existingWorkspaceID { return try await operation(existingWorkspaceID) }
         let workspaceID = try await createWorkspace()
         let outcome: Outcome
         do {
@@ -73,6 +71,16 @@ enum CloudEnvDelivery {
         }
         try await closeReceiverWorkspace(workspaceID, closeWorkspace: closeWorkspace)
         return outcome
+    }
+
+    @MainActor
+    static func removeReceiverResources(
+        terminalIDs: [String],
+        closeTerminal: @MainActor (String) async throws -> Void,
+        closeWorkspace: @MainActor () async throws -> Void
+    ) async throws {
+        for terminalID in terminalIDs { try await closeTerminal(terminalID) }
+        try await closeWorkspace()
     }
 
     @MainActor

@@ -9,15 +9,30 @@ extension CmuxTuiSurfaceProvider {
     func deliverEnvironment(_ entries: [CloudEnvDelivery.Entry]) async throws -> CloudEnvDelivery.Outcome {
         let payload = try CloudEnvDelivery.payload(entries)
         let wire = CloudEnvDelivery.wire(payload)
-        if info.remoteWorkspaces?.isEmpty != false { await refresh(force: true) }
-        let existingWorkspaceID = info.remoteWorkspaces?.sorted {
-            ($0.focused ? 0 : 1, $0.index) < ($1.focused ? 0 : 1, $1.index)
-        }.first?.id
         return try await CloudEnvDelivery.withReceiverWorkspace(
-            existingWorkspaceID: existingWorkspaceID,
             createWorkspace: { try await self.createEnvironmentReceiverWorkspace() },
-            closeWorkspace: { try await self.closeRemoteWorkspace(id: $0) },
+            closeWorkspace: { try await self.removeEnvironmentReceiverWorkspace($0) },
             operation: { try await self.deliverEnvironmentWire(wire, workspaceID: $0) }
+        )
+    }
+
+    private func removeEnvironmentReceiverWorkspace(_ workspaceID: String) async throws {
+        guard await refresh(force: true) else {
+            throw CloudEnvDelivery.DeliveryError.workspaceCleanupFailed(workspaceID)
+        }
+        let terminals = catalog.snapshot.resources(on: machine).filter {
+            $0.kind == .terminal && $0.remoteWorkspaces.contains { $0.id == workspaceID }
+        }
+        try await CloudEnvDelivery.removeReceiverResources(
+            terminalIDs: terminals.map { $0.id.key },
+            closeTerminal: { terminalID in
+                do {
+                    try await self.closeTerminal(SurfaceResourceID(machine: self.machine, kind: .terminal, key: terminalID))
+                } catch {
+                    guard Self.isSelectorNotFound(error) else { throw error }
+                }
+            },
+            closeWorkspace: { try await self.closeRemoteWorkspace(id: workspaceID) }
         )
     }
 
@@ -49,7 +64,6 @@ extension CmuxTuiSurfaceProvider {
             onExit: "keep"
         )
         let terminalID = receiver.id.key
-        let outcome: CloudEnvDelivery.Outcome
         do {
             let ready = try await waitForScreen(
                 terminalID: terminalID,
@@ -67,14 +81,8 @@ extension CmuxTuiSurfaceProvider {
                 pattern: CloudEnvDelivery.resultPattern,
                 timeoutMs: CloudEnvDelivery.resultTimeoutMs
             )
-            outcome = try CloudEnvDelivery.requireOutcome(result)
-        } catch {
-            // Whatever happened, the receiver must not linger as a pool row.
-            _ = try? await Task { @MainActor in try await self.closeTerminal(receiver.id) }.value
-            throw error
+            return try CloudEnvDelivery.requireOutcome(result)
         }
-        try await Task { @MainActor in try await self.closeTerminal(receiver.id) }.value
-        return outcome
     }
 
     /// Raw bytes to the remote terminal's PTY (`terminal write --bytes-base64`).

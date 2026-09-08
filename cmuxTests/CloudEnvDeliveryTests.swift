@@ -12,11 +12,10 @@ import Testing
 @Suite struct CloudEnvDeliveryTests {
     typealias Entry = CloudEnvDelivery.Entry
 
-    @MainActor @Test(arguments: [false, true])
-    func receiverWorkspaceOwnershipControlsCleanup(existing: Bool) async throws {
+    @MainActor @Test
+    func receiverWorkspaceIsAlwaysOwnedAndCleaned() async throws {
         var events: [String] = []
         let outcome = try await CloudEnvDelivery.withReceiverWorkspace(
-            existingWorkspaceID: existing ? "existing" : nil,
             createWorkspace: { events.append("create"); return "temporary" },
             closeWorkspace: { events.append("close \($0)") },
             operation: { events.append("deliver \($0)"); return .ok(keys: 1, path: nil) }
@@ -30,7 +29,6 @@ import Testing
         var closed: [String] = []
         let task = Task { @MainActor in
             try await CloudEnvDelivery.withReceiverWorkspace(
-                existingWorkspaceID: nil,
                 createWorkspace: { "temporary" },
                 closeWorkspace: { workspaceID in
                     #expect(!Task.isCancelled)
@@ -54,7 +52,6 @@ import Testing
     @MainActor @Test func receiverWorkspaceCleanupFailureIsReported() async {
         do {
             _ = try await CloudEnvDelivery.withReceiverWorkspace(
-                existingWorkspaceID: nil,
                 createWorkspace: { "temporary" },
                 closeWorkspace: { _ in throw CancellationError() },
                 operation: { _ in .ok(keys: 1, path: nil) }
@@ -70,6 +67,25 @@ import Testing
             == ["--socket", "/tmp/test.sock", "--json", "workspace", "create", "--name", "receiver", "--empty"])
     }
 
+    @MainActor @Test(arguments: [false, true])
+    func receiverTerminalsMustCloseBeforeTheirWorkspace(fail: Bool) async {
+        var events: [String] = []
+        do {
+            try await CloudEnvDelivery.removeReceiverResources(
+                terminalIDs: ["receiver"],
+                closeTerminal: {
+                    events.append("terminal \($0)")
+                    if fail { throw CloudEnvDelivery.DeliveryError.receiverFailed("close failed") }
+                },
+                closeWorkspace: { events.append("workspace") }
+            )
+            #expect(!fail)
+        } catch {
+            #expect(fail)
+        }
+        #expect(events == (fail ? ["terminal receiver"] : ["terminal receiver", "workspace"]))
+    }
+
     @MainActor @Test(arguments: [
         CloudEnvDelivery.DeliveryError.receiverFailed("refused-marker"),
         .outdatedShim("machine-marker"),
@@ -79,7 +95,6 @@ import Testing
         var closed: [String] = []
         do {
             _ = try await CloudEnvDelivery.withReceiverWorkspace(
-                existingWorkspaceID: nil,
                 createWorkspace: { "temporary-marker" },
                 closeWorkspace: { workspaceID in
                     closed.append(workspaceID)
@@ -100,7 +115,6 @@ import Testing
         let failure = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "private-sdk-sentinel"])
         do {
             _ = try await CloudEnvDelivery.withReceiverWorkspace(
-                existingWorkspaceID: nil,
                 createWorkspace: { "temporary-marker" },
                 closeWorkspace: { _ in throw failure },
                 operation: { _ in
