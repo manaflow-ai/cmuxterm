@@ -77,4 +77,44 @@ struct ChatOutlineAnchorResolverTests {
         #expect(firstRow == 2)
         #expect(secondRow == nil)
     }
+
+    @Test("anchors start at prompt rows and support clipped titles")
+    func anchorsStartAtPromptRowsAndSupportClippedTitles() {
+        let title = String(repeating: "a", count: 160)
+        let entry = ChatOutlineEntry(
+            id: "prompt",
+            seq: 1,
+            timestamp: Date(timeIntervalSince1970: 1),
+            title: title,
+            hasAlert: false
+        )
+        let fullPrompt = String(repeating: "a", count: 180)
+
+        #expect(ChatOutlineAnchorResolver().row(
+            for: entry,
+            among: [entry],
+            in: "\n❯ \(fullPrompt)\n"
+        ) == 1)
+
+        let firstRepeated = ChatOutlineEntry(
+            id: "first-repeated",
+            seq: 2,
+            timestamp: Date(timeIntervalSince1970: 2),
+            title: "Review the login flow",
+            hasAlert: false
+        )
+        let secondRepeated = ChatOutlineEntry(
+            id: "second-repeated",
+            seq: 2,
+            timestamp: Date(timeIntervalSince1970: 2),
+            title: "Review the login flow",
+            hasAlert: false
+        )
+        let repeatedHistory = "\n❯ Review the login flow\nI will Review the login flow\n❯ Review the login flow\n"
+        #expect(ChatOutlineAnchorResolver().row(
+            for: secondRepeated,
+            among: [firstRepeated, secondRepeated],
+            in: repeatedHistory
+        ) == 3)
+    }
 }

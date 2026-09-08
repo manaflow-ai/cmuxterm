@@ -41,33 +41,29 @@ public struct ChatOutlineAnchorResolver: Sendable {
     }
 
     private func matches(target: String, startingAt row: Int, in rows: [String]) -> Bool {
-        let firstRow = rows[row]
-        if isPromptMatch(firstRow, target: target) {
+        guard let prefix = Self.promptPrefixes.first(where: { rows[row].hasPrefix($0) }) else {
+            return false
+        }
+        var candidate = String(rows[row].dropFirst(prefix.count))
+        if matchesPromptContent(candidate, target: target) {
             return true
         }
-
-        var candidate = firstRow
         for nextRow in rows.dropFirst(row + 1) {
-            guard !candidate.isEmpty else {
-                candidate = nextRow
-                continue
-            }
+            guard !nextRow.isEmpty, !isPromptRow(nextRow) else { return false }
             candidate += " " + nextRow
-            if candidate.count >= target.count {
-                return isWrappedPromptMatch(candidate, target: target)
+            if matchesPromptContent(candidate, target: target) {
+                return true
             }
         }
         return false
     }
 
-    private func isPromptMatch(_ candidate: String, target: String) -> Bool {
-        candidate == target || Self.promptPrefixes.contains { candidate == $0 + target }
+    private func isPromptRow(_ row: String) -> Bool {
+        Self.promptPrefixes.contains { row.hasPrefix($0) }
     }
 
-    private func isWrappedPromptMatch(_ candidate: String, target: String) -> Bool {
-        Self.promptPrefixes.contains { prefix in
-            candidate.hasPrefix(prefix) && candidate.hasSuffix(" " + target)
-        }
+    private func matchesPromptContent(_ candidate: String, target: String) -> Bool {
+        candidate == target || (target.count == 160 && candidate.hasPrefix(target))
     }
 
     private func normalized(_ text: String) -> String {
