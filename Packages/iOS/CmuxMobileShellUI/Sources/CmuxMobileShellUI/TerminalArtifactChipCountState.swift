@@ -100,13 +100,10 @@ struct TerminalArtifactChipCountState: Sendable {
         let pending = Pending(surfaceGeneration: surfaceGeneration, localCount: localCount)
         if lastRequestedLocalCount == localCount {
             // Keep the chip's local observation current, but do not re-open
-            // the count RPC until the visible count changes. If a different
-            // count was queued while the previous request was in flight, the
-            // matching request already represents the latest observable
-            // state, so its trailing scan can be dropped as well.
-            if trailing?.localCount == localCount {
-                trailing = nil
-            }
+            // the count RPC until the visible count changes. A matching
+            // trailing request still represents a count that has not been
+            // scanned yet, so repeated render-grid observations must retain
+            // it until the in-flight request completes.
             return .provisionalReport(provisional)
         }
         lastRequestedLocalCount = localCount

@@ -223,7 +223,14 @@ actor MobileTerminalLaneCoordinator {
         while openAttempt < Self.maximumOpenAttempts, !Task.isCancelled {
             guard let entry = entriesByKey[key], entry.id == id else { return }
             let configuration = entry.configuration
-            let requestedCursor = await configuration.cursor()
+            // Input-only lanes carry an empty replay baseline solely to gate
+            // readiness. Their host baseline is sampled independently from
+            // the output event stream, so validating it against the output
+            // cursor would reject a healthy lane whenever output advanced
+            // between those two operations.
+            let requestedCursor = configuration.mode == .inputOnly
+                ? nil
+                : await configuration.cursor()
             do {
                 let laneProvider = configuration.mode == .inputOnly
                     ? (inputOnlyProvider ?? provider)
