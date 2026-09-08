@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 import importlib.util
+import contextlib
+import io
 import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -34,6 +37,29 @@ def counted(parent, one, other, specifier="d"):
 
 
 class LocalizationCatalogTests(unittest.TestCase):
+    def test_package_catalog_uses_the_same_invariant_policy(self):
+        catalog = {"sourceLanguage": "en", "strings": {"email": {"localizations": {
+            "en": unit("you@example.com"), "ar": unit("you@example.com")}}}, "version": "1.0"}
+        metadata = {"email": {"source": "you@example.com", "class": "syntax"}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "Packages/macOS/Feedback/Sources/Feedback/Resources/Localizable.xcstrings"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(catalog))
+            with patch.object(MODULE, "load_metadata", side_effect=lambda name: metadata if "omissions" in name else {}), \
+                 patch.object(sys, "argv", ["catalog", "check", "--root", directory, "--locale", "ar"]), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(MODULE.main(), 0)
+
+    def test_todo_commands_and_translated_words_are_not_markers(self):
+        for source in ("Usage: cmux todo list", "Open Todo Pane", "Workspace todo controls"):
+            self.assertEqual(MODULE.validate_localization(source, unit(source), "en"), [])
+        self.assertEqual(MODULE.validate_localization("All", unit("Todo"), "es"), [])
+
+    def test_unfinished_translation_markers_are_rejected(self):
+        for marker in ("TODO", "TODO: translate this", "TRANSLATE_ME", "machine_translation", "<translated>", "__CMUX_TOKEN_1__"):
+            with self.subTest(marker=marker):
+                self.assertTrue(MODULE.validate_localization("Open", unit(marker), "de"))
+
     def test_rejects_lost_line_breaks(self):
         self.assertTrue(MODULE.validate_localization("Name: %@\nStatus: %@", unit("Name: %@ Status: %@"), "de"))
 
