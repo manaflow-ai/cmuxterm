@@ -250,6 +250,7 @@ struct ClaudeHookLifecycleCleanupTests {
             try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId) != nil,
             "A hibernation SessionEnd must leave the hook record available for the resumed generation"
         )
+        #expect(!commands.contains { $0.contains("\"method\":\"feed.push\"") })
     }
 
     @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
