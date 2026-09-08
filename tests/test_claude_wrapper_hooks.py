@@ -738,10 +738,10 @@ def test_live_socket_injects_supported_hooks_without_unlocking_bypass(failures: 
         f"SubagentStop hook should not call the visible stop hook, got {subagent_stop_hooks}",
         failures,
     )
-    # SessionEnd should have a short timeout (session is exiting)
+    # SessionEnd stays bounded while allowing the two-second clock wait to finish.
     session_end_hooks = hooks.get("SessionEnd", [{}])[0].get("hooks", [{}])
     expect(
-        any(h.get("timeout", 999) <= 2 for h in session_end_hooks),
+        any(2 < h.get("timeout", 999) <= 5 for h in session_end_hooks),
         f"SessionEnd hook should have short timeout, got {session_end_hooks}",
         failures,
     )
