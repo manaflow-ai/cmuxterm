@@ -883,6 +883,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// prefix binding is being executed, so unrelated action branches cannot
     /// consume the suffix first.
     var activeResolvedPrefixChordActionID: String?
+    /// The prefix router can receive media keys as `.systemDefined` events.
+    /// Keep that fact while the resolved binding is handed to the legacy
+    /// dispatcher so it can use a safe keyboard-shaped proxy event without
+    /// reading keyboard-only accessors from the original system event.
+    var activeResolvedPrefixChordWasSystemDefined = false
     lazy var shortcutPrefixChordCoordinator = ShortcutPrefixChordCoordinator(owner: self)
     // Eager initialization is intentional: SwiftUI checklist views read this
     // registry while evaluating `body`. A lazy property would mutate the
@@ -14171,6 +14176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func clearConfiguredShortcutChordState() {
         pendingConfiguredShortcutChord = nil
         activeConfiguredShortcutChordPrefixForCurrentEvent = nil
+        activeResolvedPrefixChordWasSystemDefined = false
         shortcutPrefixChordCoordinator.reset()
         prefixChordPassThroughCoordinator.reset()
     }

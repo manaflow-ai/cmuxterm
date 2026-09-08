@@ -19,6 +19,17 @@ extension AppDelegate {
         event: NSEvent,
         shortcut: StoredShortcut
     ) -> Bool {
+        if event.type == .keyDown,
+           activeResolvedPrefixChordWasSystemDefined,
+           let resolvedActionID = activeResolvedPrefixChordActionID,
+           let resolvedAction = KeyboardShortcutSettings.Action(rawValue: resolvedActionID),
+           shortcut == KeyboardShortcutSettings.shortcut(for: resolvedAction) {
+            // A system-defined suffix is dispatched through a sanitized
+            // keyDown proxy. The router already proved the exact binding, so
+            // do not ask the proxy to impersonate an unrepresentable media
+            // stroke; only the selected action may match this event.
+            return true
+        }
         guard let stroke = routableConfiguredShortcutStroke(
             event: event,
             shortcut: shortcut
@@ -33,6 +44,9 @@ extension AppDelegate {
         guard resolvedPrefixChordOwns(action) else { return false }
         guard shortcutWhenClauseAllows(action: action, event: event) else {
             return false
+        }
+        if event.type == .keyDown, activeResolvedPrefixChordWasSystemDefined {
+            return true
         }
         return matchConfiguredShortcut(
             event: event,

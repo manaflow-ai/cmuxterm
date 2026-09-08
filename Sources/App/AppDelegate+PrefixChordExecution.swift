@@ -56,11 +56,23 @@ extension AppDelegate {
 
         let previousResolvedActionID = activeResolvedPrefixChordActionID
         let previousChordPrefix = activeConfiguredShortcutChordPrefixForCurrentEvent
+        let previousWasSystemDefined = activeResolvedPrefixChordWasSystemDefined
         activeResolvedPrefixChordActionID = binding.actionID
+        activeResolvedPrefixChordWasSystemDefined = event.type == .systemDefined
         defer {
             activeResolvedPrefixChordActionID = previousResolvedActionID
             activeConfiguredShortcutChordPrefixForCurrentEvent = previousChordPrefix
+            activeResolvedPrefixChordWasSystemDefined = previousWasSystemDefined
         }
+
+        // AppKit's keyboard-only NSEvent accessors (notably `keyCode`) are
+        // not valid for `.systemDefined` media events. The prefix router has
+        // already matched the real media suffix; hand the existing dispatcher
+        // a same-window keyDown proxy and let the ownership marker below make
+        // only the selected action match it.
+        let dispatchEvent = event.type == .systemDefined
+            ? keyboardProxyEvent(for: event)
+            : event
 
         // Config-defined actions have their own resolved executor (including
         // trust prompts and workspace/terminal command targets). Dispatch
@@ -73,8 +85,8 @@ extension AppDelegate {
             return executeConfiguredCmuxAction(
                 configuredAction,
                 context: context,
-                preferredWindow: resolvedShortcutEventWindow(event)
-                    ?? event.window
+                preferredWindow: resolvedShortcutEventWindow(dispatchEvent)
+                    ?? dispatchEvent.window
                     ?? shortcutRoutingActiveWindow
             )
         }
@@ -83,7 +95,7 @@ extension AppDelegate {
             cmuxSettingsShortcutStroke: binding.firstStroke
         )
         if handleCustomShortcut(
-            event: event,
+            event: dispatchEvent,
             skipPrefixChordRouting: true,
             resolvedPrefixStroke: resolvedPrefix
         ) {
@@ -100,7 +112,22 @@ extension AppDelegate {
         // Focused responders rematch this same suffix through the shared
         // matcher, so retain the resolved leader for the entire fallback.
         activeConfiguredShortcutChordPrefixForCurrentEvent = resolvedPrefix
-        return executeFocusedPrefixChordAction(action, event: event)
+        return executeFocusedPrefixChordAction(action, event: dispatchEvent)
+    }
+
+    private func keyboardProxyEvent(for event: NSEvent) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: event.modifierFlags,
+            timestamp: event.timestamp,
+            windowNumber: event.windowNumber,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: 0
+        ) ?? event
     }
 
     private func prefixChordBindingIsStillCurrent(
