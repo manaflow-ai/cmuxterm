@@ -180,8 +180,12 @@ extension CLINotifyProcessIntegrationRegressionTests {
     func testAntigravitySessionEndDoesNotOverwriteASettledRunningState() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-antigravity-session-end-race-\(UUID().uuidString)", isDirectory: true)
+        let balancedRoot = root.appendingPathComponent("balanced", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: balancedRoot)
+        }
 
         let store = ClaudeHookSessionStore(
             processEnv: ["CMUX_AGENT_HOOK_STATE_DIR": root.path],
@@ -240,6 +244,47 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(record.agentLifecycle, .running)
         XCTAssertEqual(record.runtimeStatus, .running)
         XCTAssertNil(record.activePromptDepth)
+
+        let balancedStore = ClaudeHookSessionStore(
+            processEnv: ["CMUX_AGENT_HOOK_STATE_DIR": balancedRoot.path],
+            promptDepthPolicy: .balanced
+        )
+        _ = try balancedStore.upsert(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            agentLifecycle: .running,
+            runtimeStatus: .running,
+            updateRuntimeStatus: true
+        )
+        _ = try balancedStore.recordPromptSubmit(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            turnId: "turn-1",
+            pid: nil,
+            launchCommand: nil,
+            agentLifecycle: .running,
+            runtimeStatus: .running,
+            updateRuntimeStatus: true
+        )
+        _ = try balancedStore.recordPromptStop(
+            sessionId: sessionId,
+            workspaceId: "workspace",
+            surfaceId: "surface",
+            cwd: root.path,
+            turnId: "turn-1",
+            pid: nil,
+            launchCommand: nil,
+            agentLifecycle: .idle,
+            runtimeStatus: .idle,
+            updateRuntimeStatus: true
+        )
+        let balancedRecord = try XCTUnwrap(balancedStore.lookup(sessionId: sessionId))
+        XCTAssertEqual(balancedRecord.agentLifecycle, .idle)
+        XCTAssertEqual(balancedRecord.runtimeStatus, .idle)
     }
 
     private func readAntigravityHookSession(

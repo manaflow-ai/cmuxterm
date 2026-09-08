@@ -1286,12 +1286,12 @@ final class ClaudeHookSessionStore {
             let depthAfterStop = promptDepthPolicy.closesActivePrompt
                 ? 0
                 : max(0, depthBeforeStop - 1)
-            let lifecycleWhenClosed: AgentHibernationLifecycleState? = shouldSettleAuthoritativeBoundary
-                ? (agentLifecycle ?? .idle)
-                : nil
-            let runtimeWhenClosed: AgentHookRuntimeStatus? = shouldSettleAuthoritativeBoundary
-                ? (runtimeStatus ?? .idle)
-                : nil
+            let lifecycleWhenClosed: AgentHibernationLifecycleState? = promptDepthPolicy.closesActivePrompt
+                ? (shouldSettleAuthoritativeBoundary ? (agentLifecycle ?? .idle) : nil)
+                : agentLifecycle
+            let runtimeWhenClosed: AgentHookRuntimeStatus? = promptDepthPolicy.closesActivePrompt
+                ? (shouldSettleAuthoritativeBoundary ? (runtimeStatus ?? .idle) : nil)
+                : runtimeStatus
             // A nested balanced stop must not overwrite a still-running
             // session with its child completion's idle/error status. An
             // authoritative boundary, or an explicit running status from
