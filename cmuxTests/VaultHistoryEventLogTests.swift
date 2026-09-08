@@ -45,6 +45,30 @@ import Testing
         #expect(await log.recentEvents().map(\.id) == ["launch"])
     }
 
+    @Test func startupRestoreDiscardsInitialWindowHistoryAfterRestoreCompletes() async throws {
+        try await withWindowHistory(initialPhase: .launching) { app, log in
+            let restoredWindowSnapshot = SessionWindowSnapshot(
+                frame: nil,
+                display: nil,
+                tabManager: SessionTabManagerSnapshot(
+                    selectedWorkspaceIndex: nil,
+                    workspaces: []
+                ),
+                sidebar: SessionSidebarSnapshot(isVisible: true, selection: .tabs, width: nil)
+            )
+            app.setStartupSessionSnapshotForTesting(AppSessionSnapshot(
+                version: SessionSnapshotSchema.currentVersion,
+                createdAt: Date().timeIntervalSince1970,
+                windows: [restoredWindowSnapshot]
+            ))
+
+            _ = app.createMainWindow(shouldActivate: false)
+            await log.flushPendingRecords()
+
+            #expect(await log.recentEvents().isEmpty)
+        }
+    }
+
     @Test func revisionChangesOnlyAfterAcceptedPersistence() async {
         let acceptedStore = VaultHistoryEventStore(fileURL: nil)
         let acceptedLog = VaultHistoryEventLog(store: acceptedStore, phase: .active)

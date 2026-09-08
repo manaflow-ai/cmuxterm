@@ -1163,6 +1163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Reset to `.zero` so the first window seeds the point from its own position.
     private var lastCascadePoint = NSPoint.zero
     private(set) var startupSessionSnapshot: AppSessionSnapshot?
+#if DEBUG
+    func setStartupSessionSnapshotForTesting(_ snapshot: AppSessionSnapshot?) {
+        startupSessionSnapshot = snapshot
+    }
+#endif
     private var didPrepareStartupSessionSnapshot = false
     /// Classification of the process that preceded this launch. Captured before
     /// the current run arms its sentinel so a crash can recover a missing primary
@@ -3991,9 +3996,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     private func attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: NSWindow) {
+        let primaryWindowId = contextForMainTerminalWindow(primaryWindow)?.windowId
         let didApplyStartupSessionRestore = attemptStartupSessionRestoreIfNeeded(
             primaryWindow: primaryWindow
         )
+        if didApplyStartupSessionRestore, let primaryWindowId {
+            // The initial window is constructed before startup restore begins,
+            // so its staged open/workspace events must be discarded once the
+            // persisted snapshot is applied. Restore completion can make the
+            // log active again before createMainWindow's deferred transaction
+            // finalizer runs.
+            vaultHistoryEventLog?.discardWindowCreation(windowId: primaryWindowId)
+        }
         synchronizeVaultHistoryRecordingPhase()
         if !didApplyStartupSessionRestore, didAttemptStartupSessionRestore {
             // No snapshot restore ran (fresh start / restore disabled):
