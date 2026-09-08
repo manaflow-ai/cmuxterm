@@ -213,6 +213,13 @@ struct AgentLifecycleReconciliationStateTests {
         )
         var state = AgentLifecycleReconciliationState()
 
+        let startedAttention = state.beginFeedAttention(
+            key: BuiltInAgentIntegration.cursor.statusKey,
+            panelId: panelId,
+            isBuiltIn: true
+        )
+        let token = try #require(startedAttention)
+
         let acceptedGeneration = state.recordProcessGeneration(
             key: BuiltInAgentIntegration.cursor.statusKey,
             panelId: panelId,
@@ -220,12 +227,6 @@ struct AgentLifecycleReconciliationStateTests {
             isBuiltIn: true
         )
         #expect(acceptedGeneration)
-        let startedAttention = state.beginFeedAttention(
-            key: BuiltInAgentIntegration.cursor.statusKey,
-            panelId: panelId,
-            isBuiltIn: true
-        )
-        let token = try #require(startedAttention)
 
         let acceptedExit = state.recordProcessExit(
             key: BuiltInAgentIntegration.cursor.statusKey,
