@@ -88,23 +88,24 @@ import Testing
     )
 
     store.suspendWorkspaceChangesSummaryFetchesPreservingChips()
-    _ = store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
+    let scheduledBeforeFetch = store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
         scope: .fullSnapshot,
         force: false
     )
-    _ = try #require(
-        store.workspaceChangesSummaryRefreshSchedulePolicy.beginFetchAfterDebounce()
-    )
+    #expect(scheduledBeforeFetch)
+    let fetchRequest = store.workspaceChangesSummaryRefreshSchedulePolicy.beginFetchAfterDebounce()
+    try #require(fetchRequest)
     #expect(store.workspaceChangesSummaryRefreshSchedulePolicy.isFetchInFlight)
 
     store.suspendWorkspaceChangesSummaryFetchesPreservingChips()
 
     #expect(!store.workspaceChangesSummaryRefreshSchedulePolicy.isFetchInFlight)
+    let scheduledAfterDisconnect = store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
+        scope: .fullSnapshot,
+        force: false
+    )
     #expect(
-        store.workspaceChangesSummaryRefreshSchedulePolicy.schedule(
-            scope: .fullSnapshot,
-            force: false
-        ),
+        scheduledAfterDisconnect,
         "a reconnect must be able to schedule a fresh summary pass"
     )
 }
