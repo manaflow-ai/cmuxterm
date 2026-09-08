@@ -290,8 +290,7 @@ final class TerminalMutationBus: @unchecked Sendable {
         }
         approvalWorkspaceBySurface[surfaceId] = tabId
         let token = approvalMutationToken(workspaceID: tabId, surfaceID: surfaceId)
-        lock.unlock()
-        enqueueApprovalMutation(.stageAgentApproval(QueuedAgentApprovalStage(
+        let shouldScheduleDrain = enqueueApprovalMutationLocked(.stageAgentApproval(QueuedAgentApprovalStage(
             workspaceID: tabId,
             surfaceID: surfaceId,
             title: title,
@@ -303,6 +302,8 @@ final class TerminalMutationBus: @unchecked Sendable {
             agent: agent,
             producerCorrelationKey: producerCorrelationKey
         ), token))
+        lock.unlock()
+        if shouldScheduleDrain { scheduleDrain() }
     }
 
     nonisolated func enqueueAgentApprovalResolution(
@@ -314,8 +315,9 @@ final class TerminalMutationBus: @unchecked Sendable {
             workspaceID: nil,
             surfaceID: surfaceId
         )
+        let shouldScheduleDrain = enqueueApprovalMutationLocked(.resolveAgentApproval(surfaceId, approvalID, token))
         lock.unlock()
-        enqueueApprovalMutation(.resolveAgentApproval(surfaceId, approvalID, token))
+        if shouldScheduleDrain { scheduleDrain() }
     }
 
     nonisolated func enqueueAgentApprovalResolution(
@@ -327,8 +329,9 @@ final class TerminalMutationBus: @unchecked Sendable {
             workspaceID: nil,
             surfaceID: surfaceId
         )
+        let shouldScheduleDrain = enqueueApprovalMutationLocked(.resolveAgentApprovalScope(surfaceId, approvalScope, token))
         lock.unlock()
-        enqueueApprovalMutation(.resolveAgentApprovalScope(surfaceId, approvalScope, token))
+        if shouldScheduleDrain { scheduleDrain() }
     }
 
     nonisolated func enqueueClearAllNotifications() {
@@ -773,9 +776,8 @@ final class TerminalMutationBus: @unchecked Sendable {
     /// drops a new stage (or evicts the oldest stage for a resolution) once
     /// `maxPendingApprovalMutations` is reached, so a hook burst cannot turn
     /// the pending array into an unbounded backlog.
-    private nonisolated func enqueueApprovalMutation(_ mutation: TerminalSocketMutation) {
+    private nonisolated func enqueueApprovalMutationLocked(_ mutation: TerminalSocketMutation) -> Bool {
         let shouldScheduleDrain: Bool
-        lock.lock()
         switch mutation {
         case .stageAgentApproval(let stage, _):
             let beforeCount = pending.count
@@ -816,8 +818,7 @@ final class TerminalMutationBus: @unchecked Sendable {
                 // Stage admission is explicitly lossy under pressure. The
                 // coordinator's settle window and later authoritative hook
                 // events still provide the next opportunity to surface it.
-                lock.unlock()
-                return
+                return false
             }
         }
         nextSequence &+= 1
@@ -831,8 +832,7 @@ final class TerminalMutationBus: @unchecked Sendable {
         pendingApprovalMutationCount += 1
         shouldScheduleDrain = !drainScheduled
         if shouldScheduleDrain { drainScheduled = true }
-        lock.unlock()
-        if shouldScheduleDrain { scheduleDrain() }
+        return shouldScheduleDrain
     }
 
     private static func isApprovalMutation(_ mutation: TerminalSocketMutation) -> Bool {
