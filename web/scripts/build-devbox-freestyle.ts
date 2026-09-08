@@ -509,11 +509,12 @@ try {
   // The journal starts over so a machine's log begins under its own name,
   // not with the base's boot as `freestyle-vm`.
   // The interactive bake probes above ran login shells for root and the work
-  // user, which seeded ~/.claude.json before the model-plane env existed. A
-  // snapshot ships no generated agent config: each machine's first shell
-  // seeds its own, with the placeholder key approval derived from the env.
+  // user before the model-plane env was baked, so their ~/.claude.json seeds
+  // lack the placeholder key approval. Drop them: each machine's first shell
+  // seeds its own from the env. (The static codex config those shells wrote
+  // is the same bytes on every machine and stays; the verifier checks it.)
   await step("clean", `rm -rf /var/lib/apt/lists/* /root/.npm/_cacache ${WORK_HOME}/.npm/_cacache 2>/dev/null; rm -f /root/.claude.json ${WORK_HOME}/.claude.json; ${devboxJournalResetCommand}; sync; true`);
-  await step("no-seeded-agent-state", `test ! -e /root/.claude.json && test ! -e ${WORK_HOME}/.claude.json && test ! -e /root/.codex/config.toml && test ! -e ${WORK_HOME}/.codex/config.toml && echo no-seeded-agent-state`);
+  await step("no-stale-claude-seed", `test ! -e /root/.claude.json && test ! -e ${WORK_HOME}/.claude.json && echo no-stale-claude-seed`);
 } catch (error) {
   console.error(`bake failed: ${String(error)}`);
   await deleteBuilder();
