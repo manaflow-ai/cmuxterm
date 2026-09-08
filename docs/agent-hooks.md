@@ -135,6 +135,32 @@ You can also set the same preference in `~/.config/cmux/cmux.json`:
 When this is off, cmux still restores the saved window, workspace, pane, scrollback,
 and browser state. Restored agent terminals stay idle until you resume them manually.
 
+## Codex hook precedence
+
+Inside cmux, the Codex wrapper adds `--enable hooks`, `--dangerously-bypass-hook-trust`, and one
+`-c hooks.<Event>=[...]` pair for each cmux event that is not already covered by a persistent cmux
+handler in `hooks.json`. These flags apply only to that process; cmux never rewrites `hooks.json`
+or `config.toml` for this injection.
+
+Codex loads hooks in layers: managed hooks, the user layer (`$CODEX_HOME/hooks.json`, then
+`[hooks]` in `config.toml`), project `.codex` layers, the command-line (`-c`) layer, and plugin
+hooks. Handlers from each layer are appended. A `-c hooks.<Event>` assignment therefore adds
+handlers for that event; it does not replace entries from `hooks.json`. This ordering is implemented
+in [openai/codex's `codex-rs/hooks/src/engine/discovery.rs`](https://github.com/openai/codex/blob/main/codex-rs/hooks/src/engine/discovery.rs).
+
+User handlers are registered before cmux's handlers. Codex dispatches the handlers for one event together, so behavior must not depend on cmux's handler running first or last.
+
+cmux never copies user-owned hook groups into its `-c` values. Codex would register those groups
+twice and run them twice. When `cmux hooks codex install` has already installed a persistent cmux
+handler for an event, the wrapper skips that event so there is exactly one cmux producer per event.
+
+The trust flag applies to every `hooks.json`, `config.toml`, and plugin hook loaded by that launch. User and project hooks that Codex has not yet approved in `/hooks` therefore run inside cmux without an approval prompt.
+
+Set `CMUX_CODEX_HOOKS_DISABLED=1` to exec Codex with its configuration untouched. User hooks are
+unaffected either way, but cmux loses session lifecycle and restore, Feed, notifications, session
+rebinding, and Agent Hibernation for that process. Use `cmux hooks codex install` to keep one visible
+cmux configuration in `hooks.json` instead of per-launch injection.
+
 ## Environment overrides
 
 | Agent | Config directory override | Disable cmux hooks for one process |

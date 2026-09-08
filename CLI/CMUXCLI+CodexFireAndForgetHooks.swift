@@ -89,8 +89,10 @@ extension CMUXCLI {
     /// native child lifecycle hooks synchronously commit their ledger event and
     /// then return. All larger socket delivery remains non-blocking.
     /// Persistent hooks are inventoried read-only so the wrapper does not add a
-    /// duplicate cmux producer. Codex combines hook sources, so user-owned hooks
-    /// continue to run alongside these process-local entries. Only explicit
+    /// duplicate cmux producer. Codex appends this `-c` (session-flags) layer to
+    /// handlers already loaded from `hooks.json` and `config.toml`; never copy
+    /// user-owned hook groups into these values, because Codex would register and
+    /// run them twice (reference #12081). Only explicit
     /// `cmux hooks codex install` or `uninstall` commands mutate `CODEX_HOME`.
     /// No live socket is required.
     func emitCodexWrapperInjectArgs() throws {
