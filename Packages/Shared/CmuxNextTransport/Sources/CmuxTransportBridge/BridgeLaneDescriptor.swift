@@ -4,6 +4,7 @@ import Foundation
 /// Errors from encoding a legacy lane into a raw-stream preamble or parsing
 /// one back.
 public enum BridgeLaneDescriptorError: Error, Equatable, Sendable {
+    /// JSON, lane type, or required resource coordinates were invalid.
     case invalidDescriptor
     /// The descriptor did not encode. Failing closed beats silently dialing
     /// a control-lane preamble for a terminal/artifact stream: the acceptor
@@ -39,6 +40,10 @@ public struct BridgeLaneDescriptor: Sendable {
     private let artifact = "artifact"
     private let simulatorStream = "simulator_stream"
 
+    /// Encodes one legacy lane's routing coordinates as a JSON preamble.
+    /// - Parameter lane: Lane kind with its required resource, cursor, or offset.
+    /// - Returns: UTF-8 JSON for the raw-stream opening handshake.
+    /// - Throws: ``BridgeLaneDescriptorError/unencodableDescriptor`` on encoding failure.
     public func preamble(for lane: CmxIrohLane) throws -> String {
         let descriptor: Descriptor
         switch lane {
@@ -64,6 +69,10 @@ public struct BridgeLaneDescriptor: Sendable {
         return text
     }
 
+    /// Parses a preamble and validates the coordinates required by its lane kind.
+    /// - Parameter preamble: JSON received during raw-stream opening.
+    /// - Returns: The corresponding legacy lane descriptor.
+    /// - Throws: ``BridgeLaneDescriptorError/invalidDescriptor`` for invalid routing data.
     public func lane(fromPreamble preamble: String) throws -> CmxIrohLane {
         guard let data = preamble.data(using: .utf8),
             let descriptor = try? JSONDecoder().decode(Descriptor.self, from: data)

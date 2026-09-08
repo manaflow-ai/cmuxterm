@@ -21,6 +21,14 @@ public struct NextTransportEnvironment: Sendable {
     /// schedule at all (`RelayCredentialMode.requiresClientCredential`).
     public var credentialMode: RelayCredentialMode
 
+    /// Describes the broker, authentication deployment, and relay admission mode.
+    ///
+    /// - Parameters:
+    ///   - brokerBaseURL: Final broker origin, without redirects.
+    ///   - stackAuthBaseURL: Stack Auth origin used by password-authenticated harnesses.
+    ///   - stackProjectID: Project containing the authenticated account.
+    ///   - stackPublishableClientKey: Public client identifier for that project.
+    ///   - credentialMode: Relay admission policy; defaults to broker-minted tokens.
     public init(
         brokerBaseURL: URL,
         stackAuthBaseURL: URL,

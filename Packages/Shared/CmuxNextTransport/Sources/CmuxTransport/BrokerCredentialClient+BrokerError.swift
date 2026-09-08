@@ -1,6 +1,7 @@
 import Foundation
 
 extension BrokerCredentialClient {
+    /// Redaction-safe failures of broker authentication, registration, or minting.
     public enum BrokerError: Error, CustomStringConvertible {
         /// An HTTP step failed. Carries only redaction-safe fields: the
         /// step name, status code, request URL path (never the query), and
@@ -12,11 +13,13 @@ extension BrokerCredentialClient {
         /// A request URL could not be built from the configured base URL.
         /// Carries only a sanitized origin, or a fixed invalid-origin marker.
         case malformedURL(step: String, url: String)
+        /// A response omitted a required field or had an unexpected shape.
         case shape(String)
         /// Session mode only: the token provider reported no signed-in
         /// session. Fail closed — never mint as a guessed account.
         case notSignedIn
 
+        /// Diagnostic summary containing no response body or bearer credentials.
         public var description: String {
             switch self {
             case .http(let step, let status, let path, let code):

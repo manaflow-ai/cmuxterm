@@ -113,8 +113,14 @@ public enum NextTransportReadiness: Int, Sendable, Comparable, CustomStringConve
     /// advertised and its ticket handed out.
     case published = 3
 
+    /// Compares milestones in startup order, not elapsed time.
+    /// - Parameters:
+    ///   - lhs: Milestone being compared.
+    ///   - rhs: Milestone to compare against.
+    /// - Returns: Whether lhs precedes rhs in startup readiness.
     public static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
 
+    /// Stable diagnostic code for the readiness milestone.
     public var description: String {
         switch self {
         case .starting: return "starting"

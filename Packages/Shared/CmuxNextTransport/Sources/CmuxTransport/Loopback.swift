@@ -1,8 +1,12 @@
 import Foundation
 
+/// Transport failures distinct from typed admission denials.
 public enum TransportError: Error, Equatable {
+    /// A send was attempted on a closed pipe or lane.
     case pipeClosed
+    /// Admission ended without a reply or recognized denial close code.
     case connectionClosedBeforeReply
+    /// The peer sent an unexpected frame type or malformed admission envelope.
     case unexpectedFrame(String)
     /// A dial exceeded its deadline (contract 4.6: bounded, never silent).
     /// UDP blackholes (firewalls, un-granted Local Network permission,
@@ -22,12 +26,15 @@ public actor FramePipe {
     private var sendWaiters = FIFOQueue<(id: Int, continuation: CheckedContinuation<Void, Never>)>()
     private var recvWaiters = FIFOQueue<(id: Int, continuation: CheckedContinuation<Frame?, Never>)>()
     private var waiterCounter = 0
+    /// Number of times a sender waited because the bounded buffer was full.
     public private(set) var backpressureStalls = 0
 
     /// Number of receive continuations currently parked on this pipe.
     /// Internal so the test target reads it through `@testable import`.
     var waitingReceiverCount: Int { recvWaiters.count }
 
+    /// Creates a bounded pipe whose senders suspend instead of dropping frames.
+    /// - Parameter capacity: Positive frame capacity; defaults to 64.
     public init(capacity: Int = 64) {
         precondition(capacity > 0, "FramePipe capacity must be positive")
         self.capacity = capacity
@@ -37,6 +44,8 @@ public actor FramePipe {
     /// a cancelled sender throws CancellationError instead of leaking a
     /// continuation (the P1 runtime cancels tasks on supersession, mode
     /// switch, and teardown).
+    /// - Parameter frame: Next frame to enqueue in send order.
+    /// - Throws: Cancellation while parked or ``TransportError/pipeClosed`` after close.
     public func send(_ frame: Frame) async throws {
         while buffer.count >= capacity && !closed {
             backpressureStalls += 1
@@ -67,6 +76,7 @@ public actor FramePipe {
     /// a denial readable before the connection closes (contract 3.3). Also
     /// returns nil when the awaiting task is cancelled, so `for await` loops
     /// over `frames` end cleanly instead of parking forever.
+    /// - Returns: A queued frame, or nil after close and drain or a cancelled wait.
     public func receive() async -> Frame? {
         if !buffer.isEmpty {
             let frame = buffer.popFirst()!
@@ -100,6 +110,7 @@ public actor FramePipe {
         }
     }
 
+    /// Idempotently rejects new sends and wakes waiters while preserving queued receive frames.
     public func close() {
         guard !closed else { return }
         closed = true
@@ -124,6 +135,7 @@ public actor FramePipe {
 
 /// One endpoint's handle on a lane: ordered, lossless, independent (5.1).
 public struct LaneEnd: TransportLane {
+    /// Logical name shared by both ends of this lane.
     public let name: String
     let outbound: FramePipe
     let inbound: FramePipe
@@ -140,21 +152,28 @@ public struct LaneEnd: TransportLane {
         LaneEnd(name: name, outbound: FramePipe(), inbound: FramePipe(), closed: true)
     }
 
+    /// Sends on this end's outbound pipe with bounded backpressure.
+    /// - Parameter frame: Next frame to send.
+    /// - Throws: Cancellation while parked or a closed-pipe error.
     public func send(_ frame: Frame) async throws {
         guard !closed else { throw TransportError.pipeClosed }
         try await outbound.send(frame)
     }
 
+    /// Consumes the next inbound frame using the pipe's close and cancellation semantics.
+    /// - Returns: The next frame, or nil when this receive direction ends.
     public func receive() async -> Frame? {
         guard !closed else { return nil }
         return await inbound.receive()
     }
 
+    /// Half-closes outbound sending while leaving this end's receive pipe intact.
     public func closeOutbound() async {
         guard !closed else { return }
         await outbound.close()
     }
 
+    /// Number of full-buffer waits on this end's outbound pipe.
     public var backpressureStalls: Int {
         get async {
             guard !closed else { return 0 }
@@ -167,8 +186,12 @@ public struct LaneEnd: TransportLane {
 /// side B (host). Mirrors the real substrate's shape (one QUIC stream per
 /// lane), so nothing above this layer changes when iroh replaces it in P1.
 public actor LoopbackWire {
+    /// Selects one direction of the shared in-memory connection.
     public enum Side: Sendable {
-        case a, b
+        /// Client-facing end returned by ``makeEnds(authenticatedClientKey:)``.
+        case a
+        /// Host-facing end returned by ``makeEnds(authenticatedClientKey:)``.
+        case b
     }
 
     private struct LanePipes {
@@ -178,11 +201,14 @@ public actor LoopbackWire {
 
     private var lanes: [String: LanePipes] = [:]
     private let laneCapacity: Int
+    /// Whether whole-wire closure has begun; new lane creation is then prohibited.
     public private(set) var isClosed = false
     /// Why the wire died, visible to both ends (the loopback analogue of a
     /// QUIC close reason; contract 3.3).
     public private(set) var termination: ConnectionTermination?
 
+    /// Creates a wire with independent bounded pipes for each direction of each lane.
+    /// - Parameter laneCapacity: Positive frame capacity per pipe; defaults to 64.
     public init(laneCapacity: Int = 64) {
         precondition(laneCapacity > 0, "Loopback lane capacity must be positive")
         self.laneCapacity = laneCapacity
@@ -190,6 +216,10 @@ public actor LoopbackWire {
 
     /// Lanes are created on first use by either side; both sides get matching
     /// ends. (Real accept-stream semantics arrive with the iroh substrate.)
+    /// - Parameters:
+    ///   - name: Logical lane identifier shared by both peers.
+    ///   - side: Direction from which the caller accesses the wire.
+    /// - Returns: Matching lane end, or an ended lane if no lane exists after closure.
     public func lane(_ name: String, for side: Side) -> LaneEnd {
         let pipes: LanePipes
         if let existing = lanes[name] {
@@ -210,6 +240,7 @@ public actor LoopbackWire {
 
     /// Simulates the whole connection dying (app kill, network gone). In-flight
     /// lane bytes die with the session, by contract (5.4).
+    /// - Parameter reason: Attributed termination visible to both ends; defaults to none.
     public func closeAll(reason: ConnectionTermination? = nil) async {
         if termination == nil { termination = reason }
         isClosed = true
@@ -228,6 +259,11 @@ public final class LoopbackConnectionEnd: PeerConnection {
     private let side: LoopbackWire.Side
     private let authenticatedKey: Data?
 
+    /// Adapts one wire end to the same seam used by real QUIC connections.
+    /// - Parameters:
+    ///   - wire: Shared wire carrying both peers' traffic.
+    ///   - side: This peer's direction on the wire.
+    ///   - authenticatedRemoteKey: Simulated substrate proof; nil models unauthenticated loopback.
     public init(
         wire: LoopbackWire, side: LoopbackWire.Side, authenticatedRemoteKey: Data? = nil
     ) {
@@ -236,20 +272,29 @@ public final class LoopbackConnectionEnd: PeerConnection {
         self.authenticatedKey = authenticatedRemoteKey
     }
 
+    /// Injected remote-key proof, not a key learned from an untrusted hello.
     public var authenticatedRemoteKey: Data? { authenticatedKey }
 
+    /// Obtains this end's independently buffered named lane.
+    /// - Parameter name: Logical lane identifier shared with the peer.
+    /// - Returns: The corresponding lane end from the wire.
     public func lane(_ name: String) async -> any TransportLane {
         await wire.lane(name, for: side)
     }
 
+    /// Closes the shared wire and wakes both peers' lane waiters.
+    /// - Parameter reason: Optional attributed termination recorded on the wire.
     public func closeAll(reason: ConnectionTermination?) async {
         await wire.closeAll(reason: reason)
     }
 
+    /// Reads the cause recorded on the shared wire; this does not wait for a future close.
+    /// - Returns: Current wire termination, or nil if no reason has been recorded.
     public func termination() async -> ConnectionTermination? {
         await wire.termination
     }
 
+    /// Whether the shared wire has begun whole-connection closure.
     public var isClosed: Bool {
         get async { await wire.isClosed }
     }
@@ -258,6 +303,8 @@ public final class LoopbackConnectionEnd: PeerConnection {
 extension LoopbackWire {
     /// Both faces of this wire. `authenticatedClientKey` is what the host's
     /// substrate "authenticated" the client as; plain loopback has none.
+    /// - Parameter authenticatedClientKey: Simulated client-key proof presented to the host.
+    /// - Returns: Client and host adapters sharing this wire's lifecycle.
     public nonisolated func makeEnds(authenticatedClientKey: Data? = nil)
         -> (client: LoopbackConnectionEnd, host: LoopbackConnectionEnd)
     {

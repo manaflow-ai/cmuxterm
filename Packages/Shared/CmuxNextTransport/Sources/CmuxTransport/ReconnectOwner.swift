@@ -1,14 +1,10 @@
 import Foundation
 
-/// The SINGLE RECONNECT OWNER (contract 4.3, 4.6): the only component in the
-/// system that dials. Every trigger (foreground, push, network change, timer,
-/// user tap) is an input to it; automatic triggers JOIN the in-flight
-/// attempt, explicit intent REPLACES it. Transport failures retry on a
-/// capped backoff that resets on success. Denials are TERMINAL for automatic
-/// retry purposes: retrying a "no" on a timer is the storm the old stack
-/// shipped. Supersession and user-requested closes do not auto-redial;
-/// everything else does (that is the auto-recovery the field logs begged for).
+/// Sole dial authority: automatic triggers join work; explicit intent replaces it.
+/// Transport failures retry with capped backoff, reset on admission. Denials,
+/// supersession, and locally requested closes park automatic recovery.
 public actor ReconnectOwner {
+    /// One cancellable substrate-plus-admission attempt, transferring its connection on success.
     public typealias ConnectOnce = @Sendable () async throws -> ConnectAttemptResult
 
     /// ours took over, or the user asked for the close.
@@ -20,34 +16,31 @@ public actor ReconnectOwner {
 
     private let connectOnce: ConnectOnce
     private let config: Config
-    /// Cancellable clock seam for the owner's genuine backoff delay. Keeping
-    /// the scheduler injectable makes shutdown deterministic in tests and
-    /// avoids tying the state machine to a global sleeper.
+    /// Injected, cancellable sleeper for genuine backoff delays.
     private let sleep: @Sendable (Duration) async throws -> Void
     private var machine = SessionStateMachine()
     private var connection: (any PeerConnection)?
     private var dialTask: Task<Void, Never>?
-    /// One ctl watch loop per live connection, keyed by connection identity.
-    /// Stored so shutdown can CANCEL them: a half-open connection's ctl lane
-    /// never EOFs, and an unstored watch task would keep consuming (and
-    /// surfacing) frames forever after stop().
+    /// Owned control readers, cancelled during shutdown even when half-open lanes never EOF.
     private var watchTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     private var backoff: Duration
     private var stateContinuations: [Int: AsyncStream<SessionState>.Continuation] = [:]
     private var continuationCounter = 0
     /// Observability (8.2): how often the owner actually dialed, admitted.
     public private(set) var dialsStarted = 0
+    /// Number of successful admissions accepted by this owner.
     public private(set) var admissions = 0
 
-    /// Host->client frames observed on the owned ctl lane. The owner is the
-    /// SINGLE ctl consumer (lanes are single-consumer); any second reader
-    /// races it frame-by-frame and loses — the 08-21 field bug: credential
-    /// pushes were drained and DISCARDED by the watch loop while a bolted-on
-    /// listener starved. Everything the host says post-admission surfaces
-    /// here or nowhere.
+    /// Sole delivery path for post-admission control frames; a second lane reader would steal them.
     private let onControlFrame: (@Sendable (Frame) async -> Void)?
     private let frameTypePolicy = FrameTypePolicy()
 
+    /// Creates an idle owner; callers supply endpoint readiness and dial intent separately.
+    /// - Parameters:
+    ///   - config: Retry bounds; defaults to 400 milliseconds through 30 seconds.
+    ///   - connectOnce: Cancellable attempt returning a connection and admission verdict.
+    ///   - onControlFrame: Optional post-admission consumer; never read the control lane separately.
+    ///   - sleep: Cancellable backoff sleeper; defaults to a continuous clock.
     public init(
         config: Config = Config(),
         connectOnce: @escaping ConnectOnce,
@@ -72,13 +65,12 @@ public actor ReconnectOwner {
         }
     }
 
+    /// Authoritative session state from the owned state machine.
     public var state: SessionState { machine.state }
-
+    /// Connection owned by this generation, or nil before admission and after shutdown.
     public var currentConnection: (any PeerConnection)? { connection }
 
-    /// The full attributed transition history (contract 4.4, 8.1). The soak
-    /// suite's "no sudden reconnects" property is literally: every exit from
-    /// ready in this log names a cause the scenario injected.
+    /// Bounded recent transition history, attributing every exit from ready to an event.
     public var transitionLog: [SessionTransition] { machine.transitions }
 
     /// Live state feed for UI; yields the current state immediately.
@@ -94,14 +86,20 @@ public actor ReconnectOwner {
         }
     }
 
+    /// Updates readiness and may release the deferred dial intent.
+    /// - Parameter ready: Whether the endpoint permits new dials.
     public func endpointReady(_ ready: Bool) async {
         await apply(machine.handle(.endpointReadyChanged(ready)))
     }
 
+    /// Applies caller intent through the single state-machine mutation path.
+    /// - Parameter intent: Automatic joining or explicit replacement intent.
     public func trigger(_ intent: DialIntent) async {
         await apply(machine.handle(.dialRequested(intent)))
     }
 
+    /// Terminally stops this owner; recovery requires a new owner instance.
+    /// - Parameter reason: Attributed close cause; defaults to an explicit user stop.
     public func stop(reason: CloseReason = .userRequested) async {
         await apply(machine.handle(.closeRequested(reason)))
     }

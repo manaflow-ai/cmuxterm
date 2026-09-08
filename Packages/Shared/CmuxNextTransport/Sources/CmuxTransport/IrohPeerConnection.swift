@@ -8,8 +8,12 @@ import IrohLib
 /// the peer opens that name. This mirrors how the host code already consumes
 /// lanes (it awaits "ctl" first, then named lanes on demand).
 public actor IrohPeerConnection: PeerConnection {
+    /// Determines which peer opens named lanes and which waits for them.
     public enum Role: Sendable {
-        case dialer, acceptor
+        /// Opens a stream when a named lane is first requested.
+        case dialer
+        /// Waits for the remote peer to open the requested named lane.
+        case acceptor
     }
 
     static let laneOpenType = "lane.open"
@@ -46,6 +50,11 @@ public actor IrohPeerConnection: PeerConnection {
     static let inboundOpenDeadline: Duration = .seconds(10)
     private static let laneWaitDeadline: Duration = .seconds(10)
 
+    /// Wraps established QUIC; call ``start()`` to begin accepting incoming streams.
+    /// - Parameters:
+    ///   - connection: Authenticated QUIC connection whose lifecycle this actor owns.
+    ///   - role: Named-lane opening role agreed by dial/accept plumbing.
+    ///   - handshakeSleep: Cancellable stream-open deadline sleeper; defaults to a continuous clock.
     public init(
         connection: Connection,
         role: Role,
@@ -81,6 +90,7 @@ public actor IrohPeerConnection: PeerConnection {
     /// handshake; admission judges grants against THIS (contract 3.5).
     public var authenticatedRemoteKey: Data? { remoteKey }
 
+    /// Whether local shutdown or the underlying QUIC close has made the connection terminal.
     public var isClosed: Bool {
         closedFlag || connection.closeReason() != nil
     }
@@ -150,6 +160,9 @@ public actor IrohPeerConnection: PeerConnection {
         }
     }
 
+    /// Returns an existing lane, opens one as dialer, or waits boundedly as acceptor.
+    /// - Parameter name: Logical lane name, subject to the per-connection lane cap.
+    /// - Returns: The named lane, or an ended lane after failure, timeout, or closure.
     public func lane(_ name: String) async -> any TransportLane {
         if let existing = lanes[name] { return existing }
         if closedFlag {

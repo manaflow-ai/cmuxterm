@@ -5,8 +5,11 @@ public struct TransportClient: Sendable {
     /// Creates the stateless TransportClient operation value.
     public init() {}
 
+    /// Single-phase admission verdict, distinct from a transport failure thrown by connect.
     public enum ConnectOutcome: Sendable, Equatable {
+        /// Host accepted the peer and assigned a nonempty session identifier.
         case admitted(sessionID: String)
+        /// Host refused admission with a recognized, typed denial code.
         case denied(DenialCode)
     }
 
@@ -14,6 +17,12 @@ public struct TransportClient: Sendable {
     /// cancelled FFI lane read is explicitly woken by closing the connection;
     /// this keeps caller deadlines effective even when the underlying future
     /// does not observe Swift task cancellation on its own.
+    /// - Parameters:
+    ///   - connection: Established substrate connection owned by this attempt.
+    ///   - identity: Local identity whose public fields enter the hello.
+    ///   - grant: Host-signed admission grant for this identity.
+    /// - Returns: Successful admission or an explicit host denial.
+    /// - Throws: Cancellation, send failure, or an absent or malformed admission reply.
     #if compiler(>=6.2)
     @concurrent
     #endif

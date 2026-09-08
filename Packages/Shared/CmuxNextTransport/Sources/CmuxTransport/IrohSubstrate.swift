@@ -9,6 +9,7 @@ public struct IrohSubstrate: Sendable {
     /// Creates the stateless IrohSubstrate operation value.
     public init() {}
 
+    /// ALPN bytes matching the protocol identifier used by the admission exchange.
     public var alpn: Data { Data(Frame.protocolIdentifier.utf8) }
 
     /// Build and bind an endpoint whose network identity IS the peer identity
@@ -16,6 +17,11 @@ public struct IrohSubstrate: Sendable {
     /// side's substrate-authenticated key equals `identity.publicKeyData`.
     /// `minimalLoopback` binds to 127.0.0.1 with no relays and no discovery,
     /// for in-process live-QUIC tests; the relay-fleet configuration is P1e.
+    /// - Parameters:
+    ///   - identity: Signing key to use as the endpoint's network identity.
+    ///   - minimalLoopback: Whether to bind only loopback for isolated tests.
+    /// - Returns: A bound endpoint; the caller owns its shutdown.
+    /// - Throws: Identity configuration or endpoint bind errors.
     #if compiler(>=6.2)
     @concurrent
     #endif
@@ -49,10 +55,18 @@ public struct IrohSubstrate: Sendable {
     /// (make-before-break). Never removeRelay first: remove cancels the
     /// active relay immediately and severs every session riding it.
     public struct RelayAccess: Sendable {
+        /// Relay endpoint URL.
         public var url: String
+        /// Optional relay QUIC port override; nil preserves the library default.
         public var quicPort: UInt16?
+        /// Optional secret admission token; nil supports modes without client credentials.
         public var authToken: String?
 
+        /// Describes one relay entry without connecting to it.
+        /// - Parameters:
+        ///   - url: Relay endpoint URL.
+        ///   - quicPort: Optional QUIC port override; defaults to the library's choice.
+        ///   - authToken: Optional bearer token; defaults to no client credential.
         public init(url: String, quicPort: UInt16? = nil, authToken: String? = nil) {
             self.url = url
             self.quicPort = quicPort
@@ -62,6 +76,11 @@ public struct IrohSubstrate: Sendable {
 
     /// Relay-enabled endpoint (P1e): identity-seeded like the loopback
     /// variant, but with a custom relay map pointing at our fleet.
+    /// - Parameters:
+    ///   - identity: Signing key to use as the endpoint's network identity.
+    ///   - relays: Complete initial relay map, including any required credentials.
+    /// - Returns: A bound endpoint; relay-online readiness is a separate observation.
+    /// - Throws: Invalid identity, relay configuration, or endpoint bind errors.
     #if compiler(>=6.2)
     @concurrent
     #endif
@@ -146,6 +165,12 @@ public struct IrohSubstrate: Sendable {
         return EndpointAddr(id: endpoint.id(), relayUrl: nil, addresses: addresses)
     }
 
+    /// Establishes QUIC and starts lane acceptance with cancellation forwarded to the FFI attempt.
+    /// - Parameters:
+    ///   - endpoint: Bound local endpoint, owned by the caller.
+    ///   - addr: Remote identity and current direct/relay routing hints.
+    /// - Returns: A dialer-side connection; application admission has not run yet.
+    /// - Throws: Cancellation or an underlying connection error.
     #if compiler(>=6.2)
     @concurrent
     #endif

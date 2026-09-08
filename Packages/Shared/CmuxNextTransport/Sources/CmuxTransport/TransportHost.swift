@@ -5,13 +5,14 @@ import Foundation
 /// against `PeerConnection`, so the same host logic serves loopback today and
 /// the iroh / tailnet substrates in P1; only the dial/accept plumbing differs.
 public actor TransportHost {
-    /// every admission and renewal must carry that same account ID; returning
+    /// Supplies the account every admission and renewal must carry; returning
     /// nil fails closed as ``DenialCode/accountMismatch``.
     public typealias AccountIDProvider = @Sendable () async -> String?
     /// Durable hook for explicit grant revocations. The host awaits this
     /// callback before returning so a process restart cannot forget a revoke.
     public typealias GrantRevocationHandler = @Sendable (String) async -> Void
 
+    /// Frame echo lane used by transport validation harnesses.
     public static let echoLaneName = "echo"
     /// The chat fan-out lane: frames from one admitted peer forward to every
     /// other admitted peer, the same shape as terminal streams fanning out.
@@ -46,8 +47,19 @@ public actor TransportHost {
     /// close is awaited. Only the reservation owner may install a session.
     var admissionReservations: [SessionKey: UInt64] = [:]
     var admissionReservationCounter: UInt64 = 0
+    /// Admission, denial, closure, and renewal totals for this host lifetime.
     public internal(set) var counters = TransportCounters()
 
+    /// Creates a host with explicit trust, revocation, and time dependencies.
+    /// - Parameters:
+    ///   - verifier: Offline verifier containing the pinned signing public key.
+    ///   - expiryGraceSeconds: Renewal grace after expiry; defaults to one day.
+    ///   - expiryWarningSeconds: Pre-expiry warning window; defaults to one hour.
+    ///   - epochNow: Unix-time source; defaults to the system wall clock.
+    ///   - accountIDProvider: Current account source; nil omits account binding for harnesses.
+    ///   - initialRevokedGrantIDs: Durable denylist restored before accepting peers.
+    ///   - onGrantRevoked: Awaited persistence hook; nil keeps revocations in memory only.
+    ///   - handshakeSleep: Cancellable hello-deadline sleeper; defaults to a continuous clock.
     public init(
         verifier: GrantVerifier,
         expiryGraceSeconds: Int64 = 86_400,
@@ -72,6 +84,8 @@ public actor TransportHost {
         self.revokedGrantIDs = initialRevokedGrantIDs
     }
 
+    /// Denies future admission, awaits persistence, and closes sessions using this grant.
+    /// - Parameter id: Grant revocation handle; never evicted to admit a newer handle.
     public func revokeGrant(id: String) async {
         if TransportDebugLog.enabled {
             TransportDebugLog.host.notice(
@@ -126,8 +140,10 @@ public actor TransportHost {
         return true
     }
 
+    /// Number of registered sessions before the next closed-session reap.
     public var sessionCount: Int { sessions.count }
 
+    /// Registered device identifiers in unspecified order; multiple app identities may repeat one.
     public var sessionDeviceIDs: [String] { sessions.keys.map(\.deviceID) }
 
     /// Number of admitted sessions whose chat service has finished registering.
@@ -180,6 +196,9 @@ public actor TransportHost {
         return reaped
     }
 
+    /// Reads the session currently registered for a device/app pair.
+    /// - Parameter key: Supersession identity to look up.
+    /// - Returns: A snapshot, or nil when no session is registered for this key.
     public func session(for key: SessionKey) -> ActiveSession? {
         sessions[key]
     }
@@ -262,6 +281,14 @@ public actor TransportHost {
         return expiry <= now
     }
 
+    /// Stores a nonexpired credential for replay and attempts immediate control-lane delivery.
+    /// - Parameters:
+    ///   - deviceID: Destination's durable device identifier.
+    ///   - appIdentity: Destination's app identity.
+    ///   - url: Relay URL to which the token is scoped.
+    ///   - token: Secret credential; tokens with a known past expiry are refused.
+    ///   - now: Optional Unix time; defaults to the host's current verification clock.
+    /// - Returns: True only after sending to the still-current session; false may still cache it.
     public func pushRelayCredential(
         deviceID: String, appIdentity: String, url: String, token: String,
         now: Int64? = nil

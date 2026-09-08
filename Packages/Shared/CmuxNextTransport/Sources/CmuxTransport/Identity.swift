@@ -3,6 +3,7 @@ import CryptoKit
 
 /// Errors raised when persisted identity key material cannot be parsed.
 public enum PeerIdentityError: Error, Equatable, Sendable {
+    /// Persisted bytes were not a valid Ed25519 private key.
     case invalidPrivateKey
 }
 
@@ -22,10 +23,15 @@ public struct PeerIdentity: Sendable, Equatable {
     /// admission credential by itself: it is self-reported, so enforcement
     /// stays with the key the wire authenticates.
     public let deviceID: String
+    /// Raw private signing key; persist securely and never include it in diagnostics.
     public let privateKeyData: Data
     private let publicKeyDataStorage: Data
 
     /// Creates an identity after validating its private key bytes.
+    /// - Parameters:
+    ///   - appIdentity: App-scoped identity, such as its bundle identifier.
+    ///   - deviceID: Durable device identifier shared by its app identities.
+    ///   - privateKeyData: Existing raw Ed25519 signing key.
     /// - Throws: ``PeerIdentityError/invalidPrivateKey`` when the bytes are
     ///   truncated or otherwise not a Curve25519 signing key.
     public init(
@@ -51,6 +57,11 @@ public struct PeerIdentity: Sendable, Equatable {
         self.publicKeyDataStorage = publicKeyData
     }
 
+    /// Generates a fresh Ed25519 identity without persisting it.
+    /// - Parameters:
+    ///   - appIdentity: App-scoped identity associated with the key.
+    ///   - deviceID: Durable device identifier associated with the key.
+    /// - Returns: A new identity whose private bytes must be stored securely.
     public static func generate(appIdentity: String, deviceID: String) -> PeerIdentity {
         let key = Curve25519.Signing.PrivateKey()
         return PeerIdentity(
@@ -63,6 +74,10 @@ public struct PeerIdentity: Sendable, Equatable {
     /// Returns the validated public key corresponding to this identity.
     public var publicKeyData: Data { publicKeyDataStorage }
 
+    /// Signs bytes using this identity's validated Ed25519 private key.
+    /// - Parameter message: Exact transcript bytes to authenticate.
+    /// - Returns: The detached Ed25519 signature.
+    /// - Throws: A cryptographic key or signing error.
     public func sign(_ message: Data) throws -> Data {
         try Curve25519.Signing.PrivateKey(rawRepresentation: privateKeyData)
             .signature(for: message)
@@ -74,9 +89,14 @@ public struct PeerIdentity: Sendable, Equatable {
 /// ID across installs (1.5), and lands in the on-device phase, where it can
 /// actually be tested against a real Keychain.
 public protocol IdentityStore: Sendable {
+    /// Loads the durable app identity or atomically creates it when absent.
+    /// - Parameter appIdentity: App-scoped identifier within this device's store.
+    /// - Returns: The same identity on subsequent successful loads.
+    /// - Throws: A storage or key-validation error.
     func loadOrCreate(appIdentity: String) async throws -> PeerIdentity
 }
 
+/// Actor-isolated identity store for tests and ephemeral harness devices.
 public actor InMemoryIdentityStore: IdentityStore {
     private let deviceID: String
     private var identities: [String: PeerIdentity] = [:]
@@ -84,10 +104,15 @@ public actor InMemoryIdentityStore: IdentityStore {
     /// One store instance models one device: every app identity it vends
     /// shares the same device ID (contract 1.5). A unique default prevents
     /// independent test stores from accidentally superseding one another.
+    /// - Parameter deviceID: Device represented by this store; defaults to a unique UUID.
     public init(deviceID: String = UUID().uuidString.lowercased()) {
         self.deviceID = deviceID
     }
 
+    /// Returns the cached identity or generates it once for this store's lifetime.
+    /// - Parameter appIdentity: App-scoped identifier within this ephemeral device.
+    /// - Returns: The cached identity; nothing is written to persistent storage.
+    /// - Throws: This implementation does not throw.
     public func loadOrCreate(appIdentity: String) async throws -> PeerIdentity {
         if let existing = identities[appIdentity] { return existing }
         let identity = PeerIdentity.generate(appIdentity: appIdentity, deviceID: deviceID)
