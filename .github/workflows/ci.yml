@@ -707,6 +707,7 @@ jobs:
             -clonedSourcePackagesDirPath "$PWD/.ci-source-packages" \
             -disableAutomaticPackageResolution \
             -destination "platform=macOS" \
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$(inherited) CMUX_CI_APP_HOST_ISOLATION_REQUIRED" \
             build-for-testing
 
       - name: Run Ghostty split-theme appearance regression
