@@ -57,9 +57,16 @@ extension CMUXCLI {
         fallbackMessage: String? = nil
     ) -> (signal: String, messages: [String]) {
         let nestedObjects = abnormalStopNestedObjects(from: object)
-        let reason = nestedObjects.lazy.flatMap {
-            abnormalStopStrings(in: $0, keys: Self.abnormalStopReasonKeys)
-        }.first
+        let reason: String? = {
+            for key in Self.abnormalStopReasonKeys {
+                for nestedObject in nestedObjects {
+                    if let value = abnormalStopStrings(in: nestedObject, keys: [key]).first {
+                        return value
+                    }
+                }
+            }
+            return nil
+        }()
         let signal = ["Stop", reason].compactMap { $0 }.joined(separator: " ")
         let messages = nestedObjects.flatMap {
             abnormalStopStrings(in: $0, keys: Self.abnormalStopMessageKeys)

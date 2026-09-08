@@ -486,7 +486,7 @@ struct ClaudeHookLifecycleCleanupTests {
 
     @Test func stopPayloadUsesHighestPriorityReason() {
         let inputs = CMUXCLI(args: []).abnormalStopPayloadInputs(from: [
-            "terminationReason": "capacity", "type": "completed", "kind": "success",
+            "type": "completed", "payload": ["terminationReason": "capacity", "kind": "success"],
         ])
         #expect(inputs.signal == "Stop capacity")
     }
