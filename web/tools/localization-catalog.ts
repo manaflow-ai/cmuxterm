@@ -213,7 +213,7 @@ export function syntaxTokens(value: string): {
 function richTextTagContentShape(value: string): string[] {
   const shapes: string[] = [];
   const stack: { name: string; hasText: boolean; index: number }[] = [];
-  const tagPattern = /<\/?([a-z][\w-]*)(?:\s[^>]*)?>/giu;
+  const tagPattern = /<\/?([a-z][\w-]*)(?:\s[^>]*?)?\s*\/?>/giu;
   let cursor = 0;
 
   for (const match of value.matchAll(tagPattern)) {
@@ -223,7 +223,7 @@ function richTextTagContentShape(value: string): string[] {
     }
 
     const token = match[0];
-    const name = match[1];
+    const name = match[1].toLowerCase();
     if (token.startsWith("</")) {
       const frame = stack.pop();
       if (!frame || frame.name !== name) return [];
@@ -231,7 +231,7 @@ function richTextTagContentShape(value: string): string[] {
       if (frame.hasText && stack.length > 0) {
         stack[stack.length - 1].hasText = true;
       }
-    } else if (!token.endsWith("/>") ) {
+    } else if (!token.endsWith("/>")) {
       const index = shapes.length;
       shapes.push(`${name}:empty`);
       stack.push({ name, hasText: false, index });

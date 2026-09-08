@@ -189,6 +189,18 @@ describe("website message catalog parity", () => {
     ]);
   });
 
+  test("rejects mixed-case rich-text tags that lose translated link text", async () => {
+    const issues = await validateCatalog(
+      "de",
+      { message: "Open <Link>guide</link><br/>." },
+      { message: "Öffne <Link></link><br/>." },
+    );
+
+    expect(issues.map(({ path, message }) => [path, message])).toEqual([
+      ["message", "rich-text tag mismatch"],
+    ]);
+  });
+
   test("keeps the nine release locales complete and translated", async () => {
     const english = englishMessages as unknown as Json;
     const catalogs = messagesByLocale as unknown as Record<string, Json>;
