@@ -4,6 +4,24 @@ import Testing
 
 @Suite(.serialized)
 struct CLICodexHookTimeoutRegressionTests {
+    @Test func codexPermissionPromptProtocolEndToEnd() throws {
+        let cliPath = try bundledCLIPath()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cmux-codex-protocol-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let script = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("tests/test_codex_permission_prompt_notification.py")
+        var environment = codexHookTestEnvironment(root: root, codexHome: root.appendingPathComponent(".codex"))
+        environment["CMUX_CLI_BIN"] = cliPath
+        environment["CMUX_AGENT_HOOK_STATE_DIR"] = root.appendingPathComponent("hook-state").path
+        let result = runCodexHookProcess(executablePath: "/usr/bin/python3", arguments: [script.path],
+            environment: environment, timeout: 120)
+        #expect(result.status == 0, Comment(rawValue: result.stdout + result.stderr))
+        #expect(result.stdout.contains("PASS: codex permission prompts notify, acknowledge, and resolve"))
+    }
+
     @Test func codexHookInstallReplacesSynchronousBundledHook() throws {
         let cliPath = try bundledCLIPath()
         let root = FileManager.default.temporaryDirectory
