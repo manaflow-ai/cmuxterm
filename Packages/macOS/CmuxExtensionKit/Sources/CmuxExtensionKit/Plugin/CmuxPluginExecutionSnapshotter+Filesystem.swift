@@ -277,6 +277,9 @@ extension CmuxPluginExecutionSnapshotter {
                       ),
                       values.isDirectory == true,
                       values.isSymbolicLink != true,
+                      !activeSnapshotStagingRoots.contains(where: {
+                          canonicalURL($0) == canonicalURL(entry)
+                      }),
                       let attributes = try? fileManager.attributesOfItem(atPath: entry.path),
                       let modified = attributes[.modificationDate] as? Date else {
                     continue

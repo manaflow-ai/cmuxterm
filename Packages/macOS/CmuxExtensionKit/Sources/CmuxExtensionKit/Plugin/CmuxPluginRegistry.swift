@@ -162,7 +162,12 @@ public actor CmuxPluginRegistry {
         // Actor methods are reentrant at each loader/store await. A newer
         // reload owns the commit if calls overlap; an older scan must never
         // replace its manifest, grant, or token projection afterward.
-        guard generation == reloadGeneration else { return snapshot() }
+        guard generation == reloadGeneration else {
+            // A newer reload owns the commit. Reconcile against the newest
+            // generation before returning so callers never receive a stale
+            // pre-commit view after an approval or enablement write.
+            return await reload()
+        }
         report = loadedReport
         permissionStoreLoadFailure = loadedPermissionStoreFailure
         tokensByID = nextTokens

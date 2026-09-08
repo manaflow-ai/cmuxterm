@@ -97,6 +97,7 @@ public actor CmuxPluginExecutionSnapshotter {
     let fileManager: FileManager
     let artifactCopier: CmuxPluginBoundedArtifactCopier
     var openEntrypointDescriptors: Set<Int32> = []
+    var activeSnapshotStagingRoots: Set<URL> = []
     static let orphanSnapshotAge: TimeInterval = 24 * 60 * 60
     static let maximumOrphanSnapshotCount = 2
 
@@ -165,6 +166,13 @@ public actor CmuxPluginExecutionSnapshotter {
             removeStagingRoot(stagingRoot)
             throw CmuxPluginExecutionSnapshotError.copyFailed
         }
+
+        // Pruning runs in an unstructured initialization task and can execute
+        // while the loader below is suspended. Mark this staging root active
+        // before that suspension so it cannot be mistaken for an orphan.
+        let activeStagingRoot = canonicalURL(stagingRoot)
+        activeSnapshotStagingRoots.insert(activeStagingRoot)
+        defer { activeSnapshotStagingRoots.remove(activeStagingRoot) }
 
         guard let declaredEntrypoint = plugin.manifest.entrypoint else {
             removeStagingRoot(stagingRoot)
