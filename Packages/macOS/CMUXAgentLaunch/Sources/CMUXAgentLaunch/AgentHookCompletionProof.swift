@@ -16,6 +16,16 @@ public struct AgentHookCompletionProof {
         self.classifier = classifier
     }
 
+    /// Returns whether a hook payload carries an explicit failure witness.
+    ///
+    /// This is separate from ``provesNormalCompletion`` because callers that
+    /// forward terminal output to the stall classifier need to preserve the
+    /// structured-evidence bit even when the assistant message is absent or
+    /// itself is a provider failure banner.
+    public func containsStructuredFailureEvidence(payload: [String: Any]?) -> Bool {
+        agentHookPayloadContainsStructuredFailure(payload)
+    }
+
     /// Returns whether a stop hook proves a healthy assistant response.
     ///
     /// - Parameters:

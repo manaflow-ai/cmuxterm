@@ -21,6 +21,15 @@ extension CMUXCLI {
         )
     }
 
+    /// Preserves Claude's explicit hook failure witness for the PTY classifier.
+    /// A failed completion proof alone is not sufficient: an absent assistant
+    /// message must remain fail-closed rather than being treated as evidence.
+    func claudeHookContainsStructuredFailureEvidence(
+        payload: [String: Any]?
+    ) -> Bool {
+        Self.completionProof.containsStructuredFailureEvidence(payload: payload)
+    }
+
     /// Returns true only when a Codex stop payload proves a healthy assistant
     /// response. Codex can echo a safeguard or quota banner as
     /// `last_assistant_message` without emitting a transcript `error` event,

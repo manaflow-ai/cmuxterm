@@ -28031,6 +28031,9 @@ struct CMUXCLI {
                             assistantMessage: claudeAssistantMessageFromHookPayload(parsedInput.object),
                             payload: parsedInput.rawObject ?? parsedInput.object
                         ),
+                    hookFailureEvidence: claudeHookContainsStructuredFailureEvidence(
+                        payload: parsedInput.rawObject ?? parsedInput.object
+                    ),
                     sessionID: parsedInput.sessionId,
                     turnID: parsedInput.turnId
                 )
