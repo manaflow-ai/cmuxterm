@@ -1178,6 +1178,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// History may record user actions once a window exists, even while restore
     /// is waiting for external readiness. Actual restoration has its own phase.
     private var didRegisterInitialMainWindow = false
+    /// Startup restore can be deferred while the initial window remains
+    /// interactive. The initial bootstrap events are filtered and committed
+    /// immediately, while this sentinel prevents later windows from trying to
+    /// re-register the same readiness callback.
+    private var startupSessionRestoreIsDeferred = false
+    private var startupRestoreDeferredWindowId: UUID?
     var didAttemptStartupSessionRestore = false
     var isApplyingSessionRestore = false {
         didSet {
@@ -4000,7 +4006,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let didApplyStartupSessionRestore = attemptStartupSessionRestoreIfNeeded(
             primaryWindow: primaryWindow
         )
-        if didApplyStartupSessionRestore, let primaryWindowId {
+        if startupSessionRestoreIsDeferred,
+           startupRestoreDeferredWindowId == nil,
+           let primaryWindowId {
+            startupRestoreDeferredWindowId = primaryWindowId
+            let bootstrapWorkspaceId = contextForMainTerminalWindow(primaryWindow)?
+                .tabManager.tabs.first?.id
+            vaultHistoryEventLog?.commitWindowCreation(
+                windowId: primaryWindowId,
+                excludingBootstrapWorkspaceId: bootstrapWorkspaceId
+            )
+        } else if didApplyStartupSessionRestore, let primaryWindowId {
             // The initial window is constructed before startup restore begins,
             // so its staged open/workspace events must be discarded once the
             // persisted snapshot is applied. Restore completion can make the
@@ -4029,10 +4045,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @discardableResult
     private func attemptStartupSessionRestoreIfNeeded(primaryWindow: NSWindow) -> Bool {
         guard !didAttemptStartupSessionRestore else { return false }
+        guard !startupSessionRestoreIsDeferred else { return false }
         if startupSessionRestoreDeferral({ [weak self, weak primaryWindow] in
             guard let self, let primaryWindow else { return }
+            self.startupSessionRestoreIsDeferred = false
+            self.startupRestoreDeferredWindowId = nil
             self.attemptStartupSessionRestoreAndSaveIfNeeded(primaryWindow: primaryWindow)
         }) {
+            startupSessionRestoreIsDeferred = true
             return false
         }
         didAttemptStartupSessionRestore = true
@@ -6790,17 +6810,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if !didClose, !recordHistory {
             closedWindowHistorySuppressedWindowIds.remove(windowId)
         }
+        if didClose, startupRestoreDeferredWindowId == windowId {
+            startupRestoreDeferredWindowId = nil
+        }
         return didClose
     }
 
     func discardMainWindowWithoutClosedHistory(windowId: UUID) {
         guard let window = mainWindowForClose(windowId: windowId) else {
             vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
+            if startupRestoreDeferredWindowId == windowId {
+                startupRestoreDeferredWindowId = nil
+            }
             return
         }
         closedWindowHistorySuppressedWindowIds.insert(windowId)
         if closeMainWindowWithoutInteractiveVeto(window) {
             vaultHistoryEventLog?.discardWindowCreation(windowId: windowId)
+            if startupRestoreDeferredWindowId == windowId {
+                startupRestoreDeferredWindowId = nil
+            }
         } else {
             closedWindowHistorySuppressedWindowIds.remove(windowId)
         }

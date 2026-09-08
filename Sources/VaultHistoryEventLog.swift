@@ -70,9 +70,19 @@ final class VaultHistoryEventLog {
     }
 
     /// Publishes the original event snapshots exactly once after the window is retained.
-    func commitWindowCreation(windowId: UUID) {
+    ///
+    /// A deferred startup restore may need to suppress only the initial
+    /// bootstrap open/create pair while retaining user actions that happened
+    /// before the readiness callback completed.
+    func commitWindowCreation(windowId: UUID, excludingBootstrapWorkspaceId: UUID? = nil) {
         guard let events = pendingWindowEvents.removeValue(forKey: windowId) else { return }
         for event in events {
+            if let excludingBootstrapWorkspaceId,
+               (event.kind == .windowOpened
+                || (event.kind == .workspaceCreated
+                    && event.subject.workspaceId == excludingBootstrapWorkspaceId)) {
+                continue
+            }
             record(event)
         }
     }
