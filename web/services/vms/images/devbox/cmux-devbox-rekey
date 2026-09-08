@@ -1,0 +1,57 @@
+#!/bin/sh
+# Replace a guest's SSH host keys as one recoverable operation. Both the bake
+# and the clone supervisor execute this file; a failed replacement must never
+# bind a clone to the builder's keys or leave sshd without its previous keys.
+set -eu
+SSH_DIR=/etc/ssh
+staging=$(mktemp -d "$SSH_DIR/.cmux-rekey.XXXXXX")
+replacing=0
+
+rollback() {
+  while IFS= read -r name; do
+    if [ -e "$staging/old/$name" ]; then
+      cp -p "$staging/old/$name" "$SSH_DIR/$name" || return 1
+    else
+      rm -f "$SSH_DIR/$name" || return 1
+    fi
+  done < "$staging/keys"
+}
+
+cleanup() {
+  status=$?
+  trap - EXIT
+  if [ "$status" -ne 0 ] && [ "$replacing" = 1 ]; then
+    if ! rollback; then
+      echo "cmux-devbox-rekey: rollback failed; original keys retained in $staging/old" >&2
+      exit 1
+    fi
+    if [ -d /run/systemd/system ]; then
+      systemctl try-restart ssh >/dev/null 2>&1 || true
+    fi
+  fi
+  rm -rf "$staging"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+mkdir -p "$staging/etc/ssh" "$staging/old"
+ssh-keygen -A -f "$staging" >/dev/null
+: > "$staging/keys"
+for key in "$staging"/etc/ssh/ssh_host_*_key; do
+  [ -s "$key" ] && [ -s "$key.pub" ]
+  name=$(basename "$key")
+  printf '%s\n%s\n' "$name" "$name.pub" >> "$staging/keys"
+  for file in "$name" "$name.pub"; do
+    if [ -e "$SSH_DIR/$file" ]; then cp -p "$SSH_DIR/$file" "$staging/old/$file"; fi
+  done
+done
+[ -s "$staging/keys" ]
+
+# Every backup exists before the first replacement. A move or sshd restart
+# failure restores the entire set, including public/private key pairing.
+replacing=1
+while IFS= read -r name; do
+  mv -f "$staging/etc/ssh/$name" "$SSH_DIR/$name"
+done < "$staging/keys"
+if [ -d /run/systemd/system ]; then systemctl try-restart ssh; fi

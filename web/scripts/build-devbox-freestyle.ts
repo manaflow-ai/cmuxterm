@@ -245,6 +245,7 @@ try {
 
   // The machine's name, before anything records it (host keys, caches, the
   // daemon, the journal): see the identity contract in the header.
+  await put("cmux-devbox-rekey", "/usr/local/bin/cmux-devbox-rekey", 0o755);
   await step("identity", devboxIdentityInstallCommand());
 
   await step(

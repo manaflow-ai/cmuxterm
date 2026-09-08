@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { devboxDir, devboxSshHostKeyRegenerateCommand } from "../scripts/devbox-image-common";
@@ -49,9 +49,12 @@ function runRekey(owner: "bake" | "supervisor", failure: string) {
     `);
     // Run the real shell logic against disposable filesystem paths and
     // fault-injected commands; no root access or host sshd changes are needed.
-    const command = rekeyCommand(owner)
+    const redirect = (source: string) => source
       .replace(/(\$staging"?)?\/etc\/ssh/g, (match, staging) => staging ? match : ssh)
       .replaceAll("/run/systemd/system", systemd);
+    const helperPath = path.join(devboxDir, "cmux-devbox-rekey");
+    if (existsSync(helperPath)) executable("cmux-devbox-rekey", redirect(readFileSync(helperPath, "utf8")));
+    const command = redirect(rekeyCommand(owner)).replaceAll("/usr/local/bin/cmux-devbox-rekey", path.join(bin, "cmux-devbox-rekey"));
     const result = spawnSync("sh", ["-c", command], {
       encoding: "utf8",
       timeout: 5000,

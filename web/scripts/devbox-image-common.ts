@@ -35,6 +35,7 @@ export const DEVBOX_TEMPLATE_FILES = [
   "chrome-managed-policy.json",
   "cmux-bashrc",
   "cmux-devbox-boot",
+  "cmux-devbox-rekey",
   "cmux-motd",
   "cmux-terminfo.sh",
   "cmux-terminfo.src",
@@ -378,15 +379,7 @@ export function devboxHostsAliasRewriteCommand(hostname = DEVBOX_HOSTNAME, hosts
  * alone where nothing does. cmux-devbox-boot does the same on every clone.
  */
 export function devboxSshHostKeyRegenerateCommand(): string {
-  return [
-    'staging="$(mktemp -d /etc/ssh/.cmux-rekey.XXXXXX)"',
-    'mkdir -p "$staging/etc/ssh"',
-    'ssh-keygen -A -f "$staging" >/dev/null',
-    '[ -n "$(ls "$staging"/etc/ssh/ssh_host_*_key 2>/dev/null)" ]',
-    'for key in "$staging"/etc/ssh/ssh_host_*_key; do mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/ || exit 1; done',
-    'rm -rf "$staging"',
-    "{ [ ! -d /run/systemd/system ] || systemctl try-restart ssh; }",
-  ].join(" && ");
+  return "/usr/local/bin/cmux-devbox-rekey";
 }
 
 /**

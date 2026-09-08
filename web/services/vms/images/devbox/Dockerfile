@@ -32,7 +32,7 @@ FROM ubuntu:24.04
 # Cache-buster: bump the date to force remote builders past stale layer
 # caches (a remote builder served stale layers for chatmux on 2026-08-21 and
 # 2026-08-25). Also the image version /etc/cmux/image-stamp carries.
-ENV CMUX_IMAGE_EPOCH=2026-09-07-r1
+ENV CMUX_IMAGE_EPOCH=2026-09-08-r1
 
 ENV LANG=C.UTF-8 \
     DEBIAN_FRONTEND=noninteractive
@@ -339,6 +339,8 @@ RUN bash -n /etc/cmux/agent-config.sh \
 # by the driver at create time, never baked). Without systemd it also runs the
 # desktop supervisor as the work user.
 COPY cmux-devbox-boot /usr/local/bin/cmux-devbox-boot
+COPY cmux-devbox-rekey /usr/local/bin/cmux-devbox-rekey
+RUN chmod 0755 /usr/local/bin/cmux-devbox-rekey
 RUN chmod 0755 /usr/local/bin/cmux-devbox-boot \
   && sh -n /usr/local/bin/cmux-devbox-boot
 

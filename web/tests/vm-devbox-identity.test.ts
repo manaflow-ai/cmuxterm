@@ -9,7 +9,6 @@ import {
   devboxIdentityCheckCommand,
   devboxIdentityInstallCommand,
   devboxProviderResidueCommand,
-  devboxSshHostKeyRegenerateCommand,
 } from "../scripts/devbox-image-common";
 import { DEVBOX_HOSTNAME, DEVBOX_HOSTNAME_LOOPBACK, DEVBOX_PROVIDER_HOSTNAME } from "../services/vms/images/identity";
 
@@ -139,27 +138,6 @@ describe("devbox identity contract (services/vms/images/identity.ts)", () => {
     expect(derive).toContain("assertIdentity(`${name}: derived snapshot ${imageId}`, measured);");
   });
 
-  test("the boot supervisor gives every clone its own SSH host keys, off the daemon's start path", () => {
-    expect(devboxBoot).toContain("rekey_ssh_host() {");
-    // Staged: the new keys exist before the old ones are replaced, a failed
-    // generation keeps the previous keys and says so, sshd restarts last.
-    expect(devboxBoot).toContain('ssh-keygen -A -f "$staging"');
-    expect(devboxBoot).toContain('mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/');
-    expect(devboxBoot).toContain("ssh host key generation failed; keeping the existing keys");
-    expect(devboxBoot).not.toContain("rm -f /etc/ssh/ssh_host_*_key");
-    expect(devboxBoot).toContain("systemctl try-restart ssh");
-    const regenerate = devboxSshHostKeyRegenerateCommand();
-    expect(regenerate).toContain('ssh-keygen -A -f "$staging"');
-    expect(regenerate).toContain('mv -f "$key.pub" /etc/ssh/ && mv -f "$key" /etc/ssh/');
-    expect(regenerate).not.toContain("rm -f /etc/ssh/ssh_host_*_key");
-    // Detached: a subshell backgrounds the job and exits, so the loop never
-    // waits on it, the daemon starts in the same tick, and no zombie is left.
-    expect(devboxBoot).toContain("( rekey_ssh_host & )");
-    const wipe = devboxBoot.indexOf('rm -rf "$REMOTE_STATE_DIR"');
-    const rekey = devboxBoot.indexOf("( rekey_ssh_host & )");
-    const bound = devboxBoot.indexOf(`printf '%s\\n' "$id" > "$BOUND_INSTANCE_FILE"`);
-    expect(wipe).toBeGreaterThan(-1);
-    expect(rekey).toBeGreaterThan(wipe);
-    expect(bound).toBeGreaterThan(rekey);
-  });
+  // Rekey failure/rollback and clone readiness are exercised by the shell
+  // harnesses in vm-devbox-rekey.test.ts and vm-devbox-boot.test.ts.
 });

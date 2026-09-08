@@ -62,6 +62,7 @@ const FILE_PIN_CHECKS = [
   ["agent-config.sh", "/etc/cmux/agent-config.sh"],
   ["seed-history", "/etc/cmux/seed-history"],
   ["cmux-devbox-boot", "/usr/local/bin/cmux-devbox-boot"],
+  ["cmux-devbox-rekey", "/usr/local/bin/cmux-devbox-rekey"],
   ["chrome-managed-policy.json", "/etc/opt/chrome/policies/managed/cmux.json"],
 ].map(([source, target]) => `echo '${shaOf(source)}  ${target}' | sha256sum -c -`);
 
