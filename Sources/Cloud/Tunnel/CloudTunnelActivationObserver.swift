@@ -10,14 +10,21 @@ final class CloudTunnelActivationObserver {
 
     /// - Parameters:
     ///   - notificationCenter: Where the Beta Features toggle posts its change.
-    ///   - isStartRefused: The policy's answer, read after every change.
-    ///   - bringDown: Runs when a change leaves the tunnel refused.
+    ///   - isStartRefused: The policy's answer, read at startup and after every change.
+    ///   - bringDown: Runs when the policy refuses.
     init(
         notificationCenter: NotificationCenter = .default,
         isStartRefused: @escaping @Sendable () -> Bool,
         bringDown: @escaping @Sendable () async -> Void
     ) {
         observation = Task {
+            // `notifications(named:)` registers when iteration begins, which
+            // is later than this init returns. Reconcile once first so a
+            // toggle change posted in between is not missed, and a tunnel
+            // that is already refused at startup comes down.
+            if isStartRefused() {
+                await bringDown()
+            }
             let changes = notificationCenter.notifications(named: RightSidebarBetaFeatureSettings.didChangeNotification)
             for await _ in changes {
                 guard isStartRefused() else { continue }

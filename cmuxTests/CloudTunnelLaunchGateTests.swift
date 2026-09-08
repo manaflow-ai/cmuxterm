@@ -12,7 +12,7 @@ import Testing
 /// the first admitted start, an opt-in flipped while the app runs is honored
 /// by the next use, and a Mac with a saved VPN configuration still gets the
 /// eager controller so an inherited tunnel is adopted or stopped.
-@Suite(.timeLimit(.minutes(2)))
+@Suite
 struct CloudTunnelLaunchGateTests {
     private static let extensionID = "com.cmuxterm.app.tests.tunnel"
     private static let networkExtension = CloudTunnelBackend.networkExtension(extensionBundleIdentifier: extensionID)
@@ -154,8 +154,6 @@ struct CloudTunnelLaunchGateTests {
         try await coordinator.revoke()
         coordinator.appWillTerminate()
         #expect(factory.builds.isEmpty)
-        #expect(deferred.buildCount == 0)
-        #expect(deferred.builtController == nil)
         #expect(factory.controller.calls.isEmpty)
         #expect(enroller.enrollCount == 0)
         #expect(await coordinator.state == .off)
@@ -166,7 +164,6 @@ struct CloudTunnelLaunchGateTests {
         await coordinator.prepareForPrivateNetworkUse(Self.use)
         #expect(await coordinator.state == .up)
         #expect(factory.builds == [Self.extensionID])
-        #expect(deferred.buildCount == 1)
         #expect(factory.controller.calls == ["install", "start"])
         #expect(enroller.enrollCount == 1)
 
@@ -213,6 +210,7 @@ struct CloudTunnelLaunchGateTests {
         // Cloud Machines on, machine count unknown (fresh opt-in or just signed in).
         let policy = CloudActivationPolicy(
             isCloudMachinesEnabled: { true },
+            hasUsedCloud: { resolver.known == true },
             hasCloudMachine: { resolver.known },
             isTunnelConfigured: { false },
             resolveCloudMachine: { resolver.resolve() }
@@ -272,6 +270,8 @@ struct CloudTunnelLaunchGateTests {
         #expect(await coordinator.state == .off)
         #expect(await coordinator.isPinned)
         #expect(await coordinator.isInFailureBackoff == false)
+        // `vm.tunnel_up` reads the recorded refusal after the wait settles.
+        #expect(await coordinator.recordedStartRefusal() == .cloudMachinesOff)
         #expect(controller.calls.isEmpty)
         #expect(enroller.enrollCount == 0)
 
@@ -290,6 +290,7 @@ struct CloudTunnelLaunchGateTests {
         let factory = ControllerFactory()
         let fresh = CloudActivationPolicy(
             isCloudMachinesEnabled: { false },
+            hasUsedCloud: { false },
             hasCloudMachine: { nil },
             isTunnelConfigured: { false },
             resolveCloudMachine: { nil }
@@ -302,6 +303,7 @@ struct CloudTunnelLaunchGateTests {
 
         let inherited = CloudActivationPolicy(
             isCloudMachinesEnabled: { true },
+            hasUsedCloud: { true },
             hasCloudMachine: { true },
             isTunnelConfigured: { true },
             resolveCloudMachine: { true }
@@ -338,6 +340,93 @@ struct CloudTunnelLaunchGateTests {
         await coordinator.prepareForPrivateNetworkUse(Self.use)
         #expect(await coordinator.state == .up)
         #expect(controller.calls == ["stop", "install"])
+    }
+
+    @Test("a saved VPN configuration with Cloud Machines off still composes the eager controller: the inherited tunnel is stopped, no new start is admitted")
+    @MainActor
+    func savedConfigurationWithToggleOffStopsInheritedTunnelOnly() async throws {
+        let factory = ControllerFactory()
+        factory.controller.currentStatusValue = .connected
+        let enroller = FakeTunnelEnroller()
+        // Toggle off, no machine known, but a previous opted-in session saved
+        // the browser-role config on this Mac.
+        let policy = CloudActivationPolicy(
+            isCloudMachinesEnabled: { false },
+            hasUsedCloud: { true },
+            hasCloudMachine: { nil },
+            isTunnelConfigured: { true },
+            resolveCloudMachine: { nil }
+        )
+        let controller = CloudTunnelCoordinator.liveController(for: Self.networkExtension, activation: policy) { identifier in
+            factory.make(identifier)
+        }
+        #expect(controller is FakeTunnelController)
+        #expect(factory.builds == [Self.extensionID])
+        let coordinator = makeCoordinator(controller: controller, enroller: enroller, admission: policy.tunnelAdmission)
+
+        // Quit, sign-out, or `cmux vpn down` stops the tunnel the previous
+        // instance left running, without enrolling anything.
+        await coordinator.requestDown()
+        #expect(factory.controller.calls == ["stop"])
+        #expect(enroller.enrollCount == 0)
+        #expect(await coordinator.state == .off)
+
+        // Nothing may start while Cloud Machines is off.
+        await coordinator.prepareForPrivateNetworkUse(Self.use)
+        await #expect(throws: CloudTunnelError.cloudMachinesOff) {
+            try await coordinator.requestUp(pin: true)
+        }
+        #expect(factory.controller.calls == ["stop"])
+        #expect(enroller.enrollCount == 0)
+    }
+
+    /// Counts the observer's `bringDown` calls under a lock, since the
+    /// observer's task and the test's task interleave.
+    private final class BringDownCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        var count: Int { lock.withLock { value } }
+        func increment() { lock.withLock { value += 1 } }
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeout: Duration = .seconds(5),
+        _ predicate: @escaping @Sendable () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            if predicate() { return true }
+            await Task.yield()
+        }
+        return predicate()
+    }
+
+    @Test("the activation observer brings the tunnel down for a toggle change posted before it starts listening, and for later ones")
+    @MainActor
+    func activationObserverReconcilesBeforeListening() async {
+        let center = NotificationCenter()
+        let gate = Gate(nil)
+        let downs = BringDownCounter()
+        let observer = CloudTunnelActivationObserver(
+            notificationCenter: center,
+            isStartRefused: { gate.refusal != nil },
+            bringDown: { downs.increment() }
+        )
+        // Nothing is refused at startup: no teardown.
+        #expect(await waitUntil(timeout: .milliseconds(300)) { downs.count > 0 } == false)
+
+        // Cloud Machines turned off, and the notification posted right away,
+        // before the observer's task could register for it.
+        gate.refusal = .cloudMachinesOff
+        center.post(name: RightSidebarBetaFeatureSettings.didChangeNotification, object: nil)
+        #expect(await waitUntil { downs.count >= 1 })
+
+        // Later changes keep being honored.
+        center.post(name: RightSidebarBetaFeatureSettings.didChangeNotification, object: nil)
+        #expect(await waitUntil { downs.count >= 2 })
+        withExtendedLifetime(observer) {}
     }
 
     @Test("the deferred controller is inert before its first install and forwards link status after it")

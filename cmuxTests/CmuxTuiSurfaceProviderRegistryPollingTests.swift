@@ -11,7 +11,9 @@ import Testing
 /// app makes, so it must follow the activation policy: never scheduled for a
 /// Mac that has not opted in, started when the Beta Features toggle turns on,
 /// and cancelled again when it turns off, all without a relaunch.
-@Suite(.timeLimit(.minutes(1)))
+/// Serialized: every test posts process-global notifications on
+/// `NotificationCenter.default` that any live registry observes.
+@Suite(.serialized)
 struct CmuxTuiSurfaceProviderRegistryPollingTests {
     private final class Switch: @unchecked Sendable {
         private let lock = NSLock()

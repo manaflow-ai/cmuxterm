@@ -17,12 +17,14 @@ import Testing
 struct CloudActivationPolicyTests {
     private func policy(
         enabled: Bool,
+        usedCloud: Bool = false,
         machine: Bool?,
         configured: Bool,
         resolved: Bool? = nil
     ) -> CloudActivationPolicy {
         CloudActivationPolicy(
             isCloudMachinesEnabled: { enabled },
+            hasUsedCloud: { usedCloud },
             hasCloudMachine: { machine },
             isTunnelConfigured: { configured },
             resolveCloudMachine: { resolved }
@@ -49,7 +51,7 @@ struct CloudActivationPolicyTests {
 
     @Test("the toggle plus a machine admits the tunnel")
     func toggleWithMachine() async {
-        let policy = policy(enabled: true, machine: true, configured: false)
+        let policy = policy(enabled: true, usedCloud: true, machine: true, configured: false)
         #expect(policy.tunnelStartRefusal() == nil)
         #expect(await policy.resolvedTunnelStartRefusal() == nil)
         #expect(policy.allowsBackgroundCloudWork)
@@ -79,7 +81,7 @@ struct CloudActivationPolicyTests {
         #expect(await stillNone.resolvedTunnelStartRefusal() == .noCloudMachine)
 
         // A known machine is never re-asked.
-        let known = policy(enabled: true, machine: true, configured: false, resolved: false)
+        let known = policy(enabled: true, usedCloud: true, machine: true, configured: false, resolved: false)
         #expect(await known.resolvedTunnelStartRefusal() == nil)
 
         // The toggle still wins before anything is asked.
@@ -89,11 +91,20 @@ struct CloudActivationPolicyTests {
     }
 
     @Test("prior Cloud use keeps the fleet alive and lets an inherited tunnel be adopted, but a start still needs the toggle")
-    func priorUseWithoutToggle() {
-        let policy = policy(enabled: false, machine: true, configured: true)
+    func priorUseWithoutToggle() async {
+        let policy = policy(enabled: false, usedCloud: true, machine: nil, configured: true, resolved: true)
         #expect(policy.allowsBackgroundCloudWork)
         #expect(policy.allowsLaunchTimeTunnelAdoption)
         #expect(policy.tunnelStartRefusal() == .cloudMachinesOff)
+        #expect(await policy.resolvedTunnelStartRefusal() == .cloudMachinesOff)
+    }
+
+    @Test("prior use is not a machine: with the toggle on, the tunnel still asks the control plane")
+    func priorUseIsNotAMachine() async {
+        let noneLeft = policy(enabled: true, usedCloud: true, machine: nil, configured: true, resolved: false)
+        #expect(noneLeft.allowsBackgroundCloudWork)
+        #expect(noneLeft.tunnelStartRefusal() == nil)
+        #expect(await noneLeft.resolvedTunnelStartRefusal() == .noCloudMachine)
     }
 
     @Test("refusals map to user-presentable errors and stable wire tokens")
@@ -180,22 +191,30 @@ struct CloudActivationPolicyTests {
         harness.turnCloudMachines(on: true)
         #expect(policy.allowsBackgroundCloudWork)
         // Nothing has listed the fleet yet: unknown, so not a known refusal.
+        #expect(policy.hasUsedCloud() == false)
         #expect(policy.hasCloudMachine() == nil)
         #expect(policy.tunnelStartRefusal() == nil)
 
         // The machine list came back empty, then a machine was created.
         harness.cache.record(hasAnyMachine: false)
+        #expect(policy.hasUsedCloud() == false)
         #expect(policy.tunnelStartRefusal() == .noCloudMachine)
         harness.cache.record(hasAnyMachine: true)
+        #expect(policy.hasUsedCloud())
         #expect(policy.tunnelStartRefusal() == nil)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
 
-        // Sign-out clears the cache: the next account starts from unknown,
-        // and unknown never opens background work on its own.
+        // A delete resets the marker to unknown (VMClient.destroy clears it):
+        // still "used Cloud", but a start must ask again.
         harness.cache.clear()
         #expect(harness.cache.hasAnyMachine == nil)
         #expect(policy.hasCloudMachine() == nil)
+        #expect(policy.tunnelStartRefusal() == nil)
+
+        // Sign-out clears the cache too: the next account starts from unknown,
+        // and unknown never opens background work on its own.
         harness.turnCloudMachines(on: false)
+        #expect(policy.hasUsedCloud() == false)
         #expect(policy.allowsBackgroundCloudWork == false)
         harness.turnCloudMachines(on: true)
 
@@ -215,18 +234,26 @@ struct CloudActivationPolicyTests {
         harness.cache.clear()
         #expect(policy.hasCloudMachine() == nil)
 
-        // The user-space hub enrolled the terminal role (a link to a machine).
+        // The user-space hub enrolled the terminal role (a link to a machine):
+        // this Mac used Cloud, so its fleet keeps polling even with the toggle
+        // off, but it says nothing about the account's machines right now.
         _ = try harness.terminal.deviceFingerprint()
-        #expect(policy.hasCloudMachine() == true)
+        #expect(policy.hasUsedCloud())
+        #expect(policy.hasCloudMachine() == nil)
         #expect(policy.tunnelStartRefusal() == nil)
         #expect(policy.allowsBackgroundCloudWork)
+        harness.turnCloudMachines(on: false)
+        #expect(policy.allowsBackgroundCloudWork)
+        harness.turnCloudMachines(on: true)
         #expect(policy.allowsLaunchTimeTunnelAdoption == false)
         harness.terminal.removeLocalCredentials()
+        #expect(policy.hasUsedCloud() == false)
         #expect(policy.hasCloudMachine() == nil)
 
         // A previous session saved the browser-role config.
         try harness.saveBrowserConfig()
         #expect(policy.allowsLaunchTimeTunnelAdoption)
+        #expect(policy.hasUsedCloud())
         #expect(policy.tunnelStartRefusal() == nil)
         harness.turnCloudMachines(on: false)
         // Adoption (cleanup) stays possible; a new start does not.

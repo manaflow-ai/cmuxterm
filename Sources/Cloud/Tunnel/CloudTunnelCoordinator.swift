@@ -59,7 +59,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// Set when a scheduled start was refused by the policy after all, so the
     /// callers waiting on the state stream report that refusal rather than a
     /// generic cancellation. Cleared when the next start is scheduled.
-    private var lastStartRefusal: CloudTunnelError?
+    private var lastStartRefusal: CloudTunnelStartRefusal?
 
     init(
         backend: CloudTunnelBackend,
@@ -88,6 +88,12 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
     /// The refusal local state already knows about, for status reporting.
     func knownStartRefusal() -> CloudTunnelStartRefusal? {
         admission.knownRefusal()
+    }
+
+    /// The refusal that ended the last scheduled start, until a new start is
+    /// scheduled; `vm.tunnel_up` reports it instead of a bare "off".
+    func recordedStartRefusal() -> CloudTunnelStartRefusal? {
+        lastStartRefusal
     }
 
     // MARK: - CloudPrivateNetworkGate
@@ -253,7 +259,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
                 throw CloudTunnelError.startFailed(message)
             case .off:
                 if let lastStartRefusal {
-                    throw lastStartRefusal
+                    throw lastStartRefusal.error
                 }
                 throw CloudTunnelError.startFailed(String(
                     localized: "cloudTunnel.error.startCancelled",
@@ -337,7 +343,7 @@ actor CloudTunnelCoordinator: CloudPrivateNetworkGate {
             // A policy refusal is not a failure to back off from: the next
             // use re-asks the policy, and nothing was started. Record it
             // before the state changes so every waiter sees the real reason.
-            if startGeneration == generation { lastStartRefusal = error }
+            if startGeneration == generation { lastStartRefusal = CloudTunnelStartRefusal(error: error) }
             setState(.off, generation: generation)
             throw error
         } catch {

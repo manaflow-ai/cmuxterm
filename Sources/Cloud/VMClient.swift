@@ -1301,6 +1301,10 @@ actor VMClient {
         let encodedID = try pathSegment(id, fieldName: "vm id")
         let (data, http) = try await request("DELETE", path: "/api/vm/\(encodedID)")
         try ensureOK(http, data: data)
+        // Whether any machine remains is only known after the next list; a
+        // tunnel start meanwhile asks the control plane instead of trusting
+        // a marker that may have just described the deleted machine.
+        machineCache.clear()
     }
 
     func snapshot(id: String, name: String? = nil) async throws -> VMSnapshotResult {

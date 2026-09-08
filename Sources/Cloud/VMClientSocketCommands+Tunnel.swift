@@ -25,7 +25,12 @@ extension TerminalController {
             // Enrolls the browser role and writes its WireGuard config. The
             // Network Extension consumes it through `vm.tunnel_up`.
             return v2VmCall(id: id) {
-                if let refusal = await Self.cloudTunnelCoordinator()?.startRefusal() {
+                // Fail closed before startup finishes wiring the coordinator,
+                // exactly like `vm.tunnel_up`: no admission, no enrollment.
+                guard let coordinator = await Self.cloudTunnelCoordinator() else {
+                    throw CloudTunnelError.backendUnavailable(.entitlementMissing)
+                }
+                if let refusal = await coordinator.startRefusal() {
                     throw refusal.error
                 }
                 let manager = VMTunnelManager()
@@ -64,8 +69,13 @@ extension TerminalController {
                     throw refusal.error
                 }
                 await coordinator.beginUp(pin: true)
-                _ = await coordinator.waitForState(timeout: .seconds(60)) { state in
+                let settled = await coordinator.waitForState(timeout: .seconds(60)) { state in
                     state == .awaitingApproval || !state.isSettling
+                }
+                // A start the policy refused after scheduling ends off; say
+                // why instead of answering with a bare "off" payload.
+                if settled == .off, let refusal = await coordinator.recordedStartRefusal() {
+                    throw refusal.error
                 }
                 return await Self.cloudTunnelStatusPayload(manager: VMTunnelManager())
             }
@@ -144,8 +154,10 @@ extension TerminalController {
             payload["tunnel_error"] = failure
         }
         // Status stays read-only: it reports the refusal local state knows
-        // about and never resolves an unknown machine count.
-        if backend.isNetworkExtension, let refusal = await coordinator?.knownStartRefusal() {
+        // about (or the one that ended the last scheduled start) and never
+        // resolves an unknown machine count.
+        if backend.isNetworkExtension, let coordinator,
+           let refusal = await coordinator.knownStartRefusal() ?? coordinator.recordedStartRefusal() {
             payload["start_refusal"] = refusal.rawValue
             payload["start_refusal_message"] = refusal.error.description
         }

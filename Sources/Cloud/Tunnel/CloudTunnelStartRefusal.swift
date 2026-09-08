@@ -16,4 +16,13 @@ enum CloudTunnelStartRefusal: String, Sendable, Equatable {
         case .noCloudMachine: return .noCloudMachine
         }
     }
+
+    /// The refusal an error stands for, or nil when the error is a real failure.
+    init?(error: CloudTunnelError) {
+        switch error {
+        case .cloudMachinesOff: self = .cloudMachinesOff
+        case .noCloudMachine: self = .noCloudMachine
+        default: return nil
+        }
+    }
 }

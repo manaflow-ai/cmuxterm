@@ -10,12 +10,14 @@ import Foundation
 /// NetworkExtension. Nothing here probes NetworkExtension to decide whether
 /// NetworkExtension may be used.
 ///
-/// The one thing local state cannot always answer is whether the account has
-/// a machine: the cached marker is cleared on sign-out, absent on a fresh
-/// opt-in, and stale once a machine is created elsewhere. Launch-time
-/// decisions treat anything but a known machine as "no"; an explicit Cloud
-/// use (browser open, `cmux vpn up`) asks the control plane through
-/// `resolveCloudMachine` (a fleet list, which also refills the marker).
+/// Two different facts are kept apart. "This Mac has used Cloud" (the cached
+/// marker, or a tunnel role enrolled on this Mac) keeps an existing user's
+/// fleet alive across an update. "The account has a machine right now" is
+/// only ever the cached marker, which every fleet list refills, sign-out
+/// clears, and a delete resets to unknown; launch-time decisions treat
+/// anything but a known machine as "no", while an explicit Cloud use (browser
+/// open, `cmux vpn up`) settles an unknown or zero count against the control
+/// plane through `resolveCloudMachine`.
 ///
 /// The inputs are injected closures so the decision is testable without a
 /// signed bundle; ``live(defaults:machineCache:browserTunnel:terminalTunnel:resolveCloudMachine:)``
@@ -26,10 +28,13 @@ struct CloudActivationPolicy: Sendable {
     /// `Settings › Beta Features › Cloud Machines` is on and no managed
     /// profile disables Cloud (``CloudMachinesFeature``).
     let isCloudMachinesEnabled: @Sendable () -> Bool
-    /// Whether the account owns at least one machine, as far as this Mac
-    /// knows: the cached machine list said so (true or false), or this Mac
-    /// enrolled a tunnel role, which only ever happens for a machine (true).
-    /// `nil` when nothing local can say (never listed, or cleared by sign-out).
+    /// This Mac has used Cloud before: the cached marker says the account had
+    /// a machine, or a tunnel role was enrolled here (which only happens for a
+    /// machine). Cleared by sign-out.
+    let hasUsedCloud: @Sendable () -> Bool
+    /// Whether the account owns at least one machine, as the cached marker
+    /// last saw it (`true` or `false`); `nil` when nothing local can say
+    /// (never listed, cleared by sign-out, or reset by a delete).
     let hasCloudMachine: @Sendable () -> Bool?
     /// The app-managed tunnel was configured on this Mac before (the
     /// browser-role WireGuard config exists), so a VPN configuration may be
@@ -40,11 +45,10 @@ struct CloudActivationPolicy: Sendable {
     /// cannot confirm one, and only from an explicit Cloud use, never at launch.
     let resolveCloudMachine: @Sendable () async -> Bool?
 
-    /// Fleet polling and links may run: the user opted in, or this Mac is
-    /// known to have used Cloud (an update must not strand a fleet the user
-    /// already has). An unknown machine count does not open this.
+    /// Fleet polling and links may run: the user opted in, or this Mac used
+    /// Cloud before (an update must not strand a fleet the user already has).
     var allowsBackgroundCloudWork: Bool {
-        isCloudMachinesEnabled() || hasCloudMachine() == true
+        isCloudMachinesEnabled() || hasUsedCloud()
     }
 
     /// The launch-time tunnel controller may read NetworkExtension preferences
@@ -107,12 +111,13 @@ struct CloudActivationPolicy: Sendable {
             isCloudMachinesEnabled: {
                 CloudMachinesFeature.offMainIsEnabled(defaults: toggleDefaults)
             },
+            hasUsedCloud: {
+                machineCache.hasAnyMachine == true
+                    || terminalTunnel.storedDeviceFingerprint() != nil
+                    || browserTunnel.writtenConfig() != nil
+            },
             hasCloudMachine: {
-                if let cached = machineCache.hasAnyMachine { return cached }
-                if terminalTunnel.storedDeviceFingerprint() != nil || browserTunnel.writtenConfig() != nil {
-                    return true
-                }
-                return nil
+                machineCache.hasAnyMachine
             },
             isTunnelConfigured: {
                 browserTunnel.writtenConfig() != nil

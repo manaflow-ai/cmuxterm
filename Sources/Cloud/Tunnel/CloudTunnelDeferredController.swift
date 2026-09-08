@@ -25,9 +25,6 @@ final class CloudTunnelDeferredController: CloudTunnelControlling {
     /// Subscribers that went away before their attach ran; attach skips them.
     private var detachedBeforeAttach: Set<UUID> = []
     private var forwarders: [UUID: Task<Void, Never>] = [:]
-    /// How many times the real controller was built: zero until the first
-    /// admitted start, and never more than one.
-    private(set) var buildCount = 0
 
     init(makeController: @escaping @MainActor () -> any CloudTunnelControlling) {
         self.makeController = makeController
@@ -36,9 +33,6 @@ final class CloudTunnelDeferredController: CloudTunnelControlling {
     deinit {
         for forwarder in forwarders.values { forwarder.cancel() }
     }
-
-    /// The real controller once built; nil while nothing has asked for a start.
-    var builtController: (any CloudTunnelControlling)? { controller }
 
     nonisolated var statusUpdates: AsyncStream<CloudTunnelLinkStatus> {
         AsyncStream { continuation in
@@ -89,7 +83,6 @@ final class CloudTunnelDeferredController: CloudTunnelControlling {
         if let controller { return controller }
         let built = makeController()
         controller = built
-        buildCount += 1
         // Subscribe synchronously, before the caller's install returns, so no
         // status the real controller reports during this start is missed.
         let waiting = pendingSubscribers
