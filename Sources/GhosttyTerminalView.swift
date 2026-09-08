@@ -13669,7 +13669,7 @@ extension GhosttyNSView: NSTextInputClient {
         keyEvent.composing = false
         return text.withCString { pointer in
             keyEvent.text = pointer
-            sendGhosttyKey(surface, keyEvent)
+            return sendGhosttyKey(surface, keyEvent)
         }
     }
 
