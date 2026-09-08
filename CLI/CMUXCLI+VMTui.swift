@@ -18,8 +18,9 @@ extension CMUXCLI {
         let vmId: String
         let route: String
         let session: String
-        let invitationUri: String?
-        let invitationId: String?
+        /// Dial the machine's trusted-carrier listener (`--carrier`); false presents
+        /// the device key this Mac enrolled with before trusted listeners.
+        let carrier: Bool
         let clientPath: String
         let stateDir: String
         let deviceName: String
@@ -65,9 +66,9 @@ extension CMUXCLI {
         Open the FULL cmux-tui client for a machine (its own workspaces, panes and
         tabs) in a pane. `cmux vm shell <id>` and every other open give you a plain
         terminal on the machine instead; use this when you want the client itself.
-        The pane runs the local cmux-tui client against the machine's authenticated
-        link; the first attach from this Mac enrolls the device (approved by cmux),
-        later attaches reconnect with the stored device key.
+        The pane runs the local cmux-tui client against the machine's daemon over
+        the owner's private network; the network is the admission, so no device
+        enrollment or approval happens.
 
         The client binary is found via CMUX_TUI_CLIENT, then ~/.cmux/bin/cmux, then
         `cmux-tui` on PATH. Install one with:
@@ -90,6 +91,11 @@ extension CMUXCLI {
             .appendingPathComponent(".cmuxterm", isDirectory: true)
             .appendingPathComponent("vm-tui-devices.json", isDirectory: false)
     }
+
+    /// Stored in place of a device fingerprint for a machine reached over its
+    /// trusted-carrier listener: the next open dials `--carrier` again with no
+    /// control-plane call. Mirrors `CloudTuiClientPaths.carrierDeviceMarker`.
+    static let carrierDeviceMarker = "carrier"
 
     static func loadVMTuiDevices(from url: URL? = nil) -> [String: VMTuiDeviceRecord] {
         let storeURL = url ?? vmTuiDevicesStoreURL()
@@ -228,7 +234,8 @@ extension CMUXCLI {
         /// a desktop split opens beside it.
         let terminalSurfaceId: String?
         let session: String
-        let enrolling: Bool
+        /// The pane dials the trusted-carrier listener; false means the stored device key.
+        let trustedCarrier: Bool
         /// The machine-side terminal the pane shows (`term_…`) and its cmux-tui
         /// workspace (`ws_…`); nil for `vm tui`, whose pane is the whole client.
         let terminalId: String?
@@ -281,7 +288,7 @@ extension CMUXCLI {
                 "vm_id": vmId,
                 "workspace_id": opened.workspaceId,
                 "session": opened.session,
-                "enrolling": opened.enrolling,
+                "trusted_carrier": opened.trustedCarrier,
             ]))
             return
         }
@@ -289,8 +296,8 @@ extension CMUXCLI {
             "cli.vm.tui.opened",
             defaultValue: "Opened cmux-tui for %1$@ (%2$@)"
         )
-        let mode = opened.enrolling
-            ? CMUXDiffViewerLocalization.string("cli.vm.tui.mode.enrolling", defaultValue: "enrolling this Mac")
+        let mode = opened.trustedCarrier
+            ? CMUXDiffViewerLocalization.string("cli.vm.tui.mode.carrier", defaultValue: "private network trust")
             : CMUXDiffViewerLocalization.string("cli.vm.tui.mode.enrolled", defaultValue: "device already enrolled")
         print(String(format: template, vmId, mode))
     }
@@ -333,9 +340,19 @@ extension CMUXCLI {
             try Self.checkCmuxTuiCompatibility(client: clientProbe, daemon: info["daemon_build"] as? [String: Any])
         }
         let session = (info["session"] as? String) ?? "cloud"
-        let invitation = info["invitation"] as? [String: Any]
-        let invitationUri = invitation?["uri"] as? String
-        let invitationId = invitation?["invitation_id"] as? String
+        // A known machine dials as it did before (carrier marker or stored key); a
+        // new one must serve the trusted listener, which the app has just proven.
+        let trustedCarrier = (info["trusted_carrier"] as? Bool) ?? false
+        if known == nil {
+            guard trustedCarrier else {
+                throw CLIError(message: String(
+                    localized: "cli.vm.tui.trustedListenerPending",
+                    defaultValue: "The Cloud machine is still preparing remote access. Try again shortly."
+                ))
+            }
+            // Later opens reuse the private route with no control-plane call.
+            Self.saveVMTuiDevice(vmId: vmId, deviceFingerprint: Self.carrierDeviceMarker)
+        }
         let networkAddresses: [String: String]? = {
             guard let raw = info["network_addresses"] as? [String: Any] else { return nil }
             let values = raw.compactMapValues { $0 as? String }
@@ -350,8 +367,7 @@ extension CMUXCLI {
                 vmId: vmId,
                 route: route,
                 session: session,
-                invitationUri: invitationUri,
-                invitationId: invitationId,
+                carrier: trustedCarrier,
                 clientPath: clientPath,
                 stateDir: stateDir.path,
                 deviceName: Self.vmTuiDeviceName(),
@@ -502,7 +518,7 @@ extension CMUXCLI {
             windowId: windowId,
             terminalSurfaceId: paneSurfaceId,
             session: session,
-            enrolling: invitationUri != nil,
+            trustedCarrier: trustedCarrier,
             terminalId: terminalId,
             remoteWorkspaceId: remoteWorkspaceId,
             networkAddresses: networkAddresses
@@ -513,10 +529,10 @@ extension CMUXCLI {
 
     /// The argv the pane hands to the cmux-tui client. Pure, so the exec line can be
     /// checked without a pane.
-    static func vmTuiConnectArguments(config: VMTuiConnectConfig, inviteFilePath: String?) -> [String] {
+    static func vmTuiConnectArguments(config: VMTuiConnectConfig) -> [String] {
         var arguments = ["remote", "connect", config.route, "--device-name", config.deviceName, "--state-dir", config.stateDir]
-        if let inviteFilePath, !inviteFilePath.isEmpty {
-            arguments += ["--invite-file", inviteFilePath]
+        if config.carrier {
+            arguments.append("--carrier")
         }
         if let hubSocket = config.wireguardHubSocket, !hubSocket.isEmpty {
             arguments += ["--wireguard-hub", hubSocket]
@@ -537,124 +553,16 @@ extension CMUXCLI {
         }
         let configURL = URL(fileURLWithPath: configPath)
         let config = try JSONDecoder().decode(VMTuiConnectConfig.self, from: Data(contentsOf: configURL))
-        // The config carries a single-use invitation secret; it has served its purpose.
+        // The config is one-shot; it has served its purpose.
         try? FileManager.default.removeItem(at: configURL)
-
-        var inviteURL: URL?
-        if let uri = config.invitationUri, !uri.isEmpty {
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("cmux-vm-tui-invite-\(UUID().uuidString.lowercased())")
-            try (uri + "\n").data(using: .utf8)!.write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-            inviteURL = url
-        }
 
         cliWriteStderr(String(format: CMUXDiffViewerLocalization.string(
             "cli.vm.tui.connecting",
             defaultValue: "Connecting to %1$@ through cmux-tui…"
         ), config.vmId) + "\n")
 
-        // While the client claims the invitation, approve the pending enrollment through
-        // the app: the control plane minted this invitation for the signed-in user, so
-        // approving the claim is the honest encoding of "already authenticated". The
-        // helper owns the invite file's lifetime and removes it once the claim is
-        // approved or the window closes.
-        if let invitationId = config.invitationId, !invitationId.isEmpty {
-            var approverArguments = ["vm-tui-approve", "--id", config.vmId, "--invitation-id", invitationId]
-            if let inviteURL {
-                approverArguments += ["--invite-file", inviteURL.path]
-            }
-            let executablePath = resolvedExecutableURL()?.path ?? (args.first ?? "cmux")
-            do {
-                try Self.spawnDetachedVMTuiApprover(
-                    executablePath: executablePath,
-                    arguments: approverArguments,
-                    socketPath: client.socketPath
-                )
-            } catch {
-                if let inviteURL { try? FileManager.default.removeItem(at: inviteURL) }
-                throw error
-            }
-        }
-
-        let arguments = Self.vmTuiConnectArguments(config: config, inviteFilePath: inviteURL?.path)
+        let arguments = Self.vmTuiConnectArguments(config: config)
         try execInteractiveProgram(launchPath: config.clientPath, arguments: arguments)
-    }
-
-    /// Spawns `cmux vm-tui-approve …` in its own session with stdio on /dev/null, so it
-    /// survives the pane's exec and never touches the tty the client is about to own.
-    static func spawnDetachedVMTuiApprover(executablePath: String, arguments: [String], socketPath: String) throws {
-        var fileActions: posix_spawn_file_actions_t?
-        guard posix_spawn_file_actions_init(&fileActions) == 0 else {
-            throw CLIError(message: "vm-tui-connect: couldn't prepare the enrollment approver (file actions)")
-        }
-        defer { posix_spawn_file_actions_destroy(&fileActions) }
-        for fd in [STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO] {
-            let status = "/dev/null".withCString { path in
-                posix_spawn_file_actions_addopen(&fileActions, fd, path, fd == STDIN_FILENO ? O_RDONLY : O_WRONLY, 0)
-            }
-            guard status == 0 else {
-                throw CLIError(message: "vm-tui-connect: couldn't detach the enrollment approver from the terminal")
-            }
-        }
-        var attributes: posix_spawnattr_t?
-        guard posix_spawnattr_init(&attributes) == 0 else {
-            throw CLIError(message: "vm-tui-connect: couldn't prepare the enrollment approver (attributes)")
-        }
-        defer { posix_spawnattr_destroy(&attributes) }
-        guard posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT)) == 0 else {
-            throw CLIError(message: "vm-tui-connect: couldn't give the enrollment approver its own session")
-        }
-
-        // Same socket the pane talks to; CMUX_SOCKET (the ambient terminal's socket) must
-        // not win over it, as the CLI's other child spawns also ensure.
-        var environment = ProcessInfo.processInfo.environment
-        environment["CMUX_SOCKET_PATH"] = socketPath
-        environment.removeValue(forKey: "CMUX_SOCKET")
-        let environmentStrings = environment.map { "\($0.key)=\($0.value)" }
-        var argv = ([executablePath] + arguments).map { strdup($0) }
-        var envp = environmentStrings.map { strdup($0) }
-        defer {
-            for item in argv { free(item) }
-            for item in envp { free(item) }
-        }
-        argv.append(nil)
-        envp.append(nil)
-        var pid: pid_t = 0
-        let status = posix_spawn(&pid, executablePath, &fileActions, &attributes, &argv, &envp)
-        guard status == 0 else {
-            throw CLIError(message: "vm-tui-connect: couldn't start the enrollment approver: \(String(cString: strerror(status)))")
-        }
-    }
-
-    // MARK: - cmux vm-tui-approve --id <vm> --invitation-id <id> [--invite-file <path>]  (detached)
-
-    /// Approves a pending cmux-tui enrollment through the app while the pane's client
-    /// claims the invitation. Silent: it owns no terminal. The app makes one request;
-    /// the VM waits for the claim on its local daemon socket. The invite file is deleted
-    /// either way.
-    func runVMTuiApprove(commandArgs: [String], client: SocketClient) throws {
-        let (vmIdOpt, rest0) = parseOption(commandArgs, name: "--id")
-        let (invitationOpt, rest1) = parseOption(rest0, name: "--invitation-id")
-        let (inviteFileOpt, _) = parseOption(rest1, name: "--invite-file")
-        guard let vmId = vmIdOpt, !vmId.isEmpty, let invitationId = invitationOpt, !invitationId.isEmpty else {
-            throw CLIError(message: "Usage: cmux vm-tui-approve --id <vm> --invitation-id <id> [--invite-file <path>]")
-        }
-        defer {
-            if let inviteFileOpt, !inviteFileOpt.isEmpty {
-                try? FileManager.default.removeItem(atPath: inviteFileOpt)
-            }
-        }
-        guard let result = try? client.sendV2(
-            method: "vm.cmux_remote_approve",
-            params: ["id": vmId, "invitation_id": invitationId],
-            responseTimeout: 75
-        ) else { return }
-        if (result["state"] as? String) == "approved",
-           let fingerprint = result["device_fingerprint"] as? String,
-           !fingerprint.isEmpty {
-            Self.saveVMTuiDevice(vmId: vmId, deviceFingerprint: fingerprint)
-        }
     }
 }
 
@@ -685,299 +593,10 @@ extension CMUXCLI {
         }
     }
 
-    /// Resolution of a remote workspace selector. Workspace ids are identities;
-    /// names are mutable labels and are accepted only when they identify one row.
-    /// Keeping this result explicit prevents a missing or ambiguous catalog from
-    /// falling through to an arbitrary `.first` match.
-    enum VMRemoteWorkspaceSelectorResolution: Equatable {
-        case resolved(String)
-        case notFound
-        case ambiguous([String])
-        case unavailable
-    }
-
-    /// Resolve one `<machine>/<workspace>` selector against the machine row from
-    /// `surface.catalog`. The machine's `remote_workspaces` list is authoritative,
-    /// because it also contains empty workspaces that cannot be recovered from the
-    /// terminal rows. Exact ids win over names, including when an id equals another
-    /// workspace's name. A name must be unique; otherwise the caller must use an id.
-    static func resolveVMRemoteWorkspaceSelector(
-        _ rawSelector: String,
-        in machinePayload: [String: Any]
-    ) -> VMRemoteWorkspaceSelectorResolution {
-        let selector = rawSelector.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !selector.isEmpty else { return .notFound }
-        guard let rawWorkspaces = machinePayload["remote_workspaces"] as? [[String: Any]] else {
-            return .unavailable
-        }
-        let workspaces = rawWorkspaces.compactMap { workspace -> (id: String, name: String)? in
-            guard let id = workspace["id"] as? String, !id.isEmpty,
-                  let name = workspace["name"] as? String else { return nil }
-            return (id: id, name: name)
-        }
-
-        let exactIDMatches = workspaces.filter { $0.id == selector }
-        if exactIDMatches.count == 1 { return .resolved(exactIDMatches[0].id) }
-        if exactIDMatches.count > 1 {
-            return .ambiguous(exactIDMatches.map(\.id))
-        }
-
-        let nameMatches = workspaces.filter { $0.name == selector }
-        switch nameMatches.count {
-        case 0: return .notFound
-        case 1: return .resolved(nameMatches[0].id)
-        default: return .ambiguous(nameMatches.map(\.id))
-        }
-    }
-
-    /// Return the machine row from a catalog payload. A filtered catalog should
-    /// contain one row, so duplicate rows are treated as unavailable rather than
-    /// selecting one by array order.
-    static func vmMachinePayload(
-        _ machine: String,
-        from catalog: [String: Any]
-    ) -> [String: Any]? {
-        let matches = ((catalog["machines"] as? [[String: Any]]) ?? [])
-            .filter { ($0["id"] as? String) == machine }
-        guard matches.count == 1 else { return nil }
-        return matches[0]
-    }
-
-    enum VMRemoteViewResolution {
-        case resolved([String: Any])
-        /// A legacy resource identifies one workspace but has no tab id. Whole
-        /// workspace opens may use that relationship; exact terminal selectors
-        /// must still fail closed.
-        case legacy
-        case notFound
-        case ambiguous
-        case unavailable
-    }
-
-    /// The safe first terminal for a whole-workspace open. One unresolved
-    /// terminal must not veto another terminal whose placement is known, while
-    /// an unresolved result remains available when there is no safe candidate.
-    enum VMRemoteWorkspaceTerminalResolution: Equatable {
-        case resolved(terminalID: String, tabID: String?)
-        case none
-        case ambiguous(selector: String)
-        case unavailable(selector: String)
-    }
-
-    /// Resolve the terminal a whole-workspace open should show. Exited rows are
-    /// not candidates: their stale or partial placement data cannot block a live
-    /// terminal. Among live rows, all safe candidates are collected before an
-    /// ambiguity or unavailable result is returned, so an early bad row cannot
-    /// hide a later safe row.
-    static func resolveVMRemoteWorkspaceTerminal(
-        _ resources: [[String: Any]],
-        machine: String,
-        workspaceID: String
-    ) -> VMRemoteWorkspaceTerminalResolution {
-        let liveTerminals = resources.filter { resource in
-            (resource["kind"] as? String) == "terminal" && (resource["lifecycle"] as? String) != "exited"
-        }
-        var candidates: [(terminalID: String, tabID: String?, focused: Bool, sortID: String)] = []
-        var ambiguousSelectors: [String] = []
-        var unavailableSelectors: [String] = []
-
-        for terminal in liveTerminals {
-            let selector = (terminal["key"] as? String) ?? (terminal["id"] as? String) ?? "?"
-            switch resolveVMRemoteView(in: terminal, workspaceID: workspaceID) {
-            case .resolved(let view):
-                guard let terminalID = vmTerminalID(in: terminal, machine: machine) else {
-                    unavailableSelectors.append(selector)
-                    continue
-                }
-                let tabID = (view["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let tabID, !tabID.isEmpty else {
-                    unavailableSelectors.append(selector)
-                    continue
-                }
-                candidates.append((terminalID, tabID, (view["focused"] as? Bool) == true, selector))
-            case .legacy:
-                guard let terminalID = vmTerminalID(in: terminal, machine: machine) else {
-                    unavailableSelectors.append(selector)
-                    continue
-                }
-                candidates.append((terminalID, nil, false, selector))
-            case .notFound:
-                continue
-            case .ambiguous:
-                ambiguousSelectors.append(selector)
-            case .unavailable:
-                unavailableSelectors.append(selector)
-            }
-        }
-
-        let focusedFirst = candidates.sorted { lhs, rhs in
-            if lhs.focused != rhs.focused { return lhs.focused && !rhs.focused }
-            if lhs.sortID != rhs.sortID { return lhs.sortID < rhs.sortID }
-            return (lhs.tabID ?? "") < (rhs.tabID ?? "")
-        }
-        if let pick = focusedFirst.first {
-            return .resolved(terminalID: pick.terminalID, tabID: pick.tabID)
-        }
-        // An unavailable catalog is less actionable than a placement ambiguity:
-        // tell the caller to reconnect instead of asking it to choose from stale
-        // rows. Both are reported only after every live row proved unsafe.
-        if let selector = unavailableSelectors.sorted().first {
-            return .unavailable(selector: selector)
-        }
-        if let selector = ambiguousSelectors.sorted().first {
-            return .ambiguous(selector: selector)
-        }
-        return .none
-    }
-
-    /// Resolve a resource's exact view in one remote workspace. A view row is required for
-    /// focused/tab placement. A legacy single-workspace resource is returned as `.legacy` so
-    /// workspace opens can preserve the terminal-id fallback while exact selectors fail.
-    static func resolveVMRemoteView(
-        in resource: [String: Any],
-        workspaceID: String
-    ) -> VMRemoteViewResolution {
-        if let views = resource["remote_views"] as? [[String: Any]] {
-            let matches = views.filter { view in
-                let workspace = view["workspace"] as? [String: Any]
-                return (workspace?["id"] as? String) == workspaceID
-            }
-            guard !matches.isEmpty else { return .notFound }
-            let candidate: [String: Any]
-            if matches.count == 1 {
-                candidate = matches[0]
-            } else {
-                // A terminal may occur in several tabs of the same workspace. The focused
-                // tab is the only safe implicit choice; zero or multiple focused tabs stay
-                // unresolved instead of selecting by array order.
-                let focused = matches.filter { ($0["focused"] as? Bool) == true }
-                guard focused.count == 1 else { return .ambiguous }
-                candidate = focused[0]
-            }
-            guard let tabID = (candidate["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !tabID.isEmpty else {
-                return .unavailable
-            }
-            guard views.filter({ ($0["tab_id"] as? String) == tabID }).count == 1 else {
-                return .ambiguous
-            }
-            return .resolved(candidate)
-        }
-        guard let workspace = resource["remote_workspace"] as? [String: Any],
-              (workspace["id"] as? String) == workspaceID else {
-            return .notFound
-        }
-        return .legacy
-    }
-
-    /// Find a resource's exact view in one remote workspace. The view row is
-    /// required for focused/tab placement; the legacy single-workspace field is
-    /// retained as a compatibility fallback for providers without multi-view data.
-    static func vmRemoteView(
-        in resource: [String: Any],
-        workspaceID: String
-    ) -> [String: Any]? {
-        guard case .resolved(let view) = resolveVMRemoteView(in: resource, workspaceID: workspaceID) else {
-            return nil
-        }
-        return view
-    }
-
-    /// Resolves a terminal selector to one daemon tab. A terminal can be shown in several
-    /// tabs, so its id alone does not identify the placement whose name or pane the caller
-    /// means. The returned tab id is passed to `surface.project` as a placement fence.
-    enum VMRemoteTerminalPlacementResolution: Equatable {
-        case resolved(terminalID: String, tabID: String)
-        case notFound
-        case ambiguous
-        case unavailable
-    }
-
-    static func resolveVMRemoteTerminalPlacement(
-        _ rawSelector: String,
-        machine: String,
-        workspaceID: String,
-        in catalog: [String: Any]
-    ) -> VMRemoteTerminalPlacementResolution {
-        let selector = rawSelector.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !selector.isEmpty, !machine.isEmpty, !workspaceID.isEmpty else { return .notFound }
-        guard let rawResources = catalog["resources"] as? [[String: Any]] else { return .unavailable }
-
-        let resources = rawResources.filter { resource in
-            guard (resource["kind"] as? String) == "terminal" else { return false }
-            if let resourceMachine = resource["machine"] as? String {
-                return resourceMachine == machine
-            }
-            guard let id = resource["id"] as? String else { return false }
-            return id.hasPrefix("\(machine)/terminal/")
-        }
-
-        // Full resource ids take precedence over keys. This prevents a malformed or mutable
-        // key from shadowing an exact identity, matching workspace selector semantics.
-        let fullID = "\(machine)/terminal/\(selector)"
-        let exactIDMatches = resources.filter { resource in
-            guard let id = resource["id"] as? String else { return false }
-            return id == selector || id == fullID
-        }
-        let matchedByExactID = !exactIDMatches.isEmpty
-        let candidates = matchedByExactID
-            ? exactIDMatches
-            : resources.filter { ($0["key"] as? String) == selector }
-        guard candidates.count == 1, let resource = candidates.first else {
-            return candidates.isEmpty ? .notFound : .ambiguous
-        }
-
-        let tabID: String
-        switch resolveVMRemoteView(in: resource, workspaceID: workspaceID) {
-        case .resolved(let view):
-            guard let value = (view["tab_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-                return .unavailable
-            }
-            tabID = value
-        case .legacy:
-            // An exact terminal selector cannot safely invent a tab id.
-            return .unavailable
-        case .notFound:
-            return .notFound
-        case .ambiguous:
-            return .ambiguous
-        case .unavailable:
-            return .unavailable
-        }
-
-        let terminalID = vmTerminalID(in: resource, machine: machine)
-        guard let terminalID, !terminalID.isEmpty else { return .unavailable }
-        return .resolved(terminalID: terminalID, tabID: tabID)
-    }
-
-    /// Returns the terminal key accepted by `surface.project` from either a
-    /// catalog's explicit `key` or its canonical resource id. Keeping this in
-    /// one helper prevents callers from sending a full id where a key is
-    /// required and producing `machine/terminal/machine/terminal/key`.
-    static func vmTerminalID(in resource: [String: Any], machine: String) -> String? {
-        if let key = (resource["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-            // `key` is the final path component. A complete resource id would be
-            // prefixed again by callers and route to a different terminal.
-            guard !key.contains("/") else { return vmTerminalIDFromCanonicalID(in: resource, machine: machine) }
-            return key
-        }
-        return vmTerminalIDFromCanonicalID(in: resource, machine: machine)
-    }
-
-    private static func vmTerminalIDFromCanonicalID(in resource: [String: Any], machine: String) -> String? {
-        guard let id = (resource["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty else {
-            return nil
-        }
-        let prefix = "\(machine)/terminal/"
-        if id.hasPrefix(prefix) {
-            let key = String(id.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            return key.isEmpty ? nil : key
-        }
-        // A few older catalog producers emitted the terminal key as `id`.
-        // Accept it only when it has no path separators, so a different
-        // machine's canonical id cannot be routed to this machine.
-        return id.contains("/") ? nil : id
-    }
+    typealias VMRemoteWorkspaceSelectorResolution = VMRemoteWorkspaceResolver.VMRemoteWorkspaceSelectorResolution
+    typealias VMRemoteViewResolution = VMRemoteWorkspaceResolver.VMRemoteViewResolution
+    typealias VMRemoteWorkspaceTerminalResolution = VMRemoteWorkspaceResolver.VMRemoteWorkspaceTerminalResolution
+    typealias VMRemoteTerminalPlacementResolution = VMRemoteWorkspaceResolver.VMRemoteTerminalPlacementResolution
 
     private static func vmTerminalPlacementResolutionError(
         _ resolution: VMRemoteTerminalPlacementResolution,
@@ -1037,13 +656,13 @@ extension CMUXCLI {
         machine: String,
         catalog: [String: Any]
     ) throws -> String {
-        guard let machinePayload = vmMachinePayload(machine, from: catalog) else {
+        guard let machinePayload = VMRemoteWorkspaceResolver().vmMachinePayload(machine, from: catalog) else {
             throw CLIError(message: String(
                 format: String(localized: "cli.vm.open.workspaceUnavailable", defaultValue: "Workspace state for %1$@ is unavailable. Reconnect and retry."),
                 machine
             ))
         }
-        let resolution = resolveVMRemoteWorkspaceSelector(selector, in: machinePayload)
+        let resolution = VMRemoteWorkspaceResolver().resolveVMRemoteWorkspaceSelector(selector, in: machinePayload)
         guard case .resolved(let id) = resolution else {
             throw vmWorkspaceResolutionError(resolution, machine: machine, selector: selector)
         }
@@ -1979,7 +1598,7 @@ extension CMUXCLI {
                 machine: machine,
                 catalog: catalog
             )
-            let placement = Self.resolveVMRemoteTerminalPlacement(
+            let placement = VMRemoteWorkspaceResolver().resolveVMRemoteTerminalPlacement(
                 terminal,
                 machine: machine,
                 workspaceID: remoteWorkspaceID,
@@ -2011,7 +1630,7 @@ extension CMUXCLI {
                 catalog: catalog
             )
             let resources = (catalog["resources"] as? [[String: Any]]) ?? []
-            switch Self.resolveVMRemoteWorkspaceTerminal(
+            switch VMRemoteWorkspaceResolver().resolveVMRemoteWorkspaceTerminal(
                 resources,
                 machine: machine,
                 workspaceID: remoteWorkspaceID

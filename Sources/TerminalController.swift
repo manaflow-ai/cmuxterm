@@ -119,6 +119,11 @@ nonisolated private func v2RemotePTYUserFacingErrorMessage(_ message: String) ->
 @MainActor
 class TerminalController {
     static let shared = TerminalController()
+    private enum ReloadConfigurationWaitResult: Sendable {
+        case committed
+        case failed
+        case busy
+    }
     /// The app-managed Cloud tunnel, set by the AppDelegate composition root
     /// next to `VMClient.bootstrap`. Nil only before startup finishes; the
     /// `vm.tunnel_*` socket verbs report browser access as unavailable until then.
@@ -1461,28 +1466,39 @@ class TerminalController {
                 reloadConfigurationWaiterAdmission.claim() else {
             return "ERROR: reload_config busy"
         }
-        let reloadDidComplete: Bool? = socketAwaitCallback(
+        let reloadResult: ReloadConfigurationWaitResult? = socketAwaitCallback(
             timeout: 30
         ) { completion in
             Task { @MainActor in
                 let completionWasAdmitted =
-                    self.controlSidebarReloadConfigWithAdmission {
-                        completion(true)
-                        waiterLease.retire()
-                    }
+                    self.controlSidebarReloadConfigWithAdmission(
+                        commitCompletion: { committed in
+                            completion(
+                                committed ? .committed : .failed
+                            )
+                            waiterLease.retire()
+                        }
+                    )
                 if !completionWasAdmitted {
-                    completion(false)
+                    // The reload request is still queued even when this
+                    // caller's optional commit callback could not be retained.
+                    // Report backpressure, not a false configuration failure.
+                    completion(.busy)
                     waiterLease.retire()
                 }
             }
         }
-        guard let reloadDidComplete else {
+        guard let reloadResult else {
             return "ERROR: reload_config timed out"
         }
-        guard reloadDidComplete else {
+        switch reloadResult {
+        case .committed:
+            return "OK Reloaded config"
+        case .failed:
+            return "ERROR: reload_config failed"
+        case .busy:
             return "ERROR: reload_config busy"
         }
-        return "OK Reloaded config"
     }
 
     private nonisolated static func feedPushWaitTimeoutSeconds(params: [String: Any]) -> TimeInterval? {
@@ -2297,6 +2313,25 @@ class TerminalController {
             }
 
             let policy = Self.executionPolicy(forV2Method: request.method)
+            if let action = browserKeyboardAction(for: request.method),
+               let rawKey = request.params["key"]?.foundationObject as? String,
+               let event = BrowserKeyboardEvent(rawKey: rawKey),
+               event.nativeKey != nil {
+                guard !Thread.isMainThread else {
+                    return v2Error(
+                        id: request.id.map(\.foundationObject),
+                        code: "invalid_dispatch",
+                        message: "\(request.method) must run off the main thread"
+                    )
+                }
+                return CmuxAutomationInvocationContext.$eventOrigin.withValue(automationOrigin) {
+                    v2BrowserKeyboardNativeResponseSync(
+                        request: request,
+                        event: event,
+                        action: action
+                    )
+                }
+            }
             if Thread.isMainThread, policy == .socketWorker(mainThreadCallable: false) {
                 return v2Error(
                     id: request.id.map(\.foundationObject),
@@ -3023,7 +3058,6 @@ class TerminalController {
             "vm.open_port",
             "vm.attach_info",
             "vm.cmux_remote_info",
-            "vm.cmux_remote_approve",
             "vm.ssh_info",
             "vm.sessions",
             "vm.session_attach_info",
@@ -3148,6 +3182,8 @@ class TerminalController {
             "surface.resume.set",
             "surface.resume.get",
             "surface.resume.clear",
+            "agent.restore.admit",
+            "agent.restore.release",
             "debug.terminals",
             "surface.send_text",
             "surface.send_key",
@@ -6939,43 +6975,30 @@ class TerminalController {
     /// URL-less browser surface never mounts its webview either (no render, no host window),
     /// so a raw webView.load() would not progress. Kick such surfaces through the panel's
     /// normal navigation path, then wait for that exact WebView instance's navigation-delegate
-    /// commit before any automation JavaScript runs against it.
+    /// commit before any automation JavaScript or native input runs against it.
     private nonisolated func v2EnsureBrowserDocumentLoaded(
         _ webView: WKWebView,
         browserPanel: BrowserPanel,
         surfaceId: UUID,
-        timeout: TimeInterval = 3.0
+        timeout: TimeInterval = 3.0,
+        reason: String = "automation-js"
     ) -> Bool {
         let expectedWebViewIdentifier = ObjectIdentifier(webView)
         var readinessTask: Task<Void, Never>?
         let outcome: BrowserAutomationDocumentReadinessOutcome? = v2AwaitCallback(timeout: timeout) { finish in
             readinessTask = Task { @MainActor in
-                guard ObjectIdentifier(browserPanel.webView) == expectedWebViewIdentifier,
-                      let blankURL = URL(string: "about:blank") else {
-#if DEBUG
-                    cmuxDebugLog("browser.jsCommit.locateFailed surface=\(surfaceId.uuidString.prefix(5))")
-#endif
+                switch await browserPanel.ensureAutomationDocumentReady(
+                    expectedWebViewIdentifier: expectedWebViewIdentifier,
+                    timeout: .seconds(timeout),
+                    reason: reason
+                ) {
+                case .committed:
+                    finish(.committed)
+                case .superseded:
                     finish(.superseded)
-                    return
+                case .cancelled, .timedOut:
+                    finish(.cancelled)
                 }
-                let currentWebView = browserPanel.webView
-
-                if currentWebView.url == nil,
-                   !currentWebView.isLoading,
-                   currentWebView.backForwardList.currentItem == nil {
-                    // Discarded tabs preserve the user's page intent. Restore it before
-                    // falling back to a real about:blank document for an empty new tab.
-                    let restored = browserPanel.restoreDiscardedWebViewIfNeeded(reason: "automation-js")
-                    if !restored, let preserved = browserPanel.currentURL {
-                        browserPanel.navigate(to: preserved)
-                    } else if !restored || BrowserPanel.isAboutBlankURL(browserPanel.currentURL) {
-                        browserPanel.navigate(to: blankURL)
-                    }
-                }
-
-                finish(await browserPanel.waitForAutomationDocumentCommit(
-                    expectedWebViewIdentifier: expectedWebViewIdentifier
-                ))
             }
         }
         if outcome == nil {
@@ -7931,7 +7954,7 @@ class TerminalController {
         return .err(code: "not_found", message: message, data: data)
     }
 
-    private nonisolated func v2BrowserAppendPostSnapshot(
+    nonisolated func v2BrowserAppendPostSnapshot(
         params: [String: Any],
         surfaceId: UUID,
         payload: inout [String: Any]
@@ -8714,6 +8737,8 @@ class TerminalController {
         v2BrowserKeyboardAction(params: params, action: .keyUp)
     }
 
+    /// Handles one browser keyboard RPC, using native WebKit input for mapped
+    /// keys and retaining the DOM compatibility path for opaque values.
     private nonisolated func v2BrowserKeyboardAction(
         params: [String: Any],
         action: BrowserKeyboardAction
@@ -8721,9 +8746,67 @@ class TerminalController {
         guard let event = BrowserKeyboardEvent(rawKey: v2RawString(params, "key")) else {
             return .err(code: "invalid_params", message: "Missing key", data: nil)
         }
-        let script = v2BrowserControl.keyboardScript(action: action, event: event)
+
+        // A native descriptor is the only path that can provide trusted WebKit
+        // defaults. Socket traffic uses the asynchronous readiness path in
+        // `ControlSocketAsync`; this synchronous adapter is retained only for
+        // in-process callers that are already on the main thread.
+        if event.nativeKey != nil {
+            guard Thread.isMainThread else {
+                return .err(
+                    code: "invalid_dispatch",
+                    message: String(
+                        localized: "cli.browser.error.operationFailed",
+                        defaultValue: "Browser operation failed"
+                    ),
+                    data: nil
+                )
+            }
+            return v2BrowserWithPanelContext(params: params) { ctx in
+                MainActor.assumeIsolated {
+                    guard ctx.browserPanel.hasCommittedDocumentSinceWebViewReplacement ||
+                            ctx.webView.backForwardList.currentItem != nil else {
+                        return .err(
+                            code: "timeout",
+                            message: String(
+                                localized: "browser.automation.error.documentReadinessTimedOut",
+                                defaultValue: "Timed out waiting for the browser document to become ready"
+                            ),
+                            data: ["surface_id": ctx.surfaceId.uuidString]
+                        )
+                    }
+
+                    switch ctx.webView.replayBrowserKeyboardEvent(event, action: action) {
+                    case .delivered:
+                        var payload: [String: Any] = [
+                            "workspace_id": ctx.workspaceId.uuidString,
+                            "workspace_ref": v2Ref(kind: .workspace, uuid: ctx.workspaceId),
+                            "surface_id": ctx.surfaceId.uuidString,
+                            "surface_ref": v2Ref(kind: .surface, uuid: ctx.surfaceId)
+                        ]
+                        return .ok(payload)
+                    case .unsupported, .eventCreationFailed:
+                        // The descriptor was resolved before entering this branch;
+                        // a failed native delivery must not silently become an
+                        // untrusted page-world KeyboardEvent.
+                        return .err(
+                            code: "internal_error",
+                            message: String(
+                                localized: "cli.browser.error.operationFailed",
+                                defaultValue: "Browser operation failed"
+                            ),
+                            data: ["surface_id": ctx.surfaceId.uuidString]
+                        )
+                    }
+                }
+            }
+        }
+
+        // Preserve the historical compatibility path for opaque key tokens
+        // that have no macOS virtual-key representation.
         return v2BrowserWithPanelContext(params: params) { ctx in
             let surfaceId = ctx.surfaceId
+            let script = v2BrowserControl.keyboardScript(action: action, event: event)
             switch v2RunBrowserJavaScript(ctx.webView, browserPanel: ctx.browserPanel, surfaceId: surfaceId, script: script) {
             case .failure(let message):
                 return .err(code: "js_error", message: message, data: nil)
@@ -10995,17 +11078,19 @@ class TerminalController {
                     return
                 }
 
+                dock.noteKeyboardFocusIntent(window: nil)
                 guard let panelId = dock.newSurface(
                     kind: .browser,
                     inPane: pane,
                     url: url,
-                    focus: true,
+                    focus: false,
                     preloadInitialNavigationInBackground: true
                 ),
                     let panel = dock.browserPanel(for: panelId) else {
                     result = .err(code: "internal_error", message: "Failed to create browser tab", data: nil)
                     return
                 }
+                dock.focusPanelFromDockInteraction(panelId, window: nil)
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,
                     "workspace_ref": v2Ref(kind: .workspace, uuid: dock.workspaceId),
@@ -11100,7 +11185,7 @@ class TerminalController {
                         )
                     )
                 } else {
-                    dock.focusPanel(targetId)
+                    dock.focusPanelFromDockInteraction(targetId, window: nil)
                 }
                 result = .ok([
                     "workspace_id": dock.workspaceId.uuidString,

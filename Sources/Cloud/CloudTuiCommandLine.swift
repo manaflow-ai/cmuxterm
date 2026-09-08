@@ -6,21 +6,25 @@ import Foundation
 /// `--socket`/`--json`/`--jsonl` as global options, and `attach --terminal <id>` as the
 /// single-terminal renderer (`spec/cli.md` §"attach").
 struct CloudTuiCommandLine: Sendable {
-    /// `remote connect <route> --device-name … --state-dir … --headless --json [--invite-file …]`:
+    /// `remote connect <route> --device-name … --state-dir … --headless --json [--carrier]`:
     /// a headless link whose stdout carries `connection-snapshot` JSON lines with the
     /// local mux socket path (`remote_cli.rs` `connect_with_flags`).
+    /// `--carrier` dials with carrier authentication: the machine's daemon serves a
+    /// trusted listener reachable only inside the owner's private network, so there is
+    /// no device enrollment and no invitation. Without it the client presents its
+    /// stored device key (a machine this Mac enrolled with before trusted listeners).
     /// `--wireguard-hub <socket>` makes the client dial the route through the app's
     /// in-process WireGuard hub (``CloudWireGuardHub``) instead of the OS network stack;
     /// it is added only for routes inside the private Cloud VM network.
-    static func linkArguments(route: String, deviceName: String, stateDir: String, inviteFilePath: String?, wireguardHubSocket: String? = nil) -> [String] {
+    static func linkArguments(route: String, deviceName: String, stateDir: String, carrier: Bool = false, wireguardHubSocket: String? = nil) -> [String] {
         var arguments = [
             "remote", "connect", route,
             "--device-name", deviceName,
             "--state-dir", stateDir,
             "--headless", "--json", "--exit-with-parent",
         ]
-        if let inviteFilePath, !inviteFilePath.isEmpty {
-            arguments += ["--invite-file", inviteFilePath]
+        if carrier {
+            arguments.append("--carrier")
         }
         if let wireguardHubSocket, !wireguardHubSocket.isEmpty {
             arguments += ["--wireguard-hub", wireguardHubSocket]
@@ -123,6 +127,20 @@ struct CloudTuiCommandLine: Sendable {
         if let expectedRevision { arguments += ["--expected-revision", String(expectedRevision)] }
         arguments += ["workspace", workspaceID, "rename", "--name", name]
         return arguments
+    }
+
+    /// `notification ack --client <id> <notification-id>…` (spec `notification.ack`):
+    /// records this Mac's reads on the machine. The idempotency key is minted once
+    /// per batch by the sync and reused on every retry, so a retried ack replays the
+    /// committed result instead of a second revision.
+    static func notificationAckArguments(
+        socketPath: String,
+        clientID: String,
+        notificationIDs: [String],
+        idempotencyKey: String
+    ) -> [String] {
+        ["--socket", socketPath, "--json", "--idempotency-key", idempotencyKey,
+         "notification", "ack", "--client", clientID] + notificationIDs
     }
 
     /// `terminal <term_id> write --text <text>` (spec `terminal.input.write`): the bytes

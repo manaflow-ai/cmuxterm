@@ -33,7 +33,10 @@ import {
   DEVBOX_INSTANCE_ID_COMMAND,
   devboxAgentPins,
   devboxDir,
+  devboxGhosttyVersion,
+  devboxIdentityCheckCommand,
   devboxTerminfoCheckCommand,
+  cmuxTuiWebsocketSmokeCommand,
   sha256File,
 } from "./devbox-image-common";
 import {
@@ -47,6 +50,7 @@ import {
   DEVBOX_DESKTOP_UNIT,
   DEVBOX_DESKTOP_USER,
 } from "../services/vms/images/desktop";
+import { DEVBOX_HOSTNAME } from "../services/vms/images/identity";
 
 const pins = devboxAgentPins();
 const shaOf = (name: string): string => sha256File(path.join(devboxDir, name));
@@ -98,7 +102,10 @@ const CHECKS: readonly string[] = [
   // unreachable config endpoint writes no opencode config; the image ships
   // no pre-generated config for root.
   `rm -rf /tmp/cmux-agent-config-verify && env HOME=/tmp/cmux-agent-config-verify OPENAI_BASE_URL=https://example.invalid/v1 OPENAI_API_KEY=cmux-vm-edge-placeholder CMUX_CODEROUTER_URL=https://example.invalid ANTHROPIC_BASE_URL=https://example.invalid ANTHROPIC_API_KEY=cmux-vm-edge-placeholder CMUX_VM_ID=vm-check bash -lc 'true' && grep -q 'model_provider = "cmux"' /tmp/cmux-agent-config-verify/.codex/config.toml && grep -q 'wire_api = "responses"' /tmp/cmux-agent-config-verify/.codex/config.toml && grep -q "export OPENAI_API_KEY='cmux-vm-edge-placeholder'" /tmp/cmux-agent-config-verify/.config/cmux/model-plane.env && grep -q "export CMUX_VM_ID='vm-check'" /tmp/cmux-agent-config-verify/.config/cmux/model-plane.env && [ "$(stat -c %a /tmp/cmux-agent-config-verify/.config/cmux/model-plane.env)" = "600" ] && grep -qF '"apiKey": "e30.' /tmp/cmux-agent-config-verify/.pi/agent/models.json && ! grep -q x-coderouter-route-token /tmp/cmux-agent-config-verify/.pi/agent/models.json && ! grep -q crt_ /tmp/cmux-agent-config-verify/.pi/agent/models.json && test ! -e /tmp/cmux-agent-config-verify/.config/opencode/opencode.json && rm -rf /tmp/cmux-agent-config-verify && grep -q 'base_url = "https://' /root/.codex/config.toml && grep -qF "${DEFAULT_VM_EDGE_ALIAS_DOMAIN}/v1" /root/.codex/config.toml && ! grep -q crt_ /root/.codex/config.toml && ! grep -q crt_ /root/.pi/agent/models.json && test ! -e /root/.config/opencode/opencode.json && echo agent-config-ok`,
-  "grep -q cleanupPeriodDays /etc/claude-code/managed-settings.json && echo claude-retention-ok",
+  "python3 -c \"import json; s = json.load(open('/etc/claude-code/managed-settings.json')); assert s['cleanupPeriodDays'] == 99999 and s['skipDangerousModePermissionPrompt'] is True\" && echo claude-retention-ok",
+  // Trust everywhere: the managed HOME entries for codex, the claude first-run
+  // seed for root, and the sandbox env every login shell exports.
+  `python3 -c 'import tomllib; d = tomllib.load(open("/etc/codex/managed_config.toml", "rb")); assert d["projects"]["/root"]["trust_level"] == "trusted"; assert d["projects"]["${DEVBOX_DESKTOP_HOME}"]["trust_level"] == "trusted"' && bash -lc 'test "$CLAUDE_CODE_SANDBOXED:$IS_SANDBOX:$DISABLE_AUTOUPDATER" = 1:1:1' && python3 -c "import json; j = json.load(open('/root/.claude.json')); assert j['hasCompletedOnboarding'] is True and j['bypassPermissionsModeAccepted'] is True and j['projects']['/']['hasTrustDialogAccepted'] is True and isinstance(j['customApiKeyResponses']['approved'], list) and '-vm-edge-placeholder' in j['customApiKeyResponses']['approved']" && echo agent-trust-ok`,
   "whoami; nproc; free -m | sed -n 2p; df -h / | tail -1",
 ];
 
@@ -123,6 +130,7 @@ const DAEMON_CHECKS: readonly string[] = [
   // The static model-plane env is baked; a shell with no boot env sources it.
   `test -s /etc/cmux/model-plane.env && grep -q "^export OPENAI_BASE_URL='https://" /etc/cmux/model-plane.env && ! grep -q crt_ /etc/cmux/model-plane.env && env -i HOME=/tmp/mp-verify bash -c '. /etc/cmux/agent-config.sh; printf %s "$OPENAI_BASE_URL"' | grep -q '^https://' && rm -rf /tmp/mp-verify && echo model-plane-env-baked`,
   "systemctl is-active cmux-tui-daemon >/dev/null && echo systemd-supervisor-active",
+  cmuxTuiWebsocketSmokeCommand(),
 ];
 
 // The desktop layer (Freestyle bakes; /etc/cmux/image-stamp says "desktop"),
@@ -197,6 +205,9 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   // would itself leave root-owned state dirs behind.
   ...pins.map((pin) => `sudo -n -u ubuntu env -i HOME=/home/ubuntu USER=ubuntu TERM=xterm PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ${pin.binary} --version | grep -F '${pin.version}' >/dev/null && echo ${pin.binary}-nonlogin-pin-ok`),
   "systemctl show cmux-tui-daemon -p Environment | grep -q 'PATH=/usr/local/sbin:/usr/local/bin:' && echo daemon-env-path-ok",
+  // Every pane inherits the daemon's terminal identity (cmux-devbox-boot):
+  // TERM_PROGRAM=ghostty and the baked Ghostty version.
+  `pid=$(pgrep -f 'cmux-tui server [s]tart' | head -1) && tr '\\0' '\\n' < /proc/$pid/environ > /tmp/daemon-env && grep -qx TERM=xterm-256color /tmp/daemon-env && grep -qx TERM_PROGRAM=ghostty /tmp/daemon-env && grep -qx "TERM_PROGRAM_VERSION=${devboxGhosttyVersion()}" /tmp/daemon-env && test "$(cat /etc/cmux/ghostty-version)" = ${devboxGhosttyVersion()} && rm -f /tmp/daemon-env && echo daemon-terminal-identity-ok`,
   devboxTerminfoCheckCommand,
   "sudo -n -u ubuntu env -i HOME=/home/ubuntu TERM=xterm-256color PATH=/usr/bin:/bin sh -c 'tput setaf 8 | od -An -tx1 | tr -d \" \\n\"' | grep -qx 1b5b33383b353b386d && echo ubuntu-terminfo-ok",
   "grep -qx 'unset TERMINFO' /etc/profile.d/cmux-terminfo.sh && grep -qx 'export TERMINFO_DIRS=/etc/terminfo:' /etc/profile.d/cmux-terminfo.sh && echo terminfo-search-path-ok",
@@ -224,6 +235,22 @@ const FREESTYLE_BASE_CHECKS: readonly string[] = [
   `echo '${shaOf("cmux-motd")}  /etc/update-motd.d/00-cmux' | sha256sum -c -`,
   "cat /etc/cmux/tool-versions",
   "cat /etc/cmux/image-stamp",
+];
+
+// The machine is `cmux`, not the base's `freestyle-vm`
+// (services/vms/images/identity.ts): the shared check covers the static and
+// live hostname, $HOSTNAME, the loopback alias, sudo, the host-key comment
+// and the residue audit; on top of that, the prompt a person sees in a real
+// pty names the machine for both accounts, and the journal of this boot knows
+// no other name (the bake started it over). The pty probes wait on a
+// readiness signal, not a delay: the shell's own PROMPT_COMMAND signals a tmux
+// channel each time it is about to draw a prompt, and after an Enter the
+// second signal means the first prompt line is fully on screen.
+const IDENTITY_CHECKS: readonly string[] = [
+  devboxIdentityCheckCommand(),
+  `env TERM=xterm-256color PROMPT_COMMAND='tmux -L idroot wait-for -S prompt' tmux -L idroot new-session -d -s login -x 120 -y 30 && timeout 20 tmux -L idroot wait-for prompt && tmux -L idroot send-keys -t login Enter && timeout 20 tmux -L idroot wait-for prompt && pane="$(tmux -L idroot capture-pane -pt login)"; tmux -L idroot kill-server 2>/dev/null; printf '%s\n' "$pane" | grep -q 'root@${DEVBOX_HOSTNAME} in' && echo root-prompt-names-${DEVBOX_HOSTNAME}`,
+  `sudo -n -u ${DEVBOX_DESKTOP_USER} env -i HOME=${DEVBOX_DESKTOP_HOME} USER=${DEVBOX_DESKTOP_USER} TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin PROMPT_COMMAND='tmux -L iduser wait-for -S prompt' bash -c 'tmux -L iduser new-session -d -s login -x 120 -y 30 && timeout 20 tmux -L iduser wait-for prompt && tmux -L iduser send-keys -t login Enter && timeout 20 tmux -L iduser wait-for prompt && pane="$(tmux -L iduser capture-pane -pt login)"; tmux -L iduser kill-server 2>/dev/null; printf "%s\n" "$pane" | grep -q "${DEVBOX_DESKTOP_USER}@${DEVBOX_HOSTNAME} in" && echo user-prompt-names-${DEVBOX_HOSTNAME}'`,
+  `[ "$(journalctl -b -o json --no-pager 2>/dev/null | jq -r '._HOSTNAME // empty' | sort -u | tr '\n' ' ')" = '${DEVBOX_HOSTNAME} ' ] && echo journal-host-${DEVBOX_HOSTNAME}`,
 ];
 
 type Exec = (cmd: string, timeoutMs?: number) => Promise<{ exitCode: number; output: string }>;
@@ -305,6 +332,7 @@ if (provider === "freestyle") {
     const exec = execFor(vm);
     const daemonMs = await waitForBakedDaemon("freestyle", exec);
     console.log(`baked daemon answered ${daemonMs} ms after the first probe (${Date.now() - t0} ms after create)`);
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
     // The baked binary must be the pin the bake resolved and recorded in
     // /etc/cmux/cmux-tui-pin (that is the image's contract; the manifest entry
     // carries the same commit). The live files.cmux.com pin moves with every
@@ -331,6 +359,7 @@ if (provider === "freestyle") {
     try {
       const exec2 = execFor(second.vm);
       await waitForBakedDaemon("freestyle", exec2);
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
       const digest = `cat ${REMOTE_IDENTITY} ${MACHINE_SECRETS} | sha256sum | cut -c1-64`;
       const [a, b] = await Promise.all([exec(digest, 30_000), exec2(digest, 30_000)]);
       const digestA = a.output.trim();
@@ -342,6 +371,19 @@ if (provider === "freestyle") {
         throw new Error(`two machines from ${image} share one daemon identity (${digestA.slice(0, 12)}…)`);
       }
       console.log(`daemon identity + machine secrets differ across machines: ${digestA.slice(0, 12)}… vs ${digestB.slice(0, 12)}…`);
+      // The SSH host keys are per machine as well: cmux-devbox-boot regenerates
+      // them on a clone, under the machine's own name.
+      const hostKey = `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{ print $2 }'`;
+      const [keyA, keyB] = await Promise.all([exec(hostKey, 30_000), exec2(hostKey, 30_000)]);
+      const fingerprintA = keyA.output.trim();
+      const fingerprintB = keyB.output.trim();
+      if (keyA.exitCode !== 0 || keyB.exitCode !== 0 || !fingerprintA.startsWith("SHA256:") || !fingerprintB.startsWith("SHA256:")) {
+        throw new Error(`could not read both SSH host keys: ${keyA.output.slice(-200)} / ${keyB.output.slice(-200)}`);
+      }
+      if (fingerprintA === fingerprintB) {
+        throw new Error(`two machines from ${image} share one SSH host key (${fingerprintA})`);
+      }
+      console.log(`SSH host keys differ across machines: ${fingerprintA.slice(7, 19)}… vs ${fingerprintB.slice(7, 19)}…`);
     } finally {
       await second.vm.delete();
       console.log(`deleted ${second.vmId}`);
@@ -359,6 +401,7 @@ if (provider === "freestyle") {
       ...CHECKS,
       ...DAEMON_CHECKS,
       ...FREESTYLE_BASE_CHECKS,
+      ...IDENTITY_CHECKS,
       ...(desktop
         ? desktopChecks()
         : [`test ! -e ${DEVBOX_DESKTOP_START_SCRIPT} && echo base-image-has-no-desktop`]),

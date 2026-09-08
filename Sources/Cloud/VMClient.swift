@@ -167,7 +167,7 @@ private func defaultCloudVMMessage(status: Int) -> String {
     }
 }
 
-private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
+func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     switch errorCode {
     case "vm_active_limit_exceeded":
         return "Run `cmux vm ls`, then stop or delete an active VM with `cmux vm rm <id>` before retrying."
@@ -178,7 +178,7 @@ private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     case "vm_requires_pro":
         return String(
             localized: "cloudVM.error.requiresPro.action",
-            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing to create Cloud VMs."
+            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing?cmux_source=mac_vm_requires_pro_error&cmux_client=mac to create Cloud VMs."
         )
     case "vm_create_credits_insufficient":
         return "Ask a team admin to upgrade the plan or grant more Cloud VM create credits, then retry."
@@ -633,17 +633,14 @@ struct VMWebSocketDaemonEndpoint {
 /// cmuxd-remote → cmux-tui migration). The route carries the ingress token; the
 /// invitation is present only when this device is not yet enrolled with the daemon.
 struct VMCmuxRemoteEndpoint {
-    struct Invitation {
-        let uri: String
-        let invitationId: String
-        let expiresAtUnix: Int64
-    }
-
     let route: String
     let token: String
     let expiresAtUnix: Int64
     let session: String
-    let invitation: Invitation?
+    /// The machine's daemon serves the trusted-carrier listener: dial `--carrier`,
+    /// no enrollment. False only for a daemon the control plane left on an older
+    /// build because this Mac is already enrolled there.
+    let trustedCarrier: Bool
     /// The machine's private addresses, when the provider returned them. Keep
     /// this metadata on the client boundary so agents and diagnostics can see
     /// the same route state the backend used, without reconstructing it.
@@ -661,12 +658,6 @@ struct VMCmuxRemoteEndpoint {
     }
 
     let daemonBuild: DaemonBuild?
-}
-
-struct VMCmuxRemoteApproval {
-    let approved: Bool
-    let state: String
-    let deviceFingerprint: String?
 }
 
 enum VMAttachEndpoint {
@@ -709,14 +700,10 @@ actor VMClient {
     @MainActor private(set) static var shared: VMClient!
 
     /// Build the shared client with its injected auth dependency. Call once at
-    /// the composition root. `privateNetwork` is used only for Cloud webviews.
+    /// the composition root.
     @MainActor
-    static func bootstrap(
-        auth: AuthCoordinator,
-        session: URLSession = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
-    ) {
-        shared = VMClient(session: session, auth: auth, privateNetwork: privateNetwork)
+    static func bootstrap(auth: AuthCoordinator, session: URLSession = .shared) {
+        shared = VMClient(session: session, auth: auth)
     }
 
     /// Revoke endpoint credentials issued by the Cloud VM service during sign-out.
@@ -756,28 +743,15 @@ actor VMClient {
     private let session: URLSession
     private let auth: AuthCoordinator
     private let telemetry: VMClientTelemetry
-    /// The browser-only private-network gate. Terminal and metadata traffic
-    /// uses the separate user-space WireGuard hub.
-    private let privateNetwork: any CloudPrivateNetworkGate
 
     init(
         session: URLSession = .shared,
         auth: AuthCoordinator,
-        telemetry: VMClientTelemetry = .shared,
-        privateNetwork: any CloudPrivateNetworkGate = CloudPrivateNetworkNoopGate()
+        telemetry: VMClientTelemetry = .shared
     ) {
         self.session = session
         self.auth = auth
         self.telemetry = telemetry
-        self.privateNetwork = privateNetwork
-    }
-
-    /// Do not let a Cloud webview navigate until the browser tunnel is ready.
-    /// Direct private URLs call this without a control-plane request.
-    func requireCloudBrowserAccess(machineID: String) async throws {
-        try await privateNetwork.requirePrivateNetworkUse(
-            CloudPrivateNetworkUse(machineID: machineID, purpose: .openPort)
-        )
     }
 
     func list() async throws -> [VMSummary] {
@@ -1425,7 +1399,8 @@ actor VMClient {
             "POST",
             path: "/api/vm/\(encodedID)/attach-endpoint",
             jsonBody: body,
-            timeoutSeconds: Self.attachTimeoutSeconds
+            timeoutSeconds: Self.attachTimeoutSeconds,
+            retryTransientServiceUnavailable: true
         )
         try ensureOK(http, data: data)
         let obj = try decodeJSONObject(data)
@@ -1470,7 +1445,8 @@ actor VMClient {
                 "POST",
                 path: "/api/vm/\(encodedID)/attach-endpoint",
                 jsonBody: body,
-                timeoutSeconds: Self.attachTimeoutSeconds
+                timeoutSeconds: Self.attachTimeoutSeconds,
+                retryTransientServiceUnavailable: true
             )
             try ensureOK(http, data: data)
             return try decodeJSONObject(data)
@@ -1482,13 +1458,9 @@ actor VMClient {
             throw VMClientError.malformedResponse("Cloud VM cmux-remote attach response was missing required fields.")
         }
         let expiresAtUnix = (obj["expiresAtUnix"] as? Int64) ?? Int64((obj["expiresAtUnix"] as? Double) ?? 0)
-        var invitation: VMCmuxRemoteEndpoint.Invitation?
-        if let raw = obj["invitation"] as? [String: Any],
-           let uri = raw["uri"] as? String, !uri.isEmpty,
-           let invitationId = raw["invitationId"] as? String, !invitationId.isEmpty {
-            let invitationExpires = (raw["expiresAtUnix"] as? Int64) ?? Int64((raw["expiresAtUnix"] as? Double) ?? 0)
-            invitation = .init(uri: uri, invitationId: invitationId, expiresAtUnix: invitationExpires)
-        }
+        // Absent on a control plane older than the trusted listener: such a
+        // daemon would still expect enrollment, which this build no longer does.
+        let trustedCarrier = (obj["trustedCarrier"] as? Bool) ?? false
         var daemonBuild: VMCmuxRemoteEndpoint.DaemonBuild?
         if let raw = obj["daemonBuild"] as? [String: Any] {
             daemonBuild = .init(
@@ -1513,27 +1485,9 @@ actor VMClient {
             token: token,
             expiresAtUnix: expiresAtUnix,
             session: session,
-            invitation: invitation,
+            trustedCarrier: trustedCarrier,
             networkAddresses: networkAddresses,
             daemonBuild: daemonBuild
-        )
-    }
-
-    func approveCmuxRemoteEnrollment(id: String, invitationId: String) async throws -> VMCmuxRemoteApproval {
-        let encodedID = try pathSegment(id, fieldName: "vm id")
-        let (data, http) = try await request(
-            "POST",
-            path: "/api/vm/\(encodedID)/cmux-remote/approve",
-            jsonBody: ["invitationId": invitationId],
-            timeoutSeconds: 60
-        )
-        try ensureOK(http, data: data)
-        let obj = try decodeJSONObject(data)
-        let state = (obj["state"] as? String) ?? "pending"
-        return VMCmuxRemoteApproval(
-            approved: (obj["approved"] as? Bool) ?? false,
-            state: state,
-            deviceFingerprint: obj["deviceFingerprint"] as? String
         )
     }
 
@@ -1822,9 +1776,11 @@ actor VMClient {
         )
     }
 
+    /// Asks the control plane to open (and, for a paused machine, resume)
+    /// `port`. This is a plain HTTPS request: it never involves the Mac's
+    /// private-network route, which Ports panes get from the user-space hub.
     func openPort(id: String, port: Int) async throws -> VMOpenPortEndpoint {
         let encodedID = try pathSegment(id, fieldName: "vm id")
-        try await requireCloudBrowserAccess(machineID: id)
         let (data, http) = try await request(
             "POST",
             path: "/api/vm/\(encodedID)/open-port",
@@ -1913,7 +1869,8 @@ actor VMClient {
         path: String,
         jsonBody: [String: Any]? = nil,
         extraHeaders: [String: String] = [:],
-        timeoutSeconds: TimeInterval? = nil
+        timeoutSeconds: TimeInterval? = nil,
+        retryTransientServiceUnavailable: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
         let trace = VMRequestTraceContext.mint()
         let route = VMClientTelemetry.normalizedRoute(path: path)
@@ -1942,6 +1899,7 @@ actor VMClient {
                 jsonBody: jsonBody,
                 extraHeaders: headers,
                 timeoutSeconds: timeoutSeconds,
+                retryTransientServiceUnavailable: retryTransientServiceUnavailable,
                 onRetry: { retryCount += 1 }
             )
             record(.response(
@@ -2014,6 +1972,7 @@ actor VMClient {
         jsonBody: [String: Any]?,
         extraHeaders: [String: String],
         timeoutSeconds: TimeInterval?,
+        retryTransientServiceUnavailable: Bool,
         onRetry: () -> Void
     ) async throws -> (Data, HTTPURLResponse) {
         // Bind every control-plane request to the currently published auth
@@ -2091,6 +2050,16 @@ actor VMClient {
                 try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
                 continue
             }
+            if retryTransientServiceUnavailable,
+               retriesLeft > 0,
+               let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
+                retriesLeft -= 1
+                onRetry()
+                try await Task.sleep(
+                    nanoseconds: UInt64(delaySeconds.components.seconds) * 1_000_000_000
+                )
+                continue
+            }
             if let sessionIdentity {
                 guard await auth.isAuthenticatedSessionIdentityCurrent(sessionIdentity) else {
                     throw VMClientError.notSignedIn
@@ -2105,6 +2074,21 @@ actor VMClient {
             }
             return (data, http)
         }
+    }
+
+    /// Returns a bounded delay only for the VM API's explicitly retryable service failures.
+    /// Attach endpoint creation is idempotent for a machine/device pair, so repeating it
+    /// avoids surfacing a transient provider 502 as a dead Cloud sidebar row.
+    private static func transientVMRetryDelay(http: HTTPURLResponse, data: Data) -> Duration? {
+        guard (502...504).contains(http.statusCode),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let retryable = object["retryable"] as? Bool ?? false
+        let error = object["error"] as? String
+        guard retryable || error == "vm_cloud_service_unavailable" else { return nil }
+        let requested = cloudVMInt(object["retryAfterSeconds"]) ?? 2
+        return .seconds(min(max(requested, 1), 10))
     }
 
     private func decodeWebSocketDaemonEndpoint(_ value: Any?) throws -> VMWebSocketDaemonEndpoint? {

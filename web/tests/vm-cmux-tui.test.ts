@@ -11,9 +11,8 @@ import {
   cmuxTuiManifestUrl,
   cmuxTuiPersistentMountWait,
   parseCmuxTuiManifest,
-  parseEnrollmentInvitationUri,
   cmuxTuiAttachBundleCommand,
-  cmuxTuiApproveWaitCommand,
+  cmuxTuiTrustedListenerProbe,
   parseCmuxTuiAttachBundle,
 } from "../services/vms/drivers/cmuxTuiDaemon";
 
@@ -92,7 +91,7 @@ describe("cmux-tui install and daemon commands", () => {
   test("the daemon serves /v1/link on its own port from the persistent home", () => {
     const command = cmuxTuiDaemonCommand();
     expect(command.startsWith("cd /root && env HOME=/root")).toBe(true);
-    expect(command).toContain("server start --session cloud --remote-ws 0.0.0.0:1337 --remote-ws-insecure-bind");
+    expect(command).toContain("server start --session cloud --remote-ws 0.0.0.0:1337 --remote-ws-insecure-bind --remote-ws-trusted-carrier");
   });
 
   test("with the cloud layout the install lands in the cmux home and hands the bin dir to the user", () => {
@@ -115,7 +114,7 @@ describe("cmux-tui install and daemon commands", () => {
     // Terminals must be non-root shells: agents refuse root
     // (`claude --dangerously-skip-permissions`), sudo is the escalation path.
     expect(command).toContain(
-      "runuser -u cmux -- env HOME=/home/cmux USER=cmux LOGNAME=cmux SHELL=/bin/bash TERM=xterm-256color /home/cmux/.cmux/bin/cmux-tui server start",
+      "runuser -u cmux -- env HOME=/home/cmux USER=cmux LOGNAME=cmux SHELL=/bin/bash TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /home/cmux/.cmux/bin/cmux-tui server start",
     );
     expect(command).toContain("&& runuser -u cmux -- test -w /home/cmux 2>/dev/null; then cmux_tui_view_lost=0;");
     expect(command).toContain("cd /home/cmux 2>/dev/null || exit 75; exec runuser -u cmux -- env HOME=/home/cmux");
@@ -132,20 +131,20 @@ describe("cmux-tui install and daemon commands", () => {
     // A sandbox born before the layout change still has its persistent volume (data
     // AND daemon state) at /root; it must keep the root daemon until resurrection.
     expect(command).toContain("if mountpoint -q /root 2>/dev/null; then { mkdir -p /etc/cmux 2>/dev/null; printf 'root\\n'");
-    expect(command).toContain("exec env HOME=/root TERM=xterm-256color /home/cmux/.cmux/bin/cmux-tui server start");
-    expect(command).toContain("exec env HOME=/root TERM=xterm-256color /root/.cmux/bin/cmux-tui server start");
+    expect(command).toContain("exec env HOME=/root TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /home/cmux/.cmux/bin/cmux-tui server start");
+    expect(command).toContain("exec env HOME=/root TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /root/.cmux/bin/cmux-tui server start");
     // Volume mounted but the identity view missing (bindfs failed): home on the
     // persistent backing path as root, never the writable-but-disposable rootfs dir.
     expect(command).toContain("elif mountpoint -q /cmux/home 2>/dev/null && ! mountpoint -q /home/cmux 2>/dev/null; then ");
-    expect(command).toContain("cd /cmux/home 2>/dev/null || exit 75; if [ -x /cmux/home/.cmux/bin/cmux-tui ]; then exec env HOME=/cmux/home TERM=xterm-256color /cmux/home/.cmux/bin/cmux-tui server start");
-    expect(command).toContain("elif [ -x /root/.cmux/bin/cmux-tui ]; then exec env HOME=/cmux/home TERM=xterm-256color /root/.cmux/bin/cmux-tui server start");
+    expect(command).toContain("cd /cmux/home 2>/dev/null || exit 75; if [ -x /cmux/home/.cmux/bin/cmux-tui ]; then exec env HOME=/cmux/home TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /cmux/home/.cmux/bin/cmux-tui server start");
+    expect(command).toContain("elif [ -x /root/.cmux/bin/cmux-tui ]; then exec env HOME=/cmux/home TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /root/.cmux/bin/cmux-tui server start");
     // No user, no runuser, or an unusable home (bindfs view missing over the
     // root-squashing volume): fall back to root instead of crash-looping.
     expect(command).toContain(
       "[ \"$(id -u cmux 2>/dev/null || echo -1)\" = \"1001\" ] && command -v bash >/dev/null 2>&1 && command -v runuser >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1 && runuser -u cmux -- test -w /home/cmux 2>/dev/null",
     );
     expect(command).toContain("(! mountpoint -q /cmux/home 2>/dev/null || mountpoint -q /home/cmux 2>/dev/null)");
-    expect(command).toContain("cd /home/cmux && exec env HOME=/home/cmux TERM=xterm-256color /home/cmux/.cmux/bin/cmux-tui server start");
+    expect(command).toContain("cd /home/cmux && exec env HOME=/home/cmux TERM=xterm-256color TERM_PROGRAM=ghostty TERM_PROGRAM_VERSION=\"$(cat /etc/cmux/ghostty-version 2>/dev/null)\" /home/cmux/.cmux/bin/cmux-tui server start");
     // If the work user is unavailable even after setup, keep root fallback state on
     // the mounted volume instead of the disposable /home/cmux rootfs directory.
     expect(command).toContain(
@@ -768,80 +767,9 @@ describe("cmux-tui install and daemon commands", () => {
   });
 });
 
-describe("enrollment invitation parsing", () => {
-  test("one provider command waits locally for the claim and approves it", () => {
-    const command = cmuxTuiApproveWaitCommand("inv_abc-123");
-    expect(command).toContain("while [ \"$cmux_approve_attempt\" -lt 120 ]");
-    expect(command).toContain("remote enroll approve 'inv_abc-123' --session cloud --json");
-    expect(command).toContain("sleep 0.25");
-    expect(() => cmuxTuiApproveWaitCommand("bad; rm -rf /")).toThrow(/unexpected shape/);
-  });
-
-  test("the one provider command retries only inside the VM", () => {
-    const root = mkdtempSync(join(tmpdir(), "cmux-approve-wait-"));
-    const binary = join(root, "cmux-tui");
-    const count = join(root, "count");
-    try {
-      writeFileSync(binary, [
-        "#!/bin/sh",
-        "n=$(cat \"$CMUX_APPROVE_COUNT\" 2>/dev/null || printf 0)",
-        "n=$((n + 1))",
-        "printf '%s' \"$n\" > \"$CMUX_APPROVE_COUNT\"",
-        "[ \"$n\" -ge 3 ] || exit 1",
-        "printf '%s\\n' '{\"fingerprint\":\"fp-approved\"}'",
-        "",
-      ].join("\n"));
-      chmodSync(binary, 0o755);
-      const command = cmuxTuiApproveWaitCommand("inv-abc", {
-        binaryPath: binary,
-        attempts: 4,
-        delaySeconds: 0.01,
-      });
-      const result = spawnSync("/bin/sh", ["-c", command], {
-        env: { ...process.env, CMUX_APPROVE_COUNT: count },
-        encoding: "utf8",
-      });
-      expect(result.status).toBe(0);
-      expect(result.stdout.trim()).toBe('{"fingerprint":"fp-approved"}');
-      expect(readFileSync(count, "utf8")).toBe("3");
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test("extracts the id and expiry the approve flow needs", () => {
-    const payload = {
-      version: 1,
-      id: "inv_abc-123",
-      secret: "s3cret",
-      daemon_public_key: "pk",
-      daemon_fingerprint: "fp-daemon",
-      daemon_name: "cloud",
-      expires_at_unix: 1_800_000_000,
-      route_hints: [],
-      relay_access: [],
-      approval_required: true,
-    };
-    const uri = `cmux://enroll/${Buffer.from(JSON.stringify(payload)).toString("base64url")}`;
-    expect(parseEnrollmentInvitationUri(uri)).toEqual({
-      id: "inv_abc-123",
-      expiresAtUnix: 1_800_000_000,
-      daemonFingerprint: "fp-daemon",
-    });
-  });
-
-  test("rejects foreign schemes and malformed payloads", () => {
-    expect(() => parseEnrollmentInvitationUri("https://example.com/enroll")).toThrow(/scheme/);
-    expect(() => parseEnrollmentInvitationUri("cmux://enroll/!!!")).toThrow(/undecodable|id or expiry/);
-    const missing = `cmux://enroll/${Buffer.from(JSON.stringify({ version: 1 })).toString("base64url")}`;
-    expect(() => parseEnrollmentInvitationUri(missing)).toThrow(/id or expiry/);
-  });
-});
-
 describe("cmux-tui attach bundle", () => {
-  const stdoutFor = (probe: string, devices: string, invite: string) =>
-    ["__CMUX_PROBE__", probe, "__CMUX_DEVICES__", devices, "__CMUX_INVITE__", invite, "__CMUX_END__", ""].join("\n");
-  const invitation = `cmux://enroll/${Buffer.from(JSON.stringify({ id: "inv-abc", expires_at_unix: 1900000000 })).toString("base64url")}`;
+  const stdoutFor = (probe: string, devices: string, trusted: string) =>
+    ["__CMUX_PROBE__", probe, "__CMUX_DEVICES__", devices, "__CMUX_TRUSTED__", trusted, "__CMUX_END__", ""].join("\n");
 
   const runBundle = (readyGate: string, deviceFingerprint?: string) => {
     const root = mkdtempSync(join(tmpdir(), "cmux-tui-attach-bundle-"));
@@ -853,7 +781,6 @@ describe("cmux-tui attach bundle", () => {
       "case \"$*\" in",
       `  'remote-probe --json') printf '%s\\n' '{"build_identity":"abc123","remote_protocol":12,"version":"0.13.0"}' ;;`,
       `  'remote enroll devices --session cloud --json') printf '%s\\n' '[{"fingerprint":"fp-1","revoked_at_unix":null}]' ;;`,
-      `  'remote enroll create --session cloud --ttl 300 --json') printf '%s\\n' '${JSON.stringify({ uri: invitation })}' ;;`,
       "  *) exit 64 ;;",
       "esac",
       "",
@@ -876,18 +803,19 @@ describe("cmux-tui attach bundle", () => {
     }
   };
 
-  test("a successful readiness exit continues with the complete attach bundle", () => {
+  test("a successful readiness exit reads build, devices, and the trusted probe; nothing is minted", () => {
     const result = runBundle("exit 0", "fp-new");
     expect(result.status).toBe(0);
     expect(result.calls).toEqual([
       "remote-probe --json",
       "remote enroll devices --session cloud --json",
-      "remote enroll create --session cloud --ttl 300 --json",
     ]);
+    expect(cmuxTuiAttachBundleCommand({})).not.toContain("remote enroll create");
     const bundle = parseCmuxTuiAttachBundle(result.stdout, "freestyle", "vm-1", "fp-new");
     expect(bundle.daemonBuild).toEqual({ commit: "abc123", remoteProtocol: 12, version: "0.13.0" });
     expect(bundle.enrolled).toBe(false);
-    expect(bundle.invitation?.invitationId).toBe("inv-abc");
+    // No cloud daemon runs on the test host, so the probe reports untrusted.
+    expect(bundle.trustedCarrier).toBe(false);
   });
 
   test("a failed readiness exit returns the repair signal without calling the daemon", () => {
@@ -897,28 +825,36 @@ describe("cmux-tui attach bundle", () => {
     expect(result.stdout).toBe("");
   });
 
-  test("an enrolled device passes the readiness exit without minting an invitation", () => {
+  test("an enrolled device is recognized so the heal never restarts under it", () => {
     const result = runBundle("exit 0", "fp-1");
     expect(result.status).toBe(0);
-    expect(result.calls).toEqual([
-      "remote-probe --json",
-      "remote enroll devices --session cloud --json",
-    ]);
     const bundle = parseCmuxTuiAttachBundle(result.stdout, "freestyle", "vm-1", "fp-1");
     expect(bundle.enrolled).toBe(true);
-    expect(bundle.invitation).toBeNull();
   });
 
   test("rejects a malformed device fingerprint", () => {
     expect(() => cmuxTuiAttachBundleCommand({ deviceFingerprint: "bad fp; rm -rf /" })).toThrow("unexpected shape");
   });
 
-  test("parses build, enrollment, and invitation from the fenced output", () => {
+  test("the trusted probe requires the env or flag on the live daemon and a binary that knows the flag", () => {
+    const probe = cmuxTuiTrustedListenerProbe();
+    expect(probe).toContain("pgrep -f 'cmux-tui server [s]tart'");
+    expect(probe).toContain("/proc/$p/environ");
+    expect(probe).toContain("'CMUX_TUI_REMOTE_WS_TRUSTED_CARRIER=1'");
+    expect(probe).toContain("/proc/$p/cmdline");
+    expect(probe).toContain("'--remote-ws-trusted-carrier'");
+    // The running binary answers for itself, so a stale install never reads as
+    // trusted: an old parser rejects the flag before it reaches --version.
+    expect(probe).toContain("\"/proc/$p/exe\" --remote-ws-trusted-carrier --version >/dev/null 2>&1");
+    expect(probe).not.toContain("sha256sum");
+  });
+
+  test("parses build, enrollment, and the trusted flag from the fenced output; a missing flag is untrusted", () => {
     const parsed = parseCmuxTuiAttachBundle(
       stdoutFor(
         JSON.stringify({ build_identity: "abc123", remote_protocol: 12, version: "0.13.0" }),
         JSON.stringify([{ fingerprint: "fp-2", revoked_at_unix: null }]),
-        JSON.stringify({ uri: invitation }),
+        "1",
       ),
       "freestyle",
       "vm-1",
@@ -926,22 +862,23 @@ describe("cmux-tui attach bundle", () => {
     );
     expect(parsed.daemonBuild).toEqual({ commit: "abc123", remoteProtocol: 12, version: "0.13.0" });
     expect(parsed.enrolled).toBe(false);
-    expect(parsed.invitation?.invitationId).toBe("inv-abc");
+    expect(parsed.trustedCarrier).toBe(true);
+    expect(parseCmuxTuiAttachBundle(stdoutFor("{}", "[]", "0"), "freestyle", "vm-1").trustedCarrier).toBe(false);
+    expect(parseCmuxTuiAttachBundle(stdoutFor("{}", "[]", ""), "freestyle", "vm-1").trustedCarrier).toBe(false);
+    expect(parseCmuxTuiAttachBundle("garbage", "freestyle", "vm-1").trustedCarrier).toBe(false);
   });
 
-  test("an enrolled, unrevoked fingerprint needs no invitation; a revoked one does", () => {
+  test("an enrolled, unrevoked fingerprint counts; a revoked one does not", () => {
     const enrolled = parseCmuxTuiAttachBundle(
-      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: null }]), ""),
+      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: null }]), "1"),
       "freestyle", "vm-1", "fp-1",
     );
     expect(enrolled.enrolled).toBe(true);
-    expect(enrolled.invitation).toBeNull();
     expect(enrolled.daemonBuild).toBeNull();
     const revoked = parseCmuxTuiAttachBundle(
-      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: 1 }]), ""),
+      stdoutFor("{}", JSON.stringify([{ fingerprint: "fp-1", revoked_at_unix: 1 }]), "1"),
       "freestyle", "vm-1", "fp-1",
     );
     expect(revoked.enrolled).toBe(false);
-    expect(revoked.invitation).toBeNull();
   });
 });

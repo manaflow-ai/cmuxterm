@@ -1,3 +1,4 @@
+import * as Exit from "effect/Exit";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import manifestJson from "../services/vms/images/manifest.json";
 import { pickVmImageSizeForMemory } from "../services/vms/images/sizes";
@@ -81,6 +82,7 @@ const realApproveVmCmuxRemoteEnrollment = workflowsModule.approveVmCmuxRemoteEnr
 const realResetBaseVm = workflowsModule.resetBaseVm;
 const realRestoreVm = workflowsModule.restoreVm;
 const realRunVmWorkflow = workflowsModule.runVmWorkflow;
+const realRunVmWorkflowExit = workflowsModule.runVmWorkflowExit;
 const realSnapshotVm = workflowsModule.snapshotVm;
 const realRevokeUserVmAccess = workflowsModule.revokeUserVmAccess;
 const realVmWorkflowLive = workflowsModule.VmWorkflowLive;
@@ -143,6 +145,16 @@ mock.module("../services/vms/workflows", () => ({
     useWorkflowStubs ? callMock(restoreVm, args) : realRestoreVm(...args)) as typeof realRestoreVm,
   runVmWorkflow: ((...args: Parameters<typeof realRunVmWorkflow>) =>
     useWorkflowStubs ? callMock(runVmWorkflow, args) : realRunVmWorkflow(...args)) as typeof realRunVmWorkflow,
+  // Routes run programs to an Exit; under stubs, the runVmWorkflow mock's
+  // resolution or rejection is that Exit, so one mock drives both entrypoints.
+  runVmWorkflowExit: (async (...args: Parameters<typeof realRunVmWorkflowExit>) => {
+    if (!useWorkflowStubs) return realRunVmWorkflowExit(...args);
+    try {
+      return Exit.succeed(await callMock(runVmWorkflow, args));
+    } catch (error) {
+      return isVmWorkflowError(error) ? Exit.fail(error) : Exit.die(error);
+    }
+  }) as typeof realRunVmWorkflowExit,
   snapshotVm: ((...args: Parameters<typeof realSnapshotVm>) =>
     useWorkflowStubs ? callMock(snapshotVm, args) : realSnapshotVm(...args)) as typeof realSnapshotVm,
   revokeUserVmAccess: ((...args: Parameters<typeof realRevokeUserVmAccess>) =>
@@ -184,7 +196,7 @@ mock.module("../db/client", () => ({
   },
 }));
 
-const { VmAttachTransportUnsupportedError } = await import("../services/vms/errors");
+const { VmAttachTransportUnsupportedError, isVmWorkflowError } = await import("../services/vms/errors");
 const { GET, POST, withBillingReconcileDeadline } = await import("../app/api/vm/route");
 const baseOpenRoute = await import("../app/api/vm/base/open/route");
 const baseResetRoute = await import("../app/api/vm/base/reset/route");
@@ -618,7 +630,7 @@ describe("VM REST auth", () => {
     }
   });
 
-  test("passes configured plan active VM limits into the create workflow", async () => {
+  test("passes the advertised allowance despite a retired deployment override", async () => {
     process.env.CMUX_VM_PLAN_PRO_MAX_ACTIVE_VMS = "25";
     getUser.mockResolvedValue(authedStackUser());
     runVmWorkflow.mockResolvedValue({
@@ -641,7 +653,7 @@ describe("VM REST auth", () => {
     expect(createVm).toHaveBeenCalledWith(expect.objectContaining({
       billingTeamId: "team-1",
       billingPlanId: "pro",
-      maxActiveVms: 25,
+      maxActiveVms: 50,
     }));
   });
 
@@ -1613,7 +1625,7 @@ describe("VM REST auth", () => {
       token: "t",
       expiresAtUnix: 1_777_000_300,
       session: "cloud",
-      invitation: { uri: "cmux://enroll/abc", invitationId: "inv-1", expiresAtUnix: 1_777_000_200 },
+      trustedCarrier: true,
     });
     const response = await attachRoute.POST(
       new Request("https://cmux.test/api/vm/provider-vm-team-1/attach-endpoint", {
@@ -1632,11 +1644,13 @@ describe("VM REST auth", () => {
       deviceFingerprint: "fp-device-1",
       clientCapabilities: ["direct-ws-user-agent"],
       callerPlanId: "pro",
+      maxActiveVms: 50,
     });
     expect(openAttachEndpoint).not.toHaveBeenCalled();
     const payload = await response.json();
     expect(payload.transport).toBe("cmux-remote");
-    expect(payload.invitation.invitationId).toBe("inv-1");
+    expect(payload.trustedCarrier).toBe(true);
+    expect(payload.invitation).toBeUndefined();
   });
 
   test("attach-endpoint answers 409 vm_attach_transport_unsupported when the machine only runs cmux-tui", async () => {
@@ -1814,6 +1828,7 @@ describe("VM REST auth", () => {
       providerVmId: "provider-vm-team-1",
       callerPlanId: "pro",
       command: "true",
+      maxActiveVms: 50,
       timeoutMs: 30_000,
     });
   });
