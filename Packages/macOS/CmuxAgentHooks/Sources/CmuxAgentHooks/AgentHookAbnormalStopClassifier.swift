@@ -203,7 +203,11 @@ public struct AgentHookAbnormalStopClassifier: Sendable {
         let timeoutHasProviderContext = messageTokens.contains {
             timeoutProviderContext.contains($0)
         }
-        if timeoutReasonOnly || timeoutSignalReason || (timeoutCue && timeoutHasProviderContext) {
+        let timeoutBannerMessage = [
+            "request timed out", "request timeout", "deadline exceeded", "gateway timeout", "timeout", "etimedout",
+        ].contains(normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines))
+            || normalizedMessage.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("■ ")
+        if timeoutReasonOnly || timeoutSignalReason || (timeoutCue && (timeoutHasProviderContext || timeoutBannerMessage)) {
             return .timeout
         }
         let authenticationCue = normalized.contains("authentication error")
