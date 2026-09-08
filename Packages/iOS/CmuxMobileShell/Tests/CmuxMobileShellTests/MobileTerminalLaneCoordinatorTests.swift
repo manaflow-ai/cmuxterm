@@ -126,6 +126,34 @@ struct MobileTerminalLaneCoordinatorTests {
     }
 
     @Test
+    func outputLaneDoesNotFallBackToInputOnlyProvider() async throws {
+        let inputProvider = TerminalLaneTestProvider(lanes: [
+            TerminalLaneTestConnection(
+                frames: [Self.frame(kind: .replay, sequence: 0, bytes: "")],
+                waitsAfterFrames: true
+            ),
+        ])
+        let coordinator = MobileTerminalLaneCoordinator(
+            provider: nil,
+            inputOnlyProvider: { request, surfaceID, cursor in
+                try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
+            }
+        )
+
+        await coordinator.ensure(Self.configuration(
+            providerRequest: try Self.request(),
+            cursor: { nil },
+            consume: { _ in .accepted(outputReady: true) },
+            readinessChanged: { _ in }
+        ))
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(await inputProvider.requestCount() == 0)
+        #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
+        await coordinator.deactivateAll()
+    }
+
+    @Test
     func sequenceGapSuspendsUntilAuthoritativeCursorThenReopens() async throws {
         let firstLane = TerminalLaneTestConnection(
             frames: [
