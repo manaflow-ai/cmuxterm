@@ -371,6 +371,36 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(pool.children.compactMap(terminalKey) == ["term_a", "term_b", "term_c"])
     }
 
+    @Test("Collapsing a pane keeps it collapsed after the pane shows a different tab")
+    @MainActor
+    func collapsingAPaneSurvivesSwitchingItsShownTab() throws {
+        let main = workspace("ws_main", "main", index: 0, focused: true)
+        func paneRow(focused: String) throws -> CloudTreeNode {
+            let snapshot = SurfaceCatalogSnapshot(
+                machines: [info(workspaces: [main])],
+                resources: [
+                    tabbedTerminal("term_a", in: main, pane: "pane_1", index: 0, focused: focused == "term_a"),
+                    tabbedTerminal("term_b", in: main, pane: "pane_1", index: 1, focused: focused == "term_b"),
+                    tabbedTerminal("term_c", in: main, pane: "pane_1", index: 2, focused: focused == "term_c"),
+                ],
+                projections: []
+            )
+            let workspaceRow = try #require(rows(snapshot).first { $0.id == "machine:brave-otter/ws/ws_main" })
+            return try #require(workspaceRow.children.first)
+        }
+        let shownB = try paneRow(focused: "term_b")
+        let shownC = try paneRow(focused: "term_c")
+        #expect(shownB.id == shownC.id, "the pane row is the same row when a different tab is shown")
+        #expect(terminalKey(shownB) == "term_b")
+        #expect(terminalKey(shownC) == "term_c")
+        let suite = "CloudTreePaneExpansion-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = CloudTreeExpansionStore(defaults: defaults)
+        store.setExpanded(false, node: shownB)
+        #expect(!store.isExpanded(shownC), "collapse is keyed by the pane, not the shown tab")
+    }
+
     @Test("Pane rows follow the layout: the screen, then the pane's position in its split tree")
     func paneRowsFollowTheLayoutOrder() throws {
         let main = workspace("ws_main", "main", index: 0, focused: true)
@@ -495,6 +525,45 @@ struct CloudTreeOneMachineManyWorkspacesTests {
         #expect(lines[shown].contains("(+1 hidden)"), Comment(rawValue: lines[shown]))
         #expect(lines[shown + 1].hasPrefix("        ↳ tab") && lines[shown + 1].contains("term_a"), Comment(rawValue: lines[shown + 1]))
         #expect(!lines.contains { isPaneRow($0) && $0.contains("term_a") }, "the hidden tab is not a peer row")
+    }
+
+    @Test("CLI open commands name the exact tab when one terminal occupies several")
+    func cliTreeOpenCommandsIdentifyTheTab() throws {
+        let workspace: [String: Any] = ["id": "ws_main", "name": "main", "index": 0, "focused": true]
+        let machine: [String: Any] = [
+            "id": machineID, "status": "running", "link_state": "connected", "has_desktop": false,
+            "remote_workspaces": [workspace],
+        ]
+        let resource: [String: Any] = [
+            "id": "\(machineID)/terminal/term_shared",
+            "key": "term_shared",
+            "kind": "terminal",
+            "title": "bash",
+            "lifecycle": "running",
+            "remote_workspace": workspace,
+            "remote_views": [
+                [
+                    "tab_id": "tab_a", "workspace": workspace, "screen_id": "screen_1", "pane_id": "pane_1",
+                    "name": "build", "index": 0, "focused": false,
+                ] as [String: Any],
+                [
+                    "tab_id": "tab_b", "workspace": workspace, "screen_id": "screen_1", "pane_id": "pane_1",
+                    "name": "shell", "index": 1, "focused": true,
+                ] as [String: Any],
+            ],
+        ]
+        let result = try runCLICloudTree(machine: machine, resources: [resource])
+        #expect(result.status == 0, Comment(rawValue: result.stderr))
+        let lines = result.stdout.split(whereSeparator: \.isNewline).map(String.init)
+        func isPaneRow(_ line: String) -> Bool { line.hasPrefix("      ") && !line.hasPrefix("        ") }
+        let shown = try #require(lines.first { isPaneRow($0) && $0.contains("term_shared") }, Comment(rawValue: result.stdout))
+        let hidden = try #require(lines.first { $0.contains("↳ tab") }, Comment(rawValue: result.stdout))
+        #expect(shown.contains("cmux vm open \(machineID)/ws_main/term_shared/tab_b"), Comment(rawValue: shown))
+        #expect(hidden.contains("cmux vm open \(machineID)/ws_main/term_shared/tab_a"), Comment(rawValue: hidden))
+        #expect(shown.contains("shell"), "the shown row uses the tab name")
+        #expect(hidden.contains("build"), "the hidden row uses its own tab name")
+        #expect(!shown.contains("/term_shared)"), "a tab-less command would open the focused tab for both rows")
+        #expect(!hidden.contains("/term_shared)"))
     }
 
     @Test("A terminal that left a workspace's layout leaves its folder; Terminals still lists it, greyed as detached")
