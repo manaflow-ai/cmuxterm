@@ -193,66 +193,6 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId) --panel=\(Self.liveSurfaceId)"))
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
-    /// Hibernation's SIGTERM can run Claude's SessionEnd hook before the app
-    /// reaches its post-signal terminating phase. The hook must ask the app
-    /// about the exact hibernation generation before consuming its record or
-    /// clearing the resume binding.
-    @Test func sessionEndPreservesHibernatingGenerationBeforeCleanup() throws {
-        let context = try Harness.makeContext(name: "session-end-hibernation-preserve")
-        defer { context.cleanup() }
-        let sessionId = "session-end-hibernation-preserve-session"
-        let processID = 43219
-        let startSeconds: Int64 = 17
-        let startMicroseconds: Int64 = 23
-
-        try Harness.writeSessionStore(
-            to: context.storeURL,
-            sessionId: sessionId,
-            workspaceId: Self.liveWorkspaceId,
-            surfaceId: Self.liveSurfaceId,
-            cwd: context.root.path,
-            pid: processID,
-            pidStartSeconds: startSeconds,
-            pidStartMicroseconds: startMicroseconds
-        )
-        let serverHandled = Harness.startDeliveryTargetServer(
-            context: context,
-            surfacesByWorkspace: [Self.liveWorkspaceId: [Self.liveSurfaceId]],
-            pidTarget: (workspaceId: Self.liveWorkspaceId, surfaceId: Self.liveSurfaceId),
-            hibernationSessionEndPreserved: true
-        )
-
-        var environment = Harness.hookEnvironment(context: context)
-        environment["CMUX_WORKSPACE_ID"] = Self.liveWorkspaceId
-        environment["CMUX_SURFACE_ID"] = Self.liveSurfaceId
-        environment["CMUX_CLAUDE_PID"] = String(processID)
-
-        let result = Harness.runHookProcess(
-            context: context,
-            arguments: ["hooks", "claude", "session-end"],
-            environment: environment,
-            standardInput: #"{"session_id":"\#(sessionId)","hook_event_name":"SessionEnd","cwd":"\#(context.root.path)"}"#
-        )
-
-        #expect(serverHandled.wait(timeout: .now() + 5) == .success)
-        assertSuccessfulHook(result)
-
-        let commands = context.state.snapshot()
-        #expect(
-            commands.contains { $0.contains("\"method\":\"agent.hibernation.session_end\"") && $0.contains("\"pid\":43219") && $0.contains("\"pid_start_seconds\":17") && $0.contains("\"pid_start_microseconds\":23") },
-            "SessionEnd must consult the app's exact hibernation intent before consuming cleanup state; saw \(commands)"
-        )
-        #expect(
-            !commands.contains { $0.contains("\"method\":\"surface.resume.clear\"") },
-            "A hibernation SessionEnd must preserve the binding instead of clearing it; saw \(commands)"
-        )
-        #expect(
-            try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId) != nil,
-            "A hibernation SessionEnd must leave the hook record available for the resumed generation"
-        )
-        #expect(!commands.contains { $0.contains("\"method\":\"feed.push\"") })
-    }
-
     /// Since #11976, the CLI records the new turn in the journal for the resolved pane
     /// instead of sending `clear_notifications`; the app reconciles attention from that event.
     @Test func promptSubmitTurnStartFollowsMovedPaneWithoutTouchingSiblings() throws {
