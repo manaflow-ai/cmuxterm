@@ -497,6 +497,7 @@ final class WindowBrowserHostView: NSView {
             if routingContext.eventKind == .pointerUp,
                Self.shouldRoutePointerUpToPaneDropTarget(
                    hasActiveDropDrag: hasActivePaneDropDrag,
+                   hasLiveTabTransfer: hasLiveTabTransfer,
                    hasLiveFileDropPayload: hasLiveFileDropPayload
                ),
                let paneDropTarget = paneDropTarget(at: point) {
@@ -909,9 +910,10 @@ final class WindowBrowserHostView: NSView {
 
     static func shouldRoutePointerUpToPaneDropTarget(
         hasActiveDropDrag: Bool,
+        hasLiveTabTransfer: Bool,
         hasLiveFileDropPayload: Bool
     ) -> Bool {
-        hasActiveDropDrag || hasLiveFileDropPayload
+        hasActiveDropDrag || hasLiveTabTransfer || hasLiveFileDropPayload
     }
 
     private func paneDropTarget(at point: NSPoint) -> BrowserPaneDropTargetView? {

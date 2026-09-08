@@ -54,14 +54,27 @@ final class TabDragPortalDropRegressionTests: XCTestCase {
         XCTAssertTrue(
             WindowBrowserHostView.shouldRoutePointerUpToPaneDropTarget(
                 hasActiveDropDrag: false,
+                hasLiveTabTransfer: false,
                 hasLiveFileDropPayload: true
             )
         )
         XCTAssertFalse(
             WindowBrowserHostView.shouldRoutePointerUpToPaneDropTarget(
                 hasActiveDropDrag: false,
+                hasLiveTabTransfer: false,
                 hasLiveFileDropPayload: false
             )
+        )
+    }
+
+    func testLiveTabTransferRoutesBrowserPortalMouseUpWithoutPaneLatch() {
+        XCTAssertTrue(
+            WindowBrowserHostView.shouldRoutePointerUpToPaneDropTarget(
+                hasActiveDropDrag: false,
+                hasLiveTabTransfer: true,
+                hasLiveFileDropPayload: false
+            ),
+            "A live tab tear-out must reach browser pane targets even when the target missed drag entry"
         )
     }
 
