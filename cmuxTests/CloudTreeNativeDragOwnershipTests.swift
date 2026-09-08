@@ -11,7 +11,7 @@ import Testing
 @MainActor
 @Suite("Cloud tree native drag ownership", .serialized)
 struct CloudTreeNativeDragOwnershipTests {
-    @Test("Cloud rows retain equal outer margins on first layout and resize")
+    @Test("Cloud rows retain side margins without an extra top gap")
     func treeRetainsOuterMargins() throws {
         let coordinator = CloudTreeOutlineView.Coordinator(
             machineActions: Self.machineActions,
@@ -32,13 +32,45 @@ struct CloudTreeNativeDragOwnershipTests {
             let margins = [
                 scroll.frame.minX,
                 container.bounds.maxX - scroll.frame.maxX,
-                scroll.frame.minY,
-                container.bounds.maxY - scroll.frame.maxY
+                scroll.frame.minY
             ]
             // Keep a compact outer gutter in addition to the row selection inset.
             #expect(margins.allSatisfy { $0 > 0 && $0 <= 3 })
             #expect(margins.allSatisfy { abs($0 - margins[0]) < 0.5 })
+            #expect(abs(container.bounds.maxY - scroll.frame.maxY) < 0.5)
         }
+    }
+
+    @Test("Pending indicators use the first column instead of an empty disclosure slot")
+    func pendingIndicatorStartsAtLeadingMargin() throws {
+        let coordinator = CloudTreeOutlineView.Coordinator(
+            machineActions: Self.machineActions,
+            nodeActions: Self.nodeActions,
+            expansionStore: CloudTreeExpansionStore(
+                defaults: UserDefaults(suiteName: "cloud-tree-pending-\(UUID().uuidString)")!
+            ),
+            tabDragTransferRegistry: { nil }
+        )
+        let container = CloudTreeContainerView(coordinator: coordinator)
+        container.frame = NSRect(x: 0, y: 0, width: 345, height: 160)
+        let outline = try #require(coordinator.outlineView)
+        let operation = MachineCreateOperation(
+            id: UUID(),
+            request: MachineCreateRequest(mode: .newMachine, kind: .desktop, name: nil, arguments: []),
+            startedAt: Date()
+        )
+        let node = CloudTreeNode(id: "pending-layout", kind: .pendingMachine(operation))
+        coordinator.apply(nodes: [node])
+        container.layoutSubtreeIfNeeded()
+        let cell = try #require(coordinator.outlineView(outline, viewFor: outline.outlineTableColumn, item: node) as? CloudTreeCellView)
+        cell.frame = outline.frameOfCell(atColumn: 0, row: 0)
+        cell.layoutSubtreeIfNeeded()
+        let host = try #require(cell.subviews.first { $0 is CloudTreePassthroughHostingView })
+        #expect(abs(cell.frame.minX + host.frame.minX - CloudTreeNSOutlineView.leadingMargin) < 0.5)
+
+        cell.configure(node: Self.terminalNode(), machineActions: Self.machineActions, nodeActions: Self.nodeActions)
+        cell.layoutSubtreeIfNeeded()
+        #expect(host.frame.minX > 0)
     }
 
     @Test("An abandoned Cloud writer revokes its provisional capability on deallocation")
