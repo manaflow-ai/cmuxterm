@@ -39747,7 +39747,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detected: %@, +%#@count2@."
+            "value": "Detected: %@, %#@count2@."
           },
           "substitutions": {
             "count2": {
@@ -39758,13 +39758,13 @@
                   "one": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%ld more"
+                      "value": "+%ld more"
                     }
                   },
                   "other": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%ld more"
+                      "value": "+%ld more"
                     }
                   }
                 }
@@ -42389,7 +42389,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cannot delete cmux browser profile '%@' while %#@count2@"
+            "value": "Cannot delete cmux browser profile '%@' while %#@count2@ using it"
           },
           "substitutions": {
             "count2": {
@@ -42400,13 +42400,13 @@
                   "one": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%d browser panel is using it"
+                      "value": "%d browser panel is"
                     }
                   },
                   "other": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%d browser panels are using it"
+                      "value": "%d browser panels are"
                     }
                   }
                 }
@@ -43879,7 +43879,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The browser screenshot disagreed with rendered text at %1$@; %#@count2@ after %#@count3@."
+            "value": "The browser screenshot disagreed with rendered text at %1$@; %#@count2@ blank after %#@count3@."
           },
           "substitutions": {
             "count2": {
@@ -43890,13 +43890,13 @@
                   "one": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%lld text probe was blank"
+                      "value": "%lld text probe was"
                     }
                   },
                   "other": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%lld text probes were blank"
+                      "value": "%lld text probes were"
                     }
                   }
                 }
@@ -76038,7 +76038,29 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ is ready (%2$@) after %3$ds"
+            "value": "%1$@ is ready (%2$@) after %#@count3@s"
+          },
+          "substitutions": {
+            "count3": {
+              "argNum": 3,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -153115,7 +153137,49 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$dd %2$dh"
+            "value": "%#@count1@d %#@count2@h"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -153138,7 +153202,49 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$dh %2$dm"
+            "value": "%#@count1@h %#@count2@m"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%d"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -153159,9 +153265,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%dm"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%dm"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%dm"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -154436,9 +154554,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%dd"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%dd"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%dd"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -178371,9 +178501,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%ds elapsed"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%ds elapsed"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%ds elapsed"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -178417,9 +178559,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waited %ds before stopping."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Waited %ds before stopping."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Waited %ds before stopping."
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -183003,9 +183157,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lldd"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldd"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldd"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -183026,9 +183192,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lldh"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldh"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldh"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -183049,9 +183227,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lldm"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldm"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldm"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -183131,9 +183321,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lldw"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldw"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldw"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -188442,7 +188644,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ · %#@count2@ pending"
+            "value": "%@ · %#@count2@"
           },
           "substitutions": {
             "count2": {
@@ -188453,13 +188655,13 @@
                   "one": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%lld"
+                      "value": "%lld pending"
                     }
                   },
                   "other": {
                     "stringUnit": {
                       "state": "translated",
-                      "value": "%lld"
+                      "value": "%lld pending"
                     }
                   }
                 }
@@ -213103,9 +213305,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lldm"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldm"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lldm"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -213128,7 +213342,49 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lldm %llds"
+            "value": "%#@count1@m %#@count2@s"
+          },
+          "substitutions": {
+            "count1": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  }
+                }
+              }
+            },
+            "count2": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%lld"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -213149,9 +213405,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%llds"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%llds"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%llds"
+                }
+              }
+            }
           }
         },
         "ja": {
@@ -305673,7 +305941,7 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Ask %lld process to terminate gracefully. cmux will force-kill remaining processes after a short grace period. PIDs: %@."
+                  "value": "Ask %lld process to terminate gracefully. cmux will force-kill remaining processes after a short grace period. PID: %@."
                 }
               },
               "other": {
