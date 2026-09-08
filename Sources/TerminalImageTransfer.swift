@@ -1,8 +1,10 @@
 import Foundation
+import CmuxTerminal
 import AppKit
+import CmuxRemoteSession
 import UniformTypeIdentifiers
 
-enum TerminalImageTransferMode {
+enum TerminalImageTransferMode: Codable, Sendable {
     case paste
     case drop
 }
@@ -24,7 +26,7 @@ enum TerminalImageTransferPlan: Equatable {
     case reject
 }
 
-enum TerminalImageTransferPreparedContent: Equatable {
+enum TerminalImageTransferPreparedContent: Codable, Equatable, Sendable {
     case insertText(String)
     case fileURLs([URL])
     case reject
@@ -32,17 +34,28 @@ enum TerminalImageTransferPreparedContent: Equatable {
 
 enum PasteboardFileURLReader {
     static let legacyFilenamesPboardType = NSPasteboard.PasteboardType(rawValue: "NSFilenamesPboardType")
+    static let promisedFileURLPasteboardType = NSPasteboard.PasteboardType(
+        rawValue: "com.apple.pasteboard.promised-file-url"
+    )
     static let fileURLPasteboardTypes: Set<NSPasteboard.PasteboardType> = [
         .fileURL,
-        legacyFilenamesPboardType
+        legacyFilenamesPboardType,
+        promisedFileURLPasteboardType,
     ]
 
     static func hasFileURLType(_ pasteboardTypes: [NSPasteboard.PasteboardType]) -> Bool {
         return pasteboardTypes.contains { fileURLPasteboardTypes.contains($0) }
     }
 
+    static func hasPromisedFileURLType(
+        _ pasteboardTypes: [NSPasteboard.PasteboardType]
+    ) -> Bool {
+        pasteboardTypes.contains(promisedFileURLPasteboardType)
+    }
+
     static func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         var fileURLs: [URL] = []
+        var didReadPromisedFileURL = false
 
         let objects = pasteboard.readObjects(
             forClasses: [NSURL.self],
@@ -68,6 +81,30 @@ enum PasteboardFileURLReader {
             fileURLs.append(url.standardizedFileURL)
         }
 
+        for item in pasteboard.pasteboardItems ?? [] {
+            guard let rawPromisedFileURL = item.string(
+                forType: promisedFileURLPasteboardType
+            ),
+            let url = URL(string: rawPromisedFileURL),
+            url.isFileURL else {
+                continue
+            }
+            fileURLs.append(url.standardizedFileURL)
+            didReadPromisedFileURL = true
+        }
+
+        // A few providers expose the promised value on the pasteboard rather
+        // than on an individual item. Preserve that legacy representation as
+        // a fallback after item-level extraction.
+        if !didReadPromisedFileURL,
+           let rawPromisedFileURL = pasteboard.string(
+               forType: promisedFileURLPasteboardType
+           ),
+           let url = URL(string: rawPromisedFileURL),
+           url.isFileURL {
+            fileURLs.append(url.standardizedFileURL)
+        }
+
         var seen: Set<String> = []
         return fileURLs.filter { url in
             seen.insert(url.path).inserted
@@ -77,6 +114,16 @@ enum PasteboardFileURLReader {
 
 enum TerminalImageTransferExecutionError: Error {
     case cancelled
+}
+
+// The app-side conformer of the session coordinator's transfer-cancellation
+// seam; the operation already provided every member by contract, the
+// extension only names the cancellation error the legacy controller threw
+// directly.
+extension TerminalImageTransferOperation: RemoteTransferCancelling {
+    var cancellationError: any Error {
+        TerminalImageTransferExecutionError.cancelled
+    }
 }
 
 final class TerminalImageTransferOperation: @unchecked Sendable {
@@ -163,7 +210,7 @@ enum TerminalImageTransferPlanner {
         target: TerminalImageTransferTarget
     ) -> TerminalImageTransferPlan {
         plan(
-            preparedContent: prepare(pasteboard: pasteboard, mode: mode),
+            preparedContent: prepareSynchronously(pasteboard: pasteboard, mode: mode),
             target: target,
             mode: mode
         )
@@ -174,7 +221,7 @@ enum TerminalImageTransferPlanner {
         mode: TerminalImageTransferMode,
         resolveTarget: () -> TerminalImageTransferTarget
     ) -> TerminalImageTransferPlan {
-        let preparedContent = prepare(pasteboard: pasteboard, mode: mode)
+        let preparedContent = prepareSynchronously(pasteboard: pasteboard, mode: mode)
         switch preparedContent {
         case .insertText, .reject:
             return plan(preparedContent: preparedContent, target: .local, mode: mode)
@@ -187,11 +234,49 @@ enum TerminalImageTransferPlanner {
         pasteboard: NSPasteboard,
         mode: TerminalImageTransferMode
     ) -> TerminalImageTransferPreparedContent {
+        prepareSynchronously(pasteboard: pasteboard, mode: mode)
+    }
+
+    @MainActor
+    static func prepare(
+        pasteboard: NSPasteboard,
+        mode: TerminalImageTransferMode,
+        using preparationService: TerminalImageTransferPreparationService
+    ) async -> TerminalImageTransferPreparedContent {
+        let request = TerminalPasteboardReadRequest(pasteboard: pasteboard)
+        return await preparationService.prepare(
+            request: request,
+            mode: mode
+        )
+    }
+
+    static func prepareSynchronously(
+        pasteboard: NSPasteboard,
+        mode: TerminalImageTransferMode
+    ) -> TerminalImageTransferPreparedContent {
+        prepareSynchronously(
+            pasteboard: pasteboard,
+            mode: mode,
+            pasteboardService: GhosttyApp.terminalPasteboard
+        )
+    }
+
+    static func prepareSynchronously(
+        pasteboard: NSPasteboard,
+        mode: TerminalImageTransferMode,
+        pasteboardService: TerminalPasteboardService
+    ) -> TerminalImageTransferPreparedContent {
         switch mode {
         case .paste:
-            return preparePaste(pasteboard: pasteboard)
+            return preparePaste(
+                pasteboard: pasteboard,
+                pasteboardService: pasteboardService
+            )
         case .drop:
-            return prepareDrop(pasteboard: pasteboard)
+            return prepareDrop(
+                pasteboard: pasteboard,
+                pasteboardService: pasteboardService
+            )
         }
     }
 
@@ -309,7 +394,7 @@ enum TerminalImageTransferPlanner {
     }
 
     static func escapeForShell(_ value: String) -> String {
-        GhosttyPasteboardHelper.escapeForShell(value)
+        value.terminalShellEscaped
     }
 
     static func insertedText(forPathStrings paths: [String]) -> String {
@@ -360,18 +445,29 @@ enum TerminalImageTransferPlanner {
     }
 
     private static func preparePaste(
-        pasteboard: NSPasteboard
+        pasteboard: NSPasteboard,
+        pasteboardService: TerminalPasteboardService
     ) -> TerminalImageTransferPreparedContent {
-        let fileURLs = fileURLs(from: pasteboard)
+        guard let fileURLs = pasteboardService.durableDroppedFileURLs(
+            fileURLs(from: pasteboard),
+            sourceIsTransient: PasteboardFileURLReader.hasPromisedFileURLType(
+                pasteboard.types ?? []
+            )
+        ) else {
+            return .reject
+        }
         if !fileURLs.isEmpty {
             return .fileURLs(fileURLs)
         }
 
-        if let string = GhosttyPasteboardHelper.stringContents(from: pasteboard), !string.isEmpty {
+        if let string = pasteboardService.stringContents(from: pasteboard),
+           !string.isEmpty {
             return .insertText(string)
         }
 
-        switch GhosttyPasteboardHelper.materializeImageFileURLIfNeeded(from: pasteboard) {
+        switch pasteboardService.materializeImageFileURLIfNeeded(
+            from: pasteboard
+        ) {
         case .saved(let imageURL):
             return .fileURLs([imageURL])
         case .rejectedImagePayload:
@@ -381,7 +477,9 @@ enum TerminalImageTransferPlanner {
         }
 
         // Clipboard managers can advertise unusable image types alongside valid text.
-        if let string = GhosttyPasteboardHelper.fallbackPlainTextContents(from: pasteboard), !string.isEmpty {
+        if let string = pasteboardService.fallbackPlainTextContents(
+            from: pasteboard
+        ), !string.isEmpty {
             return .insertText(string)
         }
 
@@ -393,9 +491,15 @@ enum TerminalImageTransferPlanner {
     }
 
     private static func prepareDrop(
-        pasteboard: NSPasteboard
+        pasteboard: NSPasteboard,
+        pasteboardService: TerminalPasteboardService
     ) -> TerminalImageTransferPreparedContent {
-        let fileURLs = materializedFileURLs(from: pasteboard)
+        guard let fileURLs = materializedFileURLs(
+            from: pasteboard,
+            pasteboardService: pasteboardService
+        ) else {
+            return .reject
+        }
         if !fileURLs.isEmpty {
             return .fileURLs(fileURLs)
         }
@@ -411,12 +515,25 @@ enum TerminalImageTransferPlanner {
         return .reject
     }
 
-    private static func materializedFileURLs(from pasteboard: NSPasteboard) -> [URL] {
-        let urls = fileURLs(from: pasteboard)
+    private static func materializedFileURLs(
+        from pasteboard: NSPasteboard,
+        pasteboardService: TerminalPasteboardService
+    ) -> [URL]? {
+        guard let urls = pasteboardService.durableDroppedFileURLs(
+            fileURLs(from: pasteboard),
+            sourceIsTransient: PasteboardFileURLReader.hasPromisedFileURLType(
+                pasteboard.types ?? []
+            )
+        ) else {
+            return nil
+        }
         if !urls.isEmpty {
             return urls
         }
-        return GhosttyPasteboardHelper.saveImageFileURLsIfNeeded(from: pasteboard, assumeNoText: true)
+        return pasteboardService.saveImageFileURLsIfNeeded(
+            from: pasteboard,
+            assumeNoText: true
+        )
     }
 
     private static func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
@@ -487,6 +604,13 @@ extension TerminalSurface {
         guard let workspace = owningWorkspace() else { return .local }
         if workspace.isRemoteTerminalSurface(id) {
             return .remote(.workspaceRemote)
+        }
+        // Remote tmux mirror surfaces have no local TTY/process, so the SSH
+        // detector below can't see them. Upload pasted images to the tmux host
+        // over SSH (where claude runs can read them) instead of inserting a
+        // macOS-local path the remote host has no access to.
+        if let target = AppDelegate.shared?.remoteTmuxController.remoteUploadTarget(forSurfaceId: id) {
+            return .remote(target)
         }
         if let ttyName = workspace.surfaceTTYNames[id],
            let session = TerminalSSHSessionDetector.detect(forTTY: ttyName) {

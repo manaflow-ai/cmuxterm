@@ -30,16 +30,20 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+# Outer harness allowance above BrowserScreenshotTimingBudget's 41.5-second client deadline.
+BROWSER_SCREENSHOT_RESPONSE_TIMEOUT_S = 45.0
+
+
+class cmuxError(Exception):
+    """Exception raised for cmux errors."""
+
+
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from cmux_socket_paths import socket_path_for_file_name as _shared_socket_path_for_file_name  # noqa: E402
-
-
-class cmuxError(Exception):
-    """Exception raised for cmux errors."""
 
 
 _STATE_DIR = os.path.expanduser("~/.local/state/cmux")
@@ -238,10 +242,7 @@ def _read_last_socket_path() -> Optional[str]:
         try:
             with open(marker_path, encoding="utf-8") as f:
                 path = f.read().strip()
-            if path and (
-                variant != "stable"
-                or _is_stable_implicit_socket_path(path)
-            ):
+            if path and (variant != "stable" or _is_stable_implicit_socket_path(path)):
                 return path
         except OSError:
             continue
@@ -249,20 +250,19 @@ def _read_last_socket_path() -> Optional[str]:
 
 
 def _can_connect(path: str, timeout: float = 0.15, retries: int = 4) -> bool:
-    # Best-effort check to avoid getting stuck on stale socket files.
     for _ in range(max(1, retries)):
         try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-                s.settimeout(timeout)
-                s.connect(path)
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_socket:
+                client_socket.settimeout(timeout)
+                client_socket.connect(path)
                 payload = json.dumps(
                     {"id": 1, "method": "system.ping", "params": {}},
                     separators=(",", ":"),
                 ).encode("utf-8") + b"\n"
-                s.sendall(payload)
+                client_socket.sendall(payload)
                 data = b""
                 while b"\n" not in data and len(data) < 4096:
-                    chunk = s.recv(4096)
+                    chunk = client_socket.recv(4096)
                     if not chunk:
                         break
                     data += chunk
@@ -312,7 +312,8 @@ def _default_socket_path() -> str:
         discovered.extend(glob.glob(os.path.join(_STATE_DIR, "com.cmuxterm.app.dev.*.sock")))
         discovered = list(dict.fromkeys(discovered))
         discovered = [
-            path for path in discovered
+            path
+            for path in discovered
             if os.path.exists(path)
             and _is_discoverable_tagged_debug_socket_name(os.path.basename(path))
             and not _is_known_default_socket_path(path)
@@ -412,7 +413,6 @@ class cmux:
     DEFAULT_SOCKET_PATH = _DefaultSocketPath()
 
     def __init__(self, socket_path: str = None):
-        # Resolve at init time so imports don't lock in stale socket paths.
         self.socket_path = socket_path or _default_socket_path()
         self._socket: Optional[socket.socket] = None
         self._recv_buffer: str = ""
