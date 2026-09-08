@@ -22,6 +22,7 @@ import {
   type CloudVmSessionRow,
   type CloudVmRow,
   type VmRepositoryShape,
+  vmRepositoryLiveShape,
 } from "../services/vms/repository";
 import {
   VmCreateCreditsInsufficientError,
@@ -5568,6 +5569,8 @@ describe("VM Effect workflows", () => {
   dbTest("same-team concurrent retries of one idempotency key create exactly one provider VM", async () => {
     if (!sql) throw new Error("test database not initialized");
     await sql`truncate cloud_vm_billing_grants, cloud_vm_usage_events, cloud_vm_leases, cloud_vms restart identity cascade`;
+    // A warm network hides the first-use persistence race between these requests.
+    await sql`delete from cloud_vm_networks where user_id = 'user-workflow-race-retry'`;
 
     await sql`
       insert into cloud_vms (
@@ -5632,6 +5635,66 @@ describe("VM Effect workflows", () => {
       select status from cloud_vms where idempotency_key = 'race-retry-1'
     `;
     expect(rows).toHaveLength(1);
+  });
+
+  dbTest("upsertNetwork waits behind the owner's network lock instead of racing the unique indexes", async () => {
+    if (!sql) throw new Error("test database not initialized");
+    await sql`truncate cloud_vm_networks restart identity cascade`;
+    const input = {
+      userId: "user-network-upsert-lock",
+      provider: "freestyle" as const,
+      providerNetworkId: "network-cmux-net-lock",
+      slug: "cmux-net-lock",
+      cidr: "10.41.0.0/24",
+      cidrV6: "fd00:41::/64",
+    };
+    // Hold the per-owner lock in a transaction of our own: the upsert must
+    // queue behind it (this is what keeps two concurrent creates from racing
+    // the (provider, provider_network_id) index) and land once it is released.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Mirrors repository.ts's networkUpsertLockKey: `network:<provider>:<user>`.
+    const lockKey = `network:${input.provider}:${input.userId}`;
+    const holder = sql.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+      await held;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    let settled = false;
+    const upsert = Effect.runPromise(vmRepositoryLiveShape.upsertNetwork!(input)).then((row) => {
+      settled = true;
+      return row;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(settled).toBe(false);
+    release();
+    await holder;
+    const row = await upsert;
+    expect(row.providerNetworkId).toBe("network-cmux-net-lock");
+  });
+
+  dbTest("concurrent owner-network upserts with one provider id all succeed and converge on one row", async () => {
+    if (!sql) throw new Error("test database not initialized");
+    await sql`truncate cloud_vm_networks restart identity cascade`;
+    const input = {
+      userId: "user-network-upsert-race",
+      provider: "freestyle" as const,
+      providerNetworkId: "network-cmux-net-race",
+      slug: "cmux-net-race",
+      cidr: "10.42.0.0/24",
+      cidrV6: "fd00:42::/64",
+    };
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, () => Effect.runPromise(vmRepositoryLiveShape.upsertNetwork!(input))),
+    );
+    expect(results.map((result) => (result.status === "rejected" ? String(result.reason) : "fulfilled")))
+      .toEqual(Array.from({ length: 8 }, () => "fulfilled"));
+    const rows = await sql<{ provider_network_id: string }[]>`
+      select provider_network_id from cloud_vm_networks where user_id = ${input.userId}
+    `;
+    expect(rows).toEqual([{ provider_network_id: "network-cmux-net-race" }]);
   });
 
   dbTest("a transient provider create failure does not poison the idempotency key", async () => {
