@@ -766,7 +766,9 @@ enum CloudTreeNodeBuilder {
         supportsPorts: Bool
     ) -> [CloudTreeNode] {
         // The catalog has not registered this machine yet: nothing to expand.
-        guard let info else { return [] }
+        guard let info else {
+            return [placeholder(machine, text: String(localized: "cloudTree.placeholder.connecting", defaultValue: "Connecting…"), style: .connecting)]
+        }
         var children: [CloudTreeNode] = []
         let resources = snapshot.resources(on: machine).filter { resource in
             if resource.id.isForwardedPort {
@@ -778,7 +780,7 @@ enum CloudTreeNodeBuilder {
             return true
         }
         let terminals = resources.filter { $0.kind == .terminal }
-        let displays = resources.filter { $0.kind == .display }
+        let displays = CloudMachineSurfacePresentation.displays(resources: resources, info: info)
 
         switch info.linkState {
         case .asleep:
@@ -811,11 +813,11 @@ enum CloudTreeNodeBuilder {
                 let right = ($1.id.forwardedPort ?? $1.port ?? 0, $1.id.key)
                 return left.0 != right.0 ? left.0 < right.0 : left.1 < right.1
             }
-        if !portBrowsers.isEmpty {
+        do {
             children.append(CloudTreeNode(
                 id: nodeID(portsGroup: machine),
                 kind: .portsGroup(machine: machine),
-                children: portBrowsers.map {
+                children: portBrowsers.isEmpty ? [CloudMachineSurfacePresentation.emptyPorts(info: info)] : portBrowsers.map {
                     CloudTreeNode(
                         id: nodeID(resource: $0.id),
                         kind: .port(
