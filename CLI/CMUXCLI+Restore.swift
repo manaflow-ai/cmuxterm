@@ -465,12 +465,15 @@ extension CMUXCLI {
         let legacyForkCommand = [object["fork_command"], object["legacy_fork_command"]]
             .compactMap { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty }
+        let hasContinuationArguments = preparedArguments?.isEmpty == false
+            || (verb == .fork && (object["fork_arguments"] as? [String])?.isEmpty == false)
+            || (verb == .fork && (object["prepared_fork_arguments"] as? [String])?.isEmpty == false)
         let launchCommand: AgentLaunchCommand?
         do {
             launchCommand = try restoreLaunchCommand(
                 from: object["launch_command"],
                 verb: verb,
-                allowEmptyWhenPreparedArgumentsExist: preparedArguments?.isEmpty == false
+                allowEmptyWhenContinuationArgumentsExist: hasContinuationArguments
             )
         } catch {
             let hasLegacyForkFallback = legacyForkCommand != nil
@@ -557,13 +560,13 @@ extension CMUXCLI {
     func restoreLaunchCommand(
         from value: Any?,
         verb: CMUXCLIContinuationVerb = .restore,
-        allowEmptyWhenPreparedArgumentsExist: Bool = false
+        allowEmptyWhenContinuationArgumentsExist: Bool = false
     ) throws -> AgentLaunchCommand? {
         guard let object = value as? [String: Any] else { return nil }
         guard let arguments = object["arguments"] as? [String] else {
             throw continuationUsageError(.malformedArguments, verb: verb)
         }
-        guard !arguments.isEmpty || allowEmptyWhenPreparedArgumentsExist else {
+        guard !arguments.isEmpty || allowEmptyWhenContinuationArgumentsExist else {
             throw continuationUsageError(.malformedArguments, verb: verb)
         }
         // An empty rejected capture can still carry replay-safe environment
