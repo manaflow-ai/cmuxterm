@@ -215,4 +215,38 @@ extension AgentNotificationRegressionTests {
         #expect(reconciler.lifecycleEvent(result).draft.declaredPhase == .idle)
     }
 
+    @Test(arguments: ["claude", "codex"])
+    func observedChildCompletionDeliversTheReleasedCompletion(source: String) async throws {
+        let fixture = try makeFixture()
+        defer { fixture.restore() }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let center = AgentJournalLifecycleCenter(databaseURL: root.appendingPathComponent("journal.sqlite"))
+        fixture.source.surfaceResumeBindingsByPanelId[fixture.panelId] = SurfaceResumeBindingSnapshot(
+            name: source, kind: source, command: "agent resume", checkpointId: "session", source: "agent-hook", updatedAt: 1)
+        func draft(_ kind: AgentJournalEventKind, at occurredAt: Int64, request: String? = nil,
+                   notify: Bool = false) -> AgentJournalEventDraft {
+            AgentJournalEventDraft(kind: kind, occurredAtMs: occurredAt, source: source,
+                agentKey: source == "claude" ? "claude_code" : source, sessionId: "session",
+                workspaceId: fixture.source.id.uuidString, surfaceId: fixture.panelId.uuidString,
+                attention: AgentAttentionContext(turnIdentity: "turn", requestIdentity: request,
+                    notification: notify ? AgentJournalNotification(title: "Agent", subtitle: "",
+                        body: "Ready", category: "turn-complete") : nil))
+        }
+        // Nothing awaits an observation, so the completion a child release unlocks
+        // must be delivered by the journal worker itself, not just receipted.
+        center.observe(draft(.turnStarted, at: 1))
+        center.observe(draft(.childSpawned, at: 2, request: "child"))
+        center.observe(draft(.turnCompleted, at: 3, notify: true))
+        center.observe(draft(.childCompleted, at: 4, request: "child"))
+        let deadline = ContinuousClock.now + .seconds(10)
+        while fixture.store.notifications.isEmpty, ContinuousClock.now < deadline {
+            TerminalMutationBus.shared.drainForTesting()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        TerminalMutationBus.shared.drainForTesting()
+        #expect(fixture.store.notifications.map(\.body) == ["Ready"])
+        #expect(fixture.store.hasUnreadNotification(forTabId: fixture.source.id, surfaceId: fixture.panelId))
+    }
+
 }
