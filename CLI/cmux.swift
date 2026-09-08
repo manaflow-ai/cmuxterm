@@ -5622,7 +5622,7 @@ struct CMUXCLI {
                         resolvePath: {
                             socketResolver.resolve(
                                 requestedPath: socketPath,
-                                source: socketPathSource,
+                                source: socketPathSource
                             ).selectedPath ?? socketPath
                         },
                         timeout: Self.restoreSocketStartupTimeoutSeconds
