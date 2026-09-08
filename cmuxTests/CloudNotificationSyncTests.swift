@@ -1,6 +1,10 @@
 import Foundation
 import Testing
+#if DEBUG
+@testable import cmux_DEV
+#else
 @testable import cmux
+#endif
 
 /// The Cloud notification sync must converge on one invariant under any
 /// sequence of feed replays, evictions, reads on other clients, local reads,
