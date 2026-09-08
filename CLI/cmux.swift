@@ -36381,9 +36381,9 @@ export default CMUXSessionRestore;
                         runtimeStatus: suppressVisibleMutations ? nil : .running,
                         updateRuntimeStatus: !suppressVisibleMutations,
                         title: input.title,
-                        captureRollback: true,
                         requiredProcessIdentity: inferredProcessIdentity,
-                        supersedesSameProcessSession: def.name == "omp"
+                        supersedesSameProcessSession: def.name == "omp",
+                        captureRollback: true
                     )
                 acceptedSessionStart = mutation?.accepted ?? false
                 sessionStartRollback = mutation?.rollback
@@ -36966,8 +36966,8 @@ export default CMUXSessionRestore;
                         runtimeStatus: .running,
                         updateRuntimeStatus: true,
                         title: input.title,
-                        captureRollback: true,
-                        expectedProcessIdentity: inferredProcessIdentity
+                        expectedProcessIdentity: inferredProcessIdentity,
+                        captureRollback: true
                     )
                     acceptedRunningUpdate = runningUpdate?.accepted == true
                     promptRunningRollback = runningUpdate?.rollback
