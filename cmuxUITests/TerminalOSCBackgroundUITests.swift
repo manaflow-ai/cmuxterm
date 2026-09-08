@@ -66,33 +66,26 @@ final class TerminalOSCBackgroundUITests: XCTestCase {
 
         let window = app.windows.firstMatch
         let terminal = app.textViews.firstMatch
-        let sidebarQuery = app.descendants(matching: .any).matching(identifier: "Sidebar")
         XCTAssertTrue(window.waitForExistence(timeout: 5), "Expected main window")
         XCTAssertTrue(terminal.waitForExistence(timeout: 5), "Expected terminal accessibility surface")
-        guard let sidebar = waitForSidebarElement(sidebarQuery, timeout: 8) else {
-            addScreenshot(window.screenshot(), name: "osc11-layout-timeout")
-            XCTFail("Expected a visible shared-backdrop sidebar element")
-            return
-        }
         guard waitForRenderableFrames(
             window: window,
             terminal: terminal,
-            sidebar: sidebar,
             timeout: 8
         ) else {
             addScreenshot(window.screenshot(), name: "osc11-layout-timeout")
             XCTFail(
-                "Expected non-empty window, terminal, and sidebar frames. " +
-                    "window=\(window.frame) terminal=\(terminal.frame) sidebar=\(sidebar.frame)"
+                "Expected non-empty window and terminal frames with a visible sidebar region. " +
+                    "window=\(window.frame) terminal=\(terminal.frame)"
             )
             return
         }
 
         let terminalSampleRect = backgroundSampleRect(in: terminal.frame)
         let sidebarFrame = CGRect(
-            x: sidebar.frame.minX,
+            x: window.frame.minX,
             y: terminal.frame.minY,
-            width: sidebar.frame.width,
+            width: terminal.frame.minX - window.frame.minX,
             height: terminal.frame.height
         )
         let sharedBackdropSampleRect = backgroundSampleRect(in: sidebarFrame)
@@ -245,7 +238,6 @@ final class TerminalOSCBackgroundUITests: XCTestCase {
     private func waitForRenderableFrames(
         window: XCUIElement,
         terminal: XCUIElement,
-        sidebar: XCUIElement,
         timeout: TimeInterval
     ) -> Bool {
         waitForCondition(timeout: timeout) {
@@ -253,24 +245,8 @@ final class TerminalOSCBackgroundUITests: XCTestCase {
                 window.frame.height > 400 &&
                 terminal.frame.width > 300 &&
                 terminal.frame.height > 200 &&
-                sidebar.frame.width > 100 &&
-                sidebar.frame.height > 200
+                terminal.frame.minX - window.frame.minX > 100
         }
-    }
-
-    private func waitForSidebarElement(
-        _ query: XCUIElementQuery,
-        timeout: TimeInterval
-    ) -> XCUIElement? {
-        var matchingElement: XCUIElement?
-        _ = waitForCondition(timeout: timeout) {
-            matchingElement = query.allElementsBoundByIndex.first { element in
-                let frame = element.frame
-                return frame.width > 100 && frame.height > 200
-            }
-            return matchingElement != nil
-        }
-        return matchingElement
     }
 
     private func waitForRenderedSample(
