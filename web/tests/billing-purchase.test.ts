@@ -8,6 +8,7 @@ import {
   stripeSubscriptions,
 } from "../db/schema";
 import { FOUNDER_TESTFLIGHT_GROUP_ID } from "../services/asc/testflightOwnership";
+import { billingPlanIdFromMetadata } from "../services/billing/teamResolution";
 
 process.env.RESEND_API_KEY ??= "test-resend-key";
 process.env.CMUX_FEEDBACK_FROM_EMAIL ??= "feedback@example.com";
@@ -3080,14 +3081,18 @@ describe("recordCheckoutCompletion", () => {
     expect(update).toHaveBeenCalledWith({ clientReadOnlyMetadata: {} });
   });
 
-  for (const plan of ["pro", "team"]) {
+  for (const plan of ["pro", "team", "founders", " Founders "]) {
     test(`preserves personal ${plan} grants when a Stripe subscription lapses`, async () => {
-      const update = mock(async () => undefined);
+      let persistedMetadata: Record<string, unknown> = { cmuxPlan: "pro", cmuxVmPlan: plan };
+      const update = mock(async (...args: unknown[]) => {
+        const [options] = args as [{ clientReadOnlyMetadata: Record<string, unknown> }];
+        persistedMetadata = options.clientReadOnlyMetadata;
+      });
       const removeTester = mock(async () => undefined);
       const user = {
         id: "user_123",
         primaryEmail: "buyer@example.com",
-        clientReadOnlyMetadata: { cmuxPlan: "pro", cmuxVmPlan: plan },
+        clientReadOnlyMetadata: persistedMetadata,
         update,
       };
       selectResults = [[{ stackUserId: "user_123" }], [{ id: "sub_user" }]];
@@ -3101,11 +3106,49 @@ describe("recordCheckoutCompletion", () => {
         },
       );
 
-      expect(result).toEqual({ scope: "user", stackUserId: "user_123", isActive: false });
+      // Founder access also keeps existing CodeRouter tokens alive; ordinary
+      // Pro/Team grants retain TestFlight but do not grant CodeRouter access.
+      expect(result).toEqual({ scope: "user", stackUserId: "user_123", isActive: plan.trim().toLowerCase() === "founders" });
       expect(removeTester).not.toHaveBeenCalled();
       // The Stripe mirror must still lapse, so removing the independent operator
       // grant later cannot expose a stale cmuxPlan: pro fallback.
       expect(update).toHaveBeenCalledWith({ clientReadOnlyMetadata: { cmuxVmPlan: plan } });
+      expect(billingPlanIdFromMetadata({ ...persistedMetadata, cmuxVmPlan: null })).toBeNull();
+    });
+  }
+
+  for (const plan of [null, "founders", "pro", "team", "free"]) {
+    test(`preserves a separate paid Founder mirror on recurring lapse with override ${plan}`, async () => {
+      const update = mock(async () => undefined);
+      const removeTester = mock(async () => undefined);
+      const user = {
+        id: "user_123",
+        primaryEmail: "buyer@example.com",
+        clientReadOnlyMetadata: { cmuxVmPlan: plan, theme: "dark" },
+        update,
+      };
+      selectResults = [
+        [{ stackUserId: "user_123" }],
+        [{ id: "sub_user" }],
+        [{ raw: { metadata: { founders_edition: "true" } } }],
+      ];
+
+      const result = await applySubscriptionUpdate(
+        userSubscriptionUpdate({ status: "canceled" }) as never,
+        {
+          db: fakeDb() as never,
+          stackApp: { getUser: async () => user } as never,
+          testflight: { isAscConfigured: () => true, removeTester },
+        },
+      );
+
+      expect(result).toEqual({ scope: "user", stackUserId: "user_123", isActive: plan === null || plan === "founders" });
+      expect(update).toHaveBeenCalledWith({ clientReadOnlyMetadata: { cmuxVmPlan: plan, theme: "dark", cmuxPlan: "pro" } });
+      if (plan === "free") {
+        expect(removeTester).toHaveBeenCalledWith("buyer@example.com", { ownedLegacyGroupIDs: [] });
+      } else {
+        expect(removeTester).not.toHaveBeenCalled();
+      }
     });
   }
 
