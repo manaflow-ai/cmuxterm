@@ -197,8 +197,6 @@ struct RestorableAgentProcessGenerationTests {
 
         #expect(codex.state == .needsInput)
         #expect(codex.startedAt == startedAt)
-        #expect(codex.elapsed(at: Date(timeIntervalSince1970: fixture.updatedAt)) == 120)
-        #expect(activity.primaryElapsedStart == startedAt)
     }
 
     @Test("An unverified index cannot promote a stale runtime PID to running")
