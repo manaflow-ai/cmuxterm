@@ -1291,6 +1291,20 @@ struct AgentPromptSubmissionTests {
         #expect(!panel.surface.hasUnconfirmedHumanPromptInput)
     }
 
+    @MainActor
+    @Test func claudePanelScopeKeepsPlainReturnDraftBusy() {
+        let panel = TerminalPanel(workspaceId: UUID())
+        defer { panel.surface.releaseSurfaceForTesting() }
+        panel.surface.releaseSurfaceForTesting()
+
+        #expect(panel.surface.sendInputResult("\r").accepted)
+        #expect(
+            panel.terminalComposerIsBusy(
+                agentInputScope: "agentPIDKey:claude_code|pid:123"
+            )
+        )
+    }
+
     @Test func rejectedMobileAttachmentBatchCleansEarlierFiles() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

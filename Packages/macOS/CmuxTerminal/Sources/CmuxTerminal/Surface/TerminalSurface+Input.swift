@@ -49,6 +49,7 @@ extension TerminalSurface {
             if case .humanPromptSubmission = $0 { return true }
             return false
         }
+        || deferredPromptSubmissionAwaitingClipboardReplay?.isHumanInput == true
     }
 
     /// Returns the transport-owned name for a physical manual-I/O key, if any.

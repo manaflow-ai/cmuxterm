@@ -793,7 +793,7 @@ final class TerminalPanel: Panel, ObservableObject {
                 return .composerBusy
             }
         } else {
-            surface.synchronizePromptInputAgentScope(agentInputScope)
+            synchronizePromptInputAgentScope(agentInputScope)
         }
         resumeForExplicitInputIfNeeded()
         return surface.sendPromptSubmission(
@@ -817,8 +817,24 @@ final class TerminalPanel: Panel, ObservableObject {
     /// future submission. The terminal composer cannot be extracted safely, so
     /// unconfirmed input there must reject automation.
     func terminalComposerIsBusy(agentInputScope: String?) -> Bool {
-        surface.synchronizePromptInputAgentScope(agentInputScope)
+        synchronizePromptInputAgentScope(agentInputScope)
         return surface.hasUnconfirmedHumanPromptInput
+    }
+
+    private func synchronizePromptInputAgentScope(_ scope: String?) {
+        let controlReturnIsPromptSubmissionBoundary = scope.map {
+            let activeAgentContext = String(
+                $0.prefix { character in character != "|" }
+            )
+            return TextBoxAgentDetection.isClaudeCode(
+                context: activeAgentContext
+            )
+        }
+        surface.synchronizePromptInputAgentScope(
+            scope,
+            controlReturnIsPromptSubmissionBoundary:
+                controlReturnIsPromptSubmissionBoundary
+        )
     }
 
     @discardableResult

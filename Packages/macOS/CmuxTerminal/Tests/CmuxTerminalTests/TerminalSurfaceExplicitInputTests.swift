@@ -537,6 +537,38 @@ struct TerminalSurfaceExplicitInputTests {
         #expect(await receipt.wait() == .inputQueueFull)
     }
 
+    @Test func deferredHumanPromptRemainsBusyAfterClipboardFlagDrains() {
+        let runtimeSurface = allocatedRuntimeSurface()
+        let fixture = makeFixture(runtimeSurface: runtimeSurface)
+        defer {
+            fixture.surface.releaseSurfaceForTesting()
+            runtimeSurface.deallocate()
+        }
+        fixture.surface.synchronizePromptInputAgentScope(
+            "agentPIDKey:codex.deferred-human"
+        )
+        fixture.nativeView.shouldDeferRuntimeInput = true
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "human deferred prompt",
+                submitKey: "return",
+                rejectIfHumanComposerBusy: false,
+                recordHumanPromptInput: true
+            ) == .queued
+        )
+        fixture.nativeView.deferredRuntimeInputHumanFlags.removeAll()
+
+        #expect(
+            fixture.surface.sendPromptSubmission(
+                "automation prompt",
+                submitKey: "return",
+                agentInputScope: "agentPIDKey:codex.deferred-human",
+                hookRecordingSource: "workspace.agent_submit"
+            ) == .composerBusy
+        )
+    }
+
     @Test func nativePromptDoesNotRetainAReplacedAgentScope() {
         let fixture = makeFixture()
         defer { fixture.surface.releaseSurfaceForTesting() }
