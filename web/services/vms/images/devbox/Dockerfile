@@ -330,7 +330,7 @@ RUN bash -n /etc/cmux/agent-config.sh \
   && ! grep -q 'x-coderouter-route-token' /tmp/agent-config-check/.pi/agent/models.json \
   && ! grep -q 'crt_' /tmp/agent-config-check/.pi/agent/models.json \
   && test ! -e /tmp/agent-config-check/.config/opencode/opencode.json \
-  && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding && j.bypassPermissionsModeAccepted && j.projects["/"].hasTrustDialogAccepted)) process.exit(1)' \
+  && node -e 'const j = JSON.parse(require("fs").readFileSync("/tmp/agent-config-check/.claude.json","utf8")); if (!(j.hasCompletedOnboarding && j.bypassPermissionsModeAccepted && j.projects["/"].hasTrustDialogAccepted && j.customApiKeyResponses.approved.includes("-vm-edge-placeholder"))) process.exit(1)' \
   && [ "$(stat -c %a /tmp/agent-config-check/.claude.json)" = "600" ] \
   && [ "$(bash -lc 'echo $CLAUDE_CODE_SANDBOXED:$IS_SANDBOX')" = "1:1" ] \
   && rm -rf /tmp/agent-config-check \

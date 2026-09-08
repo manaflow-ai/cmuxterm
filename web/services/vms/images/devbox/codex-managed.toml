@@ -10,6 +10,12 @@
 # desktop and SSH). Any other directory, such as a cloned repo, is trusted per
 # launch by the codex() wrapper in agent-config.sh. Approval and sandbox
 # policy are left to codex's defaults and the user's flags.
+#
+# check_for_update_on_startup: the binary is image-baked, so the startup
+# update prompt (a blocking picker before the composer, seen live on 0.151.0)
+# can only advertise versions the image cannot install.
+check_for_update_on_startup = false
+
 [projects."/root"]
 trust_level = "trusted"
 

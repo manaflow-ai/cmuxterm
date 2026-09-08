@@ -116,7 +116,16 @@ cmux_write_agent_configs() {
   # spelling of the bypass acceptance; the documented key,
   # skipDangerousModePermissionPrompt, rides
   # /etc/claude-code/managed-settings.json (written at image build).
+  # A fourth gate is the custom-API-key consent ("Detected a custom API key
+  # in your environment ... use this API key?", seen live on 2.1.252): claude
+  # records answers under customApiKeyResponses as the key's LAST 20
+  # characters, so the placeholder key from the env is pre-approved the same
+  # way. Derived from the env so a placeholder change cannot desync it.
   if [ ! -e "$HOME/.claude.json" ]; then
+    cmux_claude_key_tail=""
+    if [ -n "${ANTHROPIC_API_KEY-}" ]; then
+      cmux_claude_key_tail=$(printf '%s' "$ANTHROPIC_API_KEY" | tail -c 20)
+    fi
     (
       umask 077
       {
@@ -124,10 +133,14 @@ cmux_write_agent_configs() {
         echo '  "hasCompletedOnboarding": true,'
         echo '  "bypassPermissionsModeAccepted": true,'
         echo '  "theme": "dark",'
+        if [ -n "$cmux_claude_key_tail" ]; then
+          printf '  "customApiKeyResponses": { "approved": ["%s"], "rejected": [] },\n' "$cmux_claude_key_tail"
+        fi
         echo '  "projects": { "/": { "hasTrustDialogAccepted": true } }'
         echo '}'
       } > "$HOME/.claude.json"
     ) 2>/dev/null
+    unset cmux_claude_key_tail
   fi
 
   # opencode: the provider catalog (ids, npm packages, model lists) lives in
