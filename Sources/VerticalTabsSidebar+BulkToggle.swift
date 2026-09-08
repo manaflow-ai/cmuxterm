@@ -23,8 +23,6 @@ extension VerticalTabsSidebar {
                 onCollapseAll: { [weak tabManager] in tabManager?.collapseAllWorkspaceGroups() },
                 onExpandAll: { [weak tabManager] in tabManager?.expandAllWorkspaceGroups() }
             )
-            .padding(.top, 4)
-            .padding(.trailing, 6)
         }
     }
 }

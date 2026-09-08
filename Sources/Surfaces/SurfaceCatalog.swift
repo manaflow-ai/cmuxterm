@@ -668,6 +668,7 @@ final class SurfaceCatalog {
         // canonical resource map.
         rebuildResourceIndex(for: state.machine)
 
+        retireCloudWorkspaceRenameIntents(for: state)
         cloudStates[state.machine] = state
         cloudStateObservations[state.machine] = observation
         machines[state.machine] = machineInfoPreservingCanonicalCloudState(info, state: state)
@@ -705,6 +706,7 @@ final class SurfaceCatalog {
             }
         }
         rebuildResourceIndex(for: state.machine)
+        retireCloudWorkspaceRenameIntents(for: state)
         cloudStates[state.machine] = state
         cloudStateObservations[state.machine] = observation
         machines[state.machine] = machineInfoPreservingCanonicalCloudState(info, state: state)

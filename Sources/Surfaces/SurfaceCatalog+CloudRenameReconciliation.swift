@@ -232,6 +232,17 @@ extension SurfaceCatalog {
         }
     }
 
+    func retireCloudWorkspaceRenameIntents(for state: CloudVMState) {
+        guard let cursor = state.cursor else { return }
+        retireCloudWorkspaceRenameIntents(
+            observed: state.workspaces.map {
+                SurfaceRemoteWorkspace(id: $0.id, name: $0.name, index: $0.index, focused: $0.focused)
+            },
+            cursor: cursor,
+            machine: state.machine
+        )
+    }
+
     private func applyCloudWorkspaceRenameOverlay(machine: SurfaceMachineID) {
         guard let info = snapshot.machines.first(where: { $0.id == machine }) else { return }
         let effectiveInfo = machineInfoPreservingCanonicalCloudState(info)
