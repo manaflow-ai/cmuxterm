@@ -692,16 +692,45 @@ extension Workspace {
         deferredAgentResumeRestoresByPanelId[panelId] = restore
         guard deferredAgentResumeIndexTask == nil else { return }
         deferredAgentResumeIndexTask = Task { @MainActor [weak self] in
-            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow()
+            let refreshed = await SharedLiveAgentIndex.shared.indexRefreshingNow()
             guard !Task.isCancelled else { return }
             guard let self else { return }
             self.deferredAgentResumeIndexTask = nil
+            // The settled refresh gives up after its bounded passes whenever
+            // hook stores keep changing, which is the steady state on a Mac
+            // running several agents. The most recent completed load is still
+            // current to within seconds and its process evidence is
+            // revalidated during resolution, so resolve against it instead of
+            // cancelling every restore: a cancel starts a plain shell, and the
+            // next relaunch then sees no running agent to resume (#5473).
+            let index = Self.deferredResumeIndex(
+                refreshed: refreshed,
+                lastKnown: SharedLiveAgentIndex.shared.index
+            )
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.deferred.index workspace=\(self.id.uuidString.prefix(5)) " +
+                "settled=\(refreshed == nil ? 0 : 1) available=\(index == nil ? 0 : 1) " +
+                "pending=\(self.deferredAgentResumeRestoresByPanelId.count)"
+            )
+#endif
             guard let index else {
-                self.clearDeferredAgentResumeRestores()
+                // No index has ever loaded. Start plain shells, but keep the
+                // bindings auto-resumable: this says nothing about the sessions.
+                self.clearDeferredAgentResumeRestores(retireBindings: false)
                 return
             }
             self.resolveDeferredAgentResumeRestores(using: index)
         }
+    }
+
+    /// The index a deferred restore resolves against: the settled refresh when
+    /// it completed, otherwise the most recent completed load.
+    nonisolated static func deferredResumeIndex(
+        refreshed: RestorableAgentSessionIndex?,
+        lastKnown: RestorableAgentSessionIndex?
+    ) -> RestorableAgentSessionIndex? {
+        refreshed ?? lastKnown
     }
 
     private func resolveDeferredAgentResumeRestores(
@@ -979,12 +1008,13 @@ extension Workspace {
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
         startRuntime: Bool = true,
+        retireBinding: Bool = true,
         callerLine: Int = #line
     ) {
 #if DEBUG
         cmuxDebugLog(
             "session.restore.deferred.cancel panel=\(panelId.uuidString.prefix(5)) " +
-            "startRuntime=\(startRuntime ? 1 : 0) line=\(callerLine) " +
+            "startRuntime=\(startRuntime ? 1 : 0) retireBinding=\(retireBinding ? 1 : 0) line=\(callerLine) " +
             "session=\((restore.restorableAgent?.sessionId ?? restore.resumeBinding?.checkpointId ?? "-").prefix(8))"
         )
 #endif
@@ -997,7 +1027,7 @@ extension Workspace {
             restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         }
         removeDeferredAgentResumeRestore(panelId: panelId)
-        if startRuntime, restore.restorableAgent == nil {
+        if startRuntime, retireBinding, restore.restorableAgent == nil {
             if let binding = restore.resumeBinding {
                 retireAgentHookResumeBinding(panelId: panelId, matching: binding)
             }
@@ -1071,7 +1101,7 @@ extension Workspace {
         retireAgentHookResumeBinding(panelId: panelId)
     }
 
-    func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
+    func clearDeferredAgentResumeRestores(startRuntime: Bool = true, retireBindings: Bool = true) {
         deferredAgentResumeIndexTask?.cancel()
         deferredAgentResumeIndexTask = nil
         let panelIds = Set(
@@ -1083,7 +1113,8 @@ extension Workspace {
                 cancelDeferredAgentResumeRestore(
                     panelId: panelId,
                     restore: restore,
-                    startRuntime: startRuntime
+                    startRuntime: startRuntime,
+                    retireBinding: retireBindings
                 )
             } else {
                 if startRuntime {

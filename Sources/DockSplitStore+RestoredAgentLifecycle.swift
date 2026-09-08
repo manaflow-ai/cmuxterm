@@ -496,12 +496,25 @@ extension DockSplitStore {
         deferredAgentResumeRestoresByPanelId[panelId] = restore
         guard deferredAgentResumeIndexTask == nil else { return }
         deferredAgentResumeIndexTask = Task { @MainActor [weak self] in
-            let index = await SharedLiveAgentIndex.shared.indexRefreshingNow()
+            let refreshed = await SharedLiveAgentIndex.shared.indexRefreshingNow()
             guard !Task.isCancelled else { return }
             guard let self else { return }
             self.deferredAgentResumeIndexTask = nil
+            // Same rule as Workspace.deferAgentResumeRestore: a refresh that
+            // could not settle is not a reason to abandon every restore.
+            let index = Workspace.deferredResumeIndex(
+                refreshed: refreshed,
+                lastKnown: SharedLiveAgentIndex.shared.index
+            )
+#if DEBUG
+            cmuxDebugLog(
+                "session.restore.deferred.index dock=\(self.workspaceId.uuidString.prefix(5)) " +
+                "settled=\(refreshed == nil ? 0 : 1) available=\(index == nil ? 0 : 1) " +
+                "pending=\(self.deferredAgentResumeRestoresByPanelId.count)"
+            )
+#endif
             guard let index else {
-                self.clearDeferredAgentResumeRestores()
+                self.clearDeferredAgentResumeRestores(retireBindings: false)
                 return
             }
             self.resolveDeferredAgentResumeRestores(using: index)
@@ -827,7 +840,8 @@ extension DockSplitStore {
     func cancelDeferredAgentResumeRestore(
         panelId: UUID,
         restore: DeferredAgentResumeRestore,
-        startRuntime: Bool = true
+        startRuntime: Bool = true,
+        retireBinding: Bool = true
     ) {
         // A cancelled launch must never have its selector replayed later.
         restoredAgentLifecycle.clearStartupInput(panelId: panelId)
@@ -838,7 +852,7 @@ extension DockSplitStore {
             restoredAgentLifecycle.clearSessionRestore(panelId: panelId)
         }
         removeDeferredAgentResumeRestore(panelId: panelId)
-        if startRuntime, restore.restorableAgent == nil {
+        if startRuntime, retireBinding, restore.restorableAgent == nil {
             if let binding = restore.resumeBinding {
                 retireAgentHookResumeBinding(panelId: panelId, matching: binding)
             }
@@ -912,7 +926,7 @@ extension DockSplitStore {
         retireAgentHookResumeBinding(panelId: panelId)
     }
 
-    func clearDeferredAgentResumeRestores(startRuntime: Bool = true) {
+    func clearDeferredAgentResumeRestores(startRuntime: Bool = true, retireBindings: Bool = true) {
         deferredAgentResumeIndexTask?.cancel()
         deferredAgentResumeIndexTask = nil
         let panelIds = Set(
@@ -924,7 +938,8 @@ extension DockSplitStore {
                 cancelDeferredAgentResumeRestore(
                     panelId: panelId,
                     restore: restore,
-                    startRuntime: startRuntime
+                    startRuntime: startRuntime,
+                    retireBinding: retireBindings
                 )
             } else {
                 if startRuntime {
