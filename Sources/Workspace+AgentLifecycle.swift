@@ -530,6 +530,7 @@ extension Workspace {
             detached.agentLifecycleRecords,
             panelID: detached.panelId
         )
+        rearmTransferredStartupInputResend(from: detached)
         if let deferredRestore = detached.deferredAgentResumeRestore {
             let adoptedRemoteContext = surfaceResumeBindingsByPanelId[detached.panelId]?
                 .launchFlavor.remoteContext
@@ -578,6 +579,15 @@ extension Workspace {
             )
         }
         recordAgentLifecycleChange(panelId: panelID)
+    }
+
+    /// The shell reported its idle prompt to the pane's previous owner, and
+    /// that transition never repeats after a Workspace/Dock move (same-state
+    /// reports return early), so a launch still awaiting its typed selector
+    /// needs the new owner to arm the grace-period replay itself (#5473).
+    func rearmTransferredStartupInputResend(from detached: DetachedSurfaceTransfer) {
+        guard detached.shellActivityState == .promptIdle else { return }
+        scheduleRestoredStartupInputResend(panelId: detached.panelId)
     }
 
     @discardableResult
