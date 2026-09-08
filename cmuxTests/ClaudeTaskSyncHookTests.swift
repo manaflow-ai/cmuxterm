@@ -17,7 +17,7 @@ struct ClaudeTaskSyncHookTests {
         _ = ClaudeHookLiveDeliveryHarness.startDeliveryTargetServer(
             context: context,
             surfacesByWorkspace: [workspaceId: [surfaceId]],
-            pidTarget: nil,
+            pidTarget: (workspaceId, surfaceId),
             surfaceTargets: [surfaceId: workspaceId]
         )
 

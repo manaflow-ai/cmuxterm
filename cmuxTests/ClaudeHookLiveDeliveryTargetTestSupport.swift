@@ -200,6 +200,13 @@ enum ClaudeHookLiveDeliveryHarness {
             let params = payload["params"] as? [String: Any] ?? [:]
             switch method {
             case "agent.resolve_delivery_target":
+                if params["pid"] != nil {
+                    return v2Response(id: id, ok: true, result: [
+                        "workspace_id": workspaceId,
+                        "surface_id": surfaceId,
+                        "source": "pid",
+                    ])
+                }
                 let requestedSurfaceID = params["surface_id"] as? String
                 let resolvedWorkspaceID = requestedSurfaceID.flatMap {
                     workspaceIDsBySurface[$0]

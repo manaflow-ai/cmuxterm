@@ -3,6 +3,23 @@ import Dispatch
 import Foundation
 
 extension ClaudeHookLiveDeliveryHarness {
+    static func mutateTaskSyncSidecar(
+        for storeURL: URL,
+        _ mutation: (inout [String: Any]) -> Void
+    ) throws {
+        let sidecarURL = URL(fileURLWithPath: storeURL.path + ".task-sync.json")
+        guard FileManager.default.fileExists(atPath: sidecarURL.path) else { return }
+        var state = try JSONSerialization.jsonObject(
+            with: Data(contentsOf: sidecarURL)
+        ) as? [String: Any] ?? [:]
+        mutation(&state)
+        let data = try JSONSerialization.data(
+            withJSONObject: state,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: sidecarURL)
+    }
+
     static func taskSyncReconcileRequests(in context: Context) -> [[String: Any]] {
         context.state.snapshot().compactMap { command -> [String: Any]? in
             guard let request = jsonObject(command),

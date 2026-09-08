@@ -95,6 +95,9 @@ extension ClaudeAutomaticTeamTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try legacyData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["claudeTeamTaskBindings"] = state["claudeTeamTaskBindings"]
+        }
     }
 
     func removeTeamBindingRecords(storeURL: URL) throws {
@@ -108,6 +111,9 @@ extension ClaudeAutomaticTeamTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["claudeTeamTaskBindings"] = state["claudeTeamTaskBindings"]
+        }
     }
 
     func rewriteTeamConfigGeneration(at directory: URL) throws {

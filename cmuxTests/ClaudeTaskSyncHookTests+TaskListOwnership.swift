@@ -1,4 +1,5 @@
 import CMUXAgentLaunch
+import CmuxFoundation
 import Dispatch
 import Foundation
 import Testing
@@ -317,11 +318,11 @@ extension ClaudeTaskSyncHookTests {
         let feedSessionIds = context.state.snapshot().compactMap(feedEvent)
             .compactMap { $0["session_id"] as? String }
         #expect(feedSessionIds == [
-            "claude-\(leaderSessionId)",
-            "claude-\(teammateSessionId)",
-            "claude-\(deletionSessionId)",
-            "claude-\(teamDeleteSessionId)",
-        ])
+            FeedWorkstreamIdentifier(agentID: "claude", sessionID: leaderSessionId)?.rawValue,
+            FeedWorkstreamIdentifier(agentID: "claude", sessionID: teammateSessionId)?.rawValue,
+            FeedWorkstreamIdentifier(agentID: "claude", sessionID: deletionSessionId)?.rawValue,
+            FeedWorkstreamIdentifier(agentID: "claude", sessionID: teamDeleteSessionId)?.rawValue,
+        ].compactMap { $0 })
         let leaderRecord = try #require(
             try ClaudeHookLiveDeliveryHarness.sessionRecord(
                 in: context.storeURL,

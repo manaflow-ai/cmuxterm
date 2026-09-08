@@ -62,6 +62,9 @@ extension ClaudeTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["claudeTeamTaskBindings"] = state["claudeTeamTaskBindings"]
+        }
     }
 
     func addLegacyTaskSessionRecord(
@@ -87,6 +90,9 @@ extension ClaudeTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["sessions"] = state["sessions"]
+        }
     }
 
     func taskOwnerID(
@@ -127,6 +133,9 @@ extension ClaudeTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["retiredClaudeTaskLists"] = state["retiredClaudeTaskLists"]
+        }
     }
 
     func seedConfiguredTaskDestinations(
@@ -155,6 +164,9 @@ extension ClaudeTaskSyncHookTests {
             options: [.prettyPrinted, .sortedKeys]
         )
         try updatedData.write(to: storeURL)
+        try ClaudeHookLiveDeliveryHarness.mutateTaskSyncSidecar(for: storeURL) { sidecar in
+            sidecar["claudeTaskListDestinations"] = state["claudeTaskListDestinations"]
+        }
     }
 
     func reconcileRequests(in context: ClaudeHookLiveDeliveryHarness.Context) -> [[String: Any]] {
