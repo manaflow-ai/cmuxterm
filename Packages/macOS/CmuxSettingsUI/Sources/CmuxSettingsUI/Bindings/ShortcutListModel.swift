@@ -23,6 +23,9 @@ final class ShortcutListModel {
     /// lets a late failure or observation from an older request avoid rolling
     /// back a newer user choice.
     @ObservationIgnored var prefixWriteGeneration: UInt64 = 0
+    /// The latest queued or executing prefix mutation owns the optimistic
+    /// value until its authoritative success or rollback has been applied.
+    @ObservationIgnored var pendingPrefixWriteGeneration: UInt64?
     /// Shortcut persistence operations are chained so prefix rebases, binding
     /// edits, and resets reach ``JSONConfigStore`` in their MainActor issue
     /// order. Keeping one tail prevents a later leaf write from racing a

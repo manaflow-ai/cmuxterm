@@ -2,7 +2,11 @@ import CmuxSettings
 
 extension ShortcutListModel {
     func ingestPrefix(_ prefix: StoredShortcut) {
+        // Rebasing bindings republishes the old prefix before its own leaf
+        // write. Keep the pending leader available to concurrent recordings.
+        guard pendingPrefixWriteGeneration == nil else { return }
         let normalized = ShortcutPrefixPolicy().normalized(prefix) ?? .unbound
+        guard self.prefix != normalized else { return }
         self.prefix = normalized
         prefixRejection = nil
     }

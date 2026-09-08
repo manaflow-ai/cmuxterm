@@ -42,6 +42,7 @@ extension ShortcutListModel {
         guard let normalized = ShortcutPrefixPolicy().normalized(value) else { return }
         prefixWriteGeneration &+= 1
         let generation = prefixWriteGeneration
+        pendingPrefixWriteGeneration = generation
         let previous = prefix
         prefix = normalized
         let rebasingGeneration: Int?
@@ -71,6 +72,11 @@ extension ShortcutListModel {
         rebasingChordsTo firstStroke: ShortcutStroke?,
         rebasingGeneration: Int?
     ) async {
+        defer {
+            if pendingPrefixWriteGeneration == generation {
+                pendingPrefixWriteGeneration = nil
+            }
+        }
         var rebasedSnapshot: RebasedChordSnapshot?
         do {
             if let firstStroke, let rebasingGeneration {
@@ -105,6 +111,7 @@ extension ShortcutListModel {
             if let rebasedSnapshot {
                 await finalizeLegacyRebasedChords(rebasedSnapshot)
             }
+            guard prefixWriteGeneration == generation else { return }
             prefix = committed
             onShortcutsChanged()
         } catch {
@@ -113,6 +120,7 @@ extension ShortcutListModel {
                 if let rebasingGeneration {
                     await reconcilePendingBindingsIfCurrent(generation: rebasingGeneration)
                 }
+                guard prefixWriteGeneration == generation else { return }
                 prefix = previous
                 prefixRejection = .chordConflict
                 return
@@ -132,6 +140,7 @@ extension ShortcutListModel {
             let committed = ShortcutPrefixPolicy().normalized(
                 await jsonStore.value(for: catalog.shortcuts.prefix)
             ) ?? previous
+            guard prefixWriteGeneration == generation else { return }
             prefix = committed
             errorLog.record(error, keyID: catalog.shortcuts.prefix.id)
         }
@@ -142,6 +151,7 @@ extension ShortcutListModel {
     func resetPrefix() async {
         prefixWriteGeneration &+= 1
         let generation = prefixWriteGeneration
+        pendingPrefixWriteGeneration = generation
         let previous = prefix
         prefix = .unbound
         let request = enqueueShortcutPersistence { [weak self] in
@@ -154,6 +164,11 @@ extension ShortcutListModel {
         previous: StoredShortcut,
         generation: UInt64
     ) async {
+        defer {
+            if pendingPrefixWriteGeneration == generation {
+                pendingPrefixWriteGeneration = nil
+            }
+        }
         do {
             try await jsonStore.reset(catalog.shortcuts.prefix)
             guard prefixWriteGeneration == generation else { return }
@@ -161,9 +176,11 @@ extension ShortcutListModel {
             onShortcutsChanged()
         } catch {
             guard prefixWriteGeneration == generation else { return }
-            prefix = ShortcutPrefixPolicy().normalized(
+            let committed = ShortcutPrefixPolicy().normalized(
                 await jsonStore.value(for: catalog.shortcuts.prefix)
             ) ?? previous
+            guard prefixWriteGeneration == generation else { return }
+            prefix = committed
             errorLog.record(error, keyID: catalog.shortcuts.prefix.id)
         }
     }
