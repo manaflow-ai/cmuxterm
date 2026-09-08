@@ -186,7 +186,7 @@ struct KimiHookConfigLocationTests {
 
         #expect(!result.timedOut, Comment(rawValue: result.output))
         #expect(result.status == 0, Comment(rawValue: result.output))
-        let installed = try String(contentsOf: currentConfig, encoding: .utf8)
+        let installed = try String(contentsOf: kimiCodeConfig, encoding: .utf8)
         #expect(installed.contains("hooks enqueue kimi stop"), Comment(rawValue: result.output))
     }
 
