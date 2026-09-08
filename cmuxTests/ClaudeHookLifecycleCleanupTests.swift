@@ -195,7 +195,7 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(!commands.contains("clear_notifications --tab=\(Self.liveWorkspaceId)"))
     }
 
-    @Test func promptSubmitClearFollowsMovedPaneWithoutClearingSiblings() throws {
+    @Test func promptSubmitJournalFollowsMovedPaneWithoutClearingSiblings() throws {
         let context = try Harness.makeContext(name: "prompt-submit-pane-clear")
         defer { context.cleanup() }
         let sessionId = "prompt-submit-pane-clear-session"
@@ -228,7 +228,23 @@ struct ClaudeHookLifecycleCleanupTests {
         #expect(serverHandled.wait(timeout: .now() + 5) == .success)
         assertSuccessfulHook(result)
         let commands = context.state.snapshot()
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        #expect(
+            AgentJournalAppendCapture.contains(
+                commands,
+                kind: "agent.turn.started",
+                agentKey: "claude_code",
+                sessionId: sessionId
+            ),
+            "PromptSubmit must journal the moved pane as the live target; saw \(commands)"
+        )
+        let journal = AgentJournalAppendCapture.first(
+            in: commands,
+            kind: "agent.turn.started",
+            agentKey: "claude_code",
+            sessionId: sessionId
+        )
+        #expect(journal?.workspaceId == newWorkspaceId)
+        #expect(journal?.surfaceId == Self.liveSurfaceId)
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
     }
 
@@ -236,7 +252,7 @@ struct ClaudeHookLifecycleCleanupTests {
     /// scan for frequency) must still re-home via the cheap `{surface_id}`
     /// probe instead of mutating — and re-recording via upsert — the old
     /// workspace's focused pane.
-    @Test func preToolUseFollowsMovedPaneWithoutPidProbe() throws {
+    @Test func preToolUseJournalFollowsMovedPaneWithoutPidProbe() throws {
         let context = try Harness.makeContext(name: "pre-tool-use-rehome")
         defer { context.cleanup() }
         let sessionId = "pre-tool-use-rehome-session"
@@ -287,7 +303,23 @@ struct ClaudeHookLifecycleCleanupTests {
             !commands.contains { $0.contains("--panel=\(Self.fallbackSurfaceId)") },
             "PreToolUse must not mutate the old workspace's focused pane; saw \(commands)"
         )
-        #expect(commands.contains("clear_notifications --tab=\(newWorkspaceId) --panel=\(Self.liveSurfaceId)"))
+        #expect(
+            AgentJournalAppendCapture.contains(
+                commands,
+                kind: "agent.state.changed",
+                agentKey: "claude_code",
+                sessionId: sessionId
+            ),
+            "PreToolUse must journal the moved pane as the live target; saw \(commands)"
+        )
+        let journal = AgentJournalAppendCapture.first(
+            in: commands,
+            kind: "agent.state.changed",
+            agentKey: "claude_code",
+            sessionId: sessionId
+        )
+        #expect(journal?.workspaceId == newWorkspaceId)
+        #expect(journal?.surfaceId == Self.liveSurfaceId)
         #expect(!commands.contains("clear_notifications --tab=\(newWorkspaceId)"))
         let record = try Harness.sessionRecord(in: context.storeURL, sessionId: sessionId)
         #expect(record?["workspaceId"] as? String == newWorkspaceId, "Session record must re-home, not re-pollute")
