@@ -245,6 +245,7 @@ extension CMUXCLI {
         transcriptPath: String?
     ) -> AgentHookLaunchCommandRecord? {
         guard var launchCommand else { return nil }
+        guard !launchCommand.arguments.isEmpty else { return launchCommand }
         guard !codexLaunchHasExplicitPermissions(launchCommand),
               let capturedAt = launchCommand.capturedAt,
               let transcriptPath = normalizedHookValue(transcriptPath) else {
