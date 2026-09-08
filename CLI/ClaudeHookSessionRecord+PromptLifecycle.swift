@@ -48,8 +48,8 @@ extension ClaudeHookSessionRecord {
 }
 
 extension CMUXCLI.AgentHookDef {
-    /// Derives prompt-depth semantics from the adapter's session boundary contract.
+    /// Derives prompt-depth semantics from the adapter's prompt-start contract.
     var promptDepthPolicy: AgentHookPromptDepthPolicy {
-        sessionEndIsTurnBoundary ? .authoritative : .balanced
+        promptStartIsAuthoritative ? .authoritative : .balanced
     }
 }

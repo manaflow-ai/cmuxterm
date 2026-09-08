@@ -36968,8 +36968,11 @@ export default CMUXSessionRestore;
                         transcriptPath: input.transcriptPath ?? mapped.transcriptPath,
                         pid: mapped.pid,
                         launchCommand: mapped.launchCommand,
+                        agentLifecycle: mapped.agentLifecycle,
                         lastSubtitle: nil,
                         lastBody: nil,
+                        runtimeStatus: mapped.runtimeStatus,
+                        updateRuntimeStatus: mapped.runtimeStatus != nil,
                         autoNameMessages: autoNamingMessages(
                             for: def,
                             parsedInput: input,

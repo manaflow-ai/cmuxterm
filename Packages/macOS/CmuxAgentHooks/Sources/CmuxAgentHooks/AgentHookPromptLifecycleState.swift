@@ -38,7 +38,12 @@ public struct AgentHookPromptLifecycleState: Sendable, Equatable {
         depth = 1
         activeTurnID = turnID
         activeTurnIDs = turnID.map { [$0] }
-        lastTurnID = turnID
+        // A provider may omit the turn id on a repeated invocation. That is
+        // not a new completed-turn observation and must not erase the marker
+        // used by restart/deduplication guards.
+        if let turnID {
+            lastTurnID = turnID
+        }
     }
 
     /// Ends the authoritative prompt while retaining the last observed turn identifier.
