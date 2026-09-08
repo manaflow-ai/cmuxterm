@@ -285,7 +285,7 @@ struct TerminalArtifactChipCountStateTests {
             throw UnexpectedAction()
         }
         #expect(nextRequest.localCount == 2)
-        #expect(nextRequest.surfaceGeneration == 1)
+        #expect(nextRequest.surfaceGeneration == 2)
     }
 
     @Test("a failed scan can retry at the same visible count")
