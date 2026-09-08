@@ -1,4 +1,5 @@
 import AppKit
+import CmuxWindowing
 
 extension AppDelegate {
     /// Reasserts the main-window visible-frame invariant after AppKit restores
