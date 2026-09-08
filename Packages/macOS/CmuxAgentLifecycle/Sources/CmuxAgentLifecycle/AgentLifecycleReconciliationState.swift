@@ -222,7 +222,9 @@ public nonisolated struct AgentLifecycleReconciliationState: Sendable {
         }
         entry.exitedProcessGeneration = generation
         entry.hasUnidentifiedProcessExit = false
-        entry.hook = nil
+        if entry.hook?.processGeneration.map({ $0 > generation }) != true {
+            entry.hook = nil
+        }
         entry.suppressesLifecycleUntilNextHook = false
         entry.feedAttentionTokens = Set(
             entry.feedAttentionTokens.filter {

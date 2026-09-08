@@ -1,4 +1,6 @@
 import CmuxControlSocket
+import CmuxSidebar
+import Foundation
 
 /// Sidebar workspace-loading, metadata, log, and progress context methods.
 extension TerminalController {

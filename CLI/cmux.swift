@@ -33842,7 +33842,6 @@ export default CMUXSessionRestore;
             return max(0.01, min(cap, cursorShellDeadline.timeIntervalSinceNow))
         }
         telemetry.breadcrumb("\(def.name)-hook.\(subcommand)")
-
         if def.name == "codex", subcommand == "monitor" {
             try runCodexTranscriptMonitor(commandArgs: hookArgs, client: client) { replay in
                 try runGenericAgentHook(
@@ -33857,7 +33856,6 @@ export default CMUXSessionRestore;
             }
             return
         }
-
         if subcommand == "auto-name", autoNamingSource(for: def) != nil {
             // Detached re-invocation spawned from the codex Stop hook (see
             // spawnDetachedAgentAutoName): runs the full naming pass without
@@ -34766,6 +34764,7 @@ export default CMUXSessionRestore;
                 telemetry.breadcrumb("\(def.name)-hook.shell-resolution.missing-session")
                 return
             }
+            concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword)
             if failed {
                 guard let toolName = input.rawObject.flatMap({
                     firstString(in: $0, keys: ["tool_name", "toolName"])
@@ -35027,7 +35026,6 @@ export default CMUXSessionRestore;
             cursorLifecycleLease?.release()
             cursorLifecycleLease = nil
         }
-
         switch action {
         case .titleUpdate:
             didSendFeedTelemetry = true
@@ -36502,8 +36500,8 @@ export default CMUXSessionRestore;
                     return
                 }
                 cursorApprovalNotificationCorrelationKey = rememberResult.notificationCorrelationKey
+                startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath)
             }
-
             var summary = summarizeAgentHookNotification(
                 def: def,
                 parsedInput: input,
@@ -40461,6 +40459,8 @@ export default CMUXSessionRestore;
             }
             telemetry.breadcrumb("hooks.\(def.name).dispatch")
             do {
+                if def.name == "cursor", rest.first == "__observe-native-approval" { try runCursorNativeApprovalObserver(commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
+                if rest.first == "__native-attention" { try runNativeAgentAttention(source: def.integration, commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
                 try runGenericAgentHook(
                     def: def,
                     commandArgs: rest,
