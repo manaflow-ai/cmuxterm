@@ -136,6 +136,13 @@ extension GhosttySurfaceScrollView {
 }
 
 @MainActor
+extension PaneDropTargetView {
+    override convenience init(frame frameRect: NSRect) {
+        self.init(frame: frameRect, paneDropTargetRegistry: PaneDropTargetRegistry())
+    }
+}
+
+@MainActor
 extension WindowBrowserPortal {
     convenience init(window: NSWindow) {
         self.init(
