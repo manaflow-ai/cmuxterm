@@ -86,6 +86,12 @@ struct DetectedSSHSession: Equatable {
         _ fileURLs: [URL],
         operation: TerminalImageTransferOperation
     ) throws -> [String] {
+        // `DisableFileTransfer` (MDM): the detected-SSH transfer is cmux
+        // mediating an upload, so it fails closed. A user's own `scp` typed
+        // into the same terminal is deliberately out of scope.
+        guard ManagedFileTransferPolicy.isEnabled else {
+            throw ManagedFileTransferPolicy.refusalError()
+        }
         guard !fileURLs.isEmpty else { return [] }
 
         var uploadedRemotePaths: [String] = []

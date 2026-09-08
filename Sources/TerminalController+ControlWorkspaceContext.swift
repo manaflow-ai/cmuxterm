@@ -661,6 +661,16 @@ extension TerminalController: ControlWorkspaceContext {
         )
 #endif
 
+        // `DisableRemoteConnections` (MDM). `configureRemoteConnection` refuses
+        // too; this pre-check exists so the CLI reports the policy instead of
+        // the generic control-master failure the Bool refusal maps to.
+        guard ManagedRemoteConnectionsPolicy.isEnabled else {
+            return .err(
+                code: "remote_connections_disabled",
+                message: ManagedRemoteConnectionsPolicy.disabledMessage,
+                data: nil
+            )
+        }
         guard let owner = AppDelegate.shared?.tabManagerFor(tabId: workspaceId),
               let workspace = owner.tabs.first(where: { $0.id == workspaceId }) else {
             return .err(code: "not_found", message: "Workspace not found", data: .object([

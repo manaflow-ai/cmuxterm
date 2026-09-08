@@ -6684,6 +6684,12 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         operation: TerminalImageTransferOperation,
         completion: @escaping (Result<[String], Error>) -> Void
     ) {
+        // `DisableFileTransfer` (MDM): refuse before the coordinator opens a
+        // transfer channel. Local drops into local terminals do not reach here.
+        guard ManagedFileTransferPolicy.isEnabled else {
+            completion(.failure(ManagedFileTransferPolicy.refusalError()))
+            return
+        }
         guard let controller = remoteSessionController else {
             completion(.failure(RemoteDropUploadError.unavailable))
             return
@@ -6877,6 +6883,11 @@ final class Workspace: Identifiable, ObservableObject, FilePreviewTabMetadataHos
         _ configuration: WorkspaceRemoteConfiguration,
         autoConnect: Bool = true
     ) -> Bool {
+        // `DisableRemoteConnections` (MDM): this is the single path that turns
+        // a workspace into a remote one, so refusing here covers the CLI,
+        // command palette, menus, forks, session restore, and automation at
+        // once. Nothing is retained or dialed before the refusal.
+        guard ManagedRemoteConnectionsPolicy.isEnabled else { return false }
         var configuration = configuration.scopedToOwnerWorkspace(id)
         let foregroundAuthToken =
             Self.normalizedForegroundAuthToken(

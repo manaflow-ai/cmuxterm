@@ -293601,7 +293601,10 @@
     "cloudTree.ports.empty": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"No reachable ports"}},"ja":{"stringUnit":{"state":"translated","value":"到達可能なポートはありません"}}}},
     "cloud.managed.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud Machines are disabled by your administrator."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud Machines は管理者によって無効になっています。"}}}},
     "cloud.managed.tunnelDisabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud private-network access is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"Cloud のプライベートネットワークアクセスは組織によって無効になっています。"}}}},
-    "machines.managedPolicy.disconnectedDetail": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud VM access ended because your organization disabled cmux Cloud."}},"ja":{"stringUnit":{"state":"translated","value":"組織が cmux Cloud を無効にしたため、Cloud VM へのアクセスは終了しました。"}}}}
+    "machines.managedPolicy.disconnectedDetail": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Cloud VM access ended because your organization disabled cmux Cloud."}},"ja":{"stringUnit":{"state":"translated","value":"組織が cmux Cloud を無効にしたため、Cloud VM へのアクセスは終了しました。"}}}},
+    "managedPolicy.remoteConnections.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"Remote connections are disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"リモート接続は組織によって無効になっています。"}}}},
+    "managedPolicy.fileTransfer.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"File transfer is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"ファイル転送は組織によって無効になっています。"}}}},
+    "managedPolicy.irohNetworking.disabled": {"extractionState":"manual","localizations":{"en":{"stringUnit":{"state":"translated","value":"cmux relay networking is disabled by your organization."}},"ja":{"stringUnit":{"state":"translated","value":"cmux のリレーネットワークは組織によって無効になっています。"}}}}
   },
   "version": "1.0"
 }

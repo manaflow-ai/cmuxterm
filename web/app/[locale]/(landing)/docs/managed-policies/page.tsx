@@ -65,6 +65,12 @@ const sampleProfile = `<?xml version="1.0" encoding="UTF-8"?>
                                 <true/>
                                 <key>DisableCloud</key>
                                 <true/>
+                                <key>DisableRemoteConnections</key>
+                                <true/>
+                                <key>DisableFileTransfer</key>
+                                <true/>
+                                <key>DisableIrohNetworking</key>
+                                <true/>
                             </dict>
                         </dict>
                     </array>
@@ -137,6 +143,24 @@ export default async function ManagedPoliciesPage({
             <td><code>false</code></td>
             <td>{t("cloudKeyDesc")}</td>
           </tr>
+          <tr>
+            <td><code>DisableRemoteConnections</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("remoteConnectionsKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableFileTransfer</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("fileTransferKeyDesc")}</td>
+          </tr>
+          <tr>
+            <td><code>DisableIrohNetworking</code></td>
+            <td>{t("booleanType")}</td>
+            <td><code>false</code></td>
+            <td>{t("irohKeyDesc")}</td>
+          </tr>
         </tbody>
       </table>
       <ul>
@@ -144,6 +168,7 @@ export default async function ManagedPoliciesPage({
         <li>{t("noteForcedOnly")}</li>
         <li>{t("noteTiming")}</li>
         <li>{t("noteCloudEntitlement")}</li>
+        <li>{t("noteComposition")}</li>
       </ul>
 
       <DocsHeading level={2} id="lockability">{t("lockTitle")}</DocsHeading>
@@ -165,6 +190,9 @@ export default async function ManagedPoliciesPage({
       <CodeBlock lang="bash">{`defaults read com.cmuxterm.app DisableEmbeddedBrowser
 defaults read com.cmuxterm.app DisableRemoteControl
 defaults read com.cmuxterm.app DisableCloud
+defaults read com.cmuxterm.app DisableRemoteConnections
+defaults read com.cmuxterm.app DisableFileTransfer
+defaults read com.cmuxterm.app DisableIrohNetworking
 cmux browser status --json   # {"enabled": false, "managed": true, ...}
 cmux vm list                 # refused: Cloud Machines are disabled by your administrator.`}</CodeBlock>
       <Callout>{t("verifyUi")}</Callout>

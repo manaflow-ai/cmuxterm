@@ -171,6 +171,9 @@ struct ManagedDevicePolicyTests {
         #expect(ManagedDevicePolicyKey.disableEmbeddedBrowser.rawValue == "DisableEmbeddedBrowser")
         #expect(ManagedDevicePolicyKey.disableRemoteControl.rawValue == "DisableRemoteControl")
         #expect(ManagedDevicePolicyKey.disableCloud.rawValue == "DisableCloud")
+        #expect(ManagedDevicePolicyKey.disableRemoteConnections.rawValue == "DisableRemoteConnections")
+        #expect(ManagedDevicePolicyKey.disableFileTransfer.rawValue == "DisableFileTransfer")
+        #expect(ManagedDevicePolicyKey.disableIrohNetworking.rawValue == "DisableIrohNetworking")
         #expect(ManagedDevicePolicyKey.browserURLAllowlist.rawValue == "BrowserURLAllowlist")
         #expect(ManagedDevicePolicy.releasePayloadDomain == "com.cmuxterm.app")
     }

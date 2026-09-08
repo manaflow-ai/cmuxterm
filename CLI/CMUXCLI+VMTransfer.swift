@@ -1,3 +1,4 @@
+import CmuxSettings
 import CryptoKit
 import Foundation
 
@@ -82,7 +83,20 @@ extension CMUXCLI {
 
     // MARK: - push
 
+    /// `DisableFileTransfer` (MDM). The CLI performs the transfer itself, so
+    /// it resolves the forced preference directly rather than trusting a flag
+    /// from its own process. Same resolver, same release-domain fallback the
+    /// app uses.
+    static func throwIfFileTransferIsManagedOff() throws {
+        guard ManagedDevicePolicy().isEnforced(.disableFileTransfer) else { return }
+        throw CLIError(message: String(
+            localized: "managedPolicy.fileTransfer.disabled",
+            defaultValue: "File transfer is disabled by your organization."
+        ))
+    }
+
     func runVMPushCommand(rest: [String], client: SocketClient, jsonOutput: Bool, quiet: Bool = false) throws {
+        try Self.throwIfFileTransferIsManagedOff()
         if rest.contains("--help") || rest.contains("-h") {
             print(Self.vmPushUsage)
             return
@@ -233,6 +247,7 @@ extension CMUXCLI {
     // MARK: - pull
 
     func runVMPullCommand(rest: [String], client: SocketClient, jsonOutput: Bool, quiet: Bool = false) throws {
+        try Self.throwIfFileTransferIsManagedOff()
         if rest.contains("--help") || rest.contains("-h") {
             print(Self.vmPullUsage)
             return
