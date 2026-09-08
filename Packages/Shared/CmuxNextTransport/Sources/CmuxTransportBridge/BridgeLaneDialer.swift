@@ -22,7 +22,7 @@ public struct BridgeLaneDialer: Sendable {
         switch lane {
         case .terminal, .artifact, .simulatorStream:
             break
-        case .control, .serverEvents:
+        case .control, .serverEvents, .terminalInput:
             throw CmxIrohClientSessionError.invalidOutgoingLane
         }
         let preamble = try BridgeLaneDescriptor().preamble(for: lane)

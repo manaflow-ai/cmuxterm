@@ -53,6 +53,8 @@ public struct BridgeLaneDescriptor: Sendable {
             descriptor = Descriptor(lane: serverEvents, cursor: cursor)
         case .terminal(let resourceID, let cursor):
             descriptor = Descriptor(lane: terminal, resourceID: resourceID.value, cursor: cursor)
+        case .terminalInput:
+            throw BridgeLaneDescriptorError.unencodableDescriptor
         case .artifact(let resourceID, let offset):
             descriptor = Descriptor(lane: artifact, resourceID: resourceID.value, offset: offset)
         case .simulatorStream(let resourceID):

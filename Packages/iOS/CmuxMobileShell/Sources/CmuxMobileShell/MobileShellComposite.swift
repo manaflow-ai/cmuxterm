@@ -1516,6 +1516,13 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
     var terminalReplayBarrierDroppedOutputCountsBySurfaceID: [String: UInt64]
     var terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID: [String: UInt64]
     var terminalViewportReplayBarrierPendingAckTokensBySurfaceID: [String: UUID]
+    /// Viewport reports committed by the surface before its output sink is
+    /// registered. The first authoritative replay is scheduled by the
+    /// viewport acknowledgement, so cold attach must not race it.
+    var terminalViewportPreparationGenerationsBySequenceKey:
+        [MobileTerminalViewportSequenceKey: UInt64]
+    var terminalViewportDeferredColdReplayGenerationsBySequenceKey:
+        [MobileTerminalViewportSequenceKey: UInt64]
     var terminalReplayFailureRetryCountsBySurfaceID: [String: Int]
     var terminalReplayBarrierFollowUpCountsBySurfaceID: [String: Int]
     var terminalColdAttachReplayBarrierTokensBySurfaceID: [String: UUID]
@@ -1921,6 +1928,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         self.terminalReplayBarrierDroppedOutputCountsBySurfaceID = [:]
         self.terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID = [:]
         self.terminalViewportReplayBarrierPendingAckTokensBySurfaceID = [:]
+        self.terminalViewportPreparationGenerationsBySequenceKey = [:]
+        self.terminalViewportDeferredColdReplayGenerationsBySequenceKey = [:]
         self.terminalReplayFailureRetryCountsBySurfaceID = [:]
         self.terminalReplayBarrierFollowUpCountsBySurfaceID = [:]
         self.terminalColdAttachReplayBarrierTokensBySurfaceID = [:]
@@ -1930,9 +1939,11 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         self.terminalOutputStreamTokensBySurfaceID = [:]
         self.terminalOutputConsumerOwnerIDsBySurfaceID = [:]
         self.terminalOutputQueuesBySurfaceID = [:]
-        if let terminalLaneProvider = runtime?.terminalLaneProvider {
+        if runtime?.terminalLaneProvider != nil
+            || runtime?.terminalInputLaneProvider != nil {
             self.terminalLaneCoordinator = MobileTerminalLaneCoordinator(
-                provider: terminalLaneProvider
+                provider: runtime?.terminalLaneProvider,
+                inputOnlyProvider: runtime?.terminalInputLaneProvider
             )
         } else {
             self.terminalLaneCoordinator = nil
@@ -11350,6 +11361,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         terminalReplayBarrierDroppedOutputCountsBySurfaceID = [:]
         terminalReplayBarrierAckCoveredDroppedOutputCountsBySurfaceID = [:]
         terminalViewportReplayBarrierPendingAckTokensBySurfaceID = [:]
+        terminalViewportPreparationGenerationsBySequenceKey = [:]
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey = [:]
         terminalReplayFailureRetryCountsBySurfaceID = [:]
         terminalReplayBarrierFollowUpCountsBySurfaceID = [:]
         terminalColdAttachReplayBarrierTokensBySurfaceID = [:]
@@ -14474,7 +14487,28 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         mobileShellLog.info("CMUX_REPLAY register sink surface=\(surfaceID, privacy: .public) connected=\(self.connectionState == .connected, privacy: .public) hasClient=\(self.remoteClient != nil, privacy: .public) workspaceCount=\(self.workspaces.count, privacy: .public)")
         startLatencyProbeIfReady()
         #endif
-        requestColdAttachTerminalReplay(surfaceID: surfaceID)
+        // The first viewport callback commits a generation before this sink is
+        // registered. Let its viewport acknowledgement schedule the one
+        // authoritative replay, avoiding a cold attach request that races the
+        // geometry RPC and gets immediately superseded.
+        let preparationSequenceKey = MobileTerminalViewportSequenceKey(
+            ownerKey: foregroundMacKey,
+            surfaceID: surfaceID
+        )
+        if terminalViewportPreparationGenerationsBySequenceKey[
+            preparationSequenceKey
+        ] == nil {
+            requestColdAttachTerminalReplay(surfaceID: surfaceID)
+        } else {
+            terminalViewportDeferredColdReplayGenerationsBySequenceKey[
+                preparationSequenceKey
+            ] = terminalViewportPreparationGenerationsBySequenceKey[
+                preparationSequenceKey
+            ]
+            MobileDebugLog.anchormux(
+                "terminal.output.defer_cold_replay surface=\(surfaceID)"
+            )
+        }
         ensureTerminalLane(surfaceID: surfaceID)
         return streamToken
     }
@@ -14504,6 +14538,18 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         terminalScrollbackPrefetchStatesBySurfaceID.removeValue(forKey: surfaceID)
         effectiveViewportSizesBySurfaceID.removeValue(forKey: surfaceID); reportedTerminalViewportSizesBySurfaceID.removeValue(forKey: surfaceID)
         terminalViewportReplayBarrierPendingAckTokensBySurfaceID.removeValue(forKey: surfaceID)
+        terminalViewportPreparationGenerationsBySequenceKey.removeValue(
+            forKey: MobileTerminalViewportSequenceKey(
+                ownerKey: foregroundMacKey,
+                surfaceID: surfaceID
+            )
+        )
+        terminalViewportDeferredColdReplayGenerationsBySequenceKey.removeValue(
+            forKey: MobileTerminalViewportSequenceKey(
+                ownerKey: foregroundMacKey,
+                surfaceID: surfaceID
+            )
+        )
         deliveredTerminalByteEndSeqBySurfaceID.removeValue(forKey: surfaceID)
         terminalPreBarrierDeliveredEndSeqBySurfaceID.removeValue(forKey: surfaceID)
         terminalRenderGridBaselineReplayRequestCountsBySurfaceID.removeValue(forKey: surfaceID)

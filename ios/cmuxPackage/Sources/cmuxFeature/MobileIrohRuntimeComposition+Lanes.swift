@@ -30,6 +30,7 @@ extension MobileIrohRuntimeComposition {
         case .control: return "control"
         case .serverEvents: return "server-events"
         case .terminal: return "terminal"
+        case .terminalInput: return "terminal-input"
         case .artifact: return "artifact"
         case .simulatorStream: return "simulator-stream"
         }
@@ -124,6 +125,23 @@ extension MobileIrohRuntimeComposition {
         let stream = try await openBidirectionalLane(
             for: request,
             lane: .terminal(resourceID: resourceID, cursor: cursor),
+            priority: priority
+        )
+        return MobileIrohTerminalLane(stream: stream)
+    }
+
+    /// Opens a terminal input-only lane. Render-grid output remains on the
+    /// ordered event stream, while keystrokes use an independent QUIC stream
+    /// whose writes do not wait for an RPC response.
+    public func openTerminalInputLane(
+        for request: CmxByteTransportRequest,
+        surfaceID: UUID,
+        priority: Int32 = 0
+    ) async throws -> MobileIrohTerminalLane {
+        let resourceID = try CmxIrohResourceID("terminal:\(surfaceID.uuidString.lowercased())")
+        let stream = try await openBidirectionalLane(
+            for: request,
+            lane: .terminalInput(resourceID: resourceID),
             priority: priority
         )
         return MobileIrohTerminalLane(stream: stream)
