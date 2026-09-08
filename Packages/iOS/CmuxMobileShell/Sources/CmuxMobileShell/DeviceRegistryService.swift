@@ -47,6 +47,7 @@ public actor DeviceRegistryService: DeviceRegistryRefreshing {
     private let teamIDProvider: @Sendable () async -> String?
     private let session: CmxCredentialedHTTPSession
     private let requestTimeout: TimeInterval
+    private let retryAfterGate = CmxRetryAfterGate()
     private struct RegistryResponse: Sendable {
         let data: Data
         let statusCode: Int
@@ -580,6 +581,9 @@ public actor DeviceRegistryService: DeviceRegistryRefreshing {
     /// team scope. This removes duplicate provider work without returning an old
     /// account or team's response after a session switch.
     private func fetchListResponse() async -> RegistryResponse? {
+        // A cached registry snapshot remains usable while the backend owns the
+        // next request time. Foreground and reconnect triggers must not bypass it.
+        guard await retryAfterGate.remainingSeconds() == nil else { return nil }
         guard let input = await makeListRequest() else { return nil }
         if let inFlight = listResponseTasks[input.scope] {
             return await inFlight.task.value
@@ -601,6 +605,13 @@ public actor DeviceRegistryService: DeviceRegistryRefreshing {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return nil
+            }
+            if http.statusCode == 429 {
+                let seconds = CmxRetryAfterPolicy.seconds(
+                    from: http,
+                    defaultSeconds: CmxRetryAfterPolicy.defaultRateLimitSeconds
+                ) ?? CmxRetryAfterPolicy.defaultRateLimitSeconds
+                await retryAfterGate.extend(by: seconds)
             }
             return RegistryResponse(data: data, statusCode: http.statusCode)
         } catch {

@@ -1,4 +1,5 @@
 import CmuxAuthRuntime
+import CMUXMobileCore
 import Foundation
 
 extension URLError.Code {
@@ -2045,8 +2046,10 @@ actor VMClient {
             if http.statusCode == 429, retriesLeft > 0 {
                 retriesLeft -= 1
                 onRetry()
-                let retryAfterSeconds = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init)
-                let delaySeconds = min(max(retryAfterSeconds ?? 2, 1), 10)
+                let delaySeconds = Self.retryDelaySeconds(
+                    statusCode: http.statusCode,
+                    retryAfterHeader: http.value(forHTTPHeaderField: "Retry-After")
+                ) ?? 2
                 try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
                 continue
             }
@@ -2088,7 +2091,18 @@ actor VMClient {
         let error = object["error"] as? String
         guard retryable || error == "vm_cloud_service_unavailable" else { return nil }
         let requested = cloudVMInt(object["retryAfterSeconds"]) ?? 2
-        return .seconds(min(max(requested, 1), 10))
+        return .seconds(max(requested, 1))
+    }
+
+    nonisolated static func retryDelaySeconds(
+        statusCode: Int,
+        retryAfterHeader: String?
+    ) -> TimeInterval? {
+        guard statusCode == 429 else { return nil }
+        return TimeInterval(
+            CmxRetryAfterPolicy.seconds(from: retryAfterHeader)
+                ?? CmxRetryAfterPolicy.defaultRateLimitSeconds
+        )
     }
 
     private func decodeWebSocketDaemonEndpoint(_ value: Any?) throws -> VMWebSocketDaemonEndpoint? {

@@ -1,3 +1,4 @@
+import CMUXMobileCore
 public import Foundation
 
 /// Session state for one Mac peer. Five states, no shadow copies anywhere
@@ -141,6 +142,14 @@ public actor IrxPeerEngine {
             throw IrxAdmissionDenied(
                 code: IrxCloseCode(rawValue: parkedCode) ?? .invalidGrant)
         }
+        if explicit,
+           let cooldownUntil,
+           ContinuousClock.now < cooldownUntil,
+           (lastDialError as? any CmxRetryAfterProviding)?.retryAfterSeconds != nil {
+            // Foreground, route-change, and user retry triggers may bypass a
+            // local transport backoff, but never a server-owned deadline.
+            throw lastDialError ?? IrxConnectionError.closed(nil)
+        }
         if explicit {
             // An explicit replacement invalidates the old session before the
             // new dial starts. Keeping it here after a failed replacement
@@ -210,7 +219,7 @@ public actor IrxPeerEngine {
                     "trigger": trigger,
                     "error": String(describing: denial),
                 ])
-                scheduleRedial()
+                scheduleRedial(error: denial)
             } else {
                 parkedCode = denial.code.rawValue
                 record("dial-denied", ["code": denial.code.rawValue])
@@ -229,7 +238,7 @@ public actor IrxPeerEngine {
                 "dial-failed",
                 ["trigger": trigger, "error": String(describing: error)]
             )
-            scheduleRedial()
+            scheduleRedial(error: error)
             throw error
         }
     }
@@ -287,6 +296,12 @@ public actor IrxPeerEngine {
         if case .ready = state { return }
         if parkedCode != nil { return }
         guard dialTask != nil || redialTimer != nil || cooldownUntil != nil else {
+            return
+        }
+        if let cooldownUntil,
+           ContinuousClock.now < cooldownUntil,
+           (lastDialError as? any CmxRetryAfterProviding)?.retryAfterSeconds != nil {
+            record("hint-race-redial-suppressed", ["reason": "retry-after"])
             return
         }
         record("hint-race-redial", ["trigger": trigger])
@@ -395,8 +410,11 @@ public actor IrxPeerEngine {
 
     /// Capped, cancellable backoff. The woken redial is an ordinary automatic
     /// trigger that joins whatever else happened since.
-    private func scheduleRedial() {
-        let delay = backoff
+    private func scheduleRedial(error: any Error) {
+        let retryAfterSeconds = (error as? any CmxRetryAfterProviding)?
+            .retryAfterSeconds
+        let serverFloor = Duration.seconds(Int64(max(0, retryAfterSeconds ?? 0)))
+        let delay = max(backoff, serverFloor)
         backoff = min(backoff * 2, config.maxBackoff)
         cooldownUntil = ContinuousClock.now.advanced(by: delay)
         redialTimer?.cancel()
@@ -405,7 +423,10 @@ public actor IrxPeerEngine {
             guard !Task.isCancelled else { return }
             await self?.clearCooldownAndRedial()
         }
-        record("redial-scheduled", ["delay": String(describing: delay)])
+        record("redial-scheduled", [
+            "delay": String(describing: delay),
+            "server_floor_s": retryAfterSeconds.map(String.init) ?? "-",
+        ])
     }
 
     private func clearCooldownAndRedial() async {

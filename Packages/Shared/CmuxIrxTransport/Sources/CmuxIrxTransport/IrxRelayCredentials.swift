@@ -47,9 +47,7 @@ public enum IrxRelayCredentialPolicy {
     ) -> Duration {
         let remaining = expiresAt.timeIntervalSince(now)
         let credentialDelay = remaining > 2 ? remaining / 2 : 1
-        let serverDelay = TimeInterval(
-            max(0, min(retryAfterSeconds ?? 0, 24 * 60 * 60))
-        )
+        let serverDelay = TimeInterval(max(0, retryAfterSeconds ?? 0))
         return .seconds(max(credentialDelay, serverDelay))
     }
 }

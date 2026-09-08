@@ -3856,6 +3856,15 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
                     mobileShellLog.debug(
                         "presence stream ended: \(String(describing: error), privacy: .public)"
                     )
+                    let serverFloor = Duration.seconds(Int64(max(
+                        0,
+                        (error as? any CmxRetryAfterProviding)?.retryAfterSeconds ?? 0
+                    )))
+                    if serverFloor > backoff {
+                        guard (try? await clock.sleep(for: serverFloor)) != nil else { return }
+                        backoff = min(backoff * 2, .seconds(60))
+                        continue
+                    }
                 }
                 if Task.isCancelled { return }
                 guard (try? await clock.sleep(for: backoff)) != nil else { return }
