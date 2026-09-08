@@ -216,7 +216,6 @@ struct ClaudeHookLifecycleCleanupTests {
             "attention effects are pane-scoped, never workspace-wide; saw \(commands)"
         )
     }
-
     @Test func preToolUsePreservesProviderErrorNotification() throws {
         let context = try Harness.makeContext(name: "pre-tool-use-preserve-error")
         defer { context.cleanup() }
@@ -486,11 +485,12 @@ struct ClaudeHookLifecycleCleanupTests {
 
     @Test func stopPayloadUsesHighestPriorityReason() {
         let inputs = CMUXCLI(args: []).abnormalStopPayloadInputs(from: [
-            "type": "completed", "payload": ["terminationReason": "capacity", "kind": "success"],
+            "type": "completed", "payload": ["terminationReason": "capacity", "reason": "user_requested"],
         ])
         #expect(inputs.signal == "Stop capacity")
+        #expect(inputs.messages.contains("user_requested"))
+        #expect(AgentHookAbnormalStopClassifier().isUserInitiatedStop(signal: inputs.signal, message: inputs.messages.joined(separator: " ")))
     }
-
     private func assertSuccessfulHook(_ result: ClaudeHookLiveDeliveryHarness.ProcessRunResult) {
         #expect(!result.timedOut, Comment(rawValue: result.stderr))
         #expect(result.status == 0, Comment(rawValue: result.stderr))

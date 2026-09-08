@@ -68,9 +68,12 @@ extension CMUXCLI {
             return nil
         }()
         let signal = ["Stop", reason].compactMap { $0 }.joined(separator: " ")
+        let reasonMessages = nestedObjects.flatMap {
+            abnormalStopStrings(in: $0, keys: Self.abnormalStopReasonKeys)
+        }
         let messages = nestedObjects.flatMap {
             abnormalStopStrings(in: $0, keys: Self.abnormalStopMessageKeys)
-        } + [fallbackMessage].compactMap { $0 }
+        } + [fallbackMessage].compactMap { $0 } + reasonMessages
         return (signal, messages)
     }
 
