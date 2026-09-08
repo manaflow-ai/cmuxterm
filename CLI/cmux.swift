@@ -34764,7 +34764,7 @@ export default CMUXSessionRestore;
                 telemetry.breadcrumb("\(def.name)-hook.shell-resolution.missing-session")
                 return
             }
-            concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword)
+            if let inferredPID { concludeCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, socketPath: client.socketPath, socketPassword: socketPassword) }
             if failed {
                 guard let toolName = input.rawObject.flatMap({
                     firstString(in: $0, keys: ["tool_name", "toolName"])
@@ -36500,7 +36500,7 @@ export default CMUXSessionRestore;
                     return
                 }
                 cursorApprovalNotificationCorrelationKey = rememberResult.notificationCorrelationKey
-                startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath)
+                if let inferredPID { startCursorNativeApprovalObservation(rawObject: input.rawObject ?? [:], agentPID: inferredPID, sessionId: sessionId, workspaceId: workspaceId, surfaceId: surfaceId, socketPath: client.socketPath) }
             }
             var summary = summarizeAgentHookNotification(
                 def: def,
@@ -40460,7 +40460,7 @@ export default CMUXSessionRestore;
             telemetry.breadcrumb("hooks.\(def.name).dispatch")
             do {
                 if def.name == "cursor", rest.first == "__observe-native-approval" { try runCursorNativeApprovalObserver(commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
-                if rest.first == "__native-attention" { try runNativeAgentAttention(source: def.integration, commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
+                if rest.first == "__native-attention" { guard let source = BuiltInAgentIntegration(feedSourceName: def.name) else { throw CLIError(message: "Unknown hooks target: \(def.name)") }; try runNativeAgentAttention(source: source, commandArgs: Array(rest.dropFirst()), socketPath: client.socketPath, socketPassword: socketPassword); return }
                 try runGenericAgentHook(
                     def: def,
                     commandArgs: rest,
