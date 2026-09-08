@@ -234,6 +234,15 @@ final class SurfaceCatalog {
     /// from `CloudVMState` because freshness is local observation metadata, not
     /// part of the daemon document or its cursor.
     private(set) var cloudStateObservations: [SurfaceMachineID: CloudVMStateObservation] = [:]
+    private var compatibilityCloudCursors: [SurfaceMachineID: CloudVMCursor] = [:]
+    struct CloudWorkspaceRenameToken: Hashable, Sendable {
+        fileprivate let id: UUID
+        fileprivate let machine: SurfaceMachineID
+        fileprivate let workspaceID: String
+        fileprivate let previousName: String
+    }
+    private var compatibilityCloudRenames: [CloudWorkspaceRenameToken: String] = [:]
+    private var compatibilityCloudRenameByWorkspace: [String: CloudWorkspaceRenameToken] = [:]
     private var providers: [SurfaceMachineID: any SurfaceProvider] = [:]
     /// The process-wide ordering owner for remote rename intents. A remote identity can
     /// have projections in several local windows, so this cannot live in a TabManager.
@@ -509,6 +518,76 @@ final class SurfaceCatalog {
         resolvePendingRestoredProjections(on: machine)
         notifyChange()
         return true
+    }
+
+    /// Applies a revisioned cloud resource snapshot with rename ordering fences.
+    @discardableResult
+    func replaceCloudResources(_ list: [SurfaceResource], on machine: SurfaceMachineID, info: SurfaceMachineInfo, cursor: CloudVMCursor) -> Bool {
+        guard accepts(writeFor: machine), info.id == machine else { return false }
+        if let current = compatibilityCloudCursors[machine], current.generation == cursor.generation {
+            if cursor.revision < current.revision { return false }
+            if cursor.revision == current.revision {
+                for token in compatibilityCloudRenames.keys where token.machine == machine {
+                    guard info.remoteWorkspaces?.first(where: { $0.id == token.workspaceID })?.name == compatibilityCloudRenames[token] else { return false }
+                }
+            }
+        }
+        compatibilityCloudCursors[machine] = cursor
+        _ = replaceResources(list, on: machine, info: info)
+        for token in compatibilityCloudRenames.keys where token.machine == machine {
+            if info.remoteWorkspaces?.first(where: { $0.id == token.workspaceID })?.name == compatibilityCloudRenames[token] {
+                compatibilityCloudRenames[token] = nil
+                compatibilityCloudRenameByWorkspace[token.workspaceID] = nil
+            }
+        }
+        return true
+    }
+
+    /// Optimistically renames a cloud workspace and all of its projected views.
+    @discardableResult
+    func beginCloudWorkspaceRename(machine: SurfaceMachineID, workspaceID: String, name: String) throws -> CloudWorkspaceRenameToken {
+        guard let previous = machines[machine]?.remoteWorkspaces?.first(where: { $0.id == workspaceID }) else {
+            throw SurfaceCatalogError.destinationNotFound("workspace \(workspaceID) on \(machine.rawValue)")
+        }
+        let token = CloudWorkspaceRenameToken(id: UUID(), machine: machine, workspaceID: workspaceID, previousName: previous.name)
+        compatibilityCloudRenames[token] = name
+        compatibilityCloudRenameByWorkspace[workspaceID] = token
+        applyCloudWorkspaceRename(machine: machine, workspaceID: workspaceID, name: name)
+        return token
+    }
+
+    func commitCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken, receipt: CloudVMCursor) {
+        compatibilityCloudCursors[token.machine] = receipt
+    }
+
+    func rollbackCloudWorkspaceRename(_ token: CloudWorkspaceRenameToken) {
+        guard compatibilityCloudRenames[token] != nil, compatibilityCloudRenameByWorkspace[token.workspaceID] == token else { return }
+        compatibilityCloudRenames[token] = nil
+        compatibilityCloudRenameByWorkspace[token.workspaceID] = nil
+        applyCloudWorkspaceRename(machine: token.machine, workspaceID: token.workspaceID, name: token.previousName)
+    }
+
+    func pendingCloudWorkspaceRenameName(machine: SurfaceMachineID, workspaceID: String) -> String? {
+        guard let token = compatibilityCloudRenameByWorkspace[workspaceID], token.machine == machine else { return nil }
+        return compatibilityCloudRenames[token]
+    }
+
+    private func applyCloudWorkspaceRename(machine: SurfaceMachineID, workspaceID: String, name: String) {
+        if var info = machines[machine], var workspaces = info.remoteWorkspaces, let index = workspaces.firstIndex(where: { $0.id == workspaceID }) {
+            workspaces[index].name = name
+            info.remoteWorkspaces = workspaces
+            machines[machine] = info
+        }
+        for id in resources.keys where id.machine == machine {
+            guard var resource = resources[id] else { continue }
+            if resource.remoteWorkspace?.id == workspaceID { resource.remoteWorkspace?.name = name }
+            if var views = resource.remoteViews {
+                for index in views.indices where views[index].workspace.id == workspaceID { views[index].workspace.name = name }
+                resource.remoteViews = views
+            }
+            resources[id] = resource
+        }
+        notifyChange()
     }
 
     /// Insert or replace one resource. A cloud provider may identify itself with `from` so a

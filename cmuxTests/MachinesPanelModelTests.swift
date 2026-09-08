@@ -453,7 +453,7 @@ final class MachinesPanelModelTests: XCTestCase {
             "machine:vivid-newt/ws/ws_main/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ws/ws_side",
             "machine:vivid-newt/ws/ws_side/resource:vivid-newt/terminal/term_1/tab:tab_9",
-            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1",
+            "machine:vivid-newt/ws/ws_side/resource:vivid-newt/display/display:1/tab:tab_desk",
             "machine:vivid-newt/ws/ws_empty",
             "machine:vivid-newt/ws/ws_empty/resource:vivid-newt/display/display:1",
             "machine:vivid-newt/ports",
@@ -467,7 +467,7 @@ final class MachinesPanelModelTests: XCTestCase {
         // Port rows: the sidebar side of `cmux vm open <m>:port/<n>` — the same
         // `<m>/browser/port:<n>` resource, so click and CLI open one catalog entry.
         let portRows = Dictionary(CloudTreeNodeBuilder.flattened(nodes).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        if case .port(let resource) = portRows["resource:vivid-newt/browser/port:3000"]!.kind {
+        if case .port(let resource, _, _) = portRows["resource:vivid-newt/browser/port:3000"]!.kind {
             XCTAssertEqual(resource.port, 3000)
             XCTAssertEqual(resource.id, port.id)
         } else { XCTFail("expected a port row") }
@@ -663,6 +663,8 @@ final class MachinesPanelModelTests: XCTestCase {
             SurfaceRemoteView(tabID: "tab_b", workspace: workspace, index: 1),
         ]
         let catalog = SurfaceCatalog()
+        let provider = GroupFakeProvider(machine: machine)
+        catalog.register(provider)
         catalog.replaceResources(
             [terminalResource],
             on: machine,
@@ -685,6 +687,8 @@ final class MachinesPanelModelTests: XCTestCase {
         resource.remoteWorkspace = workspace
         resource.remoteViews = []
         let catalog = SurfaceCatalog()
+        let provider = GroupFakeProvider(machine: machine)
+        catalog.register(provider)
         catalog.replaceResources(
             [resource],
             on: machine,
@@ -1067,6 +1071,23 @@ final class CloudTreeScopeAndSignatureTests: XCTestCase {
 /// CPU/Mem/Disk reading (when the style shows stats), else nothing.
 @Suite("Cloud tree machine inline fact")
 struct CloudTreeMachineInlineFactTests {
+    @Test("Refresh drops retained statistics when the provider withdraws support")
+    func capabilityWithdrawalDropsPreviousStats() {
+        let stats = VMStats(
+            state: .awake, sampledAt: Date(timeIntervalSince1970: 0), cpus: 2, cpuPercent: 9.4,
+            loadAverage1m: nil, memoryTotalMb: 3891, memoryUsedMb: 3481, diskTotalMb: 3174, diskUsedMb: 2867
+        )
+        var summary = VMSummary(
+            id: "machine", provider: "freestyle", status: "running", image: "base", createdAt: 0, base: nil
+        )
+        let supported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: stats)
+        #expect(supported.stats == stats)
+        summary.capabilities = VMCapabilities(json: ["stats": false])
+        let unsupported = MachineSnapshotBuilder.snapshot(from: summary, previousStats: supported.stats)
+        #expect(unsupported.stats == nil)
+        #expect(CloudTreeMachineRowContent.inlineFact(unsupported, style: .compact) == nil)
+    }
+
     private func snapshot(stats: VMStats?) -> MachineSnapshot {
         var machine = MachineSnapshotBuilder.snapshot(from: VMSummary(
             id: "troll", provider: "freestyle", status: "running", image: "cmux-devbox:devbox-20260828b", createdAt: 0, base: nil

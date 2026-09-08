@@ -6,21 +6,25 @@ import Foundation
 /// `--socket`/`--json`/`--jsonl` as global options, and `attach --terminal <id>` as the
 /// single-terminal renderer (`spec/cli.md` §"attach").
 struct CloudTuiCommandLine: Sendable {
-    /// `remote connect <route> --device-name … --state-dir … --headless --json [--invite-file …]`:
+    /// `remote connect <route> --device-name … --state-dir … --headless --json [--carrier]`:
     /// a headless link whose stdout carries `connection-snapshot` JSON lines with the
     /// local mux socket path (`remote_cli.rs` `connect_with_flags`).
+    /// `--carrier` dials with carrier authentication: the machine's daemon serves a
+    /// trusted listener reachable only inside the owner's private network, so there is
+    /// no device enrollment and no invitation. Without it the client presents its
+    /// stored device key (a machine this Mac enrolled with before trusted listeners).
     /// `--wireguard-hub <socket>` makes the client dial the route through the app's
     /// in-process WireGuard hub (``CloudWireGuardHub``) instead of the OS network stack;
     /// it is added only for routes inside the private Cloud VM network.
-    static func linkArguments(route: String, deviceName: String, stateDir: String, inviteFilePath: String?, wireguardHubSocket: String? = nil) -> [String] {
+    static func linkArguments(route: String, deviceName: String, stateDir: String, carrier: Bool = false, wireguardHubSocket: String? = nil) -> [String] {
         var arguments = [
             "remote", "connect", route,
             "--device-name", deviceName,
             "--state-dir", stateDir,
             "--headless", "--json", "--exit-with-parent",
         ]
-        if let inviteFilePath, !inviteFilePath.isEmpty {
-            arguments += ["--invite-file", inviteFilePath]
+        if carrier {
+            arguments.append("--carrier")
         }
         if let wireguardHubSocket, !wireguardHubSocket.isEmpty {
             arguments += ["--wireguard-hub", wireguardHubSocket]

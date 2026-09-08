@@ -1185,7 +1185,7 @@ extension CMUXCLI {
 
         let tail = Array(rest.dropFirst())
         var normalized = ["--agent", agent]
-        if let separator = tail.firstIndex(of: "--") {
+        if tail.contains("--") {
             normalized.append(contentsOf: tail)
             return normalized
         }

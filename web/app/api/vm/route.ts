@@ -56,7 +56,7 @@ import {
   resolveVmProvisioningAccountScope,
   runAfterResponse,
 } from "../../../services/vms/routeHelpers";
-import { vmRequestLocale } from "../../../services/vms/vmErrorMessages";
+import { vmRequestLocale, vmUnsupportedCopy } from "../../../services/vms/vmErrorMessages";
 import { captureVmProvisionOutcome } from "../../../services/vms/observability";
 import {
   createVm,
@@ -464,11 +464,12 @@ export async function POST(request: Request): Promise<Response> {
         // machine that silently differs from the request.
         const capabilities = vmCapabilitiesFor(provider);
         if (candidate.memoryMb !== undefined && !capabilities.sizing) {
+          const copy = await vmUnsupportedCopy("sizing", vmRequestLocale(request));
           return vmErrorResponse({
             error: "vm_operation_unsupported",
             status: 400,
-            message: `The ${provider} provider does not support machine sizing; \`memoryMb\` would be ignored.`,
-            action: "Omit `memoryMb` and retry.",
+            message: copy.message,
+            action: copy.action,
             details: { provider, field: "memoryMb" },
           });
         }
@@ -476,11 +477,12 @@ export async function POST(request: Request): Promise<Response> {
           (candidate.persistentHome === true || candidate.perMachineHome === true) &&
           !capabilities.persistentHome
         ) {
+          const copy = await vmUnsupportedCopy("persistentHome", vmRequestLocale(request));
           return vmErrorResponse({
             error: "vm_operation_unsupported",
             status: 400,
-            message: `The ${provider} provider does not support persistent home volumes; the request would be ignored.`,
-            action: "Omit `persistentHome`/`perMachineHome` and retry.",
+            message: copy.message,
+            action: copy.action,
             details: { provider, field: candidate.persistentHome === true ? "persistentHome" : "perMachineHome" },
           });
         }

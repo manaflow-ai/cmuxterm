@@ -5,8 +5,8 @@ You are helping the user work with cmux Cloud machines through the `cmux` CLI. T
 ## Mental model
 
 - A machine is a persistent cloud VM owned by the signed-in cmux user. Its generated name (like `brave-otter`) is its address everywhere; `cmux vm rename` sets a display label only. The machine outlives panes, closed laptops, and reconnects.
-- Every machine runs a cmux session daemon (cmux-tui on current images, cmuxd-remote on older ones) that owns terminal sessions and scrollback. Clients attach through short-lived leases minted by the backend; the transport depends on what the provider and image support. SSH is a fallback some providers and images cannot mint, and its absence is not an error.
-- New machines boot a desktop image (xfce + noVNC) plus a shell, with a persistent per-machine home. `--base` gives a shell-only machine.
+- Every machine runs a cmux session daemon that owns terminal sessions and scrollback. Managed sessions use the private cmux-remote connection; the server's capability response determines available operations. SSH is a fallback some providers and images cannot mint, and its absence is not an error.
+- The backend selects the image and supported machine options. Do not assume a desktop or a separate persistent-home volume; inspect the capabilities returned for that machine.
 - Base is a separate single per-user persistent slot, pinned to the top of the sidebar. `cmux vm new` mints fresh machines; `cmux vm base` always reopens the same one.
 - Terminals on a machine live in its cmux-tui session (workspaces `ws_…`, terminals `term_…`). They keep running detached. `cmux vm tree` catalogs every surface, and every line is an address `cmux vm open` (machine targets) or `cmux surface open` (any entry, including This Mac) accepts: `brave-otter/main/term_2f9c…`, `brave-otter:desktop`, `brave-otter:port/3000`.
 - One machine hosts many workspaces. Make a workspace per task *inside* the machine (`cmux vm workspace new <id> --name <task>`, the machine's ⌘N) rather than a machine per task; the Cloud sidebar groups them under the machine's Workspaces group. `cmux vm open <machine>/<ws>` takes the `ws_…` id, or the workspace name only when exactly one workspace has it (colliding names need the id), and starts a shell in an empty one.
@@ -18,7 +18,7 @@ You are helping the user work with cmux Cloud machines through the `cmux` CLI. T
 
 List and inspect:
 
-```
+```bash
 cmux vm ls                    # NAME LABEL STATE PROVIDER IMAGE + plan meter
 cmux vm status <id>           # provider, status, image
 cmux vm stats <id>            # live CPU/memory
@@ -29,7 +29,7 @@ cmux vm tree [<machine>|local] [--refresh]
 
 Create and name:
 
-```
+```bash
 cmux vm new [--base] [--size <2g|4g|8g|16g|32g>] [--detach|-d]
 cmux vm rename <id> <new-label>      # label only; the id stays the address
 ```
@@ -38,27 +38,27 @@ cmux vm rename <id> <new-label>      # label only; the id stays the address
 
 Base:
 
-```
+```bash
 cmux vm base                  # open Base, reuses the same VM
 cmux vm base reset [--reason <text>]   # new generation; the old VM is retained
 ```
 
 Attach and open:
 
-```
-cmux vm shell <id>                       # terminal workspace (WebSocket attach)
+```bash
+cmux vm shell <id>                       # terminal workspace over the private connection
 cmux vm tui <id>                         # the machine's full cmux-tui client in a pane
 cmux vm desktop <id>                     # noVNC screen as a browser pane
 cmux vm open <machine>                   # same as vm shell
 cmux vm open <machine>/<ws>[/<term>]     # a cmux-tui workspace or one terminal
 cmux vm open <machine>:desktop
-cmux vm open <machine> <port> [--print]  # private tokened URL for an HTTP port
+cmux vm open <machine> <port> [--print]  # private-network URL for an HTTP port
 cmux vm ssh <id>                         # SSH fallback; unavailable on some providers/images
 ```
 
 Machine workspaces, terminals, and panes (everything the Cloud sidebar does):
 
-```
+```bash
 cmux vm workspace new <id> [--name <n>]     # create a workspace on the machine (its ⌘N) and open it here
 cmux vm workspace open <id> <ws> [--here|--tabs|--pane <p> --left|--right|--up|--down]   # an empty workspace opens nothing (opened=0); --tabs and a side are exclusive
 cmux vm workspace rename <id> <ws> <name>
@@ -84,7 +84,7 @@ A pane showing a machine surface is an ordinary local cmux pane: move, split, re
 
 Run commands:
 
-```
+```bash
 cmux vm exec <id> -- <command...>        # one command, ~35s limit, exit code passes through
 cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
 cmux vm route [--cwd <dir>]              # print which machine vm run/agent would pick, and why
@@ -95,7 +95,7 @@ cmux vm wait <id> [--timeout <seconds>] [--wake]
 
 Coding agents on machines:
 
-```
+```bash
 cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] -- <prompt or args...>
 ```
 
@@ -103,7 +103,7 @@ The agent starts as a detached terminal in the machine's cmux-tui session: it ke
 
 Files:
 
-```
+```bash
 cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]...
 cmux vm pull <id> <remote-path> [local-path]
 ```
@@ -112,7 +112,7 @@ Directories travel as tarballs with default excludes (node_modules, .git, and si
 
 Snapshot, fork, restore:
 
-```
+```bash
 cmux vm snapshot <id> [--name <name>]
 cmux vm fork <id> [--name <name>]
 cmux vm restore <snapshot-id>
@@ -120,7 +120,7 @@ cmux vm restore <snapshot-id>
 
 Destroy:
 
-```
+```bash
 cmux vm rm <id>          # irreversible and unprompted
 ```
 
@@ -128,7 +128,7 @@ cmux vm rm <id>          # irreversible and unprompted
 
 Every machine has its own in-VM `cmux` CLI (a shim over the machine's cmux-tui daemon). Local verbs use cmux-tui's grammar (`cmux <resource> <action>`) against the machine's own session — workspaces, terminals, panes:
 
-```
+```bash
 cmux workspace current run -- bun test        # run a command in a durable terminal here
 cmux session current snapshot --json          # this machine's workspace/terminal tree
 ```
@@ -143,9 +143,9 @@ cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
 cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
 ```
 
-`cmux vm …` inside a machine talks to OTHER machines the Mac linked to this one (`cmux vm link <this-machine> <peer>` on the Mac grants access), with the peer as the first argument and the same grammar as on the Mac:
+`cmux vm …` inside a machine can use existing peer route files. The legacy Mac `vm link` enrollment broker is not available in this build; do not claim that it can create a new peer grant:
 
-```
+```bash
 cmux vm ls                          # linked peers and their link state
 cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
 cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
@@ -154,7 +154,7 @@ cmux vm workspace new|rename|close|rm <peer> … ; cmux vm layout export|apply <
 cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] -- <prompt>   # a durable agent terminal on the peer
 ```
 
-Machine-to-machine access is grant-based: no control-plane credential lives in any VM, and a machine can only reach peers the user's Mac explicitly linked.
+Peer commands require an existing grant and a compatible daemon. No control-plane credential lives in a VM. Connection readiness comes from daemon events, with a 30-second deadline and cancellation cleanup, not polling. Guest messages follow `LC_ALL`, `LC_MESSAGES`, then `LANG` (English or Japanese).
 
 ## Rules
 

@@ -76,6 +76,11 @@ describe("vm capability derivation", () => {
     const mock = new MockVMProvider({ features: { fork: true } });
     const vm = await mock.create({ image: "mock-image" });
     expect(vm.status).toBe("running");
+    const endpoint = await mock.openCmuxRemote!(vm.providerVmId);
+    expect(endpoint.transport).toBe("cmux-remote");
+    expect(endpoint.route).toContain(vm.providerVmId);
+    expect(endpoint.trustedCarrier).toBe(true);
+    await expect(mock.openCmuxRemote!("missing")).rejects.toThrow("mock VM not found");
     const snap = await mock.snapshot(vm.providerVmId, "before");
     const restored = await mock.restore(snap.id);
     expect(restored.image).toBe("mock-image");

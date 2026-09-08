@@ -31,6 +31,10 @@ await freestyle.tls.rules.create({
 The edge terminates the guest's outbound HTTPS to the named domain, injects the
 header, and re-originates. Properties that matter:
 
+Both hops require HTTPS with certificate and hostname validation. Reject an HTTP
+origin or an unvalidated upstream certificate before installing the injection rule;
+the injected token must never traverse an unauthenticated edge-to-origin connection.
+
 - **The guest never holds the credential.** A compromised agent can *use* the VM's
   authority while the VM lives, but cannot exfiltrate a token to use elsewhere or
   after revocation. Header values are write-only at the provider (read back `***`).
@@ -47,14 +51,19 @@ header, and re-originates. Properties that matter:
 
 At create, the control plane mints a **VM identity token** (`cvt_` + 256 random bits),
 stores only its sha256 in a new `cloud_vm_identities` row
-`{ vm_id, user_id, billing_team_id, scopes, expires_at, revoked_at }`, and hands the
+`{ vm_id, token_hash, user_id, billing_team_id, scopes, state, expires_at, revoked_at }`, with a
+unique index on `token_hash` for authentication lookup, and hands the
 raw token to the driver exactly once — which writes it into the edge rule above and
 then forgets it. This is the same pattern as the coderouter route token (`crt_`,
 sha256-stored, 30-day), which is already the house way to mint scoped machine-side
 credentials.
 
 `verifyRequest` grows a third mode: `x-cmux-vm-token` → identity row → a
-**machine principal** `{ kind: "vm", vmId, userId, billingTeamId, scopes }`. Stack
+**machine principal** `{ kind: "vm", vmId, userId, billingTeamId, scopes }`.
+The lookup hashes the presented token and rejects missing rows, rows with
+`expires_at <= now`, and rows with `revoked_at != null` before constructing any
+principal. Revocation and expiration checks apply to every request.
+Stack
 Auth remains the authenticator of *people*; the VM token is a derived, scoped,
 per-machine credential recorded against the Stack user. (Stack-native "server users"
 per VM were considered and rejected: an external dependency and a heavier lifecycle
@@ -91,8 +100,11 @@ after it is plumbing:
    Mac today.
 3. `src` connects with the invitation; the control plane approves the pending
    enrollment automatically **because the standing user-created grant is the
-   approval**. Revoking the grant revokes the access (and tears down the daemon
-   enrollment on next reconcile).
+   approval**. Revocation commits the denied grant first, then immediately removes
+   the peer's daemon enrollment and closes its active sessions before reporting
+   success. If a daemon cannot acknowledge revocation, access stays denied and
+   revocation remains pending for retry; reconciliation is recovery, not the
+   authorization boundary. Every grant-mediated operation rechecks the current row.
 
 The Mac drops out of the loop; `cmux vm link` on the Mac just writes the grant.
 Route files and Mac-side approve polling (the PR #11609 mechanism) remain as the
@@ -105,7 +117,8 @@ Two complementary layers, both already live at the provider:
 - **VPC (shipped on main):** every machine of one owner shares a private network;
   the cmux-tui daemon port is reachable member-to-member with zero public exposure.
   Peer sessions ride `ws://[peer-vpc-ipv6]:1337/v1/link` with the daemon's Noise
-  device enrollment as session auth. This is the terminal/agent plane — what
+  device enrollment as session auth. WebSocket is only the carrier: Noise encrypts
+  and authenticates the session payload on every frame. This is the terminal/agent plane — what
   `cmux vm exec <peer>` uses.
 - **Named internal services (TLS vm→vm rules):** `{ vmId: A } → { vmId: B, port }`
   under a private name — VM A dials `https://db.internal`, the edge terminates with
@@ -118,9 +131,22 @@ Two complementary layers, both already live at the provider:
 
 - **Mint** at create (driver writes the edge rule; DB row holds the hash).
 - **Rotate** on TTL (30d) via `tls.rules.update` — atomic, no traffic drop.
+- **Failure-safe transitions:** create an identity as `pending` with an idempotency
+  key, install its edge rule, and mark it `active` only after provider confirmation.
+  Failed installation revokes the pending row and queues deletion of any orphan
+  rule. Authentication accepts only `active` rows. During rotation, register the
+  next token hash before the atomic rule update, retain the previous hash only
+  until confirmation, then revoke it. A failed update leaves the previous active
+  credential usable and discards the pending replacement. Retries reconcile by the
+  same operation key and provider rule ID instead of minting another identity.
 - **Revoke** on: VM destroy (provider cascade + row revoke), account sign-out
   (`revokeEndpointLeases` extension), or explicit `cmux vm unlink` / grant
   revocation.
+- Before sign-out succeeds, commit `revoked_at` for the affected machine identities
+  and disable their identity edge rules. A failed edge deletion remains queued for
+  retry; the committed database revocation immediately denies further requests.
+  These identity rows and the extended sign-out flow are a proposed contract, not
+  part of the currently shipped preview-lease cleanup.
 - The model plane already uses the edge-held route token: the guest carries only
   the static placeholder env, while the inline Freestyle rule injects the
   bearer and VM-binding headers on the wire. There is no guest-readable route
@@ -128,9 +154,11 @@ Two complementary layers, both already live at the provider:
 
 ## Phasing
 
-1. **Shipped (PR #11609):** full capability contract; in-VM `cmux` shim;
-   Mac-brokered `vm link`; TLS port previews; inline model-plane edge injection
-   and guest-safe auth/CodeRouter commands.
+1. **Current PR #11609 scope:** full capability contract; in-VM `cmux` shim;
+   existing peer-route compatibility; private-network port previews; inline
+   model-plane edge injection and guest-safe auth/CodeRouter commands. The old
+   Mac `vm link` enrollment broker was removed by the main-branch integration;
+   creating new peer grants needs a separate trusted-listener workflow.
 2. **Machine principal:** `cloud_vm_identities` + `verifyRequest` VM mode + edge
    rule at create + scoped `peers.read`/`self.notify`.
 3. **Server-side grants:** `cloud_vm_peer_grants`, grant-gated attach/approve/exec,

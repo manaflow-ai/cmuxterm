@@ -2,6 +2,50 @@ import Foundation
 
 /// Pure remote catalog selector and placement resolution shared by the app and CLI.
 enum CmuxTuiRemoteRouting {
+    /// Normalizes ergonomic provider-first aliases into the canonical
+    /// `--agent <name>` shape used by `cmux vm agent` and `coderouter agent`.
+    /// VM options are consumed until the first provider argument, which stays
+    /// behind `--` so it cannot be mistaken for a cmux option.
+    static func vmAgentAliasArgs(_ rest: [String]) -> [String] {
+        guard let first = rest.first, first != "--agent" else { return rest }
+        let agent = first.lowercased()
+        let supportedAgents = Set(["claude", "codex", "opencode", "pi"])
+        guard supportedAgents.contains(agent) else { return rest }
+
+        let tail = Array(rest.dropFirst())
+        var normalized = ["--agent", agent]
+        if tail.contains("--") {
+            normalized.append(contentsOf: tail)
+            return normalized
+        }
+
+        let valueOptions: Set<String> = [
+            "--machine", "--cwd", "--name", "--remote-workspace", "--size",
+        ]
+        let flagOptions: Set<String> = ["--sync", "--no-open", "--new", "--json"]
+        var index = 0
+        while index < tail.count {
+            let token = tail[index]
+            if flagOptions.contains(token) {
+                normalized.append(token)
+                index += 1
+                continue
+            }
+            if valueOptions.contains(token), index + 1 < tail.count {
+                normalized.append(token)
+                normalized.append(tail[index + 1])
+                index += 2
+                continue
+            }
+            break
+        }
+        if index < tail.count {
+            normalized.append("--")
+            normalized.append(contentsOf: tail[index...])
+        }
+        return normalized
+    }
+
     /// Where `cmux vm open <target>` points. Grammar:
     ///   <machine>                      the machine's shell (the shared vmOpenShell path)
     ///   <machine>/<workspace>          a cmux-tui workspace on the machine (`ws_…` id or unique name)

@@ -2562,7 +2562,7 @@ export function getVmStats(input: {
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "getStats",
-          cause: new Error("machine stats are not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "getStats" }),
         }),
       );
     }
@@ -2835,7 +2835,7 @@ export function openVmCmuxRemote(input: {
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "openCmuxRemote",
-          cause: new Error("the cmux-tui remote daemon is not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "openCmuxRemote" }),
         }),
       );
     }
@@ -2867,7 +2867,7 @@ export function openVmCmuxRemote(input: {
       tokenHash: hashToken(endpoint.token),
       expiresAt: new Date(endpoint.expiresAtUnix * 1000),
       transport: "cmux-remote",
-      metadata: { session: endpoint.session, invited: !!endpoint.invitation },
+      metadata: { session: endpoint.session, invited: false, trustedCarrier: endpoint.trustedCarrier },
     }).pipe(
       Effect.catchAll((err) => {
         const cleanup = providers.revokeEndpointLeases
@@ -2884,7 +2884,7 @@ export function openVmCmuxRemote(input: {
       eventType: "vm.attach",
       provider: vm.provider,
       imageId: vm.imageId,
-      metadata: { transport: "cmux-remote", invited: !!endpoint.invitation },
+      metadata: { transport: "cmux-remote", invited: false, trustedCarrier: endpoint.trustedCarrier },
     }).pipe(Effect.catchAll(() => Effect.void));
     // Backfill: machines created before address recording learn their private
     // address on first attach, so "Copy IP Address" appears for them too.
@@ -2919,7 +2919,7 @@ export function approveVmCmuxRemoteEnrollment(input: {
         new VmProviderOperationError({
           provider: vm.provider,
           operation: "approveCmuxRemoteEnrollment",
-          cause: new Error("the cmux-tui remote daemon is not supported by this deployment"),
+          cause: new VmOperationUnsupportedError({ provider: vm.provider, operation: "approveCmuxRemoteEnrollment" }),
         }),
       );
     }

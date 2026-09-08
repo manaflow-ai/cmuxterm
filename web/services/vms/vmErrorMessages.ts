@@ -36,7 +36,7 @@ export function vmRequestLocale(request: Request): Locale {
 }
 
 /** Load and translate the phase-specific unsupported-operation response copy. */
-export type VmUnsupportedOperationKey = "snapshot" | "restore" | "fork" | "openPort" | "default";
+export type VmUnsupportedOperationKey = "snapshot" | "restore" | "fork" | "openPort" | "sizing" | "persistentHome" | "default";
 
 /** Maps a workflow operation to the stable copy key used by the API response. */
 export function vmUnsupportedOperationKey(operation: string): VmUnsupportedOperationKey {
@@ -57,7 +57,7 @@ export async function vmUnsupportedCopy(
     messages: await loadMessages(locale),
     namespace: "vmErrors.unsupported",
   }) as unknown as (key: string) => string;
-  const phaseKey: VmUnsupportedOperationKey = ["snapshot", "restore", "fork", "openPort"].includes(phase)
+  const phaseKey: VmUnsupportedOperationKey = ["snapshot", "restore", "fork", "openPort", "sizing", "persistentHome"].includes(phase)
     ? phase
     : "default";
   return {

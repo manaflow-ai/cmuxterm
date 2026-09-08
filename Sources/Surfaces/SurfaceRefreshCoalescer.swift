@@ -13,12 +13,7 @@ import Foundation
 final class SurfaceRefreshCoalescer {
     private let perform: @MainActor () async -> Void
     private var loop: Task<Void, Never>?
-    /// Identity of the loop that owns `loop`: a cancelled loop unwinding late must not
-    /// clear the replacement a newer request started (two passes would then overlap).
-    private var loopToken = UUID()
     private var dirty = false
-    /// Passes started so far (tests read it; the provider does not).
-    private(set) var passes = 0
 
     init(perform: @escaping @MainActor () async -> Void) {
         self.perform = perform
@@ -31,26 +26,23 @@ final class SurfaceRefreshCoalescer {
     func request() {
         dirty = true
         guard loop == nil else { return }
-        let token = UUID()
-        loopToken = token
         loop = Task { @MainActor [weak self] in
             defer {
-                if let self, self.loopToken == token { self.loop = nil }
+                if let self {
+                    self.loop = nil
+                    if self.dirty { self.request() }
+                }
             }
             while let self, self.dirty, !Task.isCancelled {
                 self.dirty = false
-                self.passes += 1
                 await self.perform()
             }
         }
     }
 
-    /// Drop the queued follow-up and stop after the pass in flight. A request that
-    /// arrives before the cancelled pass unwinds starts a fresh loop of its own.
+    /// Drop the queued follow-up and stop after the pass in flight.
     func cancel() {
         dirty = false
-        loopToken = UUID()
         loop?.cancel()
-        loop = nil
     }
 }

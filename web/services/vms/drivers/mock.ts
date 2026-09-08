@@ -9,6 +9,7 @@ import type {
   AttachEndpoint,
   AttachOptions,
   AttachTransport,
+  CmuxRemoteEndpoint,
   CreateOptions,
   ExecOptions,
   ExecResult,
@@ -56,6 +57,7 @@ export class MockVMProvider implements VMProvider {
   openSSH?: (vmId: string) => Promise<SSHEndpoint>;
   revokeSSHIdentity?: (identityHandle: string) => Promise<void>;
   openAttach?: (vmId: string, options?: AttachOptions) => Promise<AttachEndpoint>;
+  openCmuxRemote?: (vmId: string) => Promise<CmuxRemoteEndpoint>;
 
   constructor(options?: {
     readonly id?: ProviderId;
@@ -70,6 +72,20 @@ export class MockVMProvider implements VMProvider {
     if (features.websocket) transports.push("websocket");
     if (features.ssh) transports.push("ssh");
     this.attachTransports = transports;
+
+    if (features.cmuxRemote !== false) {
+      this.openCmuxRemote = async (vmId) => {
+        this.mustGet(vmId);
+        return {
+          transport: "cmux-remote",
+          route: `wss://mock.invalid/vm/${vmId}/link`,
+          token: "mock",
+          expiresAtUnix: Math.floor(Date.now() / 1000) + 60,
+          session: "cloud",
+          trustedCarrier: true,
+        };
+      };
+    }
 
     if (features.fork) {
       this.fork = async (vmId) => {

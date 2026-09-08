@@ -22,6 +22,8 @@
 // reaches machines created from any existing snapshot. The rendered copy at
 // images/devbox/cmux must stay byte-identical (vm-devbox-image.test.ts).
 
+import { GUEST_CMUX_MESSAGE_SHELL } from "./guestCliMessages";
+
 export const GUEST_CMUX_SHIM_PATH = "/usr/local/bin/cmux";
 
 export const GUEST_CMUX_SHIM = `#!/bin/sh
@@ -29,6 +31,8 @@ export const GUEST_CMUX_SHIM = `#!/bin/sh
 # Local verbs forward to cmux-tui (session "cloud"). \`cmux vm …\` talks to peers
 # this machine was linked to from the Mac (\`cmux vm link <src> <dst>\`).
 set -eu
+
+${GUEST_CMUX_MESSAGE_SHELL}
 
 # The daemon binary lives under the daemon's home, which depends on the image
 # layout (root daemon: /root; layout-aware bakes: the cmux user's home or the
@@ -53,6 +57,12 @@ case "\$LOCAL_SESSION" in
 esac
 
 die() { printf '%s\\n' "cmux: \$1" >&2; exit "\${2:-1}"; }
+die_message() {
+  cmux_error_status="\$1"; shift
+  printf 'cmux: ' >&2
+  cmux_message "\$@" >&2
+  exit "\$cmux_error_status"
+}
 # A warning never changes the exit code; \`layout apply\` also collects them for
 # its JSON summary (cmux_la_scratch is set only while an apply is running).
 warn() {
@@ -61,7 +71,7 @@ warn() {
   return 0
 }
 
-[ -x "\$CMUX_TUI_BIN" ] || die "cmux-tui daemon binary not found at \$CMUX_TUI_BIN"
+[ -x "\$CMUX_TUI_BIN" ] || die_message 1 missingDaemon "\$CMUX_TUI_BIN"
 
 # One routing target for every verb: this machine's session, or — after
 # use_peer — a linked peer's headless-link socket. tui() prepends it, so the
@@ -78,52 +88,8 @@ use_peer() {
 }
 
 guest_usage() {
-  cat <<'EOF'
-cmux - Cloud workspace CLI
-
-USAGE
-  cmux <scope> <action> [options]
-
-LOCAL WORKSPACE COMMANDS (this VM)
-  cmux workspace list|create|<id> <action>
-  cmux terminal list|<id> <action>
-  cmux pane list|<id> <action>
-  cmux session current snapshot|events
-  cmux notification list|create
-  cmux tree [--json]                              This machine's workspace/terminal snapshot
-  cmux new-workspace [--name <n>]                 Create a workspace on this machine
-  cmux new-split <right|down> [--pane <pane_id>]        Split a pane (default: the one you are in)
-  cmux send [--terminal <id>] <text>              Type into a terminal (default: the one you are in)
-  cmux send-key [--terminal <id>] <key> [key...]  Press named keys: enter, tab, ctrl+c, ...
-  cmux read-screen [--terminal <id>] [--json]     A terminal's visible screen
-  cmux terminal send|read|wait|close <id> ...     The Mac \`cmux vm terminal\` verbs, locally
-  cmux layout export [--workspace <ws>] [--raw]   A workspace's layout as portable JSON
-  cmux layout apply [--workspace <ws>|--name <n>] [--cwd <dir>] [<file>|-]
-  cmux env set|ls|rm|path ...                     Machine env (~/.config/cmux/env) for every cmux shell
-
-CLOUD AND AGENT COMMANDS
-  cmux vm ls|connect|exec|tree <peer> ...
-  cmux vm terminal send|read|wait|close <peer> <term> ...
-  cmux vm workspace new|rename|close|rm <peer> ...
-  cmux vm agent <peer> --agent <claude|codex|opencode|pi> -- <prompt>
-  cmux vm layout export|apply <peer> ... ; cmux vm env set|ls|rm <peer> ...   (env values travel only over the link)
-  cmux coderouter status|usage|models
-  cmux coderouter agent <claude|codex|opencode|pi> [args...]
-  cmux agent <claude|codex|opencode|pi> [args...]
-  cmux agent list|report|hook ...    Local cmux-tui agent state/hooks
-  cmux notify --title <text> [--subtitle <text>] [--body <text>]
-
-AUTHENTICATION
-  cmux auth status [--json]       Check this daemon and the injected CodeRouter edge
-  cmux auth login|logout          Account sign-in is host-owned; run it on the Mac
-
-This VM uses cmux-tui as its local transport. The Mac cmux CLI adds
-Mac-window and account-management commands; no Stack token is copied into
-this machine. CodeRouter requests use the Freestyle TLS edge, which injects
-the short-lived machine credential on the wire.
-
-Run cmux <scope> --help for the complete local resource grammar.
-EOF
+  cmux_message help
+  cmux_message agentHelp
 }
 
 load_model_env() {
@@ -136,7 +102,7 @@ load_model_env() {
   # a manually copied token instead of making it look like the supported path.
   for cmux_value in "\${OPENAI_API_KEY:-}" "\${ANTHROPIC_API_KEY:-}" "\${CMUX_CODEROUTER_URL:-}"; do
     case "\$cmux_value" in
-      *crt_*) die "refusing a coderouter route token in the VM; use the Freestyle TLS edge" 2 ;;
+      *crt_*) die_message 2 routeToken ;;
     esac
   done
 }
@@ -165,14 +131,14 @@ cmux_curl() {
 require_coderouter() {
   load_model_env
   cmux_coderouter_url="\${CMUX_CODEROUTER_URL:-}"
-  [ -n "\$cmux_coderouter_url" ] || die "CodeRouter is not configured in this VM (CMUX_CODEROUTER_URL is missing)" 2
+  [ -n "\$cmux_coderouter_url" ] || die_message 2 missingCodeRouter
   case "\$cmux_coderouter_url" in
     https://*) ;;
-    *) die "CodeRouter requires an https:// endpoint; refusing an insecure URL" 2 ;;
+    *) die_message 2 insecureCodeRouter ;;
   esac
   case "\$cmux_coderouter_url" in
     *[!A-Za-z0-9:/._-]*)
-      die "CodeRouter endpoint must be a bare https:// host" 2 ;;
+      die_message 2 invalidCodeRouter ;;
   esac
   cmux_coderouter_key="\${OPENAI_API_KEY:-cmux-vm-edge-placeholder}"
 }
@@ -183,7 +149,7 @@ guest_auth_status() {
     case "\$cmux_arg" in
       --json) cmux_auth_json=1 ;;
       --help|-h) guest_usage; return 0 ;;
-      *) die "auth status: unknown option \$cmux_arg" 2 ;;
+      *) die_message 2 authOption "\$cmux_arg" ;;
     esac
   done
   load_model_env
@@ -235,29 +201,29 @@ guest_auth_status() {
       "\$cmux_tls_bool" "\$cmux_model_bool" "\$cmux_route_auth" "\$cmux_edge_status"
   else
     if [ "\$cmux_daemon_running" -eq 1 ]; then
-      printf 'Daemon: running (session %s)\\n' "\$LOCAL_SESSION"
+      cmux_message daemonRunning "\$LOCAL_SESSION"
     else
-      printf 'Daemon: unavailable (session %s)\\n' "\$LOCAL_SESSION"
+      cmux_message daemonUnavailable "\$LOCAL_SESSION"
     fi
     if [ "\$cmux_authenticated" -eq 1 ]; then
-      printf 'Authentication: ready (daemon and CodeRouter route)\\n'
+      cmux_message authReady
     else
-      printf 'Authentication: incomplete (run cmux auth status --json for details)\\n'
+      cmux_message authIncomplete
     fi
     if [ "\$cmux_model_configured" -eq 0 ]; then
-      printf 'CodeRouter: not configured\\n'
+      cmux_message codeRouterUnconfigured
     elif [ "\$cmux_route_auth" = accepted ]; then
-      printf 'CodeRouter: TLS edge reachable; route authenticated (HTTP %s)\\n' "\$cmux_edge_status"
+      cmux_message codeRouterReady "\$cmux_edge_status"
     elif [ "\$cmux_route_auth" = rejected ]; then
-      printf 'CodeRouter: TLS edge reachable; route rejected (HTTP %s)\\n' "\$cmux_edge_status"
+      cmux_message codeRouterRejected "\$cmux_edge_status"
     elif [ "\$cmux_route_auth" = insecure_url ]; then
-      printf 'CodeRouter: refused insecure endpoint\\n'
+      cmux_message codeRouterInsecure
     elif [ "\$cmux_route_auth" = unknown ]; then
-      printf 'CodeRouter: TLS edge reachable; authentication indeterminate (HTTP %s)\\n' "\$cmux_edge_status"
+      cmux_message codeRouterIndeterminate "\$cmux_edge_status"
     else
-      printf 'CodeRouter: TLS edge unreachable\\n'
+      cmux_message codeRouterUnreachable
     fi
-    printf 'Stack account tokens: host-only (never stored in this VM)\\n'
+    cmux_message hostTokens
   fi
   [ "\$cmux_daemon_running" -eq 1 ] || return 1
   [ "\$cmux_authenticated" -eq 1 ] || return 1
@@ -268,7 +234,7 @@ guest_coderouter_usage() {
     case "\$cmux_arg" in
       --json) ;;
       --help|-h) guest_usage; return 0 ;;
-      *) die "coderouter usage: unknown option \$cmux_arg" 2 ;;
+      *) die_message 2 usageOption "\$cmux_arg" ;;
     esac
   done
   require_coderouter
@@ -286,7 +252,7 @@ guest_coderouter_models() {
     case "\$cmux_arg" in
       --json) ;;
       --help|-h) guest_usage; return 0 ;;
-      *) die "coderouter models: unknown option \$cmux_arg" 2 ;;
+      *) die_message 2 modelsOption "\$cmux_arg" ;;
     esac
   done
   require_coderouter
@@ -301,16 +267,16 @@ guest_coderouter_models() {
 
 guest_coderouter_agent() {
   cmux_agent="\${1:-}"
-  [ -n "\$cmux_agent" ] || die "usage: cmux coderouter agent <claude|codex|opencode|pi> [args...]" 2
+  [ -n "\$cmux_agent" ] || die_message 2 agentUsage
   if [ "\$cmux_agent" = "--agent" ]; then
     shift
     cmux_agent="\${1:-}"
-    [ -n "\$cmux_agent" ] || die "usage: cmux coderouter agent <claude|codex|opencode|pi> [args...]" 2
+    [ -n "\$cmux_agent" ] || die_message 2 agentUsage
   fi
   shift
   case "\$cmux_agent" in
     claude|codex|opencode|pi) ;;
-    *) die "unsupported agent '\$cmux_agent' (choose claude, codex, opencode, or pi)" 2 ;;
+    *) die_message 2 unsupportedAgent "\$cmux_agent" ;;
   esac
   load_agent_config
   # Match the host vm-agent contract: a bare sentence becomes the provider's
@@ -320,7 +286,7 @@ guest_coderouter_agent() {
   fi
   if [ "\$1" = "--" ]; then
     shift
-    [ "\$#" -gt 0 ] || die "usage: cmux coderouter agent <claude|codex|opencode|pi> [args...]" 2
+    [ "\$#" -gt 0 ] || die_message 2 agentUsage
     cmux_prompt="\$*"
     case "\$cmux_agent" in
       claude) set -- claude -p "\$cmux_prompt" ;;
@@ -360,7 +326,7 @@ guest_agent_command() {
       guest_usage
       ;;
     *)
-      die "agent: expected claude, codex, opencode, pi, or a local agent command (list/report/hook); got \$1" 2
+      die_message 2 agentCommand "\$1"
       ;;
   esac
 }
@@ -375,14 +341,14 @@ guest_coderouter_command() {
     agent|run) guest_coderouter_agent "\$@" ;;
     help|--help|-h) guest_usage ;;
     claude|accounts|login|logout)
-      die "team CodeRouter account management is host-owned; Stack tokens stay on the Mac. Run cmux coderouter \$cmux_coderouter_sub there" 2
+      die_message 2 accountHostOnly "\$cmux_coderouter_sub"
       ;;
-    *) die "unknown coderouter command '\$cmux_coderouter_sub' (try cmux coderouter help)" 2 ;;
+    *) die_message 2 unknownCodeRouter "\$cmux_coderouter_sub" ;;
   esac
 }
 
 host_only_command() {
-  die "\$1 is host-owned; run it on the Mac cmux CLI (the VM uses scoped daemon/edge auth instead of Stack tokens)" 2
+  die_message 2 hostOwned "\$1"
 }
 
 local_alias() {
@@ -413,22 +379,7 @@ env_file() { printf '%s/.config/cmux/env' "\${HOME:-/root}"; }
 ENV_HOOK_LINE='[ -f "\$HOME/.config/cmux/env" ] && . "\$HOME/.config/cmux/env" # cmux-env-hook'
 
 env_usage() {
-  cat <<'EOF'
-cmux env — environment for every cmux shell and agent on this machine.
-
-  cmux env set -                             KEY=VALUE lines on stdin (preferred: values stay out of ps and history)
-  cmux env set --from-file <.env>            dotenv file: # comments, \`export \` and quotes are understood
-  cmux env set KEY=VALUE [KEY2=VALUE2 ...]   single-line values on the command line
-  cmux env ls [--show] [--json]              names (values only with --show)
-  cmux env rm KEY [KEY2 ...]                 remove variables
-  cmux env path                              the file: ~/.config/cmux/env (mode 0600)
-  cmux env receive [--stdin]                 sender-facing: used by the Mac's \`cmux vm env set\` and by peers,
-                                             which type a base64 payload into this terminal over the encrypted
-                                             link (CMUX-ENV-READY / CMUX-ENV-OK / CMUX-ENV-ERR lines); not for hand use
-
-New shells pick the file up through ~/.profile and ~/.bashrc; terminals that
-are already open need \`. ~/.config/cmux/env\`. From the Mac: cmux vm env … <machine>.
-EOF
+  cmux_message envHelp
 }
 
 env_key_ok() {
@@ -739,14 +690,7 @@ guest_env_command() {
 # default to the caller's own terminal (CMUX_TUI_TERMINAL_ID, set by the daemon).
 # ---------------------------------------------------------------------------
 terminal_usage() {
-  cat <<'EOF'
-cmux terminal send <id> [text] [--keys k1,k2,...]   type text as-is (no newline), then press named keys
-cmux terminal read <id> [--json]                    the visible screen
-cmux terminal wait <id> --pattern <regex> [--timeout <seconds>]   exit 1 when the screen never matches
-cmux terminal close <id>                            end the terminal (process and tab)
-cmux send [--terminal <id>] <text> / cmux send-key [--terminal <id>] <key...> / cmux read-screen [--terminal <id>]
-   default terminal: the one this shell runs in (\$CMUX_TUI_TERMINAL_ID). Ids: cmux terminal list.
-EOF
+  cmux_message terminalHelp
 }
 
 # Milliseconds for a \`--timeout <seconds>\` (decimals allowed, > 0), or die.
@@ -909,23 +853,7 @@ default_pane() {
 # one with the public resource verbs. The Mac's \`cmux vm layout …\` runs these.
 # ---------------------------------------------------------------------------
 layout_usage() {
-  cat <<'EOF'
-cmux layout export [--workspace <ws_id|name|current>] [--raw] [--json]
-    Print the workspace's layout as {name, cwd, layout} — the document
-    cmux new-workspace --layout / cmux layout open / cmux layout apply accept.
-    --raw prints the daemon's own LayoutDocument (pane and tab ids) instead.
-cmux layout apply [--workspace <ws_id|name>] [--name <new-workspace>] [--cwd <dir>] [--json] [<file>|-]
-    Build panes, splits and tabs from a document (a layout node, {layout: …},
-    or a saved layout {workspace: {layout: …}}). Without --workspace a new
-    workspace is created (--name, the document's name, or "layout"); with it
-    the workspace must be empty. Terminal surfaces are login shells in their
-    cwd (+ env); \`command\` is typed into them; browser surfaces open tabs.
-
-  {"direction":"horizontal","split":0.6,"children":[
-    {"pane":{"surfaces":[{"type":"terminal","name":"agent","cwd":"work/app","command":"claude"}]}},
-    {"pane":{"surfaces":[{"type":"terminal","command":"bun test --watch"},
-                         {"type":"browser","url":"http://localhost:3000"}]}}]}
-EOF
+  cmux_message layoutHelp
 }
 
 LAYOUT_RESOLVE_JQ='
@@ -1381,7 +1309,7 @@ peer_file() { printf '%s/%s.json' "\$PEERS_DIR" "\$1"; }
 ensure_link() {
   peer="\$1"
   file="\$(peer_file "\$peer")"
-  [ -f "\$file" ] || die "no link for machine '\$peer'. From the Mac: cmux vm link <this-machine> \$peer" 2
+  [ -f "\$file" ] || die_message 2 missingLink "\$peer"
   mkdir -p "\$LINKS_DIR"
   sock_file="\$LINKS_DIR/\$peer.sock-path"
   pid_file="\$LINKS_DIR/\$peer.pid"
@@ -1390,7 +1318,7 @@ ensure_link() {
     if [ -S "\$sock" ]; then printf '%s' "\$sock"; return 0; fi
   fi
   route="\$(jq -r .route "\$file")"
-  [ -n "\$route" ] && [ "\$route" != null ] || die "malformed peer file \$file" 2
+  [ -n "\$route" ] && [ "\$route" != null ] || die_message 2 invalidPeer "\$file"
   invite="\$(jq -r '.invite // empty' "\$file")"
   out_file="\$LINKS_DIR/\$peer.connect.jsonl"
   : > "\$out_file"
@@ -1403,24 +1331,46 @@ ensure_link() {
     printf '%s' "\$invite" > "\$invite_file"
     set -- "\$@" --invite-file "\$invite_file"
   fi
-  nohup "\$CMUX_TUI_BIN" "\$@" > "\$out_file" 2>>"\$LINKS_DIR/\$peer.log" &
-  printf '%s' "\$!" > "\$pid_file"
-  i=0
-  while [ "\$i" -lt 150 ]; do
-    # The headless client emits jsonl; the connection-snapshot event names the
-    # local mux socket (field \`local_socket\`, same contract the Mac app parses).
-    sock="\$(jq -r 'select(.event=="connection-snapshot") | .local_socket // empty' "\$out_file" 2>/dev/null | head -n 1 || true)"
-    if [ -n "\$sock" ] && [ -S "\$sock" ]; then
-      printf '%s' "\$sock" > "\$sock_file"
-      # The single-use invitation is consumed by a successful connect.
-      jq 'del(.invite)' "\$file" > "\$file.tmp" && mv "\$file.tmp" "\$file"
-      printf '%s' "\$sock"
-      return 0
-    fi
-    kill -0 "\$(cat "\$pid_file")" 2>/dev/null || die "link to '\$peer' exited; see \$LINKS_DIR/\$peer.log" 3
-    i=\$((i + 1)); sleep 0.2
-  done
-  die "link to '\$peer' did not come up in 30s; see \$LINKS_DIR/\$peer.log" 3
+  umask 077
+  connect_dir="\$(mktemp -d "\$LINKS_DIR/.connect.XXXXXX")"
+  link_pid=""; relay_pid=""; link_ready=false
+  trap 'if [ "\$link_ready" != true ]; then
+    [ -z "\$link_pid" ] || kill "\$link_pid" 2>/dev/null || true
+    [ -z "\$relay_pid" ] || kill "\$relay_pid" 2>/dev/null || true
+  fi
+  rm -rf "\$connect_dir"' EXIT
+  trap 'exit 130' HUP INT TERM
+  mkfifo "\$connect_dir/events" "\$connect_dir/ready"
+  exec 3<> "\$connect_dir/ready"
+  nohup "\$CMUX_TUI_BIN" "\$@" 3>&- > "\$connect_dir/events" 2>>"\$LINKS_DIR/\$peer.log" &
+  link_pid="\$!"
+  printf '%s' "\$link_pid" > "\$pid_file"
+  nohup /bin/sh -c '
+    out_file="\$1"; announced=false
+    while IFS= read -r event; do
+      printf "%s\\n" "\$event" >> "\$out_file"
+      [ "\$announced" = false ] || continue
+      socket="\$(printf "%s\\n" "\$event" | jq -r "\$2" 2>/dev/null || true)"
+      if [ -n "\$socket" ] && [ -S "\$socket" ]; then
+        printf "%s\\n" "\$socket" >&3
+        exec 3>&-
+        announced=true
+      fi
+    done
+    [ "\$announced" = true ] || printf "\\n" >&3
+  ' sh "\$out_file" 'select(.event=="connection-snapshot") | .local_socket // empty' < "\$connect_dir/events" > /dev/null 2>>"\$LINKS_DIR/\$peer.log" &
+  relay_pid="\$!"
+  printf '%s' "\$relay_pid" > "\$LINKS_DIR/\$peer.events.pid"
+  if ! sock="\$(/bin/bash -c 'IFS= read -r -t 30 socket <&3 && printf "%s" "\$socket"')"; then
+    die_message 3 linkTimeout "\$peer" "\$LINKS_DIR/\$peer.log"
+  fi
+  exec 3>&-
+  [ -n "\$sock" ] && [ -S "\$sock" ] || die_message 3 linkExited "\$peer" "\$LINKS_DIR/\$peer.log"
+  printf '%s' "\$sock" > "\$sock_file"
+  jq 'del(.invite)' "\$file" > "\$connect_dir/peer.json" && mv "\$connect_dir/peer.json" "\$file"
+  if [ -n "\$invite" ]; then rm -f "\$invite_file"; fi
+  link_ready=true
+  printf '%s' "\$sock"
 }
 
 # The workspace a durable command runs in on the current target: the current
@@ -1432,25 +1382,7 @@ target_workspace() {
 }
 
 peer_usage() {
-  cat <<'EOF'
-cmux vm — talk to other cmux Cloud machines from inside this one.
-
-  cmux vm ls                          linked machines and their link state
-  cmux vm connect <machine>           bring up the link (done lazily otherwise)
-  cmux vm exec <machine> -- <cmd…>    run a command on the peer (durable terminal)
-  cmux vm tree <machine>              the peer's workspace/terminal snapshot
-  cmux vm terminal send|read|wait|close <machine> <term> …   drive a peer terminal headlessly
-  cmux vm send|send-key|read-screen <machine> <term> …       the same, Mac spelling
-  cmux vm workspace new|rename|close|rm <machine> …          peer workspaces (rm kills its terminals)
-  cmux vm agent <machine> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--workspace <ws>] -- <prompt or args…>
-                                      start a coding agent in a durable terminal on the peer
-  cmux vm layout export|apply <machine> …    the peer's workspace layouts as data (see cmux layout help)
-  cmux vm env set|ls|rm|path <machine> …     the peer's machine env (values travel only over the link; see cmux env help)
-  cmux vm <resource> <machine> …      any cmux-tui resource verb on the peer
-
-Links are granted from the Mac: cmux vm link <this-machine> <peer>.
-Local verbs need no prefix: cmux workspace…, cmux terminal…, cmux session….
-EOF
+  cmux_message peerHelp
 }
 
 # \`cmux vm agent <peer> --agent <a> [--name n] [--cwd d] [--workspace ws] -- <args>\`:
@@ -1602,7 +1534,7 @@ peer_workspace_verb() {
 
 case "\${1:-}" in
   --version|-v|version)
-    printf 'cmux guest CLI (cmux-tui transport)\\n'
+    cmux_message version
     exec "\$CMUX_TUI_BIN" --version
     ;;
   --help|help|"")
@@ -1616,7 +1548,7 @@ case "\${1:-}" in
       status) guest_auth_status "\$@" ;;
       login|logout) host_only_command "cmux auth \$auth_sub" ;;
       help|--help|-h) guest_usage ;;
-      *) die "unknown auth command '\$auth_sub' (try cmux auth status)" 2 ;;
+      *) die_message 2 unknownAuth "\$auth_sub" ;;
     esac
     ;;
   login|logout)
@@ -1710,7 +1642,7 @@ case "\${1:-}" in
     case "\$sub" in
       ls|list)
         # This machine, then every linked peer.
-        printf '%s\\t%s\\n' "\$(hostname 2>/dev/null || echo local)" "(this machine)"
+        printf '%s\\t%s\\n' "\$(hostname 2>/dev/null || echo local)" "\$(cmux_message thisMachine)"
         if [ -d "\$PEERS_DIR" ]; then
           for f in "\$PEERS_DIR"/*.json; do
             [ -e "\$f" ] || continue
@@ -1723,15 +1655,15 @@ case "\${1:-}" in
         fi
         ;;
       connect)
-        peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm connect <machine>" 2
+        peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 connectUsage
         sock="\$(ensure_link "\$peer")"
-        printf 'OK connected %s socket=%s\\n' "\$peer" "\$sock"
+        cmux_message connected "\$peer" "\$sock"
         ;;
       exec)
-        peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm exec <machine> -- <command…>" 2
+        peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 execUsage
         shift
         [ "\${1:-}" = "--" ] && shift
-        [ "\$#" -gt 0 ] || die "usage: cmux vm exec <machine> -- <command…>" 2
+        [ "\$#" -gt 0 ] || die_message 2 execUsage
         use_peer "\$peer"
         sock="\$TARGET_VALUE"
         # A fresh session has no current workspace; create one and run in it by id.
@@ -1829,7 +1761,7 @@ case "\${1:-}" in
         ;;
       tui|tree|session|pane|tab|screen|browser)
         # cmux vm <verb> <machine> [args…] → the same cmux-tui verb on the peer.
-        peer="\${1:-}"; [ -n "\$peer" ] || die "usage: cmux vm \$sub <machine> [args…]" 2
+        peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 peerUsage "\$sub"
         shift
         use_peer "\$peer"
         if [ "\$sub" = tui ]; then exec "\$CMUX_TUI_BIN" "\$TARGET_FLAG" "\$TARGET_VALUE"; fi
@@ -1839,7 +1771,7 @@ case "\${1:-}" in
       ""|help|--help|-h)
         peer_usage
         ;;
-      *) die "unknown vm subcommand '\$sub' (try: cmux vm help)" 2 ;;
+      *) die_message 2 unknownVM "\$sub" ;;
     esac
     ;;
   notify)

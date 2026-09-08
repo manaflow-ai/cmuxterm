@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "
 // Every shim run spawns dozens of processes (sh + jq per step); give the suites room.
 setDefaultTimeout(60_000);
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -41,6 +41,63 @@ const TERMINAL_ID = "term_0123456789abcdef0123456789abcdef";
 // The in-VM `cmux` shim is shipped as driver-written bytes; a syntax error
 // would surface only inside a live machine, so validate it here.
 describe("in-VM cmux shim", () => {
+  test("localizes help and interpolated errors using the guest locale", () => {
+    const help = runShim(["--help"], { LANG: "ja_JP.UTF-8" });
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain("クラウド");
+    const invalid = runShim(["auth", "status", "--invalid"], { LC_MESSAGES: "ja_JP.UTF-8" });
+    expect(invalid.status).toBe(2);
+    expect(invalid.stderr).toContain("不明なオプション");
+    expect(invalid.stderr).toContain("--invalid");
+  });
+
+  test("LC_ALL overrides other locale settings and unknown locales use English", () => {
+    const overridden = runShim(["--help"], { LC_ALL: "C", LC_MESSAGES: "ja_JP.UTF-8", LANG: "ja_JP.UTF-8" });
+    expect(overridden.status).toBe(0);
+    expect(overridden.stdout).toContain("Cloud workspace CLI");
+    const fallback = runShim(["auth", "status", "--invalid"], { LANG: "fr_FR.UTF-8" });
+    expect(fallback.stderr).toContain("unknown option --invalid");
+  });
+
+  test.each([true, false])("peer connection consumes readiness or process exit (ready=%s)", (ready) => {
+    let fixtureDirectory = "";
+    try {
+      const result = runShim(["vm", "connect", "peer"], {}, (directory) => {
+        fixtureDirectory = directory;
+        const peerDirectory = join(directory, ".cmux", "peers");
+        mkdirSync(peerDirectory, { recursive: true });
+        writeFileSync(join(peerDirectory, "peer.json"), JSON.stringify({ route: "test-route", invite: "one-use-invite" }));
+        const client = join(directory, "client.cjs");
+        writeFileSync(client, ready ? `
+          const net = require("node:net");
+          const socket = require("node:path").join(process.env.HOME, "peer.sock");
+          const server = net.createServer();
+          server.listen(socket, () => {
+            process.stdout.write(JSON.stringify({ event: "connecting" }) + "\\n");
+            process.stdout.write(JSON.stringify({ event: "connection-snapshot", local_socket: socket }) + "\\n");
+          });
+        ` : 'process.stderr.write("connection refused\\n"); process.exit(7);');
+        writeFileSync(join(directory, "cmux-tui"), `#!/bin/sh\nexec '${process.execPath}' '${client}'\n`);
+      });
+      expect(result.status).toBe(ready ? 0 : 3);
+      if (ready) {
+        expect(result.stdout).toContain("OK connected peer socket=");
+        const peer = JSON.parse(readFileSync(join(fixtureDirectory, ".cmux", "peers", "peer.json"), "utf8"));
+        expect(peer.invite).toBeUndefined();
+      } else {
+        expect(result.stderr).toContain("link to 'peer' exited");
+      }
+    } finally {
+      for (const filename of ["peer.pid", "peer.events.pid"]) {
+        try {
+          const processID = Number(readFileSync(join(fixtureDirectory, ".cmux", "peer-links", filename), "utf8"));
+          if (Number.isInteger(processID) && processID > 1) process.kill(processID, "SIGTERM");
+        } catch {}
+      }
+      if (fixtureDirectory) rmSync(fixtureDirectory, { recursive: true, force: true });
+    }
+  });
+
   test("is valid POSIX sh", () => {
     const result = spawnSync("sh", ["-n"], { input: GUEST_CMUX_SHIM, encoding: "utf8" });
     expect(result.stderr).toBe("");
