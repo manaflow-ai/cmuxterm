@@ -152,6 +152,10 @@ public struct SubrouterCommandSwitcher: SubrouterAccountSwitching {
             "PATH", "HOME", "USER", "LOGNAME", "SHELL", "PWD", "OLDPWD",
             "TMPDIR", "TERM", "LANG", "LC_", "SUBROUTER_", "CODEX_",
             "CLAUDE_", "ANTHROPIC_", "OPENAI_", "XDG_",
+            "SSH_AUTH_SOCK", "SSH_AGENT_PID", "GIT_SSH_COMMAND", "GIT_ASKPASS",
+            "GIT_TERMINAL_PROMPT", "EDITOR", "VISUAL", "GIT_EDITOR", "COLORTERM",
+            "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "GPG_TTY", "PAGER", "MANPAGER",
+            "LESS",
             "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
             "http_proxy", "https_proxy", "all_proxy", "no_proxy"
         ]

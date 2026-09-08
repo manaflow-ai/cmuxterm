@@ -323,10 +323,19 @@ extension CMUXCLI {
     }
 
     /// Mirrors the app's sr resolution order: PATH first, then explicit
-    /// fallback locations. This keeps `cmux subrouter` and in-app switching
-    /// on the same user-selected binary when PATH changes after installation.
+    /// fallback locations. An explicit `subrouter.commandPath` setting wins
+    /// exactly as it does in the app's account switcher; this keeps
+    /// `cmux subrouter` and in-app switching on the same user-selected binary
+    /// when PATH changes after installation.
     func resolveSubrouterBinary() -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if let configuredPath = UserDefaults.standard.string(forKey: "subrouterCommandPath") {
+            let expandedPath = (configuredPath.trimmingCharacters(in: .whitespacesAndNewlines) as NSString)
+                .expandingTildeInPath
+            if !expandedPath.isEmpty {
+                return expandedPath
+            }
+        }
         var candidates: [String] = []
         if let pathVariable = ProcessInfo.processInfo.environment["PATH"] {
             for directory in pathVariable.split(separator: ":") {
