@@ -1445,6 +1445,12 @@ final class MobileHostService {
                 )
                 return result
             },
+            onClose: { id in
+                await MobileHostService.shared.mobileBrowserStreamCoordinator.connectionClosed(id)
+                await MobileHostService.shared.mobileSimulatorStreamCoordinator.connectionClosed(id)
+                MobileHostConnectionRegistry.shared.remove(id: id)
+                await MobileHostService.shared.removeConnection(id: id)
+            },
             resolveOrderedInputSurfaceKey: { request in
                 guard request.method == "mobile.chat.send"
                         || request.method == "mobile.chat.interrupt"
@@ -1454,12 +1460,6 @@ final class MobileHostService {
                 }
                 return await TerminalController.shared
                     .mobileChatOrderedSurfaceID(sessionID: sessionID)
-            },
-            onClose: { id in
-                await MobileHostService.shared.mobileBrowserStreamCoordinator.connectionClosed(id)
-                await MobileHostService.shared.mobileSimulatorStreamCoordinator.connectionClosed(id)
-                MobileHostConnectionRegistry.shared.remove(id: id)
-                await MobileHostService.shared.removeConnection(id: id)
             },
             requestSimulatorFrameReplay: { connectionID, panelIDs in
                 await MobileHostService.shared.mobileSimulatorStreamCoordinator.requestFrameReplay(
