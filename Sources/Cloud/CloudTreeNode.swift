@@ -1,3 +1,4 @@
+import CmuxCore
 import CmuxFoundation
 import Foundation
 
@@ -952,11 +953,6 @@ enum CloudTreeNodeBuilder {
         )
     }
 
-    private struct PaneKey: Hashable {
-        let screenID: String
-        let paneID: String
-    }
-
     private struct WorkspaceLayoutRows {
         var rows: [CloudTreeNode] = []
         /// Every placement in row order: each pane's shown tab, then its hidden tabs,
@@ -986,24 +982,17 @@ enum CloudTreeNodeBuilder {
         projectionIndex: LocalProjectionIndex,
         openInLocal: UUID?
     ) -> WorkspaceLayoutRows {
-        var paneOrder: [PaneKey] = []
-        var tabsByPane: [PaneKey: [RemoteResourcePlacement]] = [:]
-        var loose: [RemoteResourcePlacement] = []
-        for placement in placements {
-            guard let view = placement.view, let paneID = view.paneID, !paneID.isEmpty else {
-                loose.append(placement)
-                continue
-            }
-            let key = PaneKey(screenID: view.screenID ?? "", paneID: paneID)
-            if tabsByPane[key] == nil { paneOrder.append(key) }
-            tabsByPane[key, default: []].append(placement)
-        }
-        let orderedPanes = paneOrder.enumerated().sorted { lhs, rhs in
-            let left = tabsByPane[lhs.element]?.first?.view
-            let right = tabsByPane[rhs.element]?.first?.view
-            return (left?.screenIndex ?? Int.max, left?.paneIndex ?? Int.max, lhs.offset)
-                < (right?.screenIndex ?? Int.max, right?.paneIndex ?? Int.max, rhs.offset)
-        }.map(\.element)
+        let layout = RemoteWorkspaceLayout(placements: placements.map { placement in
+            RemoteWorkspacePlacement(
+                screenID: placement.view?.screenID,
+                paneID: placement.view?.paneID,
+                screenIndex: placement.view?.screenIndex,
+                paneIndex: placement.view?.paneIndex,
+                tabIndex: placement.view?.index,
+                focused: placement.view?.focused == true,
+                kindOrder: placement.resource.kind == .terminal ? 0 : (placement.resource.kind == .browser ? 1 : 2)
+            )
+        })
 
         var result = WorkspaceLayoutRows()
         func append(_ placement: RemoteResourcePlacement, hiddenTabs: [RemoteResourcePlacement]) {
@@ -1022,17 +1011,8 @@ enum CloudTreeNodeBuilder {
             if placement.resource.kind == .terminal { result.terminalCount += 1 }
             result.hiddenTabCount += hiddenTabs.count
         }
-        for key in orderedPanes {
-            let tabs = (tabsByPane[key] ?? []).enumerated().sorted { lhs, rhs in
-                (lhs.element.view?.index ?? Int.max, lhs.offset) < (rhs.element.view?.index ?? Int.max, rhs.offset)
-            }.map(\.element)
-            // The daemon flags the one tab a pane shows. A snapshot without the flag
-            // shows the first tab, as the daemon itself does.
-            let shownIndex = tabs.firstIndex { $0.view?.focused == true } ?? 0
-            append(tabs[shownIndex], hiddenTabs: tabs.enumerated().filter { $0.offset != shownIndex }.map(\.element))
-        }
-        for placement in loose {
-            append(placement, hiddenTabs: [])
+        for row in layout.rows {
+            append(placements[row.shownIndex], hiddenTabs: row.hiddenIndices.map { placements[$0] })
         }
         return result
     }
