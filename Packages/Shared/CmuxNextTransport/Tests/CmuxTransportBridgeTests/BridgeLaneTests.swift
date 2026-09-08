@@ -18,6 +18,7 @@ struct BridgeLaneDescriptorTests {
             .serverEvents(cursor: 42),
             .terminal(resourceID: terminalID, cursor: nil),
             .terminal(resourceID: terminalID, cursor: 7),
+            .terminalInput(resourceID: terminalID),
             .artifact(resourceID: artifactID, offset: 1024),
             .simulatorStream(resourceID: simID),
         ]
@@ -37,6 +38,8 @@ struct BridgeLaneDescriptorTests {
             "{\"lane\":\"terminal\"}",
             "{\"lane\":\"artifact\",\"resource_id\":\"a\"}",
             "{\"lane\":\"terminal\",\"resource_id\":\"bad id!\"}",
+            "{\"lane\":\"terminal_input\"}",
+            "{\"lane\":\"terminal_input\",\"resource_id\":\"bad id!\"}",
         ]
         for preamble in bad {
             #expect(throws: BridgeLaneDescriptorError.invalidDescriptor) {
@@ -128,6 +131,27 @@ struct BridgeLaneLiveTests {
         } catch {
             await rig.tearDown()
             throw error
+        }
+    }
+
+    @Test("Input-only terminal lane preserves its kind and delivers keystrokes")
+    func terminalInputLane() async throws {
+        try await withRig { rig in
+            let resourceID = try CmxIrohResourceID("terminal:input-only")
+            let expectedLane = CmxIrohLane.terminalInput(resourceID: resourceID)
+            let stream = try await BridgeLaneDialer().openLane(
+                on: rig.clientConn, lane: expectedLane, priority: 10)
+            let (lane, hostStream) = try await rig.acceptor.acceptBidirectionalLane()
+            #expect(lane == expectedLane)
+
+            let input = Data("echo typing\r".utf8)
+            try await stream.sendStream.send(input)
+            try await stream.sendStream.finish()
+            var received = Data()
+            while let chunk = try await hostStream.receiveStream.receive(maximumByteCount: 64) {
+                received.append(chunk)
+            }
+            #expect(received == input)
         }
     }
 
