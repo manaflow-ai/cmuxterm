@@ -446,8 +446,9 @@ describe("POST /api/relay/token", () => {
     });
   });
 
-  test("blocks a valid relay request before calling Stack Auth when ingress is limited", async () => {
+  test("never lets an IP-wide ingress bucket reject an authenticated endpoint", async () => {
     let authCalls = 0;
+    const observedKeys: Array<string | undefined> = [];
     const response = await handleRelayTokenRequest(
       request({ endpointId: ENDPOINT_ID }),
       deps({
@@ -458,19 +459,17 @@ describe("POST /api/relay/token", () => {
           return { id: "account-a" } as AuthedUser;
         },
         checkRateLimit: async (_id, options) => {
-          expect(options.rateLimitKey).toBeUndefined();
-          return { rateLimited: true };
+          observedKeys.push(options.rateLimitKey);
+          return { rateLimited: options.rateLimitKey === undefined };
         },
       }),
     );
 
-    expect(response.status).toBe(429);
-    expect(response.headers.get("retry-after")).toBe("60");
-    expect(await response.json()).toEqual({
-      error: "rate_limited",
-      source: "ingress_ip",
-    });
-    expect(authCalls).toBe(0);
+    expect(response.status).toBe(200);
+    expect(authCalls).toBe(1);
+    expect(observedKeys).toEqual([
+      `development:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+    ]);
   });
 
   test("rate limits per account and endpoint and fails closed", async () => {
@@ -497,7 +496,7 @@ describe("POST /api/relay/token", () => {
     // starves only its duplicate work, never bootstrap, renewal, or another
     // phone, simulator, or tagged build.
     expect(key).toBe(
-      `account-a:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
+      `development:account-a:legacy:${ENDPOINT_ID.toLowerCase()}:credential:28333333`,
     );
     expect(limited.headers.get("retry-after")).toBe("40");
 
