@@ -108,6 +108,21 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertNil(suppressedRecord["activePromptDepth"])
         XCTAssertEqual(suppressedRecord["agentLifecycle"] as? String, "running")
         XCTAssertEqual(suppressedRecord["runtimeStatus"] as? String, "running")
+
+        // SessionEnd is also an authoritative boundary for Antigravity. When
+        // Stop already settled the prompt while background work remains, the
+        // later boundary must preserve that durable running state instead of
+        // replaying a stale idle decision.
+        let settledSessionEnd = run(
+            "session-end",
+            payload: #"{"conversationId":"\#(suppressedSessionId)","workspacePaths":["\#(context.root.path)"],"hook_event_name":"SessionEnd"}"#
+        )
+        XCTAssertFalse(settledSessionEnd.timedOut, settledSessionEnd.stderr)
+        XCTAssertEqual(settledSessionEnd.status, 0, settledSessionEnd.stderr)
+        let settledRecord = try readAntigravityHookSession(suppressedSessionId, context: context)
+        XCTAssertNil(settledRecord["activePromptDepth"])
+        XCTAssertEqual(settledRecord["agentLifecycle"] as? String, "running")
+        XCTAssertEqual(settledRecord["runtimeStatus"] as? String, "running")
     }
 
     func testAntigravitySessionEndAndSessionStartRecoverUnbalancedPromptState() throws {
@@ -175,116 +190,6 @@ extension CLINotifyProcessIntegrationRegressionTests {
         XCTAssertEqual(restarted.status, 0, restarted.stderr)
         record = try readAntigravityHookSession(interruptedSessionId, context: context)
         XCTAssertNil(record["activePromptDepth"])
-    }
-
-    func testAntigravitySessionEndDoesNotOverwriteASettledRunningState() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cmux-antigravity-session-end-race-\(UUID().uuidString)", isDirectory: true)
-        let balancedRoot = root.appendingPathComponent("balanced", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer {
-            try? FileManager.default.removeItem(at: root)
-            try? FileManager.default.removeItem(at: balancedRoot)
-        }
-
-        let store = ClaudeHookSessionStore(
-            processEnv: ["CMUX_AGENT_HOOK_STATE_DIR": root.path],
-            promptDepthPolicy: .authoritative
-        )
-        let sessionId = "antigravity-session-end-race-session"
-        _ = try store.upsert(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            agentLifecycle: .running,
-            runtimeStatus: .running,
-            updateRuntimeStatus: true
-        )
-        _ = try store.recordPromptSubmit(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            pid: nil,
-            launchCommand: nil,
-            agentLifecycle: .running,
-            runtimeStatus: .running,
-            updateRuntimeStatus: true
-        )
-        _ = try store.recordPromptStop(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            pid: nil,
-            launchCommand: nil,
-            agentLifecycle: .running,
-            runtimeStatus: .running,
-            updateRuntimeStatus: true
-        )
-
-        // SessionEnd may have observed an active prompt before a concurrent
-        // Stop settled it to running. Its stale idle decision must be ignored
-        // when the authoritative record is already prompt-free.
-        _ = try store.recordPromptStop(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            pid: nil,
-            launchCommand: nil,
-            agentLifecycle: .idle,
-            runtimeStatus: .idle,
-            updateRuntimeStatus: true,
-            settleOnlyIfPromptActive: true
-        )
-
-        let record = try XCTUnwrap(store.lookup(sessionId: sessionId))
-        XCTAssertEqual(record.agentLifecycle, .running)
-        XCTAssertEqual(record.runtimeStatus, .running)
-        XCTAssertNil(record.activePromptDepth)
-
-        let balancedStore = ClaudeHookSessionStore(
-            processEnv: ["CMUX_AGENT_HOOK_STATE_DIR": balancedRoot.path],
-            promptDepthPolicy: .balanced
-        )
-        _ = try balancedStore.upsert(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            agentLifecycle: .running,
-            runtimeStatus: .running,
-            updateRuntimeStatus: true
-        )
-        _ = try balancedStore.recordPromptSubmit(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            turnId: "turn-1",
-            pid: nil,
-            launchCommand: nil,
-            agentLifecycle: .running,
-            runtimeStatus: .running,
-            updateRuntimeStatus: true
-        )
-        _ = try balancedStore.recordPromptStop(
-            sessionId: sessionId,
-            workspaceId: "workspace",
-            surfaceId: "surface",
-            cwd: root.path,
-            turnId: "turn-1",
-            pid: nil,
-            launchCommand: nil,
-            agentLifecycle: .idle,
-            runtimeStatus: .idle,
-            updateRuntimeStatus: true
-        )
-        let balancedRecord = try XCTUnwrap(balancedStore.lookup(sessionId: sessionId))
-        XCTAssertEqual(balancedRecord.agentLifecycle, .idle)
-        XCTAssertEqual(balancedRecord.runtimeStatus, .idle)
     }
 
     private func readAntigravityHookSession(
