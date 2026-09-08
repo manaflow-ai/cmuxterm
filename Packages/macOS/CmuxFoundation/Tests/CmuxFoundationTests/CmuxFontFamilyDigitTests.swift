@@ -5,7 +5,7 @@ import Testing
 @MainActor
 @Suite("Sidebar font family numeric metrics")
 struct CmuxFontFamilyDigitTests {
-    @Test("Numeric labels retain equal digit advances", arguments: ["Georgia", "Helvetica", "Menlo"])
+    @Test("Fonts with tabular digits retain equal advances", arguments: ["Helvetica", "Menlo"])
     func numericLabelsUseTabularDigits(family: String) throws {
         _ = try #require(NSFont(name: family, size: 13))
         let font = CmuxFontResolver.appKitFont(
@@ -28,6 +28,13 @@ struct CmuxFontFamilyDigitTests {
         let font = CmuxFontResolver.appKitFont(family: family, size: 13, monospacedDigits: true)
 
         #expect(font.familyName == family)
+    }
+
+    @Test("Unsupported numeric features do not replace an installed family")
+    func unsupportedNumericFeaturePreservesFamily() {
+        let font = CmuxFontResolver.appKitFont(family: "Georgia", size: 13, monospacedDigits: true)
+
+        #expect(font.familyName == "Georgia")
     }
 
     @Test("Non-numeric text keeps a proportional family")
