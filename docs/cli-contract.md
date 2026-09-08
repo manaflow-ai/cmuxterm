@@ -89,7 +89,7 @@ Environment:
 | `automation` | Manage config-backed event rules: `list`, `show <id>`, dry-run `test <id> --event <json>`, `enable`, `disable`, `logs`, and `reload`. Rules live in `~/.cmuxterm/automations.json`; actions are dispatched by the running app. |
 | `sessions [list]` | List saved agent session records without requiring a running cmux socket. Filters: `--agent <name>`, `--session <id>`, `--workspace <id>`, `--surface <id>`, `--cwd <text>`. Overrides: `--state-dir <path>`, `--codex-home <path>`. Text output defaults to 100 results; `--limit <n>` takes a positive integer and `--all` removes the limit. Supports `--json`. |
 | `auth` | Manage auth status, login, and logout through the app. |
-| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the installed CodeRouter CLI (`coderouter` or `cr` on PATH) unchanged, exit 127 when it is missing. |
+| `coderouter`, `cr` | `cmux coderouter <status|machines|claude>` manages the team's coderouter model plane through the app (sign-in state, per-machine usage, the team's Claude upstream accounts). Every other `cmux coderouter ...` verb and all of `cmux cr ...` exec the CodeRouter CLI unchanged with the `CMUX_*`/`CMUXD_*` environment stripped: `coderouter` or `cr` on PATH first, then the official installer's `~/.coderouter/bin/coderouter` (`$CODEROUTER_INSTALL/bin` when set), never with a network call. When neither exists and stdin and stderr are terminals, cmux shows the documented installer `curl -fsSL https://cmux.com/coderouter/install.sh | sh`, says what it does (checksum-verified binary into `~/.coderouter/bin`, PATH line in the shell profile), asks once (`Install CodeRouter now? [y/N]`), and after `y` fetches the script, runs it with `sh`, and execs the new install with the original arguments. Any other outcome (non-interactive, declined, download or installer failure) prints that install command on stderr and exits 127. |
 | `vm`, `cloud` | Manage cloud VMs. `cloud` is an alias for `vm`. |
 | `remotes`, `remote` | Manage remote Macs in the team device registry so they appear in the iOS app's device list. `remote` is an alias for `remotes`. |
 | `rpc` | Call a raw v2 socket method with optional JSON params. |
@@ -114,6 +114,8 @@ Environment:
 | `list-workspaces` | List workspaces. |
 | `new-workspace` | Create a workspace, optionally with cwd, command, description, layout, and per-workspace environment variables (`--env KEY=VALUE` repeatable, `--env-file <path>`). See [Workspace environment variables](#workspace-environment-variables). |
 | `ssh` | Open an SSH-backed workspace. Preserves the caller's live `SSH_AUTH_SOCK` for app-launched OpenSSH processes so `ForwardAgent yes` from ssh_config works normally. Supports `-A` / `--forward-agent` to request forwarding and `-a` / `--no-forward-agent` to disable forwarding for a workspace. Agent forwarding remains opt-in because forwarded agents can be used by processes on the remote host while the SSH session is active. |
+| `local-tmux` | Opt in to a user-owned local tmux server. `start`, `attach`, `list`, `status`, `detach`, `close`, and `cleanup` preserve and manage named sessions independently of the cmux GUI; `cleanup` previews stale records unless `--prune` is supplied. `list`, `status`, `detach`, `close`, `cleanup`, and `attach --headless` work without a running cmux control socket. This preserves live processes across cmux lifecycle events, not a machine shutdown or reboot; use a remote tmux owner for continuity while the Mac is offline. See [`docs/local-tmux.md`](local-tmux.md). |
+| `tmux attach` | Compatibility alias for `local-tmux attach`. |
 | `remote-daemon-status` | Print bundled remote daemon version, asset, checksum, and cache status. |
 | `ssh-session-list` | List persisted SSH PTY sessions for one remote workspace or all remote workspaces. Supports `--json`. |
 | `ssh-session-attach` | Create a local terminal surface that reattaches to an existing persisted SSH PTY session. |
@@ -337,7 +339,7 @@ Remotes subcommands:
 | `remotes add <name>` | Register or update a remote with one or more `--route <host:port>`. Supports `--tag` and `--json`. Idempotent on `<name>` (re-adding updates routes). The host must be a Tailscale address the phone can authenticate to (CGNAT `100.64.x.x`-`100.127.x.x` or `*.ts.net`); loopback, plain LAN IPs, and bare hostnames are rejected. |
 | `remotes remove <name-or-deviceId>` | Remove a remote you registered. Aliases `rm`, `delete`. Supports `--json`. |
 
-CodeRouter subcommands (cmux-owned; anything else passes through to the installed CodeRouter CLI):
+CodeRouter subcommands (cmux-owned; anything else passes through to the CodeRouter CLI, which `cmux cr` offers to install when the machine has none):
 
 | Command | Contract |
 | --- | --- |

@@ -167,7 +167,7 @@ private func defaultCloudVMMessage(status: Int) -> String {
     }
 }
 
-private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
+func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     switch errorCode {
     case "vm_active_limit_exceeded":
         return "Run `cmux vm ls`, then stop or delete an active VM with `cmux vm rm <id>` before retrying."
@@ -178,7 +178,7 @@ private func defaultCloudVMAction(status: Int, errorCode: String) -> String {
     case "vm_requires_pro":
         return String(
             localized: "cloudVM.error.requiresPro.action",
-            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing to create Cloud VMs."
+            defaultValue: "Upgrade to cmux Pro at https://cmux.com/pricing?cmux_source=mac_vm_requires_pro_error&cmux_client=mac to create Cloud VMs."
         )
     case "vm_create_credits_insufficient":
         return "Ask a team admin to upgrade the plan or grant more Cloud VM create credits, then retry."
@@ -2070,7 +2070,9 @@ actor VMClient {
                let delaySeconds = Self.transientVMRetryDelay(http: http, data: data) {
                 retriesLeft -= 1
                 onRetry()
-                try await ContinuousClock().sleep(for: delaySeconds)
+                try await Task.sleep(
+                    nanoseconds: UInt64(delaySeconds.components.seconds) * 1_000_000_000
+                )
                 continue
             }
             if let sessionIdentity {
