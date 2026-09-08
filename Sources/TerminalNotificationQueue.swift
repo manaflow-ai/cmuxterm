@@ -92,11 +92,11 @@ final class TerminalMutationBus: @unchecked Sendable {
             title: title,
             subtitle: subtitle,
             body: body,
+            agentMutationGuard: agentMutationGuard,
             replyShape: replyShape,
             agent: agent,
             soundContext: soundContext,
-            correlationKey: correlationKey,
-            agentMutationGuard: agentMutationGuard
+            correlationKey: correlationKey
         ), coalesces: coalesces)
     }
 
