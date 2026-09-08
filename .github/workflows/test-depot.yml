@@ -167,7 +167,8 @@ jobs:
               if [ "$suite_status" -ne 0 ]; then return "$suite_status"; fi
               # grep -q may stop before a large log is written. Avoid a pipe
               # whose producer can fail with SIGPIPE under pipefail.
-              if ! grep -Eq 'Test run with [1-9][0-9]* tests|Executed [1-9][0-9]* tests' <<< "$suite_output"; then
+              # One-test suites use singular "test" in their execution summary.
+              if ! grep -Eq 'Test run with [1-9][0-9]* tests?|Executed [1-9][0-9]* tests?' <<< "$suite_output"; then
                 echo "No tests executed for $suite" >&2
                 return 1
               fi
