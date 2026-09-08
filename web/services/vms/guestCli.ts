@@ -18,6 +18,11 @@
 // linked peers (`cmux vm <verb> <peer> …`). The Mac's `cmux vm layout|env …`
 // run these same functions over `vm exec`, so there is one implementation.
 //
+// Reflection (`cmux whoami`, `cmux reflect`, peer discovery) reads the control
+// plane's `/api/vm/reflection/*` through the model-plane alias: the edge injects
+// the machine's VM-bound route token, so the machine learns who it is without
+// holding any credential — exe.dev's Reflection integration is the model.
+//
 // Installed by the driver at create/heal (see freestyle.ts bootstrap), so it
 // reaches machines created from any existing snapshot. The rendered copy at
 // images/devbox/cmux must stay byte-identical (vm-devbox-image.test.ts).
@@ -89,6 +94,7 @@ use_peer() {
 
 guest_usage() {
   cmux_message help
+  cmux_message identityHelp
   cmux_message agentHelp
 }
 
@@ -143,6 +149,146 @@ require_coderouter() {
   cmux_coderouter_key="\${OPENAI_API_KEY:-cmux-vm-edge-placeholder}"
 }
 
+# ---------------------------------------------------------------------------
+# Reflection: what this machine is and what it can reach, answered by the
+# control plane over the model-plane alias. The edge injects the machine's
+# VM-bound route token on the way (the guest never holds it), so every answer
+# is about THIS machine and nothing else. exe.dev's Reflection integration is
+# the model: \`cmux whoami\`, \`cmux reflect [path]\`, and peer discovery for
+# \`cmux vm …\` all read it.
+# ---------------------------------------------------------------------------
+# reflection_fetch <path> <out-file>: writes the body to <out-file>; sets
+# cmux_rf_status (HTTP code, 000 = unreachable) and cmux_rf_base. Returns 0 on
+# 2xx, 1 on any other answer, 2 when no model-plane alias is configured. Never
+# exits: callers decide how loud to be. Runs in the caller's shell so the
+# status survives (no subshell).
+reflection_fetch() {
+  cmux_rf_status=000
+  cmux_rf_base=""
+  load_model_env
+  cmux_rf_url="\${CMUX_CODEROUTER_URL:-}"
+  [ -n "\$cmux_rf_url" ] || return 2
+  case "\$cmux_rf_url" in https://*) ;; *) return 2 ;; esac
+  cmux_rf_base="\${cmux_rf_url%/}/api/vm/reflection"
+  cmux_rf_path="\${1:-/}"
+  case "\$cmux_rf_path" in /*) ;; *) cmux_rf_path="/\$cmux_rf_path" ;; esac
+  # The canonical form carries no trailing slash (Next redirects '/x/' to '/x',
+  # and a redirect is not an answer): the index is the bare base URL.
+  while [ "\${cmux_rf_path%/}" != "\$cmux_rf_path" ]; do cmux_rf_path="\${cmux_rf_path%/}"; done
+  cmux_rf_out="\$2"
+  : > "\$cmux_rf_out"
+  cmux_rf_status="\$(cmux_curl -sSL -o "\$cmux_rf_out" -w '%{http_code}' --connect-timeout 5 --max-time 20 \\
+    -H "authorization: Bearer \${OPENAI_API_KEY:-cmux-vm-edge-placeholder}" -H 'accept: application/json' \\
+    "\$cmux_rf_base\$cmux_rf_path" 2>/dev/null)" || cmux_rf_status=000
+  case "\$cmux_rf_status" in ''|*[!0-9]*) cmux_rf_status=000 ;; esac
+  case "\$cmux_rf_status" in 2[0-9][0-9]) return 0 ;; esac
+  return 1
+}
+
+# One line saying why reflection did not answer: <base-url> <body-file>.
+reflection_failure() {
+  case "\$cmux_rf_status" in
+    000) cmux_message reflectionUnreachable "\$1" ;;
+    401|403) cmux_message reflectionNoIdentity "\$cmux_rf_status" ;;
+    *) cmux_message reflectionError "\$cmux_rf_status" "\$(jq -r '.message // .error // empty' "\$2" 2>/dev/null || true)" ;;
+  esac
+}
+
+# Print a JSON body followed by exactly one newline.
+reflection_print() {
+  cat "\$1"
+  if [ -n "\$(tail -c 1 "\$1" 2>/dev/null)" ]; then printf '\\n'; fi
+}
+
+guest_whoami() {
+  cmux_wi_json=0
+  for cmux_arg in "\$@"; do
+    case "\$cmux_arg" in
+      --json) cmux_wi_json=1 ;;
+      --help|-h) cmux_message identityHelp; return 0 ;;
+      *) die "whoami: unknown option \$cmux_arg" 2 ;;
+    esac
+  done
+  cmux_wi_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-whoami.XXXXXX")"
+  reflection_fetch / "\$cmux_wi_out" && cmux_wi_rc=0 || cmux_wi_rc=\$?
+  if [ "\$cmux_wi_rc" -eq 2 ]; then rm -f "\$cmux_wi_out"; die_message 2 missingCodeRouter; fi
+  if [ "\$cmux_wi_rc" -ne 0 ]; then
+    cmux_wi_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_wi_out")"
+    rm -f "\$cmux_wi_out"
+    die "\$cmux_wi_why" 1
+  fi
+  if [ "\$cmux_wi_json" -eq 1 ]; then
+    reflection_print "\$cmux_wi_out"
+  elif ! jq -r '"\\(.name // "?")  \\(.vm_id // "?")  owner=\\(.owner.email // .owner.user_id // "unknown")  plan=\\(.plan_id // "unknown")  status=\\(.status // "unknown")"' "\$cmux_wi_out" 2>/dev/null; then
+    rm -f "\$cmux_wi_out"
+    die_message 1 reflectionInvalid
+  fi
+  rm -f "\$cmux_wi_out"
+}
+
+guest_reflect() {
+  cmux_re_path=/
+  for cmux_arg in "\$@"; do
+    case "\$cmux_arg" in
+      --json) ;;
+      --help|-h) cmux_message identityHelp; return 0 ;;
+      -*) die "reflect: unknown option \$cmux_arg" 2 ;;
+      *) cmux_re_path="\$cmux_arg" ;;
+    esac
+  done
+  case "\$cmux_re_path" in
+    *[!A-Za-z0-9/_.-]*) die "reflect: path must look like /peers" 2 ;;
+  esac
+  cmux_re_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-reflect.XXXXXX")"
+  reflection_fetch "\$cmux_re_path" "\$cmux_re_out" && cmux_re_rc=0 || cmux_re_rc=\$?
+  if [ "\$cmux_re_rc" -eq 2 ]; then rm -f "\$cmux_re_out"; die_message 2 missingCodeRouter; fi
+  if [ "\$cmux_re_rc" -ne 0 ]; then
+    cmux_re_why="\$(reflection_failure "\$cmux_rf_base" "\$cmux_re_out")"
+    rm -f "\$cmux_re_out"
+    die "\$cmux_re_why" 1
+  fi
+  reflection_print "\$cmux_re_out"
+  rm -f "\$cmux_re_out"
+}
+
+# When ~/.cmux/peers/<peer>.json is missing, ask reflection for the owner's
+# other machines: a match on name, display name, cloud id, or provider id gives
+# the private-network route, which is all the daemon's trusted-carrier listener
+# needs on current images. Writes the peer file (0600) and returns 0; returns 1
+# with cmux_rd_reason set otherwise (no Mac step is invented here).
+reflection_discover_peer() {
+  cmux_rd_peer="\$1"
+  cmux_rd_reason=""
+  cmux_rd_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-peers.XXXXXX")"
+  if reflection_fetch /peers "\$cmux_rd_out"; then :; else
+    cmux_rd_rc=\$?
+    if [ "\$cmux_rd_rc" -eq 2 ]; then
+      cmux_rd_reason="\$(cmux_message reflectionUnconfigured)"
+    else
+      cmux_rd_reason="\$(reflection_failure "\$cmux_rf_base" "\$cmux_rd_out")"
+    fi
+    rm -f "\$cmux_rd_out"
+    return 1
+  fi
+  cmux_rd_match="\$(jq -c --arg p "\$cmux_rd_peer" '[.peers // [] | .[] | select(.name == \$p or .display_name == \$p or .vm_id == \$p or .provider_vm_id == \$p)] | .[0] // empty' "\$cmux_rd_out" 2>/dev/null || true)"
+  if [ -z "\$cmux_rd_match" ]; then
+    cmux_rd_names="\$(jq -r '[.peers // [] | .[] | .name] | join(", ")' "\$cmux_rd_out" 2>/dev/null || true)"
+    [ -n "\$cmux_rd_names" ] || cmux_rd_names="\$(cmux_message noPeers)"
+    cmux_rd_reason="\$(cmux_message peerUnknown "\$cmux_rd_names")"
+    rm -f "\$cmux_rd_out"
+    return 1
+  fi
+  rm -f "\$cmux_rd_out"
+  cmux_rd_route="\$(printf '%s' "\$cmux_rd_match" | jq -r '.route // empty')"
+  if [ -z "\$cmux_rd_route" ]; then
+    cmux_rd_reason="\$(cmux_message peerUnreachable "\$cmux_rd_peer")"
+    return 1
+  fi
+  mkdir -p "\$PEERS_DIR"
+  ( umask 077; printf '%s' "\$cmux_rd_match" | jq '{route: .route, name: .name, vm_id: .vm_id, provider_vm_id: .provider_vm_id, source: "reflection"}' > "\$(peer_file "\$cmux_rd_peer")" )
+  return 0
+}
+
 guest_auth_status() {
   cmux_auth_json=0
   for cmux_arg in "\$@"; do
@@ -189,6 +335,28 @@ guest_auth_status() {
   cmux_daemon_auth_bool=false
   cmux_model_bool=false
   cmux_tls_bool=false
+  # Identity: what the control plane says this machine IS (reflection). It
+  # needs the same edge-injected route token the CodeRouter check needs, so a
+  # missing alias or a rejected route explains an absent identity too.
+  cmux_identity_json=null
+  cmux_identity_line=""
+  if [ "\$cmux_model_configured" -eq 1 ]; then
+    cmux_id_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-identity.XXXXXX")"
+    if reflection_fetch / "\$cmux_id_out"; then
+      cmux_id_json="\$(jq -c '{vm_id: (.vm_id // null), name: (.name // null)} | select(.vm_id != null)' "\$cmux_id_out" 2>/dev/null || true)"
+      if [ -n "\$cmux_id_json" ]; then
+        cmux_identity_json="\$cmux_id_json"
+        cmux_identity_line="\$(cmux_message identityLine "\$(printf '%s' "\$cmux_id_json" | jq -r '.name // "?"')" "\$(printf '%s' "\$cmux_id_json" | jq -r '.vm_id')")"
+      else
+        cmux_identity_line="\$(cmux_message identityUnavailable "\$(cmux_message reflectionInvalid)")"
+      fi
+    else
+      cmux_identity_line="\$(cmux_message identityUnavailable "\$(reflection_failure "\$cmux_rf_base" "\$cmux_id_out")")"
+    fi
+    rm -f "\$cmux_id_out"
+  else
+    cmux_identity_line="\$(cmux_message identityUnavailable "\$(cmux_message reflectionUnconfigured)")"
+  fi
   cmux_authenticated_bool=false
   [ "\$cmux_daemon_running" -eq 1 ] && cmux_daemon_bool=true
   [ "\$cmux_daemon_authenticated" -eq 1 ] && cmux_daemon_auth_bool=true
@@ -196,9 +364,9 @@ guest_auth_status() {
   [ "\$cmux_tls_reachable" -eq 1 ] && cmux_tls_bool=true
   [ "\$cmux_authenticated" -eq 1 ] && cmux_authenticated_bool=true
   if [ "\$cmux_auth_json" -eq 1 ]; then
-    printf '{"authenticated":%s,"daemon":{"running":%s,"authenticated":%s,"session":"%s"},"tls":{"reachable":%s},"coderouter":{"configured":%s,"route_authenticated":"%s","http_status":"%s"},"control_plane":"host-only"}\\n' \\
+    printf '{"authenticated":%s,"daemon":{"running":%s,"authenticated":%s,"session":"%s"},"tls":{"reachable":%s},"coderouter":{"configured":%s,"route_authenticated":"%s","http_status":"%s"},"identity":%s,"control_plane":"host-only"}\\n' \\
       "\$cmux_authenticated_bool" "\$cmux_daemon_bool" "\$cmux_daemon_auth_bool" "\$LOCAL_SESSION" \\
-      "\$cmux_tls_bool" "\$cmux_model_bool" "\$cmux_route_auth" "\$cmux_edge_status"
+      "\$cmux_tls_bool" "\$cmux_model_bool" "\$cmux_route_auth" "\$cmux_edge_status" "\$cmux_identity_json"
   else
     if [ "\$cmux_daemon_running" -eq 1 ]; then
       cmux_message daemonRunning "\$LOCAL_SESSION"
@@ -223,6 +391,7 @@ guest_auth_status() {
     else
       cmux_message codeRouterUnreachable
     fi
+    printf '%s\\n' "\$cmux_identity_line"
     cmux_message hostTokens
   fi
   [ "\$cmux_daemon_running" -eq 1 ] || return 1
@@ -1337,7 +1506,9 @@ peer_file() { printf '%s/%s.json' "\$PEERS_DIR" "\$1"; }
 ensure_link() {
   peer="\$1"
   file="\$(peer_file "\$peer")"
-  [ -f "\$file" ] || die_message 2 missingLink "\$peer"
+  if [ ! -f "\$file" ]; then
+    reflection_discover_peer "\$peer" || die_message 2 missingLink "\$peer" "\$cmux_rd_reason"
+  fi
   mkdir -p "\$LINKS_DIR"
   sock_file="\$LINKS_DIR/\$peer.sock-path"
   pid_file="\$LINKS_DIR/\$peer.pid"
@@ -1595,6 +1766,14 @@ case "\${1:-}" in
   ai-accounts|remotes)
     host_only_command "cmux \$1"
     ;;
+  whoami)
+    shift
+    guest_whoami "\$@"
+    ;;
+  reflect|reflection)
+    shift
+    guest_reflect "\$@"
+    ;;
   env)
     shift
     guest_env_command "\$@"
@@ -1671,18 +1850,39 @@ case "\${1:-}" in
     sub="\${1:-}"; [ "\$#" -gt 0 ] && shift
     case "\$sub" in
       ls|list)
-        # This machine, then every linked peer.
-        printf '%s\\t%s\\n' "\$(hostname 2>/dev/null || echo local)" "\$(cmux_message thisMachine)"
+        # This machine (its reflection name when the edge can say), every linked
+        # peer, then the owner's other machines that reflection reports — those
+        # link on first use (cmux vm exec <name> …), no Mac step needed.
+        cmux_ls_self="\$(hostname 2>/dev/null || echo local)"
+        cmux_ls_out="\$(mktemp "\${TMPDIR:-/tmp}/cmux-ls.XXXXXX")"
+        cmux_ls_have_peers=0
+        if reflection_fetch / "\$cmux_ls_out"; then
+          cmux_ls_name="\$(jq -r '.name // empty' "\$cmux_ls_out" 2>/dev/null || true)"
+          [ -z "\$cmux_ls_name" ] || cmux_ls_self="\$cmux_ls_name"
+          if reflection_fetch /peers "\$cmux_ls_out"; then cmux_ls_have_peers=1; fi
+        fi
+        printf '%s\\t%s\\n' "\$cmux_ls_self" "\$(cmux_message thisMachine)"
+        cmux_ls_linked=" "
         if [ -d "\$PEERS_DIR" ]; then
           for f in "\$PEERS_DIR"/*.json; do
             [ -e "\$f" ] || continue
             name="\$(basename "\$f" .json)"
+            cmux_ls_linked="\$cmux_ls_linked\$name "
             state=linked
             pidf="\$LINKS_DIR/\$name.pid"
             if [ -f "\$pidf" ] && kill -0 "\$(cat "\$pidf")" 2>/dev/null; then state=connected; fi
             printf '%s\\t%s\\n' "\$name" "\$state"
           done
         fi
+        if [ "\$cmux_ls_have_peers" -eq 1 ]; then
+          cmux_ls_tab="\$(printf '\\t')"
+          jq -r '.peers // [] | .[] | "\\(.name)\\t\\(.status // "unknown")\\t\\(if .route then "reachable" else "unreachable" end)"' "\$cmux_ls_out" 2>/dev/null | while IFS= read -r cmux_ls_line; do
+            cmux_ls_pname="\${cmux_ls_line%%"\$cmux_ls_tab"*}"
+            case "\$cmux_ls_linked" in *" \$cmux_ls_pname "*) continue ;; esac
+            printf '%s\\n' "\$cmux_ls_line"
+          done
+        fi
+        rm -f "\$cmux_ls_out"
         ;;
       connect)
         peer="\${1:-}"; [ -n "\$peer" ] || die_message 2 connectUsage

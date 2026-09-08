@@ -486,6 +486,7 @@ if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = wait ]; then
   printf '{"matched":%s,"text":"λ "}\\n' "\${FAKE_MATCHED:-true}"; exit 0
 fi
 if [ "$a" = terminal ] && [ "$c" = screen ] && [ "$d" = read ]; then printf '{"cols":80,"rows":24,"text":"hello screen"}\\n'; exit 0; fi
+if [ "$a" = remote ] && [ "$b" = connect ]; then printf '{"event":"connection-snapshot","local_socket":"%s"}\\n' "\${FAKE_LINK_SOCKET:-}"; exit 0; fi
 printf '{}\\n'
 `;
 
@@ -1263,5 +1264,207 @@ describe("in-VM cmux shim: agent primitives", () => {
     const env = runStateful(dir, ["env", "set", "A=x y"], {}, undefined, "/bin/dash");
     expect(env.status).toBe(0);
     expect(runStateful(dir, ["env", "ls", "--show"], {}, undefined, "/bin/dash").stdout).toBe("A=x y\n");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reflection: the machine asking the control plane who it is and what it can
+// reach, through the model-plane alias (the edge injects the VM-bound route
+// token). The server side is /api/vm/reflection/*; here a fake curl plays it.
+// ---------------------------------------------------------------------------
+const REFLECTION_INDEX = {
+  name: "build-box",
+  display_name: "Build box",
+  emoji: null,
+  vm_id: "11111111-2222-4333-8444-555555555555",
+  provider_vm_id: "fs-build",
+  status: "running",
+  created_at: "2026-09-06T00:00:00.000Z",
+  owner: { user_id: "user_1", email: "owner@example.com", display_name: "Owner" },
+  team_id: "team_1",
+  plan_id: "pro",
+  urls: { reflection: ["https://coderouter.cmux.internal/api/vm/reflection", "https://reflection.cmux.internal/"] },
+  paths: [{ path: "/owner", description: "owner of this machine" }, { path: "/peers", description: "other machines" }],
+};
+const REFLECTION_PEERS = {
+  peers: [
+    { name: "brave-otter", display_name: "Reviewer", vm_id: "aaaa", provider_vm_id: "fs-a", status: "running", network: { ipv4: "10.0.0.4", ipv6: "fd00::4" }, route: "ws://[fd00::4]:1337/v1/link", reachable: true, help: "cmux vm exec brave-otter -- <command>" },
+    { name: "sleepy-otter", display_name: "Sleepy", vm_id: "bbbb", provider_vm_id: "fs-b", status: "running", network: { ipv4: "10.0.0.5", ipv6: "fd00::5" }, route: "ws://[fd00::5]:1337/v1/link", reachable: true, help: "cmux vm exec sleepy-otter -- <command>" },
+    { name: "asleep-mole", display_name: null, vm_id: "cccc", provider_vm_id: "fs-c", status: "paused", network: { ipv4: null, ipv6: null }, route: null, reachable: false, help: "cmux vm exec asleep-mole -- <command>" },
+  ],
+};
+const REFLECTION_INTEGRATIONS = { integrations: [{ type: "llm", name: "coderouter", help: "cmux coderouter models" }] };
+
+/** A curl that answers the reflection paths (and the CodeRouter usage probe) by URL suffix; CMUX_TEST_REFLECTION=deny|down simulates no identity / no edge. */
+function fakeReflectionCurl(directory: string): void {
+  const body = (value: unknown) => JSON.stringify(value).replace(/'/g, "'\\''");
+  writeFileSync(
+    join(directory, "curl"),
+    `#!/bin/sh
+out=/dev/null; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    --cacert|-w|-H|--connect-timeout|--max-time) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+printf '%s\\n' "$url" >> "$HOME/curl.log"
+case "\${CMUX_TEST_REFLECTION:-ok}" in
+  down) exit 7 ;;
+  deny) printf '%s' '{"error":"vm_principal_required","message":"only a cmux Cloud machine can call reflection"}' > "$out"; printf 401; exit 0 ;;
+esac
+case "$url" in
+  */api/vm/reflection) printf '%s' '${body(REFLECTION_INDEX)}' > "$out"; printf 200 ;;
+  */api/vm/reflection/peers) printf '%s' '${body(REFLECTION_PEERS)}' > "$out"; printf 200 ;;
+  */api/vm/reflection/integrations) printf '%s' '${body(REFLECTION_INTEGRATIONS)}' > "$out"; printf 200 ;;
+  */api/coderouter/vm-usage/self) printf '%s' '{}' > "$out"; printf 200 ;;
+  *) printf '%s' '{"error":"not_found","message":"no such path"}' > "$out"; printf 404 ;;
+esac
+`,
+  );
+  chmodSync(join(directory, "curl"), 0o755);
+}
+
+const REFLECTION_ENV = { CMUX_CODEROUTER_URL: "https://coderouter.cmux.internal", OPENAI_API_KEY: "cmux-vm-edge-placeholder" };
+
+describe("in-VM cmux shim: reflection", () => {
+  test("whoami prints the machine's identity from reflection, human and JSON", () => {
+    const run = runShim(["whoami"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("build-box  11111111-2222-4333-8444-555555555555  owner=owner@example.com  plan=pro  status=running\n");
+    const json = runShim(["whoami", "--json"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(json.status).toBe(0);
+    expect(JSON.parse(json.stdout)).toEqual(REFLECTION_INDEX);
+    // The probe carries only the public placeholder bearer: the edge adds the real token.
+    expect(runShim(["whoami", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout).not.toContain("crt_");
+  });
+
+  test("whoami explains a missing alias, a machine without identity, and an unreachable edge", () => {
+    const unconfigured = runShim(["whoami"]);
+    expect(unconfigured.status).toBe(2);
+    expect(unconfigured.stdout).toBe("");
+    const denied = runShim(["whoami"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "deny" }, fakeReflectionCurl);
+    expect(denied.status).toBe(1);
+    expect(denied.stderr).toContain("this machine has no VM identity");
+    expect(denied.stderr).toContain("HTTP 401");
+    const down = runShim(["whoami"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" }, fakeReflectionCurl);
+    expect(down.status).toBe(1);
+    expect(down.stderr).toContain("reflection unreachable at https://coderouter.cmux.internal/api/vm/reflection");
+  });
+
+  test("reflect passes any reflection path through and surfaces server errors", () => {
+    const peers = runShim(["reflect", "peers"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(peers.status).toBe(0);
+    expect(JSON.parse(peers.stdout)).toEqual(REFLECTION_PEERS);
+    expect(JSON.parse(runShim(["reflect", "/integrations", "--json"], REFLECTION_ENV, fakeReflectionCurl).stdout)).toEqual(REFLECTION_INTEGRATIONS);
+    expect(JSON.parse(runShim(["reflect"], REFLECTION_ENV, fakeReflectionCurl).stdout).name).toBe("build-box");
+    const missing = runShim(["reflect", "nope"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("HTTP 404");
+    expect(missing.stderr).toContain("no such path");
+    expect(runShim(["reflect", "peers?x=1"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+    expect(runShim(["reflect", "--bogus"], REFLECTION_ENV, fakeReflectionCurl).status).toBe(2);
+  });
+
+  test("auth status reports the identity next to the daemon and CodeRouter checks", () => {
+    const run = runShim(["auth", "status", "--json"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(run.status).toBe(0);
+    const payload = JSON.parse(run.stdout) as Record<string, any>;
+    expect(payload.authenticated).toBe(true);
+    expect(payload.identity).toEqual({ vm_id: "11111111-2222-4333-8444-555555555555", name: "build-box" });
+    const human = runShim(["auth", "status"], REFLECTION_ENV, fakeReflectionCurl);
+    expect(human.stdout).toContain("Identity: build-box (11111111-2222-4333-8444-555555555555)");
+    const denied = runShim(["auth", "status", "--json"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "deny" }, fakeReflectionCurl);
+    expect((JSON.parse(denied.stdout) as Record<string, any>).identity).toBeNull();
+    expect(runShim(["auth", "status"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "deny" }, fakeReflectionCurl).stdout).toContain("Identity: unavailable (reflection: this machine has no VM identity");
+    // Without an alias the field is still present, so JSON readers never see a missing key.
+    expect((JSON.parse(runShim(["auth", "status", "--json"]).stdout) as Record<string, any>).identity).toBeNull();
+  });
+
+  test("vm ls names this machine from reflection and appends reachable peers that are not linked yet", () => {
+    const dir = makeStatefulDir();
+    fakeReflectionCurl(dir);
+    mkdirSync(join(dir, ".cmux", "peers"), { recursive: true });
+    writeFileSync(join(dir, ".cmux", "peers", "brave-otter.json"), JSON.stringify({ route: "ws://[fd00::4]:1337/v1/link" }));
+    const run = runStateful(dir, ["vm", "ls"], REFLECTION_ENV);
+    expect(run.stderr).toBe("");
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("build-box\t(this machine)\nbrave-otter\tlinked\nsleepy-otter\trunning\treachable\nasleep-mole\tpaused\tunreachable\n");
+    // No reflection: the old output, hostname first, nothing invented.
+    const offline = runStateful(dir, ["vm", "ls"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
+    expect(offline.status).toBe(0);
+    expect(offline.stdout).toBe(`${offline.stdout.split("\t")[0]}\t(this machine)\nbrave-otter\tlinked\n`);
+    expect(offline.stdout.startsWith("build-box")).toBe(false);
+  });
+
+  describe("peer discovery through reflection", () => {
+    let server: ReturnType<typeof createServer> | undefined;
+    let sockPath = "";
+    beforeAll(async () => {
+      sockPath = `/tmp/cmux-gr-${process.pid}-${Math.random().toString(36).slice(2, 8)}.sock`;
+      server = createServer();
+      await new Promise<void>((resolve, reject) => {
+        server!.once("error", reject);
+        server!.listen(sockPath, resolve);
+      });
+    });
+    afterAll(async () => {
+      if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
+      try {
+        unlinkSync(sockPath);
+      } catch {
+        // already gone
+      }
+    });
+
+    test("a peer with no link file is looked up in /peers, its route is written, and the link dials it", () => {
+      const dir = makeStatefulDir();
+      fakeReflectionCurl(dir);
+      const run = runStateful(dir, ["vm", "terminal", "read", "sleepy-otter", "term_x"], { ...REFLECTION_ENV, FAKE_LINK_SOCKET: sockPath });
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+      const peerFile = JSON.parse(readFileSync(join(dir, ".cmux", "peers", "sleepy-otter.json"), "utf8"));
+      expect(peerFile).toEqual({ route: "ws://[fd00::5]:1337/v1/link", name: "sleepy-otter", vm_id: "bbbb", provider_vm_id: "fs-b", source: "reflection" });
+      expect(statSync(join(dir, ".cmux", "peers", "sleepy-otter.json")).mode & 0o777).toBe(0o600);
+      const connect = run.calls.find((call) => call[0] === "remote" && call[1] === "connect");
+      expect(connect?.slice(0, 5)).toEqual(["remote", "connect", "ws://[fd00::5]:1337/v1/link", "--headless", "--json"]);
+      expect(connect).not.toContain("--invite-file");
+      expect(run.calls.at(-1)).toEqual(["--socket", sockPath, "terminal", "term_x", "screen", "read"]);
+      // Display name and ids resolve to the same machine; the file is reused on the next call.
+      const byDisplay = runStateful(dir, ["vm", "terminal", "read", "Sleepy", "term_y"], { ...REFLECTION_ENV, FAKE_LINK_SOCKET: sockPath });
+      expect(byDisplay.status).toBe(0);
+      expect(JSON.parse(readFileSync(join(dir, ".cmux", "peers", "Sleepy.json"), "utf8")).route).toBe("ws://[fd00::5]:1337/v1/link");
+    });
+
+    test("unknown, route-less, and reflection-less peers fail closed with the reason", () => {
+      const dir = makeStatefulDir();
+      fakeReflectionCurl(dir);
+      const unknown = runStateful(dir, ["vm", "terminal", "read", "no-such", "term_x"], REFLECTION_ENV);
+      expect(unknown.status).toBe(2);
+      expect(unknown.stderr).toContain("no link for machine 'no-such'");
+      expect(unknown.stderr).toContain("reachable machines: brave-otter, sleepy-otter, asleep-mole");
+      expect(unknown.calls).toEqual([]);
+      const routeless = runStateful(dir, ["vm", "terminal", "read", "asleep-mole", "term_x"], REFLECTION_ENV);
+      expect(routeless.status).toBe(2);
+      expect(routeless.stderr).toContain("no private-network route");
+      expect(existsSync(join(dir, ".cmux", "peers", "asleep-mole.json"))).toBe(false);
+      const down = runStateful(dir, ["vm", "terminal", "read", "sleepy-otter", "term_x"], { ...REFLECTION_ENV, CMUX_TEST_REFLECTION: "down" });
+      expect(down.status).toBe(2);
+      expect(down.stderr).toContain("no link for machine 'sleepy-otter': reflection unreachable");
+      const unconfigured = runStateful(dir, ["vm", "terminal", "read", "sleepy-otter", "term_x"]);
+      expect(unconfigured.status).toBe(2);
+      expect(unconfigured.stderr).toContain("no model-plane alias is configured");
+    });
+  });
+
+  test("help advertises the identity verbs", () => {
+    const run = runShim(["--help"]);
+    expect(run.stdout).toContain("cmux whoami [--json]");
+    expect(run.stdout).toContain("cmux reflect [<path>] [--json]");
+    expect(runShim(["vm", "help"]).stdout).toContain("reachable peers from reflection");
+    expect(runShim(["whoami", "--help"]).stdout).toContain("SELF IDENTITY");
   });
 });
