@@ -1,4 +1,8 @@
 {
+  "CFBundleDisplayName": {
+    "source": "cmux Cloud Tunnel",
+    "class": "brand"
+  },
   "about.appName": {
     "class": "brand",
     "source": "cmux"
@@ -6,7 +10,9 @@
   "about.commit": {
     "source": "Commit",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
     }
   },
   "about.github": {
@@ -24,6 +30,12 @@
     "source": "Error",
     "identityLocales": {
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "agent.generic.notification.subtitle.attention": {
+    "source": "Attention",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "agent.generic.notification.subtitle.error": {
@@ -68,8 +80,14 @@
     "class": "brand",
     "source": "Solid"
   },
+  "agentSession.web.mentionMenuTitle": {
+    "source": "Mention",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "agentSession.web.planSuggestion.shortcut": {
-    "class": "brand",
+    "class": "syntax",
     "source": "Shift + Tab"
   },
   "agentSession.web.shellLabel": {
@@ -85,7 +103,9 @@
   "agentSession.web.skillPlan": {
     "source": "Plan",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Plan is the German noun for an implementation plan.",
+      "fr": "Plan is the French noun for an implementation plan.",
+      "es": "Plan is the Spanish noun for an implementation plan."
     }
   },
   "alert.invalidColor.ok": {
@@ -104,6 +124,12 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
       "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "appearance.auto": {
+    "source": "Auto",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "appearance.system": {
@@ -172,6 +198,10 @@
     "class": "syntax",
     "source": "browser design-mode enable|disable|toggle|status [--surface <id>]"
   },
+  "cli.browser.engine.option": {
+    "source": "[--engine <webkit|chromium>]",
+    "class": "syntax"
+  },
   "cli.browser.help.viewportUsage": {
     "class": "syntax",
     "source": "viewport <width> <height> | reset"
@@ -185,7 +215,7 @@
     "source": "Claude Code"
   },
   "cli.codexMonitor.notification.title": {
-    "class": "syntax",
+    "class": "brand",
     "source": "Codex"
   },
   "cli.error.clearNotificationsUsage": {
@@ -208,6 +238,26 @@
     "class": "syntax",
     "source": "simulator <subcommand> [args] [--surface <id|ref|index>]"
   },
+  "cli.localTmux.output.attached": {
+    "source": "OK session=%@ surface=%@ mode=local-tmux",
+    "class": "syntax"
+  },
+  "cli.localTmux.output.idSuffix": {
+    "source": " id=%@",
+    "class": "syntax"
+  },
+  "cli.localTmux.output.record": {
+    "source": "OK session=%@ id=%@ state=%@ socket=%@",
+    "class": "syntax"
+  },
+  "cli.localTmux.output.sessionRow": {
+    "source": "%@ [%@] clients=%lld",
+    "class": "syntax"
+  },
+  "cli.localTmux.output.status": {
+    "source": "%@ [%@] clients=%lld socket=%@",
+    "class": "syntax"
+  },
   "cli.readSelection.output.url": {
     "class": "format",
     "source": "URL: %@"
@@ -215,6 +265,14 @@
   "cli.sessions.command": {
     "class": "syntax",
     "source": "sessions [list] [options]"
+  },
+  "cli.sidebar.report.error": {
+    "source": "ERROR %@ [%@] %@: %@",
+    "class": "syntax"
+  },
+  "cli.sidebar.report.ok": {
+    "source": "OK %@ [%@] %@",
+    "class": "format"
   },
   "cli.usage.readScreen": {
     "class": "syntax",
@@ -224,6 +282,24 @@
     "class": "syntax",
     "source": "read-selection [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>]"
   },
+  "cli.vm.list.planMeter": {
+    "source": "%1$d of %2$d machines on the %3$@ plan",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d machine",
+          "%d machines"
+        ]
+      }
+    }
+  },
+  "cli.vm.tree.agent": {
+    "source": "[agent %@]",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "cli.vm.tree.browsers": {
     "class": "syntax",
     "source": "browsers/"
@@ -231,6 +307,23 @@
   "cli.vm.tree.displays": {
     "class": "syntax",
     "source": "VNC Displays/"
+  },
+  "cli.vm.tree.localSummary": {
+    "source": "%1$d terminals · %2$d browsers",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d terminal"
+        ]
+      },
+      "es": {
+        "reason": "Terminal, byte and bytes are valid Spanish technical nouns with the same spelling. Only these exact plural leaf values are exempt.",
+        "values": [
+          "%d terminal"
+        ]
+      }
+    }
   },
   "cli.vm.tree.ports": {
     "class": "syntax",
@@ -243,6 +336,13 @@
   "cli.vm.tree.workspaces": {
     "class": "syntax",
     "source": "workspaces/"
+  },
+  "cli.vpn.status.backend": {
+    "source": "Backend: %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
   },
   "clipboard.sshError.item": {
     "class": "format",
@@ -264,6 +364,18 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "cloudTree.group.terminals": {
+    "source": "Terminals",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "cloudTree.node.desktop": {
+    "source": "Desktop",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "cloudTree.node.desktop.detail": {
     "class": "technical",
     "source": "noVNC"
@@ -276,20 +388,64 @@
     "class": "format",
     "source": "CPU %d%%"
   },
+  "cloudTree.stats.memory": {
+    "source": "Mem %@/%@ GB",
+    "identityLocales": {
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "cloudTree.terminal.badge.views": {
     "class": "format",
     "source": "×%d"
   },
+  "cloudTree.terminal.untitled": {
+    "source": "terminal",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "cloudTree.workspace.terminalCount.one": {
+    "source": "1 terminal",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "cloudTree.workspace.terminalCount.other": {
+    "source": "%d terminals",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d terminal"
+        ]
+      },
+      "es": {
+        "reason": "Terminal, byte and bytes are valid Spanish technical nouns with the same spelling. Only these exact plural leaf values are exempt.",
+        "values": [
+          "%d terminal"
+        ]
+      }
+    }
+  },
+  "cloudTunnel.vpnConfiguration.name": {
+    "source": "cmux Cloud",
+    "class": "brand"
+  },
   "command.applyUpdateIfAvailable.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.attemptUpdate.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.browserAvailability.subtitle": {
@@ -304,16 +460,30 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "command.canvas.subtitle": {
+    "source": "Canvas",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "command.checkForUpdates.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.closeTab.subtitle": {
     "source": "Tab",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.cloudVM.failed.details": {
+    "source": "Details:",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.cloudVM.ports.title": {
@@ -331,6 +501,13 @@
     "source": "Status",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "command.cloudVM.subtitle": {
+    "source": "Cloud",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
     }
   },
   "command.cmuxConfig.builtInSubtitle": {
@@ -374,7 +551,9 @@
   "command.makeDefaultTerminal.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.mobileConnect.subtitle": {
@@ -396,7 +575,9 @@
   "command.openSettings.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.reopenClosedBrowserTab.subtitle": {
@@ -408,7 +589,9 @@
   "command.restartSocketListener.subtitle": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "command.showNotifications.subtitle": {
@@ -420,6 +603,12 @@
   "command.toggleSetting.subtitle": {
     "source": "%@ • %@",
     "class": "format"
+  },
+  "command.toggleSidebar.subtitle": {
+    "source": "Layout",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "command.uninstallCLI.subtitle": {
     "class": "technical",
@@ -442,6 +631,18 @@
     "class": "technical",
     "source": "Markdown"
   },
+  "commandPalette.kind.rightSidebarTool": {
+    "source": "Tool",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "commandPalette.kind.simulator": {
+    "source": "Simulator",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "commandPalette.kind.terminal": {
     "source": "Terminal",
     "identityLocales": {
@@ -450,10 +651,40 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "commandPalette.kind.workspaceTodo": {
+    "source": "Todos",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "commandPalette.subtitle.browserWithName": {
+    "source": "Browser • %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "commandPalette.subtitle.markdownWithName": {
+    "source": "Markdown • %@",
+    "class": "format"
+  },
   "commandPalette.subtitle.tabFallback": {
     "source": "Tab",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "commandPalette.subtitle.tabWithName": {
+    "source": "Tab • %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "commandPalette.subtitle.terminalWithName": {
+    "source": "Terminal • %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "common.ok": {
@@ -495,6 +726,13 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "contextMenu.workspaceStatus.auto": {
+    "source": "Auto — %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "debug.bonsplitTabBarDebug.pixelsValue": {
     "class": "format",
     "source": "%@ px"
@@ -502,13 +740,16 @@
   "debug.browserProfilePopover.label.horizontal": {
     "source": "Horizontal",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "debug.browserProfilePopover.label.vertical": {
     "source": "Vertical",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "debug.menu.notification.cli": {
@@ -528,7 +769,53 @@
   "debug.notification.synthetic.option": {
     "source": "Option %d",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "debug.sidebarFooterIconBalance.mobileSize": {
+    "source": "Mobile",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "debug.sidebarFooterIconBalance.weight.regular": {
+    "source": "Regular",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "debug.splitButtonLayout.hoverSegment.caret": {
+    "source": "Caret",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "debug.splitButtonLayout.hoverSegment.plus": {
+    "source": "Plus",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "debug.splitButtonLayout.option.controlBackground": {
+    "source": "controlBackgroundColor",
+    "class": "technical"
+  },
+  "debug.splitButtonLayout.option.windowBackground": {
+    "source": "windowBackgroundColor",
+    "class": "technical"
+  },
+  "debug.tabBarBackdropLab.leftSidebar": {
+    "source": "L",
+    "identityLocales": {
+      "de": "Initial of Links/Rechts in a compact left/right layout diagram."
+    }
+  },
+  "debug.tabBarBackdropLab.rightSidebar": {
+    "source": "R",
+    "identityLocales": {
+      "de": "Initial of Links/Rechts in a compact left/right layout diagram."
     }
   },
   "debug.tabBarBackdropLab.terminal.prompt": {
@@ -545,11 +832,35 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "debug.titlebarLayoutDebug.style": {
+    "source": "Style",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "detail.mode": {
     "source": "Mode",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
+  },
+  "detail.section": {
+    "source": "Section",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "dialog.cmuxConfig.disclosure.cwd": {
+    "source": "cwd: %@",
+    "class": "format"
+  },
+  "dialog.cmuxConfig.disclosure.cwdCommand": {
+    "source": "cwd %1$@: %2$@",
+    "class": "format"
+  },
+  "dialog.cmuxConfig.disclosure.url": {
+    "source": "url: %@",
+    "class": "format"
   },
   "dialog.saveWorkspaceLayout.ok": {
     "source": "OK",
@@ -569,6 +880,12 @@
       "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "dialog.sshURL.cancel": {
+    "source": "No",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "dialog.textURL.blocked.ok": {
     "source": "OK",
     "identityLocales": {
@@ -578,10 +895,98 @@
       "ja": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "diffViewer.baseReason.manual": {
+    "source": "manual",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.branchPickerBasePrefix": {
+    "source": "Base:",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.branchPickerGroupBranches": {
+    "source": "Branches",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.branchPickerGroupRemotes": {
+    "source": "Remotes",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.branchPickerGroupWorktrees": {
+    "source": "Worktrees",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "diffViewer.modeChange": {
+    "source": "Mode {old} → {new}",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "diffViewer.options": {
     "source": "Options",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "diffViewer.refGroup.branches": {
+    "source": "Branches",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.refGroup.remotes": {
+    "source": "Remotes",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "diffViewer.refGroup.worktrees": {
+    "source": "Worktrees",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "diffViewer.source.branch": {
+    "source": "Branch",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "dock.source.error": {
+    "source": "Dock",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "zh-Hant": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ko": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ar": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "dock.source.title": {
+    "source": "Dock",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "zh-Hant": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ko": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ar": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "emptyPanel.action.browser": {
@@ -605,10 +1010,28 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "example.sidebar.group.remote": {
+    "source": "Remote",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "featureFlags.column.flag": {
+    "source": "Flag",
+    "identityLocales": {
+      "de": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
   "featureFlags.column.source": {
     "source": "Source",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "featureFlags.simulator.title": {
+    "source": "Simulator",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "featureFlags.source.local": {
@@ -618,10 +1041,45 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "featureFlags.source.remote": {
+    "source": "Remote",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "feed.badge.plan": {
     "source": "Plan",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Plan is the German noun for an implementation plan.",
+      "fr": "Plan is the French noun for an implementation plan.",
+      "es": "Plan is the Spanish noun for an implementation plan."
+    }
+  },
+  "feed.buttonDebug.hover": {
+    "source": "Hover",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.buttonDebug.palette": {
+    "source": "Palette",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.buttonDebug.palette.aqua": {
+    "source": "Aqua",
+    "identityLocales": {
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.buttonDebug.palette.graphite": {
+    "source": "Graphite",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "feed.buttonDebug.palette.system": {
@@ -633,7 +1091,93 @@
   "feed.buttonDebug.section.base": {
     "source": "Base",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.buttonDebug.section.material": {
+    "source": "Material",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.buttonDebug.style": {
+    "source": "Style",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.buttonDebug.style.halo": {
+    "source": "Halo",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.buttonDebug.variations": {
+    "source": "Variations",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.context.agent": {
+    "source": "Agent:",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.context.plan": {
+    "source": "Plan:",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.exitplan.auto": {
+    "source": "Auto",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
+  "feed.exitplan.autoaccept": {
+    "source": "Auto",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
+  "feed.exitplan.bypass": {
+    "source": "Bypass",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.exitplan.manual": {
+    "source": "Manual",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.exitplan.mode.autoAccept": {
+    "source": "auto",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.exitplan.mode.bypass": {
+    "source": "bypass",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.exitplan.mode.manual": {
+    "source": "manual",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "feed.exitplan.mode.ultraplan": {
@@ -644,9 +1188,94 @@
     "class": "brand",
     "source": "Ultraplan"
   },
+  "feed.kind.message": {
+    "source": "MESSAGE",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.kind.plan": {
+    "source": "PLAN",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.kind.prompt": {
+    "source": "PROMPT",
+    "identityLocales": {
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.kind.question": {
+    "source": "Question",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.kind.question.upper": {
+    "source": "QUESTION",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.kind.stop": {
+    "source": "STOP",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.kind.todos": {
+    "source": "TODOS",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.notification.exitPlan.autoAccept": {
+    "source": "Auto",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
+  "feed.notification.exitPlan.bypass": {
+    "source": "Bypass",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.notification.exitPlan.manual": {
+    "source": "Manual",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "feed.notification.exitPlan.ultraplan": {
     "class": "brand",
     "source": "Ultraplan"
+  },
+  "feed.permission.bypass": {
+    "source": "Bypass",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.permission.mode.bypass": {
+    "source": "bypass",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "feed.telemetry.error": {
+    "source": "error",
+    "class": "syntax"
+  },
+  "feed.telemetry.ok": {
+    "source": "ok",
+    "class": "syntax"
   },
   "feed.textEditorDebug.section.appkit": {
     "class": "technical",
@@ -655,6 +1284,20 @@
   "feed.textEditorDebug.section.swiftui": {
     "class": "technical",
     "source": "SwiftUI"
+  },
+  "feed.textEditorDebug.variant.appKitDirectSize": {
+    "source": "AppKit Direct, sizeThatFits",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "feed.textEditorDebug.variant.appKitScrollSize": {
+    "source": "AppKit ScrollView, sizeThatFits",
+    "class": "technical"
+  },
+  "feed.textEditorDebug.variant.swiftUITextField": {
+    "source": "SwiftUI TextField",
+    "class": "technical"
   },
   "ghostty.copy-mode.indicator": {
     "class": "technical",
@@ -688,10 +1331,29 @@
     "class": "brand",
     "source": "OpenCode"
   },
+  "machines.freeAccess.upgrade": {
+    "source": "Upgrade",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "machines.kind.base": {
     "source": "Base",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "machines.kind.desktop": {
+    "source": "Desktop",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "machines.menu.checkpoint": {
+    "source": "Checkpoint",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "machines.menu.fork": {
@@ -706,10 +1368,58 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "machines.meter.count": {
+    "source": "%1$d of %2$d machines",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d machine",
+          "%d machines"
+        ]
+      }
+    }
+  },
+  "machines.meter.count.unlimited": {
+    "source": "%1$d machines",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%1$d machine",
+          "%1$d machines"
+        ]
+      }
+    }
+  },
+  "machines.meter.count.unlimited.single": {
+    "source": "1 machine",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "machines.new.image.label": {
+    "source": "Image",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "machines.new.name.label": {
     "source": "Name",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "machines.new.plan.multi": {
+    "source": "%1$d of %2$d machines in use",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d machine",
+          "%d machines"
+        ]
+      }
     }
   },
   "machines.new.size.gb": {
@@ -720,6 +1430,10 @@
     "class": "format",
     "source": "%d MB"
   },
+  "machines.new.size.option": {
+    "source": "%d GB RAM",
+    "class": "format"
+  },
   "machines.new.size.ram": {
     "source": "RAM",
     "class": "technical"
@@ -728,9 +1442,21 @@
     "class": "technical",
     "source": "CPU"
   },
+  "machines.stats.memory": {
+    "source": "Mem",
+    "identityLocales": {
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
   "machines.stats.provisioned": {
-    "class": "brand",
+    "class": "format",
     "source": "%@ GB"
+  },
+  "machines.usage.line": {
+    "source": "%1$@ · %2$@ tokens · %3$@",
+    "identityLocales": {
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
   },
   "markdown.font.system": {
     "source": "System",
@@ -746,9 +1472,43 @@
     "class": "technical",
     "source": "px"
   },
+  "markdown.mode.text": {
+    "source": "TextEdit",
+    "class": "brand"
+  },
+  "menu.help.changelog": {
+    "source": "Changelog",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "menu.help.claudeCodeTeams": {
     "class": "brand",
     "source": "Claude Code Teams"
+  },
+  "menu.help.concepts": {
+    "source": "Concepts",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "menu.help.configuration": {
+    "source": "Configuration",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "menu.help.dock": {
+    "source": "Dock",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "zh-Hant": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ko": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ar": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "menu.help.notifications": {
     "source": "Notifications",
@@ -813,6 +1573,12 @@
     "class": "technical",
     "source": "Markdown"
   },
+  "menu.history.recentlyClosed.panel.simulator": {
+    "source": "Simulator",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "menu.history.recentlyClosed.panel.terminal": {
     "source": "Terminal",
     "identityLocales": {
@@ -821,11 +1587,27 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "menu.history.recentlyClosed.panel.tool": {
+    "source": "Tool",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "menu.newWorkspace.layoutsHeader": {
+    "source": "Layouts",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "menu.notifications.title": {
     "source": "Notifications",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
+  },
+  "mobile.pairing.getApp.badge.platform": {
+    "source": "iPhone",
+    "class": "brand"
   },
   "mobile.pairing.target.appStore": {
     "class": "brand",
@@ -846,6 +1628,12 @@
   "mobile.pairing.target.internal": {
     "class": "brand",
     "source": "cmux INTERNAL"
+  },
+  "mode.compact": {
+    "source": "Compact",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "mode.system": {
     "source": "System",
@@ -871,6 +1659,12 @@
     "source": "%1$@ — %2$@",
     "class": "format"
   },
+  "paneMemoryGuardrail.banner.location": {
+    "source": "%1$@ in %2$@",
+    "identityLocales": {
+      "de": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
   "paneMemoryGuardrail.banner.unnamedPane": {
     "source": "Terminal",
     "identityLocales": {
@@ -889,13 +1683,25 @@
     "class": "technical",
     "source": "SOC 2"
   },
+  "pricing.enterprise.name": {
+    "source": "Enterprise",
+    "identityLocales": {
+      "de": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
   "pricing.native.compare.concurrent.free": {
     "class": "format",
     "source": "1"
   },
   "pricing.native.compare.concurrent.paid": {
-    "class": "price",
+    "class": "format",
     "source": "50"
+  },
+  "pricing.native.compare.support.community": {
+    "source": "Community",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "pricing.native.eyebrow": {
     "class": "brand",
@@ -906,8 +1712,24 @@
     "source": "$0"
   },
   "pricing.native.metric.vm.value": {
-    "class": "price",
+    "class": "technical",
     "source": "4 vCPU / 16 GB"
+  },
+  "pricing.native.plan.enterprise": {
+    "source": "Enterprise",
+    "identityLocales": {
+      "de": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
+    }
+  },
+  "pricing.native.plan.pro": {
+    "source": "Pro",
+    "class": "brand"
+  },
+  "pricing.native.plan.team": {
+    "source": "Team",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "pricing.native.pro.price": {
     "class": "price",
@@ -937,9 +1759,21 @@
     "class": "brand",
     "source": "cmux Pro"
   },
+  "pricing.team.name": {
+    "source": "Team",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "pricing.window.title": {
     "class": "brand",
     "source": "cmux Pro"
+  },
+  "projectSchemes.badge.personal": {
+    "source": "personal",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "remote.status.error": {
     "source": "Error",
@@ -948,12 +1782,49 @@
     }
   },
   "remotePTYAttach.error.allocationDiagnostic": {
-    "class": "brand",
+    "class": "format",
     "source": "%@"
+  },
+  "remoteTmux.error.controlSocketPathTooLong": {
+    "source": "SSH control socket path is too long for a Unix domain socket (%lld > %2$lld bytes); home directory path is too long",
+    "identityLocales": {
+      "es": {
+        "reason": "Terminal, byte and bytes are valid Spanish technical nouns with the same spelling. Only these exact plural leaf values are exempt.",
+        "values": [
+          "%lld byte",
+          "%lld bytes"
+        ]
+      }
+    }
   },
   "remoteTmux.tab.windowPaneIndexed": {
     "class": "format",
     "source": "%1$@ [%2$@]"
+  },
+  "rightSidebar.mode.dock": {
+    "source": "Dock",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "zh-Hant": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ko": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ar": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "rightSidebar.mode.feed": {
+    "source": "Feed",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "rightSidebar.mode.machines": {
+    "source": "Cloud",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
   },
   "sessionIndex.agent.claude": {
     "class": "brand",
@@ -1008,6 +1879,12 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "sessionIndex.filter.date": {
+    "source": "Date",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "sessionIndex.filter.status": {
     "source": "Status",
     "identityLocales": {
@@ -1040,6 +1917,12 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "sessionIndex.preview.role.tool": {
+    "source": "Tool",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "sessionIndex.status.live": {
     "source": "Live",
     "identityLocales": {
@@ -1056,28 +1939,175 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "settings.app.sidebarBranchLayout.inline": {
+    "source": "Inline",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "settings.app.sidebarBranchLayout.vertical": {
     "source": "Vertical",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.automation.kiro.notificationLevel.minimal": {
+    "source": "Minimal",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.automation.kiro.notificationLevel.standard": {
+    "source": "Standard",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.betaFeatures.dock": {
+    "source": "Dock",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "zh-Hant": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ko": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "ar": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.betaFeatures.extensions": {
+    "source": "Extensions",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.betaFeatures.feed": {
+    "source": "Feed",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.betaFeatures.workspaceTodosChecklistStyle.inline": {
+    "source": "Inline",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.betaFeatures.workspaceTodosChecklistStyle.popover": {
+    "source": "Popover",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
     }
   },
   "settings.browser.defaultZoomLevel.percent": {
     "class": "format",
     "source": "%lld%%"
   },
+  "settings.browser.engine.chromium": {
+    "source": "Chromium",
+    "class": "brand"
+  },
+  "settings.browser.engine.webkit": {
+    "source": "WebKit",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.baidu": {
+    "source": "Baidu",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.bing": {
+    "source": "Bing",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.brave": {
+    "source": "Brave Search",
+    "class": "brand"
+  },
   "settings.browser.searchEngine.duckduckgo": {
     "source": "DuckDuckGo",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.ecosia": {
+    "source": "Ecosia",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.exa": {
+    "source": "Exa",
     "class": "brand"
   },
   "settings.browser.searchEngine.github": {
     "source": "GitHub",
     "class": "brand"
   },
+  "settings.browser.searchEngine.google": {
+    "source": "Google",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.kagi": {
+    "source": "Kagi",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.mojeek": {
+    "source": "Mojeek",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.perplexity": {
+    "source": "Perplexity",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.qwant": {
+    "source": "Qwant",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.startpage": {
+    "source": "Startpage",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.wikipedia": {
+    "source": "Wikipedia",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.yahoo": {
+    "source": "Yahoo",
+    "class": "brand"
+  },
+  "settings.browser.searchEngine.yandex": {
+    "source": "Yandex",
+    "class": "brand"
+  },
+  "settings.cloudMachines.plan.summary": {
+    "source": "%1$@ · %2$d of %3$d machines",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d machine",
+          "%d machines"
+        ]
+      }
+    }
+  },
+  "settings.cloudMachines.plan.summary.unlimited": {
+    "source": "%1$@ · %2$d machines, no limit",
+    "identityLocales": {
+      "fr": {
+        "reason": "These French count nouns have the same spelling as English. Only the listed leaf text may be identical; the surrounding sentence must still be translated.",
+        "values": [
+          "%d machine",
+          "%d machines"
+        ]
+      }
+    }
+  },
   "settings.cloudMachines.plan.title": {
     "source": "Plan",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Plan is the standard Spanish name for a subscription plan."
     }
   },
   "settings.common.ok": {
@@ -1093,6 +2123,12 @@
     "class": "brand",
     "source": "cmux"
   },
+  "settings.customSidebars.renderer": {
+    "source": "Renderer",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "settings.error.alert.dismiss": {
     "source": "OK",
     "identityLocales": {
@@ -1106,9 +2142,32 @@
     "class": "format",
     "source": "%@ pt"
   },
+  "settings.material.liquidGlass": {
+    "source": "Liquid Glass (macOS 26+)",
+    "class": "brand"
+  },
+  "settings.material.menu": {
+    "source": "Menu",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.material.popover": {
+    "source": "Popover",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "settings.mobile.route.iroh": {
     "class": "brand",
     "source": "Iroh"
+  },
+  "settings.mobile.route.loopback": {
+    "source": "Loopback",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "settings.mobile.route.tailscale": {
     "class": "brand",
@@ -1124,9 +2183,21 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "settings.networking.custom.region": {
+    "source": "Region",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "settings.networking.custom.summary": {
     "source": "%1$@ · %2$@",
     "class": "format"
+  },
+  "settings.networking.diagnostics.failure.offline": {
+    "source": "Offline",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "settings.networking.private.name": {
     "source": "Name",
@@ -1145,17 +2216,73 @@
     "class": "syntax",
     "source": "say \"done\""
   },
+  "settings.notifications.sound.option.basso": {
+    "source": "Basso",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.blow": {
+    "source": "Blow",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.bottle": {
+    "source": "Bottle",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.customFile": {
+    "source": "Custom File…",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.default": {
+    "source": "Default",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.frog": {
+    "source": "Frog",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.funk": {
+    "source": "Funk",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.glass": {
+    "source": "Glass",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.hero": {
+    "source": "Hero",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.morse": {
+    "source": "Morse",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.none": {
+    "source": "None",
+    "class": "technical"
+  },
   "settings.notifications.sound.option.ping": {
-    "class": "brand",
-    "source": "Ping"
+    "source": "Ping",
+    "class": "technical"
   },
   "settings.notifications.sound.option.pop": {
-    "class": "brand",
-    "source": "Pop"
+    "source": "Pop",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.purr": {
+    "source": "Purr",
+    "class": "technical"
   },
   "settings.notifications.sound.option.sosumi": {
-    "class": "brand",
-    "source": "Sosumi"
+    "source": "Sosumi",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.submarine": {
+    "source": "Submarine",
+    "class": "technical"
+  },
+  "settings.notifications.sound.option.tink": {
+    "source": "Tink",
+    "class": "technical"
   },
   "settings.notifications.soundOverrides.agent": {
     "source": "Agent",
@@ -1167,7 +2294,9 @@
   "settings.notifications.soundOverrides.global": {
     "source": "Global",
     "identityLocales": {
-      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "settings.section.app": {
@@ -1182,9 +2311,22 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "settings.section.cloudMachines": {
+    "source": "Cloud",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "settings.section.computerUse": {
     "source": "Computer Use",
     "class": "brand"
+  },
+  "settings.section.mobile": {
+    "source": "Mobile",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "settings.section.settingsJSON": {
     "class": "technical",
@@ -1198,6 +2340,12 @@
       "es": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "settings.settingsJSON.documentation": {
+    "source": "Documentation",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "settings.sidebar.rightMaxWidth.unit": {
     "class": "technical",
     "source": "pt"
@@ -1205,6 +2353,26 @@
   "settings.sidebarAppearance.fontSize.points": {
     "class": "format",
     "source": "%@ pt"
+  },
+  "settings.terminal.resumeCommands.cwdOnlySummary": {
+    "source": "cwd: %@",
+    "class": "format"
+  },
+  "settings.terminal.resumeCommands.envSummary": {
+    "source": "env: %@",
+    "class": "format"
+  },
+  "settings.terminal.resumeCommands.policy.auto": {
+    "source": "Auto",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "settings.terminal.resumeCommands.policy.manual": {
+    "source": "Manual",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "settings.terminal.scrollSpeed.value": {
     "class": "format",
@@ -1230,8 +2398,14 @@
     "class": "brand",
     "source": "Pi"
   },
+  "settings.workspaceColors.base": {
+    "source": "Base: %@",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "shortcut.key.tab": {
-    "class": "brand",
+    "class": "syntax",
     "source": "Tab",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
@@ -1247,10 +2421,36 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "shortcutDiscovery.section.navigation": {
+    "source": "Navigation",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "sidebar.extension.browserTab": {
     "source": "Browser",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.extension.notesTab": {
+    "source": "Notes",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "sidebar.extensions.details.bundle": {
+    "source": "Bundle",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "sidebar.extensions.details.manifest": {
+    "source": "Configuration",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "sidebar.extensions.details.status": {
@@ -1263,6 +2463,18 @@
     "source": "Notifications",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "sidebar.extensions.scope.pullRequests": {
+    "source": "Pull requests",
+    "identityLocales": {
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "sidebar.help.changelog": {
+    "source": "Changelog",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "sidebar.help.discord": {
@@ -1279,6 +2491,12 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "sidebar.help.githubIssues": {
+    "source": "GitHub Issues",
+    "identityLocales": {
+      "ja": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "sidebar.pathMenu.macintoshHD": {
     "class": "brand",
     "source": "Macintosh HD"
@@ -1287,6 +2505,12 @@
     "class": "format",
     "source": ":%lld"
   },
+  "sidebar.pro.badge": {
+    "source": "Upgrade",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "sidebar.provider.default.subtitle": {
     "class": "brand",
     "source": "cmux"
@@ -1294,6 +2518,18 @@
   "sidebar.remote.badge": {
     "class": "technical",
     "source": "SSH"
+  },
+  "sidebar.remote.subtitle": {
+    "source": "Remote • %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "sidebar.status.compactLabel": {
+    "source": "Status: %@",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "sidebar.tree.group.remote.subtitle": {
     "class": "technical",
@@ -1308,6 +2544,32 @@
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
+  },
+  "simulator.activity.applications": {
+    "source": "Applications",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.activity.capture": {
+    "source": "Capture",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.activity.digitalCrown": {
+    "source": "Digital Crown",
+    "class": "brand"
+  },
+  "simulator.activity.touch": {
+    "source": "Touch",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
+  "simulator.appearance.liquidGlass": {
+    "source": "Liquid Glass",
+    "class": "brand"
   },
   "simulator.appearance.voiceOver": {
     "class": "brand",
@@ -1370,13 +2632,65 @@
     "class": "technical",
     "source": "Wi-Fi"
   },
+  "simulator.device.runtime": {
+    "source": "Runtime",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "simulator.device.udid": {
     "class": "technical",
     "source": "UDID"
   },
+  "simulator.field.latitude": {
+    "source": "Latitude",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.field.longitude": {
+    "source": "Longitude",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "simulator.field.url": {
     "class": "technical",
     "source": "URL"
+  },
+  "simulator.location.preset.pacificCoast": {
+    "source": "Pacific Coast Hwy",
+    "identityLocales": {
+      "de": "Original geographic route name used to identify this simulation preset.",
+      "fr": "Original geographic route name used to identify this simulation preset.",
+      "ar": "Original geographic route name used to identify this simulation preset.",
+      "es": "Original geographic route name used to identify this simulation preset.",
+      "zh-Hant": "Original geographic route name used to identify this simulation preset.",
+      "zh-Hans": "Original geographic route name used to identify this simulation preset.",
+      "ko": "Original geographic route name used to identify this simulation preset.",
+      "ja": "Original geographic route name used to identify this simulation preset."
+    }
+  },
+  "simulator.location.transport": {
+    "source": "Transport",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.pane.title": {
+    "source": "Simulator",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.privacy.contacts": {
+    "source": "Contacts",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "simulator.privacy.faceID": {
     "class": "brand",
@@ -1386,10 +2700,22 @@
     "class": "brand",
     "source": "HomeKit"
   },
+  "simulator.privacy.microphone": {
+    "source": "Microphone",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "simulator.privacy.notifications": {
     "source": "Notifications",
     "identityLocales": {
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "simulator.privacy.photos": {
+    "source": "Photos",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "simulator.privacy.siri": {
@@ -1406,10 +2732,43 @@
     "class": "technical",
     "source": "Wi-Fi"
   },
+  "simulator.tools.applications": {
+    "source": "Applications",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.tools.capture": {
+    "source": "Capture",
+    "identityLocales": {
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "simulator.tools.hardware": {
     "source": "Hardware",
     "identityLocales": {
-      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+      "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "simulator.value.no": {
+    "source": "No",
+    "identityLocales": {
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "sleepyMode.color.logo": {
+    "source": "Logo",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "sleepyMode.glow.aurora": {
+    "source": "Aurora",
+    "identityLocales": {
+      "es": "Reviewed native word, technical abbreviation, or SaaS tier name with the same spelling in this context."
     }
   },
   "sleepyMode.glow.cmux": {
@@ -1419,6 +2778,14 @@
   "sleepyMode.theme.cmux": {
     "class": "brand",
     "source": "cmux"
+  },
+  "sleepyMode.theme.mono": {
+    "source": "Mono",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "fr": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required.",
+      "es": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
   },
   "statusMenu.profiling.emailPlaceholder": {
     "class": "syntax",
@@ -1490,6 +2857,13 @@
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "taskManager.column.processes": {
+    "source": "Proc",
+    "identityLocales": {
+      "fr": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required.",
+      "es": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
+  },
   "taskManager.killProcess.target.pid": {
     "class": "format",
     "source": "PID %lld"
@@ -1544,11 +2918,35 @@
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
     }
   },
+  "toolbar.layout.canvas": {
+    "source": "Canvas",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "toolbar.layout.label": {
+    "source": "Layout",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
   "update.error.details.code": {
     "source": "Code",
     "identityLocales": {
       "de": "Established UI or technical term with the same spelling in this locale; a translated entry is still required.",
       "fr": "Established UI or technical term with the same spelling in this locale; a translated entry is still required."
+    }
+  },
+  "update.error.details.domain": {
+    "source": "Domain",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "update.error.details.feed": {
+    "source": "Feed",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
     }
   },
   "update.error.details.message": {
@@ -1560,5 +2958,17 @@
   "update.error.details.url": {
     "class": "technical",
     "source": "URL"
+  },
+  "update.popover.version": {
+    "source": "Version:",
+    "identityLocales": {
+      "de": "Reviewed native UI spelling, established developer terminology, or the named macOS Dock component; an explicit translated entry remains required."
+    }
+  },
+  "workspaceTodoPane.title": {
+    "source": "Todos",
+    "identityLocales": {
+      "de": "Reviewed shared native developer term, abbreviation, or borrowed technical noun. The translated entry is still required."
+    }
   }
 }

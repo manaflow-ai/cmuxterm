@@ -160,6 +160,12 @@
       2
     ]
   },
+  "cli.vm.wait.ready": {
+    "source": "%1$@ is ready (%2$@) after %3$ds",
+    "arguments": [
+      3
+    ]
+  },
   "cli.workspaceGroup.response.closed.one": {
     "source": "OK group deleted (closed %lld workspaces)",
     "arguments": [
@@ -359,6 +365,26 @@
       1
     ]
   },
+  "machines.freeAccess.countdown.daysHours": {
+    "source": "%1$dd %2$dh",
+    "arguments": [
+      1,
+      2
+    ]
+  },
+  "machines.freeAccess.countdown.hoursMinutes": {
+    "source": "%1$dh %2$dm",
+    "arguments": [
+      1,
+      2
+    ]
+  },
+  "machines.freeAccess.countdown.minutes": {
+    "source": "%dm",
+    "arguments": [
+      1
+    ]
+  },
   "machines.freeAccess.help": {
     "source": "Free plans keep a machine reachable for %d days after it is created. Upgrade to Pro to keep using it.",
     "arguments": [
@@ -407,6 +433,12 @@
       1
     ]
   },
+  "machines.usage.period.days": {
+    "source": "%dd",
+    "arguments": [
+      1
+    ]
+  },
   "memory.attribution.multipleWorkspaces": {
     "source": "%lld workspaces",
     "arguments": [
@@ -431,6 +463,42 @@
       1
     ]
   },
+  "panel.cloudVM.loading.elapsed": {
+    "source": "%ds elapsed",
+    "arguments": [
+      1
+    ]
+  },
+  "panel.cloudVM.loading.failed.elapsed": {
+    "source": "Waited %ds before stopping.",
+    "arguments": [
+      1
+    ]
+  },
+  "relativeTime.days": {
+    "source": "%lldd",
+    "arguments": [
+      1
+    ]
+  },
+  "relativeTime.hours": {
+    "source": "%lldh",
+    "arguments": [
+      1
+    ]
+  },
+  "relativeTime.minutes": {
+    "source": "%lldm",
+    "arguments": [
+      1
+    ]
+  },
+  "relativeTime.weeks": {
+    "source": "%lldw",
+    "arguments": [
+      1
+    ]
+  },
   "remoteTmux.error.controlSocketPathTooLong": {
     "source": "SSH control socket path is too long for a Unix domain socket (%lld > %2$lld bytes); home directory path is too long",
     "arguments": [
@@ -445,6 +513,25 @@
   },
   "sessionIndex.section.showMoreCount": {
     "source": "Show %lld more",
+    "arguments": [
+      1
+    ]
+  },
+  "settings.browser.hiddenWebViewDiscardDelay.minutes": {
+    "source": "%lldm",
+    "arguments": [
+      1
+    ]
+  },
+  "settings.browser.hiddenWebViewDiscardDelay.minutesSeconds": {
+    "source": "%1$lldm %2$llds",
+    "arguments": [
+      1,
+      2
+    ]
+  },
+  "settings.browser.hiddenWebViewDiscardDelay.seconds": {
+    "source": "%llds",
     "arguments": [
       1
     ]

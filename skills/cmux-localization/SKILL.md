@@ -29,6 +29,8 @@ Before finishing a task that changes UI, Settings rows, menus, shortcut metadata
 
 Count strings are recorded in `scripts/localization-plurals.json` with the English source and the argument numbers that select plurals. Every required plural category must contain translated text. Use substitutions when more than one count varies or when the count is not the first argument. Arabic requires zero/one/two/few/many/other; French and Spanish include many. Keep every message inside the catalog's `strings` object so Xcode compiles it.
 
+For a shared-spelling word inside a plural substitution, use an `identityLocales` object with `reason` and an explicit `values` list. This permits the listed leaf text (for example French `%d machines`) while continuing to reject an untranslated English sentence around it.
+
 ## Detailed reference
 
 - [references/audit-workflow.md](references/audit-workflow.md): what counts as user-facing, search patterns, and handoff wording.

@@ -12846,6 +12846,7 @@
       }
     },
     "sessionIndex.status.live": {
+      "comment": "Agent session is currently running, as opposed to an archived session.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -13731,6 +13732,7 @@
       }
     },
     "sessionIndex.filter.status.live": {
+      "comment": "Filter for currently running agent sessions, not a video-streaming mode.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -35060,6 +35062,7 @@
       }
     },
     "agentSession.web.skillPlan": {
+      "comment": "An agent planning skill, not a billing subscription tier.",
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -121691,6 +121694,7 @@
       }
     },
     "cloudTree.terminal.detached": {
+      "comment": "A terminal detached from a viewing tab, not a failed network connection.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -165364,6 +165368,7 @@
       }
     },
     "debug.titlebarLayoutDebug.leading": {
+      "comment": "Leading horizontal edge in the interface's text direction; not an absolute left coordinate.",
       "extractionState": "manual",
       "localizations": {
         "ar": {
@@ -199303,6 +199308,7 @@
       }
     },
     "example.sidebar.browserStack.section.loose": {
+      "comment": "Section heading for open browser items outside a stack. Open is a state here, not an action verb.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -203439,6 +203445,7 @@
       }
     },
     "feed.badge.plan": {
+      "comment": "Agent planning-mode badge, not a subscription tier.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -204442,6 +204449,7 @@
       }
     },
     "feed.buttonDebug.kind.ghost": {
+      "comment": "Button style with a transparent background, not the ghost mascot.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -207510,6 +207518,7 @@
       }
     },
     "feed.buttonDebug.style.solid": {
+      "comment": "Filled button style, not the Solid JavaScript framework.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -317239,6 +317248,7 @@
       }
     },
     "settings.cloudMachines.plan.title": {
+      "comment": "Billing subscription tier, not an agent's implementation plan.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -417889,6 +417899,7 @@
       }
     },
     "simulator.location.mode.run": {
+      "comment": "Simulated movement activity: running or jogging, not executing a command.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -420578,6 +420589,7 @@
       }
     },
     "simulator.status.streaming": {
+      "comment": "Simulator video is streaming live.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -441034,6 +441046,7 @@
       }
     },
     "surfaceResumeApproval.runPrompt.run": {
+      "comment": "Action button that executes the approved command, not a movement activity.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -476169,6 +476182,7 @@
       }
     },
     "cloudTree.terminal.badge.detached": {
+      "comment": "Terminal has no viewing tab. It may still be running and connected; this does not mean a network disconnection.",
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -483455,6 +483469,7 @@
       }
     },
     "debug.splitButtonLayout.padding.leading": {
+      "comment": "Padding on the leading horizontal edge in the interface's text direction.",
       "extractionState": "manual",
       "localizations": {
         "en": {
