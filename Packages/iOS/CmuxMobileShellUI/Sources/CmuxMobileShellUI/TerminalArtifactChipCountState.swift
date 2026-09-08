@@ -55,6 +55,11 @@ struct TerminalArtifactChipCountState: Sendable {
     private var stateGeneration: UInt64 = 0
     private var inFlight: Request?
     private var trailing: Pending?
+    /// A count-only scan is keyed by the visible count that caused it. The
+    /// viewport snapshot can change on every render-grid frame while the
+    /// artifact count stays the same; issuing another session RPC for those
+    /// snapshots needlessly competes with terminal input and output traffic.
+    private var lastRequestedLocalCount: Int?
     private var consecutiveRearmCount = 0
     /// Last successful gallery total (or positive legacy session total), held
     /// across transient scan failures so
@@ -73,6 +78,7 @@ struct TerminalArtifactChipCountState: Sendable {
         stateGeneration &+= 1
         inFlight = nil
         trailing = nil
+        lastRequestedLocalCount = nil
         consecutiveRearmCount = 0
         lastAuthoritativeTotal = nil
         lastAuthoritativeSessionID = nil
@@ -92,6 +98,18 @@ struct TerminalArtifactChipCountState: Sendable {
             surfaceGeneration: surfaceGeneration
         )
         let pending = Pending(surfaceGeneration: surfaceGeneration, localCount: localCount)
+        if lastRequestedLocalCount == localCount {
+            // Keep the chip's local observation current, but do not re-open
+            // the count RPC until the visible count changes. If a different
+            // count was queued while the previous request was in flight, the
+            // matching request already represents the latest observable
+            // state, so its trailing scan can be dropped as well.
+            if trailing?.localCount == localCount {
+                trailing = nil
+            }
+            return .provisionalReport(provisional)
+        }
+        lastRequestedLocalCount = localCount
         guard inFlight == nil else {
             trailing = pending
             return .provisionalReport(provisional)
@@ -174,7 +192,8 @@ struct TerminalArtifactChipCountState: Sendable {
 
         if let trailing {
             self.trailing = nil
-            if trailing.surfaceGeneration == currentSurfaceGeneration {
+            if trailing.localCount != request.localCount,
+               trailing.surfaceGeneration == currentSurfaceGeneration {
                 let nextRequest = makeRequest(trailing)
                 inFlight = nextRequest
                 return Completion(outcome: outcome, nextRequest: nextRequest)
