@@ -97,13 +97,13 @@ actor MobileTerminalLaneCoordinator {
 
     private static let maximumOpenAttempts = 3
 
-    private let provider: MobileTerminalLaneProvider
+    private let provider: MobileTerminalLaneProvider?
     private let inputOnlyProvider: MobileTerminalLaneProvider?
     private var entriesByKey: [LaneKey: Entry] = [:]
     private var focusedKeyBySurfaceID: [String: LaneKey] = [:]
 
     init(
-        provider: @escaping MobileTerminalLaneProvider,
+        provider: MobileTerminalLaneProvider?,
         inputOnlyProvider: MobileTerminalLaneProvider? = nil
     ) {
         self.provider = provider
@@ -232,9 +232,17 @@ actor MobileTerminalLaneCoordinator {
                 ? nil
                 : await configuration.cursor()
             do {
-                let laneProvider = configuration.mode == .inputOnly
-                    ? (inputOnlyProvider ?? provider)
-                    : provider
+                let laneProvider: MobileTerminalLaneProvider?
+                switch configuration.mode {
+                case .output:
+                    laneProvider = provider
+                case .inputOnly:
+                    laneProvider = inputOnlyProvider ?? provider
+                }
+                guard let laneProvider else {
+                    await markFailed(key: key, id: id)
+                    return
+                }
                 let lane = try await laneProvider(
                     configuration.request,
                     configuration.surfaceID,

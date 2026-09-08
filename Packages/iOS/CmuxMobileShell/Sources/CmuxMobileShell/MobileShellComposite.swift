@@ -1978,7 +1978,8 @@ public final class MobileShellComposite: MobileTerminalOutputSinking {
         self.terminalOutputStreamTokensBySurfaceID = [:]
         self.terminalOutputConsumerOwnerIDsBySurfaceID = [:]
         self.terminalOutputQueuesBySurfaceID = [:]
-        if let terminalLaneProvider = runtime?.terminalLaneProvider {
+        if let terminalLaneProvider = runtime?.terminalLaneProvider
+            ?? runtime?.terminalInputLaneProvider {
             self.terminalLaneCoordinator = MobileTerminalLaneCoordinator(
                 provider: terminalLaneProvider,
                 inputOnlyProvider: runtime?.terminalInputLaneProvider

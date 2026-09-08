@@ -469,12 +469,8 @@ final class MobileTerminalRenderObserver {
         // the resolver caches in that state as well, otherwise the next live
         // capture resolves missing theme fields from a different source and
         // promotes the delta to a full frame.
-        if let terminalTheme = frame.terminalTheme {
-            terminalThemesBySurfaceID[surfaceID] = terminalTheme
-        }
-        if let terminalConfigTheme = frame.terminalConfigTheme {
-            terminalConfigThemesBySurfaceID[surfaceID] = terminalConfigTheme
-        }
+        terminalThemesBySurfaceID[surfaceID] = frame.terminalTheme
+        terminalConfigThemesBySurfaceID[surfaceID] = frame.terminalConfigTheme
     }
 
     #if DEBUG
