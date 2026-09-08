@@ -135,6 +135,7 @@ describe("dashboard account menu", () => {
       { id: "team-3", name: "Side project", personal: false, permissions: { use: true, manageAccounts: false } },
     ];
     teamScope = { status: "ready", teams, selected: teams[1], switchTeam: () => undefined };
+    resolvedTheme = "dark";
     const html = renderToStaticMarkup(<DashboardAccountMenu />);
     teamScope = { status: "unavailable" };
 
