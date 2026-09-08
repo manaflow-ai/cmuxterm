@@ -269,6 +269,47 @@ struct PaneFocusFindResponderTests {
         #expect(window.firstResponder === editor)
     }
 
+    /// Find dismissal must not arm a deferred preview-focus lease after a
+    /// failed direct focus attempt.
+    @Test
+    func testMarkdownHideFindDoesNotReclaimFocusAfterRejectedPreviewFocus() throws {
+        let directoryURL = try makeMarkdownFixture()
+        let panel = MarkdownPanel(
+            workspaceId: UUID(), filePath: directoryURL.appendingPathComponent("README.md").path
+        )
+        let window = PaneFocusTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 240),
+            styleMask: [.titled, .closable], backing: .buffered, defer: false
+        )
+        defer {
+            window.orderOut(nil)
+            window.close()
+            panel.close()
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        let webView = attachPreview(to: panel, in: window)
+        window.rejectedFirstResponder = webView
+        panel.startFind()
+        let searchState = try #require(panel.searchState)
+        let findField = FindSelectionTrackingTextField(
+            frame: NSRect(x: 20, y: 120, width: 180, height: 24)
+        )
+        findField.cmuxSelectionOwner = searchState
+        window.contentView?.addSubview(findField)
+        let foreignEditor = NSTextView(frame: NSRect(x: 0, y: 0, width: 180, height: 80))
+        window.contentView?.addSubview(foreignEditor)
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(findField))
+
+        panel.hideFind()
+        #expect(window.rejectedFocusAttempts == 1)
+        window.rejectedFirstResponder = nil
+        #expect(window.makeFirstResponder(foreignEditor))
+        panel.replayPendingPreviewFocusAfterWindowAttach()
+
+        #expect(window.firstResponder === foreignEditor)
+    }
+
     private func makeMarkdownFixture() throws -> URL {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-find-dismiss-\(UUID().uuidString)", isDirectory: true)
