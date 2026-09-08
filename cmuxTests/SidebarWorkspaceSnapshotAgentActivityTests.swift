@@ -407,6 +407,96 @@ struct SidebarWorkspaceAgentActivityTests {
         #expect(activity.elapsedText(at: Date(timeIntervalSince1970: 700)) == "10m")
     }
 
+    @Test(arguments: [
+        AgentHibernationLifecycleState.running, .needsInput, .idle, .unknown,
+    ], [false, true])
+    func pidOnlyRuntimeRetainsSameGenerationHookLifecycle(
+        lifecycle: AgentHibernationLifecycleState,
+        hookFirst: Bool
+    ) {
+        let runtime = Self.evidence(
+            lifecycle: nil,
+            startedAt: nil,
+            hasLiveLifecycleSignal: false
+        )
+        let hook = Self.evidence(
+            lifecycle: lifecycle,
+            startedAt: 100,
+            isRuntimeBound: false,
+            hasLiveLifecycleSignal: false,
+            isHookBacked: true
+        )
+        let activity = SidebarWorkspaceAgentActivity.resolve(
+            evidence: hookFirst ? [hook, runtime] : [runtime, hook]
+        )
+        let expectedState: SidebarAgentResolvedState = switch lifecycle {
+        case .running: .running
+        case .needsInput: .needsInput
+        case .idle: .idle
+        case .unknown: .unknown
+        }
+
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == expectedState)
+        #expect(activity.agents.first?.startedAt == 100)
+        if lifecycle == .running {
+            #expect(activity.primaryElapsedStart == 100)
+        } else {
+            #expect(activity.primaryElapsedStart == nil)
+        }
+    }
+
+    @Test(arguments: [AgentHibernationLifecycleState.idle, .unknown], [false, true])
+    func explicitRuntimeLifecycleStillOverridesSameGenerationHook(
+        lifecycle: AgentHibernationLifecycleState,
+        hookFirst: Bool
+    ) {
+        let runtime = Self.evidence(lifecycle: lifecycle, startedAt: nil)
+        let hook = Self.evidence(
+            lifecycle: .running,
+            startedAt: 100,
+            isRuntimeBound: false,
+            hasLiveLifecycleSignal: false,
+            isHookBacked: true
+        )
+        let activity = SidebarWorkspaceAgentActivity.resolve(
+            evidence: hookFirst ? [hook, runtime] : [runtime, hook]
+        )
+        let expectedState: SidebarAgentResolvedState = lifecycle == .idle ? .idle : .unknown
+
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == expectedState)
+        #expect(activity.primaryElapsedStart == nil)
+    }
+
+    @Test(arguments: [RestorableAgentProcessLiveness.unknown, .exited], [false, true])
+    func hookLifecycleCannotOverrideUnverifiedOrExitedRuntimeProcess(
+        processLiveness: RestorableAgentProcessLiveness,
+        hookFirst: Bool
+    ) {
+        let runtime = Self.evidence(
+            lifecycle: nil,
+            startedAt: nil,
+            processLiveness: processLiveness,
+            hasExactProcessIdentity: false,
+            hasLiveLifecycleSignal: false
+        )
+        let hook = Self.evidence(
+            lifecycle: .running,
+            startedAt: 100,
+            isRuntimeBound: false,
+            hasLiveLifecycleSignal: false,
+            isHookBacked: true
+        )
+        let activity = SidebarWorkspaceAgentActivity.resolve(
+            evidence: hookFirst ? [hook, runtime] : [runtime, hook]
+        )
+
+        #expect(activity.agents.count == 1)
+        #expect(activity.primaryState == .unknown)
+        #expect(activity.primaryElapsedStart == nil)
+    }
+
     @Test
     func lifecycleOnlyRuntimeSharesTheCachedSessionGeneration() {
         let activity = SidebarWorkspaceAgentActivity.resolve(evidence: [
