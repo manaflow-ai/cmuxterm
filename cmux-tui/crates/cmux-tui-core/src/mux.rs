@@ -1041,22 +1041,6 @@ pub struct TreeDelta {
     pub workspace_revision: Option<u64>,
 }
 
-/// Result of a durable notification post. `numeric_id` is the session-local
-/// legacy id and is absent when the key replayed an earlier commit.
-#[derive(Debug, Clone)]
-pub(crate) struct DurableNotification {
-    pub(crate) value: Value,
-    pub(crate) numeric_id: Option<u64>,
-    pub(crate) revision: u64,
-    pub(crate) replayed: bool,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct NotificationAckCommit {
-    pub(crate) commit: crate::workspace_registry::ResourcePatchCommit,
-    pub(crate) acknowledged: Vec<NotificationPublicId>,
-}
-
 /// A durable client install identity: non-empty, at most 128 ASCII graphic
 /// bytes. Shared by per-client focus memory and per-client notification reads.
 pub(crate) fn validate_client_id(client_id: &str) -> anyhow::Result<()> {
@@ -1229,21 +1213,17 @@ fn agent_hook_notification(
         agent.extend(first.to_uppercase());
         agent.push_str(chars.as_str());
     }
+    // Prompt and message text is redacted before the journal accepts it, so
+    // the body is the one structural field a viewer can act on: the tool an
+    // approval is waiting on. Everything else stays empty rather than leaking
+    // a redaction marker into the notification feed.
     let normalized = ingress.payload.get("normalized");
-    let body = ["message", "question", "summary", "title"]
+    let body = ["tool_name"]
         .into_iter()
         .filter_map(|field| normalized.and_then(|value| value.get(field)).and_then(Value::as_str))
         .map(str::trim)
         .find(|text| !text.is_empty() && *text != "[redacted]")
-        .map(|text| {
-            if text.chars().count() > BODY_MAX_CHARS {
-                let mut cut = text.chars().take(BODY_MAX_CHARS).collect::<String>();
-                cut.push('\u{2026}');
-                cut
-            } else {
-                text.to_string()
-            }
-        })
+        .map(|text| text.chars().take(BODY_MAX_CHARS).collect::<String>())
         .unwrap_or_default();
     Some((format!("{agent} {verb}"), body, level))
 }
@@ -9156,8 +9136,8 @@ impl Mux {
         surface: Option<SurfaceId>,
     ) -> anyhow::Result<u64> {
         let key = format!("notify-{}", crate::workspace_registry::new_uuid_v4());
-        let posted = self.create_durable_notification(&key, title, body, level, surface)?;
-        posted.numeric_id.context("fresh notify key unexpectedly replayed")
+        self.create_durable_notification(&key, title, body, level, surface)?
+            .context("fresh notify key unexpectedly replayed")
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -9298,9 +9278,10 @@ impl Mux {
 
     /// Post a notification through the durable `notification.create` effect
     /// path under a caller-owned idempotency key. Replaying the same key
-    /// returns the committed row without posting again, so journal-driven
-    /// producers (agent hooks) and the legacy `notify` verb share one durable
-    /// ledger with the resource API and survive a daemon restart.
+    /// returns `None` without posting again, so journal-driven producers
+    /// (agent hooks) and the legacy `notify` verb share one durable ledger
+    /// with the resource API and survive a daemon restart. A fresh post
+    /// returns the session-local legacy notification id.
     pub(crate) fn create_durable_notification(
         &self,
         idempotency_key: &str,
@@ -9308,7 +9289,7 @@ impl Mux {
         body: String,
         level: NotificationLevel,
         surface: Option<SurfaceId>,
-    ) -> anyhow::Result<DurableNotification> {
+    ) -> anyhow::Result<Option<u64>> {
         const OPERATION: &str = "notification.create";
         let terminal_id = surface.and_then(|surface| {
             let state = self.state.lock().unwrap();
@@ -9326,10 +9307,8 @@ impl Mux {
             "level": level.as_str(),
             "terminal_id": terminal_id,
         });
-        let committed = |outcome: ResourceEffectOutcome, revision: u64| match outcome {
-            ResourceEffectOutcome::Success(value) => {
-                Ok(DurableNotification { value, numeric_id: None, revision, replayed: true })
-            }
+        let committed = |outcome: ResourceEffectOutcome| match outcome {
+            ResourceEffectOutcome::Success(_) => Ok(None),
             ResourceEffectOutcome::Failure(error) => Err(anyhow::Error::new(error)),
         };
         let preparation = match self.lookup_resource_effect(idempotency_key, OPERATION, &fingerprint)? {
@@ -9354,8 +9333,8 @@ impl Mux {
             }
         };
         let intent = match preparation {
-            ResourceEffectPreparation::Committed { outcome, revision } => {
-                return committed(outcome, revision);
+            ResourceEffectPreparation::Committed { outcome, .. } => {
+                return committed(outcome);
             }
             ResourceEffectPreparation::Indeterminate => {
                 anyhow::bail!("notification effect {idempotency_key:?} is indeterminate")
@@ -9402,20 +9381,17 @@ impl Mux {
             "id":notification_id,
             "value":value,
         }]);
-        let revision = match self.commit_resource_effect(
+        if let Err(error) = self.commit_resource_effect(
             idempotency_key,
             OPERATION,
             &fingerprint,
             &outcome,
             Some(&deltas),
         ) {
-            Ok(revision) => revision,
-            Err(error) => {
-                let _ = self.mark_resource_effect_indeterminate(idempotency_key);
-                return Err(error.context("notification effect commit failed"));
-            }
-        };
-        Ok(DurableNotification { value, numeric_id: Some(numeric_id), revision, replayed: false })
+            let _ = self.mark_resource_effect_indeterminate(idempotency_key);
+            return Err(error.context("notification effect commit failed"));
+        }
+        Ok(Some(numeric_id))
     }
 
     /// Record that `client_id` read `notifications`. Unknown ids are reported,
@@ -9429,7 +9405,7 @@ impl Mux {
         expected_revision: Option<u64>,
         client_id: &str,
         notifications: &[NotificationPublicId],
-    ) -> anyhow::Result<NotificationAckCommit> {
+    ) -> anyhow::Result<ResourcePatchCommit> {
         const OPERATION: &str = "notification.ack";
         validate_client_id(client_id)?;
         let fingerprint = serde_json::json!({
@@ -9439,7 +9415,7 @@ impl Mux {
         });
         let mut registry = self.workspace_registry.lock().unwrap();
         if let Some(replay) = registry.replay_resource_patch(mutation, OPERATION, &fingerprint)? {
-            return Ok(NotificationAckCommit { commit: replay, acknowledged: Vec::new() });
+            return Ok(replay);
         }
         let session_id = registry.session_id().clone();
         let retained: Vec<NotificationPublicId>;
@@ -9503,7 +9479,7 @@ impl Mux {
         if !commit.replayed {
             self.publish_resource_event();
         }
-        Ok(NotificationAckCommit { commit, acknowledged })
+        Ok(commit)
     }
 
     pub fn report_agent(
@@ -22994,7 +22970,7 @@ mod tests {
         mux.apply_agent_hook_record(
             &ingress(
                 "PermissionRequest",
-                serde_json::json!({"message":"Allow Bash(rm -rf build)?"}),
+                serde_json::json!({"tool_name":"Bash","message":"Allow Bash(rm -rf build)?"}),
             ),
             3,
         )
@@ -23002,7 +22978,7 @@ mod tests {
         let posted = mux.resource_notifications(16);
         assert_eq!(posted.len(), 1);
         assert_eq!(posted[0].title, "Claude needs approval");
-        assert_eq!(posted[0].body, "Allow Bash(rm -rf build)?");
+        assert_eq!(posted[0].body, "Bash", "redacted prompt text must not leak; tool name may");
         assert_eq!(posted[0].level, NotificationLevel::Warning);
         assert_eq!(posted[0].terminal_id.as_ref(), Some(&terminal_id));
         assert!(mux.surface_notification(surface_id).is_some_and(|marker| marker.unread));
@@ -23051,12 +23027,12 @@ mod tests {
         let epoch_before = mux.resource_event_epoch();
 
         let mutation = WorkspaceMutation::new("ack-a-1", "test").unwrap();
-        let ack = mux.ack_notifications(&mutation, None, "mac-a", &[oldest.clone()]).unwrap();
-        assert!(!ack.commit.replayed);
-        assert_eq!(ack.acknowledged, vec![oldest.clone()]);
-        assert_eq!(ack.commit.result["acknowledged"], serde_json::json!([oldest]));
-        assert_eq!(ack.commit.result["unknown"], serde_json::json!([]));
-        assert_eq!(ack.commit.revision, revision_before + 1);
+        let ack =
+            mux.ack_notifications(&mutation, None, "mac-a", std::slice::from_ref(&oldest)).unwrap();
+        assert!(!ack.replayed);
+        assert_eq!(ack.result["acknowledged"], serde_json::json!([oldest]));
+        assert_eq!(ack.result["unknown"], serde_json::json!([]));
+        assert_eq!(ack.revision, revision_before + 1);
         assert_eq!(mux.with_state(|state| state.resource_revision), revision_before + 1);
         assert!(mux.resource_event_epoch() > epoch_before, "subscribers must wake");
         assert_eq!(mux.notification_read_by(&oldest), vec!["mac-a".to_string()]);
@@ -23065,9 +23041,10 @@ mod tests {
         assert!(mux.surface_notification(surface_id).is_some_and(|marker| marker.unread));
 
         // Same key, same input: replay without a new revision or a new row.
-        let replay = mux.ack_notifications(&mutation, None, "mac-a", &[oldest.clone()]).unwrap();
-        assert!(replay.commit.replayed);
-        assert_eq!(replay.commit.revision, revision_before + 1);
+        let replay =
+            mux.ack_notifications(&mutation, None, "mac-a", std::slice::from_ref(&oldest)).unwrap();
+        assert!(replay.replayed);
+        assert_eq!(replay.revision, revision_before + 1);
         assert_eq!(mux.with_state(|state| state.resource_revision), revision_before + 1);
 
         // A second client keeps its own state and sees the merged set.
@@ -23081,8 +23058,8 @@ mod tests {
                 &[newest.clone(), oldest.clone(), unknown.clone(), oldest.clone()],
             )
             .unwrap();
-        assert_eq!(ack_b.acknowledged, vec![newest.clone(), oldest.clone()]);
-        assert_eq!(ack_b.commit.result["unknown"], serde_json::json!([unknown]));
+        assert_eq!(ack_b.result["acknowledged"], serde_json::json!([newest, oldest]));
+        assert_eq!(ack_b.result["unknown"], serde_json::json!([unknown]));
         assert_eq!(
             mux.notification_read_by(&oldest),
             vec!["mac-a".to_string(), "mac-b".to_string()]
@@ -23135,7 +23112,7 @@ mod tests {
             .unwrap();
         let kept = mux.resource_notifications(1)[0].id.clone();
         let mutation = WorkspaceMutation::new("ack-restart", "test").unwrap();
-        mux.ack_notifications(&mutation, None, "mac-a", &[kept.clone()]).unwrap();
+        mux.ack_notifications(&mutation, None, "mac-a", std::slice::from_ref(&kept)).unwrap();
         drop(mux);
 
         let mux = open();
@@ -23150,8 +23127,9 @@ mod tests {
             .unwrap();
         assert_eq!(row["read_by"], serde_json::json!(["mac-a"]));
         // Replay across restart still returns the original commit.
-        let replay = mux.ack_notifications(&mutation, None, "mac-a", &[kept.clone()]).unwrap();
-        assert!(replay.commit.replayed);
+        let replay =
+            mux.ack_notifications(&mutation, None, "mac-a", std::slice::from_ref(&kept)).unwrap();
+        assert!(replay.replayed);
 
         // Evict `kept` from the bounded ledger, then acknowledge something
         // else: the stale read row must be gone from memory and from disk.
@@ -23171,19 +23149,14 @@ mod tests {
         assert!(mux.notification_read_by(&kept).is_empty());
         let newest = mux.resource_notifications(1)[0].id.clone();
         let prune = WorkspaceMutation::new("ack-prune", "test").unwrap();
-        mux.ack_notifications(&prune, None, "mac-a", &[newest.clone()]).unwrap();
-        let stale_rows: i64 = mux
+        mux.ack_notifications(&prune, None, "mac-a", std::slice::from_ref(&newest)).unwrap();
+        let stale_rows = mux
             .workspace_registry
             .lock()
             .unwrap()
-            .connection
-            .query_row(
-                "SELECT COUNT(*) FROM resource_notification_reads WHERE notification_id = ?1",
-                [kept.as_str()],
-                |row| row.get(0),
-            )
+            .durable_notification_read_clients(kept.as_str())
             .unwrap();
-        assert_eq!(stale_rows, 0);
+        assert!(stale_rows.is_empty(), "evicted notification kept read rows: {stale_rows:?}");
         drop(mux);
         let mux = open();
         assert!(mux.notification_read_by(&kept).is_empty());
@@ -23262,7 +23235,7 @@ mod tests {
                 7 => {
                     if let Some((mutation, client, ids)) = &last_ack {
                         let replay = mux.ack_notifications(mutation, None, client, ids).unwrap();
-                        assert!(replay.commit.replayed, "step {step}: replay must not re-commit");
+                        assert!(replay.replayed, "step {step}: replay must not re-commit");
                     }
                 }
                 8 => {

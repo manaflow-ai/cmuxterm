@@ -89,6 +89,11 @@ struct StoredNotification {
     terminal_id: Option<TerminalPublicId>,
     created_at_ms: WireDecimal,
     unread: bool,
+    /// Read marks at commit time are always empty; the durable truth is the
+    /// `resource_notification_reads` table, so this field is decoded and
+    /// ignored.
+    #[serde(default)]
+    read_by: Vec<String>,
     #[serde(default)]
     extra: Option<HashMap<String, Value>>,
 }
@@ -287,6 +292,7 @@ impl WorkspaceRegistry {
                 self.session_id
             );
             let _ = stored.extra;
+            let _ = stored.read_by;
             let read_by = reads.remove(stored.id.as_str()).unwrap_or_default();
             notifications.push(RegistryNotificationProjection {
                 id: stored.id,
@@ -303,6 +309,15 @@ impl WorkspaceRegistry {
         }
         notifications.reverse();
         Ok(notifications)
+    }
+
+    /// Read marks stored for one notification, for tests that verify pruning.
+    #[cfg(test)]
+    pub(crate) fn durable_notification_read_clients(
+        &self,
+        notification_id: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        Ok(self.durable_notification_reads()?.remove(notification_id).unwrap_or_default())
     }
 
     /// Per-client read marks keyed by notification id, each list sorted and

@@ -1414,7 +1414,7 @@ fn ack_notifications(mux: &Mux, request: ParsedResourceRequest) -> Result<Value,
             )
         })
         .collect::<Result<Vec<_>, ResourceError>>()?;
-    let mutation = WorkspaceMutation::new(
+    let mutation = crate::workspace_registry::WorkspaceMutation::new(
         request
             .envelope
             .idempotency_key
@@ -1426,7 +1426,7 @@ fn ack_notifications(mux: &Mux, request: ParsedResourceRequest) -> Result<Value,
     let ack = mux
         .ack_notifications(&mutation, expected_revision(&request.fields)?, &client_id, &notifications)
         .map_err(resource_operation_error)?;
-    mutation_result(mux, ack.commit.result, ack.commit.revision, ack.commit.replayed)
+    mutation_result(mux, ack.result, ack.revision, ack.replayed)
 }
 
 fn indeterminate_error(idempotency_key: &str, operation: &str) -> ResourceError {
