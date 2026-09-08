@@ -46,7 +46,7 @@ struct SessionEntryResumeCoordinator {
     }
 
     /// Returns the in-pane target for an indexed session, if one is currently
-    /// represented by a real surface in the tab manager.
+    /// running in a real surface in the tab manager.
     ///
     /// Keeping target discovery separate from focus mutation lets the Vault row
     /// expose an honest enabled/disabled state without mutating UI state while
@@ -55,12 +55,10 @@ struct SessionEntryResumeCoordinator {
         for entry: SessionEntry,
         tabManager: TabManager
     ) -> (workspaceID: UUID, surfaceID: UUID)? {
-        // Prefer the tab manager's authoritative surface snapshots. This
-        // catches an open-but-idle session even while the process index is
-        // between refreshes.
         for workspace in tabManager.tabs {
             if let panel = workspace.restoredAgentSnapshotsByPanelId.first(where: { panelID, snapshot in
                 workspace.panels[panelID] != nil
+                    && workspace.panelShellActivityStates[panelID] == .commandRunning
                     && snapshot.kind.rawValue == entry.agent.rawValue
                     && ManagedAgentSessionIdentity.sessionIDsMatch(
                         kind: entry.agent.rawValue,
@@ -92,12 +90,13 @@ struct SessionEntryResumeCoordinator {
         return (match.0.workspaceId, match.0.panelId)
     }
 
-    /// Returns managed-session identities currently represented by real panes.
+    /// Returns managed-session identities whose commands are running in real panes.
     func inPaneSessionKeys(tabManager: TabManager) -> Set<String> {
         var keys: Set<String> = []
         for workspace in tabManager.tabs {
             for (panelID, snapshot) in workspace.restoredAgentSnapshotsByPanelId
-                where workspace.panels[panelID] != nil {
+                where workspace.panels[panelID] != nil
+                    && workspace.panelShellActivityStates[panelID] == .commandRunning {
                 keys.insert(
                     VaultLiveSessionKeys.key(
                         kind: snapshot.kind.rawValue,
