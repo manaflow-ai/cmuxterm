@@ -93,11 +93,46 @@ struct OwlNavigationHistoryState: Equatable, Sendable {
 
     mutating func commitTraversal(to url: URL, offset: Int) {
         let targetIndex = currentIndex + offset
-        guard entries.indices.contains(targetIndex), entries[targetIndex] == url else {
+        guard entries.indices.contains(targetIndex),
+              Self.matches(entries[targetIndex], url) else {
             commitTraversal(to: url)
             return
         }
         currentIndex = targetIndex
+    }
+
+    private static func matches(_ lhs: URL, _ rhs: URL) -> Bool {
+        if lhs.absoluteString == rhs.absoluteString { return true }
+        guard lhs.scheme?.caseInsensitiveCompare(rhs.scheme ?? "") == .orderedSame,
+              lhs.host?.caseInsensitiveCompare(rhs.host ?? "") == .orderedSame,
+              effectivePort(for: lhs) == effectivePort(for: rhs),
+              lhs.user == rhs.user,
+              lhs.password == rhs.password,
+              navigationPath(for: lhs) == navigationPath(for: rhs),
+              lhs.query == rhs.query,
+              lhs.fragment == rhs.fragment else {
+            return false
+        }
+        return true
+    }
+
+    private static func navigationPath(for url: URL) -> String {
+        guard !url.path.isEmpty else {
+            switch url.scheme?.lowercased() {
+            case "http", "https": return "/"
+            default: return url.path
+            }
+        }
+        return url.path
+    }
+
+    private static func effectivePort(for url: URL) -> Int? {
+        if let port = url.port { return port }
+        switch url.scheme?.lowercased() {
+        case "http": return 80
+        case "https": return 443
+        default: return nil
+        }
     }
 
     mutating func commitReload() {

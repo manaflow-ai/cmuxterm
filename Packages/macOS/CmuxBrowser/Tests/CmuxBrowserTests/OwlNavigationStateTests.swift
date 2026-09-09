@@ -56,6 +56,21 @@ struct OwlNavigationStateTests {
         #expect(!history.canGoForward)
     }
 
+    @Test("OWL traversal treats an HTTP origin slash as equivalent")
+    func traversalNormalizesHTTPOriginSlash() {
+        let origin = URL(string: "https://one.example")!
+        let second = URL(string: "https://two.example/path")!
+        var history = OwlNavigationHistoryState(initialURL: origin)
+        history.commitDestination(second)
+
+        history.commitTraversal(
+            to: URL(string: "https://one.example/")!,
+            offset: -1
+        )
+        #expect(!history.canGoBack)
+        #expect(history.canGoForward)
+    }
+
     @Test("OWL title-only events cannot complete a navigation")
     func titleOnlyEventsDoNotComplete() {
         #expect(!OwlNavigationCompletionPredicate.accepts(
