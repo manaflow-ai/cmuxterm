@@ -241,14 +241,20 @@ extension Array where Element == CuratedSettingEntry {
                 id: "theme",
                 title: String(localized: "settings.chrome.theme", defaultValue: "Chrome Theme"),
                 paths: ["chrome.theme"],
-                synonyms: "chrome.theme chrome palette app chrome sidebar tab strip agent panel notification colors catppuccin gruvbox solarized light dark system"
+                synonyms: String(
+                    localized: "settings.search.alias.setting.chrome.theme",
+                    defaultValue: "chrome.theme chrome palette app chrome sidebar tab strip agent panel notification colors catppuccin gruvbox solarized light dark system"
+                )
             ),
             .init(
                 section: .chrome,
                 id: "token-overrides",
                 title: String(localized: "settings.chrome.overrides.title", defaultValue: "Token overrides"),
                 paths: ["chrome.overrides"],
-                synonyms: "chrome.overrides token color accent surface text border status agent hex custom color override"
+                synonyms: String(
+                    localized: "settings.search.alias.setting.chrome.token-overrides",
+                    defaultValue: "chrome.overrides token color accent surface text border status agent hex custom color override"
+                )
             ),
             .init(
                 section: .sidebarAppearance,

@@ -37,12 +37,9 @@ struct AgentChatThemePayload: Codable, Equatable {
         case source
     }
 
-    init(config: GhosttyConfig, chromePalette: ChromePalette? = nil) {
+    init(config: GhosttyConfig) {
         let terminalTheme = TerminalTheme(ghosttyConfig: config)
-        let webTheme = AgentSessionWebTheme.resolve(
-            appearance: .fromConfig(config),
-            chromePalette: chromePalette
-        )
+        let webTheme = AgentSessionWebTheme.resolve(appearance: .fromConfig(config))
         let trimmedFontFamily = config.fontFamily.trimmingCharacters(in: .whitespacesAndNewlines)
         let fontSize = Double(config.fontSize)
         background = terminalTheme.background
@@ -174,10 +171,7 @@ enum AgentChatThemeSync {
             }
         )
         config.backgroundBlur = GhosttyApp.shared.defaultBackgroundBlur
-        return AgentChatThemePayload(
-            config: config,
-            chromePalette: AppDelegate.shared?.chromePaletteSnapshot()
-        )
+        return AgentChatThemePayload(config: config)
     }
 
     static func themeURL(for baseURL: URL) -> URL {

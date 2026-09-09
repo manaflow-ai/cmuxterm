@@ -1,5 +1,4 @@
 import AppKit
-import CmuxSettings
 import Foundation
 import Testing
 
@@ -361,12 +360,7 @@ struct CmuxAgentChatConfigTests {
         var config = GhosttyConfig()
         config.backgroundColor = try #require(NSColor(hex: "#101010"))
         config.foregroundColor = try #require(NSColor(hex: "#F0F0F0"))
-        let lightChromePalette = ChromePalette.builtIn(theme: .default, colorScheme: .light)
-
-        let payload = AgentChatThemePayload(
-            config: config,
-            chromePalette: lightChromePalette
-        )
+        let payload = AgentChatThemePayload(config: config)
 
         #expect(payload.background == "#101010")
         #expect(payload.foreground == "#F0F0F0")
