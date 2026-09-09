@@ -19,13 +19,13 @@ final class VaultHistoryEventLog {
     private var pendingRecordCount = 0
     /// Uncommitted window operations cannot publish an open or any child event.
     private var pendingWindowEvents: [UUID: [VaultHistoryEvent]] = [:]
-    /// A retained window can finish construction before startup recording is active.
-    /// Keep its committed events until the lifecycle gate opens instead of dropping them.
-    private var pendingLaunchCommittedEvents: [VaultHistoryEvent] = []
+    /// A retained window can commit while launch or restore suppresses publication.
+    /// Keep its previously captured snapshots until recording opens or termination drains them.
+    private var pendingCommittedEvents: [VaultHistoryEvent] = []
 
     /// Whether accepted records are still queued or being persisted.
     var hasPendingRecords: Bool {
-        pendingRecordCount > 0 || !pendingLaunchCommittedEvents.isEmpty
+        pendingRecordCount > 0 || !pendingCommittedEvents.isEmpty
     }
 
     init(
@@ -39,8 +39,8 @@ final class VaultHistoryEventLog {
     func transition(to phase: VaultHistoryRecordingPhase) {
         self.phase = phase
         guard phase == .active || phase == .terminating else { return }
-        let events = pendingLaunchCommittedEvents
-        pendingLaunchCommittedEvents.removeAll(keepingCapacity: true)
+        let events = pendingCommittedEvents
+        pendingCommittedEvents.removeAll(keepingCapacity: true)
         for event in events {
             // These snapshots were accepted when their windows committed.
             // Termination closes the gate to new events, not to this queue.
@@ -49,6 +49,9 @@ final class VaultHistoryEventLog {
     }
 
     func record(_ event: VaultHistoryEvent) {
+        // Transactions may outlive the phase that began them. Suppress new
+        // restore/teardown events without discarding their earlier snapshots.
+        guard phase == .launching || phase == .active else { return }
         if let windowId = event.subject.windowId, pendingWindowEvents[windowId] != nil {
             pendingWindowEvents[windowId, default: []].append(event)
             return
@@ -100,11 +103,12 @@ final class VaultHistoryEventLog {
             }
             return true
         }
-        if phase == .launching {
-            pendingLaunchCommittedEvents.append(contentsOf: retainedEvents)
-        } else {
+        switch phase {
+        case .launching, .restoring:
+            pendingCommittedEvents.append(contentsOf: retainedEvents)
+        case .active, .terminating:
             for event in retainedEvents {
-                record(event)
+                enqueueAcceptedRecord(event)
             }
         }
     }
@@ -112,7 +116,7 @@ final class VaultHistoryEventLog {
     /// Failed bootstrap operations never enter the append-only store.
     func discardWindowCreation(windowId: UUID) {
         pendingWindowEvents.removeValue(forKey: windowId)
-        pendingLaunchCommittedEvents.removeAll { $0.subject.windowId == windowId }
+        pendingCommittedEvents.removeAll { $0.subject.windowId == windowId }
     }
 
     func recentEvents(limit: Int = Int.max) async -> [VaultHistoryEvent] {
@@ -120,7 +124,7 @@ final class VaultHistoryEventLog {
     }
 
     /// Drains all scheduled appends, including ones accepted during suspension.
-    /// Launch commits stay staged until recording becomes active or terminates.
+    /// Launch/restore commits stay staged until recording becomes active or terminates.
     func flushPendingRecords() async {
         while let task = pendingRecordTask {
             await task.value
