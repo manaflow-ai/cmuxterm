@@ -106,6 +106,7 @@ final class VaultHistoryEventLog {
     /// Failed bootstrap operations never enter the append-only store.
     func discardWindowCreation(windowId: UUID) {
         pendingWindowEvents.removeValue(forKey: windowId)
+        pendingLaunchCommittedEvents.removeAll { $0.subject.windowId == windowId }
     }
 
     func recentEvents(limit: Int = Int.max) async -> [VaultHistoryEvent] {

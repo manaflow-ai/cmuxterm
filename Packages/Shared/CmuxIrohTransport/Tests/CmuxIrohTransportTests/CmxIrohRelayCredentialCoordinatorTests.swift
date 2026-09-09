@@ -133,6 +133,7 @@ struct CmxIrohRelayCredentialCoordinatorTests {
         let endpoint = TestIrohEndpoint(identity: fixture.identity)
         let supervisor = try await fixture.activeSupervisor(endpoint: endpoint)
         let clock = TestRelayClock(now: fixture.now)
+        var clockEvents = clock.events().makeAsyncIterator()
         let persistence = TestRelayCredentialPersistenceGate()
         let coordinator = CmxIrohRelayCredentialCoordinator(
             supervisor: supervisor,
@@ -154,7 +155,7 @@ struct CmxIrohRelayCredentialCoordinatorTests {
             )
         }
         await persistence.waitUntilStarted()
-        for _ in 0 ..< 20 { await Task.yield() }
+        #expect(await clockEvents.next() != nil, "Expected refresh scheduling while persistence is blocked")
 
         #expect(clock.observedSleepDeadlines() == [fixture.refreshAfter])
         #expect(await endpoint.observedRelayUpdates().count == 1)
