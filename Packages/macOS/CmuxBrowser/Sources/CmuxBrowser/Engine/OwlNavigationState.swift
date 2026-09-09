@@ -91,6 +91,15 @@ struct OwlNavigationHistoryState: Equatable, Sendable {
         currentIndex = index
     }
 
+    mutating func commitTraversal(to url: URL, offset: Int) {
+        let targetIndex = currentIndex + offset
+        guard entries.indices.contains(targetIndex), entries[targetIndex] == url else {
+            commitTraversal(to: url)
+            return
+        }
+        currentIndex = targetIndex
+    }
+
     mutating func commitReload() {
         // A reload keeps the current history entry and only changes readiness.
     }

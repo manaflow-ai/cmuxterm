@@ -41,6 +41,21 @@ struct OwlNavigationStateTests {
         #expect(history.canGoForward)
     }
 
+    @Test("OWL traversal preserves the cursor when URLs repeat")
+    func traversalPreservesDuplicateURLCursor() {
+        let first = URL(string: "https://one.example")!
+        let second = URL(string: "https://two.example")!
+        var history = OwlNavigationHistoryState(initialURL: first)
+        history.commitDestination(second)
+        history.commitDestination(first)
+
+        history.commitTraversal(to: second, offset: -1)
+        #expect(history.canGoBack)
+        #expect(history.canGoForward)
+        history.commitTraversal(to: first, offset: 1)
+        #expect(!history.canGoForward)
+    }
+
     @Test("OWL title-only events cannot complete a navigation")
     func titleOnlyEventsDoNotComplete() {
         #expect(!OwlNavigationCompletionPredicate.accepts(

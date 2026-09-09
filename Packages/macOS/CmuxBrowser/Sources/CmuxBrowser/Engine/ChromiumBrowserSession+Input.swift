@@ -9,14 +9,18 @@ extension ChromiumBrowserSession {
             let pendingIntent = owlNavigationIntent
             let wasLoading = isLoading
             let stoppedURL: URL?
+            let stoppedDocumentEpoch: Double?
             do {
-                let raw = try owlRuntime.evaluate("(window.stop(), String(location.href || ''))")
+                let raw = try owlRuntime.evaluate("(window.stop(), {href: String(location.href || ''), documentEpoch: Number(performance.timeOrigin || 0)})")
                 if let data = raw.data(using: .utf8),
                    let object = try? JSONSerialization.jsonObject(with: data),
-                   let href = CDPValue(any: object).stringValue {
+                   let object = object as? [String: Any],
+                   let href = object["href"] as? String {
                     stoppedURL = URL(string: href)
+                    stoppedDocumentEpoch = CDPValue(any: object["documentEpoch"]).doubleValue
                 } else {
                     stoppedURL = nil
+                    stoppedDocumentEpoch = nil
                 }
             } catch {
                 failOwlNavigation()
@@ -27,16 +31,19 @@ extension ChromiumBrowserSession {
             owlNavigationIntent = nil
             owlNavigationSawLoadingEvent = false
             owlNavigationBaselineDocumentEpoch = nil
+            owlCurrentDocumentEpoch = stoppedDocumentEpoch
             if let stoppedURL {
                 if let pendingIntent {
                     switch pendingIntent {
                     case .destination where !Self.matches(url: currentURL, target: stoppedURL):
                         owlHistory?.commitDestination(stoppedURL)
-                    case .back, .forward:
-                        owlHistory?.commitTraversal(to: stoppedURL)
+                    case .back(let expectedURL) where Self.matches(url: stoppedURL, target: expectedURL):
+                        owlHistory?.commitTraversal(to: stoppedURL, offset: -1)
+                    case .forward(let expectedURL) where Self.matches(url: stoppedURL, target: expectedURL):
+                        owlHistory?.commitTraversal(to: stoppedURL, offset: 1)
                     case .reload:
                         owlHistory?.commitReload()
-                    case .destination:
+                    case .back, .forward, .destination:
                         break
                     }
                     syncOwlHistorySnapshot()

@@ -290,8 +290,10 @@ extension ChromiumBrowserSession {
             switch intent {
             case .destination:
                 owlHistory?.commitDestination(committedURL)
-            case .back, .forward:
-                owlHistory?.commitTraversal(to: committedURL)
+            case .back:
+                owlHistory?.commitTraversal(to: committedURL, offset: -1)
+            case .forward:
+                owlHistory?.commitTraversal(to: committedURL, offset: 1)
             case .reload:
                 owlHistory?.commitReload()
             }
