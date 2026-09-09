@@ -953,6 +953,27 @@ jobs:
             -only-testing:cmuxTests/BrowserSystemProxyMirrorTests \
             test
 
+      - name: Run agent restore admission regression
+        if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
+        run: |
+          # Focused gate for https://github.com/manaflow-ai/cmux/issues/12158.
+          # The tolerant full-suite step accepts ordinary Swift Testing
+          # failures, so keep restore admission under hook-store churn, the
+          # per-kind store completeness rule, and the surviving-owner notice
+          # on a non-tolerant only-testing invocation.
+          set -euo pipefail
+          SOURCE_PACKAGES_DIR="$PWD/.ci-source-packages"
+          scripts/ci/run-in-console-session.sh \
+            scripts/ci/run-app-host-xcodebuild.sh \
+            -project cmux.xcodeproj -scheme cmux-unit -configuration Debug \
+            -derivedDataPath "$CMUX_DERIVED_DATA_PATH" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_DIR" \
+            -disableAutomaticPackageResolution \
+            -destination "platform=macOS" \
+            CMUX_SKIP_ZIG_BUILD=1 \
+            -only-testing:cmuxTests/AgentRestoreLiveOwnerAdmissionTests \
+            test
+
       - name: Run Option/Alt sided-modifier regression
         if: ${{ matrix.shard == fromJSON(env.CMUX_APP_HOST_FOCUSED_REGRESSION_SHARD) }}
         run: |
