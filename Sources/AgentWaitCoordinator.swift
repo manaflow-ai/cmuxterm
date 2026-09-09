@@ -38,7 +38,7 @@ struct AgentWaitCoordinator {
     /// missed (for example, an atomic send-and-wait request).
     func subscribe(
         surfaceID: UUID,
-        afterSequence: Int64
+        afterSequence: Int64?
     ) -> CmuxEventSubscriptionSnapshot {
         let snapshot = eventBus.subscribe(
             afterSequence: afterSequence,
