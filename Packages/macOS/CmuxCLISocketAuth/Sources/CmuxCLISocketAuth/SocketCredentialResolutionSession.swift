@@ -11,8 +11,15 @@ private final class KeychainLookupMemoizer: @unchecked Sendable {
     }
 
     private let states = OSAllocatedUnfairLock<[String: State]>(initialState: [:])
+    private let now: @Sendable () -> Date
+
+    init(now: @escaping @Sendable () -> Date) {
+        self.now = now
+    }
 
     /// Returns the cached result for a service scope, loading it once when needed.
+    /// Results that complete after a supplied deadline are returned to the
+    /// current resolver but are not retained for later routes.
     ///
     /// The provider wraps synchronous `SecItemCopyMatching`/`LAContext` calls.
     /// Holding this short process-local lock across that one call is intentional:
@@ -21,6 +28,7 @@ private final class KeychainLookupMemoizer: @unchecked Sendable {
     /// boundary and would not improve the wire-level ordering guarantee.
     func password(
         services: [String],
+        deadline: Date?,
         provider: SocketCredentialResolver.KeychainPasswordProvider
     ) -> String? {
         states.withLock { state in
@@ -29,6 +37,11 @@ private final class KeychainLookupMemoizer: @unchecked Sendable {
                 return password
             }
             let password = provider(services)
+            // A late result belongs to the current resolver, not the shared
+            // scope cache; a later operation must be able to retry a miss.
+            if let deadline, now() >= deadline {
+                return password
+            }
             state[key] = .resolved(password)
             return password
         }
@@ -39,7 +52,8 @@ private final class KeychainLookupMemoizer: @unchecked Sendable {
 public final class SocketCredentialResolutionSession: @unchecked Sendable {
     private let environment: [String: String]
     private let filePasswordProvider: (@Sendable () -> String?)?
-    private let keychainPasswordProvider: SocketCredentialResolver.KeychainPasswordProvider
+    private let keychainPasswordProvider: SocketCredentialResolver.DeadlineKeychainPasswordProvider
+    private let now: @Sendable () -> Date
     // Resolver publication is called from synchronous CLI setup, while the
     // resulting resolver may be handed to detached readiness work. This
     // heap-stable lock protects only the tiny dictionary publication section;
@@ -56,21 +70,36 @@ public final class SocketCredentialResolutionSession: @unchecked Sendable {
     ///   - environment: The environment snapshot used by every resolver.
     ///   - filePasswordProvider: An optional injected file source for tests.
     ///   - keychainPasswordProvider: An optional injected keychain source for tests.
-    public init(
+    public convenience init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         filePasswordProvider: (@Sendable () -> String?)? = nil,
         keychainPasswordProvider: SocketCredentialResolver.KeychainPasswordProvider? = nil
+    ) {
+        self.init(
+            environment: environment,
+            filePasswordProvider: filePasswordProvider,
+            keychainPasswordProvider: keychainPasswordProvider,
+            now: { Date.now }
+        )
+    }
+
+    init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        filePasswordProvider: (@Sendable () -> String?)? = nil,
+        keychainPasswordProvider: SocketCredentialResolver.KeychainPasswordProvider? = nil,
+        now: @escaping @Sendable () -> Date
     ) {
         self.environment = environment.filter {
             $0.key == "CMUX_SOCKET_PASSWORD" || $0.key == "CMUX_TAG"
         }
         self.filePasswordProvider = filePasswordProvider
-        let memoizer = KeychainLookupMemoizer()
+        self.now = now
+        let memoizer = KeychainLookupMemoizer(now: now)
         let provider = keychainPasswordProvider ?? { services in
             SocketCredentialResolver.loadFromKeychain(services: services)
         }
-        self.keychainPasswordProvider = { services in
-            memoizer.password(services: services, provider: provider)
+        self.keychainPasswordProvider = { services, deadline in
+            memoizer.password(services: services, deadline: deadline, provider: provider)
         }
     }
 
@@ -90,8 +119,9 @@ public final class SocketCredentialResolutionSession: @unchecked Sendable {
                 socketPath: socketPath,
                 environment: environment,
                 filePasswordProvider: filePasswordProvider,
-                keychainPasswordProvider: keychainPasswordProvider,
-                authenticationModeCoordinator: modeCoordinator
+                deadlineKeychainPasswordProvider: self.keychainPasswordProvider,
+                authenticationModeCoordinator: modeCoordinator,
+                now: now
             )
         }
 
@@ -104,8 +134,9 @@ public final class SocketCredentialResolutionSession: @unchecked Sendable {
                 socketPath: socketPath,
                 environment: environment,
                 filePasswordProvider: filePasswordProvider,
-                keychainPasswordProvider: self.keychainPasswordProvider,
-                authenticationModeCoordinator: modeCoordinator
+                deadlineKeychainPasswordProvider: self.keychainPasswordProvider,
+                authenticationModeCoordinator: modeCoordinator,
+                now: now
             )
             state.resolvers[socketPath] = resolver
             return resolver

@@ -39,6 +39,10 @@ public enum SocketCredentialSource: Equatable, Sendable {
 public final class SocketCredentialResolver: @unchecked Sendable {
     /// Reads the first available password from the supplied keychain services.
     public typealias KeychainPasswordProvider = @Sendable (_ services: [String]) -> String?
+    typealias DeadlineKeychainPasswordProvider = @Sendable (
+        _ services: [String],
+        _ deadline: Date?
+    ) -> String?
 
     private enum ResolutionState {
         case unresolved
@@ -78,25 +82,29 @@ public final class SocketCredentialResolver: @unchecked Sendable {
         keychainPasswordProvider: KeychainPasswordProvider? = nil,
         authenticationModeCoordinator: SocketAuthenticationModeCoordinator? = nil
     ) {
+        let deadlineKeychainPasswordProvider: DeadlineKeychainPasswordProvider? = keychainPasswordProvider.map { provider in
+            { services, _ in provider(services) }
+        }
         self.init(
             explicitPassword: explicitPassword,
             socketPath: socketPath,
             environment: environment,
             fileManager: fileManager,
             filePasswordProvider: filePasswordProvider,
-            keychainPasswordProvider: keychainPasswordProvider,
+            deadlineKeychainPasswordProvider: deadlineKeychainPasswordProvider,
             authenticationModeCoordinator: authenticationModeCoordinator,
             now: { Date.now }
         )
     }
 
+    /// Creates a resolver with an injectable clock and deadline-aware keychain source.
     init(
         explicitPassword: String?,
         socketPath: String,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default,
         filePasswordProvider: (@Sendable () -> String?)? = nil,
-        keychainPasswordProvider: KeychainPasswordProvider? = nil,
+        deadlineKeychainPasswordProvider: DeadlineKeychainPasswordProvider? = nil,
         authenticationModeCoordinator: SocketAuthenticationModeCoordinator? = nil,
         now: @escaping @Sendable () -> Date
     ) {
@@ -108,7 +116,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
         self.filePasswordProvider = filePasswordProvider ?? {
             Self.loadFromFile(url: defaultPasswordFileURL)
         }
-        self.keychainPasswordProvider = keychainPasswordProvider ?? { services in
+        self.keychainPasswordProvider = deadlineKeychainPasswordProvider ?? { services, _ in
             Self.loadFromKeychain(services: services)
         }
         self.authenticationModeCoordinator = authenticationModeCoordinator ?? SocketAuthenticationModeCoordinator()
@@ -152,9 +160,9 @@ public final class SocketCredentialResolver: @unchecked Sendable {
     /// Returns a password for the requested demand.
     ///
     /// Initial connection setup never reads the password file or keychain. A
-    /// challenge resolves the complete precedence chain and caches its result,
-    /// including a missing result, so each resolver performs at most one
-    /// deferred lookup.
+    /// challenge resolves the complete precedence chain and caches results that
+    /// complete before the deadline. A late missing result remains unresolved so
+    /// a later operation can retry its deferred lookup.
     public func password(
         for demand: SocketCredentialResolutionDemand,
         deadline: Date? = nil
@@ -197,7 +205,7 @@ public final class SocketCredentialResolver: @unchecked Sendable {
             }
             guard !deadlineExpired(deadline) else { return nil }
             let services = Self.keychainServices(socketPath: socketPath, environment: environment)
-            let keychainPassword = Self.normalized(keychainPasswordProvider(services))
+            let keychainPassword = Self.normalized(keychainPasswordProvider(services, deadline))
             if let keychainPassword {
                 state = .resolved(password: keychainPassword, source: .keychain)
                 return keychainPassword

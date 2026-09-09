@@ -174,9 +174,7 @@ struct SocketCredentialResolverTests {
             initialState: Date(timeIntervalSince1970: 1_000)
         )
         let providerCalls = OSAllocatedUnfairLock<Int>(initialState: 0)
-        let resolver = SocketCredentialResolver(
-            explicitPassword: nil,
-            socketPath: "/tmp/cmux-debug-credential-test.sock",
+        let session = SocketCredentialResolutionSession(
             environment: [:],
             filePasswordProvider: { nil },
             keychainPasswordProvider: { _ in
@@ -191,6 +189,10 @@ struct SocketCredentialResolverTests {
                 return "fresh-keychain-password"
             },
             now: { clock.withLock { $0 } }
+        )
+        let resolver = session.resolver(
+            explicitPassword: nil,
+            socketPath: "/tmp/cmux-debug-credential-test.sock"
         )
 
         let firstDeadline = clock.withLock { $0.addingTimeInterval(1) }
