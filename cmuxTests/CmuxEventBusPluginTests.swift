@@ -1,4 +1,5 @@
 import XCTest
+import CMUXAgentLaunch
 import CmuxExtensionKit
 
 #if canImport(cmux_DEV)
