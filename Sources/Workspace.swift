@@ -2081,7 +2081,8 @@ extension Workspace {
                     restoredPanelId: terminalPanel.id
                 )
             }
-            if let storedResumeBinding = effectiveResumeBindingForStartup ?? resumeBinding {
+            let storedResumeBinding = effectiveResumeBindingForStartup ?? resumeBinding
+            if let storedResumeBinding {
                 let restoredBinding = storedResumeBinding.retargetingRemoteOwner(
                     expectedWorkspaceID: restoredResumeSnapshotWorkspaceID,
                     expectedSurfaceID: snapshot.id,
@@ -2095,15 +2096,6 @@ extension Workspace {
                 ) {
                     surfaceResumeBindingsByPanelId[terminalPanel.id] = restoredBinding
                 }
-                if let eventTime = [
-                    snapshot.terminal?.resumeBindingEventTime,
-                    restoredBinding.updatedAt,
-                ].compactMap({ $0 }).max() {
-                    recordSurfaceResumeBindingMutation(
-                        panelId: terminalPanel.id,
-                        eventTime: eventTime
-                    )
-                }
                 if restoredBinding.isPlainSSHProcessDetectedBinding,
                    restoredBindingLaunch != nil {
                     pendingPlainSSHRestorePanelIds.insert(terminalPanel.id)
@@ -2114,6 +2106,17 @@ extension Workspace {
                 if surfaceResumeBindingRemovalAllowed(panelId: terminalPanel.id) {
                     surfaceResumeBindingsByPanelId.removeValue(forKey: terminalPanel.id)
                 }
+            }
+            // Preserve a clear tombstone even when the snapshot has no binding
+            // value; otherwise a delayed hook can revive the cleared session.
+            if let eventTime = [
+                snapshot.terminal?.resumeBindingEventTime,
+                storedResumeBinding?.updatedAt,
+            ].compactMap({ $0 }).max() {
+                recordSurfaceResumeBindingMutation(
+                    panelId: terminalPanel.id,
+                    eventTime: eventTime
+                )
             }
             // A terminal whose startup command cds itself (agent resume, tmux attach, agent-hook)
             // is spawned without a working directory, so its shell starts in the default directory
