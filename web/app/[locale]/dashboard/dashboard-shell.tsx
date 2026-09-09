@@ -1,8 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
+import { DashboardAccountMenu } from "./dashboard-account-menu";
 
 type DashboardNavGroup = {
   label: string;
@@ -10,18 +11,16 @@ type DashboardNavGroup = {
     href: string;
     label: string;
     active: boolean;
+    prefetch?: boolean;
   }>;
 };
 
 export function DashboardShell({
   children,
   vaultEnabled,
-  account,
 }: {
   children: React.ReactNode;
   vaultEnabled: boolean;
-  /** The identity row, streamed by the layout once the session resolves. */
-  account?: React.ReactNode;
 }) {
   const t = useTranslations("dashboard.nav");
   const common = useTranslations("common");
@@ -63,6 +62,10 @@ export function DashboardShell({
           href: "/dashboard/coderouter",
           label: t("coderouterOverview"),
           active: pathname.startsWith("/dashboard/coderouter"),
+          // These pages contain authorization-dependent data. Let the server
+          // check the session at click time instead of caching a private RSC
+          // snapshot in the browser before the click.
+          prefetch: false,
         },
       ],
     },
@@ -73,6 +76,7 @@ export function DashboardShell({
           href: "/dashboard/testflight",
           label: t("testflight"),
           active: pathname.startsWith("/dashboard/testflight"),
+          prefetch: false,
         },
       ],
     },
@@ -133,7 +137,9 @@ export function DashboardShell({
               >
                 <DashboardMenuIcon open={mobileNavOpen} />
               </button>
-              {account}
+              <Suspense fallback={<DashboardAccountMenuFallback />}>
+                <DashboardAccountMenu />
+              </Suspense>
             </div>
           </div>
           <DashboardNav
@@ -148,6 +154,10 @@ export function DashboardShell({
       </div>
     </div>
   );
+}
+
+function DashboardAccountMenuFallback() {
+  return <div aria-hidden="true" className="min-w-0 flex-1" />;
 }
 
 function DashboardNav({
@@ -174,7 +184,7 @@ function DashboardNav({
   );
 }
 
-export function DashboardNavGroupView({
+function DashboardNavGroupView({
   group,
   onNavigate,
 }: {
@@ -191,6 +201,7 @@ export function DashboardNavGroupView({
           <Link
             key={item.href}
             href={item.href}
+            prefetch={item.prefetch}
             onClick={onNavigate}
             aria-current={item.active ? "page" : undefined}
             className={`block border-l px-2 py-1.5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground ${

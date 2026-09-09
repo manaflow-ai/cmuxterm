@@ -3,15 +3,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type React from "react";
 import { createNextNavigationMock } from "./helpers/next-navigation-mock";
 
-type MenuUser = Parameters<typeof DashboardAccountMenu>[0]["user"];
-let currentUser: MenuUser = null;
-const appSignOut = mock(async () => undefined);
+let currentUser: {
+  id: string;
+  displayName: string;
+  primaryEmail: string;
+  signOut: () => Promise<void>;
+} | null = null;
 const routerPush = mock(() => undefined);
 const routerReplace = mock(() => undefined);
 const routerRefresh = mock(() => undefined);
 
 mock.module("@stackframe/stack", () => ({
-  useStackApp: () => ({ signOut: appSignOut }),
+  useUser: () => currentUser,
   UserAvatar: ({ size }: { size: number }) => (
     <span data-testid="avatar" data-size={size} />
   ),
@@ -92,22 +95,15 @@ const { DashboardAccountMenu } = await import(
   "../app/[locale]/dashboard/dashboard-account-menu"
 );
 
-function sessionUser(): MenuUser {
-  return {
-    id: "user-lawrence",
-    displayName: "Lawrence",
-    primaryEmail: "lawrence@example.com",
-    primaryEmailVerified: true,
-    profileImageUrl: null,
-    selectedTeamId: null,
-    isAnonymous: false,
-  };
-}
-
 describe("dashboard account menu", () => {
   test("matches the chatmux identity row and exposes the account menu", () => {
-    currentUser = sessionUser();
-    const html = renderToStaticMarkup(<DashboardAccountMenu user={currentUser} />);
+    currentUser = {
+      id: "user-lawrence",
+      displayName: "Lawrence",
+      primaryEmail: "lawrence@example.com",
+      signOut: async () => undefined,
+    };
+    const html = renderToStaticMarkup(<DashboardAccountMenu />);
 
     expect(html).toContain("Lawrence");
     expect(html).toContain("lawrence@example.com");
@@ -120,18 +116,28 @@ describe("dashboard account menu", () => {
   });
 
   test("offers the theme switch inside the menu, named after the theme it switches to", () => {
-    currentUser = sessionUser();
+    currentUser = {
+      id: "user-lawrence",
+      displayName: "Lawrence",
+      primaryEmail: "lawrence@example.com",
+      signOut: async () => undefined,
+    };
     resolvedTheme = "dark";
-    expect(renderToStaticMarkup(<DashboardAccountMenu user={currentUser} />)).toContain(">themeLight<");
+    expect(renderToStaticMarkup(<DashboardAccountMenu />)).toContain(">themeLight<");
     resolvedTheme = "light";
-    const html = renderToStaticMarkup(<DashboardAccountMenu user={currentUser} />);
+    const html = renderToStaticMarkup(<DashboardAccountMenu />);
     expect(html).toContain(">themeDark<");
     expect(html.indexOf(">themeDark<")).toBeGreaterThan(html.indexOf("/dashboard/team"));
     expect(html.indexOf(">themeDark<")).toBeLessThan(html.indexOf("/dashboard/billing"));
   });
 
   test("lists every permitted team in a submenu and shows the current one on the trigger", () => {
-    currentUser = sessionUser();
+    currentUser = {
+      id: "user-lawrence",
+      displayName: "Lawrence",
+      primaryEmail: "lawrence@example.com",
+      signOut: async () => undefined,
+    };
     const teams = [
       { id: "user-lawrence", name: "Lawrence", personal: true, permissions: { use: true, manageAccounts: true } },
       { id: "team-2", name: "Manaflow", personal: false, permissions: { use: true, manageAccounts: true } },
@@ -139,7 +145,7 @@ describe("dashboard account menu", () => {
     ];
     teamScope = { status: "ready", teams, selected: teams[1], switchTeam: () => undefined };
     resolvedTheme = "dark";
-    const html = renderToStaticMarkup(<DashboardAccountMenu user={currentUser} />);
+    const html = renderToStaticMarkup(<DashboardAccountMenu />);
     teamScope = { status: "unavailable" };
 
     expect(html.match(/data-testid="team-submenu"/g)).toHaveLength(1);
@@ -160,7 +166,7 @@ describe("dashboard account menu", () => {
 
   test("uses the unlocalized auth handler and names the compact sign-in link", () => {
     currentUser = null;
-    const html = renderToStaticMarkup(<DashboardAccountMenu user={currentUser} />);
+    const html = renderToStaticMarkup(<DashboardAccountMenu />);
 
     expect(html).toContain('aria-label="signIn"');
     expect(html).toContain('href="/handler/sign-in?');
