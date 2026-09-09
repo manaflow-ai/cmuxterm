@@ -49,12 +49,14 @@ public enum IrxRelayCredentialPolicy {
         jitterUnitInterval: Double = 0
     ) -> Duration {
         let attempt = min(max(failureCount, 0), 10)
-        let localDelay = min(120, 5 * pow(2, Double(attempt)))
-        let serverDelay = TimeInterval(max(0, retryAfterSeconds ?? 0))
-        let floor = max(localDelay, serverDelay)
-        let jitter = min(1, max(0, jitterUnitInterval))
-        let jittered = floor + min(floor * 0.25, max(0, 120 - floor)) * jitter
-        return .milliseconds(Int64(jittered * 1_000))
+        let localDelay = min(120, 5 << attempt)
+        let floor = max(localDelay, retryAfterSeconds ?? 0)
+        let jitter = jitterUnitInterval.isFinite ? min(1, max(0, jitterUnitInterval)) : 0
+        // Jitter remains additive even at the cap or above a server floor.
+        // Keep the potentially huge server duration out of Double/Int64
+        // millisecond conversions, which can overflow or round it down.
+        let jitterMilliseconds = Double(min(floor, 120)) * 250 * jitter
+        return .seconds(floor) + .milliseconds(Int64(jitterMilliseconds))
     }
 }
 

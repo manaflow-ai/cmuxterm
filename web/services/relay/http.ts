@@ -124,36 +124,15 @@ export function relayErrorResponse(
 ): Response {
   const tag = (error as { _tag?: string } | null)?._tag;
   if (tag === "RelayAuthenticationError") {
-    const typed = error as RelayAuthenticationError;
-    const rateLimited = typed.code === "rate_limited";
-    const source = rateLimited ? { source: "auth_provider" } : {};
-    console.error("relay.auth.unavailable", { reason: typed.code });
-    return jsonResponse(
-      { error: rateLimited ? "rate_limited" : "authentication_unavailable", ...source },
-      rateLimited ? 429 : 503,
-      typed.retryAfterSeconds === undefined
-        ? undefined
-        : { "retry-after": String(typed.retryAfterSeconds) },
-    );
+    return authenticationErrorResponse(error as RelayAuthenticationError);
   }
   if (tag === "RelayRateLimitError") {
-    const code = (error as RelayRateLimitError).code;
-    const limitSource = (error as RelayRateLimitError).source;
-    return jsonResponse(
-      { error: code, ...(limitSource ? { source: limitSource } : {}) },
-      code === "rate_limited" ? 429 : 503,
-      code === "rate_limited" &&
-      (error as RelayRateLimitError).retryAfterSeconds !== undefined
-        ? { "retry-after": String((error as RelayRateLimitError).retryAfterSeconds) }
-        : undefined,
-    );
+    return rateLimitErrorResponse(error as RelayRateLimitError, context);
   }
   if (tag === "RelayPreferenceValidationError") {
-    const typed = error as Extract<RelayServiceError, { _tag: "RelayPreferenceValidationError" }>;
-    return jsonResponse({
-      error: typed.code,
-      ...(typed.relayIds ? { relayIds: typed.relayIds } : {}),
-    }, 400);
+    return preferenceValidationResponse(
+      error as Extract<RelayServiceError, { _tag: "RelayPreferenceValidationError" }>,
+    );
   }
   if (tag === "RelayPreferenceConflictError") {
     const typed = error as Extract<RelayServiceError, { _tag: "RelayPreferenceConflictError" }>;
@@ -165,40 +144,95 @@ export function relayErrorResponse(
   if (tag === "RelayAccountDeletionBlockedError") {
     return jsonResponse({ error: "account_deletion_in_progress" }, 409);
   }
-  if (tag === "RelayCatalogRollbackError") {
-    console.error("relay.policy.catalog_rollback", {
-      configuredSequence: (error as { configuredSequence?: unknown }).configuredSequence,
-      persistedSequence: (error as { persistedSequence?: unknown }).persistedSequence,
-      reason: (error as { reason?: unknown }).reason,
-    });
-    return jsonResponse({ error: "relay_policy_unavailable" }, 503);
-  }
-  if (tag === "RelayCatalogIntegrityError") {
-    const typed = error as Extract<RelayServiceError, { _tag: "RelayCatalogIntegrityError" }>;
-    console.error("relay.policy.catalog_integrity", { reason: typed.reason });
-    return jsonResponse({ error: "relay_policy_unavailable" }, 503);
+  if (tag === "RelayCatalogRollbackError" || tag === "RelayCatalogIntegrityError") {
+    return catalogErrorResponse(error as CatalogError);
   }
   if (tag === "RelayDatabaseError") {
-    const metadata = relayDatabaseFailureMetadata(error as RelayDatabaseError);
-    const requestId = context.requestId ?? randomUUID();
-    console.error("relay.policy.database_unavailable", { ...metadata, requestId });
-    // Temporary Aurora outages need a client-visible floor. The client still
-    // applies its own bounded exponential backoff, so this never authorizes a
-    // tight retry loop when the database remains unavailable.
-    return jsonResponse(
-      { error: "relay_policy_unavailable", requestId },
-      503,
-      { "retry-after": "15", "x-cmux-request-id": requestId },
-    );
+    return databaseErrorResponse(error as RelayDatabaseError, context);
   }
   if (tag === "RelayConfigurationError" || tag === "RelaySigningError") {
-    console.error("relay.policy.unavailable", tag);
-    return jsonResponse({ error: "relay_policy_unavailable" }, 503);
+    return unavailablePolicyResponse(tag);
   }
   // Unexpected errors can carry database causes, relay origins, or credentials.
   // Keep the operational event while making its payload intentionally coarse.
   console.error("relay.policy.unexpected", { failure: "unexpected" });
   return jsonResponse({ error: "internal_error" }, 500);
+}
+
+function authenticationErrorResponse(error: RelayAuthenticationError): Response {
+  const rateLimited = error.code === "rate_limited";
+  const source = rateLimited ? { source: "auth_provider" } : {};
+  console.error("relay.auth.unavailable", { reason: error.code });
+  return jsonResponse(
+    { error: rateLimited ? "rate_limited" : "authentication_unavailable", ...source },
+    rateLimited ? 429 : 503,
+    error.retryAfterSeconds === undefined
+      ? undefined
+      : { "retry-after": String(error.retryAfterSeconds) },
+  );
+}
+
+function rateLimitErrorResponse(
+  error: RelayRateLimitError,
+  context: RelayErrorContext,
+): Response {
+  const requestId = context.requestId ?? randomUUID();
+  const headers = error.code === "rate_limited" && error.retryAfterSeconds !== undefined
+    ? {
+      "retry-after": String(error.retryAfterSeconds),
+      "x-cmux-request-id": requestId,
+    }
+    : undefined;
+  return jsonResponse(
+    { error: error.code, ...(error.source ? { source: error.source } : {}) },
+    error.code === "rate_limited" ? 429 : 503,
+    headers,
+  );
+}
+
+type CatalogError = Extract<
+  RelayServiceError,
+  { _tag: "RelayCatalogRollbackError" | "RelayCatalogIntegrityError" }
+>;
+
+function catalogErrorResponse(error: CatalogError): Response {
+  if (error._tag === "RelayCatalogRollbackError") {
+    console.error("relay.policy.catalog_rollback", {
+      configuredSequence: error.configuredSequence,
+      persistedSequence: error.persistedSequence,
+      reason: error.reason,
+    });
+  } else {
+    console.error("relay.policy.catalog_integrity", { reason: error.reason });
+  }
+  return jsonResponse({ error: "relay_policy_unavailable" }, 503);
+}
+
+function preferenceValidationResponse(
+  error: Extract<RelayServiceError, { _tag: "RelayPreferenceValidationError" }>,
+): Response {
+  return jsonResponse({
+    error: error.code,
+    ...(error.relayIds ? { relayIds: error.relayIds } : {}),
+  }, 400);
+}
+
+function databaseErrorResponse(error: RelayDatabaseError, context: RelayErrorContext): Response {
+  const requestId = context.requestId ?? randomUUID();
+  console.error("relay.policy.database_unavailable", {
+    ...relayDatabaseFailureMetadata(error),
+    requestId,
+  });
+  return jsonResponse(
+    { error: "relay_policy_unavailable", requestId },
+    503,
+    { "retry-after": "15", "x-cmux-request-id": requestId },
+  );
+}
+
+function unavailablePolicyResponse(tag: string): Response {
+  console.error("relay.policy.unavailable", tag);
+  return jsonResponse({ error: "relay_policy_unavailable" }, 503);
 }
 
 export function jsonResponse(

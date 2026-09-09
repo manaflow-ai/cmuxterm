@@ -146,7 +146,7 @@ export async function handleRelayTokenRequest(
   request: Request,
   deps: RelayTokenDeps,
 ): Promise<Response> {
-  const requestId = request.headers.get("x-cmux-request-id")?.trim() || randomUUID();
+  const requestId = randomUUID();
   const errorContext = { requestId };
   let user: { readonly id: string } | null;
   try {
@@ -165,7 +165,7 @@ export async function handleRelayTokenRequest(
     // Namespaced requests always require a proof. Charge their credential
     // partition before database/crypto work, including rejected signatures.
     if (clientNamespace !== "legacy") {
-      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", nowSeconds, requestId);
+      await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId, "credential", requestId);
     }
     const isEndpointAuthorized = await deps.isEndpointAuthorized({
       accountId: user.id,
@@ -186,7 +186,7 @@ export async function handleRelayTokenRequest(
     // credential issuance in stable, separate partitions.
     if (clientNamespace === "legacy") {
       await checkTokenQuota(request, deps, user.id, clientNamespace, endpointId,
-        isEndpointAuthorized ? "credential" : "bootstrap", nowSeconds, requestId);
+        isEndpointAuthorized ? "credential" : "bootstrap", requestId);
     }
     const policy = await deps.signedPolicy(user.id, nowSeconds);
     const relayUrls = policy.payload.relays.map((relay) => relay.url);
@@ -241,7 +241,6 @@ async function checkTokenQuota(
   namespace: string,
   endpointId: string,
   phase: "credential" | "bootstrap",
-  nowSeconds: number,
   requestId: string,
 ): Promise<void> {
   await runRelayEffect(enforceRelayRateLimit({
@@ -253,8 +252,9 @@ async function checkTokenQuota(
     ruleId: deps.rateLimitRuleId(),
     check: deps.checkRateLimit,
     isVercel: deps.isVercel(),
-    retryAfterSeconds: RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS -
-      (nowSeconds % RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS),
+    // The SDK exposes no counter reset timestamp. Its window need not start
+    // on a Unix-time boundary, so conservatively wait a full configured window.
+    retryAfterSeconds: RELAY_TOKEN_RATE_LIMIT_BUCKET_SECONDS,
   }));
 }
 
