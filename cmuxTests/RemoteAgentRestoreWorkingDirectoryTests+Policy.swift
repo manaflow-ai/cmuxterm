@@ -357,6 +357,31 @@ extension RemoteAgentRestoreWorkingDirectoryTests {
         #expect(registered.restoreWorkingDirectorySelection == .unavailable)
     }
 
+    @Test func persistentSSHRegistrationTrustsReportedCwdForUnmatchedSnapshot() {
+        let reportedRemoteDirectory = "/srv/projects/current"
+        let binding = SurfaceResumeBindingSnapshot(
+            kind: "grok",
+            command: "grok resume persistent-unmatched-session",
+            cwd: reportedRemoteDirectory,
+            checkpointId: "persistent-unmatched-session",
+            source: "agent-hook",
+            autoResume: true
+        )
+        let staleAgent = SessionRestorableAgentSnapshot(
+            kind: .codex,
+            sessionId: "different-session",
+            workingDirectory: "/repo/stale"
+        )
+        let registered = binding.registeredForPersistentSSH(
+            SurfaceResumeRemoteContext(
+                workspaceID: UUID(), surfaceID: UUID(),
+                persistentPTYSessionID: "persistent-unmatched-pty"
+            ),
+            restorableAgent: staleAgent
+        )
+        #expect(registered.restoreWorkingDirectorySelection == .exact(reportedRemoteDirectory))
+    }
+
     @Test func persistentSSHRegistrationHonorsCwdIgnoreWithReportedCwd() throws {
         let workspaceID = UUID()
         let surfaceID = UUID()

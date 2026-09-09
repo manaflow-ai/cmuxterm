@@ -47,7 +47,7 @@ extension SurfaceResumeBindingSnapshot {
             } else if matchingRestorableAgent?.restoreWorkingDirectorySelection == .unavailable {
                 registered.restoreWorkingDirectorySelection = .unavailable
             } else if registered.cwd != nil,
-                      (restorableAgent == nil || matchingSelectionIsExact) {
+                      (matchingRestorableAgent == nil || matchingSelectionIsExact) {
                 registered.restoreWorkingDirectorySelection = .exact(registered.cwd)
             } else if AgentResumeWorkingDirectory().cwdNamespacing(forKind: kind) == .cwdInFile {
                 registered.restoreWorkingDirectorySelection = .exact(nil)
