@@ -5,6 +5,8 @@ import {
   withAuthedVmApiRoute,
 } from "../../../../services/vms/routeHelpers";
 import { setSpanAttributes } from "../../../../services/telemetry";
+import { vmCapabilitiesFor } from "../../../../services/vms/drivers";
+import { vmImageKindFor } from "../../../../services/vms/images/resolver";
 import { runVmRoute } from "../../../../services/vms/routeWorkflow";
 import { destroyVm, getVm, renameVm } from "../../../../services/vms/workflows";
 import { PublicationNotFoundError } from "../../../../services/vm-publications/repository";
@@ -41,6 +43,11 @@ export async function GET(
         image: vm.image,
         imageVersion: vm.imageVersion,
         status: vm.status,
+        kind: vmImageKindFor(vm.provider, vm.image),
+        capabilities: vmCapabilitiesFor(vm.provider),
+        ...(vm.addressIpv4 || vm.addressIpv6
+          ? { address: { ipv4: vm.addressIpv4, ipv6: vm.addressIpv6 } }
+          : {}),
         createdAt: vm.createdAt,
         displayName: vm.displayName,
         slug: vm.slug,

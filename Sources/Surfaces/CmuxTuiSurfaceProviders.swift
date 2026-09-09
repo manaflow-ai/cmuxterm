@@ -6,6 +6,24 @@ import Foundation
 /// session, so a local pane closing never touches them (only local browser preparation is cancelled).
 @MainActor
 final class CmuxTuiSurfaceProvider: SurfaceProvider {
+    /// Selects the focused workspace, falling back to daemon order.
+    nonisolated static func preferredWorkspace(_ workspaces: [SurfaceRemoteWorkspace]) -> SurfaceRemoteWorkspace? {
+        workspaces.sorted {
+            if $0.focused != $1.focused { return $0.focused && !$1.focused }
+            if $0.index != $1.index { return $0.index < $1.index }
+            return $0.id < $1.id
+        }.first
+    }
+
+    /// Default name for the first workspace created on a machine.
+    nonisolated static let firstWorkspaceName = "main"
+
+    nonisolated static func availableWorkspaceName(takenNames: Set<String>) -> String {
+        guard !takenNames.isEmpty else { return firstWorkspaceName }
+        var suffix = max(takenNames.count + 1, 2)
+        while takenNames.contains("workspace-\(suffix)") { suffix += 1 }
+        return "workspace-\(suffix)"
+    }
 
     let machineID: String
     var machine: SurfaceMachineID { .cloud(machineID) }
@@ -1017,11 +1035,15 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     /// cmux-tui's selectors, so its tab is closed instead. Either way the resource
     /// leaves the catalog now and the next snapshot confirms.
     func closeTerminal(_ id: SurfaceResourceID) async throws {
+        try await closeTerminal(id, fallbackTabID: nil)
+    }
+
+    func closeTerminal(_ id: SurfaceResourceID, fallbackTabID: String?) async throws {
         pendingRemoteCreations.removeValue(forKey: id)
         do {
             _ = try await runCloseCommand { CloudTuiCommandLine.closeTerminalArguments(socketPath: $0, terminalID: id.key) }
         } catch {
-            guard let tabID = tabByTerminal[id.key], Self.isSelectorNotFound(error) else { throw error }
+            guard let tabID = fallbackTabID ?? tabByTerminal[id.key], Self.isSelectorNotFound(error) else { throw error }
             _ = try await runCloseCommand { CloudTuiCommandLine.closeTabArguments(socketPath: $0, tabID: tabID) }
         }
         closeLocalPanes(showing: [id])
@@ -1053,7 +1075,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     /// cmux-tui's `selector.not_found` error body, surfaced by `link.run` as the
     /// command's output text.
-    private static func isSelectorNotFound(_ error: Error) -> Bool {
+    static func isSelectorNotFound(_ error: Error) -> Bool {
         let text = CloudMachineLink.errorText(error)
         return text.contains("selector.not_found") || text.contains("no terminal matches")
     }
@@ -1103,6 +1125,13 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
 
     /// A new terminal in the machine's cmux-tui session (`workspace <ws> run -- argv`).
     func createTerminal(command: [String]?, cwd: String?, name: String?, remoteWorkspaceID: String?) async throws -> SurfaceResource {
+        try await createTerminal(command: command, cwd: cwd, name: name, remoteWorkspaceID: remoteWorkspaceID, onExit: nil)
+    }
+
+    /// The same, choosing the daemon's exit policy: `"keep"` retains the tab and final
+    /// screen after the process exits (a sender that reads the process's last lines as
+    /// its result needs that); nil is the daemon default, `close`.
+    func createTerminal(command: [String]?, cwd: String?, name: String?, remoteWorkspaceID: String?, onExit: String?) async throws -> SurfaceResource {
         let connected = try await links.connected(machineID: machineID)
         guard let link = await links.link(machineID: machineID) else { throw ProviderError.machineAsleep(machineID) }
         let workspaceID: String
@@ -1122,7 +1151,7 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
             cwd: cwd,
             command: (command?.isEmpty == false ? command : nil) ?? CloudTuiCommandLine.defaultTerminalCommand
         )
-        let data = try await link.run(arguments: CloudTuiCommandLine.runArguments(socketPath: connected.socketPath, workspaceID: workspaceID, command: argv))
+        let data = try await link.run(arguments: CloudTuiCommandLine.runArguments(socketPath: connected.socketPath, workspaceID: workspaceID, command: argv, onExit: onExit))
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let created = CmuxTuiSnapshotParser.createdTerminal(fromRunResult: object) else {
             throw ProviderError.terminalNotCreated(String(data: data, encoding: .utf8) ?? "")
@@ -1175,11 +1204,12 @@ final class CmuxTuiSurfaceProvider: SurfaceProvider {
     func createRemoteWorkspace(name: String?) async throws -> SurfaceRemoteWorkspace {
         let connected = try await links.connected(machineID: machineID)
         guard let link = await links.link(machineID: machineID) else { throw ProviderError.machineAsleep(machineID) }
-        let existingCount = info.remoteWorkspaces?.count
-            ?? Set(catalog.snapshot.resources(on: machine).flatMap { $0.remoteWorkspaces.map(\.id) }).count
+        let existing = info.remoteWorkspaces
+            ?? catalog.snapshot.resources(on: machine).flatMap(\.remoteWorkspaces)
+        let takenNames = Set(existing.map(\.name))
         let workspaceName = name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? name!.trimmingCharacters(in: .whitespacesAndNewlines)
-            : (existingCount == 0 ? "main" : "workspace-\(existingCount + 1)")
+            : Self.availableWorkspaceName(takenNames: takenNames)
         let created = try await link.run(arguments: CloudTuiCommandLine.createWorkspaceArguments(socketPath: connected.socketPath, name: workspaceName))
         guard let object = try JSONSerialization.jsonObject(with: created) as? [String: Any],
               let id = CmuxTuiSnapshotParser.createdWorkspace(fromResult: object) else {

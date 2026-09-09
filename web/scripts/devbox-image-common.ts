@@ -10,8 +10,9 @@
  * and ENV lines here, never kept as a second copy. No daemon binary is baked
  * into the container image: cmux-tui is installed by the drivers at create
  * time from the pinned files.cmux.com manifest
- * (web/services/vms/drivers/cmuxTuiDaemon.ts); the image only ships the
- * cmux-devbox-boot supervisor.
+ * (web/services/vms/drivers/cmuxTuiDaemon.ts); the image ships the
+ * guest-facing `/usr/local/bin/cmux` adapter and the cmux-devbox-boot
+ * supervisor, but no daemon binary.
  */
 import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -34,6 +35,7 @@ export const DEVBOX_TEMPLATE_FILES = [
   "agent-config.sh",
   "chrome-managed-policy.json",
   "cmux-bashrc",
+  "cmux",
   "cmux-devbox-boot",
   "cmux-motd",
   "cmux-terminfo.sh",

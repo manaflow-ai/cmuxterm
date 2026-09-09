@@ -5,11 +5,12 @@ You are helping the user work with cmux Cloud machines through the `cmux` CLI. T
 ## Mental model
 
 - A machine is a persistent cloud VM owned by the signed-in cmux user. Its generated name (like `brave-otter`) is its address everywhere; `cmux vm rename` sets a display label only. The machine outlives panes, closed laptops, and reconnects.
-- Every machine runs a cmux session daemon (cmux-tui on current images, cmuxd-remote on older ones) that owns terminal sessions and scrollback. Clients attach through short-lived leases minted by the backend; the transport depends on what the provider and image support. SSH is a fallback some providers and images cannot mint, and its absence is not an error.
-- New machines boot a desktop image (xfce + noVNC) plus a shell, with a persistent per-machine home. `--base` gives a shell-only machine.
+- Every machine runs a cmux session daemon that owns terminal sessions and scrollback. Managed sessions use the private cmux-remote connection; the server's capability response determines available operations. SSH is a fallback some providers and images cannot mint, and its absence is not an error.
+- The backend selects the image and supported machine options. Do not assume a desktop or a separate persistent-home volume; inspect the capabilities returned for that machine.
 - Base is a separate single per-user persistent slot, pinned to the top of the sidebar. `cmux vm new` mints fresh machines; `cmux vm base` always reopens the same one.
 - Terminals on a machine live in its cmux-tui session (workspaces `ws_…`, terminals `term_…`). They keep running detached. `cmux vm tree` catalogs every surface, and every line is an address `cmux vm open` (machine targets) or `cmux surface open` (any entry, including This Mac) accepts: `brave-otter/main/term_2f9c…`, `brave-otter:desktop`, `brave-otter:port/3000`.
-- One machine hosts many workspaces. Make a workspace per task *inside* the machine (`cmux vm workspace new <id> --name <task>`, the machine's ⌘N) rather than a machine per task; the Cloud sidebar groups them under the machine's Workspaces group. `cmux vm open <machine>/<ws>` takes the `ws_…` id, or the workspace name only when exactly one workspace has it (colliding names need the id), and starts a shell in an empty one.
+- One machine hosts many workspaces. Make a workspace per task *inside* the machine rather than a machine per task. `cmux vm workspace new <id> --name <task>` is the machine's ⌘N action and intentionally creates its starter shell; for a layout-driven workspace use `cmux vm layout apply <id> <file> --name <task>` or `cmux vm dev <id>`. The Cloud sidebar groups workspaces under the machine, and `cmux vm open <machine>/<ws>` accepts the `ws_…` id or an unambiguous name.
+- A workspace is a layout: its screen's panes, splits, divider ratios and tabs. `cmux vm layout export <id> <ws>` reads it as JSON and `cmux vm layout apply <id> <file>` builds one — the same document `cmux new-workspace --layout` and `cmux layout save|get` use on the Mac. Opening the workspace on the Mac reproduces that geometry.
 - Pool machines (labeled `agent-pool` in `cmux vm ls`) are provisioned by the `vm run`/`vm agent` router and reused for routed work. The router never drafts machines a person made by hand.
 - Plans cap active machine count and memory. `cmux vm ls` prints the meter and, on free plans, when free cloud access expires.
 
@@ -17,18 +18,19 @@ You are helping the user work with cmux Cloud machines through the `cmux` CLI. T
 
 List and inspect:
 
-```
+```bash
 cmux vm ls                    # NAME LABEL STATE PROVIDER IMAGE + plan meter
 cmux vm status <id>           # provider, status, image
 cmux vm stats <id>            # live CPU/memory
 cmux vm ports <id>            # listening TCP ports inside the machine
 cmux vm tools <id>            # probe common tools inside the machine
 cmux vm tree [<machine>|local] [--refresh]
+cmux vm self <id> [<path>] [--json]   # the machine's reflection (name, owner, team, peers, integrations) through your session
 ```
 
 Create and name:
 
-```
+```bash
 cmux vm new [--base] [--size <2g|4g|8g|16g|32g>] [--detach|-d]
 cmux vm rename <id> <new-label>      # label only; the id stays the address
 ```
@@ -37,97 +39,150 @@ cmux vm rename <id> <new-label>      # label only; the id stays the address
 
 Base:
 
-```
+```bash
 cmux vm base                  # open Base, reuses the same VM
 cmux vm base reset [--reason <text>]   # new generation; the old VM is retained
 ```
 
 Attach and open:
 
-```
-cmux vm shell <id>                       # terminal workspace (WebSocket attach)
+```bash
+cmux vm shell <id>                       # terminal workspace over the private connection
 cmux vm tui <id>                         # the machine's full cmux-tui client in a pane
 cmux vm desktop <id>                     # noVNC screen as a browser pane
 cmux vm open <machine>                   # same as vm shell
 cmux vm open <machine>/<ws>[/<term>]     # a cmux-tui workspace or one terminal
 cmux vm open <machine>:desktop
-cmux vm open <machine> <port> [--print]  # private tokened URL for an HTTP port
+cmux vm open <machine> <port> [--print]  # private-network URL for an HTTP port
 cmux vm ssh <id>                         # SSH fallback; unavailable on some providers/images
 ```
 
 Machine workspaces, terminals, and panes (everything the Cloud sidebar does):
 
-```
+```bash
 cmux vm workspace new <id> [--name <n>]     # create a workspace on the machine (its ⌘N) and open it here
-cmux vm workspace open <id> <ws> [--here|--tabs|--pane <p> --left|--right|--up|--down]
+cmux vm workspace open <id> <ws> [--here|--tabs|--pane <p> --left|--right|--up|--down]   # an empty workspace opens nothing (opened=0); --tabs and a side are exclusive
 cmux vm workspace rename <id> <ws> <name>
 cmux vm workspace rm <id> <ws>              # close the workspace AND kill every terminal in it (the sidebar's Close Workspace…)
 cmux vm workspace close <id> <ws>           # CLI-only: close the workspace but keep its terminals running in the Terminals pool
 cmux vm terminal close <id> <term>          # end one terminal (the process and its tab)
 cmux vm terminal send <id> <term> 'bun test' --keys enter   # type into a terminal headlessly, then press keys (no pane, no focus)
 cmux vm terminal wait <id> <term> --pattern 'pass|fail' [--timeout 120]   # block until the screen matches; exit 1 on timeout
+cmux vm terminal wait-exit <id> <term> [--timeout <s>]   # block until the process exits (exited code=<n> | pending)
+cmux vm terminal output <id> <term> [--after <offset>]   # the full output so far, resumable
 cmux vm terminal read <id> <term>           # the terminal's visible screen (what a person would see)
 cmux surface ls [--json]                    # every surface (This Mac + machines) and which panes show it
 cmux surface open <machine>/<kind>/<key> [--new] [--pane <p> --left|--right|--up|--down|--tab]
 cmux surface new-terminal --machine <id> [--remote-workspace <ws>] [--cwd <dir>] [-- <cmd...>]
+cmux vm layout export <id> [<ws>] [--raw]  # the workspace's shape as JSON ({"name","cwd","layout"})
+cmux vm layout apply <id> <file>|- [--name <n>] [--workspace <empty-ws>] [--cwd <dir>] [--from-saved <name>] [--open]
+cmux vm env set <id> KEY=VALUE… [--from-file .env] ; cmux vm env ls <id> [--show] ; cmux vm env rm <id> KEY…
 ```
 
-A pane showing a machine surface is an ordinary local cmux pane: move, split, reorder, or close it with the local workspace/pane commands (`cmux --help`), and closing a pane never kills the machine's terminal. Workspace (`ws_…`) and terminal (`term_…`) ids come from `cmux vm tree`.
+Layout document: `{"pane":{"surfaces":[{"type":"terminal"|"browser","name"?,"cwd"?,"command"?,"env"?,"url"?,"focus"?}]}}` leaves and `{"direction":"horizontal"|"vertical","split":0.1–0.9,"children":[a,b]}` splits (`horizontal` = side by side, first child left; `vertical` = stacked; `split` = the first child's share). Terminals are login shells in `cwd` (relative to the document `cwd`, default `/root`); `command` is typed into the shell so the pane survives it. `apply` builds a new workspace (`--name`) or fills an already-empty one (`--workspace`), never a non-empty one; `vm workspace new --no-open` intentionally creates the starter-shell workspace and is therefore not the recipe for an empty layout target. Prefer `--name` or `vm dev`; exit 2 with the JSON path on a malformed document. `vm env` values live 0600 at `/root/.config/cmux/env` and are sourced by every shell cmux starts on that machine (terminals, `vm exec`, `vm agent`, layout panes). They travel over the machine's end-to-end encrypted link into the machine's `cmux env receive` — never through `vm exec`, a command line, or a terminal screen — so put secrets there and only names in a layout; prefer `--from-file .env` or `-` (stdin) so values skip your own shell history; `vm env ls` shows names unless `--show`; forks and snapshots inherit the file.
+
+A pane showing a machine surface is an ordinary local cmux pane: move, split, reorder, or close it with the local workspace/pane commands (`cmux --help`), and closing a pane never kills the machine's terminal. Workspace (`ws_…`) and terminal (`term_…`) ids come from `cmux vm tree`; `cmux vm tree --refresh` re-reads the fleet and every machine (a machine you just created shows up at once). A `--workspace`/`--pane` that names nothing is an error, never a silent open somewhere else.
 
 `terminal send/wait/read` is how you drive an interactive program on a machine (a REPL, a TUI, a long test run, another agent's session) without attaching a pane or taking the user's focus: start it with `surface new-terminal --machine <id> --no-open -- <cmd>`, then send input, wait for the prompt or result pattern, and read the screen. Open a pane for the person only when there is something to show.
 
 Run commands:
 
-```
-cmux vm exec <id> -- <command...>        # one command, ~35s limit, exit code passes through
-cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] -- <command...>
+```bash
+cmux vm exec [--timeout <s>] <id> -- <command...>   # one command, 30 s default up to 900 s, exit code passes through
+cmux vm run [--sync] [--pull <remote-path>] [--machine <id>] [--new] [--size <s>] [--timeout <seconds>] [--wait [--output]] -- <command...>
 cmux vm route [--cwd <dir>]              # print which machine vm run/agent would pick, and why
 cmux vm wait <id> [--timeout <seconds>] [--wake]
+cmux vm dev <id> [<folder>] [--name <ws>] [--layout <file>] [--command "<cmd>"] [--port <n>] [--remote <path>] [--sync|--no-sync] [--no-open] [--dry-run] [--json]
 ```
 
-`vm run` needs no machine name: it reuses an idle pool machine, wakes a sleeping one, or provisions a fresh one (default timeout 600s, max 15 minutes). `--sync` pushes the current directory to `work/<basename>` first; `--pull` fetches a path back afterward. For longer work start a detached terminal via `vm agent`.
+`vm run` needs no machine name: it reuses an idle pool machine, wakes a sleeping one, or provisions a fresh one (default timeout 600s, max 15 minutes). `--sync` pushes the current directory to `work/<basename>` first; `--pull` fetches a path back afterward. For longer work start a detached terminal via `vm agent`. `vm dev` is the one-verb dev box: it checks the machine, optionally pushes the folder, detects the dev command and port, then creates or reuses the named workspace through `vm layout apply --name` and opens the resulting geometry on the Mac. `--command`/`--port` override detection, `--layout` replaces the built-in document, `--dry-run` makes no socket calls, `--no-open` stages without a local pane, and `--json` returns machine/workspace/terminal/layout/url fields. When the workspace already has live terminals, a rerun preserves its layout instead of starting another dev server.
 
 Coding agents on machines:
 
-```
-cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] -- <prompt or args...>
+```bash
+cmux vm agent --agent <claude|codex|opencode|pi> [--machine <id>] [--sync] [--cwd <dir>] [--name <name>] [--no-open] [--new] [--size <s>] [--wait [--output] [--timeout <s>]] -- <prompt or args...>
 ```
 
-The agent starts as a detached terminal in the machine's cmux-tui session: it keeps running when the pane closes, and `cmux vm open <machine>/<ws>/<term>` reattaches from any device. A bare prompt runs the agent's one-shot form; leading flags or known subcommands pass through verbatim. Credentials for cloud agents come from `cmux ai-accounts upload`.
+The agent starts as a detached terminal in the machine's cmux-tui session: it keeps running when the pane closes, and `cmux vm open <machine>/<ws>/<term>` reattaches from any device. A bare prompt runs the agent's one-shot form; leading flags or known subcommands pass through verbatim. Credentials for cloud agents come from `cmux ai-accounts upload`. `--wait` blocks until the agent's process exits (Ctrl-C stops the wait, not the agent), `--output` then prints everything it wrote, and the agent's exit code becomes yours (1 on timeout or signal). Without `--wait`, `cmux vm terminal wait-exit` + `terminal output` on the printed terminal id do the same later.
 
 Files:
 
-```
-cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]...
+```bash
+cmux vm push <id> <local-path> [remote-path] [--exclude <pattern>]... [--watch [--interval <s>]]
+cmux vm push --secret <id> <local-file> <remote-path> [--mode <octal>]   # one file over the machine's link, never through exec (0600, atomic, 256 KiB cap)
 cmux vm pull <id> <remote-path> [local-path]
 ```
 
-Directories travel as tarballs with default excludes (node_modules, .git, and similar); transfers are size-capped, so ship repos without build artifacts.
+Directories travel as tarballs with default excludes (node_modules, .git, and similar); transfers are size-capped, so ship repos without build artifacts. `--watch` re-pushes on local change (one line per push, Ctrl-C to stop). `--secret` is for keys, tokens and config files with credentials: like `vm env set`, it rides the end-to-end link into the machine's `cmux file receive`, which turns echo off before it reads, so the bytes never touch a command line, the control plane, the provider API, a screen or scrollback; it refuses directories.
 
 Snapshot, fork, restore:
 
-```
+```bash
 cmux vm snapshot <id> [--name <name>]
+cmux vm snapshot ls <id> [--json]        # this machine's snapshots, newest first
+cmux vm snapshot rm <id> <snapshot-id>   # delete one of this machine's snapshots
 cmux vm fork <id> [--name <name>]
 cmux vm restore <snapshot-id>
 ```
 
 Destroy:
 
-```
+```bash
+cmux vm pause <id>       # park a machine when the work is done (compute stops; files and daemon state stay)
+cmux vm resume <id>      # wake it again
 cmux vm rm <id>          # irreversible and unprompted
 ```
 
+## The grammar (one spelling per concept)
+
+| Where you are | What you address | Spelling |
+|---|---|---|
+| Mac | a machine | `cmux vm <verb> <machine> …` — everything about machines lives here |
+| Mac | this Mac's own session | the unprefixed local verbs (`cmux send-key`, `cmux new-workspace`, …) |
+| inside a machine | **this** machine's session | the same unprefixed local verbs as on a Mac (`cmux send-key`, `cmux terminal send`, `cmux layout apply`, `cmux env set`, `cmux notify`) |
+| inside a machine | **another** machine | `cmux vm <verb> <machine> …` — the same grammar as on the Mac |
+| inside a machine | the owner's machines | `cmux vm ls` (this one marked `*`, with reachability) |
+| inside a machine | myself | `cmux self [peers\|integrations\|owner\|machine] [--json]` (aliases: `cmux whoami`, `cmux reflect [<path>]`) |
+
 ## Inside a machine
 
-Run `cmux self` first. The guest `cmux` command answers only two questions, through the machine's TLS edge (no account token lives in the VM):
+Every machine has its own in-VM `cmux` CLI (a shim over the machine's cmux-tui daemon). Local verbs use cmux-tui's grammar (`cmux <resource> <action>`) against the machine's own session — workspaces, terminals, panes:
+
+`cmux self [--json]` identifies this machine and `cmux vm ls [--json]` lists the owner's live machines, this one marked `*`, with reachable/linked state. Both read reflection (`GET /api/vm/reflection`, falling back to `/api/vm/self` on an older server), work without a local daemon, and use the edge-injected machine identity, never an account token copied into the VM.
+
+```bash
+cmux workspace current run -- bun test        # run a command in a durable terminal here
+cmux session current snapshot --json          # this machine's workspace/terminal tree
+```
+
+A machine knows who it is: `cmux self` (name, id, status, team, owner, plan) and `cmux self peers|integrations|owner|machine` read the reflection service through the edge, which asserts the identity — nothing in the guest is a credential. `cmux self integrations` lists what the machine can use with a help command each; `cmux whoami` and `cmux reflect <path>` are aliases.
+
+The Mac spellings work there too, against the machine's own session (default target: the terminal you run them from, `$CMUX_TUI_TERMINAL_ID`):
 
 ```
-cmux self [--json]     # this machine: name, id, status, team, machine count
-cmux vm ls [--json]    # the team's live machines, this one marked with *
+cmux tree --json ; cmux new-workspace --name tests ; cmux new-split right
+cmux send-key --terminal <term> ctrl+c ; cmux send --terminal <term> 'bun test' ; cmux read-screen --terminal <term>
+cmux terminal send <term> 'bun test' --keys enter ; cmux terminal wait <term> --pattern 'pass|fail' ; cmux terminal read <term>
+cmux terminal wait-exit <term> --timeout 600 ; cmux terminal output <term>      # wait for the process to end, then read everything it printed
+cmux layout export [--workspace <ws>] ; cmux layout apply --name app app.json
+cmux env set KEY=VALUE ; cmux env ls ; cmux env rm KEY
+cmux agent claude [--timeout <s>] "fix the tests"                                # runs in this terminal until it exits (it is the wait; exit code passes through)
+cmux file receive <path> [--mode <octal>]                                        # the receiver that `cmux vm push --secret` (Mac) and peer `cmux vm push` type into
 ```
 
-`--json` returns `{schema, machine: {id, vmId, name, displayName, slug, status, createdAt, self}, team: {id}, machines: [...]}`. `id` is the machine id every Mac `cmux vm …` verb takes. Every other verb (`vm new`, `vm exec`, `notify`, …) exits 2 and names the Mac CLI; run those there.
+`cmux vm …` inside a machine talks to OTHER machines of the same owner, discovered through `cmux self peers` / `cmux vm ls` (the private network is the trust boundary; no Mac step is needed, and older Mac-written route files still work):
+
+```bash
+cmux vm ls                          # the owner's machines: this one marked *, reachable/linked/connected
+cmux vm exec <peer> -- <command>    # run on the peer (durable terminal there)
+cmux vm tree <peer>                 # the peer's workspace/terminal snapshot
+cmux vm terminal send|read|wait|close <peer> <term> … ; cmux vm send-key <peer> <term> <keys…>
+cmux vm workspace new|rename|close|rm <peer> … ; cmux vm layout export|apply <peer> … ; cmux vm env set|ls|rm <peer> …
+cmux vm agent <peer> --agent <claude|codex|opencode|pi> [--name <n>] [--cwd <dir>] [--wait [--output]] -- <prompt>   # a durable agent terminal on the peer; --wait blocks until it exits
+cmux vm push <peer> <local-file> <remote-path> [--mode <octal>]   # one file to the peer, always over the link (secret-safe by construction)
+```
+
+Peer commands require an existing grant and a compatible daemon. No control-plane credential lives in a VM. Connection readiness comes from daemon events, with a 30-second deadline and cancellation cleanup, not polling. Guest messages follow `LC_ALL`, `LC_MESSAGES`, then `LANG` (English or Japanese).
 
 ## Rules
 
@@ -137,3 +192,38 @@ cmux vm ls [--json]    # the team's live machines, this one marked with *
 - Use `--json` only on commands whose `--help` documents it; interactive verbs (`shell`, `tui`, `desktop`) have none. Do not parse the human table output either way.
 - `vm exec` quoting is faithful per argv element; wrap shell constructs as `-- sh -c '<script>'`.
 - Read plan limits and sizes from `cmux vm ls` and `--help`, not from memory.
+
+### Arrange the view from inside the machine
+
+Use these commands in a daemon terminal (`cmux tree --json` supplies workspace,
+screen, pane, split and tab IDs):
+
+```bash
+cmux workspace rename <ws> "Review ready"
+cmux terminal rename current "Builder" --json
+cmux tab rename <tab> "Test results" --json
+cmux pane split <pane> right --ratio 0.6 --json
+cmux tab move <tab> --workspace <ws> --screen <screen> --pane <destination-pane> --index 0 --json
+cmux pane swap <pane> --other-workspace <ws> --other-screen <screen> --other-pane <other-pane> --json
+cmux pane resize <pane> --split <split> --ratio 0.65 --json
+cmux workspace move <ws> --index 0
+cmux tab focus <tab>
+cmux notify --title "Review ready" --body "The workspace has the app, logs, and test results."
+```
+
+`tab rename` labels one placement; `terminal rename` labels every current placement
+of that terminal. Names, including spaces and an empty string, are passed as exact
+arguments. A terminal with several views should be moved by its tab ID. Moving,
+renaming, swapping, and changing split ratios preserve running terminal processes.
+`pane resize` changes layout geometry; machine disk resizing remains unavailable.
+
+Local commands use `cmux <resource> <verb> …`; a peer uses
+`cmux vm <resource> <verb> <machine> …` (for example,
+`cmux vm tab rename <machine> <tab> "Logs"`). Existing ID-first daemon syntax is
+also supported. `cmux workspace help` lists the full topology grammar.
+
+Arrange the daemon workspace before presenting it. The Mac's
+`cmux vm workspace open <machine> <ws>` reads that layout when creating its local
+view. These guest commands do not force focus or rearrange an already-open Mac
+projection. `layout apply` is for new/empty workspaces; use the commands above to
+change an occupied workspace without restarting its agents.
