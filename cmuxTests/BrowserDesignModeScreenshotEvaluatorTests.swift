@@ -488,7 +488,8 @@ struct BrowserDesignModeScreenshotEvaluatorTests {
             """
             <!doctype html>
             <style>
-              html { scroll-behavior: smooth; }
+              html { scroll-behavior: smooth; overflow: scroll; }
+              ::-webkit-scrollbar { width: 16px; height: 16px; }
               body { margin: 0; width: 2100.5px; height: 2100.5px; background: red; }
               #target {
                 position: absolute; left: 1900px; top: 1900px;
