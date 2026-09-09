@@ -16,17 +16,12 @@ struct CachedAgentProcessIdentityValidator: Sendable {
         /// process as long as nothing it does carry contradicts the record.
         case currentHookRecord
 
-        /// The pane's own foreground process, checked against the hook-published
-        /// binding for that pane. Like a hook record it vouches for a missing session
-        /// identity but never overrides a contradicting one.
-        case paneForegroundProcess
-
         /// Whether a process that shows no session identity of its own may still be
         /// accepted on the caller's evidence.
         var vouchesForMissingSessionIdentity: Bool {
             switch self {
             case .cachedSnapshot: false
-            case .currentHookRecord, .paneForegroundProcess: true
+            case .currentHookRecord: true
             }
         }
     }
@@ -173,8 +168,7 @@ struct CachedAgentProcessIdentityValidator: Sendable {
                 }
                 // Pi overwrites its argv with a bare title and nothing exports
                 // CMUX_AGENT_SESSION_ID for it, so a fresh Pi never shows its
-                // session. Its own hook record (or the pane's foreground
-                // process for that pane's binding) vouches instead (#12084).
+                // session. Its own current hook record vouches instead (#12084).
                 return hermesSessionValidation.vouchesForMissingSessionIdentity
             }
             return ManagedAgentSessionIdentity.sessionIDsMatch(

@@ -20,17 +20,14 @@ struct RestoredAgentLiveness {
     /// Creates an evaluator with injectable process probes.
     init(
         currentProcessIdentity: @escaping (pid_t) -> AgentPIDProcessIdentity? = { AgentPIDProcessIdentity(pid: $0) },
-        processIsPresent: @escaping (pid_t) -> Bool = { PIDPresence.current(pid: $0) != .absent },
         foregroundProcessArguments: @escaping (Int) -> CmuxTopProcessArguments? =
             CmuxTopProcessSnapshot.processArgumentsAndEnvironment(for:)
     ) {
         self.currentProcessIdentity = currentProcessIdentity
-        self.processIsPresent = processIsPresent
         self.foregroundProcessArguments = foregroundProcessArguments
     }
 
     private let currentProcessIdentity: (pid_t) -> AgentPIDProcessIdentity?
-    private let processIsPresent: (pid_t) -> Bool
     private let foregroundProcessArguments: (Int) -> CmuxTopProcessArguments?
 
     /// The runtime PID key hooks register for `agent`'s session.
@@ -47,7 +44,6 @@ struct RestoredAgentLiveness {
     ///   - liveIndex: the shared live agent index, if loaded.
     ///   - foregroundProcessID: the pane's foreground process.
     ///   - currentProcessIdentity: start-time identity for a PID that is alive.
-    ///   - processIsPresent: whether a PID still has a process-table entry.
     ///   - foregroundProcessArguments: argv and environment for the foreground
     ///     process.
     func hasLiveProcess(
@@ -58,7 +54,6 @@ struct RestoredAgentLiveness {
         liveIndex: RestorableAgentSessionIndex?,
         foregroundProcessID: Int?,
         currentProcessIdentity: ((pid_t) -> AgentPIDProcessIdentity?)? = nil,
-        processIsPresent: ((pid_t) -> Bool)? = nil,
         foregroundProcessArguments: ((Int) -> CmuxTopProcessArguments?)? = nil
     ) -> Bool {
         if agent.kind != .claude,
@@ -77,20 +72,11 @@ struct RestoredAgentLiveness {
         ) == true {
             return true
         }
-        // A bare foreground process is bound to the session's own process
-        // only while that process still exists. Once it is gone, the bare
-        // process in the pane is the session resumed in place (a hibernation
-        // resume, a manual `cmux restore`) far more often than a stranger, and
-        // a stranger's own session-start hook replaces the binding within a
-        // second, whereas a wrongly retired binding stays retired until the
-        // next prompt, the very failure #12084 reports.
-        let boundingProcessID: Int? = recordedProcess.flatMap { recorded in
-            recorded.pid > 0 && (processIsPresent ?? self.processIsPresent)(recorded.pid) ? Int(recorded.pid) : nil
-        }
+        // A missing or reused recorded process does not authorize another
+        // bare executable; the foreground validator requires this session ID.
         return RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: foregroundProcessID,
-            recordedProcessID: boundingProcessID,
             processArguments: foregroundProcessArguments ?? self.foregroundProcessArguments
         )
     }

@@ -294,19 +294,16 @@ struct RestoredAgentShellActivityLivenessTests {
         #expect(!RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 4242,
-            recordedProcessID: 4242,
             processArguments: { _ in barePi }
         ))
         #expect(!RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 9999,
-            recordedProcessID: 4242,
             processArguments: { _ in barePi }
         ))
         #expect(RestoredAgentForegroundProcess.matches(
             agent,
             foregroundProcessID: 9999,
-            recordedProcessID: 4242,
             processArguments: { _ in sameSessionPi }
         ))
     }
@@ -402,7 +399,6 @@ struct RestoredAgentShellActivityLivenessTests {
             liveIndex: nil,
             foregroundProcessID: 9999,
             currentProcessIdentity: { _ in nil },
-            processIsPresent: { _ in false },
             foregroundProcessArguments: { _ in barePi }
         ))
         // An explicit matching session still supports resumes of resumes.
@@ -446,7 +442,6 @@ struct RestoredAgentShellActivityLivenessTests {
             currentProcessIdentity: { _ in
                 AgentPIDProcessIdentity(pid: 4242, startSeconds: 200, startMicroseconds: 0)
             },
-            processIsPresent: { _ in true },
             foregroundProcessArguments: { _ in barePi }
         ))
         // A shell in the foreground never vouches, dead recorded process or not.
@@ -458,7 +453,6 @@ struct RestoredAgentShellActivityLivenessTests {
             liveIndex: nil,
             foregroundProcessID: 9999,
             currentProcessIdentity: { _ in nil },
-            processIsPresent: { _ in false },
             foregroundProcessArguments: { _ in CmuxTopProcessArguments(arguments: ["zsh", "-l"], environment: [:]) }
         ))
     }
