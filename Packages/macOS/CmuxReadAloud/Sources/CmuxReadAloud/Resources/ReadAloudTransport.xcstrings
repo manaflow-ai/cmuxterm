@@ -1,0 +1,1256 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "readAloud.transport.invalidConfiguration": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a supported speech model, a voice, and a speed between 0.5 and 2."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対応している音声モデルと音声を選択し、速度を0.5〜2の範囲に設定してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اختر نموذجًا مدعومًا لتحويل النص إلى كلام، وصوتًا، وسرعة بين 0.5 و2."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odaberite podržani model govora, glas i brzinu između 0,5 i 2."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vælg en understøttet talemodel, en stemme og en hastighed mellem 0,5 og 2."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie ein unterstütztes Sprachausgabemodell, eine Stimme und eine Geschwindigkeit zwischen 0,5 und 2."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un modelo de síntesis de voz compatible, una voz y una velocidad entre 0,5 y 2."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisissez un modèle de synthèse vocale pris en charge, une voix et une vitesse comprise entre 0,5 et 2."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scegli un modello di sintesi vocale supportato, una voce e una velocità compresa tra 0,5 e 2."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ជ្រើសរើសម៉ូដែលសំឡេងដែលគាំទ្រ សំឡេង និងល្បឿនចន្លោះពី 0.5 ដល់ 2។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지원되는 음성 모델과 음성을 선택하고 속도를 0.5에서 2 사이로 설정하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Velg en støttet talemodell, en stemme og en hastighet mellom 0,5 og 2."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wybierz obsługiwany model mowy, głos i szybkość od 0,5 do 2."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escolha um modelo de fala compatível, uma voz e uma velocidade entre 0,5 e 2."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите поддерживаемую модель синтеза речи, голос и скорость от 0,5 до 2."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เลือกโมเดลเสียงพูดที่รองรับ เสียง และความเร็วระหว่าง 0.5 ถึง 2"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desteklenen bir konuşma modeli, bir ses ve 0,5 ile 2 arasında bir hız seçin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Виберіть підтримувану модель синтезу мовлення, голос і швидкість від 0.5 до 2."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择受支持的语音模型、音色以及 0.5 到 2 之间的语速。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請選擇支援的語音模型、聲音，以及介於 0.5 到 2 之間的速度。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.invalidCredential": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a valid MiniMax API key without spaces or line breaks in Read Aloud settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み上げ設定で、空白や改行を含まない有効なMiniMax APIキーを入力してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أدخل مفتاح API صالحًا لخدمة MiniMax دون مسافات أو فواصل أسطر في إعدادات القراءة بصوت عالٍ."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unesite važeći MiniMax API ključ bez razmaka ili prijeloma reda u postavkama čitanja naglas."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indtast en gyldig MiniMax-API-nøgle uden mellemrum eller linjeskift i indstillingerne for Læs op."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie in den Einstellungen für „Vorlesen“ einen gültigen MiniMax-API-Schlüssel ohne Leerzeichen oder Zeilenumbrüche ein."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce una clave de API de MiniMax válida, sin espacios ni saltos de línea, en los ajustes de Leer en voz alta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez une clé API MiniMax valide, sans espaces ni sauts de ligne, dans les réglages de lecture à voix haute."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inserisci una chiave API MiniMax valida, senza spazi o interruzioni di riga, nelle impostazioni di Leggi ad alta voce."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "បញ្ចូលសោ API របស់ MiniMax ដែលមានសុពលភាព ដោយគ្មានដកឃ្លា ឬការចុះបន្ទាត់ ក្នុងការកំណត់អានឮៗ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "소리 내어 읽기 설정에서 공백이나 줄바꿈이 없는 유효한 MiniMax API 키를 입력하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skriv inn en gyldig MiniMax API-nøkkel uten mellomrom eller linjeskift i innstillingene for Les høyt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wprowadź prawidłowy klucz API MiniMax bez spacji i znaków końca wiersza w ustawieniach funkcji Czytaj na głos."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insira uma chave de API da MiniMax válida, sem espaços nem quebras de linha, nos ajustes de Ler em voz alta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите действительный API-ключ MiniMax без пробелов и переносов строк в настройках чтения вслух."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ป้อนคีย์ API ของ MiniMax ที่ถูกต้องโดยไม่มีช่องว่างหรือการขึ้นบรรทัดใหม่ในการตั้งค่าการอ่านออกเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesli Oku ayarlarında boşluk veya satır sonu içermeyen geçerli bir MiniMax API anahtarı girin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введіть дійсний API-ключ MiniMax без пробілів і розривів рядків у налаштуваннях «Читати вголос»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在朗读设置中输入有效的 MiniMax API 密钥，不能包含空格或换行符。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在「朗讀」設定中輸入有效的 MiniMax API 金鑰，且不得包含空格或換行字元。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.authentication": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax could not authenticate this request. Check the API key in Read Aloud settings."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxでこのリクエストを認証できませんでした。読み上げ設定のAPIキーを確認してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر على MiniMax مصادقة هذا الطلب. تحقّق من مفتاح API في إعدادات القراءة بصوت عالٍ."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nije mogao autentificirati ovaj zahtjev. Provjerite API ključ u postavkama čitanja naglas."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax kunne ikke godkende denne anmodning. Kontrollér API-nøglen i indstillingerne for Læs op."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax konnte diese Anfrage nicht authentifizieren. Überprüfen Sie den API-Schlüssel in den Einstellungen für „Vorlesen“."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax no ha podido autenticar esta solicitud. Comprueba la clave de API en los ajustes de Leer en voz alta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax n’a pas pu authentifier cette requête. Vérifiez la clé API dans les réglages de lecture à voix haute."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax non ha potuto autenticare questa richiesta. Controlla la chiave API nelle impostazioni di Leggi ad alta voce."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax មិនអាចផ្ទៀងផ្ទាត់ភាពត្រឹមត្រូវនៃសំណើនេះបានទេ។ សូមពិនិត្យសោ API ក្នុងការកំណត់អានឮៗ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에서 이 요청을 인증하지 못했습니다. 소리 내어 읽기 설정에서 API 키를 확인하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax kunne ikke autentisere denne forespørselen. Kontroller API-nøkkelen i innstillingene for Les høyt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nie mógł uwierzytelnić tego żądania. Sprawdź klucz API w ustawieniach funkcji Czytaj na głos."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A MiniMax não conseguiu autenticar esta solicitação. Verifique a chave de API nos ajustes de Ler em voz alta."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не удалось аутентифицировать этот запрос. Проверьте API-ключ в настройках чтения вслух."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ไม่สามารถยืนยันตัวตนสำหรับคำขอนี้ได้ ตรวจสอบคีย์ API ในการตั้งค่าการอ่านออกเสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax bu isteğin kimliğini doğrulayamadı. Sesli Oku ayarlarındaki API anahtarını kontrol edin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не вдалося автентифікувати цей запит. Перевірте API-ключ у налаштуваннях «Читати вголос»."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 无法验证此请求。请检查朗读设置中的 API 密钥。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 無法驗證此請求。請檢查「朗讀」設定中的 API 金鑰。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.rateLimited": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax's speech request limit was reached. Try again later."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxの音声リクエストの上限に達しました。しばらくしてから再度お試しください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تم بلوغ الحد الأقصى لطلبات تحويل النص إلى كلام لدى MiniMax. حاول مجددًا لاحقًا."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dostignuto je MiniMax ograničenje broja zahtjeva za govor. Pokušajte ponovo kasnije."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grænsen for taleanmodninger til MiniMax er nået. Prøv igen senere."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Limit für Sprachausgabeanfragen bei MiniMax wurde erreicht. Versuchen Sie es später erneut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ha alcanzado el límite de solicitudes de síntesis de voz de MiniMax. Inténtalo de nuevo más tarde."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La limite de requêtes de synthèse vocale de MiniMax a été atteinte. Réessayez plus tard."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "È stato raggiunto il limite di richieste di sintesi vocale di MiniMax. Riprova più tardi."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "បានឈានដល់កម្រិតកំណត់សំណើបង្កើតសំឡេងរបស់ MiniMax។ សូមព្យាយាមម្ដងទៀតនៅពេលក្រោយ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax의 음성 요청 한도에 도달했습니다. 나중에 다시 시도하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grensen for taleforespørsler hos MiniMax er nådd. Prøv igjen senere."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osiągnięto limit żądań generowania mowy w MiniMax. Spróbuj ponownie później."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O limite de solicitações de fala da MiniMax foi atingido. Tente novamente mais tarde."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Достигнут лимит запросов на синтез речи MiniMax. Повторите попытку позже."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ถึงขีดจำกัดคำขอสร้างเสียงพูดของ MiniMax แล้ว ลองอีกครั้งในภายหลัง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax konuşma isteği sınırına ulaşıldı. Daha sonra tekrar deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Досягнуто ліміту запитів на синтез мовлення MiniMax. Спробуйте пізніше."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达到 MiniMax 的语音请求上限。请稍后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已達 MiniMax 的語音請求上限。請稍後再試。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.providerRejected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax could not generate speech. Check your account, voice, and selected text."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxで音声を生成できませんでした。アカウント、音声、選択したテキストを確認してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر على MiniMax توليد الكلام. تحقّق من حسابك والصوت والنص المحدد."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nije mogao generisati govor. Provjerite svoj račun, glas i odabrani tekst."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax kunne ikke generere tale. Kontrollér din konto, stemmen og den markerede tekst."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax konnte keine Sprachausgabe erzeugen. Überprüfen Sie Ihr Konto, die Stimme und den ausgewählten Text."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax no ha podido generar la voz. Comprueba tu cuenta, la voz y el texto seleccionado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax n’a pas pu générer la synthèse vocale. Vérifiez votre compte, la voix et le texte sélectionné."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax non ha potuto generare l'audio vocale. Controlla il tuo account, la voce e il testo selezionato."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax មិនអាចបង្កើតសំឡេងបានទេ។ សូមពិនិត្យគណនី សំឡេង និងអត្ថបទដែលអ្នកបានជ្រើសរើស។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에서 음성을 생성하지 못했습니다. 계정, 음성 및 선택한 텍스트를 확인하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax kunne ikke generere tale. Kontroller kontoen din, stemmen og den markerte teksten."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nie mógł wygenerować mowy. Sprawdź swoje konto, głos i zaznaczony tekst."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A MiniMax não conseguiu gerar a fala. Verifique sua conta, a voz e o texto selecionado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не удалось синтезировать речь. Проверьте свою учётную запись, голос и выделенный текст."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ไม่สามารถสร้างเสียงพูดได้ ตรวจสอบบัญชี เสียง และข้อความที่คุณเลือก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax konuşma oluşturamadı. Hesabınızı, sesi ve seçili metni kontrol edin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не вдалося синтезувати мовлення. Перевірте свій обліковий запис, голос і вибраний текст."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 无法生成语音。请检查你的账户、音色和所选文本。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 無法產生語音。請檢查您的帳號、聲音及所選文字。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.network": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection to MiniMax failed. Check your network connection."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxへの接続に失敗しました。ネットワーク接続を確認してください。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فشل الاتصال بخدمة MiniMax. تحقّق من اتصالك بالشبكة."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezivanje s uslugom MiniMax nije uspjelo. Provjerite mrežnu vezu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forbindelsen til MiniMax mislykkedes. Kontrollér din netværksforbindelse."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung zu MiniMax ist fehlgeschlagen. Überprüfen Sie Ihre Netzwerkverbindung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con MiniMax. Comprueba tu conexión de red."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connexion à MiniMax a échoué. Vérifiez votre connexion réseau."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connessione a MiniMax non è riuscita. Controlla la connessione di rete."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការតភ្ជាប់ទៅ MiniMax បានបរាជ័យ។ សូមពិនិត្យការតភ្ជាប់បណ្ដាញរបស់អ្នក។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에 연결하지 못했습니다. 네트워크 연결을 확인하세요."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilkoblingen til MiniMax mislyktes. Kontroller nettverkstilkoblingen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie udało się połączyć z MiniMax. Sprawdź połączenie sieciowe."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A conexão com a MiniMax falhou. Verifique sua conexão de rede."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к MiniMax. Проверьте подключение к сети."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เชื่อมต่อกับ MiniMax ไม่สำเร็จ ตรวจสอบการเชื่อมต่อเครือข่ายของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax bağlantısı başarısız oldu. Ağ bağlantınızı kontrol edin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося підключитися до MiniMax. Перевірте підключення до мережі."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 MiniMax 失败。请检查网络连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至 MiniMax。請檢查您的網路連線。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.invalidResponse": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returned an invalid audio response. Read Aloud has stopped."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxから無効な音声応答が返されました。読み上げを停止しました。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعادت MiniMax استجابة صوتية غير صالحة. توقفت القراءة بصوت عالٍ."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax je vratio nevažeći audio odgovor. Čitanje naglas je zaustavljeno."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerede et ugyldigt lydsvar. Oplæsningen er stoppet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax hat eine ungültige Audioantwort zurückgegeben. Das Vorlesen wurde beendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ha devuelto una respuesta de audio no válida. Se ha detenido la lectura en voz alta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax a renvoyé une réponse audio non valide. La lecture à voix haute s’est arrêtée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ha restituito una risposta audio non valida. La lettura ad alta voce è stata interrotta."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax បានត្រឡប់ការឆ្លើយតបជាសំឡេងដែលមិនត្រឹមត្រូវ។ ការអានឮៗបានឈប់ហើយ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에서 유효하지 않은 오디오 응답을 반환했습니다. 소리 내어 읽기가 중지되었습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerte et ugyldig lydsvar. Les høyt har stoppet."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax zwrócił nieprawidłową odpowiedź audio. Czytanie na głos zostało zatrzymane."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A MiniMax retornou uma resposta de áudio inválida. A leitura em voz alta foi interrompida."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax вернул некорректный аудиоответ. Чтение вслух остановлено."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ส่งข้อมูลเสียงตอบกลับที่ไม่ถูกต้อง การอ่านออกเสียงหยุดแล้ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax geçersiz bir ses yanıtı döndürdü. Sesli okuma durduruldu."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax повернув некоректну аудіовідповідь. Читання вголос зупинено."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 返回了无效的音频响应。朗读已停止。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 傳回了無效的音訊回應。朗讀已停止。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.responseTooLarge": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returned an audio message larger than the streaming safety limit. Read Aloud has stopped."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMaxからストリーミングの安全上限を超える音声メッセージが返されました。読み上げを停止しました。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "أعادت MiniMax رسالة صوتية يتجاوز حجمها حد الأمان للبث. توقفت القراءة بصوت عالٍ."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax je vratio audio poruku veću od sigurnosnog ograničenja za streaming. Čitanje naglas je zaustavljeno."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerede en lydbesked, der overstiger sikkerhedsgrænsen for streaming. Oplæsningen er stoppet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax hat eine Audionachricht zurückgegeben, die das Sicherheitslimit für Streaming überschreitet. Das Vorlesen wurde beendet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ha devuelto un mensaje de audio que supera el límite de seguridad de la transmisión. Se ha detenido la lectura en voz alta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax a renvoyé un message audio dont la taille dépasse la limite de sécurité du streaming. La lecture à voix haute s’est arrêtée."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ha restituito un messaggio audio che supera il limite di sicurezza per lo streaming. La lettura ad alta voce è stata interrotta."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax បានត្រឡប់សារជាសំឡេងដែលមានទំហំធំជាងកម្រិតសុវត្ថិភាពនៃការផ្សាយផ្ទាល់។ ការអានឮៗបានឈប់ហើយ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에서 스트리밍 안전 한도를 초과하는 크기의 오디오 메시지를 반환했습니다. 소리 내어 읽기가 중지되었습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerte en lydmelding som overskrider sikkerhetsgrensen for strømming. Les høyt har stoppet."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax zwrócił wiadomość audio przekraczającą limit bezpieczeństwa strumieniowania. Czytanie na głos zostało zatrzymane."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A MiniMax retornou uma mensagem de áudio maior que o limite de segurança do streaming. A leitura em voz alta foi interrompida."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax вернул аудиосообщение, размер которого превышает безопасный лимит для потоковой передачи. Чтение вслух остановлено."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ส่งข้อมูลเสียงกลับมาซึ่งมีขนาดเกินขีดจำกัดความปลอดภัยในการสตรีม การอ่านออกเสียงหยุดแล้ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax, akış güvenlik sınırından daha büyük bir ses iletisi döndürdü. Sesli okuma durduruldu."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax повернув аудіоповідомлення, розмір якого перевищує безпечний ліміт потокового передавання. Читання вголос зупинено."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 返回的音频消息超出了流式传输的安全大小限制。朗读已停止。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 傳回的音訊訊息大小超過串流安全上限。朗讀已停止。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.truncatedStream": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The MiniMax audio stream ended before speech was complete."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み上げが完了する前にMiniMaxの音声ストリームが終了しました。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "انتهى البث الصوتي من MiniMax قبل اكتمال الكلام."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax audio tok završio je prije nego što je govor dovršen."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydstrømmen fra MiniMax sluttede, før talen var færdig."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der MiniMax-Audiostream wurde beendet, bevor die Sprachausgabe vollständig war."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La transmisión de audio de MiniMax ha terminado antes de que se completara la lectura."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le flux audio de MiniMax s’est interrompu avant la fin de la synthèse vocale."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il flusso audio di MiniMax è terminato prima che la lettura fosse completata."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ការផ្សាយសំឡេងពី MiniMax បានបញ្ចប់មុនពេលអានចប់។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "음성이 완료되기 전에 MiniMax 오디오 스트림이 종료되었습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lydstrømmen fra MiniMax ble avsluttet før talen var ferdig."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strumień audio MiniMax zakończył się przed ukończeniem wypowiedzi."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O streaming de áudio da MiniMax terminou antes de a fala ser concluída."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудиопоток MiniMax завершился до окончания речи."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สตรีมเสียงของ MiniMax สิ้นสุดลงก่อนที่เสียงพูดจะครบถ้วน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ses akışı, konuşma tamamlanmadan sona erdi."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудіопотік MiniMax завершився до закінчення мовлення."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 音频流在语音完成前就已结束。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 音訊串流在語音完成前便已結束。"
+          }
+        }
+      }
+    },
+    "readAloud.transport.noAudio": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax did not return any playable speech for the selected text."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したテキストに対して、MiniMaxから再生可能な音声が返されませんでした。"
+          }
+        },
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم تُعِد MiniMax أي كلام قابل للتشغيل للنص المحدد."
+          }
+        },
+        "bs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nije vratio govor koji se može reproducirati za odabrani tekst."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerede ingen tale, der kunne afspilles, for den markerede tekst."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax hat keine abspielbare Sprachausgabe für den ausgewählten Text zurückgegeben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax no ha devuelto ningún audio de voz reproducible para el texto seleccionado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax n’a renvoyé aucun contenu vocal lisible pour le texte sélectionné."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax non ha restituito alcun audio vocale riproducibile per il testo selezionato."
+          }
+        },
+        "km": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax មិនបានត្រឡប់សំឡេងដែលអាចចាក់បានសម្រាប់អត្ថបទដែលបានជ្រើសរើសទេ។"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax에서 선택한 텍스트에 대해 재생 가능한 음성을 반환하지 않았습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax returnerte ingen avspillbar tale for den markerte teksten."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax nie zwrócił dla zaznaczonego tekstu żadnej mowy, którą można odtworzyć."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A MiniMax não retornou nenhum áudio de fala reproduzível para o texto selecionado."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не вернул аудиоданных, пригодных для воспроизведения речи по выделенному тексту."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax ไม่ได้ส่งเสียงพูดที่เล่นได้กลับมาสำหรับข้อความที่เลือก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax, seçili metin için oynatılabilir bir konuşma döndürmedi."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax не повернув придатного для відтворення мовлення для вибраного тексту."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 未针对所选文本返回任何可播放的语音。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MiniMax 未針對所選文字傳回任何可播放的語音。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
