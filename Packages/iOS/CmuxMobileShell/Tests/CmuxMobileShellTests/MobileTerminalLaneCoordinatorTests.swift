@@ -139,16 +139,22 @@ struct MobileTerminalLaneCoordinatorTests {
                 try await inputProvider.callAsFunction(request, surfaceID, cursor: cursor)
             }
         )
+        let cursorRead = AsyncStream<Bool>.makeStream()
+        var cursorReadIterator = cursorRead.stream.makeAsyncIterator()
 
         await coordinator.ensure(Self.configuration(
             providerRequest: try Self.request(),
-            cursor: { nil },
+            cursor: {
+                cursorRead.continuation.yield(true)
+                return nil
+            },
             consume: { _ in .accepted(outputReady: true) },
             readinessChanged: { _ in }
         ))
+        #expect(await cursorReadIterator.next() == true)
+        await coordinator.deactivateAll()
         #expect(await inputProvider.requestCount() == 0)
         #expect(await coordinator.isOutputReady(surfaceID: Self.surfaceID) == false)
-        await coordinator.deactivateAll()
     }
 
     @Test
