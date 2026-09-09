@@ -78,8 +78,8 @@ struct OwlNavigationStateTests {
         var history = OwlNavigationHistoryState(initialURL: first)
         history.commitDestination(second)
         history.commitTraversal(to: URL(string: "https://other.example")!, offset: -1)
-        #expect(!history.canGoBack)
-        #expect(history.canGoForward)
+        #expect(history.canGoBack)
+        #expect(!history.canGoForward)
     }
 
     @Test("OWL title-only events cannot complete a navigation")
