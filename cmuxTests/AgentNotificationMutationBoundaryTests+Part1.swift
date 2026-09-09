@@ -1,5 +1,6 @@
 import CmuxControlSocket
 import CmuxCore
+import CmuxSidebar
 import Darwin
 import Foundation
 import Testing
@@ -70,7 +71,7 @@ extension AgentNotificationRegressionTests {
             acceptedProcessIdentity: nil,
             observeProcessExit: false
         )
-        guard case .accepted = result else {
+        guard result.accepted else {
             Issue.record("Opaque remote custom PID registration was rejected")
             return
         }
@@ -168,7 +169,7 @@ extension AgentNotificationRegressionTests {
             acceptedProcessIdentity: mismatchedGeneration,
             observeProcessExit: false
         )
-        guard case .rejected = result else {
+        guard !result.accepted else {
             Issue.record("The mismatched PID registration was unexpectedly accepted")
             return
         }
@@ -207,13 +208,13 @@ extension AgentNotificationRegressionTests {
             AppDelegate.shared = previousAppDelegate
         }
 
-        guard case .accepted = owner.recordAgentPID(
+        guard owner.recordAgentPID(
             key: "codex.workspace-scoped",
             pid: generation.pid,
             panelId: nil,
             acceptedProcessIdentity: generation,
             observeProcessExit: false
-        ) else {
+        ).accepted else {
             Issue.record("The workspace-scoped PID registration was rejected")
             return
         }

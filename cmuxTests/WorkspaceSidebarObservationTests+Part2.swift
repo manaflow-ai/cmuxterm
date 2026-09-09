@@ -213,8 +213,19 @@ extension WorkspaceSidebarObservationTests {
         }
 
         #expect(
-            target.token.processGeneration == nil,
-            "A relay PID must not be resolved against the Mac's local process namespace."
+            target == .panel(
+                id: panelId,
+                statusKey: FeedCoordinator.attentionStatusKey(forSource: "codex")
+            ),
+            "A relay blocking decision must remain scoped to the addressed panel."
+        )
+        #expect(
+            workspace.agentPIDs.isEmpty,
+            "A relay PID must not be registered in the Mac's local process namespace."
+        )
+        #expect(
+            workspace.agentPIDProcessIdentitiesByKey.isEmpty,
+            "A relay PID must not acquire a local process-generation identity."
         )
     }
 
