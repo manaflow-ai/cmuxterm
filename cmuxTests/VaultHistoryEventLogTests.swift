@@ -10,6 +10,40 @@ import Testing
 #endif
 
 @MainActor
+@Suite struct VaultHistoryLaunchTransactionTests {
+    @Test(arguments: [false, true])
+    func discardedLaunchWindowDoesNotPublishEvents(discardAfterCommit: Bool) async {
+        let log = VaultHistoryEventLog(store: VaultHistoryEventStore(fileURL: nil))
+        let discardedWindowId = UUID()
+        let retainedWindowId = UUID()
+        for (id, windowId) in [("discarded", discardedWindowId), ("retained", retainedWindowId)] {
+            log.beginWindowCreation(windowId: windowId)
+            log.record(VaultHistoryEvent(
+                id: id,
+                timestamp: Date(timeIntervalSince1970: 1_800_000_000),
+                kind: .windowOpened,
+                title: id,
+                subject: VaultHistorySubject(windowId: windowId)
+            ))
+        }
+        if !discardAfterCommit {
+            log.discardWindowCreation(windowId: discardedWindowId)
+        }
+        log.commitWindowCreation(windowId: discardedWindowId)
+        log.commitWindowCreation(windowId: retainedWindowId)
+        log.transition(to: .restoring)
+        if discardAfterCommit {
+            log.discardWindowCreation(windowId: discardedWindowId)
+        }
+        log.transition(to: .active)
+        await log.flushPendingRecords()
+
+        #expect(await log.recentEvents().map(\.id) == ["retained"])
+        #expect(log.revision == 1)
+    }
+}
+
+@MainActor
 @Suite(.serialized) struct VaultHistoryEventLogTests {
     @Test func lifecyclePhasesOnlyAcceptActiveEvents() async {
         let store = VaultHistoryEventStore(fileURL: nil)
