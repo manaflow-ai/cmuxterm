@@ -8995,6 +8995,28 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         XCTAssertEqual(request["checkpoint_id"] as? String, sessionId)
     }
 
+    func testClaudeRejectedRestoreWithMissingCheckpointDoesNotClearBinding() throws {
+        let context = try makeClaudeHookContext(name: "claude-restore-missing-checkpoint")
+        defer { context.cleanup() }
+
+        let sessionId = "new-session"
+        let result = runClaudeHook(
+            context: context,
+            arguments: ["hooks", "claude", "session-start"],
+            standardInput: #"{"session_id":"\#(sessionId)","source":"startup","cwd":"\#(context.root.path)","hook_event_name":"SessionStart"}"#,
+            surfaceResumeBindingJSON: #"{"source":"agent-hook","kind":"claude"}"#
+        )
+
+        XCTAssertFalse(result.timedOut, result.stderr)
+        XCTAssertEqual(result.status, 0, result.stderr)
+        XCTAssertFalse(
+            context.state.snapshot().contains { line in
+                jsonObject(line)?["method"] as? String == "surface.resume.clear"
+            },
+            "An unconfirmed Claude binding without checkpoint identity must not be cleared"
+        )
+    }
+
     func testGenericAgentSessionEndClearsMatchingSurfaceResumeBinding() throws {
         let cliPath = try bundledCLIPath()
         let socketPath = makeSocketPath("agent-resume-clear")
@@ -9759,7 +9781,8 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
         context: ClaudeHookContext,
         arguments: [String],
         standardInput: String,
-        extraEnvironment: [String: String] = [:]
+        extraEnvironment: [String: String] = [:],
+        surfaceResumeBindingJSON: String? = nil
     ) -> ProcessRunResult {
         let serverHandled = startMockServer(listenerFD: context.listenerFD, state: context.state) { line in
             guard let payload = self.jsonObject(line) else {
@@ -9773,6 +9796,9 @@ final class CLINotifyProcessIntegrationRegressionTests: XCTestCase {
                 return self.surfaceListResponse(id: id, surfaceId: context.surfaceId)
             case "feed.push":
                 return self.v2Response(id: id, ok: true, result: [:])
+            case "surface.resume.get" where surfaceResumeBindingJSON != nil:
+                let binding = self.jsonObject(surfaceResumeBindingJSON!) ?? [:]
+                return self.v2Response(id: id, ok: true, result: ["resume_binding": binding])
             case "surface.resume.clear":
                 return self.v2Response(id: id, ok: true, result: ["cleared": true])
             default:

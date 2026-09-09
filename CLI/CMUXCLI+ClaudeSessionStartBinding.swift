@@ -38,11 +38,15 @@ extension CMUXCLI {
                 }
                 let currentSessionId = normalizedHookValue(binding["checkpoint_id"] as? String)
                 let currentKind = normalizedHookValue(binding["kind"] as? String)?.lowercased()
-                if (currentKind == nil || currentKind == "claude"),
+                if let currentSessionId,
+                   (currentKind == nil || currentKind == "claude"),
                    currentSessionId == normalizedHookValue(acceptedSessionId) {
                     return .matching
                 }
                 guard currentKind == "claude" else {
+                    return .inconclusive
+                }
+                guard let currentSessionId else {
                     return .inconclusive
                 }
                 let updatedAt = (binding["updated_at"] as? NSNumber)?.doubleValue
