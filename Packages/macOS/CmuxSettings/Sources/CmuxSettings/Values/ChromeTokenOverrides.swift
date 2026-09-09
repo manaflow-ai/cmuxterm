@@ -67,6 +67,9 @@ extension ChromeTokenOverrides: SettingCodable {
     }
 
     private static func decodeDictionary(_ raw: Any?) -> ChromeTokenOverrides? {
+        if let typedDictionary = raw as? [String: String] {
+            return ChromeTokenOverrides(hexValues: typedDictionary)
+        }
         guard let rawDictionary = raw as? [String: Any] else { return nil }
         var strings: [String: String] = [:]
         strings.reserveCapacity(rawDictionary.count)
